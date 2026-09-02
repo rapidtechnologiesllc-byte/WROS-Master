@@ -1,5 +1,6 @@
 """
 Message Queue Management Endpoints
+import logging
 ===================================
 
 Admin endpoints for monitoring and managing background tasks (Celery/APScheduler).
@@ -21,6 +22,7 @@ from typing import List, Optional
 
 router = APIRouter(prefix="/admin/queue", tags=["admin"])
 
+logger = logging.getLogger(__name__)
 
 class TaskStatus:
     """In-memory task registry. In production, use Celery results backend or dedicated table."""

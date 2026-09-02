@@ -4,8 +4,10 @@ Pydantic schemas for offer request/response validation.
 """
 from datetime import datetime, date
 from typing import Optional, Dict, List, Any
+import logging
 from pydantic import BaseModel, Field, EmailStr, validator
 
+logger = logging.getLogger(__name__)
 
 class BenefitsSchema(BaseModel):
     """Benefits package included with offer."""

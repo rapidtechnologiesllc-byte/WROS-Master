@@ -1,3 +1,4 @@
+import logging
 """Location (Delivery Center) model for workforce management."""
 
 from sqlalchemy import Column, String, Integer, DateTime, ForeignKey
@@ -5,6 +6,7 @@ from sqlalchemy.orm import relationship
 from datetime import datetime
 from app.models.base import Base
 
+logger = logging.getLogger(__name__)
 
 class Location(Base):
     """Delivery Centers / Work Locations"""

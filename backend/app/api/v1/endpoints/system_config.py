@@ -2,6 +2,7 @@
 S-213/HRMS-0115 -- System Configuration & Admin Settings Panel.
 ==================================================================
 Prefix: /system-config
+import logging
 Tag:    system-config
 
 GET  /system-config/settings         -- unified read for the Admin

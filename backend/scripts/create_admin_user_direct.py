@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """
+import logging
 Create a Super User admin account directly (non-interactive).
 
 Usage:
@@ -62,6 +63,7 @@ def create_super_user_direct(email, name, password):
         return True
 
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         print(f"\nERROR: Failed to create user: {str(e)}")
         try:
             db.rollback()

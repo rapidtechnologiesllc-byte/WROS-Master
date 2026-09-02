@@ -1,3 +1,4 @@
+import logging
 """add tasks.candidate_id / tasks.document_id (document review linkage)
 
 Revision ID: 1f4b7c9e2a83

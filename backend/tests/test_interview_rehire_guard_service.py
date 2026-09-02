@@ -5,6 +5,7 @@ Avinash's own words: "if there was a nohire in the past then when the
 next time someone is trying to schedule interview to the candidate
 they need to provide a clear justification an agentic bot should
 review and decide or take approval from hiring manager before
+import logging
 scheduling the interview."
 
 Throwaway SQLite -- never the real database.

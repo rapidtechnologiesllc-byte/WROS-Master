@@ -1,3 +1,4 @@
+import logging
 """Add modules and module_permissions tables - Phase 2B database-driven configuration.
 
 Revision ID: 2026_08_16_add_modules

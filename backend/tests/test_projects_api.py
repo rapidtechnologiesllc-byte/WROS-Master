@@ -3,6 +3,7 @@ POST /projects, GET /projects|{id}, POST /projects/{id}/status,
 POST/GET /projects/{id}/milestones, POST /milestones/{id}/complete,
 GET /projects/{id}/unfilled-roles|expected-revenue -- proves
 HRMS-0801/0804/0805/0806 end-to-end on real routes (no REST layer
+import logging
 existed for Project at all before this).
 
 2026-08-06 redesign, confirmed directly with Avinash while testing

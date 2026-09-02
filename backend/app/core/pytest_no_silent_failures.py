@@ -1,4 +1,5 @@
 """
+import logging
 Pytest plugin: no_silent_failures
 
 Prevents silent failures in service layer functions by detecting patterns where:
@@ -27,6 +28,7 @@ import pytest
 from pathlib import Path
 from typing import List, Tuple
 
+logger = logging.getLogger(__name__)
 
 class ServiceLayerAnalyzer(ast.NodeVisitor):
     """

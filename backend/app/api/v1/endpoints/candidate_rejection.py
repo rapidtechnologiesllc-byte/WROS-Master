@@ -1,4 +1,5 @@
 """
+import logging
 Candidate Rejection Workflow Endpoints
 
 Routes for rejecting candidates and managing rejection workflow:
@@ -119,6 +120,7 @@ def api_reject_candidate(
         raise HTTPException(status_code=400, detail=str(e))
 
     except Exception as e:
+       logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Unexpected error during rejection: {str(e)}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
@@ -183,6 +185,7 @@ def api_send_rejection_email(
         raise HTTPException(status_code=400, detail=str(e))
 
     except Exception as e:
+       logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Unexpected error sending email: {str(e)}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
@@ -253,6 +256,7 @@ def api_archive_candidate(
         raise HTTPException(status_code=400, detail=str(e))
 
     except Exception as e:
+       logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Unexpected error archiving candidate: {str(e)}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
@@ -295,6 +299,7 @@ def api_get_rejection_reasons(
         return reasons
 
     except Exception as e:
+       logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Error fetching rejection reasons: {str(e)}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
@@ -341,6 +346,7 @@ def api_get_candidate_rejection_status(
         )
 
     except Exception as e:
+       logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Error fetching rejection status: {str(e)}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
@@ -383,6 +389,7 @@ def api_get_rejection(
         raise
 
     except Exception as e:
+       logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Error fetching rejection record: {str(e)}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
@@ -437,5 +444,6 @@ def api_list_rejections(
         )
 
     except Exception as e:
+       logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Error listing rejections: {str(e)}")
         raise HTTPException(status_code=500, detail="Internal server error")

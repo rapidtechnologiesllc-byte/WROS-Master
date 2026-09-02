@@ -1,4 +1,5 @@
 """
+import logging
 S-055/HRMS-0455 -- Offer FAQ Bot.
 
 offer_faq_entries: genuinely new table -- the real, honest substitute
@@ -30,6 +31,7 @@ FAQ_TOPICS = (
     "PROBATION_PERIOD", "LEAVE_POLICY", "REMOTE_WORK_POLICY", "EQUIPMENT_PROVIDED",
 )
 
+logger = logging.getLogger(__name__)
 
 class OfferFAQEntry(Base):
     __tablename__ = "offer_faq_entries"

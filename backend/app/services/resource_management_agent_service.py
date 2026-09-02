@@ -2,6 +2,7 @@
 HRMS-1105 (canonical S-320 -- not S-274 as its `.docx` filename says, and
 NOT "HRMS-0312" as that same doc's own prerequisite line and
 04-RESOURCE-MANAGEMENT.md both say; both corrected against
+import logging
 `WROS_Canonical_Backlog_S001-401.xlsx`) -- Resource Management Agent.
 
 Built from `Requirements/S-274_HRMS-1105.docx` directly.
@@ -77,6 +78,7 @@ SKILL_MATCH_THRESHOLD = 0.5
 
 RESOURCE_AGENT_ID = "resource_management_agent"
 
+logger = logging.getLogger(__name__)
 
 class RecommendationNotPending(Exception):
     pass
@@ -226,6 +228,7 @@ def detect_core_pull_triggers(
             try:
                 event = detect_core_pull_conflict(db, employee, core_demand)
             except Exception as exc:
+               logger.error(f"Error: {str(exc)}", exc_info=True)
                 logger.error(f"[ResourceAgent] Core-Pull detection failed for employee {employee.id}: {exc}")
                 if bu_head is not None:
                     try:
@@ -307,6 +310,7 @@ No markdown, no code fences, no explanation outside the JSON array."""
             raise ValueError("LLM ranking response was not a JSON array")
         return ranked
     except Exception as exc:
+       logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.error(f"[ResourceAgent] LLM ranking failed, falling back to raw skill-match scores: {exc}")
         return [
             {"demand_id": d.id, "confidence_pct": round(score * 100, 2), "rationale": None}

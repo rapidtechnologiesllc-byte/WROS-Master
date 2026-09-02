@@ -1,3 +1,4 @@
+import logging
 """add tasks.interview_id (feedback-pending vs HM-decision-pending linkage)
 
 Revision ID: a8c3f1e6d9b2

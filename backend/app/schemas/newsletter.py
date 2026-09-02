@@ -1,11 +1,13 @@
 from pydantic import BaseModel, EmailStr, Field
 from typing import Optional, List
+import logging
 from datetime import datetime
 
 
 # ---------------------------------------------------------------------------
 # Subscriber Schemas
 # ---------------------------------------------------------------------------
+logger = logging.getLogger(__name__)
 
 class SubscriberBase(BaseModel):
     email: EmailStr

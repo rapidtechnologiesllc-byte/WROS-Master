@@ -1,6 +1,7 @@
 """
 Proves Phase 1 B6's consent infrastructure: fail-closed by default, and
 the most recent record governs even when history has both a grant and
+import logging
 a later revoke.
 
 Runs against a throwaway SQLite file -- never the real database.

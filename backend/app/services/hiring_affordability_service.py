@@ -10,6 +10,7 @@ stays non-negative after the hire's fully loaded cost is added --
 flagged here as the one real assumption, easy to make configurable
 later once Avinash gives an actual minimum-margin policy.
 """
+import logging
 from typing import Optional
 
 from sqlalchemy.orm import Session

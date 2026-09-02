@@ -7,6 +7,7 @@ from app.middleware.auth_middleware import (
     RequestLoggingMiddleware,
     RateLimitMiddleware
 )
+import logging
 from app.middleware.cors import setup_cors, get_cors_config, CORSConfig
 
 __all__ = [

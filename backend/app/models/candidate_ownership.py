@@ -2,6 +2,7 @@
 Candidate Ownership Model
 =========================
 Tracks whether a candidate belongs to the Org Pool (visible to all BUs)
+import logging
 or is exclusively owned by a specific Business Unit.
 
 State machine:
@@ -20,6 +21,7 @@ from app.models.base import Base
 POOL_ORG   = "Org Pool"
 POOL_BU    = "BU Owned"
 
+logger = logging.getLogger(__name__)
 
 class CandidateOwnership(Base):
     __tablename__ = "candidate_ownership"

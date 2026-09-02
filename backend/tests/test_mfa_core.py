@@ -3,6 +3,7 @@ Proves app.core.mfa's TOTP and backup-code mechanics directly, no HTTP
 layer involved. Real cryptographic round-trips (pyotp), no mocking of
 the thing actually being tested.
 """
+import logging
 import pyotp
 
 from app.core.mfa import (

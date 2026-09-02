@@ -1,3 +1,4 @@
+import logging
 """Business Metrics Service - Collect daily business outcomes for standup reporting."""
 
 from typing import Dict, Any, Optional

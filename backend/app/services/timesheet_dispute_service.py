@@ -1,4 +1,5 @@
 """
+import logging
 HRMS-0904 -- Timesheet Dispute Resolution.
 
 BR-01: the original approved Timesheet/TimesheetEntry rows are never
@@ -19,6 +20,7 @@ from app.models.timesheet_dispute import OPEN_DISPUTE_STATUSES, TimesheetDispute
 
 MIN_REASON_LENGTH = 50
 
+logger = logging.getLogger(__name__)
 
 class DisputeValidationError(Exception):
     pass

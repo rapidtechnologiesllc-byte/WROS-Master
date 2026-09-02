@@ -1,4 +1,5 @@
 """
+import logging
 S-075/HRMS-0475 -- AI Recruiter Pause & Resume Controls.
 
 Real architecture under test (see thunder_pause_service module

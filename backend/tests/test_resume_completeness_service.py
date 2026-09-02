@@ -1,4 +1,5 @@
 """
+import logging
 S-030/HRMS-0430 -- Resume Completeness Score.
 
 Real architecture under test: candidate_resume_parsed (S-028) already

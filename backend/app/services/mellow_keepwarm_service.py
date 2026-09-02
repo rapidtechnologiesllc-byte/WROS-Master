@@ -7,6 +7,7 @@ candidate warm... not daily or weekly [aggressive follow-up]." Weekly
 is the code-constant default (env-overridable), the middle of that
 stated range, same "flag the real default, don't fake a config UI"
 posture follow_up_scheduler_service already takes for its own
+import logging
 thresholds.
 
 Also the real integration point for the separate, older multichannel

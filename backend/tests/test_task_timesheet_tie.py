@@ -9,6 +9,7 @@ real database.
 """
 import os
 import tempfile
+import logging
 from datetime import date, timedelta
 
 import pytest

@@ -1,5 +1,6 @@
 """
 Employee self-service timesheet -- real ownership boundary the
+import logging
 existing HR-operated timesheet engine never had.
 
 Proves: every function resolves the CALLER's own Employee record and

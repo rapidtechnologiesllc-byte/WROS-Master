@@ -1,3 +1,4 @@
+import logging
 """add bench_allocation_recommendations (HRMS-1105 Resource Management Agent, canonical S-320)
 
 Revision ID: cf4c36d9b053

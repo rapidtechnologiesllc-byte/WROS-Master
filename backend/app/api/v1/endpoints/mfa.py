@@ -1,4 +1,5 @@
 """
+import logging
 Phase 1 B3 -- MFA enrollment and verification.
 
 Reached only via the mfa_pending short-lived token issued by
@@ -42,6 +43,7 @@ from app.services.email_service import EmailService
 
 router = APIRouter(prefix="/auth/mfa", tags=["mfa"])
 
+logger = logging.getLogger(__name__)
 
 class MfaSetupResponse(BaseModel):
     provisioning_uri: str

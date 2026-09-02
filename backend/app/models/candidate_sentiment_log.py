@@ -1,4 +1,5 @@
 """
+import logging
 S-036/HRMS-0436 -- Candidate Sentiment Analysis.
 
 candidate_sentiment_log: a real, new, queryable ledger -- distinct from
@@ -26,6 +27,7 @@ from app.models.base import Base
 
 SENTIMENT_VALUES = ("POSITIVE", "NEUTRAL", "NEGATIVE")
 
+logger = logging.getLogger(__name__)
 
 class CandidateSentimentLog(Base):
     __tablename__ = "candidate_sentiment_log"

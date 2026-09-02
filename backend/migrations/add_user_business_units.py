@@ -1,3 +1,4 @@
+import logging
 """Migration to add user_business_units junction table for multi-BU assignment.
 
 NOTE: This migration uses Alembic and PostgreSQL. SQLite is no longer supported.

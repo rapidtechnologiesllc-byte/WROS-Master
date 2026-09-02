@@ -1,6 +1,7 @@
 """
 Flash -- a real, authenticated conversational query surface for
 BlitzenX staff and employees, alongside the candidate-facing agent
+import logging
 Thunder (app.services.thunder_service / app.services.public_chat_service).
 
 2026-08-06, Avinash's explicit product split: "Thunder will have only
@@ -150,6 +151,7 @@ _STOPWORDS = {
     "specialty", "speciality", "core", "engine",
 }
 
+logger = logging.getLogger(__name__)
 
 class ThunderQueryClassificationFailed(Exception):
     """Kept as a safety net for a genuinely unexpected internal error in
@@ -825,6 +827,7 @@ def _parse_skills_from_string(skills_str: str) -> list:
                 except ValueError:
                     continue
     except Exception as e:
+       logger.error(f"Error: {str(e)}", exc_info=True)
         logger.warning(f"Failed to parse skills string: {e}")
 
     return skills if skills else [{"name": skill_str.strip(), "years": 0, "mandatory": True} for skill_str in skills_str.split(",")]
@@ -884,6 +887,7 @@ def _create_job_from_details(db: Session, user: Users, details: Dict) -> Dict:
         }
 
     except Exception as e:
+       logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"[Flash] Job creation failed: {e}")
         db.rollback()
         return {

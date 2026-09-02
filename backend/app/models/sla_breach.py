@@ -1,4 +1,5 @@
 """
+import logging
 S-020/HRMS-0420 -- Engagement SLA Monitoring.
 
 candidate_sla_breaches: a real, new, queryable-and-resolvable ledger --
@@ -20,6 +21,7 @@ from app.models.base import Base
 
 SLA_TYPES = ("FIRST_CONTACT", "RESPONSE_TIME", "NO_CONTACT")
 
+logger = logging.getLogger(__name__)
 
 class CandidateSLABreach(Base):
     __tablename__ = "candidate_sla_breaches"

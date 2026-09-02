@@ -67,6 +67,7 @@ class InterviewDecisionService:
         except ValueError:
             raise
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             raise RuntimeError(f"Failed to get interview status: {str(e)}")
 
     def calculate_panel_decision(self, db: Session, interview_id: int, tenant_id: int) -> Dict[str, Any]:
@@ -169,6 +170,7 @@ class InterviewDecisionService:
                 }
             }
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             raise RuntimeError(f"Failed to calculate panel decision: {str(e)}")
 
     def move_to_offer(
@@ -251,8 +253,7 @@ class InterviewDecisionService:
                 "salary_usd_cents": approved_salary_usd_cents,
                 "start_date": start_date.isoformat() if isinstance(start_date, datetime) else start_date.isoformat()
             }
-        except Exception as e:
-            logger.error(f"Failed to create offer: {str(e)}", exc_info=True)
+        except Exception as e:            logger.error(f"Failed to create offer: {str(e)}", exc_info=True)
             db.rollback()
             raise ValueError(f"Failed to create offer: {str(e)}")
 
@@ -302,7 +303,6 @@ class InterviewDecisionService:
                 "rejection_reason": rejection_reason,
                 "rejected_at": datetime.utcnow().isoformat()
             }
-        except Exception as e:
-            logger.error(f"Failed to reject candidate: {str(e)}", exc_info=True)
+        except Exception as e:            logger.error(f"Failed to reject candidate: {str(e)}", exc_info=True)
             db.rollback()
             raise ValueError(f"Failed to reject candidate: {str(e)}")

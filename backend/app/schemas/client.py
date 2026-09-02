@@ -1,8 +1,10 @@
 from datetime import date
+import logging
 from typing import Optional
 
 from pydantic import BaseModel
 
+logger = logging.getLogger(__name__)
 
 class ClientListItem(BaseModel):
     id: str

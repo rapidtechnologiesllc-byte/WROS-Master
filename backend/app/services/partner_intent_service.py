@@ -1,4 +1,5 @@
 """
+import logging
 HRMS-0527 -- Curtis Rule: Partner Intent ML Engine.
 
 See app.models.partner_intent's module docstring for the real blocker:

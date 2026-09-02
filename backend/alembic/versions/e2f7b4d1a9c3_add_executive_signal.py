@@ -1,3 +1,4 @@
+import logging
 """add Executive Signal & Culture Agent tables (feedback cycle, recognition drafts, concern intake)
 
 Revision ID: e2f7b4d1a9c3

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Move SuperUser to correct tenant (1) where resources exist"""
 import sys, os
+import logging
 sys.path.insert(0, os.path.dirname(__file__))
 
 from app.core.database import SessionLocal
@@ -41,6 +42,8 @@ try:
         print("✅ SuperUser is already in correct tenant")
 
 except Exception as e:
+   logger.error(f"Error: {str(e)}", exc_info=True)
+    logger.error(f"Error: {str(e)}", exc_info=True)
     print(f"Error: {e}")
     db.rollback()
     sys.exit(1)

@@ -1,3 +1,4 @@
+import logging
 """add thunder pause controls (S-075/HRMS-0475)
 
 Revision ID: b2c6e8a4d7f3

@@ -1,4 +1,5 @@
 """
+import logging
 S-038/HRMS-0438 -- Compensation Fit Score.
 
 Real architecture under test (see compensation_scoring_service module

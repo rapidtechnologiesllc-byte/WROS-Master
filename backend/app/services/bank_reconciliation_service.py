@@ -1,5 +1,6 @@
 """EPIC-16 -- Bank Reconciliation. See app.models.bank_reconciliation
 for why this is manual-entry, not a real bank feed."""
+import logging
 from typing import List, Optional
 
 from sqlalchemy.orm import Session
@@ -7,6 +8,7 @@ from sqlalchemy.orm import Session
 from app.models.bank_reconciliation import BankTransaction
 from app.models.invoice import Invoice
 
+logger = logging.getLogger(__name__)
 
 class BankReconciliationError(Exception):
     pass

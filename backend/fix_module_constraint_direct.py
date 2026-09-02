@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Apply module constraint fix directly (bypass broken Alembic)"""
 import sys, os
+import logging
 sys.path.insert(0, os.path.dirname(__file__))
 
 from app.core.database import SessionLocal, engine
@@ -43,6 +44,8 @@ try:
             conn.commit()
             print("  ✅ Created")
         except Exception as e:
+           logger.error(f"Error: {str(e)}", exc_info=True)
+            logger.error(f"Error: {str(e)}", exc_info=True)
             if "already exists" in str(e):
                 print("  ✅ Already exists")
             else:
@@ -57,6 +60,8 @@ try:
     print("  • Each tenant gets its own module/resource hierarchy")
 
 except Exception as e:
+   logger.error(f"Error: {str(e)}", exc_info=True)
+    logger.error(f"Error: {str(e)}", exc_info=True)
     print(f"Error: {e}")
     import traceback
     traceback.print_exc()

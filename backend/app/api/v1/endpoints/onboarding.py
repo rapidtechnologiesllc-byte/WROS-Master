@@ -1,4 +1,5 @@
 """
+import logging
 Onboarding Orchestrator - Coordinates multi-step hiring workflows.
 
 This module serves as the orchestration layer that coordinates

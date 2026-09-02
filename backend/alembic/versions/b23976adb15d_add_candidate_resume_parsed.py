@@ -1,3 +1,4 @@
+import logging
 """S-028/HRMS-0428: add candidate_resume_parsed table
 
 Revision ID: b23976adb15d

@@ -1,4 +1,5 @@
 """
+import logging
 Migration: Switch from multi-role (user_roles) to single-role with custom overrides
 
 Schema changes:

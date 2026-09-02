@@ -1,3 +1,4 @@
+import logging
 """add projects.end_client/client_partner/business_type (delivery-engine-conditional fields)
 
 Revision ID: d4e6f8a1c3b5

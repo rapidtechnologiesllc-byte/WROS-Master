@@ -2,6 +2,7 @@
 Proves HRMS-0201's exactly-one-primary-contact rule (extending the
 existing Client model rather than forking it into a second clients
 table -- see app.models.client's module docstring), and HRMS-0207/0209/
+import logging
 0210/0211/0215's opportunity + revenue-potential calculations.
 
 Throwaway SQLite -- never the real database.

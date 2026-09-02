@@ -1,8 +1,10 @@
 """Pydantic Schemas -- S-063/HRMS-0463 Candidate Risk Dashboard."""
+import logging
 from typing import List
 
 from pydantic import BaseModel
 
+logger = logging.getLogger(__name__)
 
 class RiskSummary(BaseModel):
     critical_count: int

@@ -102,6 +102,7 @@ class MessageQueueService:
             return message_id
 
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             db.rollback()
             logger.error(f"Failed to enqueue message: {e}", exc_info=True)
             raise RuntimeError(f"Failed to enqueue message: {str(e)}")
@@ -163,8 +164,7 @@ class MessageQueueService:
                 for m in messages
             ]
 
-        except Exception as e:
-            logger.error(f"Failed to fetch pending messages: {e}", exc_info=True)
+        except Exception as e:            logger.error(f"Failed to fetch pending messages: {e}", exc_info=True)
             raise RuntimeError(f"Failed to fetch pending messages: {str(e)}")
 
     @staticmethod
@@ -196,6 +196,7 @@ class MessageQueueService:
             logger.debug(f"Message marked as processing: {message_id}")
 
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             db.rollback()
             logger.error(f"Failed to mark message as processing: {e}", exc_info=True)
             raise RuntimeError(f"Failed to mark message as processing: {str(e)}")
@@ -230,6 +231,7 @@ class MessageQueueService:
             logger.info(f"Message completed successfully: {message_id}")
 
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             db.rollback()
             logger.error(f"Failed to mark message as completed: {e}", exc_info=True)
             raise RuntimeError(f"Failed to mark message as completed: {str(e)}")
@@ -296,6 +298,7 @@ class MessageQueueService:
                 return False
 
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             db.rollback()
             logger.error(f"Failed to mark message as failed: {e}", exc_info=True)
             raise RuntimeError(f"Failed to mark message as failed: {str(e)}")
@@ -350,8 +353,7 @@ class MessageQueueService:
                 for m in messages
             ]
 
-        except Exception as e:
-            logger.error(f"Failed to fetch message history: {e}", exc_info=True)
+        except Exception as e:            logger.error(f"Failed to fetch message history: {e}", exc_info=True)
             raise RuntimeError(f"Failed to fetch message history: {str(e)}")
 
     @staticmethod
@@ -416,6 +418,5 @@ class MessageQueueService:
 
             return result
 
-        except Exception as e:
-            logger.error(f"Failed to fetch queue statistics: {e}", exc_info=True)
+        except Exception as e:            logger.error(f"Failed to fetch queue statistics: {e}", exc_info=True)
             raise RuntimeError(f"Failed to fetch queue statistics: {str(e)}")

@@ -5,6 +5,7 @@ Comprehensive test coverage for offer creation, approval, sending, and acceptanc
 import pytest
 from datetime import datetime, date, timedelta
 from uuid import uuid4
+import logging
 from sqlalchemy.orm import Session
 
 from app.models.offer import Offer, OfferStatus
@@ -72,6 +73,7 @@ def test_job(db_session: Session, test_tenant):
     db_session.commit()
     return job
 
+logger = logging.getLogger(__name__)
 
 class TestOfferCreation:
     """Test offer creation functionality."""

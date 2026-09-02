@@ -1,4 +1,5 @@
 """
+import logging
 Agent Accountability API - Show who's responsible for hand-offs breaking down.
 
 GET /agents/accountability - See all agents' contributions to "2,000 by 2030"
@@ -49,6 +50,7 @@ async def get_agent_accountability(
         }
 
     except Exception as e:
+       logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Error fetching agent accountability: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -88,6 +90,7 @@ async def get_broken_hand_offs(
         }
 
     except Exception as e:
+       logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Error fetching hand-offs: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -118,5 +121,6 @@ async def get_agent_scorecards(
         }
 
     except Exception as e:
+       logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Error fetching agent scorecards: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))

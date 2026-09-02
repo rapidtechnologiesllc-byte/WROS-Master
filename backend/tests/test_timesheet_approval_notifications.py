@@ -4,6 +4,7 @@ Verifies that EmailService.notify_timesheet_approved() is properly wired into ap
 """
 from datetime import date, datetime
 from unittest.mock import patch, MagicMock
+import logging
 from sqlalchemy.orm import Session
 
 from app.services.timesheet_service import approve_timesheet

@@ -53,6 +53,7 @@ class AcquisitionService:
             return distress_signals
 
         except Exception as e:
+           logger.error(f"Error: {str(e)}", exc_info=True)
             logger.error(f"Market intelligence scan failed: {e}", exc_info=True)
             raise ValueError(f"Market scan failed: {str(e)}")
 
@@ -103,6 +104,7 @@ class AcquisitionService:
             return outreach_campaign
 
         except Exception as e:
+           logger.error(f"Error: {str(e)}", exc_info=True)
             logger.error(f"Outreach campaign creation failed: {e}", exc_info=True)
             raise ValueError(f"Outreach failed: {str(e)}")
 
@@ -156,6 +158,7 @@ class AcquisitionService:
             return statement_of_work
 
         except Exception as e:
+           logger.error(f"Error: {str(e)}", exc_info=True)
             logger.error(f"SOW generation failed: {e}", exc_info=True)
             raise ValueError(f"SOW generation failed: {str(e)}")
 
@@ -224,6 +227,7 @@ class AcquisitionService:
             return total_hours * hourly_rate
 
         except Exception as e:
+           logger.error(f"Error: {str(e)}", exc_info=True)
             logger.error(f"Cost calculation failed: {e}")
             return 0.0
 

@@ -1,4 +1,5 @@
 """
+import logging
 S-038/HRMS-0438 -- Compensation Fit Score.
 
 Real architecture adaptations:
@@ -240,6 +241,7 @@ def recalculate_for_candidate(db: Session, candidate: Candidate, tenant_id: str)
         try:
             results.append(calculate_compensation_score(db, candidate.candidateID, job_id, tenant_id))
         except Exception as exc:
+           logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.warning(f"[CompensationScoring] Failed to recalculate score for candidate {candidate.candidateID!r} / job {job_id!r}: {exc}")
     db.commit()
     return results

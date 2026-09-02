@@ -4,6 +4,7 @@ HRMS-0901/0902's timesheet submission + approval workflow (BR-01
 60-hour cap, BR-02 4-week stale-submission guard, BR-03 one-per-
 employee-per-allocation-per-week via UNIQUE, BR-04 bench employees
 never get a timesheet; 0902's BR-02 rejected-returns-to-draft and
+import logging
 BR-03 approved-is-immutable).
 
 Throwaway SQLite -- never the real database.

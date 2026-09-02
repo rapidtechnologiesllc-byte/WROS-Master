@@ -1,3 +1,4 @@
+import logging
 """Channel Queue Models - Specific channel processing queues
 
 Channel-based queues for different delivery mechanisms:
@@ -29,6 +30,7 @@ from app.models.base import Base
 def _new_uuid() -> str:
     return str(uuid.uuid4())
 
+logger = logging.getLogger(__name__)
 
 class ChannelQueueItem(Base):
     """Queue item for specific channel processing"""

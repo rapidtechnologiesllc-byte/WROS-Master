@@ -1,7 +1,9 @@
 # login schemas
 from pydantic import BaseModel, EmailStr, constr
 from typing import Optional, List
+import logging
 from datetime import datetime, date
+logger = logging.getLogger(__name__)
 
 class SignupRequest(BaseModel):
     user_name: str

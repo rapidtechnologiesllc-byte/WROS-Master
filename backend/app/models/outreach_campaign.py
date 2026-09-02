@@ -1,4 +1,5 @@
 """
+import logging
 S-044/HRMS-0444 -- Multi-Touch Outreach Campaign.
 
 outreach_campaigns/campaign_touchpoints: genuinely new tables. Integer-
@@ -38,6 +39,7 @@ CAMPAIGN_STATUSES = ("ACTIVE", "COMPLETED", "CANCELLED")
 TOUCHPOINT_CHANNELS = ("whatsapp", "email")
 TOUCHPOINT_STATUSES = ("PENDING", "SENT", "SKIPPED", "CANCELLED")
 
+logger = logging.getLogger(__name__)
 
 class OutreachCampaign(Base):
     __tablename__ = "outreach_campaigns"

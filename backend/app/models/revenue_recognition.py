@@ -1,5 +1,6 @@
 """Revenue Recognition Model - Tracks when revenue is recognized from invoices"""
 import uuid
+import logging
 from datetime import datetime
 
 from sqlalchemy import Column, String, Float, Integer, DateTime, ForeignKey, Enum
@@ -12,6 +13,7 @@ def _new_uuid() -> str:
 
 RECOGNITION_TYPES = ("FULL", "PARTIAL", "DEFERRED")
 RECOGNITION_STATUS = ("RECOGNIZED", "PENDING", "REVERSED")
+logger = logging.getLogger(__name__)
 
 class RevenueRecognition(Base):
     """Track revenue recognition events from invoices"""

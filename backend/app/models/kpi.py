@@ -2,12 +2,14 @@
 import uuid
 from sqlalchemy import Column, String, Integer, DateTime, Boolean, ForeignKey, Float, func, Text
 from sqlalchemy.orm import relationship
+import logging
 from app.models.base import Base
 
 
 def _new_uuid() -> str:
     return str(uuid.uuid4())
 
+logger = logging.getLogger(__name__)
 
 class EmployeeKPITarget(Base):
     """Target certifications and goals for an employee."""

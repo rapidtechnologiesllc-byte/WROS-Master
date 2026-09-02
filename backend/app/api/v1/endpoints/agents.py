@@ -11,6 +11,7 @@ from app.services.cfo_agent_service import (
     get_expense_breakdown, get_financial_forecast
 )
 from app.services.ceo_fy_progress_service import get_fy_progress, get_fy_executive_summary, get_fy_executive_dashboard
+import logging
 from app.services.permission_helper import PermissionHelper
 
 router = APIRouter(prefix="/agents", tags=["Agents"])
@@ -113,6 +114,7 @@ def get_cfo_snapshot(
         snapshot = get_org_financial_snapshot(db, year_month)
         return {"status": "success", "data": snapshot}
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -126,6 +128,7 @@ def get_cfo_critical_alerts(
         alerts = get_cfo_alerts(db)
         return {"status": "success", "data": alerts}
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -140,6 +143,7 @@ def get_cfo_bu_comparison(
         comparison = get_bu_financial_comparison(db, year_month)
         return {"status": "success", "data": comparison}
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -154,6 +158,7 @@ def get_cfo_expenses(
         breakdown = get_expense_breakdown(db, year_month)
         return {"status": "success", "data": breakdown}
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -168,6 +173,7 @@ def get_cfo_forecast(
         forecast = get_financial_forecast(db, months_ahead)
         return {"status": "success", "data": forecast}
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -190,6 +196,7 @@ def get_ceo_fy_progress(
         progress = get_fy_progress(db, fy_year)
         return {"status": "success", "data": progress}
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -203,6 +210,7 @@ def get_ceo_fy_summary(
         summary = get_fy_executive_summary(db)
         return {"status": "success", "data": summary}
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -224,6 +232,7 @@ def get_ceo_executive_dashboard(
         dashboard = get_fy_executive_dashboard(db)
         return {"status": "success", "data": dashboard}
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 

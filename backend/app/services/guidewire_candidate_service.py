@@ -6,6 +6,7 @@ derived boolean, computed on read (no new persisted column) -- reuses
 the real skill-canonicalization infra already built for S-029/HRMS-0429
 (app.constants.skill_synonyms, whose "Guidewire" cluster is the spec's
 own worked example) rather than inventing a second, parallel string-match
+import logging
 rule.
 
 Two real sources, checked in order of authority:

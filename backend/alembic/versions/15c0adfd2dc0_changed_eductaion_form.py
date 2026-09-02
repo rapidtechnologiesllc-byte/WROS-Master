@@ -1,3 +1,4 @@
+import logging
 """changed eductaion form
 
 Revision ID: 15c0adfd2dc0

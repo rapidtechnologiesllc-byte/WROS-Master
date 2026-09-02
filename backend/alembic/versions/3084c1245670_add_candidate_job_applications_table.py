@@ -1,3 +1,4 @@
+import logging
 """add_candidate_job_applications_table
 
 Revision ID: 3084c1245670

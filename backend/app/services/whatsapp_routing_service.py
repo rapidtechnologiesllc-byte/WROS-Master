@@ -1,6 +1,7 @@
 """
 Per-staff WhatsApp number routing for candidate conversations, extending
 HRMS-0410's ownership model (app.models.candidate_ai.CandidateConversation
+import logging
 .owner_type/.owner_id).
 
 Background: the 357 requirements docs describe a SINGLE shared tenant-
@@ -54,6 +55,7 @@ from app.services.notification_service import ChannelNotConfigured
 # inconsistency rather than fix it.
 DEFAULT_WHATSAPP_NUMBER = os.getenv("THUNDER_WHATSAPP_NUMBER")
 
+logger = logging.getLogger(__name__)
 
 class ConversationOwnedByHuman(Exception):
     """HRMS-0410 BR-01 / R-08: Thunder may not send while a recruiter/HR

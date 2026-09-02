@@ -1,4 +1,5 @@
 """
+import logging
 HRMS-0909 -- Client Revenue Realization Dashboard (S-228).
 
 BR-0909-01 (the only numbered rule): internal-only, "distinct from

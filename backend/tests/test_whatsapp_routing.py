@@ -1,5 +1,6 @@
 """
 Proves the per-staff WhatsApp number routing layer built on top of
+import logging
 HRMS-0410's ownership model:
 
   - is_ai_owner() / send_whatsapp_message()'s AI-side gate: the actual

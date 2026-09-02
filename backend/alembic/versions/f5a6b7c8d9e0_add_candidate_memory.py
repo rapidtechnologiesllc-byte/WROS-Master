@@ -1,3 +1,4 @@
+import logging
 """S-021/HRMS-0421: add candidate_memory and candidate_memory_facts tables
 
 Revision ID: f5a6b7c8d9e0

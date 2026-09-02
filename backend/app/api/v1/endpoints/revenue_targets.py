@@ -1,5 +1,6 @@
 ﻿"""
 S-267/HRMS-0301 (BU Revenue Target) + PartnerGoal + S-241/HRMS-0212
+import logging
 (Executive Revenue Dashboard) + S-244/HRMS-0215 (Pipeline Coverage).
 
 Gated behind revenue.view_pnl throughout -- these are target-setting

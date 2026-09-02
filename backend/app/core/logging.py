@@ -47,6 +47,7 @@ def cleanup_old_logs(retention_days: int = LOG_RETENTION_DAYS, logger: "logging.
             log.info(f"Cleaned up {deleted_count} old log file(s) older than {retention_days} days")
 
     except Exception as e:
+       logger.error(f"Error: {str(e)}", exc_info=True)
         log.warning(f"Error cleaning up old logs: {str(e)}")
 
 

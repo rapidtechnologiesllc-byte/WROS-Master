@@ -4,6 +4,7 @@ Throwaway SQLite -- never the real database.
 """
 import json
 import os
+import logging
 import tempfile
 
 import pytest

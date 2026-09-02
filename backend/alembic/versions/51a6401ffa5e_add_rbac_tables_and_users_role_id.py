@@ -1,3 +1,4 @@
+import logging
 """add_rbac_tables_and_users_role_id
 
 Revision ID: 51a6401ffa5e

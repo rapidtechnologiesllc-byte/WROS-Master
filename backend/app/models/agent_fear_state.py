@@ -1,5 +1,6 @@
 """
 Agent Fear State Model — Emotional Coefficient System
+import logging
 ======================================================
 
 Implements existential threat mechanics for autonomous agents.
@@ -38,6 +39,7 @@ from sqlalchemy.orm import relationship
 
 from app.models.base import Base
 
+logger = logging.getLogger(__name__)
 
 class AgentFearState(Base):
     """Current emotional/fear state of each agent."""

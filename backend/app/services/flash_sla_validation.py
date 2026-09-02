@@ -1,5 +1,6 @@
 """
 Flash SLA Validation & Appreciation/Punishment System
+import logging
 =====================================================
 
 Flash continuously validates Thunder's 5-second SLA compliance:

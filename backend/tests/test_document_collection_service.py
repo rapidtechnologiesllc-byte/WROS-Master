@@ -1,4 +1,5 @@
 """
+import logging
 S-057/HRMS-0457 -- Document Collection Agent.
 
 Real architecture under test (see document_collection_service module

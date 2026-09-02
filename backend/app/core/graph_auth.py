@@ -2,6 +2,7 @@
 Microsoft Graph Service Account Authentication
 Provides application-only authentication for SharePoint uploads.
 This allows candidates without Microsoft accounts to upload documents.
+import logging
 """
 
 import os
@@ -22,6 +23,7 @@ _token_cache = {
     "expires_at": None
 }
 
+logger = logging.getLogger(__name__)
 
 class GraphServiceAuth:
     """

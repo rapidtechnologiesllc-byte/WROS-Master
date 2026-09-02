@@ -1,6 +1,7 @@
 """
 Task 6 (EPIC-03, "AI Revenue-to-Workforce Conversion"): converts a BU's
 revenue forecast into a projected headcount need, so Demand planning
+import logging
 has a real number to plan against instead of guessing.
 
 No new table, no invented rate card -- the conversion ratio (revenue

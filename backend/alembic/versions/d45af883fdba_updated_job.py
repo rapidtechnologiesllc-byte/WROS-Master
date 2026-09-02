@@ -1,3 +1,4 @@
+import logging
 """updated job
 
 Revision ID: d45af883fdba

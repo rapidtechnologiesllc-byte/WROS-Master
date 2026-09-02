@@ -2,6 +2,7 @@
 S-105/HRMS-P210 -- Portal Notification Center -- API Endpoints
 =========================================================================
 Prefix: /notifications
+import logging
 Tag:    notifications
 
 Wires app.services.notification_service (HRMS-0113, real, tested,

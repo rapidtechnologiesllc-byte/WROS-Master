@@ -1,5 +1,6 @@
 """
 S-434 -- Task assignment: department + round-robin, capacity-aware,
+import logging
 manager-approved reassignment on unavailability.
 
 Real decisions from Avinash, 2026-08-04 session:

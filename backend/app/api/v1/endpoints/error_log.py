@@ -2,6 +2,7 @@
 S-215/HRMS-0117 -- Error Logging Framework.
 ==================================================================
 Prefix: /error-log
+import logging
 Tag:    error-log
 
 Step 4/AC-3: read API for HRMS-1108's filtered queries (integration_name

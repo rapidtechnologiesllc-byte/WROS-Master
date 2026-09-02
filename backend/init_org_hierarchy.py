@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Initialize organizational hierarchy for all tenants"""
 import sys, os
+import logging
 sys.path.insert(0, os.path.dirname(__file__))
 
 from app.core.database import SessionLocal, engine
@@ -61,6 +62,8 @@ try:
     print("\nFrontend can now display organizational hierarchy with tenant names.")
 
 except Exception as e:
+   logger.error(f"Error: {str(e)}", exc_info=True)
+    logger.error(f"Error: {str(e)}", exc_info=True)
     print(f"Error: {e}")
     import traceback
     traceback.print_exc()

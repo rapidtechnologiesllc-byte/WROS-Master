@@ -2,6 +2,7 @@
 S-372 (HRMS-0528) Confirmed vs Potential Demand Workflow — API Endpoints
 =========================================================================
 Prefix: /demand-confirmation
+import logging
 Tag:    demand-confirmation
 
 Wires app.services.demand_confirmation_service (built earlier this

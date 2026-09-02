@@ -5,6 +5,7 @@ time) and app.services.msgraph_mail_sync_service (EPIC-14/S-435, which
 reads it to know which users have a live Graph session to sync mail
 for). Extracted into its own module so the service layer never has to
 import from an endpoints module (the wrong direction) to reach this
+import logging
 state.
 
 Same real limitation documented at the original definition site: this

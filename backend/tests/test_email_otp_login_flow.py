@@ -4,6 +4,7 @@ two step validation via email for employees and internal users."
 Supplements the existing TOTP flow (see test_mfa_login_flow.py) rather
 than replacing it -- a SEPARATE, independently-off-by-default gate
 (EMAIL_OTP_ENFORCEMENT_ENABLED), covering a broader role set
+import logging
 (EMAIL_OTP_REQUIRED_ROLES) than MFA_REQUIRED_ROLES.
 
 Builds a small standalone FastAPI app (auth + mfa routers only) against

@@ -1,4 +1,5 @@
 """
+import logging
 S-051/HRMS-0451 -- Interview Reschedule Workflow.
 
 Real architecture under test (see interview_reschedule_service module

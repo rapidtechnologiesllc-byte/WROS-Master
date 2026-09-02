@@ -2,10 +2,12 @@
 Pydantic Schemas — S-014/HRMS-0414 Message Template Engine.
 """
 from datetime import datetime
+import logging
 from typing import List, Optional
 
 from pydantic import BaseModel, Field
 
+logger = logging.getLogger(__name__)
 
 class CreateTemplateRequest(BaseModel):
     template_key: str

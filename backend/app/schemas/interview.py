@@ -1,10 +1,12 @@
 from pydantic import BaseModel, Field
 from typing import Optional, List
+import logging
 from datetime import datetime
 
 # ============================================
 # Interview Panel Schemas
 # ============================================
+logger = logging.getLogger(__name__)
 
 class InterviewPanelCreate(BaseModel):
     """Schema for creating a new interview panel"""

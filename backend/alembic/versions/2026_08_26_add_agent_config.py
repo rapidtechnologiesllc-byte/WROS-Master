@@ -1,3 +1,4 @@
+import logging
 """Add agent_configs table for Agent Config system.
 
 Revision ID: 2026_08_26_add_agent_config

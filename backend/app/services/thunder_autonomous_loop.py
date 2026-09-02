@@ -5,6 +5,7 @@ Continuously activates Thunder to:
 1. Contact pending candidates
 2. Advance outreach sequences
 3. Schedule interviews
+import logging
 4. Collect information
 
 Respects pause state (kill switch) via thunder_pause_service.
@@ -29,6 +30,7 @@ from app.services.thunder_pause_service import is_thunder_paused
 from app.core.database import SessionLocal
 from app.core.agent_logging import log_agent_execution
 
+logger = logging.getLogger(__name__)
 
 class ThunderAutonomousLoopError(Exception):
     """Raised when Thunder autonomous loop encounters unrecoverable error."""
@@ -130,6 +132,7 @@ def run_thunder_autonomous_cycle(db: Session) -> dict:
                 db.add(event)
                 contacted += 1
             except Exception as e:
+                logger.error(f"Error: {str(e)}", exc_info=True)
                 errors.append(f"Candidate {candidate.candidateID}: {str(e)}")
                 db.rollback()
 
@@ -153,6 +156,7 @@ def run_thunder_autonomous_cycle(db: Session) -> dict:
                     )
                     advanced += 1
             except Exception as e:
+                logger.error(f"Error: {str(e)}", exc_info=True)
                 errors.append(f"Sequence {sequence.id}: {str(e)}")
 
         db.commit()
@@ -167,6 +171,7 @@ def run_thunder_autonomous_cycle(db: Session) -> dict:
         }
 
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         db.rollback()
         return {
             "status": "error",
@@ -206,6 +211,7 @@ def initialize_thunder_autonomous_loop():
         print("WARNING: APScheduler not installed. Thunder autonomous loop disabled.")
         return False
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         print(f"ERROR: Failed to initialize Thunder autonomous loop: {e}")
         return False
 

@@ -1,3 +1,4 @@
+import logging
 """changed in offer_letter make assinges id nullable = True
 
 Revision ID: 54fc91852373

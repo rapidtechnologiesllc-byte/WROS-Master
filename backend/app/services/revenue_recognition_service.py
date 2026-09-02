@@ -1,5 +1,6 @@
 """
 HRMS-0316 -- Revenue Recognition Engine (EPIC-16, Finance)
+import logging
 Recognize revenue from invoices per ASC 606 / IFRS 15 standards.
 
 Implements complete revenue recognition workflow:
@@ -31,6 +32,7 @@ class InvalidInvoiceError(Exception):
     """Raised when invoice cannot be recognized due to invalid state."""
     pass
 
+logger = logging.getLogger(__name__)
 
 class ValidationError(Exception):
     """Raised when data validation fails."""

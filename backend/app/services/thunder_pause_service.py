@@ -1,4 +1,5 @@
 """
+import logging
 S-075/HRMS-0475 -- AI Recruiter Pause & Resume Controls.
 
 Real architecture adaptation: HRMS-0466 Supervisor Agent (S-066) -- the
@@ -48,6 +49,7 @@ PAUSE_DURATION_PRESETS = {
     "1_week": timedelta(days=7),
 }
 
+logger = logging.getLogger(__name__)
 
 class ThunderPausedError(Exception):
     """Raised by every real Thunder send choke point when BR-01
@@ -135,6 +137,7 @@ def run_pause_expiry_job(db: Session) -> Dict:
             db.commit()
             result["resumed"] += 1
         except Exception as exc:
+           logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.error(f"[ThunderPause] Failed auto-resuming conversation {conversation.id!r}: {exc}")
             db.rollback()
     return result

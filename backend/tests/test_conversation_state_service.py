@@ -1,4 +1,5 @@
 """
+import logging
 S-018/HRMS-0418 -- Conversation State Manager.
 
 Real state model under test (see conversation_state_service module

@@ -1,3 +1,4 @@
+import logging
 """add mfa columns to users
 
 Revision ID: c5d6e7f8a9b0

@@ -1,3 +1,4 @@
+import logging
 """added department
 
 Revision ID: 9754bb2bda6b

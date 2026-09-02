@@ -1,5 +1,6 @@
 """
 S-004/HRMS-0404 -- Web Portal Chat Messages (app.services.portal_message_service).
+import logging
 S-346/HRMS-P116 -- Portal Real-Time Chat Widget's reply-generation addition.
 
 Adapted to real architecture: stores into ConversationEvent (channel=

@@ -1,4 +1,5 @@
 """
+import logging
 S-013/HRMS-0413 -- Email First Engagement, parallel channel to S-012.
 
 No message_templates table (hardcoded fallback IS the real template).

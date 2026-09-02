@@ -2,6 +2,7 @@
 Employee self-service timesheet.
 ==================================================================
 Prefix: /my
+import logging
 Tag:    my-timesheet
 
 Real gap closed 2026-08-04: the existing timesheet engine (see

@@ -1,4 +1,5 @@
 """
+import logging
 Flash Orchestration Engine - Daily Command Coordination
 
 Flash is NOT a tracker. Flash is an ORCHESTRATOR that:
@@ -33,6 +34,7 @@ from app.services.opportunity_tracker_agent_service import OpportunityTrackerAge
 from app.services.relation_building_agent_service import RelationBuildingAgent
 from app.services.performance_store_service import write_performance_event
 
+logger = logging.getLogger(__name__)
 
 class FlashOrchestrationEngine:
     """Daily coordination of all 70+ agents toward $100M revenue target.
@@ -280,6 +282,7 @@ class FlashOrchestrationEngine:
             }
 
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             raise
 
     @staticmethod

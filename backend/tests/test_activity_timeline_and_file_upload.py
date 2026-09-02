@@ -1,4 +1,5 @@
 """
+import logging
 S-216/HRMS-0118 -- Shared Activity Timeline & File Attachment Framework.
 
 Proves: AC-1 (any entity type writes to the same table, no schema

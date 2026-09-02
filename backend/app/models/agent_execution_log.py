@@ -1,4 +1,5 @@
 """
+import logging
 S-066/HRMS-0466 -- Supervisor Agent, agent_execution_log.
 
 Real architecture adaptation (per Avinash's explicit direction,
@@ -24,6 +25,7 @@ from sqlalchemy.orm import relationship
 
 from app.models.base import Base
 
+logger = logging.getLogger(__name__)
 
 class AgentExecutionLog(Base):
     __tablename__ = "agent_execution_log"

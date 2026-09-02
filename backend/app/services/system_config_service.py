@@ -1,4 +1,5 @@
 """
+import logging
 S-213/HRMS-0115 -- System Configuration & Admin Settings Panel.
 
 Real config keys seeded below are genuinely hardcoded module constants
@@ -30,6 +31,7 @@ from app.models.tenant import TENANT_DATE_FORMATS, Tenant
 CACHE_TTL_SECONDS = 60  # AC-4 -- a saved change must be visible within 60s
 _CONFIG_CACHE: Dict[Tuple[int, Optional[int], str], Tuple[float, Any]] = {}
 
+logger = logging.getLogger(__name__)
 
 class UnknownConfigKey(Exception):
     pass

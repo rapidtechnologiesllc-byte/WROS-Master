@@ -1,3 +1,4 @@
+import logging
 """S-061/HRMS-0461: add activity_feed_read_state table
 
 Revision ID: 9d3b7e1c5a26

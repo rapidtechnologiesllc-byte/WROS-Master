@@ -1,11 +1,13 @@
 """EPIC-16 -- Intercompany Ledger. See app.models.intercompany_ledger
 for why this is manual-entry, not auto-derived."""
+import logging
 from typing import List, Optional
 
 from sqlalchemy.orm import Session
 
 from app.models.intercompany_ledger import IntercompanySettlement
 
+logger = logging.getLogger(__name__)
 
 class IntercompanySettlementError(Exception):
     pass

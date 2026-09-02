@@ -1,4 +1,5 @@
 """
+import logging
 Phase 3 Part A2 -- HRMS-1101 System Orchestration Router.
 
 Per S-270_HRMS-1101.docx's own "How is Agentic AI Used" section, this
@@ -61,6 +62,7 @@ THUNDER_OWNERSHIP_LOCK_RULE_NAME = "thunder_ownership_lock"
 ANY_SEND_ACTION_TYPE = "any_send"
 CANDIDATE_CONVERSATION_ENTITY_TYPE = "candidate_conversation"
 
+logger = logging.getLogger(__name__)
 
 class RuleEditForbidden(Exception):
     """BR-1101-05: only Admin may create, edit, or deactivate a conflict_rules row."""

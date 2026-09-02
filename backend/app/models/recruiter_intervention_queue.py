@@ -1,4 +1,5 @@
 """
+import logging
 S-062/HRMS-0462 -- Recruiter Intervention Queue.
 
 recruiter_intervention_queue: genuinely new table -- one row per open
@@ -37,6 +38,7 @@ QUEUE_REASONS = (
 QUEUE_STATUSES = ("OPEN", "IN_PROGRESS", "RESOLVED")
 PRIORITY_CRITICAL, PRIORITY_HIGH, PRIORITY_MEDIUM = True, 2, 3
 
+logger = logging.getLogger(__name__)
 
 class RecruiterInterventionQueue(Base):
     __tablename__ = "recruiter_intervention_queue"

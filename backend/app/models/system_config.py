@@ -1,4 +1,5 @@
 """
+import logging
 S-213/HRMS-0115 -- System Configuration & Admin Settings Panel.
 
 Generic key/value config, tenant-scoped and optionally BU-scoped (null
@@ -26,6 +27,7 @@ from app.models.base import Base
 CONFIG_CATEGORIES = ("AI_THRESHOLDS", "SLA", "CHANNELS")
 CONFIG_VALUE_TYPES = ("PERCENT", "INT", "ENUM", "BOOL", "STRING")
 
+logger = logging.getLogger(__name__)
 
 class SystemConfig(Base):
     __tablename__ = "system_config"

@@ -1,3 +1,4 @@
+import logging
 """Add organizational hierarchy tables
 
 Revision ID: 2026_08_12_org_hierarchy

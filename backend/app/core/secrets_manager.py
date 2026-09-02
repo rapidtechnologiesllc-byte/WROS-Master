@@ -99,8 +99,7 @@ class AzureKeyVaultBackend(SecretsBackend):
                 "Azure SDK packages not installed. "
                 "Install with: pip install azure-identity azure-keyvault-secrets"
             )
-        except Exception as e:
-            logger.error(f"Failed to initialize Azure Key Vault: {e}")
+        except Exception as e:            logger.error(f"Failed to initialize Azure Key Vault: {e}")
             raise
 
     def get_secret(self, secret_name: str, default: Optional[str] = None) -> Optional[str]:
@@ -113,6 +112,7 @@ class AzureKeyVaultBackend(SecretsBackend):
             logger.debug(f"Retrieved secret from Azure Key Vault: {secret_name}")
             return secret.value
         except Exception as e:
+           logger.error(f"Error: {str(e)}", exc_info=True)
             logger.warning(f"Failed to retrieve secret from Azure Key Vault: {secret_name} - {e}")
             return default
 
@@ -144,8 +144,7 @@ class AWSSecretsManagerBackend(SecretsBackend):
                 "boto3 not installed. "
                 "Install with: pip install boto3"
             )
-        except Exception as e:
-            logger.error(f"Failed to initialize AWS Secrets Manager: {e}")
+        except Exception as e:            logger.error(f"Failed to initialize AWS Secrets Manager: {e}")
             raise
 
     def get_secret(self, secret_name: str, default: Optional[str] = None) -> Optional[str]:
@@ -161,6 +160,7 @@ class AWSSecretsManagerBackend(SecretsBackend):
                 # For binary secrets, return as-is (caller must decode)
                 return response.get("SecretBinary")
         except Exception as e:
+           logger.error(f"Error: {str(e)}", exc_info=True)
             logger.warning(f"Failed to retrieve secret from AWS Secrets Manager: {secret_name} - {e}")
             return default
 
@@ -182,12 +182,14 @@ class FallbackSecretsBackend(SecretsBackend):
             try:
                 self.backends.append(("Azure Key Vault", AzureKeyVaultBackend()))
             except Exception as e:
+               logger.error(f"Error: {str(e)}", exc_info=True)
                 logger.debug(f"Azure Key Vault backend unavailable: {e}")
 
         if SECRETS_BACKEND == "fallback" or SECRETS_BACKEND == "aws":
             try:
                 self.backends.append(("AWS Secrets Manager", AWSSecretsManagerBackend()))
             except Exception as e:
+               logger.error(f"Error: {str(e)}", exc_info=True)
                 logger.debug(f"AWS Secrets Manager backend unavailable: {e}")
 
         # Always fall back to environment variables
@@ -202,6 +204,7 @@ class FallbackSecretsBackend(SecretsBackend):
                     logger.debug(f"Retrieved secret from {backend_name}: {secret_name}")
                     return value
             except Exception as e:
+               logger.error(f"Error: {str(e)}", exc_info=True)
                 logger.debug(f"Backend {backend_name} failed for secret {secret_name}: {e}")
                 continue
 
@@ -235,8 +238,7 @@ def _init_secrets_backend() -> SecretsBackend:
         logger.info(f"Secrets backend initialized: {backend_name}")
         return _secrets_backend
 
-    except Exception as e:
-        logger.error(f"Failed to initialize secrets backend {backend_name}: {e}")
+    except Exception as e:        logger.error(f"Failed to initialize secrets backend {backend_name}: {e}")
         # Fall back to environment variables as last resort
         _secrets_backend = EnvironmentVariableBackend()
         logger.warning("Falling back to environment variables for secrets")

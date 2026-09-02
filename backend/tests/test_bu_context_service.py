@@ -1,4 +1,5 @@
 """
+import logging
 S-205/HRMS-0107 -- Business Unit Entity & Context Switching.
 
 Proves: switching to a BU the user actually has access to succeeds

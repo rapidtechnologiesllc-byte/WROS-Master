@@ -1,5 +1,6 @@
 """
 HRMS-0801 (Project Lifecycle Management) + HRMS-0804 (Milestone
+import logging
 Creation & Completion Tracking), Phase 2 Domain 4.
 
 A project is auto-created when an Opportunity transitions to WON (see
@@ -56,6 +57,7 @@ PROJECT_BUSINESS_TYPES = ("T_AND_M", "MANAGED_SERVICES", "PROJECT", "POD", "PILO
 SPECIALITY_CURRENCIES = ("INR", "USD")
 CORE_CURRENCIES = ("USD",)
 
+logger = logging.getLogger(__name__)
 
 class Project(Base):
     __tablename__ = "projects"

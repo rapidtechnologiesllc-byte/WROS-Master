@@ -3,6 +3,7 @@ Phase 1 B5 -- prompt-construction discipline for every LLM call this
 platform makes. Establish this pattern once, in Phase 1, so every later
 agent (HRMS-1001's matching engine, HRMS-1501's interview integrity
 engine, Thunder itself) reuses it instead of each hand-rolling its own
+import logging
 string concatenation.
 
 The core idea: user-supplied content (a resume, an RFP, a WhatsApp

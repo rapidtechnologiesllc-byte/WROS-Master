@@ -1,3 +1,4 @@
+import logging
 """added the job mapping to the candidate
 
 Revision ID: 631b4a5c988a

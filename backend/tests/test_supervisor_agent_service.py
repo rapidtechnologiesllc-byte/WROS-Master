@@ -1,4 +1,5 @@
 """
+import logging
 S-066/HRMS-0466 -- Supervisor Agent, Multi-Agent Coordinator.
 
 Real architecture under test (see supervisor_agent_service module

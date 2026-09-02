@@ -1,4 +1,5 @@
 """
+import logging
 S-267/HRMS-0301 (Set BU Revenue Target) + net-new PartnerGoal.
 
 Avinash's explicit 2026-08-05 direction, overriding S-267's own written
@@ -31,6 +32,7 @@ from app.models.base import Base
 
 TARGET_PERIODS = ("Q1", "Q2", "Q3", "Q4", "H1", "H2", "ANNUAL")
 
+logger = logging.getLogger(__name__)
 
 class BURevenueTarget(Base):
     __tablename__ = "bu_revenue_targets"

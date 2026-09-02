@@ -1,3 +1,4 @@
+import logging
 """S-055/HRMS-0455: add offer_faq_entries table
 
 Revision ID: 9b4e7a1f6d23

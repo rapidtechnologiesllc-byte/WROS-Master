@@ -3,6 +3,7 @@ EPIC-16 (Finance & Accounting Operations) -- Fully Loaded Cost +
 Blended Delivery Rate foundation. Every other EPIC-16 engine (P&L,
 Reserve Fund, Hiring Affordability) depends on knowing what an
 employee actually costs and what a BU actually bills, so this is
+import logging
 built first.
 
 Config-driven, not hardcoded -- statutory/overhead percentages vary by
@@ -18,6 +19,7 @@ from sqlalchemy import Column, Date, DateTime, ForeignKey, Integer, Numeric, Str
 
 from app.models.base import Base
 
+logger = logging.getLogger(__name__)
 
 class CostRateConfig(Base):
     __tablename__ = "cost_rate_configs"

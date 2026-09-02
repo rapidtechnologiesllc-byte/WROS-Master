@@ -1,3 +1,4 @@
+import logging
 """add user lifecycle termination tracking (Users screen lifecycle management)
 
 Revision ID: a9b0c1d2e3f4

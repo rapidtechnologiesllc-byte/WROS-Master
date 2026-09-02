@@ -4,6 +4,7 @@ resolves to "S-434" (verified against WROS_Canonical_Backlog_S001-401.xlsx
 -- HRMS-0434 is S-034's own WROS ID, referenced only as a "Depends On"
 value elsewhere; there is no real S-434 row). Built as new, greenfield
 scope per Avinash's direct spec (2026-08-04 session), not retrofitted
+import logging
 onto an existing story.
 
 Deliberately NOT tenant-partitioned the way the candidate-engagement
@@ -55,6 +56,7 @@ PRIORITY_ORDER = {"LOW": 0, "MEDIUM": 1, "HIGH": 2, "URGENT": 3}
 def _new_uuid() -> str:
     return str(uuid.uuid4())
 
+logger = logging.getLogger(__name__)
 
 class Task(Base):
     __tablename__ = "tasks"

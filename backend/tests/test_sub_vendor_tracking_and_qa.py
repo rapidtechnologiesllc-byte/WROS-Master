@@ -2,6 +2,7 @@
 Proves HRMS-P803/P810 (vendor-facing submission tracking, isolated per
 vendor), HRMS-P805/P812 (scorecard + portfolio analytics, all computed),
 and HRMS-P814 (clarification Q&A, shared visibility across vendors on
+import logging
 the same request).
 
 Throwaway SQLite -- never the real database.

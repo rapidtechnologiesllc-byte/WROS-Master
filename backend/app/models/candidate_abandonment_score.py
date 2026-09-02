@@ -1,4 +1,5 @@
 """
+import logging
 S-046/HRMS-0446 -- Candidate Abandonment Prediction.
 
 candidate_abandonment_scores: genuinely new table -- one row per
@@ -26,6 +27,7 @@ from sqlalchemy.orm import relationship
 
 from app.models.base import Base
 
+logger = logging.getLogger(__name__)
 
 class CandidateAbandonmentScore(Base):
     __tablename__ = "candidate_abandonment_scores"

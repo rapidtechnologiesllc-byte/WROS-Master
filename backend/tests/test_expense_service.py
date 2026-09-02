@@ -2,6 +2,7 @@
 Partner/BU spend tracking, 2026-08-05. Proves the purpose/client
 tagging rules and the client investment-position ledger (prospect-era
 expense -> conversion -> revenue -> breakeven), reusing ClientHistory's
+import logging
 existing STATUS log rather than a second tracking mechanism.
 
 Throwaway SQLite -- never the real database.

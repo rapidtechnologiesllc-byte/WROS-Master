@@ -6,6 +6,7 @@ returning visitor (matched by email) resumes the same conversation
 instead of duplicating it, consent is required and captured for real,
 and every message after the opening greeting goes through the same
 governed send_thunder_message() path WhatsApp candidates use -- just
+import logging
 on the "web_chat" channel.
 
 No real Gemini call is made anywhere in this file -- ChatGoogleGenerativeAI

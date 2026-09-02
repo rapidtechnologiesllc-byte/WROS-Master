@@ -1,4 +1,5 @@
 """
+import logging
 Permission Audit Service - Tracks all permission checks and denials.
 
 This service logs:
@@ -22,6 +23,7 @@ from sqlalchemy import func
 from app.core.logging import logger
 from app.models.audit_log import AuditLog
 
+logger = logging.getLogger(__name__)
 
 class PermissionAuditService:
     """Service for logging permission checks and access attempts."""
@@ -75,8 +77,7 @@ class PermissionAuditService:
             db.refresh(audit_log)
 
             return audit_log
-        except Exception as e:
-            logger.error(f"Failed to log permission check: {str(e)}")
+        except Exception as e:            logger.error(f"Failed to log permission check: {str(e)}")
             raise
 
     @staticmethod

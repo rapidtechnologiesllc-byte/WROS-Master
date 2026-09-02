@@ -99,6 +99,7 @@ class MessageQueueCoordinator:
                     )
 
                 except Exception as e:
+                    logger.error(f"Error: {str(e)}", exc_info=True)
                     stats["errors"] += 1
                     logger.error(f"Failed to process message {message.id}: {e}", exc_info=True)
                     # Mark message as failed if too many retries
@@ -117,8 +118,7 @@ class MessageQueueCoordinator:
             logger.info(f"Message processing complete: {stats}")
             return stats
 
-        except Exception as e:
-            logger.error(f"Failed to process pending messages: {e}", exc_info=True)
+        except Exception as e:            logger.error(f"Failed to process pending messages: {e}", exc_info=True)
             raise RuntimeError(f"Failed to process pending messages: {str(e)}")
 
     @staticmethod
@@ -204,6 +204,7 @@ class MessageQueueCoordinator:
                     logger.debug(f"Channel {channel.id} processed for {queue_type}")
 
                 except Exception as e:
+                    logger.error(f"Error: {str(e)}", exc_info=True)
                     stats["channels_failed"] += 1
                     stats["errors"] += 1
                     logger.error(f"Failed to process channel {channel.id}: {e}", exc_info=True)
@@ -216,8 +217,7 @@ class MessageQueueCoordinator:
             logger.info(f"{queue_type} processing complete: {stats}")
             return stats
 
-        except Exception as e:
-            logger.error(f"Failed to process channel messages for {queue_type}: {e}", exc_info=True)
+        except Exception as e:            logger.error(f"Failed to process channel messages for {queue_type}: {e}", exc_info=True)
             raise RuntimeError(f"Failed to process channel messages: {str(e)}")
 
     @staticmethod
@@ -288,8 +288,7 @@ class MessageQueueCoordinator:
             logger.info(f"Message completion check done: {stats}")
             return stats
 
-        except Exception as e:
-            logger.error(f"Failed to complete messages: {e}", exc_info=True)
+        except Exception as e:            logger.error(f"Failed to complete messages: {e}", exc_info=True)
             raise RuntimeError(f"Failed to complete messages: {str(e)}")
 
     @staticmethod
@@ -346,6 +345,5 @@ class MessageQueueCoordinator:
             logger.debug(f"Queue health: {health}")
             return health
 
-        except Exception as e:
-            logger.error(f"Failed to get queue health: {e}", exc_info=True)
+        except Exception as e:            logger.error(f"Failed to get queue health: {e}", exc_info=True)
             raise RuntimeError(f"Failed to get queue health: {str(e)}")

@@ -1,4 +1,5 @@
 """
+import logging
 Agent Config API Endpoints - Manage agent configurations and pipeline order.
 
 Endpoints:
@@ -22,6 +23,7 @@ router = APIRouter(prefix="/admin/agents/config", tags=["agent-config"])
 
 
 # === Pydantic Models ===
+logger = logging.getLogger(__name__)
 
 class AgentConfigRequest(BaseModel):
     """Request schema for creating/updating agent configs."""
@@ -85,6 +87,7 @@ async def list_agents(
         agents = AgentConfigService.get_all_agents(db, current_user.tenant_id)
         return agents
     except Exception as e:
+       logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Error listing agents: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
 
@@ -131,6 +134,7 @@ async def create_agent(
         logger.warning(f"Validation error creating agent: {str(e)}")
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
+       logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Error creating agent: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
 
@@ -177,6 +181,7 @@ async def update_agent(
         logger.warning(f"Validation error updating agent: {str(e)}")
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
+       logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Error updating agent: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
 
@@ -207,6 +212,7 @@ async def delete_agent(
         logger.warning(f"Validation error deleting agent: {str(e)}")
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
+       logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Error deleting agent: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
 
@@ -235,5 +241,6 @@ async def get_pipeline_order(
         pipeline = AgentConfigService.get_pipeline_order(db, current_user.tenant_id)
         return pipeline
     except Exception as e:
+       logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Error fetching pipeline order: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error: {str(e)}")

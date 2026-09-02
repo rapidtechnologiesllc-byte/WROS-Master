@@ -1,5 +1,6 @@
 """
 S-314 — Project Allocation Engine
+import logging
 API integration tests for allocation endpoints.
 
 Test Coverage:
@@ -145,6 +146,7 @@ def employee(db: Session, tenant: Tenant):
     db.refresh(employee)
     return employee
 
+logger = logging.getLogger(__name__)
 
 class TestAllocationCreateEndpoint:
     """Tests for POST /allocations endpoint."""

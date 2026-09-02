@@ -1,3 +1,4 @@
+import logging
 """S-014/HRMS-0414: add message_templates table
 
 Revision ID: c2d3e4f5a6b7

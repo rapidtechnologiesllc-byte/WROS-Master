@@ -1,4 +1,5 @@
 """
+import logging
 S-359/HRMS-P511 -- HTD Intake Pause Engine: Conversion Rate Breach.
 
 WhatsApp/email notification to "BU Head + Hemant" (AC-3) is NOT wired
@@ -30,6 +31,7 @@ CONVERSION_RATE_THRESHOLD = Decimal("0.50")
 CORE_CONVERSION_WINDOW_DAYS = 400
 MIN_AUDIT_TEXT_LENGTH = 200
 
+logger = logging.getLogger(__name__)
 
 class ResumeValidationError(Exception):
     pass

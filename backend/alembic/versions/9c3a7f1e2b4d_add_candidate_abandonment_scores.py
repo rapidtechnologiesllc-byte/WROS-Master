@@ -1,3 +1,4 @@
+import logging
 """S-046/HRMS-0446: add candidate_abandonment_scores table
 
 Revision ID: 9c3a7f1e2b4d

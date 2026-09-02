@@ -1,4 +1,5 @@
 """
+import logging
 S-018/HRMS-0418 -- Conversation State Manager.
 
 Adapted to this codebase's real state model, which is deliberately
@@ -60,6 +61,7 @@ ALLOWED_STATUS_TRANSITIONS = {
     "closed": set(),
 }
 
+logger = logging.getLogger(__name__)
 
 class InvalidStateTransitionError(Exception):
     def __init__(self, from_state: str, to_state: str):

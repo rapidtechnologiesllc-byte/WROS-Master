@@ -1,4 +1,5 @@
 """
+import logging
 S-028/HRMS-0428 -- Resume Parsing Engine.
 
 candidate_resume_parsed: a genuinely new table (not reusable via
@@ -17,6 +18,7 @@ from app.models.base import Base
 
 PARSER_VERSION = "1.0"
 
+logger = logging.getLogger(__name__)
 
 class CandidateResumeParsed(Base):
     __tablename__ = "candidate_resume_parsed"

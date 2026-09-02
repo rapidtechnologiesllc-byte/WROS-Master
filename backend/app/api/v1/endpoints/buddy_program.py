@@ -2,6 +2,7 @@
 S-364 Buddy KPI Tracking + S-365 Graduation Gate.
 ==================================================================
 Prefix: /buddy-program
+import logging
 Tag:    buddy-program
 
 Weekly score submission is any internal staff member (HR/Buddy

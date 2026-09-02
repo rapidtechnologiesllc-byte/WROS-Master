@@ -1,5 +1,6 @@
 """
 HRMS-0901 (Timesheet Submission) + HRMS-0902 (Timesheet Approval
+import logging
 Workflow), Phase 2 Domain 4.
 
 Depends on employee_allocations (HRMS-0507) -- a timesheet is always
@@ -37,6 +38,7 @@ TIMESHEET_ENTRY_TYPES = ("BILLABLE", "NON_BILLABLE", "LEAVE", "HOLIDAY")
 MAX_WEEKLY_HOURS = 60  # BR-01
 MAX_SUBMISSION_LOOKBACK_WEEKS = 4  # BR-02
 
+logger = logging.getLogger(__name__)
 
 class Timesheet(Base):
     __tablename__ = "timesheets"

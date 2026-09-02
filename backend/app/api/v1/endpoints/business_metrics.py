@@ -1,3 +1,4 @@
+import logging
 """Business Metrics Endpoints - Daily standup business outcomes."""
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -47,6 +48,7 @@ def get_daily_business_standup(
     except HTTPException:
         raise
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -69,6 +71,7 @@ def get_recruitment_metrics_period(
         }
 
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -91,6 +94,7 @@ def get_interview_metrics_period(
         }
 
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -113,6 +117,7 @@ def get_offer_metrics_period(
         }
 
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -135,4 +140,5 @@ def get_revenue_metrics_period(
         }
 
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))

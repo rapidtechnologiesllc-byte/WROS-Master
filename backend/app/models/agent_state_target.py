@@ -1,9 +1,11 @@
+import logging
 """Agent State Target Model - Strategic alignment & performance accountability."""
 
 from sqlalchemy import Column, String, Integer, Float, Boolean, DateTime, Text
 from datetime import datetime
 from app.models.base import Base
 
+logger = logging.getLogger(__name__)
 
 class AgentStateTarget(Base):
     """Agent's strategic contribution, targets, and accountability metrics."""

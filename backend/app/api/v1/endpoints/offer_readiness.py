@@ -2,6 +2,7 @@
 S-053/HRMS-0453 -- Offer Readiness Check
 ==================================================================
 Prefix: /candidates
+import logging
 Tag:    offer-readiness
 
 GET /candidates/{candidate_id}/jobs/{job_id}/offer-readiness

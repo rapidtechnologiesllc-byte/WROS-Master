@@ -1,4 +1,5 @@
 """
+import logging
 S-040/HRMS-0440 -- Overall Candidate Score & Ranking.
 
 Real architecture under test (see overall_scoring_service module

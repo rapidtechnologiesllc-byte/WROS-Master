@@ -1,6 +1,7 @@
 """
 HRMS-1105 (canonical S-320, not S-274 as its `.docx` filename says --
 confirmed against `WROS_Canonical_Backlog_S001-401.xlsx`) -- Resource
+import logging
 Management Agent.
 
 bench_allocation_recommendations: the LLM-ranked, advisory-only output of
@@ -38,6 +39,7 @@ def _new_uuid() -> str:
 
 BENCH_RECOMMENDATION_STATUSES = ("PENDING_RM_REVIEW", "IN_PROGRESS", "APPROVED", "REJECTED")
 
+logger = logging.getLogger(__name__)
 
 class BenchAllocationRecommendation(Base):
     __tablename__ = "bench_allocation_recommendations"

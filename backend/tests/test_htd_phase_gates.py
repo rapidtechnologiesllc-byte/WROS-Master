@@ -1,4 +1,5 @@
 """
+import logging
 S-360/HRMS-P506-REV -- HTD 4-Phase Gate Structure.
 
 Proves: no phase advance without an explicit PASS from the correct

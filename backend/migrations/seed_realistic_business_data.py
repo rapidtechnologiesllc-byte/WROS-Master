@@ -1,3 +1,4 @@
+import logging
 """Seed realistic business data for scenario testing."""
 
 import sys
@@ -486,6 +487,7 @@ def seed_business_data():
         print(f"  Utilization: {utilization:.1f}%")
 
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         db.rollback()
         print(f"[ERROR] {e}")
         raise

@@ -1,4 +1,5 @@
 """
+import logging
 S-012/HRMS-0412 -- WhatsApp First Engagement, 60-Second Rule.
 
 Adapted to real architecture: no message_templates table (hardcoded

@@ -4,6 +4,7 @@ proves S-256/HRMS-0506 (canonical) Resource Demand Planning / Future
 Demand vs Bench Forecast end-to-end on real routes. Genuinely new
 logic (no pre-existing backend, unlike almost everything else in
 EPIC-05) -- so this file also covers the service layer directly, not
+import logging
 just the HTTP wrapper.
 
 Throwaway SQLite app, throwaway JWT keys -- never the real database or

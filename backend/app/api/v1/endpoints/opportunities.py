@@ -1,6 +1,7 @@
 ﻿"""
 S-236/HRMS-0207 (Create Opportunity), S-237/HRMS-0208 (Pipeline Kanban),
 S-239/HRMS-0210 (Role Demand from Opportunity), S-240/HRMS-0211
+import logging
 (Revenue Potential rollup).
 
 Backend (app.services.opportunity_service) was already real and tested

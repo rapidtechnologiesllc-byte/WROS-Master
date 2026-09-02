@@ -1,6 +1,7 @@
 """
 Pydantic schemas — S-251 (Allocate Employee to Project) + S-252
 (Allocation Conflict Detection) API.
+import logging
 """
 
 from datetime import date, datetime
@@ -8,6 +9,7 @@ from typing import List, Optional
 
 from pydantic import BaseModel, Field
 
+logger = logging.getLogger(__name__)
 
 class CreateAllocationRequest(BaseModel):
     employee_id: str

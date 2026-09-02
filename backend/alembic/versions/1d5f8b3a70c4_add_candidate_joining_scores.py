@@ -1,3 +1,4 @@
+import logging
 """S-058/HRMS-0458: add candidate_joining_scores table
 
 Revision ID: 1d5f8b3a70c4

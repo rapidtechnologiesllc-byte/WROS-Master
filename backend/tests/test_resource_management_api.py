@@ -3,6 +3,7 @@ POST /resource-management/scan, GET /resource-management/recommendations,
 POST .../pursue|approve|reject -- proves HRMS-1105 (canonical S-320)
 Resource Management Agent end-to-end on real routes, not just the
 service layer (see the Definition of Done correction in CLAUDE.md --
+import logging
 service-only was never sufficient).
 
 No real Gemini call -- ChatGoogleGenerativeAI is mocked.

@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import logging
 """Comprehensive verification of all WROS fixes."""
 
 import sys
@@ -24,6 +25,8 @@ try:
     result = db.query(Tenant).first()
     print(f"    [OK] Connected to database")
 except Exception as e:
+   logger.error(f"Error: {str(e)}", exc_info=True)
+    logger.error(f"Error: {str(e)}", exc_info=True)
     print(f"    [FAIL] Database connection failed: {e}")
     sys.exit(1)
 

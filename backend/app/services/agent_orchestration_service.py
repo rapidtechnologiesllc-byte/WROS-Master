@@ -1,4 +1,5 @@
 """
+import logging
 Agent Orchestration Service - Flash Orchestrator
 
 The ONLY thing that decides what runs when.
@@ -47,6 +48,7 @@ from app.models.offer_letter import OfferLetter
 from app.models.employee import Employee
 from app.api.v1.endpoints.admin_queue import TaskStatus
 
+logger = logging.getLogger(__name__)
 
 class AgentQueue:
     """Message queue for agent input/output."""

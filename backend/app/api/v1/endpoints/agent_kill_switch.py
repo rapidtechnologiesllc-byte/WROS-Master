@@ -1,3 +1,4 @@
+import logging
 """Agent Kill Switch API - Execute and manage kill switches."""
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -41,6 +42,7 @@ def evaluate_agent_for_kill_switch(
     except HTTPException:
         raise
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -81,6 +83,7 @@ def evaluate_all_agents_for_kill_switch(
     except HTTPException:
         raise
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -134,6 +137,7 @@ def execute_kill_switch(
     except HTTPException:
         raise
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -179,4 +183,5 @@ def reenable_agent(
     except HTTPException:
         raise
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))

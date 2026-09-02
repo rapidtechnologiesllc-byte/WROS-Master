@@ -1,3 +1,4 @@
+import logging
 """add_hr_assignment_table
 
 Revision ID: 0d0274b3c291

@@ -1,6 +1,7 @@
 """
 S-207 -- proves app.core.tenant_context's global with_loader_criteria
 scoping on real routes that were NEVER part of the original 6-route
+import logging
 HRMS-0109 fix (tests/test_tenant_scoping_real_routes.py covers those).
 
 Three things this file has to prove, matching the gap doc's own explicit

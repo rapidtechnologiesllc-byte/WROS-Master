@@ -1,4 +1,5 @@
 """
+import logging
 S-216/HRMS-0118 -- Shared Activity Timeline & File Attachment Framework.
 
 upload_file() is BR-0118-01's one sanctioned file-attachment path for
@@ -31,6 +32,7 @@ SHAREPOINT_DRIVE_ID = os.getenv("SHAREPOINT_DRIVE_ID", "")
 SHAREPOINT_BASE_FOLDER = os.getenv("SHAREPOINT_BASE_FOLDER", "CandidateDocuments")
 ATTACHMENTS_FOLDER = "SharedAttachments"
 
+logger = logging.getLogger(__name__)
 
 class VirusScanUnavailable(Exception):
     """Same contract as app.services.virus_scan_service.VirusScanUnavailable
@@ -114,6 +116,7 @@ def upload_file(
     try:
         result = scanner(file_content)
     except Exception as exc:
+       logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[FileUpload] Scan failed for file_upload {file_upload.id}: {exc}")
         result = "error"
     file_upload.scan_status = "CLEAN" if result == "clean" else "QUARANTINED"

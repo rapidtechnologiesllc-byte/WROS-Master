@@ -1,3 +1,4 @@
+import logging
 """add pipeline_leakage_flags (S-243 EPIC-02 Revenue Leakage Detection)
 
 Revision ID: c7e9a1f3b5d7

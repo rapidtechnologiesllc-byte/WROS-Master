@@ -2,6 +2,7 @@
 Candidate History Schemas
 =========================
 Pydantic request / response models for the candidate history (timeline) API.
+import logging
 """
 
 from app.models.user import Interview
@@ -46,6 +47,7 @@ VALID_EVENT_TYPES = {
 # ---------------------------------------------------------------------------
 # Request schemas
 # ---------------------------------------------------------------------------
+logger = logging.getLogger(__name__)
 
 class CandidateHistoryCreateRequest(BaseModel):
     """Body for POST /history/{candidate_id}"""

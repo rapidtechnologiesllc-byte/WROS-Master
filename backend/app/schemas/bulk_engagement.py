@@ -1,8 +1,10 @@
 """Pydantic Schemas -- S-074/HRMS-0474 Bulk Candidate Engagement Launch."""
+import logging
 from typing import Dict, List, Optional
 
 from pydantic import BaseModel
 
+logger = logging.getLogger(__name__)
 
 class BulkImportResponse(BaseModel):
     imported: int

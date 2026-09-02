@@ -1,4 +1,5 @@
 """
+import logging
 S-031/HRMS-0431 -- AI Prompt Framework.
 
 Real architecture under test (see prompt_framework_service module

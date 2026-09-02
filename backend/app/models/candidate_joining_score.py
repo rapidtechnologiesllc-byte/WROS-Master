@@ -1,4 +1,5 @@
 """
+import logging
 S-058/HRMS-0458 -- Joining Readiness Score.
 
 candidate_joining_scores: genuinely new table -- one row per (tenant,
@@ -20,6 +21,7 @@ from sqlalchemy.orm import relationship
 
 from app.models.base import Base
 
+logger = logging.getLogger(__name__)
 
 class CandidateJoiningScore(Base):
     __tablename__ = "candidate_joining_scores"

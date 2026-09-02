@@ -1,3 +1,4 @@
+import logging
 """S-045/HRMS-0445: add reactivation tracking columns to candidate_ghosting_status
 
 Revision ID: 7de1b26d9e23

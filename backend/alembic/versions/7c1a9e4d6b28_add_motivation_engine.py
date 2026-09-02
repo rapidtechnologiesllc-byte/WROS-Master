@@ -1,3 +1,4 @@
+import logging
 """add motivation_content_library + motivation_outcomes (S-349 Proactive Motivation Engine)
 
 Revision ID: 7c1a9e4d6b28

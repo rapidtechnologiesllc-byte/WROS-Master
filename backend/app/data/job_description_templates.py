@@ -1,5 +1,6 @@
 """
 Job Description Templates — Known-Role Library
+import logging
 ================================================
 
 HOW TO ADD A NEW ROLE (Avinash — this is your action item):
@@ -30,6 +31,7 @@ through the LLM until you add more entries here.
 
 from typing import Dict, TypedDict, List
 
+logger = logging.getLogger(__name__)
 
 class JobDescriptionTemplate(TypedDict):
     description: str

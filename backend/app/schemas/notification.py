@@ -1,3 +1,4 @@
+import logging
 """Pydantic schemas -- S-105/HRMS-P210 (Portal Notification Center) API."""
 
 from datetime import datetime
@@ -5,6 +6,7 @@ from typing import List, Optional
 
 from pydantic import BaseModel
 
+logger = logging.getLogger(__name__)
 
 class NotificationItem(BaseModel):
     id: str

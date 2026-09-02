@@ -3,6 +3,7 @@ GET/POST /webhooks/whatsapp -- proves the real HTTP-level acceptance
 criteria from S-002_HRMS-0402.docx: verification handshake status
 codes, signature-gated POST, and that POST always returns 200 (Meta
 retries on anything else, per BR-03) even when the payload is
+import logging
 discarded for a bad signature.
 
 Throwaway SQLite app -- never the real database.

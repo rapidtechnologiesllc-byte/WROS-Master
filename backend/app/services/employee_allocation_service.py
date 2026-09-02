@@ -2,6 +2,7 @@
 HRMS-0507 -- allocate/end-allocation, the one write path that moves an
 employee off (or back onto) the bench. Per 04-RESOURCE-MANAGEMENT.md's
 own framing, this is always a distinct human decision, never automatic
+import logging
 -- there is no agent or ranking logic here (that's Phase 4 Part A).
 
 Reuses app.services.employee_service.transition_employee_status() for
@@ -31,6 +32,7 @@ from app.services.resource_management_service import (
     remove_employee_from_bench,
 )
 
+logger = logging.getLogger(__name__)
 
 class EmployeeAlreadyAllocated(Exception):
     pass

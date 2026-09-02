@@ -1,4 +1,5 @@
 """
+import logging
 S-060/HRMS-0460 -- Drop Risk Prediction.
 
 candidate_drop_risk: genuinely new table -- one row per (tenant,
@@ -19,6 +20,7 @@ from app.models.base import Base
 
 RISK_LEVELS = ("LOW", "MEDIUM", "HIGH", "CRITICAL")
 
+logger = logging.getLogger(__name__)
 
 class CandidateDropRisk(Base):
     __tablename__ = "candidate_drop_risk"

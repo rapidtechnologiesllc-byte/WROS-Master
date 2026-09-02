@@ -1,5 +1,6 @@
 """
 S-353/HRMS-0514 -- Core-Pull Conflict Rule Engine ("Core Wins Policy") and
+import logging
 S-373/HRMS-0529 -- Specialty Pool Minimum 40 Core-Certified Guard.
 
 Built directly from `Requirements/S-353_HRMS-0514.docx` and
@@ -38,6 +39,7 @@ OVERRIDE_JUSTIFICATION_MIN_CHARS = 100
 OVERRIDE_ALERT_THRESHOLD = 2  # more than this many overrides in 30 days pages the Director
 OVERRIDE_ALERT_WINDOW_DAYS = 30
 
+logger = logging.getLogger(__name__)
 
 class SpecialtyPoolBelowMinimum(Exception):
     """S-373: a Core move that would drop the Specialty Core-Certified

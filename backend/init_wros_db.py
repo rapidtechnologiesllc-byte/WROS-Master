@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import logging
 """Initialize WROS database with tenants, users, and test data."""
 
 import sys
@@ -179,6 +180,8 @@ def init_database():
             print(f"  - {user['email']} / {user['password']}")
 
     except Exception as e:
+       logger.error(f"Error: {str(e)}", exc_info=True)
+        logger.error(f"Error: {str(e)}", exc_info=True)
         print(f"\n[ERROR] {e}")
         import traceback
         traceback.print_exc()

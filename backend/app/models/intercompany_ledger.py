@@ -8,10 +8,12 @@ instead, same posture as the Expense Ledger (Avinash: "counted same
 like the excel") and Reserve Fund contributions -- Finance records the
 real settlement, the system tracks running balance per entity pair.
 """
+import logging
 from sqlalchemy import Column, Date, DateTime, ForeignKey, Integer, String, Text, func
 
 from app.models.base import Base
 
+logger = logging.getLogger(__name__)
 
 class IntercompanySettlement(Base):
     __tablename__ = "intercompany_settlements"

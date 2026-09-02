@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.security import get_current_internal_user
 from app.models.user import Users
+import logging
 from app.services.permission_service import PermissionService
 
 def require_permission(permission: str):

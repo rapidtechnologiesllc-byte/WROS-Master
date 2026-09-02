@@ -2,10 +2,12 @@
 Pydantic Schemas -- S-017/HRMS-0417 Candidate Self-Service Web Portal.
 """
 from datetime import datetime
+import logging
 from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field
 
+logger = logging.getLogger(__name__)
 
 class PortalStageBadge(BaseModel):
     label: str

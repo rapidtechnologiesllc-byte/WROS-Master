@@ -1,4 +1,5 @@
 """
+import logging
 S-205/HRMS-0107 -- Business Unit Entity & Context Switching.
 
 No literal "Director" role exists in this codebase's real RBAC seed
@@ -29,6 +30,7 @@ from app.models.user import Users
 
 ALL_BUS_ROLES = ("Super User",)  # see module docstring -- "Director" analog
 
+logger = logging.getLogger(__name__)
 
 class NotYourBusinessUnit(Exception):
     pass

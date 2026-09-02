@@ -5,10 +5,12 @@ Expense Ledger, Reserve Fund, and Intercompany Ledger. Finance records
 what actually cleared the bank; the system matches it against real
 Invoice PAID records and surfaces what doesn't reconcile.
 """
+import logging
 from sqlalchemy import Boolean, Column, Date, DateTime, ForeignKey, Integer, String, Text, func
 
 from app.models.base import Base
 
+logger = logging.getLogger(__name__)
 
 class BankTransaction(Base):
     __tablename__ = "bank_transactions"

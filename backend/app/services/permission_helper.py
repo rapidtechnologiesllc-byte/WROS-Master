@@ -1,3 +1,4 @@
+import logging
 """Permission Helper Service - Centralized permission and data scope management.
 
 Core functions for:
@@ -30,6 +31,7 @@ class DataScope:
     subordinates: List[str]  # Reporting chain
     can_see_global_data: bool  # Cross-BU visibility
 
+logger = logging.getLogger(__name__)
 
 class PermissionHelper:
     """Centralized permission and scope checking."""

@@ -3,6 +3,7 @@ Proves the new create_client() path (2026-08-05) enforces Avinash's
 "client attribution locking" rule: BU is derived from the creating
 user's own business_unit_id, never caller-suppliable, with a
 Corporate-BU fallback for a BU-less creator (Super User/CEO) and a
+import logging
 null (Org-Pool) fallback when even that doesn't exist.
 
 Throwaway SQLite -- never the real database.

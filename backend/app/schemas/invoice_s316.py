@@ -1,6 +1,7 @@
 """
 HRMS-0316 -- Invoice Generation, Calculation, Sending & Payment Tracking
 Pydantic Schemas for Request/Response Validation
+import logging
 =========================================================================
 
 All monetary values use USD cents (BIGINT per R-09).
@@ -15,6 +16,7 @@ from pydantic import BaseModel, Field, validator
 # ============================================================================
 # REQUEST SCHEMAS
 # ============================================================================
+logger = logging.getLogger(__name__)
 
 class GenerateInvoiceRequest(BaseModel):
     """Request to generate a DRAFT invoice from approved timesheets."""

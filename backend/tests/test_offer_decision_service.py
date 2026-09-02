@@ -1,4 +1,5 @@
 """
+import logging
 S-056/HRMS-0456 -- Offer Acceptance Tracking.
 
 Real architecture under test (see offer_decision_service module

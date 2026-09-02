@@ -1,4 +1,5 @@
 """
+import logging
 Organizational Structure Service — initialize and manage org hierarchy.
 
 Responsibilities:

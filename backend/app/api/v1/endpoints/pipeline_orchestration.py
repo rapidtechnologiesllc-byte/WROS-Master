@@ -1,4 +1,5 @@
 """
+import logging
 Pipeline Orchestration API - Trigger and monitor 8-agent hiring pipeline.
 
 Endpoints:
@@ -58,6 +59,7 @@ async def start_candidate_pipeline(
         }
 
     except Exception as e:
+       logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Error starting pipeline: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -90,6 +92,7 @@ async def get_pipeline_status(
         }
 
     except Exception as e:
+       logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Error getting pipeline status: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -167,6 +170,7 @@ async def execute_all_agents(
         return results
 
     except Exception as e:
+       logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Error executing agents: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -207,6 +211,7 @@ async def peek_queue(
         }
 
     except Exception as e:
+       logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Error peeking queue {queue_name}: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -304,5 +309,6 @@ async def run_demo_pipeline(
         return demo_result
 
     except Exception as e:
+       logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Error running demo: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))

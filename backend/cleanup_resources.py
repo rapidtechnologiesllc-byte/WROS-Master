@@ -3,6 +3,7 @@ Clean up old/fake modules and resources from database.
 Keep only the modules defined in init_resources.py
 """
 from app.core.database import SessionLocal
+import logging
 from app.models.role_template import Module, Resource
 
 # List of valid modules from init_resources.py
@@ -90,6 +91,8 @@ def main():
         print("\nNext step: Run init_resources.py to re-seed all modules")
 
     except Exception as e:
+       logger.error(f"Error: {str(e)}", exc_info=True)
+        logger.error(f"Error: {str(e)}", exc_info=True)
         print(f"ERROR: {str(e)}")
         db.rollback()
         import traceback

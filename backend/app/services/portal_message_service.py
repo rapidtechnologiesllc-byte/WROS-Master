@@ -1,5 +1,6 @@
 """
 S-004/HRMS-0404 -- Store Web Portal Chat Messages.
+import logging
 S-346/HRMS-P116 -- Portal Real-Time Chat Widget (2026-08-05 addition).
 
 Adapted to this codebase's real architecture: stores into the existing
@@ -49,6 +50,7 @@ MAX_MESSAGE_LENGTH = 4000
 RATE_LIMIT_PER_HOUR = 20
 PAGE_SIZE = 50
 
+logger = logging.getLogger(__name__)
 
 class PortalMessageEmpty(Exception):
     pass
@@ -204,6 +206,7 @@ def _maybe_reply_to_portal_message(db: Session, conversation: CandidateConversat
         db.refresh(reply_event)
         return reply_text, reply_event.created_at, False, False
     except Exception as exc:
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         # Fail-soft, not fail-closed, here specifically: the candidate's
         # own message is already safely stored (BR-03/S-004's own
         # guarantee) -- a broken reply must not turn into a 500 on a

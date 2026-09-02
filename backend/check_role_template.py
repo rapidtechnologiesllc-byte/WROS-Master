@@ -1,5 +1,6 @@
 import os
 from sqlalchemy import create_engine, text
+import logging
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -35,6 +36,8 @@ try:
             print(f"  ID: {row[0]}, Name: {row[1]}, Enabled: {row[2]}, TenantID: {row[3]}")
 
 except Exception as e:
+   logger.error(f"Error: {str(e)}", exc_info=True)
+    logger.error(f"Error: {str(e)}", exc_info=True)
     print(f"Error: {e}")
     import traceback
     traceback.print_exc()

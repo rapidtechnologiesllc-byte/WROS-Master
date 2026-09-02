@@ -1,3 +1,4 @@
+import logging
 """add timesheet_anomaly_flags + projects.allow_weekend_billing (HRMS-0910)
 
 Revision ID: f3a4b5c6d7e8

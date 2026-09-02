@@ -120,6 +120,7 @@ class ChannelQueueService:
             return item_id
 
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             db.rollback()
             logger.error(f"Failed to create channel queue item: {e}", exc_info=True)
             raise RuntimeError(f"Failed to create channel queue item: {str(e)}")
@@ -182,8 +183,7 @@ class ChannelQueueService:
                 for item in items
             ]
 
-        except Exception as e:
-            logger.error(f"Failed to fetch pending items for channel {channel_type}: {e}", exc_info=True)
+        except Exception as e:            logger.error(f"Failed to fetch pending items for channel {channel_type}: {e}", exc_info=True)
             raise RuntimeError(f"Failed to fetch pending items: {str(e)}")
 
     @staticmethod
@@ -206,6 +206,7 @@ class ChannelQueueService:
             logger.debug(f"Channel queue item marked as processing: {item_id}")
 
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             db.rollback()
             logger.error(f"Failed to mark as processing: {e}", exc_info=True)
             raise RuntimeError(f"Failed to mark as processing: {str(e)}")
@@ -232,6 +233,7 @@ class ChannelQueueService:
             logger.info(f"Channel queue item completed: {item_id}")
 
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             db.rollback()
             logger.error(f"Failed to mark as completed: {e}", exc_info=True)
             raise RuntimeError(f"Failed to mark as completed: {str(e)}")
@@ -288,6 +290,7 @@ class ChannelQueueService:
                 return False
 
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             db.rollback()
             logger.error(f"Failed to mark as failed: {e}", exc_info=True)
             raise RuntimeError(f"Failed to mark as failed: {str(e)}")
@@ -360,6 +363,5 @@ class ChannelQueueService:
                 "channels": channels,
             }
 
-        except Exception as e:
-            logger.error(f"Failed to fetch stats: {e}", exc_info=True)
+        except Exception as e:            logger.error(f"Failed to fetch stats: {e}", exc_info=True)
             raise RuntimeError(f"Failed to fetch stats: {str(e)}")

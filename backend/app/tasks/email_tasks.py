@@ -1,5 +1,6 @@
 """
 Email Sending Tasks
+import logging
 ===================
 
 Async email tasks:
@@ -33,6 +34,7 @@ def send_email_task(self, to_email: str, subject: str, body: str, html_body: str
         return {"status": "success", "to_email": to_email}
 
     except Exception as e:
+       logger.error(f"Error: {str(e)}", exc_info=True)
         log_task_message(task_id, f"Failed to send email: {str(e)}", "error")
         TaskStatus.update_task(task_id, status="failed")
         return {"status": "error", "error": str(e)}
@@ -68,6 +70,7 @@ def send_bulk_emails_task(self, recipient_list: list, subject: str, body: str):
                     log_task_message(task_id, f"Sent {sent}/{total} emails", "info")
 
             except Exception as e:
+                logger.error(f"Error: {str(e)}", exc_info=True)
                 failed += 1
                 log_task_message(task_id, f"Failed to send to {recipient}: {str(e)}", "warning")
 
@@ -82,6 +85,7 @@ def send_bulk_emails_task(self, recipient_list: list, subject: str, body: str):
         }
 
     except Exception as e:
+       logger.error(f"Error: {str(e)}", exc_info=True)
         log_task_message(task_id, f"Bulk email task failed: {str(e)}", "error")
         TaskStatus.update_task(task_id, status="failed")
         return {"status": "error", "error": str(e)}

@@ -1,3 +1,4 @@
+import logging
 """S-065/HRMS-0465: add users.digest_enabled
 
 Revision ID: 5e91c3d4a8f7

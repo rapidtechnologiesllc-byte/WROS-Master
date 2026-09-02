@@ -1,4 +1,5 @@
 """
+import logging
 HRMS-0102 — Client Entity Model, Phase 2 Domain 4.
 
 Same SQL-Server/SQLite-portable translation conventions as
@@ -62,6 +63,7 @@ LINE_TYPES = ("CORE", "SPECIALITY")
 # BR-01: cannot set status=ACTIVE without at least one client_contact.
 STATUSES_REQUIRING_CONTACT = {"ACTIVE"}
 
+logger = logging.getLogger(__name__)
 
 class Client(Base):
     __tablename__ = "clients"

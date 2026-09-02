@@ -1,4 +1,5 @@
 """
+import logging
 Tests for S-324/HRMS-ONBOARDING-WORKFLOW service layer.
 
 Test coverage for:
@@ -28,6 +29,7 @@ from app.services.onboarding_workflow_service import (
     schedule_training,
 )
 
+logger = logging.getLogger(__name__)
 
 class TestStartOnboarding:
     """Test onboarding workflow initiation."""

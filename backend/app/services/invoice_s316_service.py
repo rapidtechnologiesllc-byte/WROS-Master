@@ -1,5 +1,6 @@
 """
 HRMS-0316 -- Invoice Generation, Calculation, Sending & Payment Tracking
+import logging
 =========================================================================
 
 Complete invoice lifecycle management with hard enforcement of business rules:
@@ -30,6 +31,7 @@ from app.models.project import Project
 from app.models.employee_allocation import EmployeeAllocation
 from app.models.timesheet_dispute import TimesheetDispute
 
+logger = logging.getLogger(__name__)
 
 class InvoiceError(Exception):
     """Base exception for invoice operations."""

@@ -4,6 +4,7 @@ End-to-end MFA flow test: login -> mfa_pending token -> setup -> confirm
 for an already-enrolled account. Also proves the negative case that
 matters most: an mfa_pending token is rejected everywhere except the
 two MFA endpoints, and a normal full token is rejected BY the MFA
+import logging
 endpoints.
 
 Builds a small standalone FastAPI app (auth + mfa routers only) against

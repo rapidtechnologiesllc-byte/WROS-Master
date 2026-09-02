@@ -1,4 +1,5 @@
 """
+import logging
 S-040/HRMS-0440 -- Overall Candidate Score & Ranking.
 
 Real architecture adaptations:
@@ -124,6 +125,7 @@ def recalculate_for_candidate(db: Session, candidate: Candidate, tenant_id: str)
         try:
             results.append(calculate_overall_score(db, candidate.candidateID, job_id, tenant_id))
         except Exception as exc:
+           logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.warning(f"[OverallScoring] Failed to recalculate overall score for candidate {candidate.candidateID!r} / job {job_id!r}: {exc}")
     db.commit()
     return results

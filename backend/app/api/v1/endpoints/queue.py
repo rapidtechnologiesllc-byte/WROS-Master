@@ -257,8 +257,7 @@ def start_queue(queue_type: str, db: Session = Depends(get_db)) -> Dict[str, Any
             "messages_queued": count,
             "message": f"Queue {queue_type} started. {count} pending messages will be processed.",
         }
-    except Exception as e:
-        logger.error(f"Failed to start queue {queue_type}: {e}", exc_info=True)
+    except Exception as e:        logger.error(f"Failed to start queue {queue_type}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to start queue: {str(e)}")
 
 
@@ -281,8 +280,7 @@ def stop_queue(queue_type: str, db: Session = Depends(get_db)) -> Dict[str, Any]
             "messages_paused": count,
             "message": f"Queue {queue_type} stopped. {count} messages paused.",
         }
-    except Exception as e:
-        logger.error(f"Failed to stop queue {queue_type}: {e}", exc_info=True)
+    except Exception as e:        logger.error(f"Failed to stop queue {queue_type}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to stop queue: {str(e)}")
 
 
@@ -315,6 +313,7 @@ def retry_queue(queue_type: str, db: Session = Depends(get_db)) -> Dict[str, Any
             "message": f"Queue {queue_type} retry initiated. {count} failed messages queued for retry.",
         }
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         db.rollback()
         logger.error(f"Failed to retry queue {queue_type}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to retry queue: {str(e)}")

@@ -1,4 +1,5 @@
 """
+import logging
 S-055/HRMS-0455 -- Offer FAQ Bot.
 
 Real architecture under test (see offer_faq_service module docstring):

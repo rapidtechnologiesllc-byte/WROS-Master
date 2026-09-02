@@ -1,4 +1,5 @@
 """
+import logging
 HRMS-0706 -- Interview Panel Assignment, Phase 2 Domain 2.
 
 get_assigned_interviewer() is the helper HRMS-0448 (Calendar Matching
@@ -24,6 +25,7 @@ from app.models.employee import Employee
 from app.models.interview_pipeline import DemandInterviewPanel, SubmissionInterview
 from app.models.submission import Submission
 
+logger = logging.getLogger(__name__)
 
 class InterviewerNotEligible(Exception):
     """BR-01 of HRMS-0706: interviewer must be an ACTIVE employee with WROS access."""

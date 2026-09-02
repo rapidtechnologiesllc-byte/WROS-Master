@@ -4,6 +4,7 @@ S-213/HRMS-0115 -- proves BR-0115-01 (Admin-only write) and BR-0115-03
 isolation. Throwaway SQLite, throwaway JWT keys -- never the real database.
 """
 import os
+import logging
 import tempfile
 
 import pytest

@@ -1,4 +1,5 @@
 """
+import logging
 Unit tests for Phase 1 Backend Models: Enums, Opportunity, Revenue, Invoice.
 
 Tests cover:
@@ -14,6 +15,7 @@ from app.models.invoice import Invoice, InvoiceLineItem
 from app.models.revenue import Revenue, REVENUE_SOURCES, BUSINESS_TYPES
 from app.models.enums import SERVICE_TYPES, MODULE_TYPES, CLIENT_TYPES, PRICING_MODEL_TYPES
 
+logger = logging.getLogger(__name__)
 
 class TestEnumDefinitions:
     """Test that all enum types are defined and non-empty."""

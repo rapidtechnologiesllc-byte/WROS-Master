@@ -1,3 +1,4 @@
+import logging
 """add system_config table (S-213/HRMS-0115)
 
 Revision ID: b3f8d2a7c4e6

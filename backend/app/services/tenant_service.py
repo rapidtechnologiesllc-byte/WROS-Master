@@ -1,4 +1,5 @@
 """
+import logging
 S-219/HRMS-0121 -- Multi-Continent Locale & Currency Config.
 
 Per-tenant timezone, date-display-format, and default display currency.
@@ -17,6 +18,7 @@ from sqlalchemy.orm import Session
 from app.models.tenant import TENANT_DATE_FORMATS, Tenant
 from app.models.client import BILLING_CURRENCIES
 
+logger = logging.getLogger(__name__)
 
 class InvalidTenantLocaleField(Exception):
     pass

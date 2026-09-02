@@ -1,9 +1,11 @@
+import logging
 """Employee Referral Model - Track referrals and bonus payments."""
 
 from sqlalchemy import Column, String, Integer, Float, DateTime, Text, Boolean, ForeignKey
 from datetime import datetime
 from app.models.base import Base
 
+logger = logging.getLogger(__name__)
 
 class EmployeeReferral(Base):
     """Track employee referrals and bonus payments."""

@@ -1,6 +1,7 @@
 import os
 from dotenv import load_dotenv
 from sqlalchemy import create_engine, text
+import logging
 from sqlalchemy.orm import sessionmaker
 
 load_dotenv()
@@ -22,6 +23,8 @@ try:
     else:
         print("❌ User not found")
 except Exception as e:
+   logger.error(f"Error: {str(e)}", exc_info=True)
+    logger.error(f"Error: {str(e)}", exc_info=True)
     print(f"❌ Error: {e}")
 finally:
     db.close()

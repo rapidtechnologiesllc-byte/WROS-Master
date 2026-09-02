@@ -8,6 +8,7 @@ from sqlalchemy import (
     func, Table, UniqueConstraint
 )
 from sqlalchemy.orm import relationship
+import logging
 from app.models.base import Base
 
 
@@ -15,6 +16,7 @@ FEEDBACK_RECOMMENDATIONS = ("STRONG_YES", "YES", "NO", "STRONG_NO", "ABSTAIN")
 INTERVIEW_STATUSES = ("SCHEDULED", "COMPLETED", "CANCELLED", "NO_SHOW", "RESCHEDULED")
 DECISION_OUTCOMES = ("PENDING", "APPROVED", "REJECTED", "APPROVED_WITH_CONDITIONS", "PENDING_REVIEW")
 
+logger = logging.getLogger(__name__)
 
 class InterviewFeedback(Base):
     """Feedback from a single interviewer on the interview panel."""

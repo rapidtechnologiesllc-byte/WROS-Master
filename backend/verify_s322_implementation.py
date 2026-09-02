@@ -2,6 +2,7 @@
 """
 Standalone verification script for S-322: Candidate Rejection Workflow
 Tests the implementation without pytest infrastructure.
+import logging
 """
 
 import sys
@@ -351,6 +352,8 @@ if __name__ == "__main__":
         print(f"\nTEST FAILED: {str(e)}")
         sys.exit(1)
     except Exception as e:
+       logger.error(f"Error: {str(e)}", exc_info=True)
+        logger.error(f"Error: {str(e)}", exc_info=True)
         print(f"\nERROR: {str(e)}")
         import traceback
         traceback.print_exc()

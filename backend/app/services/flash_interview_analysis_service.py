@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func, and_
 from app.models.submission import Submission
 from app.models.interview_pipeline import SubmissionInterview
+import logging
 from app.models.candidate import Candidate
 
 

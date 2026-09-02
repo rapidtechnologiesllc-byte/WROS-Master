@@ -1,3 +1,4 @@
+import logging
 """add candidate_desire_profiles.talking_points (S-350 HR Intelligence Briefing)
 
 Revision ID: 5e9f3a7c1d64

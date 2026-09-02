@@ -1,4 +1,5 @@
 """
+import logging
 S-025/HRMS-0425 -- AI Qualification Conversation Engine.
 
 Real architecture adaptations under test (see

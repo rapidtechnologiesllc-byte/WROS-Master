@@ -4,6 +4,7 @@ COMPREHENSIVE FIX: Grant all permissions to all roles for ALL tenants.
 This is the one-time fix to solve permission issues for every user, every role.
 """
 import sys, os
+import logging
 sys.path.insert(0, os.path.dirname(__file__))
 
 from app.core.database import SessionLocal, engine
@@ -102,6 +103,8 @@ try:
     print("Every user will see proper navigation on next login.")
 
 except Exception as e:
+   logger.error(f"Error: {str(e)}", exc_info=True)
+    logger.error(f"Error: {str(e)}", exc_info=True)
     print(f"\n❌ Error: {e}")
     import traceback
     traceback.print_exc()

@@ -2,6 +2,7 @@
 S-061/HRMS-0461 -- AI Activity Feed, Recruiter Copilot
 ==================================================================
 Prefix: /activity-feed
+import logging
 Tag:    activity-feed
 
 GET /activity-feed?candidate_id={optional}&severity={optional}&page=1&per_page=25

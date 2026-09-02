@@ -1,4 +1,5 @@
 """
+import logging
 S-067/HRMS-0467 -- Onboarding Agent.
 
 Real architecture under test (see onboarding_agent_service module

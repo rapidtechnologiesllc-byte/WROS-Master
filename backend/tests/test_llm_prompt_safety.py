@@ -2,6 +2,7 @@
 Proves Phase 1 B5's acceptance test: "submit a resume/RFP document
 containing an embedded instruction attempting to manipulate an
 LLM-based story's output; confirm the embedded instruction has no
+import logging
 effect on the actual output."
 
 No real LLM is called here (deliberately -- this repo's Gemini API key

@@ -6,6 +6,7 @@ which had it built until now. `02-DATA-MODEL.md`'s own Domain 3 sketch
 already specifies this exact shape: "employee_performance_events (id,
 employee_id, event_type, event_data, occurred_at) -- append-only,
 INSERT only." One generic table with an event_type discriminator, per
+import logging
 that sketch's own design intent -- not a table per event type.
 
 Real append-only enforcement is a database-grant-level guarantee (not
@@ -17,6 +18,7 @@ from sqlalchemy.orm import Mapper
 
 from app.models.base import Base
 
+logger = logging.getLogger(__name__)
 
 class AppendOnlyViolation(Exception):
     """Raised when code tries to UPDATE or DELETE an employee_performance_events row via the ORM."""

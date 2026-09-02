@@ -1,5 +1,6 @@
 """
 HRMS-0711 -- Client Submission Pipeline, Phase 2 Domain 2 (the piece
+import logging
 connecting Demand -> Candidate -> Employee).
 
 Follows the EPIC-01/Phase A track -- the same sprint sequence that
@@ -52,6 +53,7 @@ ALLOWED_SUBMISSION_TRANSITIONS = {
 
 VIOLATION_TYPES = ("NO_MARKET_PROFILE", "EXPERIENCE_INELIGIBLE", "C2C_NOT_ACCEPTED")
 
+logger = logging.getLogger(__name__)
 
 class Submission(Base):
     __tablename__ = "submissions"

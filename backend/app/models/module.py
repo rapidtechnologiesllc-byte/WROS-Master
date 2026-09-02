@@ -1,9 +1,11 @@
+import logging
 """System Module and Module Permission models for database-driven permission system."""
 
 from sqlalchemy import Column, String, Integer, Boolean, ForeignKey, Text, UniqueConstraint
 from sqlalchemy.orm import relationship
 from app.models.base import Base
 
+logger = logging.getLogger(__name__)
 
 class SystemModule(Base):
     """Represents a system module (Candidates, Jobs, Interviews, etc.)

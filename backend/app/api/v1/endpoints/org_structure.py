@@ -1,4 +1,5 @@
 ﻿"""
+import logging
 Organizational Structure API â€” Initialize and manage org hierarchy.
 
 Endpoints for:
@@ -87,6 +88,7 @@ def initialize_org_structure(
             approval_chains_created=chain_result["approval_chains_created"],
         )
     except Exception as e:
+       logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"[OrgInit] Tenant {tenant_id}: Failed to initialize: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -251,6 +253,7 @@ def list_approval_chains(
     ).all()
     return [ApprovalChainResponse.from_orm(c) for c in chains]
 
+logger = logging.getLogger(__name__)
 
 class CreateOrgNodeRequest(BaseModel):
     employee_name: str
@@ -290,6 +293,7 @@ def create_org_node_endpoint(
         db.commit()
         return OrgNodeResponse.from_orm(node)
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         db.rollback()
         logger.error(f"[OrgNode] Tenant {tenant_id}: Failed to create node: {e}")
         raise HTTPException(

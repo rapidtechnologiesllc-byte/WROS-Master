@@ -1,4 +1,5 @@
 """
+import logging
 S-041/HRMS-0441 -- Follow-Up Scheduler.
 
 follow_up_schedule: genuinely new table -- a real, queryable, job-driven
@@ -36,6 +37,7 @@ FOLLOWUP_CHANNELS = ("whatsapp", "email")
 FOLLOWUP_STATUSES = ("PENDING", "SENT", "CANCELLED", "SKIPPED")
 MAX_FOLLOWUPS = 3  # BR-01: never a 4th
 
+logger = logging.getLogger(__name__)
 
 class FollowUpSchedule(Base):
     __tablename__ = "follow_up_schedule"

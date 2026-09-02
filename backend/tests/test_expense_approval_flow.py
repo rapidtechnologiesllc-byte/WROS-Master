@@ -3,6 +3,7 @@ Avinash, 2026-08-05: "you are not adding an approval mechanism and once
 approved it has to be sent to accounts@blitzenx.com and assigned to
 finance team as a task to mark it paid once paid." Proves the full
 loop: approve -> Finance notified + a real Task created -> completing
+import logging
 that Task (via mark_expense_paid) flips the expense to REIMBURSED.
 
 Throwaway SQLite -- never the real database.

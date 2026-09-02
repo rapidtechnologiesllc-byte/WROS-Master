@@ -1,4 +1,5 @@
 """
+import logging
 S-347/HRMS-P117 -- Candidate Desire Intelligence Engine.
 
 candidate_desire_signals: a real, new, queryable ledger of every
@@ -34,6 +35,7 @@ DESIRE_CATEGORIES = (
 )
 DESIRE_DIRECTIONS = ("TOWARDS", "AWAY_FROM")
 
+logger = logging.getLogger(__name__)
 
 class CandidateDesireSignal(Base):
     __tablename__ = "candidate_desire_signals"

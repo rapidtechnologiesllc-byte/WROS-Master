@@ -1,3 +1,4 @@
+import logging
 """add submission + interview pipeline entities (Phase 2 Domain 2)
 
 Revision ID: f8a9b0c1d2e3

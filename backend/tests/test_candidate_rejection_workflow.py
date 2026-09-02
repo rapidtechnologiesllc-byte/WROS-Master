@@ -1,4 +1,5 @@
 """
+import logging
 Tests for Candidate Rejection Workflow (S-322)
 
 Tests cover:

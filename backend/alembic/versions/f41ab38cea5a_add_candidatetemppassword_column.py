@@ -1,3 +1,4 @@
+import logging
 """add_candidateTempPassword_column
 
 Revision ID: f41ab38cea5a

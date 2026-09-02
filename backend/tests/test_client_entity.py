@@ -1,5 +1,6 @@
 """
 Proves HRMS-0102: BR-01 (no ACTIVE status without a contact) and BR-02
+import logging
 (markup rate hidden from CS/recruiter-facing serialization).
 
 Throwaway SQLite -- never the real database.

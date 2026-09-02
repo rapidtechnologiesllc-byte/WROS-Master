@@ -111,6 +111,7 @@ def log_agent_execution(
         return log_entry
 
     except Exception as e:
+       logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(
             f"Failed to log agent execution for {agent_name}: {str(e)}",
             exc_info=True

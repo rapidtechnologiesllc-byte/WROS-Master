@@ -2,6 +2,7 @@
 """
 NEGATIVE TEST CASES EXECUTION
 Complete verification of all 4 test scenarios
+import logging
 """
 
 import sys

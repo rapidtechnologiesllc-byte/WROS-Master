@@ -1,3 +1,4 @@
+import logging
 """add conversation_audit_log (S-076/HRMS-0476)
 
 Revision ID: f1a2b3c4d5e6

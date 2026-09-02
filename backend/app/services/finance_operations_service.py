@@ -2,6 +2,7 @@
 from datetime import datetime, timedelta
 from typing import List, Dict, Optional
 from sqlalchemy.orm import Session
+import logging
 from sqlalchemy import and_, func
 
 from app.models.invoice import Invoice, InvoiceLineItem

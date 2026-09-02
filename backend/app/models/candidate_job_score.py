@@ -1,4 +1,5 @@
 """
+import logging
 S-037/HRMS-0437 -- Technical Qualification Score.
 
 candidate_job_scores: genuinely new table -- a real, one-row-per-
@@ -17,6 +18,7 @@ from sqlalchemy.orm import relationship
 
 from app.models.base import Base
 
+logger = logging.getLogger(__name__)
 
 class CandidateJobScore(Base):
     __tablename__ = "candidate_job_scores"

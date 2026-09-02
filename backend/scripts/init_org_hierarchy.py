@@ -1,3 +1,4 @@
+import logging
 """Initialize Organizational Hierarchy from Existing Users and Roles
 
 This script:
@@ -94,6 +95,7 @@ def find_user_by_role(session, role_name: str):
         # Fallback: search in permission_role field (legacy)
         return session.query(Users).filter(Users.permission_role == role_name).first()
     except Exception as e:
+       logger.error(f"Error: {str(e)}", exc_info=True)
         logger.warning(f"Could not find user with role '{role_name}': {e}")
         return None
 
@@ -118,6 +120,7 @@ def get_user_roles(session, user_id: str) -> list:
 
         return role_names
     except Exception as e:
+       logger.error(f"Error: {str(e)}", exc_info=True)
         logger.warning(f"Could not get roles for user {user_id}: {e}")
         return []
 
@@ -161,8 +164,7 @@ def create_org_node(
             session.add(node)
             session.commit()
             return node
-    except Exception as e:
-        logger.error(f"Failed to create OrgNode for {name}: {e}")
+    except Exception as e:        logger.error(f"Failed to create OrgNode for {name}: {e}")
         raise
 
 
@@ -393,6 +395,7 @@ def init_org_hierarchy():
         return True
 
     except Exception as e:
+       logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"ERROR initializing org hierarchy: {e}", exc_info=True)
         session.rollback()
         return False

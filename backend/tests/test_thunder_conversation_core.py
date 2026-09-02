@@ -1,4 +1,5 @@
 """
+import logging
 Phase 3 Part A1 -- Thunder Conversation Core (app.services.thunder_service).
 
 Proves the two guarantees `03-THUNDER-AGENTIC-LAYER.md` requires of

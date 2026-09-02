@@ -1,4 +1,5 @@
 """
+import logging
 S-434 -- Org-wide Task Dashboard.
 
 Throwaway SQLite -- never the real database. Covers: org-wide

@@ -1,6 +1,7 @@
 """
 HR Assignment Model
 ===================
+import logging
 Links a candidate to one or two HR/Recruiter users for the recruitment process.
 
 Fields:
@@ -17,6 +18,7 @@ from sqlalchemy.orm import relationship
 
 from app.models.base import Base
 
+logger = logging.getLogger(__name__)
 
 class HRAssignment(Base):
     __tablename__ = "hr_assignments"

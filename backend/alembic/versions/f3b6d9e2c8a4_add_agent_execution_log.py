@@ -1,3 +1,4 @@
+import logging
 """add agent_execution_log table (S-066/HRMS-0466)
 
 Revision ID: f3b6d9e2c8a4

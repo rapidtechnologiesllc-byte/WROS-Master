@@ -9,6 +9,7 @@ lifecycle_communication_linking_service.link_email_to_lifecycle_record()
 one message at a time. Message BODY is never fetched -- the Graph
 $select below only ever requests subject/from/to/timestamps/webLink,
 matching BR-1408-01 (metadata-only) at the source, not just at the
+import logging
 point of storage.
 
 graph_call is injectable (same convention as
@@ -98,6 +99,7 @@ def sync_mail_for_user(
                 ):
                     linked_count += 1
     except Exception as exc:
+       logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[MsgraphMailSync] Failed to sync mail for user {user.UserID}: {exc}")
         return {"linked": linked_count, "synced": False}
 
@@ -129,6 +131,7 @@ def run_msgraph_mail_sync_job(db: Session) -> dict:
                 synced_users += 1
                 total_linked += result["linked"]
         except Exception as exc:
+           logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.warning(f"[MsgraphMailSync] Unexpected error syncing user {user_id}: {exc}")
 
     return {"synced_users": synced_users, "total_linked": total_linked}

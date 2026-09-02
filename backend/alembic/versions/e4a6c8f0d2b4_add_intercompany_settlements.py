@@ -1,3 +1,4 @@
+import logging
 """add intercompany_settlements (EPIC-16)
 
 Revision ID: e4a6c8f0d2b4

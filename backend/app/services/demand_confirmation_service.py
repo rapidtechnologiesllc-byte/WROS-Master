@@ -1,4 +1,5 @@
 """
+import logging
 S-372/HRMS-0528 -- Confirmed vs Potential Demand Workflow.
 
 Built from `Requirements/S-372_HRMS-0528.docx` directly.
@@ -16,6 +17,7 @@ from app.services.notification_service import send_notification
 
 PARTICIPANTS = ("EMPLOYEE", "BU_HEAD")
 
+logger = logging.getLogger(__name__)
 
 class SOWReferenceRequired(Exception):
     """AC-6: SOW reference must be recorded before confirmation_status can flip to CONFIRMED."""

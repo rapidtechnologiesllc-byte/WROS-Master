@@ -1,3 +1,4 @@
+import logging
 """offer_letter_approval_and_workflow
 
 Revision ID: 49cffff2c698

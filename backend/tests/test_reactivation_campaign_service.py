@@ -1,4 +1,5 @@
 """
+import logging
 S-045/HRMS-0445 -- Reactivation Campaign.
 
 Real architecture under test (see reactivation_campaign_service module

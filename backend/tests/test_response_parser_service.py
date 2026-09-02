@@ -1,4 +1,5 @@
 """
+import logging
 S-026/HRMS-0426 -- Candidate Response Parser.
 
 Real architecture adaptation under test (see response_parser_service

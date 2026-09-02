@@ -1,3 +1,4 @@
+import logging
 """add clarification_qa (HRMS-P814)
 
 Revision ID: d0e1f2a3b4c6

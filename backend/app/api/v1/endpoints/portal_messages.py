@@ -2,6 +2,7 @@
 S-004/HRMS-0404 -- Web Portal Chat Messages
 ==============================================
 Prefix: /portal/conversations
+import logging
 Tag:    portal-messages
 
 Candidate-authenticated (get_current_candidate -- real JWT candidate

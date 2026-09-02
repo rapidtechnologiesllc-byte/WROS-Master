@@ -1,4 +1,5 @@
 """
+import logging
 S-070/HRMS-0470 -- Candidate Engagement Health Metrics.
 
 candidate_engagement_metrics: genuinely new table -- one row per
@@ -11,6 +12,7 @@ from sqlalchemy.orm import relationship
 
 from app.models.base import Base
 
+logger = logging.getLogger(__name__)
 
 class CandidateEngagementMetrics(Base):
     __tablename__ = "candidate_engagement_metrics"

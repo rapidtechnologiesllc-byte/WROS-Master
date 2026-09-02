@@ -1,3 +1,4 @@
+import logging
 """add htd_intake_status/htd_monthly_metrics/htd_pause_log (S-359/HRMS-P511)
 
 Revision ID: e0f1a2b3c4d5

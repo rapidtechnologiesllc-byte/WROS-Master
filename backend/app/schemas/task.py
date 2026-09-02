@@ -1,9 +1,11 @@
 """Pydantic schemas -- S-434 Task Dashboard."""
 from datetime import datetime
+import logging
 from typing import Optional
 
 from pydantic import BaseModel
 
+logger = logging.getLogger(__name__)
 
 class TaskCreateRequest(BaseModel):
     title: str

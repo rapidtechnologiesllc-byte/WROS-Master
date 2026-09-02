@@ -4,6 +4,7 @@ computation revenue_target_service._fy_invoice_total_for_clients()
 already established for the fiscal-year granularity (no
 analytics_fact_revenue ETL table exists anywhere in this codebase).
 Forecast is opportunity_service.calculate_weighted_forecast(), the one
+import logging
 shared calculation per HRMS-0209 BR-0209-01 -- no local recalculation.
 
 Does NOT depend on S-279/HRMS-0313 (Plan vs Execution Variance) despite

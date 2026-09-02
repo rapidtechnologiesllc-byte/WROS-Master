@@ -4,6 +4,7 @@ POST /submissions, GET /submissions, GET /submissions/violations, PATCH
 Pipeline end-to-end on real routes for the first time. Also proves
 canonical S-249 ("Restrict Market Candidate Submission"):
 check_market_profile_rule() (pre-existing, real) blocks a non-BENCH/
+import logging
 ACTIVE/ALLOCATED employee's candidate from being submitted.
 
 Throwaway SQLite app, throwaway JWT keys -- never the real database or

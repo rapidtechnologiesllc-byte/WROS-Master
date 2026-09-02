@@ -1,4 +1,5 @@
 """
+import logging
 S-017/HRMS-0417 -- Candidate Self-Service Web Portal.
 
 Adapted to this codebase's real architecture:
@@ -193,6 +194,7 @@ def get_portal_interviews(db: Session, candidate: Candidate) -> List[Dict[str, A
         for i in rows
     ]
 
+logger = logging.getLogger(__name__)
 
 class PortalInterviewNotFound(Exception):
     pass

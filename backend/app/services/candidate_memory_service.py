@@ -1,4 +1,5 @@
 """
+import logging
 S-021/HRMS-0421 -- Candidate Memory Store.
 
 Foundational story only, per its own dependency note ("HRMS-0422 Facts
@@ -40,6 +41,7 @@ SUMMARY_MAX_AGE = timedelta(days=1)  # "daily whichever comes first"
 
 GEMINI_MODEL_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
 
+logger = logging.getLogger(__name__)
 
 class InvalidFactCategory(Exception):
     pass
@@ -221,6 +223,7 @@ def update_memory_summary(
     try:
         raw = _call_llm(prompt, llm_call).strip()
     except Exception as exc:
+       logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[CandidateMemory] Summary generation failed for candidate {candidate_id}: {exc}")
         _log_memory_event(db, candidate_id, "MEMORY_SUMMARY_FAILED", {"reason": str(exc)})
         db.commit()

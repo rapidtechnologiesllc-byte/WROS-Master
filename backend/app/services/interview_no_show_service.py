@@ -1,4 +1,5 @@
 """
+import logging
 S-052/HRMS-0452 -- Interview No-Show Handling.
 
 Real architecture adaptations:
@@ -129,6 +130,7 @@ def _notify_recruiter(db: Session, submission: Optional[Submission], message: st
             priority_tier="P1", channel_preference="IN_APP", message=message,
         )
     except Exception as exc:
+       logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[InterviewNoShow] Failed to notify recruiter: {exc}")
 
 
@@ -201,6 +203,7 @@ def run_no_show_detection_job(db: Session) -> Dict:
                 if conversation is not None:
                     db.add(ConversationEvent(conversation_id=conversation.id, event_type="ai_message_sent", event_data={"channel": "email", "body": message[:500], "auto_generated": True, "message_type": "NO_SHOW_CHECK_IN"}, triggered_by="ai_agent"))
             except Exception as exc:
+               logger.error(f"Error: {str(exc)}", exc_info=True)
                 logger.error(f"[InterviewNoShow] Check-in email failed for candidate {candidate.candidateID!r}: {exc}")
 
             interview.no_show_check_in_at = now.replace(tzinfo=None)
@@ -208,6 +211,7 @@ def run_no_show_detection_job(db: Session) -> Dict:
             db.commit()
             result["check_in_sent"] += 1
         except Exception as exc:
+           logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.error(f"[InterviewNoShow] Failed processing check-in for interview {interview.id!r}: {exc}")
             db.rollback()
             result["skipped"] += 1
@@ -268,10 +272,12 @@ def run_no_show_detection_job(db: Session) -> Dict:
                         "<p>The candidate did not join. We are following up with them now. We will reschedule if appropriate.</p>", is_html=True,
                     )
                 except Exception as exc:
+                   logger.error(f"Error: {str(exc)}", exc_info=True)
                     logger.error(f"[InterviewNoShow] Interviewer notification email failed: {exc}")
 
             result["no_show_confirmed"] += 1
         except Exception as exc:
+           logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.error(f"[InterviewNoShow] Failed confirming no-show for interview {interview.id!r}: {exc}")
             db.rollback()
             result["skipped"] += 1
@@ -317,6 +323,7 @@ def run_no_show_followup_job(db: Session) -> Dict:
             db.commit()
             result["offer_sent"] += 1
         except Exception as exc:
+           logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.error(f"[InterviewNoShow] Failed sending reschedule offer for interview {interview.id!r}: {exc}")
             db.rollback()
             result["skipped"] += 1
@@ -353,6 +360,7 @@ def run_no_show_followup_job(db: Session) -> Dict:
             else:
                 result["skipped"] += 1
         except Exception as exc:
+           logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.error(f"[InterviewNoShow] Failed processing reschedule-offer follow-up for interview {interview.id!r}: {exc}")
             db.rollback()
             result["skipped"] += 1

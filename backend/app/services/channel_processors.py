@@ -135,6 +135,7 @@ class EmailQueueProcessor(BaseChannelProcessor):
             }
 
         except Exception as e:
+           logger.error(f"Error: {str(e)}", exc_info=True)
             logger.error(f"EmailQueueProcessor failed: {e}", exc_info=True)
             raise RuntimeError(f"Failed to route message to EMAIL_QUEUE: {str(e)}")
 
@@ -194,6 +195,7 @@ class ThunderQueueProcessor(BaseChannelProcessor):
                 auto_assign_ai_agent_on_creation(candidate_id, db)
                 logger.info(f"[ThunderQueueProcessor] AI agent assigned to {candidate_id}")
             except Exception as e:
+               logger.error(f"Error: {str(e)}", exc_info=True)
                 logger.warning(f"[ThunderQueueProcessor] AI assignment failed: {e}")
                 # Don't fail the entire message - continue with engagement
 
@@ -212,6 +214,7 @@ class ThunderQueueProcessor(BaseChannelProcessor):
                     whatsapp_result = send_first_whatsapp_engagement(db, candidate_id, tenant_id)
                     logger.debug(f"[ThunderQueueProcessor] WhatsApp sent to {candidate_id}")
                 except Exception as e:
+                   logger.error(f"Error: {str(e)}", exc_info=True)
                     logger.warning(f"[ThunderQueueProcessor] WhatsApp failed: {e}")
 
             email_result = None
@@ -221,6 +224,7 @@ class ThunderQueueProcessor(BaseChannelProcessor):
                     email_result = send_first_email_engagement(db, candidate_id, tenant_id)
                     logger.debug(f"[ThunderQueueProcessor] Email sent to {candidate_id}")
                 except Exception as e:
+                   logger.error(f"Error: {str(e)}", exc_info=True)
                     logger.warning(f"[ThunderQueueProcessor] Email failed: {e}")
 
             # Step 3: Log Thunder activity
@@ -238,6 +242,7 @@ class ThunderQueueProcessor(BaseChannelProcessor):
                     }
                 )
             except Exception as e:
+               logger.error(f"Error: {str(e)}", exc_info=True)
                 logger.debug(f"[ThunderQueueProcessor] Activity logging failed: {e}")
 
             logger.info(
@@ -257,6 +262,7 @@ class ThunderQueueProcessor(BaseChannelProcessor):
             }
 
         except Exception as e:
+           logger.error(f"Error: {str(e)}", exc_info=True)
             logger.error(f"[ThunderQueueProcessor] Failed to process message: {e}", exc_info=True)
             raise RuntimeError(f"Failed to process THUNDER_QUEUE message: {str(e)}")
 
@@ -299,6 +305,7 @@ class WhatsAppQueueProcessor(BaseChannelProcessor):
             }
 
         except Exception as e:
+           logger.error(f"Error: {str(e)}", exc_info=True)
             logger.error(f"WhatsAppQueueProcessor failed: {e}", exc_info=True)
             raise RuntimeError(f"Failed to route message to WHATSAPP_QUEUE: {str(e)}")
 
@@ -340,6 +347,7 @@ class SMSQueueProcessor(BaseChannelProcessor):
             }
 
         except Exception as e:
+           logger.error(f"Error: {str(e)}", exc_info=True)
             logger.error(f"SMSQueueProcessor failed: {e}", exc_info=True)
             raise RuntimeError(f"Failed to route message to SMS_QUEUE: {str(e)}")
 
@@ -381,6 +389,7 @@ class SlackQueueProcessor(BaseChannelProcessor):
             }
 
         except Exception as e:
+           logger.error(f"Error: {str(e)}", exc_info=True)
             logger.error(f"SlackQueueProcessor failed: {e}", exc_info=True)
             raise RuntimeError(f"Failed to route message to SLACK_QUEUE: {str(e)}")
 
@@ -428,6 +437,7 @@ class ApprovalQueueProcessor(BaseChannelProcessor):
             }
 
         except Exception as e:
+           logger.error(f"Error: {str(e)}", exc_info=True)
             logger.error(f"ApprovalQueueProcessor failed: {e}", exc_info=True)
             raise RuntimeError(f"Failed to route message to APPROVAL_QUEUE: {str(e)}")
 
@@ -475,6 +485,7 @@ class CommissionQueueProcessor(BaseChannelProcessor):
             }
 
         except Exception as e:
+           logger.error(f"Error: {str(e)}", exc_info=True)
             logger.error(f"CommissionQueueProcessor failed: {e}", exc_info=True)
             raise RuntimeError(f"Failed to route message to COMMISSION_QUEUE: {str(e)}")
 
@@ -522,6 +533,7 @@ class CRMQueueProcessor(BaseChannelProcessor):
             }
 
         except Exception as e:
+           logger.error(f"Error: {str(e)}", exc_info=True)
             logger.error(f"CRMQueueProcessor failed: {e}", exc_info=True)
             raise RuntimeError(f"Failed to route message to CRM_QUEUE: {str(e)}")
 
@@ -571,6 +583,7 @@ class DashboardQueueProcessor(BaseChannelProcessor):
             }
 
         except Exception as e:
+           logger.error(f"Error: {str(e)}", exc_info=True)
             logger.error(f"DashboardQueueProcessor failed: {e}", exc_info=True)
             raise RuntimeError(f"Failed to route message to DASHBOARD_QUEUE: {str(e)}")
 
@@ -620,6 +633,7 @@ class CalendarQueueProcessor(BaseChannelProcessor):
             }
 
         except Exception as e:
+           logger.error(f"Error: {str(e)}", exc_info=True)
             logger.error(f"CalendarQueueProcessor failed: {e}", exc_info=True)
             raise RuntimeError(f"Failed to route message to CALENDAR_QUEUE: {str(e)}")
 
@@ -667,6 +681,7 @@ class SignatureQueueProcessor(BaseChannelProcessor):
             }
 
         except Exception as e:
+           logger.error(f"Error: {str(e)}", exc_info=True)
             logger.error(f"SignatureQueueProcessor failed: {e}", exc_info=True)
             raise RuntimeError(f"Failed to route message to SIGNATURE_QUEUE: {str(e)}")
 

@@ -1,4 +1,5 @@
 """
+import logging
 Relation Building Agent - Persona Extraction & Relationship Intelligence
 
 Reports to: Flash Orchestration Engine
@@ -37,6 +38,7 @@ from app.services.personal_intelligence_service import (
     PersonalizationEngine,
 )
 
+logger = logging.getLogger(__name__)
 
 class RelationBuildingAgent:
     """
@@ -190,6 +192,7 @@ class RelationBuildingAgent:
             }
 
         except Exception as e:
+           logger.error(f"Error: {str(e)}", exc_info=True)
             logger.error(f"Relation Building Agent error for {candidate_id}: {str(e)}")
             return {
                 "status": "error",
@@ -470,6 +473,7 @@ class RelationBuildingAgent:
             db.commit()
 
         except Exception as e:
+           logger.error(f"Error: {str(e)}", exc_info=True)
             logger.error(f"Error storing persona facts for {candidate_id}: {str(e)}")
             db.rollback()
 

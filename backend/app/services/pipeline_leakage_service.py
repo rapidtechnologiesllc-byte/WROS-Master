@@ -3,6 +3,7 @@ S-243 (EPIC-02 Revenue Leakage Detection). See app.models.pipeline_leakage
 for the 4-pattern design and why sub-vendor cost overruns aren't built.
 """
 from datetime import datetime, timedelta
+import logging
 from typing import List, Optional
 
 from sqlalchemy.orm import Session

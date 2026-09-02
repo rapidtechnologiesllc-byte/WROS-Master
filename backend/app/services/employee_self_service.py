@@ -8,6 +8,7 @@ gated to get_current_hr_or_admin, which -- despite its name -- doesn't
 actually check role (only "not a candidate"), and none of them scope
 results to "the caller's own record": an employee_id/allocation_id is
 taken as a client-supplied filter, trusted as-is. That's fine for an
+import logging
 HR-driven flow; it's not safe to open to every employee as-is.
 
 This module is the real ownership boundary that was missing: every
@@ -26,6 +27,7 @@ from app.models.employee_allocation import EmployeeAllocation
 from app.models.timesheet import Timesheet
 from app.models.user import Users
 
+logger = logging.getLogger(__name__)
 
 class NoLinkedEmployeeRecord(Exception):
     pass

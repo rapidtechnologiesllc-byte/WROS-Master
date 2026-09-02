@@ -1,4 +1,5 @@
 """
+import logging
 S-055/HRMS-0455 -- Offer FAQ Bot.
 
 Real architecture adaptations:
@@ -182,6 +183,7 @@ def _notify_recruiter(db: Session, submission: Optional[Submission], message: st
             priority_tier="P2", channel_preference="IN_APP", message=message,
         )
     except Exception as exc:
+       logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[OfferFAQ] Failed to notify recruiter: {exc}")
 
 
@@ -254,6 +256,7 @@ def answer_offer_question(
         try:
             answer = _call_llm(prompt, llm_call)
         except Exception as exc:
+           logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.warning(f"[OfferFAQ] LLM call failed for candidate {candidate.candidateID!r}: {exc}")
             answer = None
 
@@ -267,6 +270,7 @@ def answer_offer_question(
         db.commit()
         return {"outcome": "answered", "answer": answer}
     except Exception as exc:
+       logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.error(f"[OfferFAQ] Unexpected failure answering question for candidate {candidate.candidateID!r}: {exc}")
         db.rollback()
         return {"outcome": "answer_failed"}

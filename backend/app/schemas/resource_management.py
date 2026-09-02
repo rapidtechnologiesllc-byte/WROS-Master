@@ -1,5 +1,6 @@
 """
 Pydantic schemas — HRMS-1105 (canonical S-320) Resource Management Agent API.
+import logging
 """
 
 from datetime import datetime
@@ -7,6 +8,7 @@ from typing import List, Optional
 
 from pydantic import BaseModel
 
+logger = logging.getLogger(__name__)
 
 class ScanTriggerResponse(BaseModel):
     core_pull_events_triggered: int

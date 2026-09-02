@@ -1,5 +1,6 @@
 """
 Runs the HRMS-0114 audit against the REAL app (app.main:app) and
+import logging
 reports the current gap.
 
 Tiers:

@@ -5,6 +5,7 @@ epic-01 is complete" (2026-08-05). His own words: "if there was a
 nohire in the past then when the next time someone is trying to
 schedule interview to the candidate they need to provide a clear
 justification an agentic bot should review and decide or take approval
+import logging
 from hiring manager before scheduling the interview."
 
 Attaches to the LEGACY interview system
@@ -48,6 +49,7 @@ FAIL_CLOSED_REASONING = (
     "AI review unavailable -- routed to hiring manager for manual approval (fail-closed)."
 )
 
+logger = logging.getLogger(__name__)
 
 class RehireReviewNotFound(Exception):
     pass
@@ -179,6 +181,7 @@ def review_rehire_justification(
             "confidence": max(0.0, min(1.0, confidence)),
         }
     except Exception as exc:
+       logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[RehireGuard] AI review failed, failing closed to ESCALATE: {exc}")
         return {"decision": "ESCALATE", "reasoning": FAIL_CLOSED_REASONING, "confidence": 0.0}
 

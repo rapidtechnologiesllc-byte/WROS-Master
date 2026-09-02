@@ -1,3 +1,4 @@
+import logging
 """Pydantic schemas -- S-356/HRMS-0517 (Employee Milestone Tracker) API."""
 
 from datetime import date
@@ -5,6 +6,7 @@ from typing import List, Optional
 
 from pydantic import BaseModel, Field
 
+logger = logging.getLogger(__name__)
 
 class CreateEmployeeMilestoneRequest(BaseModel):
     milestone_type: str  # PERSONAL | PROJECT | ORG

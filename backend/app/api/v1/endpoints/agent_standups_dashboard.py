@@ -5,6 +5,7 @@ from app.core.dependencies import get_current_internal_user, require_resource_pe
 from app.core.database import get_db
 from app.models.user import Users
 from app.services.agent_daily_standup_service import AgentDailyStandup
+import logging
 from app.services.permission_helper import PermissionHelper
 
 router = APIRouter(prefix="/admin/agent-standups", tags=["Agent Standups Dashboard"])
@@ -61,6 +62,7 @@ def get_standups_dashboard(
     except HTTPException:
         raise
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -131,6 +133,7 @@ async def ceo_provide_feedback(
     except HTTPException:
         raise
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -209,4 +212,5 @@ async def get_agent_details(
         }
 
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))

@@ -1,6 +1,7 @@
 """
 Pydantic schemas — S-353 (HRMS-0514) Core-Pull Engine + S-373 (HRMS-0529)
 Specialty Pool Minimum 40 Guard API.
+import logging
 """
 
 from datetime import date, datetime
@@ -8,6 +9,7 @@ from typing import List, Optional
 
 from pydantic import BaseModel, Field
 
+logger = logging.getLogger(__name__)
 
 class SpecialtyPoolStatusResponse(BaseModel):
     pool_size: int

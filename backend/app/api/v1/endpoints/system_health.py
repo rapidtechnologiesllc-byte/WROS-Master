@@ -66,6 +66,7 @@ def get_system_health(
             db.execute(text("SELECT 1"))
             db_status = "healthy"
         except Exception as e:
+           logger.error(f"Error: {str(e)}", exc_info=True)
             logger.error(f"Database health check failed: {e}")
             db_status = "error"
 
@@ -83,6 +84,7 @@ def get_system_health(
             else:
                 queue_status = "healthy"
         except Exception as e:
+           logger.error(f"Error: {str(e)}", exc_info=True)
             logger.error(f"Queue health check failed: {e}")
             queue_status = "unknown"
 
@@ -100,6 +102,7 @@ def get_system_health(
             else:
                 slm_status = "unknown"
         except Exception as e:
+           logger.error(f"Error: {str(e)}", exc_info=True)
             logger.warning(f"SLM health check inconclusive: {e}")
             slm_status = "unknown"
 
@@ -116,6 +119,7 @@ def get_system_health(
             doctor_escalations = recent_traces
             doctor_status = "active" if recent_traces >= 0 else "inactive"
         except Exception as e:
+           logger.error(f"Error: {str(e)}", exc_info=True)
             logger.warning(f"Doctor agent status check inconclusive: {e}")
             doctor_status = "unknown"
 
@@ -214,8 +218,7 @@ def get_system_health(
             }
         }
 
-    except Exception as e:
-        logger.error(f"Failed to get system health: {e}", exc_info=True)
+    except Exception as e:        logger.error(f"Failed to get system health: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to get system health: {str(e)}")
 
 
@@ -311,6 +314,5 @@ def get_phalanx_integrity(
 
     except HTTPException:
         raise
-    except Exception as e:
-        logger.error(f"Failed to get phalanx integrity: {e}", exc_info=True)
+    except Exception as e:        logger.error(f"Failed to get phalanx integrity: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to get phalanx integrity: {str(e)}")

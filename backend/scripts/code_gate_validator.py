@@ -7,6 +7,7 @@ Used as pre-commit hook
 import sys
 import re
 import os
+import logging
 from pathlib import Path
 
 # Force UTF-8 encoding on Windows
@@ -19,6 +20,7 @@ BOLD = '\033[1m'
 RED = '\033[91m'
 GREEN = '\033[92m'
 RESET = '\033[0m'
+logger = logging.getLogger(__name__)
 
 class CodeGateValidator:
     def __init__(self):

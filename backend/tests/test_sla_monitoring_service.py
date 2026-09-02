@@ -1,4 +1,5 @@
 """
+import logging
 S-020/HRMS-0420 -- Engagement SLA Monitoring.
 
 Real architecture adaptations under test (see sla_monitoring_service

@@ -1,5 +1,6 @@
 """
 HRMS-0207 (Create Opportunity), HRMS-0209 (Forecast Calculation),
+import logging
 HRMS-0215 (Pipeline Coverage Ratio).
 
 calculate_weighted_forecast() is deliberately the ONE shared function
@@ -27,6 +28,7 @@ from app.models.opportunity import CLOSED_STAGES, OPPORTUNITY_STAGES, Opportunit
 from app.services.demand_service import create_demand
 from app.services.project_service import create_project_from_won_opportunity
 
+logger = logging.getLogger(__name__)
 
 class OpportunityValidationError(Exception):
     pass

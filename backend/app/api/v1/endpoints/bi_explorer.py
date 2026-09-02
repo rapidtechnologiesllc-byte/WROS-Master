@@ -10,6 +10,7 @@ from app.services.bi_service import (
     get_table_schema,
     query_table,
     get_table_summary,
+import logging
 )
 
 router = APIRouter(prefix="/bi", tags=["Business Intelligence"])
@@ -31,6 +32,7 @@ def list_available_tables(
             }
         }
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -50,6 +52,7 @@ def get_table_schema_endpoint(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -69,6 +72,7 @@ def get_table_summary_endpoint(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -110,6 +114,7 @@ def execute_bi_query(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -139,4 +144,5 @@ def query_table_endpoint(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))

@@ -1,3 +1,4 @@
+import logging
 """add reserve_fund_entries (EPIC-16)
 
 Revision ID: d2f4a6c8e0b2

@@ -1,9 +1,11 @@
+import logging
 """Agent Kill Switch Automation - Disable agents that can't hit minimum targets."""
 
 from sqlalchemy.orm import Session
 from datetime import datetime
 from app.models.agent_state_target import AgentStateTarget, AgentFearScore
 from app.utils.agent_logger import log_agent_execution
+logger = logging.getLogger(__name__)
 
 class AgentKillSwitchService:
     """Automated kill switch logic for underperforming agents."""
@@ -152,6 +154,7 @@ class AgentKillSwitchService:
             }
 
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             db.rollback()
             return {
                 "status": "error",
@@ -204,6 +207,7 @@ class AgentKillSwitchService:
             }
 
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             db.rollback()
             return {
                 "status": "error",

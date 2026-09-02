@@ -1,4 +1,5 @@
 """
+import logging
 S-216/HRMS-0118 -- Shared Activity Timeline & File Attachment Framework.
 
 Polymorphic (entity_type, entity_id) history table -- BR-0118-01's
@@ -11,6 +12,7 @@ from app.models.base import Base
 
 ACTOR_TYPES = ("USER", "SYSTEM", "AI_AGENT")
 
+logger = logging.getLogger(__name__)
 
 class ActivityTimeline(Base):
     __tablename__ = "activity_timeline"

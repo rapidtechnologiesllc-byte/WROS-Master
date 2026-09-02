@@ -1,3 +1,4 @@
+import logging
 """Database migration: Create Agent State tracking tables."""
 
 from sqlalchemy import Column, String, Integer, Float, Boolean, DateTime, Text, create_engine
@@ -7,6 +8,7 @@ import os
 
 Base = declarative_base()
 
+logger = logging.getLogger(__name__)
 
 class AgentStateTarget(Base):
     """Agent's strategic targets and accountability metrics."""

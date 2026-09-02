@@ -1,5 +1,6 @@
 """
 HRMS-1103 -- LinkedIn Sourcing Agent Loop (Phase 3 Workstream 1 /
+import logging
 Recruit), EPIC-11.
 
 Consumes OPEN sourcing_alerts (HRMS-1102's output), generates a Boolean
@@ -45,6 +46,7 @@ from app.services.notification_service import send_notification
 
 CONSECUTIVE_SEARCH_FAILURES_BEFORE_ESCALATION = 2  # AC-6
 
+logger = logging.getLogger(__name__)
 
 class StagedCandidateAlreadyPromoted(Exception):
     """BR-1103-02: a staged_candidates row can only be promoted once."""

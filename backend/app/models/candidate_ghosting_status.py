@@ -1,6 +1,7 @@
 """
 S-043/HRMS-0443 -- Candidate Ghosting Detection.
 S-045/HRMS-0445 -- Reactivation Campaign (reactivation_attempt_count/
+import logging
 last_reactivation_sent_at, added later).
 
 candidate_ghosting_status: genuinely new table -- a real, one-row-per-
@@ -23,6 +24,7 @@ from app.models.base import Base
 
 DEFAULT_GHOSTING_REASON = "No response after 3 follow-up messages"
 
+logger = logging.getLogger(__name__)
 
 class CandidateGhostingStatus(Base):
     __tablename__ = "candidate_ghosting_status"

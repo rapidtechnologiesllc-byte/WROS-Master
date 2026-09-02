@@ -2,6 +2,7 @@
 Pydantic schemas -- HRMS-0801 (Project Lifecycle) + HRMS-0804
 (Milestones) + HRMS-0805 (Unfilled Roles) + HRMS-0806 (Revenue
 Estimate & Margin) + S-358/HRMS-0519 (SI Partner Tagging) API.
+import logging
 """
 
 from datetime import date, datetime
@@ -9,6 +10,7 @@ from typing import List, Optional
 
 from pydantic import BaseModel, Field
 
+logger = logging.getLogger(__name__)
 
 class CreateProjectRequest(BaseModel):
     client_id: str

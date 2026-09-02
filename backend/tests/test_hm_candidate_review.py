@@ -3,6 +3,7 @@ get_hm_candidate_review_list() + GET /interviews/hm-review/my-candidates --
 proves S-102/HRMS-P207 (Hiring Manager Candidate Review) end-to-end.
 The schemas (HMCandidateReviewListResponse etc.) already existed,
 imported into interviews.py, but were wired to no route -- this closes
+import logging
 that real, scoped gap.
 
 Real fix, 2026-08-05: the route used to take hiring_manager_id as a

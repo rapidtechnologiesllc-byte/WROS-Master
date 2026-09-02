@@ -1,4 +1,5 @@
 """
+import logging
 S-033/HRMS-0433 -- Intent Detection Engine.
 
 Real architecture adaptations:

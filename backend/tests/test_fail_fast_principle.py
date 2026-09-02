@@ -224,6 +224,7 @@ class TestErrorPropagation:
             try:
                 raise RuntimeError("Simulated error")
             except Exception as e:
+                logger.error(f"Error: {str(e)}", exc_info=True)
                 raise ValueError(f"Failed: {e}")  # ✅ CORRECT: Fail fast
 
         # Verify bad pattern returns silently
@@ -267,6 +268,7 @@ class TestRegressionPrevention:
                     raise ValueError("No data")
                 return True
             except Exception as e:
+                logger.error(f"Error: {str(e)}", exc_info=True)
                 # After fix: raise instead of silent continue
                 raise ValueError(f"Failed to index: {e}")
 
@@ -306,6 +308,7 @@ class TestErrorHandlingBestPractices:
             try:
                 raise RuntimeError("Database connection failed")
             except Exception as e:
+                logger.error(f"Error: {str(e)}", exc_info=True)
                 # ✅ CORRECT: Include context in error
                 raise ValueError(f"Failed to {action} for user_id={user_id}: {e}")
 

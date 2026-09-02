@@ -2,6 +2,7 @@
 S-074/HRMS-0474 -- Bulk Candidate Engagement Launch
 ==================================================================
 Prefix: /candidates
+import logging
 Tag:    bulk-engagement
 
 POST /candidates/bulk-import       -- CSV upload, creates candidates (Step 1)

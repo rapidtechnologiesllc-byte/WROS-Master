@@ -1,4 +1,5 @@
 """
+import logging
 S-047/HRMS-0447 -- Interview Availability Collection.
 
 Real architecture under test (see interview_availability_service

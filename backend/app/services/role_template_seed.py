@@ -1,4 +1,5 @@
 """
+import logging
 Role Template Seeding - Initialize role templates with permissions.
 
 ZERO-HARDCODING: Seeds default role templates with permissions from
@@ -346,6 +347,7 @@ def assign_users_to_role_templates(db: Session, tenant_id: int = 1) -> None:
         logger.info("[OK] Existing users assigned to role templates")
 
     except Exception as exc:
+       logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.error(f"Failed to assign users to role templates: {exc}")
         db.rollback()
         # Don't raise — if assignment fails, system can still work with legacy fallback
@@ -464,6 +466,7 @@ def seed_role_templates(db: Session, tenant_id: int = 1) -> None:
         logger.info("[OK] Role templates seeded successfully (modules, resources, permissions)")
 
     except Exception as exc:
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         db.rollback()
         logger.error(f"Failed to seed role templates: {exc}")
         raise

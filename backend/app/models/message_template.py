@@ -1,4 +1,5 @@
 """
+import logging
 S-014/HRMS-0414 -- Message Template Engine.
 
 tenant_id here follows this subsystem's real convention (the org-owner
@@ -18,6 +19,7 @@ TEMPLATE_CHANNELS = ("WHATSAPP", "EMAIL", "PORTAL", "ANY")
 # first-engagement/templated sends get built.
 TEMPLATE_KEYS = ("GREETING_WHATSAPP", "GREETING_EMAIL")
 
+logger = logging.getLogger(__name__)
 
 class MessageTemplate(Base):
     __tablename__ = "message_templates"

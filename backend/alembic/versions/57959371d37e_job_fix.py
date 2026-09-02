@@ -1,3 +1,4 @@
+import logging
 """job fix
 
 Revision ID: 57959371d37e

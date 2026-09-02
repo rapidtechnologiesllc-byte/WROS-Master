@@ -1,4 +1,5 @@
 """
+import logging
 HRMS-0527 -- Curtis Rule: Partner Intent ML Engine (NEW-RM, P0).
 
 "Partner" identity is now confirmed (Avinash, 2026-07-22): the org
@@ -35,6 +36,7 @@ from app.models.base import Base
 def _new_uuid() -> str:
     return str(uuid.uuid4())
 
+logger = logging.getLogger(__name__)
 
 class PartnerIntentProfile(Base):
     __tablename__ = "partner_intent_profiles"

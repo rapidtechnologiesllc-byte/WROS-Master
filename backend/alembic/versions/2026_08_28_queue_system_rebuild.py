@@ -1,3 +1,4 @@
+import logging
 """Complete message queue system rebuild with channel-based architecture
 
 Revision ID: 2026_08_28_queue_system_rebuild

@@ -2,6 +2,7 @@
 from pydantic import BaseModel, EmailStr, constr
 from typing import Optional, List
 from datetime import datetime, date
+import logging
 from pydantic import Field
 
 # Candidate schemas
@@ -44,6 +45,7 @@ class CandidateCreateRequest(BaseModel):
     # Optional pre-filled education and experience details
     education_records: Optional[List["EducationRecord"]] = None
     experience_records: Optional[List["ExperienceRecord"]] = None
+logger = logging.getLogger(__name__)
 
 class CandidateUpdateRequest(BaseModel):
     candidate_first_name: Optional[str] = None

@@ -1,3 +1,4 @@
+import logging
 """Module and Resource listing endpoints."""
 
 from fastapi import APIRouter, Depends

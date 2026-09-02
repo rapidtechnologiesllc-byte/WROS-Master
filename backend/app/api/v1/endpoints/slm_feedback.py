@@ -1,4 +1,5 @@
 """
+import logging
 SLM Feedback API - Collect corrections and validation during resume editing
 
 When recruiter edits parsed resume data, capture corrections for learning.
@@ -30,6 +31,7 @@ from app.services.audit_log_service import log_audit_event
 
 router = APIRouter(prefix="/slm", tags=["slm-feedback"])
 
+logger = logging.getLogger(__name__)
 
 class CorrectionRequest(BaseModel):
     """Record when recruiter corrects a parsing error"""
@@ -123,6 +125,7 @@ def record_correction(
         }
 
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         db.rollback()
         logger.error(f"[SLM] Failed to record correction: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to record correction: {str(e)}")
@@ -182,6 +185,7 @@ def record_validation(
         }
 
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         db.rollback()
         logger.error(f"[SLM] Failed to record validation: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to record validation: {str(e)}")
@@ -432,6 +436,7 @@ def bulk_import_corrections(
                 )
                 imported += 1
         except Exception as e:
+           logger.error(f"Error: {str(e)}", exc_info=True)
             logger.warning(f"Failed to import correction: {e}")
             failed += 1
 

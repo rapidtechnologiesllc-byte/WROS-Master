@@ -1,3 +1,4 @@
+import logging
 """Organization Service - Single source of truth for organizational hierarchy.
 
 This service provides centralized access to:
@@ -17,6 +18,7 @@ from sqlalchemy.orm import Session
 from app.models.employee import Employee
 from app.models.org_structure import OrgNode
 
+logger = logging.getLogger(__name__)
 
 class OrganizationService:
     """Centralized organizational hierarchy queries."""

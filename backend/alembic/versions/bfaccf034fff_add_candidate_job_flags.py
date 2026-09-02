@@ -1,3 +1,4 @@
+import logging
 """S-038/HRMS-0438: add candidate_job_flags table + job budget columns
 
 Revision ID: bfaccf034fff

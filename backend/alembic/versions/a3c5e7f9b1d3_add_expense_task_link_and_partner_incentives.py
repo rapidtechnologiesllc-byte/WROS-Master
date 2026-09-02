@@ -1,3 +1,4 @@
+import logging
 """add tasks.expense_id + partner_incentive_rules/events
 
 Revision ID: a3c5e7f9b1d3

@@ -1,8 +1,10 @@
 """Pydantic Schemas -- S-078/HRMS-0478 Event Emission Layer."""
+import logging
 from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel
 
+logger = logging.getLogger(__name__)
 
 class EventLogEntry(BaseModel):
     id: int

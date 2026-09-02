@@ -1,3 +1,4 @@
+import logging
 """add consent_records table
 
 Revision ID: b4c5d6e7f8a9

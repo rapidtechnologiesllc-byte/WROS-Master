@@ -11,6 +11,7 @@ from app.services.training_certification_service import (
     get_employee_training_status,
     get_training_pipeline_status,
     get_next_training_steps,
+import logging
 )
 
 router = APIRouter(prefix="/dashboards", tags=["Dashboards"])
@@ -46,6 +47,7 @@ def get_training_certification_dashboard(
             }
         }
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -73,6 +75,7 @@ def get_employee_training_details(
     except HTTPException:
         raise
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -150,4 +153,5 @@ def get_troy_partner_dashboard(
     except HTTPException:
         raise
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))

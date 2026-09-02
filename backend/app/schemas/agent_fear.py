@@ -1,12 +1,14 @@
 """
 Agent Fear State Schemas
 ========================
+import logging
 """
 
 from pydantic import BaseModel
 from typing import Optional
 from datetime import datetime
 
+logger = logging.getLogger(__name__)
 
 class AgentFearStateResponse(BaseModel):
     """Current fear state of an agent."""

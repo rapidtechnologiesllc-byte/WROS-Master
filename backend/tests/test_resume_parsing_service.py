@@ -1,4 +1,5 @@
 """
+import logging
 S-028/HRMS-0428 -- Resume Parsing Engine.
 
 Real architecture facts under test (see resume_parsing_service module

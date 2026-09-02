@@ -1,3 +1,4 @@
+import logging
 """Pydantic schemas -- S-359/HRMS-P511 (HTD Intake Pause Engine) API."""
 
 from datetime import date, datetime
@@ -5,6 +6,7 @@ from typing import List, Optional
 
 from pydantic import BaseModel, Field
 
+logger = logging.getLogger(__name__)
 
 class CalculateMonthlyMetricRequest(BaseModel):
     month: date  # any date within the target month; normalized to month_start

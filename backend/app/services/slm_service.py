@@ -99,8 +99,7 @@ class SLMService:
 
             return decision
 
-        except Exception as e:
-            logger.error(f"Failed to analyze message result: {e}", exc_info=True)
+        except Exception as e:            logger.error(f"Failed to analyze message result: {e}", exc_info=True)
             raise RuntimeError(f"Failed to analyze message result: {str(e)}")
 
     @staticmethod
@@ -281,6 +280,7 @@ class SLMService:
             return decision_id
 
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             db.rollback()
             logger.error(f"Failed to store SLM decision: {e}", exc_info=True)
             raise RuntimeError(f"Failed to store SLM decision: {str(e)}")

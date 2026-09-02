@@ -1,4 +1,5 @@
 """
+import logging
 S-216/HRMS-0118 -- Shared Activity Timeline & File Attachment Framework.
 
 Polymorphic (entity_type, entity_id) file table -- the second half of
@@ -33,6 +34,7 @@ from app.models.base import Base
 
 FILE_SCAN_STATUSES = ("PENDING", "CLEAN", "QUARANTINED")
 
+logger = logging.getLogger(__name__)
 
 class FileUpload(Base):
     __tablename__ = "file_uploads"

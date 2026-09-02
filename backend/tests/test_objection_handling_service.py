@@ -1,4 +1,5 @@
 """
+import logging
 S-072/HRMS-0472 -- Objection Handling Engine.
 
 Real architecture under test (see objection_handling_service module

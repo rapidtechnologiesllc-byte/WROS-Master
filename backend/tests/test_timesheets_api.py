@@ -4,6 +4,7 @@ POST /timesheets/weekly-draft, PUT /timesheets/{id}/entries, POST
 /timesheets/bulk-approve, GET /timesheets, GET /timesheets/{id} --
 proves S-220 (Create Weekly Timesheet) + S-221 (Validation & Submission
 Lock) + S-222 (Manager Approval) end-to-end on real routes. Also closes
+import logging
 the "time tracking" link in Avinash's stated MVP chain.
 
 Throwaway SQLite app, throwaway JWT keys -- never the real database or

@@ -1,5 +1,6 @@
 """
 Agent Maturity Tracking — Performance Metrics & Learning Curves
+import logging
 ================================================================
 
 Tracks agent performance over time for the Reporting/Oversight agent.
@@ -17,6 +18,7 @@ from sqlalchemy.orm import relationship
 
 from app.models.base import Base
 
+logger = logging.getLogger(__name__)
 
 class AgentMaturityLevel(Base):
     """

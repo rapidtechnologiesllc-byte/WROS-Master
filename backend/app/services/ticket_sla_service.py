@@ -1,4 +1,5 @@
 """
+import logging
 Ticket SLA breach flagging.
 
 Deliberately NOT a second scheduled job -- Task.due_date is kept in

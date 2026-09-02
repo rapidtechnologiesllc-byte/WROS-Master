@@ -3,6 +3,7 @@ Document review <-> Task linkage. Avinash's direct rule (2026-08-05):
 "When Pan card is uploaded and approved then it has to be shown in
 documents. if it is rejected then the task should be marked as pending
 on the candidate and then document should show pan card as pending.
+import logging
 this is across the board for all documents."
 
 Real architecture: app.models.task.Task never had a candidate/document
@@ -123,5 +124,6 @@ def sync_task_for_document_decision(
             logger.info(f"[DocumentTask] Task {task.id} closed -- document {document.id} ({document.document_type}) approved for candidate {document.candidate_id}")
 
     except Exception as exc:
+       logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[DocumentTask] Failed to sync task for document {document.id} decision={decision!r}: {exc}")
         db.rollback()

@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+import logging
 """Create Recruiter role template with Recruitment module permissions."""
 
 from app.core.database import SessionLocal
@@ -78,6 +79,8 @@ try:
     print("  - All Recruitment screens: View=YES, Create=YES, Edit=YES, Delete=YES")
 
 except Exception as e:
+   logger.error(f"Error: {str(e)}", exc_info=True)
+    logger.error(f"Error: {str(e)}", exc_info=True)
     db.rollback()
     print("[ERROR] Error: {}".format(str(e)))
     import traceback

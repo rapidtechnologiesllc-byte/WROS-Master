@@ -93,6 +93,7 @@ def resolve_delivery_escalation(
     except HTTPException:
         raise
     except Exception as e:
+       logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"BU Head escalation resolution failed: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -155,6 +156,7 @@ def resolve_partner_escalation(
     except HTTPException:
         raise
     except Exception as e:
+       logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Partner escalation resolution failed: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -218,6 +220,7 @@ def resolve_escalation(
     except HTTPException:
         raise
     except Exception as e:
+       logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Consul resolution failed: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -261,8 +264,7 @@ def list_pending_escalations(
             }
         }
 
-    except Exception as e:
-        logger.error(f"Failed to list escalations: {e}")
+    except Exception as e:        logger.error(f"Failed to list escalations: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/formation/constraints")
@@ -302,8 +304,7 @@ def get_active_constraints(
             }
         }
 
-    except Exception as e:
-        logger.error(f"Failed to get constraints: {e}")
+    except Exception as e:        logger.error(f"Failed to get constraints: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 def _build_execution_plan(decision: str) -> Dict[str, Any]:

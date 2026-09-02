@@ -1,4 +1,5 @@
 """
+import logging
 S-072/HRMS-0472 -- Objection Handling Engine.
 
 Real architecture reuse: "objecting" was already a defined VALID_INTENT
@@ -72,6 +73,7 @@ MAX_SAME_OBJECTION_BEFORE_ESCALATE = 3  # BR-01
 SAFE_FALLBACK_MESSAGE = "I understand your concern. Let me have one of our team members follow up with you on this."
 SALARY_NO_NUMBERS_MESSAGE = "Let me connect you with our team to discuss compensation in detail."  # BR-02
 
+logger = logging.getLogger(__name__)
 
 class ObjectionEscalatedError(Exception):
     """BR-01: caller (public_chat_service) should treat this the same
@@ -139,6 +141,7 @@ def _generate_objection_response(db: Session, conversation: CandidateConversatio
         )
         return response.strip() or SAFE_FALLBACK_MESSAGE
     except Exception as exc:
+       logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[ObjectionHandling] Response generation failed for candidate {candidate.candidateID!r}: {exc}")
         return SAFE_FALLBACK_MESSAGE
 
@@ -170,6 +173,7 @@ def handle_objection(db: Session, conversation: CandidateConversation, candidate
     try:
         upsert_fact(db, candidate.candidateID, conversation.tenant_id, fact_category="OBJECTION", fact_key=objection_type, fact_value=key_concern, confidence=classification["confidence"])
     except Exception as exc:
+       logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[ObjectionHandling] Failed to store objection memory fact for candidate {candidate.candidateID!r}: {exc}")
 
     if occurrence_number >= MAX_SAME_OBJECTION_BEFORE_ESCALATE:

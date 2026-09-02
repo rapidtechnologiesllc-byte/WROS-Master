@@ -1,3 +1,4 @@
+import logging
 """S-052/HRMS-0452: add no-show tracking columns to submission_interviews
 
 Revision ID: 5e2a8f7c31b6

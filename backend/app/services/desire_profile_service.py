@@ -1,4 +1,5 @@
 """
+import logging
 S-348/HRMS-P118 -- Desire Profile Builder.
 
 Aggregates S-347's raw candidate_desire_signals into one ranked,
@@ -188,6 +189,7 @@ def build_desire_profile(db: Session, tenant_id: str, candidate_id: str, *, now:
         if previous_engagement_level in ("HOT", "WARM") and engagement_level == "COOL":
             emit(db, "candidate.engagement_cooled", {"from": previous_engagement_level, "to": "COOL"}, tenant_id, candidate_id)
     except Exception as exc:
+       logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[DesireProfile] Event emission failed for candidate {candidate_id!r}: {exc}")
 
     return profile
@@ -245,6 +247,7 @@ def generate_desire_narrative(db: Session, profile: CandidateDesireProfile, *, l
         narrative = _call_llm(prompt, llm_call)
         return narrative.strip() or None
     except Exception as exc:
+       logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[DesireProfile] Narrative generation failed for candidate {profile.candidate_id!r}: {exc}")
         return None
 
@@ -283,6 +286,7 @@ def generate_talking_points(db: Session, profile: CandidateDesireProfile, *, llm
             return None
         return [str(p).strip() for p in points if str(p).strip()][:5]
     except Exception as exc:
+       logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[DesireProfile] Talking points generation failed for candidate {profile.candidate_id!r}: {exc}")
         return None
 
@@ -347,6 +351,7 @@ def run_desire_profile_update_job(db: Session, *, llm_call: Optional[Callable[[s
             build_and_narrate(db, item["tenant_id"], item["candidate_id"], llm_call=llm_call)
             updated += 1
         except Exception as exc:
+           logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.warning(f"[DesireProfile] Update job failed for candidate {item['candidate_id']!r}: {exc}")
             db.rollback()
             failed += 1

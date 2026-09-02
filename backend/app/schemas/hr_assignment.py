@@ -2,6 +2,7 @@
 HR Assignment Schemas
 =====================
 Pydantic request / response models for the HR Assignment API.
+import logging
 """
 
 from datetime import datetime
@@ -12,6 +13,7 @@ from pydantic import BaseModel, Field, field_validator
 # ---------------------------------------------------------------------------
 # Nested user summary (returned inside responses)
 # ---------------------------------------------------------------------------
+logger = logging.getLogger(__name__)
 
 class UserSummary(BaseModel):
     """Lightweight user info embedded in HR assignment responses."""

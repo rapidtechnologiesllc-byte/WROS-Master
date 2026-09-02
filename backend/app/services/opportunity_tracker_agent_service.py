@@ -1,4 +1,5 @@
 """
+import logging
 Opportunity Tracker Agent Service
 
 When a partner or sales person identifies a target client, this agent:
@@ -20,6 +21,7 @@ from sqlalchemy import func, and_
 from app.core.agent_logging import log_agent_execution
 from app.models.opportunity import Opportunity
 
+logger = logging.getLogger(__name__)
 
 class OpportunityTrackerAgent:
     """Tracks sales opportunities and pipeline health toward $100M target."""
@@ -132,6 +134,7 @@ class OpportunityTrackerAgent:
             }
 
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             raise
 
     @staticmethod
@@ -244,6 +247,7 @@ class OpportunityTrackerAgent:
             }
 
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             raise
 
     @staticmethod
@@ -308,6 +312,7 @@ class OpportunityTrackerAgent:
             }
 
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             raise
 
     @staticmethod
@@ -353,4 +358,5 @@ class OpportunityTrackerAgent:
             }
 
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             raise

@@ -1,6 +1,7 @@
 """
 S-034/HRMS-0434 -- response validation + safe fallback
 (app.services.thunder_service.validate_thunder_reply /
+import logging
 generate_thunder_reply_with_fallback).
 
 Doesn't touch the real Gemini call -- generate_thunder_reply() itself is
@@ -121,6 +122,7 @@ def test_safe_fallback_message_is_never_empty_or_too_long():
 # ---------------------------------------------------------------------------
 # BR-01 (S-034 revised): ownership checked before any context build/LLM call
 # ---------------------------------------------------------------------------
+logger = logging.getLogger(__name__)
 
 class _FakeConversation:
     def __init__(self, owner_type):

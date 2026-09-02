@@ -1,4 +1,5 @@
 """
+import logging
 S-053/HRMS-0453 -- Offer Readiness Check.
 
 Real architecture under test (see offer_readiness_service module

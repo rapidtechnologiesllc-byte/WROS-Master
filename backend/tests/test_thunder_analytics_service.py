@@ -1,4 +1,5 @@
 """
+import logging
 S-071/HRMS-0471 -- AI Recruiter Performance Analytics.
 
 Real architecture under test (see thunder_analytics_service module

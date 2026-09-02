@@ -6,6 +6,7 @@ Runs the code gate validator against entire backend to identify all issues
 import os
 import sys
 from pathlib import Path
+import logging
 from code_gate_validator import CodeGateValidator
 
 # Colors

@@ -1,3 +1,4 @@
+import logging
 """add projects + project_milestones, extend employee_allocations + demands (HRMS-0801/0803/0804)
 
 Revision ID: c9d0e1f2a3b5

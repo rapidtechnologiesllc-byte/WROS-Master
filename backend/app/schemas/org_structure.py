@@ -3,8 +3,10 @@ Schemas for Organizational Structure API requests and responses.
 """
 from datetime import datetime
 from typing import Optional, List, Union
+import logging
 from pydantic import BaseModel, Field, field_validator
 
+logger = logging.getLogger(__name__)
 
 class OrgPositionResponse(BaseModel):
     """A named organizational position (CEO, Partner, Manager, etc.)"""

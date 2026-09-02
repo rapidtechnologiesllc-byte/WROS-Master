@@ -2,10 +2,12 @@
 Pydantic Schemas — S-004/HRMS-0404 Web Portal Chat Messages.
 """
 from datetime import datetime
+import logging
 from typing import List, Optional
 
 from pydantic import BaseModel, Field
 
+logger = logging.getLogger(__name__)
 
 class PortalMessageRequest(BaseModel):
     # Real min/max-length business errors (empty / >4000 chars) are

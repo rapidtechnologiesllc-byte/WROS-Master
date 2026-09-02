@@ -2,6 +2,7 @@
 import uuid
 from sqlalchemy import Column, String, Integer, DateTime, Boolean, ForeignKey, Enum, func
 from sqlalchemy.orm import relationship
+import logging
 from app.models.base import Base
 
 
@@ -12,6 +13,7 @@ def _new_uuid() -> str:
 CERTIFICATION_LEVELS = ("Foundation", "Intermediate", "Advanced", "Expert")
 CERT_STATUS = ("Active", "Expired", "Pending", "Revoked")
 
+logger = logging.getLogger(__name__)
 
 class Certification(Base):
     """Certification template (e.g., "Guidewire Core", "Java Advanced")."""

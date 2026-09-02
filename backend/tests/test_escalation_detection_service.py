@@ -1,4 +1,5 @@
 """
+import logging
 S-035/HRMS-0435 -- Human Escalation Detection.
 
 Real architecture under test (see escalation_detection_service module

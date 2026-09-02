@@ -1,3 +1,4 @@
+import logging
 """S-057/HRMS-0457: add preboarding_documents table
 
 Revision ID: 4c8d1e6a92f7

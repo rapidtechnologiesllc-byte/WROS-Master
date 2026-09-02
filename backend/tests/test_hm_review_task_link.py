@@ -6,6 +6,7 @@ point the hiring manager at HmCandidateReviewScreen instead of them
 having to know to go check. Throwaway SQLite -- never the real database.
 """
 import os
+import logging
 import tempfile
 
 import pytest

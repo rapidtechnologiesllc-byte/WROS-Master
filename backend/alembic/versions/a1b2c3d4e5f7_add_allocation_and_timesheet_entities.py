@@ -1,3 +1,4 @@
+import logging
 """add employee_allocations + timesheets + timesheet_entries
 
 Revision ID: a1b2c3d4e5f7

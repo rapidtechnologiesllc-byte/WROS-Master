@@ -1,3 +1,4 @@
+import logging
 """Add string ID to newsletters
 
 Revision ID: 240afbf397b9

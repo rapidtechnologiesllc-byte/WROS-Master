@@ -1,5 +1,6 @@
 """
 Celery Configuration
+import logging
 ====================
 
 Async task queue for background jobs:

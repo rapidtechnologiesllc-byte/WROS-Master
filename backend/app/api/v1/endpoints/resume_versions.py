@@ -1,4 +1,5 @@
 """
+import logging
 Resume Versioning API - List, view, and compare candidate resume versions
 
 Endpoints:
@@ -23,6 +24,7 @@ from app.services.resume_search_service import ResumeSearchService
 
 router = APIRouter(prefix="/candidates", tags=["resume-versions"])
 
+logger = logging.getLogger(__name__)
 
 class ResumeVersionResponse:
     """Response format for resume version"""

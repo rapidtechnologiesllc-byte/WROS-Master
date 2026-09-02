@@ -1,3 +1,4 @@
+import logging
 """add demands.delivery_engine, employee_allocations.CORE_PULLED status, core_pull_events, specialty_pool_replacement_plans (S-353/S-373)
 
 Revision ID: 35fbb8ebd5c8

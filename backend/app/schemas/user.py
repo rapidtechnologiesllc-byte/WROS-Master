@@ -1,5 +1,6 @@
 from pydantic import BaseModel, EmailStr, constr, Field
 from typing import Optional, List
+import logging
 from datetime import datetime, date
 
 
@@ -8,6 +9,7 @@ class CandidateAssignmentCreate(BaseModel):
     candidate_id: str
     hiring_manager_id: Optional[str] = None
     reporting_manager_id: Optional[str] = None
+logger = logging.getLogger(__name__)
 
 class CandidateAssignmentResponse(BaseModel):
     id: int

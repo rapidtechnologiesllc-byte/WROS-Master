@@ -6,10 +6,12 @@ escalation-on-repeated-non-response, tracked against the non-
 responder) -- same shape, applied here to timesheet submission instead
 of manager weekly input.
 """
+import logging
 from sqlalchemy import Boolean, Column, Date, DateTime, ForeignKey, Integer, String, UniqueConstraint, func
 
 from app.models.base import Base
 
+logger = logging.getLogger(__name__)
 
 class TimesheetNagLog(Base):
     __tablename__ = "timesheet_nag_logs"

@@ -3,6 +3,7 @@ HRMS-P801 (Registration & Onboarding) + HRMS-P804/P811 (Demand
 assignment / request lifecycle).
 """
 from datetime import datetime
+import logging
 from typing import Optional
 
 from sqlalchemy.orm import Session
@@ -11,6 +12,7 @@ from app.core.security import get_password_hash
 from app.models.demand import Demand
 from app.models.sub_vendor import SubVendorAccount, SubVendorRequest, SubVendorUser
 
+logger = logging.getLogger(__name__)
 
 class SubVendorNotApproved(Exception):
     """HRMS-P801 BR-01: no submission (or request assignment) until status=APPROVED."""

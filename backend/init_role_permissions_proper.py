@@ -4,6 +4,7 @@ PROPER initialization: Grant role-SPECIFIC permissions from role_template_seed.p
 Only grant permissions that are actually defined for each role.
 """
 import sys, os
+import logging
 sys.path.insert(0, os.path.dirname(__file__))
 
 from app.core.database import SessionLocal, engine
@@ -104,6 +105,8 @@ try:
     print("\nEach role sees only what it needs. RBAC is now working correctly!")
 
 except Exception as e:
+   logger.error(f"Error: {str(e)}", exc_info=True)
+    logger.error(f"Error: {str(e)}", exc_info=True)
     print(f"\n[ERROR] Error: {e}")
     import traceback
     traceback.print_exc()

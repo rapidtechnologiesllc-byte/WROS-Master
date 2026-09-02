@@ -1,3 +1,4 @@
+import logging
 """added internal note for HR team
 
 Revision ID: 7b41a9d34a92

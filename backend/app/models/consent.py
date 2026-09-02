@@ -1,7 +1,9 @@
+import logging
 from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, func
 
 from app.models.base import Base
 
+logger = logging.getLogger(__name__)
 
 class ConsentRecord(Base):
     """

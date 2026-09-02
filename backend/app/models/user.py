@@ -1,12 +1,14 @@
 from datetime import datetime
 from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text, Date, func, Boolean, JSON, Enum
 from sqlalchemy.orm import relationship
+import logging
 from app.models.base import Base
 
 # S-039/HRMS-0439 -- real values, no native DB enum (SQL Server, same
 # native_enum=False/create_constraint=True convention Candidate.employment_type
 # and app.models.client's enums already use).
 JOB_URGENCY_LEVELS = ("IMMEDIATE", "HIGH", "NORMAL", "FLEXIBLE")
+logger = logging.getLogger(__name__)
 
 class Users(Base):
     __tablename__ = "users"

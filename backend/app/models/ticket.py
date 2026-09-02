@@ -1,5 +1,6 @@
 """
 Help Desk / IT-HR Ticketing -- a Task type, not a parallel object (per
+import logging
 task.py's own module docstring). Internal-employees-only.
 
 Best-of-breed synthesis, researched 2026-08-04 (ServiceNow + Salesforce
@@ -65,6 +66,7 @@ IMPACT_URGENCY_PRIORITY_MATRIX = {
     ("INDIVIDUAL", "LOW"): "LOW",
 }
 
+logger = logging.getLogger(__name__)
 
 class TicketCategoryRoute(Base):
     """Admin-configurable category -> department routing rule. No

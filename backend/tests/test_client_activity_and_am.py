@@ -1,5 +1,6 @@
 """
 Proves HRMS-0709: BR-01 (account manager notified on assignment, with
+import logging
 history logged) and the client activity timeline aggregation.
 
 Throwaway SQLite -- never the real database.

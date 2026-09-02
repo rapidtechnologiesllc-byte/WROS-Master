@@ -1,7 +1,9 @@
+import logging
 from typing import List, Optional
 
 from pydantic import BaseModel
 
+logger = logging.getLogger(__name__)
 
 class TimelineEntryOut(BaseModel):
     id: int

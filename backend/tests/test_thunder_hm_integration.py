@@ -1,6 +1,7 @@
 """
 End-to-End Integration Tests: Thunder → AI Recruiter → HM Validation → Interview
 Comprehensive testing of autonomous hiring flow
+import logging
 """
 
 import pytest
@@ -42,6 +43,7 @@ def hm_service():
 def ai_recruiter_service():
     return AIRecruiterIntegrationService()
 
+logger = logging.getLogger(__name__)
 
 class TestThunderSessionLifecycle:
     """Test Thunder session creation, progression, and submission"""

@@ -1,6 +1,7 @@
 """
 HRMS-0316 -- Invoice REST API Endpoint Tests
 Integration tests for invoice generation, sending, and payment endpoints.
+import logging
 """
 
 import pytest
@@ -172,6 +173,7 @@ def setup_data(db):
 # ============================================================================
 # TEST: POST /invoices/generate
 # ============================================================================
+logger = logging.getLogger(__name__)
 
 class TestGenerateInvoiceEndpoint:
     """Test invoice generation endpoint."""

@@ -1,5 +1,6 @@
 """
 S-353/HRMS-0514 -- Core-Pull Conflict Rule Engine ("Core Wins Policy") and
+import logging
 S-373/HRMS-0529 -- Specialty Pool Minimum 40 Core-Certified Guard.
 
 Both stories per docs/build-package/04-RESOURCE-MANAGEMENT.md Part A, built
@@ -25,6 +26,7 @@ def _new_uuid() -> str:
 
 CORE_PULL_EVENT_STATUSES = ("PENDING", "EXECUTED", "OVERRIDDEN")
 
+logger = logging.getLogger(__name__)
 
 class CorePullEvent(Base):
     """One row per detected Core-vs-Speciality conflict for a single

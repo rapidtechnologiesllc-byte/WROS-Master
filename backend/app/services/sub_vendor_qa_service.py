@@ -1,5 +1,6 @@
 """HRMS-P814 -- Sub-Vendor Request for Clarification."""
 from datetime import datetime
+import logging
 from typing import List, Optional
 
 from sqlalchemy.orm import Session
@@ -9,6 +10,7 @@ from app.models.sub_vendor import ClarificationQA, SubVendorAccount, SubVendorRe
 MIN_QUESTION_LENGTH = 10
 MIN_ANSWER_LENGTH = 10
 
+logger = logging.getLogger(__name__)
 
 class ClarificationValidationError(Exception):
     pass

@@ -5,6 +5,7 @@ Handles management of:
 - Business Units (CRUD operations)
 - Delivery Centers (CRUD operations)
 - Organizational Hierarchy (Get/Update)
+import logging
 - Role Templates (CRUD operations)
 
 All endpoints require appropriate role-based permissions.
@@ -42,6 +43,7 @@ router = APIRouter(prefix="/api/admin/users-access-control", tags=["Users Access
 # ============================================================================
 # USERS ENDPOINTS
 # ============================================================================
+logger = logging.getLogger(__name__)
 
 class UserCreateRequest(BaseModel):
     user_name: str
@@ -296,6 +298,7 @@ def list_business_units(
             "limit": limit
         }
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         print(f"[ERROR] list_business_units failed: {str(e)}")
         import traceback
         traceback.print_exc()

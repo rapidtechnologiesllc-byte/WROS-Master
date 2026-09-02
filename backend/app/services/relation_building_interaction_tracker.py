@@ -1,4 +1,5 @@
 """
+import logging
 Relation Building Interaction Tracker - Continuous Persona Learning
 
 Captures and analyzes EVERY candidate interaction to continuously update persona:
@@ -24,6 +25,7 @@ from app.models.candidate import Candidate
 from app.models.candidate_ai import ConversationEvent
 from app.services.candidate_memory_service import upsert_fact
 
+logger = logging.getLogger(__name__)
 
 class InteractionType(str, Enum):
     """Types of interactions to track"""
@@ -173,6 +175,7 @@ class InteractionTracker:
             }
 
         except Exception as e:
+           logger.error(f"Error: {str(e)}", exc_info=True)
             logger.error(f"Email interaction tracking error: {str(e)}")
             return {"status": "error", "message": str(e)}
 
@@ -269,6 +272,7 @@ class InteractionTracker:
             }
 
         except Exception as e:
+           logger.error(f"Error: {str(e)}", exc_info=True)
             logger.error(f"WhatsApp interaction tracking error: {str(e)}")
             return {"status": "error", "message": str(e)}
 
@@ -359,6 +363,7 @@ class InteractionTracker:
             }
 
         except Exception as e:
+           logger.error(f"Error: {str(e)}", exc_info=True)
             logger.error(f"AI Recruiter conversation tracking error: {str(e)}")
             return {"status": "error", "message": str(e)}
 
@@ -459,6 +464,7 @@ class InteractionTracker:
             }
 
         except Exception as e:
+           logger.error(f"Error: {str(e)}", exc_info=True)
             logger.error(f"Interview feedback tracking error: {str(e)}")
             return {"status": "error", "message": str(e)}
 
@@ -559,6 +565,7 @@ class InteractionTracker:
             }
 
         except Exception as e:
+           logger.error(f"Error: {str(e)}", exc_info=True)
             logger.error(f"Offer response tracking error: {str(e)}")
             return {"status": "error", "message": str(e)}
 
@@ -640,6 +647,7 @@ class InteractionTracker:
             }
 
         except Exception as e:
+           logger.error(f"Error: {str(e)}", exc_info=True)
             logger.error(f"Joining signals tracking error: {str(e)}")
             return {"status": "error", "message": str(e)}
 

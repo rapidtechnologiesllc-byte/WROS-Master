@@ -1,5 +1,6 @@
 """
 HRMS-0801 (Project Lifecycle) + HRMS-0804 (Milestones) + HRMS-0805
+import logging
 (Unfilled Roles) + HRMS-0806 (Revenue Estimate & Margin).
 
 HRMS-0807 (Project Risk Flagging) is NOT built -- it's specified to
@@ -27,6 +28,7 @@ PROJECT_STATUS_TRANSITIONS = {
     "CLOSED": set(),
 }
 
+logger = logging.getLogger(__name__)
 
 class InvalidProjectTransition(Exception):
     pass

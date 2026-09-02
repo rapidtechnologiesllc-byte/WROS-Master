@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import logging
 """Comprehensive audit of all syntax and corruption issues in endpoint files."""
 
 import os

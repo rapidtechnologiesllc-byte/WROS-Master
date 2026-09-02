@@ -1,3 +1,4 @@
+import logging
 ﻿"""Role-Based Access Control for Employee Referrals.
 
 ZERO-HARDCODING: All access rules determined by database-driven role_templates,
@@ -18,6 +19,7 @@ from app.models.employee import Employee
 from app.models.user import Users
 from app.services.permission_helper import PermissionHelper
 
+logger = logging.getLogger(__name__)
 
 class ReferralAccessControl:
     """Database-driven access control for employee referrals via role_templates."""
@@ -95,6 +97,7 @@ class ReferralAccessControl:
             ]
 
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             raise ValueError(f"Failed to get referrals: {str(e)}")
 
     @staticmethod
@@ -139,6 +142,7 @@ class ReferralAccessControl:
             ]
 
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             raise ValueError(f"Failed to get bonuses: {str(e)}")
 
     @staticmethod
@@ -194,8 +198,7 @@ class ReferralAccessControl:
             }
 
         except Exception as e:
-
-
+            logger.error(f"Error: {str(e)}", exc_info=True)
             raise RuntimeError(f"Operation failed: {str(e)}")
 
     @staticmethod
@@ -223,6 +226,7 @@ class ReferralAccessControl:
                 return ReferralAccessControl._get_employee_dashboard(db, user_id)
 
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             return {"error": str(e)}
 
     @staticmethod

@@ -1,4 +1,5 @@
 """
+import logging
 STRICT API CONTRACT - Single Source of Truth for all Frontend/Backend Integration
 
 This file defines the EXACT shape of all data that flows between frontend and backend.
@@ -24,6 +25,7 @@ from pydantic import BaseModel, Field, EmailStr, validator
 # ============================================================================
 # AUTHENTICATION CONTRACTS
 # ============================================================================
+logger = logging.getLogger(__name__)
 
 class UnifiedLoginRequest(BaseModel):
     """STRICT: Email and password for login - EXACTLY these fields, no extras"""
@@ -209,6 +211,7 @@ def validate_login_request(data: Dict[str, Any]) -> UnifiedLoginRequest:
     try:
         return UnifiedLoginRequest(**data)
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise ValueError(f"Login request validation failed: {str(e)}")
 
 
@@ -217,6 +220,7 @@ def validate_login_response(data: Dict[str, Any]) -> UnifiedLoginResponse:
     try:
         return UnifiedLoginResponse(**data)
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise ValueError(f"Login response validation failed: {str(e)}")
 
 
@@ -225,6 +229,7 @@ def validate_navigation_response(data: Dict[str, Any]) -> NavigationResponse:
     try:
         return NavigationResponse(**data)
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise ValueError(f"Navigation response validation failed: {str(e)}")
 
 
@@ -342,6 +347,7 @@ def validate_queue_message(data: Dict[str, Any]) -> QueueMessage:
     try:
         return QueueMessage(**data)
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise ValueError(f"Queue message validation failed: {str(e)}")
 
 

@@ -1,3 +1,4 @@
+import logging
 """add clients.line_type/website, business_units.hr_manager_employee_id, TIMESHEET_APPROVER contact role
 
 Revision ID: a5c8e2f4b6d9

@@ -8,6 +8,7 @@ Tests all major features and database operations to ensure:
 4. Revenue target setting works
 5. Partner goals work (CEO only)
 6. Opportunity workflow completes
+import logging
 """
 
 import sys
@@ -94,6 +95,8 @@ try:
             log("  - " + contact.name + " (" + contact.role_type + "): " + contact.email)
 
     except Exception as e:
+      logger.error(f"Error: {str(e)}", exc_info=True)
+       logger.error(f"Error: {str(e)}", exc_info=True)
         log("[FAIL] Client creation failed: " + str(e), "ERROR")
         import traceback
         traceback.print_exc()
@@ -127,6 +130,8 @@ try:
         log("[OK] BU Target verified in database")
 
     except Exception as e:
+      logger.error(f"Error: {str(e)}", exc_info=True)
+       logger.error(f"Error: {str(e)}", exc_info=True)
         log("[FAIL] BU Revenue Target failed: " + str(e), "ERROR")
         import traceback
         traceback.print_exc()
@@ -166,6 +171,8 @@ try:
         log("[OK] Partner Goal verified in database")
 
     except Exception as e:
+      logger.error(f"Error: {str(e)}", exc_info=True)
+       logger.error(f"Error: {str(e)}", exc_info=True)
         log("[FAIL] Partner Goal failed: " + str(e), "ERROR")
         import traceback
         traceback.print_exc()
@@ -207,6 +214,8 @@ try:
             log("[WARN] No jobs auto-created (this might be expected based on workflow)", "WARN")
 
     except Exception as e:
+      logger.error(f"Error: {str(e)}", exc_info=True)
+       logger.error(f"Error: {str(e)}", exc_info=True)
         log("[FAIL] Opportunity workflow failed: " + str(e), "ERROR")
         import traceback
         traceback.print_exc()
@@ -223,6 +232,8 @@ try:
     log("\nAll major features are working end-to-end without database errors.", "SUCCESS")
 
 except Exception as e:
+  logger.error(f"Error: {str(e)}", exc_info=True)
+   logger.error(f"Error: {str(e)}", exc_info=True)
     log("[FATAL] " + str(e), "FATAL")
     import traceback
     traceback.print_exc()

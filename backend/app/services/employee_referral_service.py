@@ -1,3 +1,4 @@
+import logging
 """Employee Referral Service - Handle job referrals and bonus tracking."""
 
 from sqlalchemy.orm import Session
@@ -7,6 +8,7 @@ from app.models.referral import EmployeeReferral, JobReferralSettings, ReferralB
 from app.models.employee import Employee
 import uuid
 
+logger = logging.getLogger(__name__)
 
 class EmployeeReferralService:
     """Service for managing employee referrals."""
@@ -39,6 +41,7 @@ class EmployeeReferralService:
             }
 
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             db.rollback()
             return {"status": "error", "message": str(e)}
 
@@ -97,6 +100,7 @@ class EmployeeReferralService:
             }
 
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             return {"status": "error", "message": str(e)}
 
     @staticmethod
@@ -147,6 +151,7 @@ class EmployeeReferralService:
             }
 
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             db.rollback()
             return {"status": "error", "message": str(e)}
 
@@ -189,6 +194,7 @@ class EmployeeReferralService:
             }
 
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             db.rollback()
             return {"status": "error", "message": str(e)}
 
@@ -232,6 +238,7 @@ class EmployeeReferralService:
             }
 
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             db.rollback()
             return {"status": "error", "message": str(e)}
 
@@ -263,6 +270,7 @@ class EmployeeReferralService:
             return result
 
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             # CRITICAL FIX: Raise error instead of returning empty list
             raise Exception(f"Failed to get pending bonuses: {str(e)}")
 
@@ -290,6 +298,7 @@ class EmployeeReferralService:
             }
 
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             db.rollback()
             return {"status": "error", "message": str(e)}
 
@@ -335,6 +344,7 @@ class EmployeeReferralService:
             }
 
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             db.rollback()
             return {"status": "error", "message": str(e)}
 
@@ -368,4 +378,5 @@ class EmployeeReferralService:
             }
 
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             return {"status": "error", "message": str(e)}

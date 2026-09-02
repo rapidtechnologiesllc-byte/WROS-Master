@@ -11,6 +11,7 @@ against either would be a guess dressed up as data. Flagged for
 whoever adds a real entity/geography field to Employee next.
 """
 from datetime import date
+import logging
 from typing import List, Optional
 
 from sqlalchemy.orm import Session

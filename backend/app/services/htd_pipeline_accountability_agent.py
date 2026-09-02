@@ -1,4 +1,5 @@
 """
+import logging
 HTD Pipeline Accountability Agent
 
 Tracks SPECIALTY→CORE conversion pipeline for each partner.
@@ -25,6 +26,7 @@ from app.models.business_unit import BusinessUnit
 from app.models.user import Users
 from app.services.performance_store_service import write_performance_event
 
+logger = logging.getLogger(__name__)
 
 class HTDPipelineAccountabilityAgent:
     """
@@ -277,6 +279,7 @@ class HTDPipelineAccountabilityAgent:
             return result
 
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             raise
 
     @staticmethod
@@ -371,6 +374,7 @@ class HTDPipelineAccountabilityAgent:
             return result
 
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             raise
 
 

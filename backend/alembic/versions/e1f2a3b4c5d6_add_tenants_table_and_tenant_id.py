@@ -1,3 +1,4 @@
+import logging
 """add tenants table and tenant_id
 
 Revision ID: e1f2a3b4c5d6

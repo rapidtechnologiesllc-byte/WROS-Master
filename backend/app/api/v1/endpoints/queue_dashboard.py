@@ -82,8 +82,7 @@ def get_queue_stats(db: Session = Depends(get_db)):
             "health": health,
         }
 
-    except Exception as e:
-        logger.error(f"Failed to get queue stats: {e}", exc_info=True)
+    except Exception as e:        logger.error(f"Failed to get queue stats: {e}", exc_info=True)
         return {"error": str(e), "status": "failed"}
 
 
@@ -145,8 +144,7 @@ def list_messages(
             ],
         }
 
-    except Exception as e:
-        logger.error(f"Failed to list messages: {e}", exc_info=True)
+    except Exception as e:        logger.error(f"Failed to list messages: {e}", exc_info=True)
         return {"error": str(e), "status": "failed"}
 
 
@@ -212,8 +210,7 @@ def get_message_details(message_id: str, db: Session = Depends(get_db)):
             ],
         }
 
-    except Exception as e:
-        logger.error(f"Failed to get message details: {e}", exc_info=True)
+    except Exception as e:        logger.error(f"Failed to get message details: {e}", exc_info=True)
         return {"error": str(e), "status": "failed"}
 
 
@@ -271,8 +268,7 @@ def list_channel_items(
             ],
         }
 
-    except Exception as e:
-        logger.error(f"Failed to list channel items: {e}", exc_info=True)
+    except Exception as e:        logger.error(f"Failed to list channel items: {e}", exc_info=True)
         return {"error": str(e), "status": "failed"}
 
 
@@ -355,8 +351,7 @@ def get_channel_details(
             ],
         }
 
-    except Exception as e:
-        logger.error(f"Failed to get channel details: {e}", exc_info=True)
+    except Exception as e:        logger.error(f"Failed to get channel details: {e}", exc_info=True)
         return {"error": str(e), "status": "failed"}
 
 
@@ -451,8 +446,7 @@ def check_health(db: Session = Depends(get_db)):
             "recommendations": recommendations,
         }
 
-    except Exception as e:
-        logger.error(f"Failed to check health: {e}", exc_info=True)
+    except Exception as e:        logger.error(f"Failed to check health: {e}", exc_info=True)
         return {
             "status": "error",
             "error": str(e),

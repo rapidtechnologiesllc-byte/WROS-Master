@@ -1,3 +1,4 @@
+import logging
 """add candidates.linkedin_url for R-07 dedup
 
 Revision ID: f6a7b8c9d0e2

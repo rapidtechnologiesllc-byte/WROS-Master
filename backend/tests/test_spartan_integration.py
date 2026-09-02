@@ -1,6 +1,7 @@
 """Comprehensive test suite for Spartan Phalanx integration"""
 import pytest
 from datetime import datetime, date, timedelta
+import logging
 from unittest.mock import Mock, patch, MagicMock
 
 from app.services.spartan_orchestration_service import SpartanOrchestrationService
@@ -9,6 +10,7 @@ from app.services.timesheet_bulk_service import TimesheetBulkService
 from app.services.job_management_service import JobManagementService
 from app.services.demand_management_service import DemandManagementService
 from app.services.kpi_service import KPIService
+logger = logging.getLogger(__name__)
 
 class TestFinanceService:
     """Finance Service Tests"""

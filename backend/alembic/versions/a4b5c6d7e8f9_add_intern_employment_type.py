@@ -1,3 +1,4 @@
+import logging
 """widen employees.employment_type CHECK constraint to include INTERN
 
 Revision ID: a4b5c6d7e8f9

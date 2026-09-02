@@ -4,6 +4,7 @@ POST /employee-milestones/{id}/complete, POST /employee-milestones/
 scan-overdue -- proves S-356/HRMS-0517 (Employee Milestone Tracker:
 Personal, Project & Org) end-to-end on real routes. Also proves the
 auto-write into employee_performance_events (HRMS-0515) on completion
+import logging
 (AC-3, scored 100 on-time / 70 late) and on overdue detection (AC-4).
 
 Throwaway SQLite app, throwaway JWT keys -- never the real database or

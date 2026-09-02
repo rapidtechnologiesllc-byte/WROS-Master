@@ -1,3 +1,4 @@
+import logging
 """document verification method
 
 Revision ID: 6b05244162d2

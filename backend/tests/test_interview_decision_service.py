@@ -6,6 +6,7 @@ import pytest
 import uuid
 from datetime import datetime, timedelta
 from sqlalchemy import create_engine
+import logging
 from sqlalchemy.orm import sessionmaker, Session
 
 from app.models.base import Base
@@ -129,6 +130,7 @@ def create_test_feedback(
 # ────────────────────────────────────────────────────────────────────────────
 # Test: get_interview_status
 # ────────────────────────────────────────────────────────────────────────────
+logger = logging.getLogger(__name__)
 
 class TestGetInterviewStatus:
     """Tests for get_interview_status method."""

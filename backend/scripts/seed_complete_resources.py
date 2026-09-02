@@ -2,6 +2,7 @@
 """
 Complete Resource Seeding Script
 Reads resource mapping and seeds 168+ resources + permissions for 4 core roles
+import logging
 """
 
 import sys
@@ -418,6 +419,7 @@ if __name__ == '__main__':
         print("4. Each resource has V/C/E/D checkboxes")
 
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         print(f"\n❌ ERROR: {e}")
         import traceback
         traceback.print_exc()

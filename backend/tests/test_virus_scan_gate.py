@@ -6,6 +6,7 @@ blocked unless the result is explicitly "clean" (fail closed, not
 fail open -- the opposite posture from HRMS-1101's router, and
 deliberately so per the Standard's cross-cutting rule).
 """
+import logging
 import pytest
 
 from app.models.document import CandidateDocument

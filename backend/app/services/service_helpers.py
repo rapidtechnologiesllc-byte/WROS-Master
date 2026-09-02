@@ -1,3 +1,4 @@
+import logging
 """Service Helper Functions - Shared utilities for service layer.
 
 Provides database-driven helper for getting users by permission.

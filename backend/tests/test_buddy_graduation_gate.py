@@ -1,4 +1,5 @@
 """
+import logging
 S-365/HRMS-0521 -- Buddy Program Graduation Gate: BU Head Approval.
 
 Proves: GRADUATE sets SPECIALITY_READY (AC-3), EXTEND requires a real

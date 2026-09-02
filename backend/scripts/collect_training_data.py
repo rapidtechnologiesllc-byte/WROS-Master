@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """
+import logging
 Resume Training Data Collection Pipeline
 
 Collects real resumes, extracts with SLM, validates, and prepares for BERT fine-tuning.
@@ -29,6 +30,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from app.services.resume_parser_slm import ResumeSLM
 from app.services.resume_parsing_service import extract_text_from_pdf, extract_text_from_docx
 
+logger = logging.getLogger(__name__)
 
 class TrainingDataCollector:
     """Collect and validate training examples from real resumes"""
@@ -110,6 +112,7 @@ class TrainingDataCollector:
             print(f"  [OK] Added to training set ({len(self.examples)} total)")
 
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             print(f" [ERROR] Error: {e}")
             self.errors.append({
                 "file": resume_file.name,

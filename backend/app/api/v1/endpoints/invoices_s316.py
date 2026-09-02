@@ -1,6 +1,7 @@
 """
 HRMS-0316 -- Invoice Generation, Calculation, Sending & Payment Tracking
 REST API Endpoints
+import logging
 =========================================================================
 
 Prefix: /api/v1/invoices
@@ -180,6 +181,7 @@ def generate_invoice_endpoint(
             detail=str(exc),
         )
     except Exception as exc:
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         db.rollback()
         raise HTTPException(
             status_code=500,
@@ -219,6 +221,7 @@ def calculate_bill_amount_endpoint(
     except InvoiceError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
     except Exception as exc:
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Internal error: {str(exc)}")
 
 
@@ -295,6 +298,7 @@ def send_invoice_endpoint(
         db.rollback()
         raise HTTPException(status_code=400, detail=str(exc))
     except Exception as exc:
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Internal error: {str(exc)}")
 
@@ -359,6 +363,7 @@ def track_payment_endpoint(
         db.rollback()
         raise HTTPException(status_code=404, detail=str(exc))
     except Exception as exc:
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Internal error: {str(exc)}")
 

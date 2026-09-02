@@ -1,5 +1,6 @@
 """Message Queue model - Core message queue for all system operations with channel-based routing"""
 import uuid
+import logging
 from datetime import datetime
 
 from sqlalchemy import Column, DateTime, Integer, JSON, String, Text, func, Index, Boolean
@@ -11,6 +12,7 @@ from app.models.base import Base
 def _new_uuid() -> str:
     return str(uuid.uuid4())
 
+logger = logging.getLogger(__name__)
 
 class MessageQueue(Base):
     """

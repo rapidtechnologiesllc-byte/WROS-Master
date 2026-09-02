@@ -1,8 +1,10 @@
 from sqlalchemy import Column, Integer, String, Boolean, DateTime, Text, ForeignKey
+import logging
 from sqlalchemy.sql import func
 
 from app.models.base import Base
 
+logger = logging.getLogger(__name__)
 
 class NewsletterSubscriber(Base):
     __tablename__ = "newsletter_subscribers"

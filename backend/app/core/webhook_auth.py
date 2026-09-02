@@ -3,6 +3,7 @@ Shared-secret authentication for webhook-style endpoints that must
 accept calls from non-interactive external callers (a scheduler, an
 email service) alongside manual internal use -- a user-identity check
 like require_permission() would break the external-caller path, since
+import logging
 those callers have no JWT to present.
 
 Pattern: the caller sends the shared secret in a request header

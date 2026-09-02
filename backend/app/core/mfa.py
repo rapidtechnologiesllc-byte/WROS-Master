@@ -1,4 +1,5 @@
 """
+import logging
 Phase 1 B3 -- TOTP-based MFA for the highest-privilege roles.
 
 ROLE MAPPING IS AN ASSUMPTION, NOT A CONFIRMED DECISION: the Phase 1

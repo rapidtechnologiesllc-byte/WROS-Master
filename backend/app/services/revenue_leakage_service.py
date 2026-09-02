@@ -1,5 +1,6 @@
 """
 HRMS-0906 (Revenue Realization & Leakage Detection) + HRMS-0903
+import logging
 (Timesheet-to-Revenue Bridge Validation).
 
 Per BR-0906-01, this is the shared detection source a broader Revenue

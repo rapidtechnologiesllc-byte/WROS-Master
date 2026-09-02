@@ -1,4 +1,5 @@
 """
+import logging
 Phase 3 Part A1 -- Thunder Conversation Core.
 
 `03-THUNDER-AGENTIC-LAYER.md` calls for exactly two functions every
@@ -78,6 +79,7 @@ DEBOUNCE_SECONDS = 60
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 THUNDER_REPLY_MODEL = "gemini-3-flash-preview"
 
+logger = logging.getLogger(__name__)
 
 class ConsentNotGiven(Exception):
     """A1: no active whatsapp_outreach ConsentRecord for this candidate."""
@@ -296,9 +298,11 @@ def send_outbound_campaign_message(db: Session, conversation: CandidateConversat
                 MessageQueueService.mark_completed(message.id, db=db)
                 logger.debug(f"[Thunder] Marked candidate_created message as COMPLETED: {message.id}")
         except Exception as msg_err:
+           logger.error(f"Error: {str(msg_err)}", exc_info=True)
             logger.error(f"[Thunder] Failed to mark message as completed: {msg_err}", exc_info=True)
             # Don't fail email sending if message queue update fails
     except Exception as exc:
+       logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.error(f"[Thunder] Email send failed for candidate {candidate.candidateID!r}: {exc}")
 
     db.add(ConversationEvent(
@@ -562,6 +566,7 @@ Write ONLY Thunder's reply text -- no labels, no quotation marks, no explanation
     try:
         response = llm.invoke(prompt)
     except Exception as exc:
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         raise ThunderReplyGenerationFailed(f"Gemini call failed or timed out: {exc}") from exc
     content = response.content
     if isinstance(content, list):
@@ -658,6 +663,7 @@ def generate_thunder_reply_with_fallback(
             logger.error(f"[Thunder] reply generation failed (attempt {attempt + 1}): {exc}")
             continue
         except Exception as exc:
+           logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.error(f"[Thunder] context build or unexpected failure (attempt {attempt + 1}): {exc}")
             context_build_failed = True
             break
@@ -744,6 +750,7 @@ Rules:
     try:
         response = llm.invoke(instruction)
     except Exception as exc:
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         raise ThunderReplyGenerationFailed(f"Gemini call failed or timed out: {exc}") from exc
     content = response.content
     if isinstance(content, list):
@@ -785,6 +792,7 @@ def generate_followup_message_with_fallback(
             logger.error(f"[Thunder] follow-up generation failed (attempt {attempt + 1}): {exc}")
             continue
         except Exception as exc:
+           logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.error(f"[Thunder] follow-up context build or unexpected failure (attempt {attempt + 1}): {exc}")
             break
         if validate_thunder_reply(message):
@@ -847,6 +855,7 @@ Rules:
     try:
         response = llm.invoke(instruction)
     except Exception as exc:
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         raise ThunderReplyGenerationFailed(f"Gemini call failed or timed out: {exc}") from exc
     content = response.content
     if isinstance(content, list):
@@ -884,6 +893,7 @@ def generate_reactivation_message_with_fallback(
             logger.error(f"[Thunder] reactivation generation failed (attempt {attempt + 1}): {exc}")
             continue
         except Exception as exc:
+           logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.error(f"[Thunder] reactivation context build or unexpected failure (attempt {attempt + 1}): {exc}")
             break
         if validate_thunder_reply(message):

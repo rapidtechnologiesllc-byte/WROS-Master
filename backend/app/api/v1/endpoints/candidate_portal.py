@@ -2,6 +2,7 @@
 S-017/HRMS-0417 -- Candidate Self-Service Web Portal
 ==================================================================
 Prefix: /portal
+import logging
 Tag:    candidate-portal
 
 Candidate-authenticated (get_current_candidate). The "magic link" the

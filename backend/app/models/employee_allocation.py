@@ -1,4 +1,5 @@
 """
+import logging
 HRMS-0507 -- Employee Allocation Records.
 
 This is deliberately the minimal "allocate employee to project" data
@@ -47,6 +48,7 @@ def _new_uuid() -> str:
 # start_date.
 ALLOCATION_STATUSES = ("ACTIVE", "ENDED", "CORE_PULLED")
 
+logger = logging.getLogger(__name__)
 
 class EmployeeAllocation(Base):
     __tablename__ = "employee_allocations"

@@ -1,5 +1,6 @@
 """
 Pydantic Schemas — AI Conversation Agent
+import logging
 """
 
 from datetime import datetime
@@ -10,6 +11,7 @@ from pydantic import BaseModel, Field
 # ---------------------------------------------------------------------------
 # Assign AI Agent
 # ---------------------------------------------------------------------------
+logger = logging.getLogger(__name__)
 
 class AIAgentAssignRequest(BaseModel):
     candidate_id: str = Field(..., description="The candidate to assign the AI agent to")

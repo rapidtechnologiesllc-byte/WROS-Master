@@ -3,6 +3,7 @@ S-267 (BU Revenue Target) + PartnerGoal (CEO-set only) + the FY
 carry-forward design: a negative year's shortfall accumulates as a
 persistent deficit; a positive year pays that deficit down first, and
 only the leftover counts as that year's own surplus -- never banked
+import logging
 forward as credit.
 
 Throwaway SQLite -- never the real database.

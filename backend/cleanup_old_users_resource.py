@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import logging
 """Delete the old 'users' resource from the database and keep only 'users-access-control'."""
 
 from sqlalchemy.orm import Session
@@ -59,6 +60,8 @@ if __name__ == "__main__":
         else:
             print("\nERROR: Cleanup failed. See above for details.")
     except Exception as e:
+       logger.error(f"Error: {str(e)}", exc_info=True)
+        logger.error(f"Error: {str(e)}", exc_info=True)
         print(f"ERROR: {str(e)}")
         db.rollback()
         import traceback

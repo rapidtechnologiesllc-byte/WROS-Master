@@ -108,6 +108,7 @@ class EmailTrackingService:
             return tracking_id
 
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             db.rollback()
             logger.error(f"Failed to create email tracking: {e}", exc_info=True)
             raise RuntimeError(f"Failed to create email tracking: {str(e)}")
@@ -134,6 +135,7 @@ class EmailTrackingService:
             logger.debug(f"Email tracking marked as sent: {tracking_id}")
 
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             db.rollback()
             logger.error(f"Failed to mark email as sent: {e}", exc_info=True)
             raise RuntimeError(f"Failed to mark email as sent: {str(e)}")
@@ -166,6 +168,7 @@ class EmailTrackingService:
             logger.debug(f"Email tracking marked as delivered: {tracking_id}")
 
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             db.rollback()
             logger.error(f"Failed to mark email as delivered: {e}", exc_info=True)
             raise RuntimeError(f"Failed to mark email as delivered: {str(e)}")
@@ -208,6 +211,7 @@ class EmailTrackingService:
             logger.debug(f"Email tracking marked as opened: {tracking_id} (count={tracking.open_count})")
 
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             db.rollback()
             logger.error(f"Failed to mark email as opened: {e}", exc_info=True)
             raise RuntimeError(f"Failed to mark email as opened: {str(e)}")
@@ -249,6 +253,7 @@ class EmailTrackingService:
             logger.debug(f"Email tracking marked as clicked: {tracking_id} url={link_url}")
 
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             db.rollback()
             logger.error(f"Failed to mark email as clicked: {e}", exc_info=True)
             raise RuntimeError(f"Failed to mark email as clicked: {str(e)}")
@@ -284,6 +289,7 @@ class EmailTrackingService:
             logger.info(f"Email tracking marked as replied: {tracking_id}")
 
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             db.rollback()
             logger.error(f"Failed to mark email as replied: {e}", exc_info=True)
             raise RuntimeError(f"Failed to mark email as replied: {str(e)}")
@@ -320,6 +326,7 @@ class EmailTrackingService:
             logger.warning(f"Email tracking marked as bounced: {tracking_id} reason={bounce_reason}")
 
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             db.rollback()
             logger.error(f"Failed to mark email as bounced: {e}", exc_info=True)
             raise RuntimeError(f"Failed to mark email as bounced: {str(e)}")
@@ -352,6 +359,7 @@ class EmailTrackingService:
             logger.warning(f"Email tracking marked as spam: {tracking_id}")
 
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             db.rollback()
             logger.error(f"Failed to mark email as spam: {e}", exc_info=True)
             raise RuntimeError(f"Failed to mark email as spam: {str(e)}")
@@ -384,6 +392,7 @@ class EmailTrackingService:
             logger.debug(f"Email tracking marked as deleted: {tracking_id}")
 
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             db.rollback()
             logger.error(f"Failed to mark email as deleted: {e}", exc_info=True)
             raise RuntimeError(f"Failed to mark email as deleted: {str(e)}")
@@ -440,8 +449,7 @@ class EmailTrackingService:
             logger.debug(f"Found {len(trackings)} email tracking records to poll")
             return trackings
 
-        except Exception as e:
-            logger.error(f"Failed to fetch pending email trackings: {e}", exc_info=True)
+        except Exception as e:            logger.error(f"Failed to fetch pending email trackings: {e}", exc_info=True)
             raise RuntimeError(f"Failed to fetch pending email trackings: {str(e)}")
 
     @staticmethod
@@ -476,6 +484,7 @@ class EmailTrackingService:
             logger.debug(f"Email tracking check updated: {tracking_id}")
 
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             db.rollback()
             logger.error(f"Failed to update tracking check: {e}", exc_info=True)
             raise RuntimeError(f"Failed to update tracking check: {str(e)}")
@@ -534,6 +543,5 @@ class EmailTrackingService:
                 "reply_rate": round(replied / total * 100, 2) if total > 0 else 0,
             }
 
-        except Exception as e:
-            logger.error(f"Failed to get engagement metrics: {e}", exc_info=True)
+        except Exception as e:            logger.error(f"Failed to get engagement metrics: {e}", exc_info=True)
             raise RuntimeError(f"Failed to get engagement metrics: {str(e)}")

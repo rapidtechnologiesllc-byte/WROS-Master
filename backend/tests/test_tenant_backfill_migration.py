@@ -2,6 +2,7 @@
 Proves the backfill logic in migration d6e7f8a9b0c1: every existing
 NULL-tenant_id row gets pointed at a single seeded "BlitzenX" tenant,
 and re-running is idempotent (doesn't create a second tenant row or
+import logging
 touch rows that already have a real tenant_id).
 
 Exercises the same SQL the migration runs, against a throwaway SQLite

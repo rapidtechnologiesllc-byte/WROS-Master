@@ -2,6 +2,7 @@
 Proves the Phase 1 B5 retrofit of the real Gemini call sites in
 app.services.ai_conversation_service: the candidate's untrusted reply
 text now goes through build_safe_prompt() instead of being
+import logging
 f-string-concatenated behind a fixed, guessable \"\"\" delimiter.
 
 No real Gemini call is made -- ChatGoogleGenerativeAI is mocked so

@@ -1,3 +1,4 @@
+import logging
 """add bank_transactions (EPIC-16 Bank Reconciliation)
 
 Revision ID: b3e5f7a9c1d3

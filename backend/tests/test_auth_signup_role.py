@@ -2,6 +2,7 @@
 POST /auth/v1/signup -- proves the privilege-escalation fix: this route
 is public (no auth possible, see auth_middleware.PUBLIC_ROUTES), so it
 must never trust a caller-supplied user_role. Every self-signup gets
+import logging
 SELF_SIGNUP_DEFAULT_ROLE regardless of what's in the request body.
 
 Throwaway SQLite app -- never the real database.

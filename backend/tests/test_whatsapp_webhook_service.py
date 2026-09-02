@@ -1,4 +1,5 @@
 """
+import logging
 S-002/HRMS-0402 -- WhatsApp Webhook (app.services.whatsapp_webhook_service).
 
 Tests against Meta's real documented Cloud API payload shapes (message

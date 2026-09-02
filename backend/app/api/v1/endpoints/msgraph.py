@@ -1,6 +1,7 @@
 
 import os
 from datetime import timedelta
+import logging
 from urllib.parse import urlencode
 
 from dotenv import load_dotenv
@@ -577,6 +578,7 @@ def get_user_calendar_events(
             detail=f"Microsoft Graph API error: {error_detail}"
         )
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to fetch calendar events: {str(e)}")
 
 
@@ -704,6 +706,7 @@ def schedule_meeting_for_user(
             detail=f"Microsoft Graph API error: {error_detail}"
         )
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to schedule meeting: {str(e)}")
 
 
@@ -742,6 +745,7 @@ def test_sharepoint_connection(
         try:
             access_token = get_graph_token()
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             return {
                 "status": "error",
                 "message": "Failed to get access token",
@@ -806,6 +810,7 @@ def test_sharepoint_connection(
                 else:
                     folder_response.raise_for_status()
             except Exception as folder_error:
+               logger.error(f"Error: {str(folder_error)}", exc_info=True)
                 logger.warning(f"Could not list folders: {str(folder_error)}")
                 folders = []
             
@@ -844,6 +849,7 @@ def test_sharepoint_connection(
                 "access_granted": False
             }
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             return {
                 "status": "error",
                 "message": "Failed to access SharePoint",
@@ -854,6 +860,7 @@ def test_sharepoint_connection(
             }
             
     except Exception as e:
+       logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"SharePoint connection test failed: {str(e)}")
         return {
             "status": "error",
@@ -893,6 +900,7 @@ def list_sharepoint_drives(
         try:
             access_token = get_graph_token()
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             return {
                 "status": "error",
                 "message": "Failed to get access token",
@@ -947,6 +955,7 @@ def list_sharepoint_drives(
             "details": error_detail
         }
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         return {
             "status": "error",
             "message": "Failed to list drives",

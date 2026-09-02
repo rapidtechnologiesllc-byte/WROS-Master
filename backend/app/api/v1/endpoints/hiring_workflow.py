@@ -10,6 +10,7 @@ from app.services.hiring_workflow_service import (
     check_affordability_for_hire,
     create_l2_interview_panel,
     record_no_show_confirmation
+import logging
 )
 
 router = APIRouter(prefix="/hiring-workflow", tags=["Hiring Workflow"])
@@ -27,6 +28,7 @@ def get_panelist_suggestions(
         suggestions = suggest_panelists(db, demand_id, level)
         return {"status": "success", "data": suggestions}
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -45,6 +47,7 @@ def check_l1_l2_trigger(
     except HTTPException:
         raise
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -64,6 +67,7 @@ def check_affordability(
     except HTTPException:
         raise
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -84,6 +88,7 @@ def create_l2_panel(
     except HTTPException:
         raise
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -102,4 +107,5 @@ def record_no_show(
     except HTTPException:
         raise
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))

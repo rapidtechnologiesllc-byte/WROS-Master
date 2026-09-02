@@ -5,6 +5,7 @@ POST /employees, GET /employees, GET /employees/bench-pool, GET
 /employees/{id}/bench-history -- proves S-245 (Create Employee Profile)
 + S-246 (Mark Employee as Bench, extended with bench_periods history) +
 S-247 (View Bench Pool) + S-248 (Bench Duration & Aging Report)
+import logging
 end-to-end on real routes.
 
 Throwaway SQLite app, throwaway JWT keys -- never the real database or

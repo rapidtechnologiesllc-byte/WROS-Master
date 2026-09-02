@@ -1,4 +1,5 @@
 """
+import logging
 COMPLETE INVOICE MANAGEMENT SERVICE - Production Grade
 
 Complete invoice lifecycle management with:
@@ -28,6 +29,7 @@ from app.models.org_structure import BusinessUnit
 
 from app.services.revenue_recognition_service import recognize_revenue_from_paid_invoice
 
+logger = logging.getLogger(__name__)
 
 class InvoiceError(Exception):
     """Base exception for invoice operations"""

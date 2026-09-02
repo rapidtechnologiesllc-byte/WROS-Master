@@ -1,4 +1,5 @@
 """
+import logging
 S-356/HRMS-0517 -- Employee Milestone Tracker: Personal, Project & Org.
 
 scan_overdue_milestones() is the idempotent, directly-callable function
@@ -21,6 +22,7 @@ from app.services.performance_store_service import write_performance_event
 ON_TIME_COMPLETION_SCORE = 100
 LATE_COMPLETION_SCORE = 70
 
+logger = logging.getLogger(__name__)
 
 class MilestoneValidationError(Exception):
     pass

@@ -1,4 +1,5 @@
 """
+import logging
 S-050/HRMS-0450 -- Interview Reminder Engine.
 
 interview_reminders: genuinely new table -- one row per
@@ -28,6 +29,7 @@ def _new_uuid() -> str:
 REMINDER_TYPES = ("24H_BEFORE", "1H_BEFORE")
 REMINDER_STATUSES = ("PENDING", "SENT", "CANCELLED")
 
+logger = logging.getLogger(__name__)
 
 class InterviewReminder(Base):
     __tablename__ = "interview_reminders"

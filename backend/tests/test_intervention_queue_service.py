@@ -1,4 +1,5 @@
 """
+import logging
 S-062/HRMS-0462 -- Recruiter Intervention Queue.
 
 Real architecture under test (see intervention_queue_service module

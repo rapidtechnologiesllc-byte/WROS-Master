@@ -1,3 +1,4 @@
+import logging
 """Employee Referral API - Job referrals and bonus tracking."""
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -14,6 +15,7 @@ from app.services.referral_access_control import ReferralAccessControl
 
 router = APIRouter(prefix="/referrals", tags=["referrals"])
 
+logger = logging.getLogger(__name__)
 
 class CreateJobReferralRequest(BaseModel):
     """Request to enable referrals for a job."""

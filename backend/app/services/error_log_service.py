@@ -1,4 +1,5 @@
 ﻿"""
+import logging
 S-215/HRMS-0117 -- Error Logging Framework.
 
 log_error() is the one function that writes a real, DB-queryable
@@ -21,6 +22,7 @@ from app.services.permission_helper import PermissionHelper
 
 MAX_STACK_TRACE_CHARS = 8000
 
+logger = logging.getLogger(__name__)
 
 class UnknownSeverity(Exception):
     pass

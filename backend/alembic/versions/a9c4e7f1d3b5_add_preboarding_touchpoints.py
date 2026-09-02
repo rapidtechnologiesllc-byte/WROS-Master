@@ -1,3 +1,4 @@
+import logging
 """add preboarding_touchpoints table (S-067/HRMS-0467)
 
 Revision ID: a9c4e7f1d3b5

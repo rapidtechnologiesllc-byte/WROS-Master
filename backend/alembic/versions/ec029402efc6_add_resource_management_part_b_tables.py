@@ -1,3 +1,4 @@
+import logging
 """add bench_pool, employee_utilization_metrics, allocation_conflict_log (Phase 4 Part B)
 
 Revision ID: ec029402efc6

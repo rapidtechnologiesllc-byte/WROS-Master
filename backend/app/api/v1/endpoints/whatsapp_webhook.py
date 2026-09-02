@@ -2,6 +2,7 @@
 S-002/HRMS-0402 -- WhatsApp Webhook (Meta Cloud API)
 =======================================================
 Prefix: /webhooks
+import logging
 Tag:    whatsapp-webhook
 
 Public (no auth possible -- Meta calls this, not a logged-in user).
@@ -63,6 +64,7 @@ def _process_webhook_payload(payload: dict) -> None:
                 for status in value.get("statuses") or []:
                     process_delivery_status(db, status)
     except Exception as exc:
+       logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.error(f"[WhatsAppWebhook] Failed processing payload: {exc}", exc_info=True)
     finally:
         db.close()

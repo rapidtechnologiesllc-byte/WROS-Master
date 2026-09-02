@@ -4,6 +4,7 @@ revenue.view_pnl -- revenue-per-head is a P&L-adjacent figure, same
 tier as target-setting and leakage detail elsewhere in EPIC-02/03.
 """
 from fastapi import APIRouter, Depends
+import logging
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db

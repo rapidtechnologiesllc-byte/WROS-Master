@@ -1,3 +1,4 @@
+import logging
 """Help Desk/IT-HR ticketing: widen tasks.task_type, add ticket_category_routes / ticket_sla_policies / ticket_details
 
 Revision ID: c8d5f3a9b2e7

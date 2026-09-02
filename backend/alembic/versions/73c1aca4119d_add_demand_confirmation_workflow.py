@@ -1,3 +1,4 @@
+import logging
 """add demands.confirmation_status/sow fields + demand_alignment_calls (S-372/HRMS-0528)
 
 Revision ID: 73c1aca4119d

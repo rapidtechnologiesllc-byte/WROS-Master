@@ -1,5 +1,6 @@
 ﻿"""
 Partner/BU spend tracking, 2026-08-05.
+import logging
 Prefix: /expenses
 
 POST /expenses                       -- self-service: log YOUR OWN expense

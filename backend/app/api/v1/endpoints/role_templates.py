@@ -1,3 +1,4 @@
+import logging
 """Role Template management endpoints."""
 
 from fastapi import APIRouter, Depends, HTTPException, status, Request, Body
@@ -13,6 +14,7 @@ from typing import List, Optional
 router = APIRouter(prefix="/admin/role-templates", tags=["Role Templates"])
 rbac_router = APIRouter(prefix="/rbac", tags=["RBAC"])
 
+logger = logging.getLogger(__name__)
 
 class PermissionInput(BaseModel):
     resource_id: int
@@ -274,6 +276,7 @@ def update_role_template(
 
         return {"message": "Role template updated successfully"}
     except Exception as e:
+       logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"[PUT] Error updating role template {template_id}: {str(e)}", exc_info=True)
         db.rollback()
         import traceback

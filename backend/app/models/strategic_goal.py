@@ -1,4 +1,5 @@
 """
+import logging
 Strategic Goals Model
 
 CEO sets annual goals. System automatically cascades to all departments.
@@ -19,6 +20,7 @@ from sqlalchemy import Column, String, Integer, Float, DateTime, ForeignKey, Tex
 from sqlalchemy.orm import relationship
 from app.models.base import Base
 
+logger = logging.getLogger(__name__)
 
 class StrategicGoal(Base):
     """CEO-level strategic goal that cascades to all departments"""

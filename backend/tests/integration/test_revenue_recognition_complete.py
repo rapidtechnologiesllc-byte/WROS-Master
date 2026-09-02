@@ -1,4 +1,5 @@
 """
+import logging
 COMPREHENSIVE REVENUE RECOGNITION TEST SUITE
 
 Complete integration tests for revenue recognition engine:
@@ -248,6 +249,7 @@ def test_partner_assignment(db_session, test_tenant, test_business_unit):
 # ============================================================================
 # TEST SUITE 1: REVENUE RECOGNITION ENGINE
 # ============================================================================
+logger = logging.getLogger(__name__)
 
 class TestRevenueRecognitionEngine:
     """Tests for core revenue recognition logic"""

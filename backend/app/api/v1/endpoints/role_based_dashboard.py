@@ -1,3 +1,4 @@
+import logging
 """Role-Based Dashboard API endpoints."""
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -43,6 +44,7 @@ def get_my_dashboard(
         }
 
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -77,6 +79,7 @@ def get_ceo_dashboard(
     except HTTPException:
         raise
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -116,6 +119,7 @@ def get_recruiter_dashboard(
     except HTTPException:
         raise
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -155,6 +159,7 @@ def get_hr_dashboard(
     except HTTPException:
         raise
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -194,4 +199,5 @@ def get_finance_dashboard(
     except HTTPException:
         raise
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))

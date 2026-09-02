@@ -1,4 +1,5 @@
 """
+import logging
 S-047/HRMS-0447 -- Interview Availability Collection.
 
 candidate_availability_slots: genuinely new table -- one row per
@@ -26,6 +27,7 @@ from app.models.base import Base
 
 SLOT_SOURCES = ("CANDIDATE_MESSAGE", "MANUAL")
 
+logger = logging.getLogger(__name__)
 
 class CandidateAvailabilitySlot(Base):
     __tablename__ = "candidate_availability_slots"

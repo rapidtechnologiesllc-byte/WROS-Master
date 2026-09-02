@@ -3,6 +3,7 @@ Proves HRMS-0907 (Invoice Generation/Status Tracking -- R-10 gate,
 HRMS-0904 open-dispute gate, DRAFT->APPROVED->SENT->PAID lifecycle),
 HRMS-0906 (Revenue Leakage detection over approved-vs-invoiced hours,
 BR-0906-02 partial-billing-reason suppression), and HRMS-0903
+import logging
 (Timesheet-to-Revenue Reconciliation gap detection).
 
 Throwaway SQLite -- never the real database.

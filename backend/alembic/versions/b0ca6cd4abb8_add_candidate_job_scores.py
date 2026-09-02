@@ -1,3 +1,4 @@
+import logging
 """S-037/HRMS-0437: add candidate_job_scores table + structured job requirement columns
 
 Revision ID: b0ca6cd4abb8

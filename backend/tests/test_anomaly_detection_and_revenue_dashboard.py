@@ -4,6 +4,7 @@ completed-project, and duplicate-entry checks, BR-0910-01 advisory-only
 never blocking submission, BR-0910-02 weekend flagging respects
 Project.allow_weekend_billing) and HRMS-0909 (Client Revenue
 Realization Dashboard -- earned-vs-planned, billable ratio, burn rate,
+import logging
 all pure aggregation, no new schema).
 
 Throwaway SQLite -- never the real database.

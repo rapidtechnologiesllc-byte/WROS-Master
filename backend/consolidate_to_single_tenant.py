@@ -5,6 +5,7 @@ The system is designed for single-tenant (modules, resources are shared).
 Move all BlitzenX data to default tenant.
 """
 import sys, os
+import logging
 sys.path.insert(0, os.path.dirname(__file__))
 
 from app.core.database import SessionLocal
@@ -54,6 +55,8 @@ try:
     print("Multi-tenant support requires schema changes to Module unique constraint.")
 
 except Exception as e:
+   logger.error(f"Error: {str(e)}", exc_info=True)
+    logger.error(f"Error: {str(e)}", exc_info=True)
     print(f"Error: {e}")
     import traceback
     traceback.print_exc()

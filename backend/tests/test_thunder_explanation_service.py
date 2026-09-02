@@ -1,4 +1,5 @@
 """
+import logging
 S-064/HRMS-0464 -- AI Explainability Panel.
 
 Real architecture under test (see thunder_explanation_service module

@@ -2,6 +2,7 @@
 Internal Note Model
 ===================
 Allows HR team members to attach private, timestamped notes to a candidate
+import logging
 for internal tracking purposes. These notes are NOT visible to the candidate.
 
 Each note records:
@@ -17,6 +18,7 @@ from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text, func
 from sqlalchemy.orm import relationship
 from app.models.base import Base
 
+logger = logging.getLogger(__name__)
 
 class InternalNote(Base):
     __tablename__ = "internal_notes"

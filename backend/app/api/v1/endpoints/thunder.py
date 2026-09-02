@@ -2,6 +2,7 @@
 "Test Thunder" â€” API Endpoints
 ================================
 Prefix: /thunder
+import logging
 Tag:    thunder
 
 Internal QA harness, gated behind the "thunder.test" RBAC permission

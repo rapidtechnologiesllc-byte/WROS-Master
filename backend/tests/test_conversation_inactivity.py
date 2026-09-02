@@ -1,4 +1,5 @@
 """
+import logging
 Proves the conversation-inactivity safety net:
 
   - business_hours_elapsed()'s weekend-pause math (Friday 21:00 ->

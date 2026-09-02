@@ -1,6 +1,7 @@
 """
 GET/PATCH /tenants/me/locale -- proves S-219/HRMS-0121 (Multi-Continent
 Locale & Currency Config) end-to-end. Genuinely new backend -- no
+import logging
 Tenant-config model, service, or REST layer existed before this.
 
 Throwaway SQLite app, throwaway JWT keys -- never the real database or

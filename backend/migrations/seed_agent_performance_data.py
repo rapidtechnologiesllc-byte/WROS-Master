@@ -1,3 +1,4 @@
+import logging
 """Seed realistic performance data for all 50+ agents."""
 
 import sys
@@ -287,6 +288,7 @@ try:
     print("[OK] Agent performance data seeded successfully!")
 
 except Exception as e:
+    logger.error(f"Error: {str(e)}", exc_info=True)
     db.rollback()
     print(f"[ERROR] {e}")
     import traceback

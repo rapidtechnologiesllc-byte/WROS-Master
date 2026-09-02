@@ -1,5 +1,6 @@
 """
 Proves HRMS-0110's append-only guarantee at the layer this codebase can
+import logging
 actually test locally: the ORM-level guard in app.models.audit_log.
 
 The database-grant-level enforcement (DENY UPDATE, DELETE at the SQL

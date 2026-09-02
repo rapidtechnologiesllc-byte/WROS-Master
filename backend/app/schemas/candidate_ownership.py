@@ -2,6 +2,7 @@
 Candidate Ownership Schemas
 ===========================
 Pydantic request / response models for the candidate pool ownership API.
+import logging
 """
 
 from datetime import datetime
@@ -14,6 +15,7 @@ from app.models.candidate_ownership import POOL_BU, POOL_ORG
 # ---------------------------------------------------------------------------
 # Response schemas
 # ---------------------------------------------------------------------------
+logger = logging.getLogger(__name__)
 
 class CandidateOwnershipResponse(BaseModel):
     """Current ownership state for a candidate."""

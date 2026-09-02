@@ -1,6 +1,7 @@
 """
 HRMS-0401 bug fix -- the AI recruiter must assign itself automatically
 when a candidate is created, not only when an HR user clicks "Assign AI
+import logging
 Recruiter" (the only path that existed until now).
 
 Covers app.services.ai_conversation_service.auto_assign_ai_agent_on_creation(),

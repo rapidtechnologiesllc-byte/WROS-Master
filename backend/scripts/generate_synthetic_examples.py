@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """
+import logging
 Synthetic Training Data Generation using Claude
 
 Takes real resume examples and generates 5000+ synthetic variations using Claude.
@@ -36,6 +37,7 @@ from anthropic import Anthropic
 
 client = Anthropic()
 
+logger = logging.getLogger(__name__)
 
 class SyntheticDataGenerator:
     """Generate synthetic training examples using Claude"""
@@ -181,6 +183,7 @@ Generate {count} variations now:
                 print(f"   Could not parse JSON response")
 
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             print(f"  Error: {e}")
 
         return variations

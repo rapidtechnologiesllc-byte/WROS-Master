@@ -1,4 +1,5 @@
 """
+import logging
 Pytest configuration and shared fixtures for regression test suite
 
 POSTGRESQL ONLY - No SQLite fallback
@@ -62,6 +63,7 @@ def create_test_database():
         return True
 
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         print(f"✗ FATAL: Cannot create PostgreSQL test database")
         print(f"  Error: {e}")
         print(f"  Ensure PostgreSQL is running on localhost:5432")
@@ -140,6 +142,7 @@ def setup_database():
         Base.metadata.create_all(bind=engine, checkfirst=True)
         print("✓ PostgreSQL: Schema created successfully")
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         # If schema creation still fails, try forcing a complete cleanup
         print(f"  Warning: create_all failed: {type(e).__name__}")
         print(f"  Attempting forced cleanup and retry...")
@@ -156,6 +159,7 @@ def setup_database():
             Base.metadata.create_all(bind=engine)
             print("✓ PostgreSQL: Schema created successfully (after cleanup)")
         except Exception as e2:
+            logger.error(f"Error: {str(e2)}", exc_info=True)
             print(f"✗ FATAL: Cannot create schema: {e2}")
             raise
 
@@ -174,6 +178,7 @@ def setup_database():
         Base.metadata.drop_all(bind=engine)
         print("✓ PostgreSQL: Test tables dropped")
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         print(f"⚠ Warning during cleanup: {e}")
 
     engine.dispose()

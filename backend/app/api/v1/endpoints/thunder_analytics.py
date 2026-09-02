@@ -2,6 +2,7 @@
 S-071/HRMS-0471 -- AI Recruiter Performance Analytics
 ==================================================================
 Prefix: /analytics
+import logging
 Tag:    thunder-analytics
 
 GET /analytics/thunder?date_from={ISO}&date_to={ISO}

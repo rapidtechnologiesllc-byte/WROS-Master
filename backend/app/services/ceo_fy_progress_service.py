@@ -10,6 +10,7 @@ from app.models.opportunity import Opportunity
 from app.models.invoice import Invoice
 from app.services.pnl_service import get_org_pnl_summary
 from app.utils.agent_logger import log_agent_execution
+import logging
 from app.core.logging import logger
 
 
@@ -328,8 +329,7 @@ def get_slm_insights(db: Session) -> dict:
             "recommendation": stats.get("recommendation", "No action needed"),
             "top_performing_jobs": top_jobs_list
         }
-    except Exception as e:
-        logger.error(f"Failed to get SLM insights: {str(e)}", exc_info=True)
+    except Exception as e:        logger.error(f"Failed to get SLM insights: {str(e)}", exc_info=True)
         return {
             "status": "error",
             "message": f"Failed to fetch SLM insights: {str(e)}"

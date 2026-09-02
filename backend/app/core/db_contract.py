@@ -1,4 +1,5 @@
 """
+import logging
 Database Contract - Ensures database is properly initialized on startup.
 
 This module guarantees:
@@ -60,6 +61,7 @@ def initialize_database():
         logger.info("[OK] Database contract validated - all systems ready")
 
     except Exception as e:
+       logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"[FAILED] Database contract violation: {e}", exc_info=True)
         raise
 

@@ -1,6 +1,7 @@
 """Pydantic schemas -- HRMS-0906 (Revenue Leakage Detection) +
 HRMS-0903 (Timesheet-to-Revenue Reconciliation) + HRMS-0909 (Client
 Revenue Realization Dashboard) API.
+import logging
 """
 
 from datetime import date, datetime
@@ -8,6 +9,7 @@ from typing import List, Optional
 
 from pydantic import BaseModel
 
+logger = logging.getLogger(__name__)
 
 class ScanLeakageRequest(BaseModel):
     project_id: str

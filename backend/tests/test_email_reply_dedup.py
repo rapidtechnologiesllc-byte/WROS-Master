@@ -1,6 +1,7 @@
 """
 S-003/HRMS-0403 -- real gaps fixed in the existing MS Graph email-reply
 pipeline (app.services.ai_conversation_service.process_candidate_reply):
+import logging
 message_id deduplication (BR-01) and the empty-body placeholder (BR-03).
 
 This system's real inbound-email path is the scheduled MS Graph poll

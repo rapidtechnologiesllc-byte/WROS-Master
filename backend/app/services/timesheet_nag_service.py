@@ -5,6 +5,7 @@ reminder -> escalation-on-repeated-non-response, tracked against the
 non-responder) -- applied here to timesheet submission.
 """
 from datetime import date, datetime, timedelta
+import logging
 from typing import List, Optional
 
 from sqlalchemy.orm import Session

@@ -1,4 +1,5 @@
 """
+import logging
 Work Order API Endpoints (DEFECT-1: Work Order / PO Model)
 
 HRMS-0XXX -- Work Order / PO / Engagement Records
@@ -124,6 +125,7 @@ def create_work_order_endpoint(
     except WorkOrderValidationError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Failed to create work order: {str(e)}")
 
@@ -156,6 +158,7 @@ def list_work_orders(
 
         return WorkOrderListResponse(work_orders=[_to_item(wo) for wo in work_orders])
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to list work orders: {str(e)}")
 
 
@@ -174,6 +177,7 @@ def get_work_order(
     except HTTPException:
         raise
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to get work order: {str(e)}")
 
 
@@ -221,6 +225,7 @@ def update_work_order_endpoint(
     except WorkOrderValidationError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Failed to update work order: {str(e)}")
 
@@ -236,6 +241,7 @@ def get_work_orders_by_demand_endpoint(
         work_orders = get_work_orders_by_demand(db, demand_id, current_user.tenant_id)
         return WorkOrderListResponse(work_orders=[_to_item(wo) for wo in work_orders])
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to get work orders: {str(e)}")
 
 
@@ -250,6 +256,7 @@ def get_work_orders_by_project_endpoint(
         work_orders = get_work_orders_by_project(db, project_id, current_user.tenant_id)
         return WorkOrderListResponse(work_orders=[_to_item(wo) for wo in work_orders])
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to get work orders: {str(e)}")
 
 
@@ -264,6 +271,7 @@ def get_work_orders_by_employee_endpoint(
         work_orders = get_work_orders_by_employee(db, employee_id, current_user.tenant_id)
         return WorkOrderListResponse(work_orders=[_to_item(wo) for wo in work_orders])
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to get work orders: {str(e)}")
 
 
@@ -278,6 +286,7 @@ def get_work_orders_by_client_endpoint(
         work_orders = get_work_orders_by_client(db, client_id, current_user.tenant_id)
         return WorkOrderListResponse(work_orders=[_to_item(wo) for wo in work_orders])
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to get work orders: {str(e)}")
 
 
@@ -303,6 +312,7 @@ def end_work_order_endpoint(
     except WorkOrderValidationError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Failed to end work order: {str(e)}")
 
@@ -329,6 +339,7 @@ def pause_work_order_endpoint(
     except WorkOrderValidationError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Failed to pause work order: {str(e)}")
 
@@ -355,5 +366,6 @@ def resume_work_order_endpoint(
     except WorkOrderValidationError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Failed to resume work order: {str(e)}")

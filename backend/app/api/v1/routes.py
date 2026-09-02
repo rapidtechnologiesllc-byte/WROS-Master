@@ -1,3 +1,4 @@
+import logging
 import fastapi
 
 from app.api.v1.endpoints.auth import router as auth_router
@@ -230,4 +231,4 @@ router.include_router(router=finance_monitoring_router)
 router.include_router(router=agent_pyramid_router)
 router.include_router(router=goals_router)
 router.include_router(router=certifications_admin_router)
-router.include_router(router=slm_feedback_router)
+router.include_router(router=slm_feedback_router)

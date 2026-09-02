@@ -87,8 +87,7 @@ def get_doctor_traces(
 
         return {"data": {"traces": trace_list}}
 
-    except Exception as e:
-        logger.error(f"Failed to get doctor traces: {e}", exc_info=True)
+    except Exception as e:        logger.error(f"Failed to get doctor traces: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to get doctor traces: {str(e)}")
 
 
@@ -152,8 +151,7 @@ def get_doctor_traces_by_status(
 
     except HTTPException:
         raise
-    except Exception as e:
-        logger.error(f"Failed to filter doctor traces: {e}", exc_info=True)
+    except Exception as e:        logger.error(f"Failed to filter doctor traces: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to filter doctor traces: {str(e)}")
 
 
@@ -190,6 +188,7 @@ def assign_escalation(
     except HTTPException:
         raise
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         db.rollback()
         logger.error(f"Failed to assign escalation: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to assign escalation: {str(e)}")

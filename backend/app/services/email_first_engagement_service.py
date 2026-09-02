@@ -1,5 +1,6 @@
 """
 S-013/HRMS-0413 -- Email First Engagement, parallel channel to S-012's
+import logging
 WhatsApp first engagement.
 
 Adapted to real architecture, same posture as S-012: no message_templates
@@ -47,6 +48,7 @@ FALLBACK_BODY_TEMPLATE = (
     f"<p>{THUNDER_SIGNATURE}</p>"
 )
 
+logger = logging.getLogger(__name__)
 
 class EmailTemplateRenderFailure(Exception):
     pass
@@ -108,6 +110,7 @@ def _send_attempt(candidate: Candidate, subject: str, body: str) -> bool:
         logger.warning(f"[EmailFirstEngagement] Send attempt failed: {exc.detail}")
         return False
     except Exception as exc:
+       logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[EmailFirstEngagement] Send attempt raised: {exc}")
         return False
 

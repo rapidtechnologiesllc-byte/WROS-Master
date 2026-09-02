@@ -1,5 +1,6 @@
 """
 Phase 4 Part B -- bench_pool lifecycle, utilization metrics, the
+import logging
 allocation-conflict audit log, and the Staffing Eligibility Engine.
 
 Throwaway SQLite -- never the real database.

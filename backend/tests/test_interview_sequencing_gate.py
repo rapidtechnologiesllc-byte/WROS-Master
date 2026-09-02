@@ -4,6 +4,7 @@ R-05 ("L1 must pass before L2 can be scheduled") applied to the legacy
 "Schedule Interview" feature the Development & Review Standard names
 as having "zero enforcement... today." This is separate from the newer
 leveled `submission_interviews` system's own R-05 gate (already covered
+import logging
 by tests/test_submission_interview_pipeline.py).
 
 Throwaway SQLite -- never the real database.

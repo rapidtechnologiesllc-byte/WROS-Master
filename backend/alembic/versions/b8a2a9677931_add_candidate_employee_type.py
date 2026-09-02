@@ -1,3 +1,4 @@
+import logging
 """add_candidate_employee_type
 
 Revision ID: b8a2a9677931

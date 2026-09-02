@@ -1,5 +1,6 @@
 """
 Phase 1 B3 acceptance test (session-expiry half): "attempt to use a
+import logging
 token past its expiry window; must be rejected."
 
 Verifies the REAL app.core.security.create_access_token /

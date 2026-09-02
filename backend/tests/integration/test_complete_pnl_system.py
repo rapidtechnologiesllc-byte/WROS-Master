@@ -1,4 +1,5 @@
 """
+import logging
 COMPREHENSIVE P&L SYSTEM TEST SUITE - Production Grade
 
 Complete end-to-end testing of all layers:
@@ -23,6 +24,7 @@ from unittest.mock import Mock, patch, MagicMock
 # ============================================================================
 # PHASE 1: INVOICE SERVICE TESTS (Complete Workflow)
 # ============================================================================
+logger = logging.getLogger(__name__)
 
 class TestInvoiceCreation:
     """Test invoice creation and validation"""

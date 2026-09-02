@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from app.core.database import SessionLocal
 from app.models.user import Users
 from app.models.rbac_template import Role
+import logging
 from app.services.permission_service import PermissionService
 
 # Fixtures

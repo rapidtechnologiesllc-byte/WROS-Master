@@ -2,6 +2,7 @@
 S-062/HRMS-0462 -- Recruiter Intervention Queue
 ==================================================================
 Prefix: /intervention-queue
+import logging
 Tag:    intervention-queue
 
 GET /intervention-queue?status={optional}         -- Step 3's queue table

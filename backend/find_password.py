@@ -1,3 +1,4 @@
+import logging
 import bcrypt
 
 stored_hash = b'$2b$12$yv2ftrjtTOJaJKE890lrI.wlt.0eeGT6U6wNlO9PN/j58Ax19pknK'
@@ -23,6 +24,8 @@ for pwd in passwords_to_try:
         status = '✅' if result else '❌'
         print(f'{status} "{pwd}": {result}')
     except Exception as e:
+       logger.error(f"Error: {str(e)}", exc_info=True)
+        logger.error(f"Error: {str(e)}", exc_info=True)
         print(f'❌ "{pwd}": Error - {type(e).__name__}: {e}')
 
 print("\nIf none match, the password might be auto-generated in the database initialization script.")

@@ -1,3 +1,4 @@
+import logging
 """S-054/HRMS-0454: add offer_faq_active column to candidate_conversations
 
 Revision ID: 7f3d9a2c48e1

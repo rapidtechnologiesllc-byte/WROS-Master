@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
 Create test users for all 4 role templates.
+import logging
 Useful for RBAC testing with different permission levels.
 
 Usage:
@@ -99,6 +100,7 @@ def create_test_users(db: Session):
             created_count += 1
 
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             db.rollback()
             logger.error(f"Failed to create user {user_data['email']}: {e}")
 

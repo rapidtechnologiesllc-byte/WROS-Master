@@ -1,5 +1,6 @@
 """
 Flash (app.services.flash_service) -- renamed 2026-08-06 from "Ask
+import logging
 Thunder"/internal_ask_thunder_service.py.
 
 2026-08-06: classify_internal_query() no longer calls an external LLM

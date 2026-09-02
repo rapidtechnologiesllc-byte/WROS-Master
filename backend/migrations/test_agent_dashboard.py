@@ -1,3 +1,4 @@
+import logging
 """Test Agent Performance Dashboard - Shows all 50+ agents with targets vs achievements."""
 
 import sys
@@ -132,6 +133,7 @@ try:
             print(f"  [ALERT] {agent['agent_name']:<30} Fear: {agent['fear_score']:.0f} | Progress: {agent['fy_progress_pct']:.1f}%")
 
 except Exception as e:
+    logger.error(f"Error: {str(e)}", exc_info=True)
     print(f"[ERROR] {e}")
     import traceback
     traceback.print_exc()

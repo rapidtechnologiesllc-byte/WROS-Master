@@ -1,6 +1,7 @@
 """
 Mellow keep-warm outreach -- the ENGAGED/QUALIFYING/SCREENED cadence
 tier of the real stage-aware cadence reconciliation
+import logging
 ([[wros_outreach_cadence_by_stage_backlog]]).
 
 Proves: only pre-interview-stage candidates are nudged, both channels

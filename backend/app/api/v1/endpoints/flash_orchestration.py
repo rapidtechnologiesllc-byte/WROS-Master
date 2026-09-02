@@ -1,5 +1,6 @@
 ﻿"""Flash Orchestration Engine endpoints - Daily command coordination."""
 from fastapi import APIRouter, Depends, HTTPException
+import logging
 from sqlalchemy.orm import Session
 
 from app.core.dependencies import get_current_internal_user, require_resource_permission
@@ -47,4 +48,5 @@ async def get_daily_coordination(
         )
         return result
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))

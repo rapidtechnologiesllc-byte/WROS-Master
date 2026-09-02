@@ -1,3 +1,4 @@
+import logging
 """Agent State Dashboard - Strategic alignment, fear scores, and accountability."""
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -134,6 +135,7 @@ def get_all_agents_state(
     except HTTPException:
         raise
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -168,6 +170,7 @@ def get_agent_state(
     except HTTPException:
         raise
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -237,5 +240,6 @@ def toggle_kill_switch(
     except HTTPException:
         raise
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         db.rollback()
         raise HTTPException(status_code=500, detail=str(e))

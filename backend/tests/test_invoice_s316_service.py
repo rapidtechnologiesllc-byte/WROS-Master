@@ -1,6 +1,7 @@
 """
 HRMS-0316 -- Invoice Service Tests
 Comprehensive test coverage for invoice generation, calculation, sending, and payment tracking.
+import logging
 """
 
 import pytest
@@ -152,6 +153,7 @@ def approved_timesheet(db: Session, employee, allocation, bu_context):
 # ============================================================================
 # TEST: generate_invoice()
 # ============================================================================
+logger = logging.getLogger(__name__)
 
 class TestGenerateInvoice:
     """Test invoice generation from approved timesheets."""

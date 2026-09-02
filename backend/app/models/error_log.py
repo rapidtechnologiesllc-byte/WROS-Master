@@ -1,4 +1,5 @@
 """
+import logging
 S-215/HRMS-0117 -- Error Logging Framework.
 
 Additive to the existing file-based structured logging
@@ -24,6 +25,7 @@ ERROR_SEVERITIES = ("INFO", "WARN", "ERROR", "CRITICAL")
 def _new_uuid() -> str:
     return str(uuid.uuid4())
 
+logger = logging.getLogger(__name__)
 
 class ErrorLog(Base):
     __tablename__ = "error_log"

@@ -56,8 +56,7 @@ class ChannelProcessors:
             logger.info(f"EMAIL processed successfully: {item_id}")
             return True
 
-        except Exception as e:
-            logger.error(f"Failed to process EMAIL: {e}", exc_info=True)
+        except Exception as e:            logger.error(f"Failed to process EMAIL: {e}", exc_info=True)
             # Mark as failed but allow retry
             ChannelQueueService.mark_failed(item_id, str(e), should_retry=True, db=db)
             return False
@@ -85,8 +84,7 @@ class ChannelProcessors:
             logger.info(f"WHATSAPP processed successfully: {item_id}")
             return True
 
-        except Exception as e:
-            logger.error(f"Failed to process WHATSAPP: {e}", exc_info=True)
+        except Exception as e:            logger.error(f"Failed to process WHATSAPP: {e}", exc_info=True)
             ChannelQueueService.mark_failed(item_id, str(e), should_retry=True, db=db)
             return False
 
@@ -110,8 +108,7 @@ class ChannelProcessors:
             ChannelQueueService.mark_completed(item_id, db)
             return True
 
-        except Exception as e:
-            logger.error(f"Failed to process SMS: {e}", exc_info=True)
+        except Exception as e:            logger.error(f"Failed to process SMS: {e}", exc_info=True)
             ChannelQueueService.mark_failed(item_id, str(e), should_retry=True, db=db)
             return False
 
@@ -135,8 +132,7 @@ class ChannelProcessors:
             ChannelQueueService.mark_completed(item_id, db)
             return True
 
-        except Exception as e:
-            logger.error(f"Failed to process SLACK: {e}", exc_info=True)
+        except Exception as e:            logger.error(f"Failed to process SLACK: {e}", exc_info=True)
             ChannelQueueService.mark_failed(item_id, str(e), should_retry=False, db=db)
             return False
 
@@ -164,8 +160,7 @@ class ChannelProcessors:
             logger.info(f"THUNDER processed successfully: {item_id}")
             return True
 
-        except Exception as e:
-            logger.error(f"Failed to process THUNDER: {e}", exc_info=True)
+        except Exception as e:            logger.error(f"Failed to process THUNDER: {e}", exc_info=True)
             ChannelQueueService.mark_failed(item_id, str(e), should_retry=True, db=db)
             return False
 
@@ -192,8 +187,7 @@ class ChannelProcessors:
             ChannelQueueService.mark_completed(item_id, db)
             return True
 
-        except Exception as e:
-            logger.error(f"Failed to process APPROVAL: {e}", exc_info=True)
+        except Exception as e:            logger.error(f"Failed to process APPROVAL: {e}", exc_info=True)
             ChannelQueueService.mark_failed(item_id, str(e), should_retry=True, db=db)
             return False
 
@@ -221,8 +215,7 @@ class ChannelProcessors:
             ChannelQueueService.mark_completed(item_id, db)
             return True
 
-        except Exception as e:
-            logger.error(f"Failed to process COMMISSION: {e}", exc_info=True)
+        except Exception as e:            logger.error(f"Failed to process COMMISSION: {e}", exc_info=True)
             ChannelQueueService.mark_failed(item_id, str(e), should_retry=True, db=db)
             return False
 
@@ -249,8 +242,7 @@ class ChannelProcessors:
             ChannelQueueService.mark_completed(item_id, db)
             return True
 
-        except Exception as e:
-            logger.error(f"Failed to process CRM: {e}", exc_info=True)
+        except Exception as e:            logger.error(f"Failed to process CRM: {e}", exc_info=True)
             ChannelQueueService.mark_failed(item_id, str(e), should_retry=True, db=db)
             return False
 
@@ -277,8 +269,7 @@ class ChannelProcessors:
             ChannelQueueService.mark_completed(item_id, db)
             return True
 
-        except Exception as e:
-            logger.error(f"Failed to process DASHBOARD: {e}", exc_info=True)
+        except Exception as e:            logger.error(f"Failed to process DASHBOARD: {e}", exc_info=True)
             # Dashboard updates don't retry (non-critical)
             ChannelQueueService.mark_failed(item_id, str(e), should_retry=False, db=db)
             return False
@@ -306,8 +297,7 @@ class ChannelProcessors:
             ChannelQueueService.mark_completed(item_id, db)
             return True
 
-        except Exception as e:
-            logger.error(f"Failed to process CALENDAR: {e}", exc_info=True)
+        except Exception as e:            logger.error(f"Failed to process CALENDAR: {e}", exc_info=True)
             ChannelQueueService.mark_failed(item_id, str(e), should_retry=True, db=db)
             return False
 
@@ -338,8 +328,7 @@ class ChannelProcessors:
             ChannelQueueService.mark_completed(item_id, db)
             return True
 
-        except Exception as e:
-            logger.error(f"Failed to process SIGNATURE: {e}", exc_info=True)
+        except Exception as e:            logger.error(f"Failed to process SIGNATURE: {e}", exc_info=True)
             ChannelQueueService.mark_failed(item_id, str(e), should_retry=True, db=db)
             return False
 
@@ -397,6 +386,5 @@ class ChannelProcessors:
                 )
                 return False
 
-        except Exception as e:
-            logger.error(f"Failed to dispatch channel processor: {e}", exc_info=True)
+        except Exception as e:            logger.error(f"Failed to dispatch channel processor: {e}", exc_info=True)
             return False

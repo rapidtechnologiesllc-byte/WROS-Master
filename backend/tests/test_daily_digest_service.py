@@ -1,4 +1,5 @@
 """
+import logging
 S-065/HRMS-0465 -- Thunder Daily Digest / Morning Report.
 
 Real architecture under test (see daily_digest_service module

@@ -5,6 +5,7 @@ match against the full PUBLIC_ROUTES list, which includes "/" -- and
 every path starts with "/", so every route was being treated as public
 (auth skipped) whenever this middleware ran. This proves the fix: only
 explicit PREFIX_ROUTES entries (e.g. "/static") get prefix matching;
+import logging
 everything else in PUBLIC_ROUTES is exact-match only.
 
 Note: this middleware is not currently registered in app.main (see the

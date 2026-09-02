@@ -2,10 +2,12 @@
 Pydantic Schemas -- S-350/HRMS-P120 HR Intelligence Briefing.
 """
 from datetime import datetime
+import logging
 from typing import List, Optional
 
 from pydantic import BaseModel
 
+logger = logging.getLogger(__name__)
 
 class DesireRankingItem(BaseModel):
     category: str

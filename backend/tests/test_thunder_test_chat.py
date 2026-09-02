@@ -2,6 +2,7 @@
 "Test Thunder" mode (app.services.thunder_service): reply generation,
 the mock WhatsApp transport, and the per-tester test-candidate/consent
 bootstrap, all wired through the REAL, governed send_thunder_message()
+import logging
 path.
 
 No real Gemini call is made anywhere in this file -- ChatGoogleGenerativeAI

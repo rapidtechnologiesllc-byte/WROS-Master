@@ -1,3 +1,4 @@
+import logging
 """Add candidate_documents table
 
 Revision ID: add_candidate_documents

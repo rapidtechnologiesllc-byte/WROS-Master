@@ -1,3 +1,4 @@
+import logging
 """add_candidate_ai_agentic_tables
 
 Adds three tables to support the agentic automated hiring process:

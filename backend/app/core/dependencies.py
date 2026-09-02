@@ -1,5 +1,6 @@
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials
+import logging
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -94,6 +95,7 @@ async def get_current_user(
     except HTTPException:
         raise
     except Exception as e:
+       logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"[AUTH-DEBUG] Exception in get_current_user: {str(e)}", exc_info=True)
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=f"Auth failed: {str(e)}")
 
@@ -127,6 +129,7 @@ async def get_current_candidate(
     except HTTPException:
         raise
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         from app.core.logging import logger
         logger.error(f"[get_current_candidate] Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Authentication failed: {str(e)}")
@@ -163,6 +166,7 @@ async def get_current_candidate_otp_pending(
     except HTTPException:
         raise
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         from app.core.logging import logger
         logger.error(f"[get_current_candidate_otp_pending] Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Authentication failed: {str(e)}")
@@ -200,6 +204,7 @@ async def get_current_hr_or_admin(
     except HTTPException:
         raise
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         from app.core.logging import logger
         logger.error(f"[get_current_hr_or_admin] Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=f"Authentication failed: {str(e)}")
@@ -238,6 +243,7 @@ async def get_current_internal_user(
     except HTTPException:
         raise
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         from app.core.logging import logger
         logger.error(f"[get_current_internal_user] Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Authentication failed: {str(e)}")

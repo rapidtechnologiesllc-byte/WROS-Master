@@ -240,8 +240,7 @@ class SLMOrchestrationService:
                         status="PENDING",
                     )
                     db.add(channel)
-                except Exception as e:
-                    logger.error(f"Failed to create channel routing for {queue_type}: {e}")
+                except Exception as e:                    logger.error(f"Failed to create channel routing for {queue_type}: {e}")
                     # Continue with other channels
 
             db.commit()
@@ -268,6 +267,7 @@ class SLMOrchestrationService:
             }
 
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             db.rollback()
             logger.error(f"Failed to orchestrate message routing: {e}", exc_info=True)
             raise RuntimeError(f"Failed to orchestrate message: {str(e)}")

@@ -4,10 +4,12 @@ S-038/HRMS-0438 Compensation Fit Score, S-039/HRMS-0439 Availability
 Score, S-040/HRMS-0440 Overall Candidate Score & Ranking.
 """
 from datetime import datetime
+import logging
 from typing import Dict, List, Optional
 
 from pydantic import BaseModel
 
+logger = logging.getLogger(__name__)
 
 class TechnicalScoreResponse(BaseModel):
     candidate_id: str

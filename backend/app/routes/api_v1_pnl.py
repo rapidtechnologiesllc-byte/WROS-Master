@@ -1,4 +1,5 @@
 """
+import logging
 COMPLETE P&L REPORTING API ENDPOINTS - Production Grade
 
 Executive P&L dashboards, month-end close, and financial reporting.
@@ -25,6 +26,7 @@ router = APIRouter(prefix="/api/v1/p-and-l", tags=["p-and-l"])
 # ============================================================================
 # REQUEST/RESPONSE MODELS
 # ============================================================================
+logger = logging.getLogger(__name__)
 
 class PandLLineItem(BaseModel):
     description: str
@@ -174,6 +176,7 @@ def get_pnl_summary(
     except HTTPException:
         raise
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -217,6 +220,7 @@ def get_pnl_by_service(
     except HTTPException:
         raise
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -260,6 +264,7 @@ def get_pnl_by_module(
     except HTTPException:
         raise
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -303,6 +308,7 @@ def get_pnl_by_pricing(
     except HTTPException:
         raise
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -344,6 +350,7 @@ def get_pnl_by_client_owner(
     except HTTPException:
         raise
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -383,6 +390,7 @@ def get_month_end_pnl(
     except HTTPException:
         raise
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -477,6 +485,7 @@ def close_month_end(
         db.rollback()
         raise
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -516,6 +525,7 @@ def get_revenue_trend(
     except HTTPException:
         raise
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -564,4 +574,5 @@ def get_reconciliation(
         return result
 
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))

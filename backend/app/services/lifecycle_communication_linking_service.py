@@ -1,5 +1,6 @@
 """
 EPIC-14/S-435 (HRMS-1408) -- Candidate & Employee Lifecycle
+import logging
 Communication Linking.
 
 Real ask, Avinash 2026-08-05: HR/recruiter emails to a candidate
@@ -113,6 +114,7 @@ def link_email_to_lifecycle_record(
             "timeline_entry_id": entry.id,
         }
     except Exception as exc:
+       logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[LifecycleCommunicationLinking] Failed to link email (direction={direction!r}): {exc}")
         db.rollback()
         return None

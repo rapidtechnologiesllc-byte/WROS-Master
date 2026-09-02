@@ -3,6 +3,7 @@ EPIC-16 -- Fully Loaded Cost + Blended Delivery Rate. See
 app.models.cost_rate_config for the config-driven design rationale.
 """
 from datetime import date
+import logging
 from typing import Optional
 
 from sqlalchemy.orm import Session
@@ -14,6 +15,7 @@ from app.models.employee_allocation import EmployeeAllocation
 from app.models.timesheet import Timesheet
 from app.services.forecast_variance_service import get_monthly_actual_revenue
 
+logger = logging.getLogger(__name__)
 
 class CostRateConfigError(Exception):
     pass

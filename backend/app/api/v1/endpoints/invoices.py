@@ -2,6 +2,7 @@
 HRMS-0907 -- Invoice Generation, Status Tracking -- API Endpoints
 =========================================================================
 Prefix: /invoices
+import logging
 Tag:    invoices
 
 Wires app.services.invoice_service (real, tested backend, pre-existing

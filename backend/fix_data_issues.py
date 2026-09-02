@@ -7,6 +7,7 @@ Fixes:
 3. Thunder assignment for all candidates
 4. Pipeline status population
 5. Job/Opportunity assignment
+import logging
 """
 
 import sys
@@ -58,6 +59,8 @@ def fix_all_issues():
         else:
             print("    ⚠️  SuperUser not found in database")
     except Exception as e:
+       logger.error(f"Error: {str(e)}", exc_info=True)
+        logger.error(f"Error: {str(e)}", exc_info=True)
         print(f"    ❌ Error: {str(e)}")
         db.rollback()
     finally:
@@ -122,6 +125,8 @@ def fix_all_issues():
             print("    ℹ️  All candidates already have Business Unit assigned")
             issues_fixed.append("✅ All candidates have Business Unit assigned")
     except Exception as e:
+       logger.error(f"Error: {str(e)}", exc_info=True)
+        logger.error(f"Error: {str(e)}", exc_info=True)
         print(f"    ❌ Error: {str(e)}")
         db.rollback()
     finally:
@@ -147,6 +152,8 @@ def fix_all_issues():
             print("    ℹ️  All candidates already have pipeline status")
             issues_fixed.append("✅ All candidates have pipeline status")
     except Exception as e:
+       logger.error(f"Error: {str(e)}", exc_info=True)
+        logger.error(f"Error: {str(e)}", exc_info=True)
         print(f"    ❌ Error: {str(e)}")
         db.rollback()
     finally:
@@ -191,6 +198,8 @@ def fix_all_issues():
         else:
             print("    ⚠️  No jobs found in database")
     except Exception as e:
+       logger.error(f"Error: {str(e)}", exc_info=True)
+        logger.error(f"Error: {str(e)}", exc_info=True)
         print(f"    ❌ Error: {str(e)}")
         db.rollback()
     finally:
@@ -205,6 +214,8 @@ def fix_all_issues():
         print("    ℹ️  Thunder auto-assignment triggers on next scheduler cycle")
         issues_fixed.append("✅ Candidates ready for Thunder (auto-triggers next cycle)")
     except Exception as e:
+       logger.error(f"Error: {str(e)}", exc_info=True)
+        logger.error(f"Error: {str(e)}", exc_info=True)
         print(f"    ❌ Error: {str(e)}")
     finally:
         db.close()

@@ -1,4 +1,5 @@
 """
+import logging
 HRMS-0117: "no raw console logging anywhere in the codebase, CI-enforced."
 
 Parses every .py file under app/ with Python's ast module (not a text

@@ -11,6 +11,7 @@ from app.models.employee_allocation import EmployeeAllocation
 from app.models.demand import Demand
 from app.services.pnl_service import get_bu_pnl
 from app.services.client_revenue_dashboard_service import get_client_revenue_dashboard
+import logging
 from app.utils.agent_logger import log_agent_execution
 
 

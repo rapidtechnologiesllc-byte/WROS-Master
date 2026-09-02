@@ -1,3 +1,4 @@
+import logging
 """add Sub-Vendor Portal core entities (HRMS-P801/P804/P806/P807/P808/P816)
 
 Revision ID: b8c9d0e1f2a4

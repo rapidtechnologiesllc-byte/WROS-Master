@@ -1,4 +1,5 @@
 from datetime import datetime, date
+import logging
 from typing import Optional
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, Response, UploadFile
@@ -161,6 +162,7 @@ def list_offer_templates(
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
     except Exception as exc:
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         raise HTTPException(
             status_code=502,
             detail=f"Failed to list templates from SharePoint: {exc}",
@@ -697,6 +699,7 @@ def generate_offer_letter_document(
             template_path=resolved_template_path,
         )
     except Exception as exc:
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         raise HTTPException(status_code=502, detail=f"Failed to generate offer letter document: {exc}")
 
     dest_path = generated_file_path(offer.candidate_id, offer_id)
@@ -705,6 +708,7 @@ def generate_offer_letter_document(
     try:
         web_url = upload_file(dest_path, docx_bytes, content_type=mime)
     except Exception as exc:
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         raise HTTPException(status_code=502, detail=f"Failed to upload offer letter to SharePoint: {exc}")
 
     download_link = get_file_download_link(dest_path) or web_url
@@ -805,6 +809,7 @@ async def approve_offer_letter(
         try:
             upload_file(sig_path, sig_bytes, content_type="image/png")
         except Exception as exc:
+            logger.error(f"Error: {str(exc)}", exc_info=True)
             raise HTTPException(status_code=502, detail=f"Failed to upload signature: {exc}")
 
         # Re-generate the offer docx with the real HM signature embedded
@@ -838,6 +843,7 @@ async def approve_offer_letter(
                 hm_signature_bytes=sig_bytes,           # <-- dynamic signature
             )
         except Exception as exc:
+            logger.error(f"Error: {str(exc)}", exc_info=True)
             raise HTTPException(status_code=502, detail=f"Failed to re-generate offer letter: {exc}")
 
         dest_path = generated_file_path(offer.candidate_id, offer_id)
@@ -845,6 +851,7 @@ async def approve_offer_letter(
         try:
             web_url = upload_file(dest_path, docx_bytes, content_type=mime)
         except Exception as exc:
+            logger.error(f"Error: {str(exc)}", exc_info=True)
             raise HTTPException(status_code=502, detail=f"Failed to upload signed offer letter: {exc}")
 
         offer.sharepoint_url    = web_url
@@ -955,6 +962,7 @@ def release_offer_letter(
     try:
         send_offer_release_notification(db, offer)
     except Exception as exc:
+       logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[OfferRelease] Notification failed for offer {offer_id}: {exc}")
 
     return OfferReleaseResponse(
@@ -1014,6 +1022,7 @@ async def candidate_sign_offer(
     try:
         upload_file(cand_sig_path, sig_bytes, content_type="image/png")
     except Exception as exc:
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         raise HTTPException(status_code=502, detail=f"Failed to upload candidate signature: {exc}")
 
     candidate_full = (
@@ -1037,6 +1046,7 @@ async def candidate_sign_offer(
         from app.services.sharepoint_service import download_file
         existing_docx_bytes = download_file(offer.sharepoint_path)
     except Exception as exc:
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         raise HTTPException(
             status_code=502,
             detail=f"Failed to download the approved offer document from SharePoint: {exc}",
@@ -1050,6 +1060,7 @@ async def candidate_sign_offer(
             signature_img_bytes=sig_bytes,
         )
     except Exception as exc:
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         raise HTTPException(status_code=502, detail=f"Failed to inject candidate signature: {exc}")
 
     # Upload final signed docx
@@ -1058,6 +1069,7 @@ async def candidate_sign_offer(
     try:
         signed_web_url = upload_file(signed_path, signed_docx, content_type=mime)
     except Exception as exc:
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         raise HTTPException(status_code=502, detail=f"Failed to upload signed offer letter: {exc}")
 
     # Persist results
@@ -1100,6 +1112,7 @@ async def candidate_sign_offer(
 # ============================================
 # SALARY STRUCTURE DOCUMENT
 # ============================================
+logger = logging.getLogger(__name__)
 
 class SalaryComponentDetail(_BM):
     """A single salary component with monthly and annual amounts."""
@@ -1204,6 +1217,7 @@ def generate_salary_structure(
             annual_ctc=request.annual_ctc,
         )
     except Exception as exc:
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to generate salary structure document: {exc}")
 
     filename = get_salary_filename(request.employee_name)
@@ -1262,6 +1276,7 @@ def generate_salary_structure_with_details(
             annual_ctc=request.annual_ctc,
         )
     except Exception as exc:
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Salary calculation failed: {exc}")
 
     # "" 2. Generate .docx document """"""""""""""""""""""""""""""""""""""""""""
@@ -1271,6 +1286,7 @@ def generate_salary_structure_with_details(
             annual_ctc=request.annual_ctc,
         )
     except Exception as exc:
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to generate salary structure document: {exc}")
 
     filename = get_salary_filename(request.employee_name)

@@ -1,8 +1,10 @@
 """HRMS-0317 -- Project Allocation (Phase 4)"""
 import uuid
 from datetime import datetime
+import logging
 from sqlalchemy.orm import Session
 
+logger = logging.getLogger(__name__)
 
 class ProjectAllocationService:
     """Manage employee allocation to projects."""

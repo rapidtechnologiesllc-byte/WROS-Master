@@ -1,3 +1,4 @@
+import logging
 """S-070/HRMS-0470: add candidate_engagement_metrics table
 
 Revision ID: 7a4d29b6c5e1

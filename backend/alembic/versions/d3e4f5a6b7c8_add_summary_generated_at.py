@@ -1,3 +1,4 @@
+import logging
 """S-019/HRMS-0419: add summary_generated_at to candidate_conversations
 
 Revision ID: d3e4f5a6b7c8

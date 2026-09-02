@@ -1,5 +1,6 @@
 # pyrefly: ignore [missing-import]
 """
+import logging
 HRMS-1105 (S-320) -- Candidate Ranking & Scoring Schemas.
 
 Pydantic models for request/response validation.
@@ -8,6 +9,7 @@ from pydantic import BaseModel, Field
 from typing import Optional, List, Dict
 from datetime import datetime
 
+logger = logging.getLogger(__name__)
 
 class FitScoreComponentsResponse(BaseModel):
     """Score breakdown for candidate-job fit."""

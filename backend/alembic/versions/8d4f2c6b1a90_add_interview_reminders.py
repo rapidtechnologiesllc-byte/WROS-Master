@@ -1,3 +1,4 @@
+import logging
 """S-050/HRMS-0450: add interview_reminders table
 
 Revision ID: 8d4f2c6b1a90

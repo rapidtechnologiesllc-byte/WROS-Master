@@ -1,4 +1,5 @@
 """
+import logging
 S-031/HRMS-0431 -- AI Prompt Framework.
 
 Foundational story, same posture as S-021/S-024 for their own
@@ -49,6 +50,7 @@ GEMINI_MODEL_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemi
 GEMINI_MODEL_NAME = "gemini-2.0-flash"
 RETRY_DELAY_SECONDS = 3
 
+logger = logging.getLogger(__name__)
 
 class UnknownPromptType(Exception):
     pass
@@ -193,6 +195,7 @@ def call_llm(
             db.commit()
             return response
         except Exception as exc:
+           logger.error(f"Error: {str(exc)}", exc_info=True)
             last_error = exc
             latency_ms = int((time.monotonic() - start) * 1000)
             db.add(PromptExecutionLog(

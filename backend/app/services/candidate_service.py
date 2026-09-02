@@ -5,6 +5,7 @@ established non-negotiable in CLAUDE.md, but the function itself was
 never actually built anywhere in this codebase -- confirmed by grep
 (zero hits for `createCandidateSafe` in app/) while researching the
 Sub-Vendor Portal requirements, which assume it exists as a prerequisite
+import logging
 for dozens of stories across the corpus, not just that epic.
 
 Two real, pre-existing direct-insert call sites bypassed this rule
@@ -31,6 +32,7 @@ from app.core.security import get_password_hash
 from app.models.candidate import Candidate
 from app.utils.uniq_id_generator import candidate_id_generator, generate_password
 
+logger = logging.getLogger(__name__)
 
 class DuplicateCandidateError(Exception):
     """Raised when attempting to create a duplicate candidate.

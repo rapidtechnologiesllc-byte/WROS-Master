@@ -1,4 +1,5 @@
 """
+import logging
 HRMS-1103 -- LinkedIn Sourcing Agent Loop.
 
 Proves: BR-1103-03 (atomic OPEN->PROCESSING claim), the LLM-generation-

@@ -1,4 +1,5 @@
 """
+import logging
 HR Agent Service - Complete Implementation
 
 Centralized HR operations and employee tracking. Manages:

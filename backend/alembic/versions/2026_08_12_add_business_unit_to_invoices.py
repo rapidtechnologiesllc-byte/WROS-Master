@@ -1,3 +1,4 @@
+import logging
 """Add business_unit_id to Invoice model for BU cross-referencing
 
 Revision ID: 2026_08_12_invoice_bu

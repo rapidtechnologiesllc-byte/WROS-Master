@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Finalize multi-tenant setup: Move SuperUser to BlitzenX tenant with permissions"""
 import sys, os
+import logging
 sys.path.insert(0, os.path.dirname(__file__))
 
 from app.core.database import SessionLocal, engine
@@ -100,6 +101,8 @@ try:
     print("No hardcoding. Each company has complete RBAC separation.")
 
 except Exception as e:
+   logger.error(f"Error: {str(e)}", exc_info=True)
+    logger.error(f"Error: {str(e)}", exc_info=True)
     print(f"Error: {e}")
     import traceback
     traceback.print_exc()

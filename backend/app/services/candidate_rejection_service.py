@@ -1,4 +1,5 @@
 """
+import logging
 Candidate Rejection Workflow Service
 
 Implements the complete rejection workflow:
@@ -28,6 +29,7 @@ from app.models.candidate_history import CandidateHistory
 from app.core.logging import logger
 from app.core.security import get_password_hash
 
+logger = logging.getLogger(__name__)
 
 class CandidateRejectionError(Exception):
     """Raised when rejection operation fails."""
@@ -135,6 +137,7 @@ def reject_candidate(
                 rejection.email_sent = True
                 rejection.email_sent_at = datetime.utcnow()
             except Exception as e:
+               logger.error(f"Error: {str(e)}", exc_info=True)
                 logger.warning(f"Failed to send rejection email for candidate {candidate_id}: {str(e)}")
                 # Don't fail the entire rejection if email fails
                 rejection.email_sent = False
@@ -147,6 +150,7 @@ def reject_candidate(
     except CandidateNotFoundError:
         raise
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         db.rollback()
         logger.error(f"Error rejecting candidate {candidate_id}: {str(e)}")
         raise CandidateRejectionError(f"Failed to reject candidate: {str(e)}")
@@ -213,6 +217,7 @@ def send_rejection_email(
         return rejection
 
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         db.rollback()
         logger.error(f"Error sending rejection email for rejection {rejection_id}: {str(e)}")
         raise CandidateRejectionError(f"Failed to send rejection email: {str(e)}")
@@ -284,6 +289,7 @@ def archive_candidate(
         return rejection
 
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         db.rollback()
         logger.error(f"Error archiving candidate {candidate_id}: {str(e)}")
         raise CandidateRejectionError(f"Failed to archive candidate: {str(e)}")
@@ -374,6 +380,7 @@ def _send_rejection_email_internal(
         logger.info(f"Rejection email sent via Thunder for {rejection.candidate_id}")
         return
     except Exception as e:
+       logger.error(f"Error: {str(e)}", exc_info=True)
         logger.debug(f"Thunder message send failed, falling back to EmailService: {str(e)}")
 
     # Fallback to direct email
@@ -386,8 +393,7 @@ def _send_rejection_email_internal(
             is_html=False,
         )
         logger.info(f"Rejection email sent directly for {rejection.candidate_id}")
-    except Exception as e:
-        logger.error(f"Failed to send rejection email: {str(e)}")
+    except Exception as e:        logger.error(f"Failed to send rejection email: {str(e)}")
         raise
 
 

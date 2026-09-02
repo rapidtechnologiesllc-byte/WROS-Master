@@ -1,4 +1,5 @@
 """
+import logging
 S-036/HRMS-0436 -- Candidate Sentiment Analysis.
 
 Real architecture under test (see sentiment_analysis_service module

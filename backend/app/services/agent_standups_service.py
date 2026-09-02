@@ -1,4 +1,5 @@
 """
+import logging
 Agent Standups & Scrum of Scrums Service
 
 Daily coordination system where all 70+ agents report metrics to their managers,
@@ -20,6 +21,7 @@ from sqlalchemy import func
 from app.core.agent_logging import log_agent_execution
 from app.models.agent_execution_log import AgentExecutionLog
 
+logger = logging.getLogger(__name__)
 
 class AgentStandupsCoordinator:
     """Coordinates daily standups and scrum of scrums for all agents."""
@@ -129,6 +131,7 @@ class AgentStandupsCoordinator:
             }
 
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             raise
 
     @staticmethod
@@ -211,6 +214,7 @@ class AgentStandupsCoordinator:
             }
 
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             raise
 
     @staticmethod
@@ -307,4 +311,5 @@ class AgentStandupsCoordinator:
             }
 
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             raise

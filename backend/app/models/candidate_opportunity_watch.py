@@ -3,6 +3,7 @@ Ready-for-opportunity watch. Avinash's real design (2026-08-04 backlog
 capture): a candidate who isn't a fit right now shouldn't just be
 `closed` -- Thunder keeps watching for a future job that matches them,
 and nudges them directly only when a real match appears, never on a
+import logging
 recurring schedule.
 
 One row per (candidate, watch period) -- a candidate can be watched
@@ -25,6 +26,7 @@ WATCH_REASONS = ("OFFER_DECLINED", "NO_CURRENT_MATCH")
 def _new_uuid() -> str:
     return str(uuid.uuid4())
 
+logger = logging.getLogger(__name__)
 
 class CandidateOpportunityWatch(Base):
     __tablename__ = "candidate_opportunity_watches"

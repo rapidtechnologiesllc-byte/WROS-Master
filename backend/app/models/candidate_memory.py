@@ -1,4 +1,5 @@
 """
+import logging
 S-021/HRMS-0421 -- Candidate Memory Store.
 
 Uses this codebase's real Integer-autoincrement PK + String(50)
@@ -30,6 +31,7 @@ FACT_CATEGORIES = (
 
 LOW_CONFIDENCE_THRESHOLD = 0.7  # BR-03
 
+logger = logging.getLogger(__name__)
 
 class CandidateMemory(Base):
     """BR-01: one record per candidate, shared across all conversations."""

@@ -1,3 +1,4 @@
+import logging
 """Expand ai_agent_persona column from String(100) to Text for long personas
 
 Revision ID: 20260815_expand_persona

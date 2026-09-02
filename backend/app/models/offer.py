@@ -9,8 +9,10 @@ from sqlalchemy import (
     Boolean, Date, func, JSON
 )
 from sqlalchemy.orm import relationship
+import logging
 from app.models.base import Base
 
+logger = logging.getLogger(__name__)
 
 class OfferStatus(str, Enum):
     """Offer lifecycle status values."""

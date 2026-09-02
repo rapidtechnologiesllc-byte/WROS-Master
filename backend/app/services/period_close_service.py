@@ -1,4 +1,5 @@
 """
+import logging
 PERIOD CLOSE SERVICE - Month-End Reconciliation & Locking
 
 Handles:
@@ -18,6 +19,7 @@ from app.models.revenue import Revenue
 from app.models.org_structure import BusinessUnit
 from app.models.timesheet import Timesheet
 
+logger = logging.getLogger(__name__)
 
 class PeriodLockError(Exception):
     """Period is locked and cannot be modified"""

@@ -1,3 +1,4 @@
+import logging
 """add users.msgraph_mail_last_synced_at (EPIC-14/S-435 lifecycle communication linking)
 
 Revision ID: c5e7a9b1d3f6

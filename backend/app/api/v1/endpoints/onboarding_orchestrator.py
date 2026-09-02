@@ -1,4 +1,5 @@
 """
+import logging
 Onboarding Orchestrator - Coordinates complete hiring pipeline workflows.
 
 This module orchestrates multi-step processes across all microservices:
@@ -93,6 +94,7 @@ def hire_complete_workflow(
             "message": "Hiring workflow initiated. Check queue for status updates."
         }
     except Exception as e:
+       logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"[Orchestrator] ❌ Workflow failed: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Workflow failed: {str(e)}")
 
@@ -143,6 +145,7 @@ def rehire_workflow(
             "message": "Rehire workflow initiated. Check queue for status updates."
         }
     except Exception as e:
+       logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"[Orchestrator] ❌ Rehire failed: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Rehire failed: {str(e)}")
 
@@ -194,6 +197,7 @@ def hiring_pipeline_status(
             }
         }
     except Exception as e:
+       logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"[Orchestrator] ❌ Status check failed: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Status check failed: {str(e)}")
 

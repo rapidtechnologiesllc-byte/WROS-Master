@@ -1,4 +1,5 @@
 """
+import logging
 POST /offer-letter/release/{offer_id} -- S-054/HRMS-0454.
 
 Real HTTP-level proof: BR-01 (readiness re-checked at release, HTTP 409

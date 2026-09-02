@@ -1,4 +1,5 @@
 """
+import logging
 HRMS-0101 (+ 0101-REV) — Employee Entity Model, Phase 2 Domain 3.
 
 Translated from the requirements doc's PostgreSQL-flavored spec to this
@@ -81,6 +82,7 @@ ALLOWED_STATUS_TRANSITIONS = {
     "PERFORMANCE_MANAGED": {"ACTIVE", "NOTICE_PERIOD"},
 }
 
+logger = logging.getLogger(__name__)
 
 class Employee(Base):
     __tablename__ = "employees"

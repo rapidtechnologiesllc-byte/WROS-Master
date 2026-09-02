@@ -5,6 +5,7 @@ search). Adapted to real status vocabulary: CandidateConversation.status
 "pending"/"escalated"/"resolved") are two real, separate fields -- not
 the spec's single fictional QUALIFYING/QUALIFIED/ESCALATED/PAUSED/
 COMPLETED enum. has_missing_fields is computed live via the real
+import logging
 get_missing_fields(), no candidate_missing_fields table exists.
 
 Throwaway SQLite -- never the real database.

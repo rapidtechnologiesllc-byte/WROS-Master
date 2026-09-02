@@ -1,4 +1,5 @@
 """
+import logging
 HRMS-0XXX -- Work Order / PO / Engagement Records (FEATURE-2026-08-12T5)
 
 A Work Order (aka PO, SOW, or Engagement Record) is the signed authority
@@ -29,6 +30,7 @@ from app.models.base import Base
 def _new_uuid() -> str:
     return str(uuid.uuid4())
 
+logger = logging.getLogger(__name__)
 
 class WorkOrder(Base):
     __tablename__ = "work_orders"

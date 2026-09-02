@@ -1,4 +1,5 @@
 """
+import logging
 HRMS-0113 -- Notification Engine Base.
 
 The one shared notification dispatch backbone every other story is
@@ -38,6 +39,7 @@ NOTIFICATION_CHANNELS = ("IN_APP", "EMAIL", "WHATSAPP", "SMS")
 PRIORITY_TIERS = ("P0", "P1", "P2")
 DELIVERY_STATUSES = ("PENDING", "SENT", "FALLBACK_SENT", "FAILED")
 
+logger = logging.getLogger(__name__)
 
 class Notification(Base):
     __tablename__ = "notifications"

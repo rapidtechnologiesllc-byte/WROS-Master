@@ -1,3 +1,4 @@
+import logging
 """add employee, client, demand entities (Phase 2 Domain 2/3/4 foundation)
 
 Revision ID: e7f8a9b0c1d2

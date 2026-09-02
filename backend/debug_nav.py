@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import sys
+import logging
 sys.path.insert(0, "/dev/OnboardingModule-Backend")
 
 from app.core.database import SessionLocal

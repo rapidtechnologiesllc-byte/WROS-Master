@@ -1,3 +1,4 @@
+import logging
 """S-044/HRMS-0444: add outreach_campaigns and campaign_touchpoints tables
 
 Revision ID: 547d41705e1d

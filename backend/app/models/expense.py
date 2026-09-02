@@ -4,6 +4,7 @@ tracking is manual entry, shaped like the real FY26-27 finance
 workbook's Expense Ledger (Month/Year/Expense Category/Subcategory/
 Employee-Partner/Location/Client/Home BU/Amount/Description/Receipt
 Ref/Approved By/Date/Payment Status -- structure only, no real figures
+import logging
 recorded anywhere in this codebase per the standing no-real-data rule).
 
 Refined the same day with the real gap Avinash flagged: "who spent it
@@ -39,6 +40,7 @@ MANAGER_APPROVAL_STATUSES = ("PENDING", "APPROVED", "REJECTED")
 # a client relationship" (current or prospect) vs. everything else.
 CLIENT_DIRECTED_PURPOSES = {"CLIENT_CURRENT", "CLIENT_PROSPECT"}
 
+logger = logging.getLogger(__name__)
 
 class ExpenseRecord(Base):
     __tablename__ = "expense_records"

@@ -1,6 +1,7 @@
 import json
 import os
 from datetime import datetime, date
+import logging
 from typing import Optional, List
 
 from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, UploadFile
@@ -148,6 +149,7 @@ def generate_job_with_agent(
             questions=result.get("questions", [])
         )
     except Exception as err:
+       logger.error(f"Error: {str(err)}", exc_info=True)
         log_entry = AgentExecutionLog(
             tenant_id=user.UserID,
             agent_name="Recruitment",
@@ -206,6 +208,7 @@ def generate_job_complete(
 
         return GenerateJobCompleteResponse(**result)
     except Exception as err:
+       logger.error(f"Error: {str(err)}", exc_info=True)
         log_entry = AgentExecutionLog(
             tenant_id=user.UserID,
             agent_name="Recruitment",
@@ -722,6 +725,7 @@ def create_job(request: JobCreateRequest, background_tasks: BackgroundTasks, db:
         )
         logger.info(f"[SLM] Stored metadata for job: {job_id} ({request.job_title})")
     except Exception as e:
+       logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"[SLM] Failed to store job metadata: {e}", exc_info=True)
         # Continue - SLM failure shouldn't block job creation
 

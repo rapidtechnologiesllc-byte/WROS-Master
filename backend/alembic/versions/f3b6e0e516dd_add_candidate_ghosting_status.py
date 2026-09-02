@@ -1,3 +1,4 @@
+import logging
 """S-043/HRMS-0443: add candidate_ghosting_status table
 
 Revision ID: f3b6e0e516dd

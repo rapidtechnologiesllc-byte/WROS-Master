@@ -1,3 +1,4 @@
+import logging
 """add users.whatsapp_number for per-staff WhatsApp conversation routing
 
 Revision ID: c3d4e5f6a7b9

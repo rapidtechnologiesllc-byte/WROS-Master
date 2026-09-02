@@ -1,8 +1,10 @@
 from datetime import datetime
 from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text, Date, func
 from sqlalchemy.orm import relationship
+import logging
 from app.models.base import Base
 
+logger = logging.getLogger(__name__)
 
 class OfferLetter(Base):
     __tablename__ = "offer_letters"

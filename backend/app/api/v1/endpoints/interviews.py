@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta, timezone
+import logging
 from typing import Optional, List
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -206,6 +207,7 @@ def _check_and_auto_submit_for_hire(interview: Interview, db: Session) -> None:
             )
             logger.info(f"[AutoHire] Approval-request email sent to hiring manager: {hiring_manager_email}")
         except Exception as exc:
+           logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.warning(f"[AutoHire] Could not send hiring manager email: {exc}")
     else:
         logger.warning(f"[AutoHire] No hiring manager email found for candidate '{candidate_id}'.")
@@ -250,6 +252,7 @@ def _notify_feedback_submitted(
         )
 
     except Exception as exc:
+       logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[FeedbackNotify-DEFECT13] Non-critical notification error: {exc}")
 
 
@@ -412,6 +415,7 @@ def _schedule_feedback_reminders(interview: Interview, db: Session) -> None:
                     )
 
                 except Exception as exc:
+                   logger.error(f"Error: {str(exc)}", exc_info=True)
                     logger.error(
                         f"[FeedbackReminder] Error in reminder job for interview "
                         f"{__interview_id}, member {__member_id}: {exc}"
@@ -432,6 +436,7 @@ def _schedule_feedback_reminders(interview: Interview, db: Session) -> None:
                     f"{member_id} on interview {interview_id} at {_fire_at.isoformat()} (IST)"
                 )
             except Exception as exc:
+               logger.error(f"Error: {str(exc)}", exc_info=True)
                 logger.warning(
                     f"[FeedbackReminder] Could not schedule {suffix} reminder "
                     f"for member {member_id}: {exc}"
@@ -457,6 +462,7 @@ def _cancel_feedback_reminders(interview_id: int, member_id: str) -> None:
                     f"{member_id} on interview {interview_id} (feedback submitted)."
                 )
         except Exception as exc:
+           logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.warning(
                 f"[FeedbackReminder] Could not cancel {suffix} reminder "
                 f"for member {member_id} on interview {interview_id}: {exc}"
@@ -495,6 +501,7 @@ def _cancel_interview_reminders(interview_id: int) -> None:
                     f"for interview {interview_id}."
                 )
         except Exception as exc:
+           logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.warning(
                 f"[InterviewReminder] Could not cancel {suffix} reminder "
                 f"for interview {interview_id}: {exc}"
@@ -597,6 +604,7 @@ def _schedule_interview_reminder(interview: Interview, db: Session) -> None:
                             f"{cand.candidateEmail}"
                         )
                     except Exception as exc:
+                       logger.error(f"Error: {str(exc)}", exc_info=True)
                         logger.warning(f"[InterviewReminder] Could not email candidate: {exc}")
 
                 # â"€â"€ Emails to panel members â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
@@ -632,11 +640,13 @@ def _schedule_interview_reminder(interview: Interview, db: Session) -> None:
                                     f"panel member {interviewer.UserEmail}"
                                 )
                             except Exception as exc:
+                               logger.error(f"Error: {str(exc)}", exc_info=True)
                                 logger.warning(
                                     f"[InterviewReminder] Could not email panel member "
                                     f"{interviewer.UserID}: {exc}"
                                 )
             except Exception as exc:
+               logger.error(f"Error: {str(exc)}", exc_info=True)
                 logger.error(f"[InterviewReminder] Unexpected error in reminder job: {exc}")
             finally:
                 _db.close()
@@ -654,6 +664,7 @@ def _schedule_interview_reminder(interview: Interview, db: Session) -> None:
                 f"{interview_id} at {_fire_at.isoformat()} (IST)"
             )
         except Exception as exc:
+           logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.warning(
                 f"[InterviewReminder] Could not schedule [{_label}] reminder "
                 f"for interview {interview_id}: {exc}"
@@ -726,6 +737,7 @@ def _create_hm_review_task(db: Session, interview: Interview) -> None:
         db.add(task)
         db.commit()
     except Exception as exc:
+       logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[HMReviewTask] Failed to create review task for interview {interview.id}: {exc}")
 
 
@@ -1256,6 +1268,7 @@ def assign_panel_member(
                 f"{request.interviewer_id} on interview {iv.id}."
             )
     except Exception as exc:
+       logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(
             f"[FeedbackReminder] Could not schedule reminders for new panel member "
             f"{request.interviewer_id}: {exc}"
@@ -1457,6 +1470,7 @@ def create_interview(
     try:
         _schedule_feedback_reminders(interview, db)
     except Exception as exc:
+       logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[FeedbackReminder] Scheduler error on create (non-critical): {exc}")
 
     # Backlog item, 2026-08-05: real Task Dashboard entries for each
@@ -1839,11 +1853,13 @@ def update_interview(
                 f"{interview.id} (status: {interview.status})."
             )
         except Exception as exc:
+           logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.warning(f"[FeedbackReminder] Cancel-all error on update (non-critical): {exc}")
     else:
         try:
             _schedule_feedback_reminders(interview, db)
         except Exception as exc:
+           logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.warning(f"[FeedbackReminder] Scheduler error on update (non-critical): {exc}")
 
     # Backlog item, 2026-08-05: create the HM review Task the first time
@@ -1901,10 +1917,12 @@ def delete_interview(
     try:
         _cancel_all_feedback_reminders(interview_id, db)
     except Exception as exc:
+       logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[FeedbackReminder] Cancel-all error on delete (non-critical): {exc}")
     try:
         _cancel_interview_reminders(interview_id)
     except Exception as exc:
+       logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[InterviewReminder] Cancel error on delete (non-critical): {exc}")
 
     # Delete all associated feedback
@@ -2046,29 +2064,34 @@ def submit_interview_feedback(
                             )
                             logger.info(f"[SLM] Recorded interview completion for job: {interview.job_id}")
                     except Exception as e:
+                       logger.error(f"Error: {str(e)}", exc_info=True)
                         logger.error(f"[SLM] Failed to record interview outcome: {e}", exc_info=True)
                         # Continue - SLM failure should not block interview processing
 
                     _create_hm_review_task(db, interview)
     except Exception as exc:
+       logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[FeedbackComplete] Auto-complete check failed non-critically: {exc}")
 
     # Auto-hire check: promote to Approval if all interviews are Hire/Must Hire
     try:
         _check_and_auto_submit_for_hire(interview, db)
     except Exception as exc:
+       logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[AutoHire] check failed non-critically: {exc}")
 
     # â"€â"€ Notify HM + HR + panel members that feedback was submitted â"€â"€â"€â"€â"€â"€â"€â"€
     try:
         _notify_feedback_submitted(interview, feedback, user, db)
     except Exception as exc:
+       logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[FeedbackNotify] Notification error (non-critical): {exc}")
 
     # â"€â"€ Cancel pending feedback reminders for the member who just submitted â"€â"€
     try:
         _cancel_feedback_reminders(interview.id, request.interviewer_id)
     except Exception as exc:
+       logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[FeedbackReminder] Cancel error (non-critical): {exc}")
 
     return InterviewFeedbackResponse(

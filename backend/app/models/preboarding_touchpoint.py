@@ -1,4 +1,5 @@
 """
+import logging
 S-067/HRMS-0467 -- Onboarding Agent.
 
 Real architecture adaptation: D+1 ("D_PLUS_1", check-in the day after
@@ -24,6 +25,7 @@ from app.models.base import Base
 TOUCHPOINT_TYPES = ("D7", "D3", "D1", "D_PLUS_1")
 TOUCHPOINT_STATUSES = ("PENDING", "SENT", "CANCELLED")
 
+logger = logging.getLogger(__name__)
 
 class PreboardingTouchpoint(Base):
     __tablename__ = "preboarding_touchpoints"

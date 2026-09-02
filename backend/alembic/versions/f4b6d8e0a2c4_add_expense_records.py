@@ -1,3 +1,4 @@
+import logging
 """add expense_records (Partner/BU spend tracking, purpose+client tagged)
 
 Revision ID: f4b6d8e0a2c4

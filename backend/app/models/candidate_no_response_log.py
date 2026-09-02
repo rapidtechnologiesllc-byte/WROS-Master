@@ -1,4 +1,5 @@
 """
+import logging
 S-042/HRMS-0442 -- No Response Detection.
 
 candidate_no_response_log: genuinely new table, real audit trail of
@@ -15,6 +16,7 @@ from app.models.base import Base
 
 NO_RESPONSE_DETECTION_TYPES = ("FIRST_NO_RESPONSE", "SECOND_NO_RESPONSE", "THIRD_NO_RESPONSE", "POST_THIRD")
 
+logger = logging.getLogger(__name__)
 
 class CandidateNoResponseLog(Base):
     __tablename__ = "candidate_no_response_log"

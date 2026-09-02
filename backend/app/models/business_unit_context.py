@@ -1,4 +1,5 @@
 """
+import logging
 BusinessUnitContext Model - Unified Business Unit Reference Pattern
 
 ARCHITECTURAL DECISION (2026-08-14):
@@ -31,6 +32,7 @@ from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Boolean, I
 from sqlalchemy.orm import relationship
 from app.models.base import Base
 
+logger = logging.getLogger(__name__)
 
 class BusinessUnitContext(Base):
     """

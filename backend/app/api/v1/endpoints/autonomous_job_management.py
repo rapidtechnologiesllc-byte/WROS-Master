@@ -2,6 +2,7 @@
 Autonomous Job Management Endpoints
 ====================================
 Endpoints for managing automatic job closure when positions are filled.
+import logging
 """
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -16,6 +17,7 @@ from app.services.autonomous_job_closure_service import (
 from pydantic import BaseModel
 from typing import Optional, Dict
 
+logger = logging.getLogger(__name__)
 
 class JobClosureStatusResponse(BaseModel):
     job_id: str

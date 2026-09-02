@@ -1,4 +1,5 @@
 """
+import logging
 S-074/HRMS-0474 -- Bulk Candidate Engagement Launch.
 
 Real architecture adaptation: no separate `bulk_import_batches`
@@ -28,6 +29,7 @@ def _new_uuid() -> str:
 
 BULK_JOB_STATUSES = ("QUEUED", "PROCESSING", "COMPLETED")
 
+logger = logging.getLogger(__name__)
 
 class BulkEngagementJob(Base):
     __tablename__ = "bulk_engagement_jobs"

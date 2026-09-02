@@ -1,4 +1,5 @@
 """
+import logging
 SLM Job Metadata Service
 
 Stores job metadata for continuous improvement of Thunder's job-matching ML model.
@@ -35,6 +36,7 @@ from sqlalchemy.orm import Session
 from app.core.logging import logger
 from app.models.base import Base
 
+logger = logging.getLogger(__name__)
 
 class SLMJobMetadata(Base):
     """Track job metadata for ML learning."""
@@ -153,8 +155,7 @@ class SLMJobMetadataService:
             db.commit()
             return True
 
-        except Exception as e:
-            logger.error(f"Failed to store job metadata: {str(e)}", exc_info=True)
+        except Exception as e:            logger.error(f"Failed to store job metadata: {str(e)}", exc_info=True)
             db.rollback()
             raise ValueError(f"Failed to store job metadata: {str(e)}")
 
@@ -216,8 +217,7 @@ class SLMJobMetadataService:
             db.commit()
             return True
 
-        except Exception as e:
-            logger.error(f"Failed to record hiring outcome: {str(e)}", exc_info=True)
+        except Exception as e:            logger.error(f"Failed to record hiring outcome: {str(e)}", exc_info=True)
             db.rollback()
             raise ValueError(f"Failed to record outcome: {str(e)}")
 
@@ -248,8 +248,7 @@ class SLMJobMetadataService:
                 "offer_acceptance_rate": job_metadata.offer_acceptance_rate,
             }
 
-        except Exception as e:
-            logger.error(f"Failed to get job metadata: {str(e)}", exc_info=True)
+        except Exception as e:            logger.error(f"Failed to get job metadata: {str(e)}", exc_info=True)
             raise ValueError(f"Failed to get job metadata: {str(e)}")
 
     @staticmethod
@@ -287,6 +286,5 @@ class SLMJobMetadataService:
                 for job in jobs
             ]
 
-        except Exception as e:
-            logger.error(f"Failed to get top jobs: {str(e)}", exc_info=True)
+        except Exception as e:            logger.error(f"Failed to get top jobs: {str(e)}", exc_info=True)
             raise ValueError(f"Failed to get top jobs: {str(e)}")

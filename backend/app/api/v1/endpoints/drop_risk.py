@@ -2,6 +2,7 @@
 S-060/HRMS-0460 -- Drop Risk Prediction
 ==================================================================
 Prefix: /candidates
+import logging
 Tag:    drop-risk
 
 GET /candidates/{candidate_id}/drop-risk

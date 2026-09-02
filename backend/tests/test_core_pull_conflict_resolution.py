@@ -1,4 +1,5 @@
 """
+import logging
 S-318/HRMS-0514 - Core-Pull Conflict Resolution Methods Tests
 
 Tests for the three main user-required methods:
@@ -142,6 +143,7 @@ def fixtures(db_session):
 # evaluate_core_vs_specialty Tests
 # ============================================================================
 
+logger = logging.getLogger(__name__)
 
 class TestEvaluateCorePullVsSpecialty:
     """Test evaluate_core_vs_specialty() method."""

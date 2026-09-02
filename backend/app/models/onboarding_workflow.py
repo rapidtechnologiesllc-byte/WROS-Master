@@ -1,4 +1,5 @@
 """
+import logging
 S-324/HRMS-ONBOARDING-WORKFLOW -- Onboarding Workflow Management.
 
 onboarding_workflow: tracks the onboarding lifecycle for new employees.
@@ -21,6 +22,7 @@ TASK_TYPES = ("ORIENTATION", "TRAINING", "DOCUMENTATION", "SYSTEM_ACCESS", "TEAM
 WELCOME_KIT_TYPES = ("EMAIL", "PHYSICAL", "DIGITAL", "HYBRID")
 TRAINING_STATUS = ("SCHEDULED", "IN_PROGRESS", "COMPLETED", "CANCELLED", "RESCHEDULED")
 
+logger = logging.getLogger(__name__)
 
 class OnboardingWorkflow(Base):
     """Main onboarding workflow record for an employee."""

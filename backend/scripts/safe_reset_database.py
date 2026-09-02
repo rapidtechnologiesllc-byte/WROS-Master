@@ -1,4 +1,5 @@
 """
+import logging
 Safe Database Reset Script
 
 This script will ONLY reset LOCAL development databases.
@@ -119,6 +120,7 @@ def reset_database():
         print(f"   Ready for fresh schema initialization")
 
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         print(f"\n❌ ERROR: {e}")
         sys.exit(1)
     finally:

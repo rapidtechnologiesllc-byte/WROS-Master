@@ -2,6 +2,7 @@
 """Create a single super user in the database."""
 import bcrypt
 from app.core.database import SessionLocal
+import logging
 from app.models.user import Users
 
 def create_superuser():

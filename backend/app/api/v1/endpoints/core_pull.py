@@ -3,6 +3,7 @@ S-353 (HRMS-0514) Core-Pull Engine + S-373 (HRMS-0529) Specialty Pool
 Minimum 40 Guard — API Endpoints
 =========================================================================
 Prefix: /core-pull
+import logging
 Tag:    core-pull
 
 Wires app.services.core_pull_service (built earlier this program, no

@@ -1,4 +1,5 @@
 """
+import logging
 Candidate Rejection Workflow Model
 
 Tracks candidate rejections with audit trail, reasons, and archival status.
@@ -16,6 +17,7 @@ from sqlalchemy.orm import relationship
 
 from app.models.base import Base
 
+logger = logging.getLogger(__name__)
 
 class CandidateRejection(Base):
     """

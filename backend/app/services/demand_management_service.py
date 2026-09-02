@@ -51,6 +51,7 @@ class DemandManagementService:
                 "created_at": demand.created_at.isoformat()
             }
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             db.rollback()
             logger.error(f"Failed to create demand: {e}", exc_info=True)
             raise ValueError(f"Demand creation failed: {str(e)}")
@@ -84,6 +85,7 @@ class DemandManagementService:
                 "adjusted_at": demand.adjusted_at.isoformat()
             }
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             db.rollback()
             logger.error(f"Failed to adjust demand: {e}", exc_info=True)
             raise
@@ -117,6 +119,7 @@ class DemandManagementService:
                 "closed_at": demand.closed_at.isoformat()
             }
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             db.rollback()
             logger.error(f"Failed to close demand: {e}", exc_info=True)
             raise
@@ -149,6 +152,5 @@ class DemandManagementService:
                 "start_date": demand.start_date.isoformat() if hasattr(demand, 'start_date') else None,
                 "end_date": demand.end_date.isoformat() if hasattr(demand, 'end_date') else None
             }
-        except Exception as e:
-            logger.error(f"Failed to get fulfillment status: {e}", exc_info=True)
+        except Exception as e:            logger.error(f"Failed to get fulfillment status: {e}", exc_info=True)
             raise

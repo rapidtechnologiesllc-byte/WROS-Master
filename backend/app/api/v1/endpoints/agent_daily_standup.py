@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from app.core.dependencies import get_current_internal_user, require_resource_permission
 from app.core.database import get_db
 from app.models.user import Users
+import logging
 from app.services.agent_daily_standup_service import AgentDailyStandup
 
 router = APIRouter(prefix="/standups", tags=["Daily Standup"])
@@ -41,6 +42,7 @@ async def get_daily_standup(
         )
         return report
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -72,4 +74,5 @@ async def get_scrum_of_scrums(
         )
         return scrum
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))

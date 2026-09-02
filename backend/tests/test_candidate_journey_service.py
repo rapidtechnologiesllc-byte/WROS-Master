@@ -1,4 +1,5 @@
 """
+import logging
 S-059/HRMS-0459 -- Candidate Journey Dashboard.
 
 Real architecture under test (see candidate_journey_service module

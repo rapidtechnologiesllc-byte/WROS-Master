@@ -3,6 +3,7 @@ S-236/HRMS-0207 (Create Opportunity), S-237/HRMS-0208 (Pipeline Kanban),
 S-239/HRMS-0210 (Role Demand), S-240/HRMS-0211 (Revenue Potential
 rollup) -- proves the first API surface for opportunity_service.py end
 to end, including revenue.view BU-scoping (Partner sees only their own
+import logging
 BU's opportunities, Finance sees org-wide).
 
 Throwaway SQLite app, throwaway JWT keys -- never the real database.

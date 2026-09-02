@@ -1,4 +1,5 @@
 """
+import logging
 HRMS-0207/0208/0209/0215 -- Opportunities, Phase 2 Domain 4.
 
 The sales-side pipeline record, upstream of Demand. Per HRMS-0210's own
@@ -39,6 +40,7 @@ PIPELINE_STATUSES = ("QUALIFICATION", "PROSPECT", "PROPOSAL", "NEGOTIATION", "CO
 OPPORTUNITY_STAGES = PIPELINE_STATUSES
 CLOSED_STAGES = ("CONTRACT", "ACTIVE", "LOST")  # Contract won/active or lost
 
+logger = logging.getLogger(__name__)
 
 class Opportunity(Base):
     __tablename__ = "opportunities"

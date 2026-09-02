@@ -7,6 +7,7 @@ via Task.interview_id -- distinct from the pending-HM-decision Task
 Throwaway SQLite -- never the real database.
 """
 import os
+import logging
 import tempfile
 
 import pytest

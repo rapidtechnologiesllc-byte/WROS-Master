@@ -105,8 +105,7 @@ class SLMOrchestrationService:
                 "channel_count": len(channels_created),
             }
 
-        except Exception as e:
-            logger.error(f"Failed to orchestrate message: {e}", exc_info=True)
+        except Exception as e:            logger.error(f"Failed to orchestrate message: {e}", exc_info=True)
             raise RuntimeError(f"Failed to orchestrate message: {str(e)}")
 
     @staticmethod
@@ -143,8 +142,7 @@ class SLMOrchestrationService:
 
             logger.info(f"Created THUNDER_QUEUE for candidate: {channel_id}")
 
-        except Exception as e:
-            logger.error(f"Failed to create THUNDER_QUEUE: {e}", exc_info=True)
+        except Exception as e:            logger.error(f"Failed to create THUNDER_QUEUE: {e}", exc_info=True)
             raise
 
         return channels
@@ -230,8 +228,7 @@ class SLMOrchestrationService:
                 f"EMAIL, WHATSAPP, CALENDAR"
             )
 
-        except Exception as e:
-            logger.error(f"Failed to create interview channels: {e}", exc_info=True)
+        except Exception as e:            logger.error(f"Failed to create interview channels: {e}", exc_info=True)
             raise
 
         return channels
@@ -290,8 +287,7 @@ class SLMOrchestrationService:
 
             logger.info(f"Created offer channels: EMAIL, SIGNATURE")
 
-        except Exception as e:
-            logger.error(f"Failed to create offer channels: {e}", exc_info=True)
+        except Exception as e:            logger.error(f"Failed to create offer channels: {e}", exc_info=True)
             raise
 
         return channels
@@ -331,8 +327,7 @@ class SLMOrchestrationService:
 
             logger.info("Created APPROVAL_QUEUE for timesheet")
 
-        except Exception as e:
-            logger.error(f"Failed to create timesheet approval: {e}", exc_info=True)
+        except Exception as e:            logger.error(f"Failed to create timesheet approval: {e}", exc_info=True)
             raise
 
         return channels
@@ -393,8 +388,7 @@ class SLMOrchestrationService:
 
             logger.info(f"Created KPI channels: {len(channels)}")
 
-        except Exception as e:
-            logger.error(f"Failed to create KPI channels: {e}", exc_info=True)
+        except Exception as e:            logger.error(f"Failed to create KPI channels: {e}", exc_info=True)
             raise
 
         return channels
@@ -452,8 +446,7 @@ class SLMOrchestrationService:
 
             logger.info(f"Created sales channels: {len(channels)}")
 
-        except Exception as e:
-            logger.error(f"Failed to create sales channels: {e}", exc_info=True)
+        except Exception as e:            logger.error(f"Failed to create sales channels: {e}", exc_info=True)
             raise
 
         return channels
@@ -511,8 +504,7 @@ class SLMOrchestrationService:
 
             logger.info(f"Created client channels: {len(channels)}")
 
-        except Exception as e:
-            logger.error(f"Failed to create client channels: {e}", exc_info=True)
+        except Exception as e:            logger.error(f"Failed to create client channels: {e}", exc_info=True)
             raise
 
         return channels

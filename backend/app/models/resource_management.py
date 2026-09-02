@@ -1,4 +1,5 @@
 """
+import logging
 Phase 4, Part B -- Resource & Bench Management basics.
 
 `04-RESOURCE-MANAGEMENT.md` is explicit that no requirements doc exists
@@ -41,6 +42,7 @@ from app.models.base import Base
 def _new_uuid() -> str:
     return str(uuid.uuid4())
 
+logger = logging.getLogger(__name__)
 
 class BenchPoolEntry(Base):
     """One row per employee currently on the bench. Deleted when they're

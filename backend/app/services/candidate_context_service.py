@@ -1,4 +1,5 @@
 """
+import logging
 S-032/HRMS-0432 -- Candidate Context Builder.
 
 Real architecture adaptations:
@@ -54,6 +55,7 @@ CACHE_TTL_SECONDS = 30
 # Real in-process cache -- see module docstring. {(tenant_id, candidate_id): (expires_at, context)}
 _CONTEXT_CACHE: Dict[Tuple[str, str], Tuple[float, Dict]] = {}
 
+logger = logging.getLogger(__name__)
 
 class CandidateNotFound(Exception):
     pass

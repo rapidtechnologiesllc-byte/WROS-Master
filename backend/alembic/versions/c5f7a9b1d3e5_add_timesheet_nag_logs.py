@@ -1,3 +1,4 @@
+import logging
 """add timesheet_nag_logs (EPIC-16 Timesheet Nag Cascade)
 
 Revision ID: c5f7a9b1d3e5

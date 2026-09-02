@@ -1,3 +1,4 @@
+import logging
 import sqlite3
 
 conn = sqlite3.connect('local_dev.sqlite3')

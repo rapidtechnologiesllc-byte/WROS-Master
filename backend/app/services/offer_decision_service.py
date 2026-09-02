@@ -1,4 +1,5 @@
 """
+import logging
 S-056/HRMS-0456 -- Offer Acceptance Tracking.
 
 Real, major pre-existing feature found: `POST /offer-letter/respond`
@@ -139,6 +140,7 @@ def _notify_recruiter(db: Session, submission: Optional[Submission], message: st
     try:
         send_notification(db, calling_context_tenant_id=recipient.tenant_id, recipient=recipient, priority_tier=priority_tier, channel_preference="IN_APP", message=message)
     except Exception as exc:
+       logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[OfferDecision] Failed to notify recruiter: {exc}")
 
 
@@ -155,6 +157,7 @@ def _notify_hr_by_email(db: Session, offer: OfferLetter, candidate: Candidate, d
                 response_message=response_message,
             )
     except Exception as exc:
+       logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[OfferDecision] HR email notification failed: {exc}")
 
 
@@ -298,6 +301,7 @@ def handle_offer_decision(db: Session, candidate: Candidate, conversation: Candi
             return _handle_counter(db, candidate, conversation, offer, message_body)
         return {"outcome": "unrecognized_intent"}
     except Exception as exc:
+       logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.error(f"[OfferDecision] Unexpected failure handling '{intent}' for candidate {candidate.candidateID!r}: {exc}")
         db.rollback()
         return {"outcome": "decision_failed"}

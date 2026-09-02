@@ -1,4 +1,5 @@
 """
+import logging
 Checklist Models — Templates and Candidate-specific checklists.
 
 Two item types:
@@ -16,6 +17,7 @@ from sqlalchemy.orm import relationship
 
 from app.models.base import Base
 
+logger = logging.getLogger(__name__)
 
 class ChecklistTemplate(Base):
     """A reusable checklist blueprint created by a Hiring Manager."""

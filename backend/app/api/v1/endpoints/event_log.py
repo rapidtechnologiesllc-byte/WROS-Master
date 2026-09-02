@@ -2,6 +2,7 @@
 S-078/HRMS-0478 -- Event Emission Layer -- API Endpoints
 ===========================================================
 Prefix: /admin/events
+import logging
 Tag:    event-log
 
 Routes:

@@ -5,6 +5,7 @@ these candidates well to be able to convert them." Throwaway SQLite --
 never the real database.
 """
 import os
+import logging
 import tempfile
 
 import pytest

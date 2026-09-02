@@ -1,4 +1,5 @@
 """
+import logging
 Personal Goal Agents - Individual Accountability
 
 Every person with a target gets an agent that:
@@ -25,6 +26,7 @@ from app.models.candidate import Candidate
 from app.models.user import Users
 from app.core.logging import logger
 
+logger = logging.getLogger(__name__)
 
 class RecruiterGoalAgent:
     """

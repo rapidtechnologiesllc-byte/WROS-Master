@@ -1,4 +1,5 @@
 """
+import logging
 S-069/HRMS-0469 -- Multi-Channel Preference Detection.
 
 The doc's literal spec wants candidates.channel_preference (a new column)

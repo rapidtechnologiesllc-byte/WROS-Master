@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """
+import logging
 PHASE 5 & 6: End-to-End Page Testing & Negative Test Cases
 
 Tests all pages for:
@@ -31,6 +32,7 @@ from app.models.business_unit import BusinessUnit
 # Configuration
 BASE_URL = "http://localhost:8080"
 API_TIMEOUT = 10
+logger = logging.getLogger(__name__)
 
 class TestRunner:
     def __init__(self):
@@ -61,6 +63,8 @@ class TestRunner:
             self.failed.append("backend_health (connection refused)")
             return False
         except Exception as e:
+           logger.error(f"Error: {str(e)}", exc_info=True)
+            logger.error(f"Error: {str(e)}", exc_info=True)
             print(f"  [FAIL] Error: {str(e)}")
             self.failed.append(f"backend_health (error: {str(e)})")
             return False
@@ -88,6 +92,8 @@ class TestRunner:
                 self.passed.append("bu_context_endpoint")
                 return True
         except Exception as e:
+           logger.error(f"Error: {str(e)}", exc_info=True)
+            logger.error(f"Error: {str(e)}", exc_info=True)
             print(f"  [FAIL] Error: {str(e)}")
             self.failed.append(f"bu_context_endpoint (error)")
             return False
@@ -128,6 +134,8 @@ class TestRunner:
                 self.passed.append("candidates_endpoint")
                 return True
         except Exception as e:
+           logger.error(f"Error: {str(e)}", exc_info=True)
+            logger.error(f"Error: {str(e)}", exc_info=True)
             print(f"  [FAIL] Error: {str(e)}")
             self.failed.append("candidates_endpoint (error)")
             return False
@@ -185,6 +193,8 @@ class TestRunner:
             return True
 
         except Exception as e:
+           logger.error(f"Error: {str(e)}", exc_info=True)
+            logger.error(f"Error: {str(e)}", exc_info=True)
             print(f"  [ERROR] {str(e)}")
             self.failed.append(f"bu_scoping_logic (error)")
             return False
@@ -223,6 +233,8 @@ class TestRunner:
                 return True
 
         except Exception as e:
+           logger.error(f"Error: {str(e)}", exc_info=True)
+            logger.error(f"Error: {str(e)}", exc_info=True)
             print(f"  [ERROR] {str(e)}")
             return False
         finally:

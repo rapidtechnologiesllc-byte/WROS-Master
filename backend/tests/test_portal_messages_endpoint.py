@@ -1,6 +1,7 @@
 """
 POST/GET /portal/conversations/{id}/messages -- proves the HTTP wiring:
 real candidate JWT auth, cross-candidate 403, happy-path 201/200.
+import logging
 Business rules themselves are covered in test_portal_message_service.py.
 
 Throwaway SQLite app, throwaway JWT keys -- never the real database.

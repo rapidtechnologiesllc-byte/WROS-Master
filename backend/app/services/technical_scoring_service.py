@@ -1,4 +1,5 @@
 """
+import logging
 S-037/HRMS-0437 -- Technical Qualification Score.
 
 Real architecture adaptations:
@@ -76,6 +77,7 @@ CERTIFICATION_WEIGHT = 0.25
 
 MISSING_CERT_PENALTY = 25
 
+logger = logging.getLogger(__name__)
 
 class CandidateNotFound(Exception):
     pass
@@ -238,6 +240,7 @@ def recalculate_for_candidate(db: Session, candidate: Candidate, tenant_id: str)
         try:
             results.append(calculate_technical_score(db, candidate.candidateID, job_id, tenant_id))
         except Exception as exc:
+           logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.warning(f"[TechnicalScoring] Failed to recalculate score for candidate {candidate.candidateID!r} / job {job_id!r}: {exc}")
     db.commit()
     return results

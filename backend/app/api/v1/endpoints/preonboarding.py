@@ -1,4 +1,5 @@
 """
+import logging
 Pre-Onboarding API
 
 Endpoints related to the Hiring Manager review and approval workflow,
@@ -265,6 +266,7 @@ def _send_approval_notifications(
             )
             logger.info(f"[Approval] Sent approval notification to candidate: {candidate.candidateEmail}")
         except Exception as exc:
+           logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.warning(f"[Approval] Could not email candidate: {exc}")
 
     # â”€â”€ 4. Email to hiring manager â”€â”€
@@ -283,6 +285,7 @@ def _send_approval_notifications(
             )
             logger.info(f"[Approval] Sent approval notification to hiring manager: {hiring_manager_email}")
         except Exception as exc:
+           logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.warning(f"[Approval] Could not email hiring manager: {exc}")
 
     # â”€â”€ 5. Email to recruiter â”€â”€
@@ -301,6 +304,7 @@ def _send_approval_notifications(
             )
             logger.info(f"[Approval] Sent approval notification to recruiter: {recruiter_email}")
         except Exception as exc:
+           logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.warning(f"[Approval] Could not email recruiter: {exc}")
 
 
@@ -602,6 +606,7 @@ def hiring_manager_approval(
                 candidate, db, performed_by_id=user.UserID
             )
         except Exception as exc:
+           logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.warning(f"[Approval] Checklist auto-assign failed: {exc}")
 
         db.commit()
@@ -633,6 +638,7 @@ def hiring_manager_approval(
             )
             db.commit()
         except Exception as exc:
+           logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.warning(f"[Approval] Org Pool transfer failed: {exc}")
 
     return StatusActionResponse(

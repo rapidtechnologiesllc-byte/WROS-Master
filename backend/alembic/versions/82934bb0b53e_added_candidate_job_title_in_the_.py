@@ -1,3 +1,4 @@
+import logging
 """added candidate job title in the candidate table
 
 Revision ID: 82934bb0b53e

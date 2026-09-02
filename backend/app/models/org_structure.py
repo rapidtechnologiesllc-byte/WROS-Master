@@ -1,4 +1,5 @@
 """
+import logging
 Organizational Hierarchy Models — Corporate → Business Unit → Department → Org Hierarchy
 
 Full structure: Corporate (Tenant) → Business Unit → Department → OrgNode hierarchy
@@ -19,6 +20,7 @@ from sqlalchemy.orm import relationship
 
 from app.models.base import Base
 
+logger = logging.getLogger(__name__)
 
 class Department(Base):
     """

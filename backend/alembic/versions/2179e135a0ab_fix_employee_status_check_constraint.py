@@ -1,3 +1,4 @@
+import logging
 """fix employees.status CHECK constraint to include SPECIALITY_READY/PERFORMANCE_MANAGED (S-365/HRMS-0521)
 
 Revision ID: 2179e135a0ab

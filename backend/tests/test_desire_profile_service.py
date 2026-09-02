@@ -4,6 +4,7 @@ Throwaway SQLite -- never the real database.
 """
 import os
 import tempfile
+import logging
 from datetime import datetime, timedelta
 
 import pytest

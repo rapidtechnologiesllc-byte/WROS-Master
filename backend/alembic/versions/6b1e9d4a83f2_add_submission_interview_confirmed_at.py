@@ -1,3 +1,4 @@
+import logging
 """S-049/HRMS-0449: add confirmed_at column to submission_interviews
 
 Revision ID: 6b1e9d4a83f2

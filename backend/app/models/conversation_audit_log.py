@@ -1,4 +1,5 @@
 """
+import logging
 S-076/HRMS-0476 -- Conversation Audit Log.
 
 A compliance-grade, insert-only record of significant AI/HR actions on a
@@ -29,6 +30,7 @@ from app.models.base import Base
 
 AUDIT_ACTOR_TYPES = ("AI", "RECRUITER", "HR", "SYSTEM", "CANDIDATE")
 
+logger = logging.getLogger(__name__)
 
 class ConversationAuditLog(Base):
     __tablename__ = "conversation_audit_log"

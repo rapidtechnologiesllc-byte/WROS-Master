@@ -3,6 +3,7 @@ POST /demand-confirmation/demands/{id}/confirm-sow, .../schedule-call,
 GET .../calls, POST /calls/{id}/confirm-fit|trigger-release -- proves
 S-372 (HRMS-0528) Confirmed vs Potential Demand Workflow end-to-end on
 real routes, not just the service layer (see the Definition of Done
+import logging
 correction in CLAUDE.md).
 
 Throwaway SQLite app, throwaway JWT keys -- never the real database or

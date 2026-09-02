@@ -1,4 +1,5 @@
 """
+import logging
 S-364/HRMS-0520 -- 30-Day Buddy Program: 35-KPI Framework & Tracking.
 
 KPI_DEFINITIONS is fixed platform config (BU-Head-approved, never
@@ -76,6 +77,7 @@ LOW_SCORE_THRESHOLD = 2.0
 LOW_SCORE_CONSECUTIVE_WEEKS = 2
 TOTAL_WEEKS = 4
 
+logger = logging.getLogger(__name__)
 
 class SelfBuddyNotAllowed(Exception):
     """A buddy engineer cannot be assigned to their own buddy program record."""

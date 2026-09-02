@@ -1,4 +1,5 @@
 """
+import logging
 Resume Comparison Service - Detect changes between candidate resume versions
 
 Enables detection of:
@@ -21,6 +22,7 @@ from app.core.logging import logger
 from app.models.candidate import Candidate
 from app.models.candidate_resume_parsed import CandidateResumeParsed
 
+logger = logging.getLogger(__name__)
 
 class ResumeChangeAnalysis:
     """Analysis of changes between two resume versions"""

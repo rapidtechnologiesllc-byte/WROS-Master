@@ -1,5 +1,6 @@
 """
 HRMS-0901 -- Timesheet Submission -- and HRMS-0902 -- Timesheet
+import logging
 Approval Workflow.
 
 Scheduled jobs described in both stories (TimesheetCreationJob every
@@ -36,6 +37,7 @@ from app.models.timesheet import (
 )
 from app.services.email_service import EmailService
 
+logger = logging.getLogger(__name__)
 
 class AllocationNotActive(Exception):
     """BR-04: bench employees (no active allocation) don't get timesheets."""
@@ -231,6 +233,7 @@ def approve_timesheet(db: Session, timesheet: Timesheet, approved_by: Optional[s
             )
             logger.info(f"[Timesheet] Approval notifications sent for timesheet {timesheet.id}")
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         # Log but don't raise — notifications should never block business logic
         logger.warning(f"[Timesheet] Failed to send approval notifications for {timesheet.id}: {e}")
 
@@ -309,6 +312,7 @@ def create_weekly_draft_batch(db: Session) -> dict:
             else:
                 skipped += 1
         except Exception as exc:
+            logger.error(f"Error: {str(exc)}", exc_info=True)
             errors.append({
                 "allocation_id": allocation.id,
                 "employee_id": allocation.employee_id,

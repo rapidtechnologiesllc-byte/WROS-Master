@@ -3,6 +3,7 @@ Proves HRMS-0801 (Project Lifecycle, incl. auto-creation on Opportunity
 WON), HRMS-0804 (Milestones, delay always computed), HRMS-0803
 (overlapping-allocation capacity block, opt-in via allow_concurrent),
 HRMS-0805 (unfilled-role gap detection), and HRMS-0806 (revenue/margin
+import logging
 estimate, incl. insufficient-data handling).
 
 Throwaway SQLite -- never the real database.

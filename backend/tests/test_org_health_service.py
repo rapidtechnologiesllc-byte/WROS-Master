@@ -1,4 +1,5 @@
 """
+import logging
 Executive Signal & Culture Agent -- org-health rollup.
 
 Proves: the snapshot aggregates real existing signals (no fabricated

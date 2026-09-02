@@ -1,4 +1,5 @@
 """
+import logging
 Partner Success Agent Service
 
 NOT a tracker. A COACH.
@@ -22,6 +23,7 @@ from app.core.agent_logging import log_agent_execution
 from app.models.opportunity import Opportunity
 from app.models.user import Users
 
+logger = logging.getLogger(__name__)
 
 class PartnerSuccessAgent:
     """Proactive partner coaching toward revenue targets."""
@@ -198,6 +200,7 @@ class PartnerSuccessAgent:
             }
 
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             raise
 
     @staticmethod
@@ -295,6 +298,7 @@ class PartnerSuccessAgent:
             }
 
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             raise
 
 

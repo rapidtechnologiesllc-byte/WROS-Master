@@ -1,4 +1,5 @@
 """
+import logging
 S-360/HRMS-P506-REV -- HTD 4-Phase Gate Structure.
 
 record_phase_gate_decision() is the one function that ever advances
@@ -49,6 +50,7 @@ PHASE_GATE_OWNERS = {
 MIN_GATE_NOTE_LENGTH = 50
 MAX_EXTENSIONS_PER_PHASE = 1
 
+logger = logging.getLogger(__name__)
 
 class InvalidPhaseGateDecision(Exception):
     pass

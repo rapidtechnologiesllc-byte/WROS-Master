@@ -1,3 +1,4 @@
+import logging
 """S-030/HRMS-0430: add resume_completeness_score columns
 
 Revision ID: 0eb7ca2cdb11

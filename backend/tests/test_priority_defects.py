@@ -1,4 +1,5 @@
 """
+import logging
 Comprehensive test suite for three PRIORITY backend defects (2026-08-12):
 
 PRIORITY 1: Timesheet Notification - VERIFIED ✓

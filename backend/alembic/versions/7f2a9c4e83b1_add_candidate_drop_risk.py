@@ -1,3 +1,4 @@
+import logging
 """S-060/HRMS-0460: add candidate_drop_risk table
 
 Revision ID: 7f2a9c4e83b1

@@ -1,4 +1,5 @@
 """
+import logging
 S-074/HRMS-0474 -- Bulk Candidate Engagement Launch.
 
 Real architecture adaptations:
@@ -55,6 +56,7 @@ BULK_RATE_PER_MINUTE = 20  # BR-01, module constant -- see docstring
 REQUIRED_CSV_COLUMN = "name"
 CSV_COLUMNS = ("name", "email", "phone", "location", "current_employer", "skills")
 
+logger = logging.getLogger(__name__)
 
 class CsvTooLarge(Exception):
     pass
@@ -114,6 +116,7 @@ def import_candidates_from_csv(db: Session, csv_text: str, recruiter_id: str, te
         except DuplicateCandidateError:
             skipped_duplicates += 1
         except Exception as exc:
+           logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.error(f"[BulkEngagement] Row {index} import failed: {exc}")
             errors.append({"row": index, "reason": str(exc)})
 
@@ -150,6 +153,7 @@ def _notify_recruiter(db: Session, recruiter_id: str, tenant_id: str, message: s
     try:
         send_notification(db, calling_context_tenant_id=recipient.tenant_id, recipient=recipient, priority_tier="P2", channel_preference="EMAIL", message=message)
     except Exception as exc:
+       logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[BulkEngagement] Failed to notify recruiter of completion: {exc}")
 
 
@@ -186,6 +190,7 @@ def run_bulk_engagement_worker(db: Session, job_id: str, *, sleep_fn=None, batch
                 auto_assign_ai_agent_on_creation(candidate_id, job.tenant_id, db)
                 job.success_count += 1
             except Exception as exc:
+               logger.error(f"Error: {str(exc)}", exc_info=True)
                 logger.error(f"[BulkEngagement] Failed engaging candidate {candidate_id!r} for job {job_id!r}: {exc}")
                 db.rollback()
                 job.failed_count += 1

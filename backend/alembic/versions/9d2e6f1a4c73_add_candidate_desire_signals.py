@@ -1,3 +1,4 @@
+import logging
 """add candidate_desire_signals (S-347 Candidate Desire Intelligence Engine)
 
 Revision ID: 9d2e6f1a4c73

@@ -1,9 +1,11 @@
 """Pydantic Schemas -- S-020/HRMS-0420 Engagement SLA Monitoring."""
 from datetime import datetime
+import logging
 from typing import List
 
 from pydantic import BaseModel
 
+logger = logging.getLogger(__name__)
 
 class SLABreachItem(BaseModel):
     candidate_id: str

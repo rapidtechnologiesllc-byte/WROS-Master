@@ -1,3 +1,4 @@
+import logging
 """BU Head Dashboard Endpoints - Real data for business unit leaders."""
 
 from fastapi import APIRouter, Depends, HTTPException

@@ -3,6 +3,7 @@ POST /allocations, GET /allocations, POST /allocations/{id}/end --
 proves S-251 (Allocate Employee to Project) + S-252 (Allocation
 Conflict Detection) end-to-end on real routes. Conflict detection
 (AllocationOverCapacity) is not reimplemented here -- it's the existing
+import logging
 allocate_employee_to_project() gate, surfaced as a 409.
 
 Throwaway SQLite app, throwaway JWT keys -- never the real database or

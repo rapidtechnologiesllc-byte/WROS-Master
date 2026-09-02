@@ -1,6 +1,7 @@
 """
 Thunder Session Model - Manages candidate chat sessions during pre-screening intake
 Tracks form state, question progression, resume data, and session persistence
+import logging
 """
 
 from datetime import datetime
@@ -10,6 +11,7 @@ from app.models.base import Base
 import json
 from enum import Enum as PyEnum
 
+logger = logging.getLogger(__name__)
 
 class ThunderSessionStatus(str, PyEnum):
     """Session state machine"""

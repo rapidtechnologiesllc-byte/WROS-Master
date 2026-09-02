@@ -1,5 +1,6 @@
 """
 S-314 — Project Allocation Engine
+import logging
 Unit tests for allocation service and API endpoints.
 
 Test Coverage:
@@ -140,6 +141,7 @@ def employee_in_buddy_program(db: Session, tenant: Tenant):
     db.refresh(employee)
     return employee
 
+logger = logging.getLogger(__name__)
 
 class TestAllocateEmployeeToProject:
     """Tests for allocate_employee_to_project() method."""

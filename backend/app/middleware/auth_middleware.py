@@ -6,11 +6,13 @@ from fastapi import Request, HTTPException
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 from typing import Callable
+import logging
 import time
 
 from app.core.security import decode_access_token
 from app.core.logging import logger, log_security_event
 
+logger = logging.getLogger(__name__)
 
 class AuthenticationMiddleware(BaseHTTPMiddleware):
     """
@@ -212,6 +214,7 @@ class AuthenticationMiddleware(BaseHTTPMiddleware):
             )
             
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             # Unexpected error
             import traceback
             import sys
@@ -380,6 +383,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             self.use_redis = True
             logger.info(f"Rate limiting: Using Redis backend at {redis_url}")
         except Exception as e:
+           logger.error(f"Error: {str(e)}", exc_info=True)
             logger.warning(f"Rate limiting: Redis unavailable ({e}), falling back to in-memory")
             self.redis_client = None
             self.use_redis = False
@@ -443,6 +447,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                 current_count = int(self.redis_client.get(key) or 0)
                 return current_count >= self.max_requests
             except Exception as e:
+               logger.error(f"Error: {str(e)}", exc_info=True)
                 logger.warning(f"Redis rate limit check failed: {e}, using in-memory fallback")
                 self.use_redis = False
                 # Fall through to in-memory check
@@ -464,6 +469,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                 self.redis_client.expire(key, self.window_seconds)
                 return
             except Exception as e:
+               logger.error(f"Error: {str(e)}", exc_info=True)
                 logger.warning(f"Redis request recording failed: {e}, using in-memory fallback")
                 self.use_redis = False
                 # Fall through to in-memory recording

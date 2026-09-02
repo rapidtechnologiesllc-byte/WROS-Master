@@ -5,6 +5,7 @@ from sqlalchemy import func, and_, or_
 from app.models.certification import Certification, EmployeeCertification
 from app.models.employee import Employee
 from app.models.business_unit import BusinessUnit
+import logging
 from app.utils.agent_logger import log_agent_execution
 
 
@@ -27,6 +28,7 @@ def get_buddy_program_overview(db: Session, business_unit_id: int = None) -> dic
             "average_time_in_program_days": 30,
         }
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         return {"error": str(e)}
 
 
@@ -65,6 +67,7 @@ def get_certification_summary(db: Session, business_unit_id: int = None) -> dict
             "already_expired": expired,
         }
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         return {"error": str(e)}
 
 
@@ -96,6 +99,7 @@ def get_employee_training_status(db: Session, employee_id: str = None, business_
             for r in results
         ]
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         return [{"error": str(e)}]
 
 
@@ -119,6 +123,7 @@ def get_training_pipeline_status(db: Session, business_unit_id: int = None) -> d
             "next_cohort_date": (datetime.utcnow() + timedelta(days=7)).isoformat(),
         }
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         return {"error": str(e)}
 
 
@@ -165,4 +170,5 @@ def get_next_training_steps(db: Session, employee_id: str = None) -> list:
 
         return actions
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         return [{"error": str(e)}]

@@ -1,4 +1,5 @@
 """
+import logging
 S-364/HRMS-0520 -- 30-Day Buddy Program: 35-KPI Framework & Tracking.
 
 Proves: self-buddy prevention, KPI submission validation + upsert,

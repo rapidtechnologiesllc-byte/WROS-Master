@@ -2,6 +2,7 @@
 ATS (Applicant Tracking System) Scorer
 =======================================
 Uses a LangGraph multi-node pipeline powered by Google Gemini to evaluate a
+import logging
 candidate's profile against a job description and produce:
 
   - An overall ATS score (0–100)
@@ -37,6 +38,7 @@ try:
         temperature=0.2,                    # low temp → consistent scores
     )
 except Exception as e:
+    logger.error(f"Error: {str(e)}", exc_info=True)
     # If Google credentials not available, LLM will be None
     # ATS scoring will return stub response
     import sys
@@ -82,6 +84,7 @@ def _extract_json(text: str) -> dict:
 # ---------------------------------------------------------------------------
 # State definition
 # ---------------------------------------------------------------------------
+logger = logging.getLogger(__name__)
 
 class ATSState(TypedDict):
     # Inputs

@@ -1,4 +1,5 @@
 """
+import logging
 COMPLETE INVOICE API ENDPOINTS - Production Grade
 
 Full invoice lifecycle management from creation through revenue recognition.
@@ -32,6 +33,7 @@ router = APIRouter(prefix="/api/v1/invoices", tags=["invoices"])
 # ============================================================================
 # REQUEST/RESPONSE MODELS
 # ============================================================================
+logger = logging.getLogger(__name__)
 
 class LineItemCreate(BaseModel):
     employee_id: str
@@ -195,6 +197,7 @@ def create_new_invoice(
         db.rollback()
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -223,6 +226,7 @@ def get_invoice(
     except HTTPException:
         raise
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -263,6 +267,7 @@ def list_invoices(
         return invoices
 
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -308,6 +313,7 @@ def add_invoice_line_item(
         db.rollback()
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -342,6 +348,7 @@ def remove_invoice_line_item(
         db.rollback()
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -382,6 +389,7 @@ def approve_new_invoice(
         db.rollback()
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -418,6 +426,7 @@ def send_new_invoice(
         db.rollback()
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -466,6 +475,7 @@ def mark_paid(
         db.rollback()
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -505,6 +515,7 @@ def cancel_new_invoice(
         db.rollback()
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -542,6 +553,7 @@ def get_opportunity_invoices(
     except HTTPException:
         raise
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -579,6 +591,7 @@ def get_status_summary(
         }
 
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -607,4 +620,5 @@ def get_outstanding(
         return invoices
 
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))

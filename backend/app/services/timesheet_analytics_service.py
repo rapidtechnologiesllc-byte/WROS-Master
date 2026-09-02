@@ -1,4 +1,5 @@
 """
+import logging
 HRMS-0905 -- Timesheet Analytics & Compliance.
 
 Pure reporting layer over the existing Timesheet table -- no new

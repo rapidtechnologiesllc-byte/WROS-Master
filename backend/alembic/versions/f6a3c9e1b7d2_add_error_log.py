@@ -1,3 +1,4 @@
+import logging
 """add error_log table (S-215/HRMS-0117)
 
 Revision ID: f6a3c9e1b7d2

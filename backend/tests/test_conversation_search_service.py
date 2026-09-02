@@ -1,4 +1,5 @@
 """
+import logging
 S-015/HRMS-0415 -- Conversation Search (app.services.conversation_search_service).
 
 Adapted to real architecture: no Postgres tsvector/plainto_tsquery

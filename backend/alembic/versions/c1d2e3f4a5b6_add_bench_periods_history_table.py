@@ -1,3 +1,4 @@
+import logging
 """add bench_periods history table (S-246/HRMS-0502, extended)
 
 Revision ID: c1d2e3f4a5b6

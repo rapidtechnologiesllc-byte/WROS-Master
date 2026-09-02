@@ -1,6 +1,7 @@
 """
 S-243 (EPIC-02 Revenue Leakage Detection) -- real and distinct from the
 already-shipped S-225/HRMS-0906 timesheet-based leakage
+import logging
 (RevenueLeakageFlag / revenue_leakage_time_layer, in app.models.revenue_leakage).
 
 A 4-pattern engine per the confirmed EPIC-02/03 scoping note: stalled
@@ -37,6 +38,7 @@ LEAKAGE_PATTERN_TYPES = (
     "STALLED_OPPORTUNITY", "UNFILLED_DEMAND", "UNBILLED_TIME", "SUBVENDOR_COST_OVERRUN",
 )
 
+logger = logging.getLogger(__name__)
 
 class PipelineLeakageFlag(Base):
     """One row per detected leakage signal. Polymorphic-lite via

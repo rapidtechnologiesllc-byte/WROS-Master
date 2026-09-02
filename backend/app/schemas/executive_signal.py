@@ -1,9 +1,11 @@
 """Pydantic schemas -- Executive Signal & Culture Agent."""
 from datetime import datetime
+import logging
 from typing import Dict, List, Optional
 
 from pydantic import BaseModel
 
+logger = logging.getLogger(__name__)
 
 class FeedbackCycleCreateRequest(BaseModel):
     quarter_label: str

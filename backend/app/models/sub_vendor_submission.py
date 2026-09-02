@@ -1,5 +1,6 @@
 """
 HRMS-P802 (Submission Form) + HRMS-P806 (FT-Only Gate) + HRMS-P807
+import logging
 (Dedup) + HRMS-P808 (Recruiter Review).
 
 Flow, per the research reconciling P802's own "creates a real
@@ -38,6 +39,7 @@ def _new_uuid() -> str:
 SUBMISSION_REVIEW_STATUSES = ("PENDING_REVIEW", "ACCEPTED", "REJECTED", "MORE_INFO_REQUESTED")
 SUBVENDOR_VIOLATION_TYPES = ("C2C_NOT_ACCEPTED",)
 
+logger = logging.getLogger(__name__)
 
 class SubVendorSubmission(Base):
     __tablename__ = "sub_vendor_submissions"

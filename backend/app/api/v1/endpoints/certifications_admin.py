@@ -6,6 +6,7 @@ from datetime import datetime
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
+import logging
 from pydantic import BaseModel
 
 from app.core.database import get_db
@@ -18,6 +19,7 @@ from app.core.logging import logger
 
 router = APIRouter(prefix="/admin/certifications", tags=["admin-certifications"])
 
+logger = logging.getLogger(__name__)
 
 class CertificationRequest(BaseModel):
     cert_name: str

@@ -1,5 +1,6 @@
 """
 Extends HRMS-0109's tenant-isolation proof to the Candidate table --
+import logging
 the highest-value target, since it holds real candidate PII.
 
 Same pattern as test_tenant_isolation.py: throwaway SQLite file, never
@@ -32,6 +33,7 @@ def db_session():
         engine.dispose()
         os.remove(db_path)
 
+logger = logging.getLogger(__name__)
 
 class _FakeUser:
     """Stand-in for a Users row -- get_tenant_scoped_query only reads .tenant_id."""

@@ -62,6 +62,7 @@ async def create_validation_questions_endpoint(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
+       logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Error creating validation questions for job {job_id}: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to create validation questions")
 
@@ -97,6 +98,7 @@ async def send_to_hiring_manager(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
+       logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Error sending validation to HM: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to send validation")
 
@@ -135,6 +137,7 @@ async def record_hm_response_endpoint(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
+       logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Error recording HM response: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to record response")
 
@@ -180,6 +183,7 @@ async def list_validations(
     except HTTPException:
         raise
     except Exception as e:
+       logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Error listing validations: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to fetch validations")
 
@@ -228,6 +232,7 @@ async def get_validation(validation_id: str, db=None):
     except HTTPException:
         raise
     except Exception as e:
+       logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Error fetching validation {validation_id}: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to fetch validation")
 
@@ -325,6 +330,7 @@ async def submit_validation_response(
     except HTTPException:
         raise
     except Exception as e:
+       logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Error submitting validation response {validation_id}: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to submit response")
 
@@ -369,6 +375,7 @@ async def send_reminder(validation_id: str, db=None):
     except HTTPException:
         raise
     except Exception as e:
+       logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Error sending reminder for validation {validation_id}: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to send reminder")
 
@@ -390,6 +397,7 @@ async def get_audit_trail(validation_id: str, db=None):
         }
 
     except Exception as e:
+       logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Error fetching audit trail for validation {validation_id}: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to fetch audit trail")
 
@@ -423,6 +431,7 @@ async def create_validation_template(
     except HTTPException:
         raise
     except Exception as e:
+       logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Error creating validation template for job {job_id}: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to create template")
 
@@ -452,5 +461,6 @@ async def get_validation_template(job_id: str, db=None):
     except HTTPException:
         raise
     except Exception as e:
+       logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Error fetching validation template for job {job_id}: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to fetch template")

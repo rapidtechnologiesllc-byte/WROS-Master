@@ -1,9 +1,11 @@
 """Pydantic schemas -- S-364 Buddy KPI Tracking + S-365 Graduation Gate."""
 from datetime import date, datetime
+import logging
 from typing import Dict, List, Optional
 
 from pydantic import BaseModel
 
+logger = logging.getLogger(__name__)
 
 class BuddyProgramRecordCreateRequest(BaseModel):
     employee_id: str

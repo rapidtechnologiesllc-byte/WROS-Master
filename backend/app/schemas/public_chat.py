@@ -1,5 +1,6 @@
 """
 Pydantic Schemas — public (unauthenticated) Thunder chat widget.
+import logging
 """
 
 from datetime import datetime
@@ -7,6 +8,7 @@ from typing import List, Optional
 
 from pydantic import BaseModel, EmailStr, Field
 
+logger = logging.getLogger(__name__)
 
 class PublicChatStartRequest(BaseModel):
     full_name: str = Field(..., min_length=1, max_length=300)

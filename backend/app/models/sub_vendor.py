@@ -1,6 +1,7 @@
 """
 HRMS-P801 -- Sub-Vendor Portal, Registration & Onboarding. Phase 2
 Domain 5, greenfield (nothing in this codebase to extend/fork, unlike
+import logging
 Client/Demand).
 
 Table name: the corpus itself is inconsistent -- P801's own CREATE
@@ -39,6 +40,7 @@ SUBVENDOR_STATUSES = ("PENDING_APPROVAL", "APPROVED", "SUSPENDED", "REJECTED")
 SUBVENDOR_COMPLIANCE_STATUSES = ("GOOD_STANDING", "UNDER_REVIEW", "SUSPENSION_PENDING", "SUSPENDED")
 SUBVENDOR_USER_ROLES = ("ADMIN", "SUBMITTER")
 
+logger = logging.getLogger(__name__)
 
 class SubVendorAccount(Base):
     __tablename__ = "sub_vendor_accounts"

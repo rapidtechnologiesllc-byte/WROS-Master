@@ -1,4 +1,5 @@
 """
+import logging
 GET/POST /candidates/{id}/desire-intelligence -- S-350/HRMS-P120.
 
 RBAC per Avinash's explicit 2026-08-05 direction: view is candidate.view

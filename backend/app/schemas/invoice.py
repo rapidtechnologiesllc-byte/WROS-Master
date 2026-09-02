@@ -1,3 +1,4 @@
+import logging
 """Pydantic schemas -- HRMS-0907 (Invoice Generation, Status Tracking) API."""
 
 from datetime import date, datetime
@@ -5,6 +6,7 @@ from typing import List, Optional
 
 from pydantic import BaseModel
 
+logger = logging.getLogger(__name__)
 
 class GenerateInvoiceRequest(BaseModel):
     project_id: str

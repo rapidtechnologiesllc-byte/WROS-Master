@@ -1,4 +1,5 @@
 """
+import logging
 HRMS-1105 (S-320) -- Candidate Ranking & Scoring Service Tests.
 
 Test coverage:
@@ -189,6 +190,7 @@ def seeded_data(db_session):
         "tenant_id": 1,
     }
 
+logger = logging.getLogger(__name__)
 
 class TestCalculateFitScore:
     """Tests for calculate_fit_score method."""

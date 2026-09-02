@@ -1,4 +1,5 @@
 """
+import logging
 S-359/HRMS-P511 -- HTD Intake Pause Engine: Conversion Rate Breach.
 
 Three small tables rather than the doc's generic `system_config` key-
@@ -23,6 +24,7 @@ def _new_uuid() -> str:
 
 HTD_PAUSE_LOG_ACTIONS = ("PAUSED", "RESUMED")
 
+logger = logging.getLogger(__name__)
 
 class HtdIntakeStatus(Base):
     """One row per tenant -- the live pause flag a future HRMS-0307

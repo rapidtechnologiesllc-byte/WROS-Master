@@ -2,6 +2,7 @@
 Proves HRMS-0114's actual "fails to start" behavior, end to end, using
 the real app -- not just the audit tool in isolation.
 """
+import logging
 from fastapi import Depends, FastAPI
 
 from app.core.dependencies import require_permission

@@ -6,6 +6,7 @@ their BU); finance & HR manager (no actual p&l)." Refined the same
 day: "a partner has it's own clients and the work is done in their BU
 only... any business he generates should go only to that BU" -- BU
 ownership is a real, client-level fact (Client.business_unit_id), not
+import logging
 a role-attribute abstraction.
 
 Deliberately a SEPARATE scoping mechanism from app.core.bu_scope's

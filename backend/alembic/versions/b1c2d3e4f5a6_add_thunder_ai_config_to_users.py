@@ -1,3 +1,4 @@
+import logging
 """S-011/HRMS-0411: add per-tenant Thunder AI config columns to users
 
 Revision ID: b1c2d3e4f5a6

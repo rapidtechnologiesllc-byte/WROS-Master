@@ -1,3 +1,4 @@
+import logging
 """add candidate_opportunity_watches (ready-for-opportunity workflow)
 
 Revision ID: d4e9a1c6f3b8

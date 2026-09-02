@@ -1,5 +1,6 @@
 """
 Recruitment Agent for Job Creation — Agentic Workflow
+import logging
 =====================================================
 
 Integrates the Recruitment sub-agent (part of Thunder) into the job creation flow.
@@ -34,6 +35,7 @@ def _get_llm_provider():
         try:
             return ChatGoogleGenerativeAI(api_key=GEMINI_API_KEY, model="gemini-3-flash-preview", temperature=0, max_retries=1)
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             print(f"Gemini provider failed: {e}, trying Claude...", flush=True)
 
     # Fall back to Claude (backup) - skip if dummy key
@@ -41,6 +43,7 @@ def _get_llm_provider():
         try:
             return ChatAnthropic(api_key=ANTHROPIC_API_KEY, model="claude-opus-4-1", temperature=0, max_retries=1)
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             print(f"Claude provider failed: {e}, using fallback responses...", flush=True)
 
     # If all real providers fail/unavailable, return a dummy LLM that will always fail
@@ -49,6 +52,7 @@ def _get_llm_provider():
 
 llm = _get_llm_provider()
 
+logger = logging.getLogger(__name__)
 
 class RecruitmentJobCreationAgent:
     """
@@ -222,6 +226,7 @@ Respond with exactly this JSON shape:
             if result:
                 return result
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             import sys
             print(f"LLM call failed, using fallback: {type(e).__name__}", file=sys.stderr)
 

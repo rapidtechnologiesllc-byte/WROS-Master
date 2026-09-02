@@ -1,4 +1,5 @@
 """
+import logging
 HRMS-1104 -- Automated Outreach Agent.
 
 Proves: BR-1104-03 (consent checked before composition, hard gate),

@@ -1,5 +1,6 @@
 from pydantic import BaseModel
 from typing import Optional
+import logging
 from datetime import datetime
 
 # Document upload schemas
@@ -12,6 +13,7 @@ class DocumentUploadResponse(BaseModel):
     file_name: str
     sharepoint_url: Optional[str] = None
     uploaded_at: datetime
+logger = logging.getLogger(__name__)
 
 class BulkDocumentUploadResponse(BaseModel):
     """Response for bulk document uploads"""

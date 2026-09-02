@@ -2,6 +2,7 @@
 HRMS-0711 Client Submission Pipeline — API Endpoints
 =========================================================================
 Prefix: /submissions
+import logging
 Tag:    submissions
 
 No REST layer existed for this at all despite create_submission()/

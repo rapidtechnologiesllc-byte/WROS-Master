@@ -1,3 +1,4 @@
+import logging
 """Add 17-level hierarchy and specialization to org system
 
 Revision ID: 2026_08_27_org_hierarchy_levels

@@ -2,6 +2,7 @@
 GET /ai-agent/memory/{candidate_id} -- HTTP wiring for S-021/HRMS-0421.
 Routed under /ai-agent (not /candidates/{id}/memory) matching this
 round's convention of hosting Thunder-intelligence candidate-scoped
+import logging
 reads there (missing-fields, portal-link).
 
 Throwaway SQLite app, throwaway JWT keys -- never the real database.

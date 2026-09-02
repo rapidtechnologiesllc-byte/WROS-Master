@@ -1,4 +1,5 @@
 """
+import logging
 S-434 -- Org-wide Task Dashboard, core service.
 
 Real product decisions from Avinash, captured 2026-08-04 session:

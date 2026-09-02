@@ -1,6 +1,7 @@
 """
 Pydantic schemas — S-372 (HRMS-0528) Confirmed vs Potential Demand
 Workflow API.
+import logging
 """
 
 from datetime import date, datetime
@@ -8,6 +9,7 @@ from typing import List, Optional
 
 from pydantic import BaseModel, Field
 
+logger = logging.getLogger(__name__)
 
 class ConfirmSOWRequest(BaseModel):
     sow_reference: str = Field(..., min_length=1)

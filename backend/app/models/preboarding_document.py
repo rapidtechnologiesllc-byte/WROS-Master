@@ -1,4 +1,5 @@
 """
+import logging
 S-057/HRMS-0457 -- Document Collection Agent.
 
 preboarding_documents: genuinely new table -- one row per (tenant,
@@ -33,6 +34,7 @@ from app.models.base import Base
 
 DOCUMENT_STATUSES = ("PENDING", "RECEIVED", "VERIFIED", "WAIVED", "CANCELLED")
 
+logger = logging.getLogger(__name__)
 
 class PreboardingDocument(Base):
     __tablename__ = "preboarding_documents"

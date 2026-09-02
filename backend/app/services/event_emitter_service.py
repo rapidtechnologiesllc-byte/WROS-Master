@@ -1,4 +1,5 @@
 """
+import logging
 S-078/HRMS-0478 -- Event Emission Layer for AI Actions.
 
 See app.models.event_log's module docstring for the real architecture
@@ -65,6 +66,7 @@ EVENT_DEFINITIONS: Dict[str, Dict[str, Any]] = {
     "supervisor.cycle_completed": {"version": "v1", "candidate_scoped": False},
 }
 
+logger = logging.getLogger(__name__)
 
 class EventDefinitionNotFoundError(Exception):
     """AC-2: event_type not in EVENT_DEFINITIONS."""

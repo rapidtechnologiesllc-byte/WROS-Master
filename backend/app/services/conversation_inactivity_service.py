@@ -3,6 +3,7 @@ Conversation inactivity safety net -- extends HRMS-0410's ownership
 model with an automatic response when a candidate conversation goes
 quiet too long, regardless of which side is silent. Genuinely new
 capability, not from any existing story (same posture as
+import logging
 app.services.whatsapp_routing_service, which this builds directly on).
 
 Two directions, one shared 30-(business-)hour clock, decided by whether

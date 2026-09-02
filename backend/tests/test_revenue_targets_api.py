@@ -1,6 +1,7 @@
 """
 S-267/S-241/S-244 API-level proof: BU target create/read, PartnerGoal
 CEO-only enforcement, and the Executive Dashboard aggregation, all on
+import logging
 real routes.
 
 Throwaway SQLite app, throwaway JWT keys -- never the real database.

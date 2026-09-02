@@ -5,6 +5,7 @@ a public route, a properly-declared route, and a route with no
 declaration at all.
 """
 import pytest
+import logging
 from fastapi import Depends, FastAPI
 
 from app.core.dependencies import require_permission, require_attribute

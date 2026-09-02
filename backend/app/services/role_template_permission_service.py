@@ -1,4 +1,5 @@
 """
+import logging
 Role Template Permission Service - Simplified single-role with custom overrides.
 
 Architecture (Option C):
@@ -14,6 +15,7 @@ from app.models.role_template import RoleTemplate, RoleTemplatePermission, Resou
 from app.models.user import Users
 from app.core.logging import logger
 
+logger = logging.getLogger(__name__)
 
 class RoleTemplatePermissionService:
     """
@@ -176,6 +178,7 @@ class RoleTemplatePermissionService:
             # or have a super_user flag in the database
             return getattr(role, 'is_super_user', False) or role.name in ['Super User', 'Admin']
         except Exception as e:
+           logger.error(f"Error: {str(e)}", exc_info=True)
             logger.error(f"is_super_user({user_id}): {e}", exc_info=True)
             return False
 
@@ -300,6 +303,7 @@ class RoleTemplatePermissionService:
             return permissions
 
         except Exception as e:
+           logger.error(f"Error: {str(e)}", exc_info=True)
             logger.error(f"get_user_permissions({user_id}, tenant={tenant_id}): {e}", exc_info=True)
             # Reraise with proper context for auth.py to catch
             raise RuntimeError(f"Failed to get user permissions for user_id={user_id}: {str(e)}")

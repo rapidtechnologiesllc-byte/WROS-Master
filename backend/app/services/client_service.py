@@ -6,6 +6,7 @@ module docstring for why this extends HRMS-0102 rather than forking it).
 """
 import json
 from datetime import datetime
+import logging
 from typing import List, Optional
 
 from sqlalchemy.orm import Session
@@ -26,6 +27,7 @@ from app.services.notification_service import send_notification
 # deliberately excluded -- margin data is not their business to see.
 MARKUP_VISIBLE_ROLES = {"Super User", "BU Head", "Recruitment Manager", "Director"}
 
+logger = logging.getLogger(__name__)
 
 class ClientValidationError(Exception):
     pass
@@ -375,6 +377,7 @@ def assign_account_manager(
                     ),
                 )
             except Exception as exc:
+               logger.error(f"Error: {str(exc)}", exc_info=True)
                 logger.warning(f"[ClientService] Could not send AM assignment notification: {exc}")
 
     return client

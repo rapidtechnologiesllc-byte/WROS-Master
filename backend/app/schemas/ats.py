@@ -1,5 +1,6 @@
 """
 ATS Pydantic Schemas
+import logging
 """
 
 from datetime import datetime
@@ -7,6 +8,7 @@ from typing import List, Optional
 
 from pydantic import BaseModel
 
+logger = logging.getLogger(__name__)
 
 class ATSScoreBreakdown(BaseModel):
     """Fine-grained dimension scores."""

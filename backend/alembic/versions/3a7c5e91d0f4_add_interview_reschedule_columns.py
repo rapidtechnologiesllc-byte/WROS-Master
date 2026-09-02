@@ -1,3 +1,4 @@
+import logging
 """S-051/HRMS-0451: add interview reschedule columns, replace one-per-submission-level unique constraint with a partial index
 
 Revision ID: 3a7c5e91d0f4

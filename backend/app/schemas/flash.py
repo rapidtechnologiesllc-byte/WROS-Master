@@ -1,4 +1,5 @@
 """
+import logging
 Pydantic Schemas — Flash (internal query agent) surface.
 
 Renamed 2026-08-06 from "Ask Thunder" -- see app.api.v1.endpoints.flash
@@ -9,6 +10,7 @@ from typing import List, Optional, Dict, Any
 
 from pydantic import BaseModel, Field
 
+logger = logging.getLogger(__name__)
 
 class FlashHistoryTurn(BaseModel):
     """Backlog item, 2026-08-05 (wros_ask_thunder_bugs_and_memory_backlog):

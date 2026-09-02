@@ -3,6 +3,7 @@ GET /core-pull/specialty-pool-status, GET /core-pull/events, POST
 .../execute|override, POST /core-pull/replacement-plans -- proves S-353
 (HRMS-0514) Core-Pull Engine + S-373 (HRMS-0529) Specialty Pool Guard
 end-to-end on real routes, not just the service layer (see the
+import logging
 Definition of Done correction in CLAUDE.md).
 
 Throwaway SQLite app, throwaway JWT keys -- never the real database or

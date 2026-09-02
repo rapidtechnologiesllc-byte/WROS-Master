@@ -1,5 +1,6 @@
 """
 S-372/HRMS-0528 Confirmed vs Potential Demand Workflow
+import logging
 (app.services.demand_confirmation_service).
 
 Throwaway SQLite -- never the real database.

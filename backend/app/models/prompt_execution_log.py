@@ -1,4 +1,5 @@
 """
+import logging
 S-031/HRMS-0431 -- AI Prompt Framework.
 
 prompt_execution_log: a genuinely new table -- an LLM-call audit
@@ -17,6 +18,7 @@ from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, T
 
 from app.models.base import Base
 
+logger = logging.getLogger(__name__)
 
 class PromptExecutionLog(Base):
     __tablename__ = "prompt_execution_log"

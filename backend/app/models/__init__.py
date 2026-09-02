@@ -1,6 +1,7 @@
 """
 Models package initialization.
 Exports all models for easy importing.
+import logging
 """
 
 from app.models.base import Base
@@ -35,6 +36,7 @@ from app.models.newsletter import Newsletter, NewsletterSubscriber
 class Role:
     """Deprecated RBAC Role stub"""
     pass
+logger = logging.getLogger(__name__)
 
 class RoleAttribute:
     """Deprecated RBAC RoleAttribute stub"""

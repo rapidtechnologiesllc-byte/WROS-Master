@@ -1,3 +1,4 @@
+import logging
 """add tenant_id to candidates and jobs
 
 Revision ID: f2a3b4c5d6e7

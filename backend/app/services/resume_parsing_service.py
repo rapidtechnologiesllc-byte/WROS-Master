@@ -1,4 +1,5 @@
 """
+import logging
 S-028/HRMS-0428 -- Resume Parsing Engine.
 
 Real architecture facts (confirmed by reading the actual code before
@@ -63,6 +64,7 @@ MIN_RAW_TEXT_LENGTH = 100
 
 GEMINI_MODEL_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
 
+logger = logging.getLogger(__name__)
 
 class TextExtractionFailed(Exception):
     pass
@@ -98,6 +100,7 @@ def extract_raw_text(file_content: bytes, extension: str) -> str:
     except TextExtractionFailed:
         raise
     except Exception as exc:
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         raise TextExtractionFailed(f"Text extraction raised: {exc}") from exc
 
     if not text or len(text.strip()) < MIN_RAW_TEXT_LENGTH:
@@ -198,6 +201,7 @@ def _parse_with_slm(raw_text: str) -> Dict:
         return parsed
 
     except Exception as exc:
+       logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.error(f"[ResumeSLM] Parse error: {exc}")
         raise ValueError(f"SLM parsing failed: {exc}") from exc
 
@@ -231,6 +235,7 @@ def _notify_recruiter_of_parse_failure(db: Session, tenant_id: str, candidate: C
             message=f"Thunder couldn't auto-parse {candidate.candidateFirstName or candidate.candidateID}'s resume -- please review it manually.",
         )
     except Exception as exc:
+       logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[ResumeParsing] Failed to notify recruiter for candidate {candidate.candidateID}: {exc}")
 
 
@@ -264,6 +269,7 @@ def parse_resume(
     try:
         parsed_json = _parse_with_slm(raw_text)
     except Exception as exc:
+       logger.error(f"Error: {str(exc)}", exc_info=True)
         last_error = exc
         logger.warning(f"[ResumeSLM] Parse failed for candidate {candidate.candidateID}: {exc}")
 

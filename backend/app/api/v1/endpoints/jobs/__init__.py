@@ -1,5 +1,6 @@
 # Jobs microservice package
 from fastapi import APIRouter
+import logging
 from app.api.v1.endpoints.jobs.crud import router as crud_router
 
 router = APIRouter()

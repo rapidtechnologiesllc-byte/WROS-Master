@@ -1,4 +1,5 @@
 """
+import logging
 Client list + create.
 
 The GET here originally powered filter dropdowns only, on the

@@ -1,5 +1,6 @@
 import os
 from datetime import datetime, timedelta
+import logging
 from typing import Optional
 
 ALGORITHM = "HS256"

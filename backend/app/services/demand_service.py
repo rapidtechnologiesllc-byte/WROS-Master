@@ -1,12 +1,14 @@
 """HRMS-0103 — demand creation, status state machine, and the
 bench-first sourcing gate (R-04)."""
 import json
+import logging
 from typing import Optional
 
 from sqlalchemy.orm import Session
 
 from app.models.demand import ALLOWED_DEMAND_TRANSITIONS, Demand, DemandHistory
 
+logger = logging.getLogger(__name__)
 
 class InvalidDemandTransition(Exception):
     pass

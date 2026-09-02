@@ -1,4 +1,5 @@
 """
+import logging
 Candidate Status Management API
 
 Endpoints for updating and viewing a candidate's:
@@ -212,6 +213,7 @@ def _send_approval_notifications(candidate: Candidate, cs: CandidateStatus, assi
             )
             logger.info(f"[Approval] Sent approval notification to candidate: {candidate.candidateEmail}")
         except Exception as exc:
+           logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.warning(f"[Approval] Could not email candidate: {exc}")
 
     # ── 4. Send email to hiring manager ──
@@ -230,6 +232,7 @@ def _send_approval_notifications(candidate: Candidate, cs: CandidateStatus, assi
             )
             logger.info(f"[Approval] Sent approval notification to hiring manager: {hiring_manager_email}")
         except Exception as exc:
+           logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.warning(f"[Approval] Could not email hiring manager: {exc}")
 
     # ── 5. Send email to recruiter ──
@@ -248,6 +251,7 @@ def _send_approval_notifications(candidate: Candidate, cs: CandidateStatus, assi
             )
             logger.info(f"[Approval] Sent approval notification to recruiter: {recruiter_email}")
         except Exception as exc:
+           logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.warning(f"[Approval] Could not email recruiter: {exc}")
 
 def _build_status_response(candidate: Candidate, cs: Optional[CandidateStatus]) -> CandidateStatusResponse:

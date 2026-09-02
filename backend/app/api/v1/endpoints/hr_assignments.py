@@ -1,6 +1,7 @@
 """
 HR Assignments API
 ==================
+import logging
 Routes (prefix: /hr-assignments, tag: hr-assignments):
 
   POST   /hr-assignments/                          â€” Create a new HR assignment

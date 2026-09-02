@@ -1,4 +1,5 @@
 """
+import logging
 S-041/HRMS-0441 -- Follow-Up Scheduler.
 
 Real architecture adaptations:
@@ -285,6 +286,7 @@ def run_follow_up_execution_job(db: Session, *, now: Optional[datetime] = None) 
             db.commit()
             result["skipped"] += 1
         except Exception as exc:
+           logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.error(f"[FollowUpScheduler] Unexpected failure processing follow-up id={row.id}: {exc}")
             db.rollback()
             row = db.query(FollowUpSchedule).filter(FollowUpSchedule.id == row.id).first()

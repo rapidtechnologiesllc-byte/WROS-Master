@@ -1,4 +1,5 @@
 """
+import logging
 S-046/HRMS-0446 -- Candidate Abandonment Prediction.
 
 Real architecture under test (see abandonment_scoring_service module

@@ -1,4 +1,5 @@
 """
+import logging
 Permission Enforcement Layer - Middleware and decorators for V, C, E, D permissions.
 
 This module provides:
@@ -347,8 +348,7 @@ def _log_permission_check(
         )
         db.add(audit_log)
         db.commit()
-    except Exception as e:
-        logger.error(f"Failed to log permission check: {str(e)}")
+    except Exception as e:        logger.error(f"Failed to log permission check: {str(e)}")
         # Don't raise - audit logging failure shouldn't break the app
 
 

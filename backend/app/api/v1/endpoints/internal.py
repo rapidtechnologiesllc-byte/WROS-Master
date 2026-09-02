@@ -2,6 +2,7 @@
 Internal HR Notes API
 =====================
 Private notes that HR team members can attach to a candidate for internal
+import logging
 tracking. Notes are never exposed to the candidate.
 
 Routes:

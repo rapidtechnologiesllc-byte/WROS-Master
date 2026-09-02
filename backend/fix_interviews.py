@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import logging
 """Fix malformed f-strings in interviews.py."""
 
 import re

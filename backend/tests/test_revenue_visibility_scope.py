@@ -3,6 +3,7 @@ EPIC-02/03 access spec, 2026-08-05 (app.core.revenue_visibility_scope).
 Avinash: "Epic 2,3 is only visible to ceo, partner (only for their
 BU); BU head (Only for their BU); finance & HR manager (no actual
 p&l)." Refined: "a partner has it's own clients and the work is done
+import logging
 in their BU only" -- BU ownership is Client.business_unit_id.
 
 Real RBAC seed (RBACService.seed_roles_and_permissions), throwaway

@@ -5,6 +5,7 @@ candidate who isn't a fit right now shouldn't just be `closed` -- keep
 watching for a future job that fits, nudge only when a real match
 appears, never on a recurring schedule ("that doesn't mean we reach
 out daily or weekly... only when we know we can convert the
+import logging
 candidate").
 
 Trigger for entering the watch: the ONE real, live "conversation

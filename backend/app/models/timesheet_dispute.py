@@ -1,4 +1,5 @@
 """
+import logging
 HRMS-0904 -- Timesheet Dispute Resolution, Phase 2 Domain 4.
 
 Builds directly on the existing Timesheet/TimesheetEntry tables
@@ -31,6 +32,7 @@ DISPUTE_RAISED_BY = ("RM", "EMPLOYEE", "CLIENT")
 DISPUTE_STATUSES = ("OPEN", "UNDER_REVIEW", "RESOLVED_ADJUSTED", "RESOLVED_CONFIRMED", "CANCELLED")
 OPEN_DISPUTE_STATUSES = ("OPEN", "UNDER_REVIEW")
 
+logger = logging.getLogger(__name__)
 
 class TimesheetDispute(Base):
     __tablename__ = "timesheet_disputes"

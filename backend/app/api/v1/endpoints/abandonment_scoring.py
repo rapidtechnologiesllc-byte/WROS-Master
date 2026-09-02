@@ -2,6 +2,7 @@
 S-046/HRMS-0446 -- Candidate Abandonment Prediction
 ==================================================================
 Prefix: /candidates
+import logging
 Tag:    abandonment-scoring
 
 GET /candidates/{candidate_id}/abandonment-score

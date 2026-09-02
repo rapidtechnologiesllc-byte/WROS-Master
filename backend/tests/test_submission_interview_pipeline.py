@@ -1,6 +1,7 @@
 """
 Proves HRMS-0711 (Client Submission Pipeline) and HRMS-0706 (Interview
 Panel Assignment) -- the piece connecting Demand -> Candidate ->
+import logging
 Employee.
 
 Covers the hard-block compliance gates this session decided to build

@@ -1,4 +1,5 @@
 """
+import logging
 Finance Monitoring Endpoints - Real-time P&L Tracking
 
 Provides real-time profitability monitoring with:
@@ -130,6 +131,7 @@ async def get_finance_dashboard(
             raise HTTPException(status_code=403, detail="No finance dashboard access for your role")
 
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Finance calculation error: {str(e)}")
 
 

@@ -1,4 +1,5 @@
 """
+import logging
 Tests for S-324/HRMS-ONBOARDING-WORKFLOW REST API endpoints.
 
 Test coverage for:
@@ -22,6 +23,7 @@ from app.models.onboarding_workflow import OnboardingWorkflow
 
 client = TestClient(app)
 
+logger = logging.getLogger(__name__)
 
 class TestStartOnboardingEndpoint:
     """Test POST /onboarding-workflow/start endpoint."""

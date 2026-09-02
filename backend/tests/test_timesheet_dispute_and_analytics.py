@@ -2,6 +2,7 @@
 Proves HRMS-0904 (Timesheet Dispute Resolution -- BR-01 original
 timesheet never mutated, BR-02 has_open_dispute hook) and HRMS-0905
 (Timesheet Analytics & Compliance -- BR-01 on-time/late/missing
+import logging
 classification, BR-02 Phase 2 hours-based utilization).
 
 Throwaway SQLite -- never the real database.

@@ -1,3 +1,4 @@
+import logging
 """updated checklist
 
 Revision ID: 062d495fb7f3

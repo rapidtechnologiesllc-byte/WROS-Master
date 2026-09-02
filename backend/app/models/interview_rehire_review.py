@@ -4,6 +4,7 @@ Avinash on 2026-08-05 (see wros_interview_regrouping_and_rehire_guard_priority
 memory): "if there was a nohire in the past then when the next time
 someone is trying to schedule interview to the candidate they need to
 provide a clear justification an agentic bot should review and decide
+import logging
 or take approval from hiring manager before scheduling the interview."
 
 Attaches to the LEGACY interview system (app.models.user.InterviewPanel/
@@ -30,6 +31,7 @@ from app.models.base import Base
 REHIRE_REVIEW_STATUSES = ("PENDING_HM_APPROVAL", "AI_CLEARED", "APPROVED", "REJECTED")
 AI_DECISIONS = ("CLEAR", "ESCALATE")
 
+logger = logging.getLogger(__name__)
 
 class InterviewRehireReview(Base):
     __tablename__ = "interview_rehire_reviews"

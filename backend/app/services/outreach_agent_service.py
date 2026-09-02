@@ -1,4 +1,5 @@
 """
+import logging
 HRMS-1104 -- Automated Outreach Agent (Phase 3 Workstream 1 / Recruit).
 
 Bridges HRMS-1103's promoted candidates to Thunder's conversation
@@ -46,6 +47,7 @@ from app.services.whatsapp_routing_service import ConversationOwnedByHuman
 DEBOUNCE_WINDOW_HOURS = 24   # Step 2
 RESPONSE_WAIT_HOURS = 48     # Step 6
 
+logger = logging.getLogger(__name__)
 
 class OutreachDebounced(Exception):
     """Step 2: an active sequence already exists for this candidate+demand
@@ -207,6 +209,7 @@ def _attempt_send(
                 action_type="outreach_send", risk_tier="LOW", tenant_id=sequence.tenant_id,
             )
         except Exception as exc:
+            logger.error(f"Error: {str(exc)}", exc_info=True)
             # Covers both ActionBlocked (e.g. BR-1101-01's outreach-vs-
             # Core-Pull collision) and any other router-raised halt --
             # do not send this touch; leave it retryable later.

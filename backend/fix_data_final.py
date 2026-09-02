@@ -5,6 +5,7 @@ Uses correct schema:
 - Candidate.bu_context_id (not business_unit_id)
 - No pipeline_status field (not needed)
 - Opportunity.candidate_id with correct model structure
+import logging
 """
 
 import sys
@@ -51,6 +52,8 @@ def fix_all_issues():
             print(f"    ✅ SuperUser already assigned to tenant")
             issues_fixed.append("✅ SuperUser tenant assignment")
     except Exception as e:
+       logger.error(f"Error: {str(e)}", exc_info=True)
+        logger.error(f"Error: {str(e)}", exc_info=True)
         print(f"    ❌ Error: {str(e)}")
         db.rollback()
     finally:
@@ -109,6 +112,8 @@ def fix_all_issues():
             print("    ✅ All candidates have BU context")
             issues_fixed.append("✅ All candidates have BU context")
     except Exception as e:
+       logger.error(f"Error: {str(e)}", exc_info=True)
+        logger.error(f"Error: {str(e)}", exc_info=True)
         print(f"    ❌ Error: {str(e)}")
         db.rollback()
     finally:
@@ -144,6 +149,8 @@ def fix_all_issues():
                         db.add(opportunity)
                         created_count += 1
                     except Exception as e:
+                       logger.error(f"Error: {str(e)}", exc_info=True)
+                        logger.error(f"Error: {str(e)}", exc_info=True)
                         # Skip if opportunity creation fails for this candidate
                         pass
 
@@ -157,6 +164,8 @@ def fix_all_issues():
         else:
             print("    ⚠️  No jobs in database")
     except Exception as e:
+       logger.error(f"Error: {str(e)}", exc_info=True)
+        logger.error(f"Error: {str(e)}", exc_info=True)
         print(f"    ❌ Error: {str(e)}")
         db.rollback()
     finally:
@@ -179,6 +188,8 @@ def fix_all_issues():
 
         issues_fixed.append("✅ Candidate data verification complete")
     except Exception as e:
+       logger.error(f"Error: {str(e)}", exc_info=True)
+        logger.error(f"Error: {str(e)}", exc_info=True)
         print(f"    ❌ Error: {str(e)}")
     finally:
         db.close()

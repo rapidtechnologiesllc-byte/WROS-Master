@@ -1,3 +1,4 @@
+import logging
 """add opportunities table, extend clients + demands (HRMS-0201/0207/0210/0211)
 
 Revision ID: e5f6a7b8c9d1

@@ -4,6 +4,7 @@ incentive after MSA is signed and first revenue invoice... this is not
 applicable to Curtis... when we add more sales people in the future we
 need to also check if they are eligible." Proves the rule is genuinely
 data-driven -- Curtis stays ineligible for NEW_LOGO_BONUS purely
+import logging
 because he has no rule row, no special-case code anywhere.
 
 Throwaway SQLite -- never the real database.

@@ -4,12 +4,14 @@ Request/Response models for interview decision endpoints.
 """
 from pydantic import BaseModel, Field
 from typing import Optional, List, Dict, Any
+import logging
 from datetime import datetime
 
 
 # ────────────────────────────────────────────────────────────────────────────
 # Request Schemas
 # ────────────────────────────────────────────────────────────────────────────
+logger = logging.getLogger(__name__)
 
 class GetInterviewStatusRequest(BaseModel):
     """Request to get interview status."""

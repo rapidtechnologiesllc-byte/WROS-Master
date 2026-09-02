@@ -1,6 +1,7 @@
 """
 Candidate History Model
 =======================
+import logging
 Stores a chronological audit trail / timeline for every candidate.
 
 Each row represents one event in the candidate's journey, for example:
@@ -18,6 +19,7 @@ from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text, func
 from sqlalchemy.orm import relationship
 from app.models.base import Base
 
+logger = logging.getLogger(__name__)
 
 class CandidateHistory(Base):
     __tablename__ = "candidate_history"

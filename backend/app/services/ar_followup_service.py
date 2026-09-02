@@ -7,6 +7,7 @@ exact Task+notify pattern already proven live for expense approvals
 not a new mechanism.
 """
 from datetime import date, datetime, timedelta
+import logging
 from typing import List, Optional
 
 from sqlalchemy.orm import Session

@@ -101,6 +101,7 @@ class HiringManagerValidationService:
             }
 
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             db.rollback()
             logger.error(f"Failed to create validation questions: {str(e)}")
             raise
@@ -227,6 +228,7 @@ class HiringManagerValidationService:
             }
 
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             db.rollback()
             logger.error(f"Failed to send validation to HM: {str(e)}")
             raise
@@ -324,6 +326,7 @@ class HiringManagerValidationService:
             }
 
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             db.rollback()
             logger.error(f"Failed to record HM response: {str(e)}")
             raise
@@ -481,8 +484,7 @@ class HiringManagerValidationService:
 
             return None
 
-        except Exception as e:
-            logger.error(f"Failed to schedule interview: {str(e)}")
+        except Exception as e:            logger.error(f"Failed to schedule interview: {str(e)}")
             return None
 
     async def return_candidate_to_pool(
@@ -508,8 +510,7 @@ class HiringManagerValidationService:
             # TODO: Trigger "try next candidate" in Thunder
             # This would call thunder_service.try_next_candidate(job_id=validation.job_id)
 
-        except Exception as e:
-            logger.error(f"Failed to return candidate to pool: {str(e)}")
+        except Exception as e:            logger.error(f"Failed to return candidate to pool: {str(e)}")
 
     async def escalate_validation(
         self,
@@ -550,6 +551,7 @@ class HiringManagerValidationService:
             # )
 
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             db.rollback()
             logger.error(f"Failed to escalate validation: {str(e)}")
 
@@ -592,8 +594,7 @@ class HiringManagerValidationService:
             #     is_reminder=is_reminder
             # )
 
-        except Exception as e:
-            logger.error(f"Failed to send email: {str(e)}")
+        except Exception as e:            logger.error(f"Failed to send email: {str(e)}")
 
     def get_validation_stats(self, db: Session, job_id: Optional[str] = None) -> Dict[str, Any]:
         """
@@ -640,6 +641,5 @@ class HiringManagerValidationService:
                 "rejection_rate": round(rejection_rate, 2)
             }
 
-        except Exception as e:
-            logger.error(f"Failed to get validation stats: {str(e)}")
+        except Exception as e:            logger.error(f"Failed to get validation stats: {str(e)}")
             return {}

@@ -1,4 +1,5 @@
 """
+import logging
 S-066/HRMS-0466 -- Supervisor Agent, Multi-Agent Coordinator.
 
 Real architecture adaptation (per Avinash's explicit direction,
@@ -160,6 +161,7 @@ def _run_cycle_for_tenant(db: Session, tenant_id: str, window_start: datetime, t
             else:
                 evaluated += 1
         except Exception as exc:
+            logger.error(f"Error: {str(exc)}", exc_info=True)
             db.add(AgentExecutionLog(
                 tenant_id=tenant_id, candidate_id=conversation.candidate_id,
                 agent_name="SupervisorAgent", action_taken="EVALUATION_FAILED",
@@ -182,6 +184,7 @@ def _run_cycle_for_tenant(db: Session, tenant_id: str, window_start: datetime, t
         actions_dispatched = breakdown.get("thunder_actions", 0)
         thunder_autonomy_pct = breakdown.get("thunder_pct")
     except Exception as exc:
+       logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[SupervisorAgent] Could not compute thunder analytics for tenant {tenant_id!r}: {exc}")
 
     duration_ms = int((datetime.utcnow() - cycle_started).total_seconds() * 1000)
@@ -197,6 +200,7 @@ def _run_cycle_for_tenant(db: Session, tenant_id: str, window_start: datetime, t
             tenant_id,
         )
     except Exception as exc:
+       logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[SupervisorAgent] Failed to emit supervisor.cycle_completed for tenant {tenant_id!r}: {exc}")
 
     return {
@@ -224,6 +228,7 @@ def run_supervisor_cycle(db: Session, tenant_id: Optional[str] = None) -> Dict:
             overall["conflicts_detected"] += result["conflicts_detected"]
             overall["tenants_processed"] += 1
         except Exception as exc:
+           logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.error(f"[SupervisorAgent] Cycle failed for tenant {tid!r}: {exc}")
 
     return overall

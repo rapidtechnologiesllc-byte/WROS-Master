@@ -3,6 +3,7 @@ Proves HRMS-0109's acceptance test on REAL, live routes -- not just the
 get_tenant_scoped_query() helper in isolation. Two tenants, each with
 their own recruiter and candidates; a recruiter's list-candidates call
 must return only their own tenant's data, on the actual
+import logging
 GET /hr/get_all_candidates endpoint.
 
 Throwaway SQLite app, throwaway JWT keys -- never the real database or

@@ -1,4 +1,5 @@
 """
+import logging
 Recruitment Funnel Dashboard - Real-time visibility into Phase 1 agent effectiveness.
 
 Shows the complete candidate journey through our autonomous hiring pipeline:
@@ -24,6 +25,7 @@ from app.models.offer_letter import OfferLetter
 from app.models.employee import Employee
 from app.models.business_unit import BusinessUnit
 
+logger = logging.getLogger(__name__)
 
 class RecruitmentFunnelDashboard:
     """Real-time recruitment funnel showing all 5 pillars."""

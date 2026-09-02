@@ -1,6 +1,7 @@
 """
 Unit Tests for Hiring Manager Validation Service (HRMS-1104 / S-319)
 Focused on business logic without database setup
+import logging
 """
 
 import pytest
@@ -16,6 +17,7 @@ def service():
     """Create service instance"""
     return HiringManagerValidationService()
 
+logger = logging.getLogger(__name__)
 
 class TestDetermineDecision:
     """Test decision determination logic (most important business logic)"""

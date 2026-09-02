@@ -1,3 +1,4 @@
+import logging
 """Fix role template constraints for production safety.
 
 Add NOT NULL constraints and ensure all existing role templates are enabled.

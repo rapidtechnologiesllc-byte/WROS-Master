@@ -1,4 +1,5 @@
 """
+import logging
 SLM Daily Improvement Loop - Automatically learns from production usage
 
 Runs once daily (configurable time):
@@ -27,6 +28,7 @@ from app.core.logging import logger
 from app.services.slm_feedback_engine import SLMFeedbackEngine, SLMModelVersion
 from app.models.candidate_resume_parsed import CandidateResumeParsed
 
+logger = logging.getLogger(__name__)
 
 class SLMDailyImprovement:
     """Automated daily learning and improvement"""
@@ -302,6 +304,7 @@ class SLMImprovementScheduler:
                 )
                 logger.info(f"[SLMScheduler] Posted status: {status_message}")
             except Exception as e:
+               logger.error(f"Error: {str(e)}", exc_info=True)
                 logger.error(f"[SLMScheduler] Failed to post status message: {e}")
                 # Continue even if message posting fails
 
@@ -316,6 +319,7 @@ class SLMImprovementScheduler:
             }
 
         except Exception as e:
+           logger.error(f"Error: {str(e)}", exc_info=True)
             logger.error(f"[SLMScheduler] Improvement cycle failed: {e}", exc_info=True)
             return {
                 "status": "error",
@@ -346,6 +350,7 @@ class SLMImprovementScheduler:
             return report
 
         except Exception as e:
+           logger.error(f"Error: {str(e)}", exc_info=True)
             logger.error(f"[SLMScheduler] Daily improvement failed: {e}")
             return {"status": "error", "error": str(e)}
 

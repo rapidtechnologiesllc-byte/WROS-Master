@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import logging
 """Clean up interviews.py by removing corrupted emoji and fixing f-strings."""
 
 filepath = 'app/api/v1/endpoints/interviews.py'

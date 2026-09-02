@@ -1,4 +1,5 @@
 """
+import logging
 HRMS-1102 -- Workforce Demand Monitoring Agent.
 
 Per the story doc's own framing: this agent decides WHEN sourcing

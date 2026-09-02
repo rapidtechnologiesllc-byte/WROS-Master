@@ -2,6 +2,7 @@
 Proves HRMS-0101 (+ 0101-REV): employee number generation, the status
 state machine (transitions validated, history logged, invalid
 transitions rejected), the DB-level CORE-requires-certified guard, and
+import logging
 AES-256 field encryption for bank details.
 
 Throwaway SQLite -- never the real database.

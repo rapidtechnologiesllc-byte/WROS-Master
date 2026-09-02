@@ -1,3 +1,4 @@
+import logging
 """Initialize System Decision Policies
 
 This script seeds core policies that the system enforces:
@@ -81,8 +82,7 @@ def create_policy(
             session.add(policy)
             session.commit()
             return policy
-    except Exception as e:
-        logger.error(f"Failed to create policy {policy_name}: {e}")
+    except Exception as e:        logger.error(f"Failed to create policy {policy_name}: {e}")
         raise
 
 
@@ -310,6 +310,7 @@ def init_policies():
         return True
 
     except Exception as e:
+       logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"ERROR initializing policies: {e}", exc_info=True)
         session.rollback()
         return False

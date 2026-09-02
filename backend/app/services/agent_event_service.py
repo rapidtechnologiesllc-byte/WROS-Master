@@ -1,3 +1,4 @@
+import logging
 """Agent Event Service - Inter-agent communication via structured events."""
 
 from sqlalchemy.orm import Session
@@ -7,6 +8,7 @@ from sqlalchemy import Column, String, Integer, DateTime, Text, JSON, Boolean
 from app.models.base import Base
 import uuid
 import json
+logger = logging.getLogger(__name__)
 
 class AgentEvent(Base):
     """Structured event for inter-agent communication."""
@@ -125,6 +127,7 @@ class AgentEventService:
             }
 
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             db.rollback()
             return {"status": "error", "message": str(e)}
 
@@ -155,6 +158,7 @@ class AgentEventService:
             ]
 
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             # CRITICAL FIX: Raise error instead of returning empty list
             raise Exception(f"Failed to get pending events for agent {agent_name}: {str(e)}")
 
@@ -195,6 +199,7 @@ class AgentEventService:
             }
 
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             db.rollback()
             return {"status": "error", "message": str(e)}
 
@@ -227,6 +232,7 @@ class AgentEventService:
             }
 
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             db.rollback()
             return {"status": "error", "message": str(e)}
 

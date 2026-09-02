@@ -1,4 +1,5 @@
 """
+import logging
 S-061/HRMS-0461 -- AI Activity Feed, Recruiter Copilot.
 
 Real architecture under test (see activity_feed_service module

@@ -4,6 +4,7 @@ S-247 (View Bench Pool) + S-248 (Bench Duration & Aging Report) — API
 Endpoints
 =========================================================================
 Prefix: /employees
+import logging
 Tag:    employees
 
 No employee REST API of any kind previously existed in this codebase
@@ -251,6 +252,7 @@ async def bulk_import_employees(
     try:
         wb = load_workbook(io.BytesIO(raw), read_only=True, data_only=True)
     except Exception as exc:
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         raise HTTPException(status_code=422, detail=f"Could not read the uploaded file as .xlsx: {exc}")
     ws = wb.active
 
@@ -330,6 +332,7 @@ async def bulk_import_employees(
             skipped += 1
             errors.append(BulkImportRowError(row=row_num, email=str(email) if email else None, reason=str(exc)))
         except Exception as exc:
+            logger.error(f"Error: {str(exc)}", exc_info=True)
             db.rollback()
             skipped += 1
             errors.append(BulkImportRowError(row=row_num, email=str(email) if email else None, reason=str(exc)))

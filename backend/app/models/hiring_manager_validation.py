@@ -1,6 +1,7 @@
 """
 Hiring Manager Validation Models
 Manages validation of candidates by hiring managers before interviews
+import logging
 """
 
 from datetime import datetime
@@ -9,6 +10,7 @@ from sqlalchemy.orm import relationship
 from app.models.base import Base
 from enum import Enum as PyEnum
 
+logger = logging.getLogger(__name__)
 
 class HMValidationStatus(str, PyEnum):
     """Hiring Manager validation state machine"""

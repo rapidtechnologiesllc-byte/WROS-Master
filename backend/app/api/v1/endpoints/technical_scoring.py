@@ -5,6 +5,7 @@ S-039/HRMS-0439 -- Availability Score
 S-040/HRMS-0440 -- Overall Candidate Score & Ranking
 ==================================================================
 Prefix: /candidates, /jobs
+import logging
 Tag:    technical-scoring
 
 GET /candidates/{candidate_id}/jobs/{job_id}/score

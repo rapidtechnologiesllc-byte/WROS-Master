@@ -2,6 +2,7 @@
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
+import logging
 from pathlib import Path
 
 from app.core.config import settings
@@ -70,6 +71,7 @@ async def log_unhandled_exception(request: Request, exc: Exception):
             request_context={"method": request.method, "path": request.url.path},
         )
     except Exception as logging_exc:
+       logger.error(f"Error: {str(logging_exc)}", exc_info=True)
         logger.error(f"[ErrorLog] Failed to record unhandled exception: {logging_exc}")
     finally:
         db.close()
@@ -122,6 +124,7 @@ async def startup_event():
         Base.metadata.create_all(bind=engine, checkfirst=True)
         logger.info("[OK] Database tables initialized")
     except Exception as exc:
+       logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.error(f"[Startup] Failed to create DB tables: {exc}", exc_info=True)
         return  # Don't crash startup, but tables won't exist
 
@@ -130,6 +133,7 @@ async def startup_event():
         from app.core.db_contract import initialize_database
         initialize_database()
     except Exception as exc:
+       logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.error(f"[Startup] Failed to initialize database contract: {exc}", exc_info=True)
         return  # Don't crash startup, but contract won't be initialized
 
@@ -143,6 +147,7 @@ async def startup_event():
         db.close()
         logger.info(f"[OK] Organizational positions initialized (created: {result['created']}, updated: {result['updated']})")
     except Exception as exc:
+       logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.error(f"[Startup] Failed to initialize org positions: {exc}", exc_info=True)
 
     # Seed RBAC with retries
@@ -175,6 +180,7 @@ async def startup_event():
     #                 "The app will run but role/permission data may be incomplete."
     #             )
     #     except Exception as exc:
+    logger.error(f"Error: {str(exc)}", exc_info=True)
     #         logger.error(f"[Startup] Non-retryable error during RBAC seed: {exc}", exc_info=True)
 
     logger.info(f"[OK] {settings.APP_NAME} v{settings.APP_VERSION} started successfully (no seed data)")

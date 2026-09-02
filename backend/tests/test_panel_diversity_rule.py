@@ -9,6 +9,7 @@ on a DIFFERENT job's panel for this same candidate. Throwaway SQLite --
 never the real database.
 """
 import os
+import logging
 import tempfile
 
 import pytest

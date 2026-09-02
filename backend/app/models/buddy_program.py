@@ -1,4 +1,5 @@
 """
+import logging
 S-364/HRMS-0520 -- 30-Day Buddy Program: 35-KPI Framework & Tracking.
 
 The 35 KPI definitions (name + category + number) are fixed, BU-Head-
@@ -21,6 +22,7 @@ KPI_CATEGORIES = ("HR", "BUDDY", "RM")
 def _new_uuid() -> str:
     return str(uuid.uuid4())
 
+logger = logging.getLogger(__name__)
 
 class BuddyProgramRecord(Base):
     __tablename__ = "buddy_program_records"

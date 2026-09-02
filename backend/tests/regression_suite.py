@@ -1,5 +1,6 @@
 """
 COMPREHENSIVE REGRESSION SUITE - Tests EVERY screen, EVERY API, EVERY feature
+import logging
 Designed to run continuously in background and attempt to break the system
 
 Structure:
@@ -75,6 +76,7 @@ def test_candidate(db: Session, test_tenant):
 # ============================================================================
 # 1. API INTEGRATION TESTS - Test all endpoints
 # ============================================================================
+logger = logging.getLogger(__name__)
 
 class TestAPIEndpoints:
     """Test every API endpoint for correct status codes and responses"""
@@ -222,6 +224,7 @@ class TestServiceLogic:
                 channel="email"
             )
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             # Should handle gracefully
             assert True
 
@@ -274,6 +277,7 @@ Test Candidate 2,test2@test.com,8888888888,LA,Java Developer
             )
             assert result is not None
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             # Should handle bulk import gracefully
             assert True
 
@@ -326,6 +330,7 @@ class TestStressAndLoad:
             # Should handle large imports
             assert result is not None
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             # Should not crash, should handle gracefully
             assert "handled" in str(e).lower() or True
 

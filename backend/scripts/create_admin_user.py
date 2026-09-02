@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
 Create a Super User admin account in production.
+import logging
 Run on production server via SSH.
 
 Usage:
@@ -95,6 +96,7 @@ def create_super_user():
         return True
 
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         print(f"\nERROR: Failed to create user: {str(e)}")
         try:
             db.rollback()

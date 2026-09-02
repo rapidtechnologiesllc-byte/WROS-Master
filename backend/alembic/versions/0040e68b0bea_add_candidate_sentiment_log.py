@@ -1,3 +1,4 @@
+import logging
 """S-036/HRMS-0436: add candidate_sentiment_log table
 
 Revision ID: 0040e68b0bea

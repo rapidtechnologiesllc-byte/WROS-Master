@@ -1,5 +1,6 @@
 """
 GET /sla/breaches -- HTTP wiring for S-020/HRMS-0420: recruiter-auth
+import logging
 gated, returns active NO_CONTACT breaches for the resolved tenant.
 
 Throwaway SQLite app, throwaway JWT keys -- never the real database.

@@ -1,4 +1,5 @@
 """
+import logging
 HRMS-1102 -- Workforce Demand Monitoring Agent.
 
 Proves: BR-1102-01 (R-04 hard gate, reusing the existing

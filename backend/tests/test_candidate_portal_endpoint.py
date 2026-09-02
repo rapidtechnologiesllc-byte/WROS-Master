@@ -1,6 +1,7 @@
 """
 GET/PATCH /portal/* -- HTTP wiring for S-017/HRMS-0417: real candidate
 JWT auth (the "magic link" itself, per candidate_portal_service's
+import logging
 module docstring), BR-02 cross-candidate isolation, happy paths.
 
 Throwaway SQLite app, throwaway JWT keys -- never the real database.

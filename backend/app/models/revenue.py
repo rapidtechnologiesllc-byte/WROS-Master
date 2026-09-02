@@ -1,4 +1,5 @@
 """
+import logging
 Revenue Recognition & P&L Attribution Model.
 
 Tracks revenue flows through the system:
@@ -28,6 +29,7 @@ def _new_uuid() -> str:
 REVENUE_SOURCES = ("INVOICE", "MANUAL_ADJUSTMENT", "CORRECTION")
 BUSINESS_TYPES = ("CORE", "SPECIALITY")
 
+logger = logging.getLogger(__name__)
 
 class Revenue(Base):
     __tablename__ = "revenues"

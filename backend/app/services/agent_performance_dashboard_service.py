@@ -1,3 +1,4 @@
+import logging
 """Agent Performance Dashboard - Individual agent metrics vs targets."""
 
 from sqlalchemy.orm import Session
@@ -8,6 +9,7 @@ from app.services.agent_registry_service import AGENT_REGISTRY
 from app.services import agent_state_service
 from app.models.agent_state_target import AgentActualPerformance
 
+logger = logging.getLogger(__name__)
 
 class AgentPerformanceDashboard:
     """Dashboard showing all 50+ agents with targets vs achievements."""
@@ -151,6 +153,7 @@ class AgentPerformanceDashboard:
             }
 
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             agent_cfg = AGENT_REGISTRY.get(agent_name, {})
             return {
                 "agent_name": agent_name,

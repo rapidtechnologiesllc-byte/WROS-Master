@@ -1,6 +1,7 @@
 ﻿"""
 Job Approval Workflow Service
 ==============================
+import logging
 Handles job approval routing and recruiter assignment after approval.
 
 Approval Hierarchy:
@@ -86,6 +87,7 @@ def send_approval_notification_email(db: Session, job: Jobs, approver: Users, re
         return True
 
     except Exception as e:
+       logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"[JobApproval] Failed to send approval email: {e}")
         return False
 
@@ -105,6 +107,7 @@ def assign_recruiter_on_approval(db: Session, job: Jobs) -> Optional[Users]:
             return None
 
     except Exception as e:
+       logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"[JobApproval] Failed to assign recruiter: {e}")
         db.rollback()
         return None
@@ -188,6 +191,7 @@ def handle_job_approval(
         }
 
     except Exception as e:
+       logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"[JobApproval] Error in job approval flow: {e}")
         db.rollback()
         raise

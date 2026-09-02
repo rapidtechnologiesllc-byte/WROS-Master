@@ -1,4 +1,5 @@
 import uuid
+import logging
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -100,6 +101,7 @@ def convert_candidate_to_employee(
             "message": f"Candidate {candidate.candidateFirstName} converted to employee successfully"
         }
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         db.rollback()
         logger.error(f"❌ Conversion failed: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Conversion failed: {str(e)}")

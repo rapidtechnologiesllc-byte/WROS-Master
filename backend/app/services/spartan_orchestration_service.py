@@ -72,8 +72,7 @@ class SpartanOrchestrationService:
             logger.info(f"Recruitment operation queued: {operation}, message_id={queue_result['message_id']}")
             return queue_result
 
-        except Exception as e:
-            logger.error(f"Failed to queue recruitment operation: {e}", exc_info=True)
+        except Exception as e:            logger.error(f"Failed to queue recruitment operation: {e}", exc_info=True)
             raise
 
     @staticmethod
@@ -105,8 +104,7 @@ class SpartanOrchestrationService:
             logger.info(f"Resource operation queued: {operation}, message_id={queue_result['message_id']}")
             return queue_result
 
-        except Exception as e:
-            logger.error(f"Failed to queue resource operation: {e}", exc_info=True)
+        except Exception as e:            logger.error(f"Failed to queue resource operation: {e}", exc_info=True)
             raise
 
     @staticmethod
@@ -138,8 +136,7 @@ class SpartanOrchestrationService:
             logger.info(f"Finance operation queued: {operation}, message_id={queue_result['message_id']}")
             return queue_result
 
-        except Exception as e:
-            logger.error(f"Failed to queue finance operation: {e}", exc_info=True)
+        except Exception as e:            logger.error(f"Failed to queue finance operation: {e}", exc_info=True)
             raise
 
     @staticmethod
@@ -173,8 +170,7 @@ class SpartanOrchestrationService:
             logger.info(f"Operation processed: {operation}, result_status={result.get('status') if result else 'unknown'}")
             return result or {"status": "unknown", "message_id": message_id}
 
-        except Exception as e:
-            logger.error(f"Failed to process queued operation: {e}", exc_info=True)
+        except Exception as e:            logger.error(f"Failed to process queued operation: {e}", exc_info=True)
             return {"status": "error", "error": str(e), "message_id": message_id}
 
     @staticmethod
@@ -195,6 +191,7 @@ class SpartanOrchestrationService:
                 return {"status": "success", "operation": operation, "employee_id": payload.get("employee_id")}
             return {"status": "unknown", "operation": operation}
         except Exception as e:
+           logger.error(f"Error: {str(e)}", exc_info=True)
             logger.error(f"Recruitment operation failed: {e}")
             return {"status": "error", "operation": operation, "error": str(e)}
 
@@ -214,6 +211,7 @@ class SpartanOrchestrationService:
                 return {"status": "success", "operation": operation, "demand_id": payload.get("demand_id")}
             return {"status": "unknown", "operation": operation}
         except Exception as e:
+           logger.error(f"Error: {str(e)}", exc_info=True)
             logger.error(f"Resource operation failed: {e}")
             return {"status": "error", "operation": operation, "error": str(e)}
 
@@ -250,6 +248,7 @@ class SpartanOrchestrationService:
                 return {"status": "success", "operation": operation, "revenue_id": result.get("revenue_id")}
             return {"status": "unknown", "operation": operation}
         except Exception as e:
+           logger.error(f"Error: {str(e)}", exc_info=True)
             logger.error(f"Finance operation failed: {e}")
             return {"status": "error", "operation": operation, "error": str(e)}
 
@@ -287,8 +286,7 @@ class SpartanOrchestrationService:
                 "kpis": phalanx_config["kpis"]
             }
 
-        except Exception as e:
-            logger.error(f"Failed to check phalanx integrity: {e}", exc_info=True)
+        except Exception as e:            logger.error(f"Failed to check phalanx integrity: {e}", exc_info=True)
             return {"phalanx": phalanx, "integrity": 0, "status": "error"}
 
     @staticmethod
@@ -311,6 +309,5 @@ class SpartanOrchestrationService:
                 "status": "STRONG" if avg_integrity >= 85 else "WEAKENING" if avg_integrity >= 70 else "FAILING"
             }
 
-        except Exception as e:
-            logger.error(f"Failed to get formation status: {e}", exc_info=True)
+        except Exception as e:            logger.error(f"Failed to get formation status: {e}", exc_info=True)
             raise

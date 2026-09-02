@@ -1,3 +1,4 @@
+import logging
 """S-024/HRMS-0424: add candidate_field_skips table
 
 Revision ID: a6b7c8d9e0f1

@@ -1,5 +1,6 @@
 """
 HRMS-1102 -- Workforce Demand Monitoring Agent (Phase 3 Workstream 1 /
+import logging
 Recruit), EPIC-11.
 
 Two tables, per S-271_HRMS-1102.docx's Data Mapping section:
@@ -48,6 +49,7 @@ STAGED_CANDIDATE_STATUSES = ("PENDING_REVIEW", "PROMOTED", "REJECTED")
 def _new_uuid() -> str:
     return str(uuid.uuid4())
 
+logger = logging.getLogger(__name__)
 
 class DemandGapScore(Base):
     """BR-1102-04: append-only -- app.services.demand_gap_monitoring_

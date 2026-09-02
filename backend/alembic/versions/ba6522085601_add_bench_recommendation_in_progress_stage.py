@@ -1,3 +1,4 @@
+import logging
 """widen bench_allocation_recommendations.status to include IN_PROGRESS + pursued_by/pursued_at
 
 Revision ID: ba6522085601

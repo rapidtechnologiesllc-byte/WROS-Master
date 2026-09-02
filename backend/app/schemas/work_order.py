@@ -1,5 +1,6 @@
 """
 Pydantic schemas for Work Order API (DEFECT-1: Work Order / PO Model)
+import logging
 """
 
 from datetime import date
@@ -7,6 +8,7 @@ from typing import List, Optional
 
 from pydantic import BaseModel, Field
 
+logger = logging.getLogger(__name__)
 
 class CreateWorkOrderRequest(BaseModel):
     """Create a new Work Order."""

@@ -1,6 +1,7 @@
 """
 Database Migration Utility
 ===========================
+import logging
 Easy-to-use script for managing Alembic database migrations.
 
 Usage:
@@ -80,6 +81,8 @@ def run_alembic_command(command, description=None):
         else:
             return False, result.stderr
     except Exception as e:
+       logger.error(f"Error: {str(e)}", exc_info=True)
+        logger.error(f"Error: {str(e)}", exc_info=True)
         return False, str(e)
 
 
@@ -105,6 +108,8 @@ def check_database_connection():
                 return True
                 
     except Exception as e:
+       logger.error(f"Error: {str(e)}", exc_info=True)
+        logger.error(f"Error: {str(e)}", exc_info=True)
         print_error(f"Database connection failed: {str(e)}")
         print_warning("Migrations may not work without database access")
         return False
@@ -394,5 +399,7 @@ if __name__ == "__main__":
         print(f"\n\n{YELLOW}Operation cancelled by user{RESET}")
         sys.exit(0)
     except Exception as e:
+       logger.error(f"Error: {str(e)}", exc_info=True)
+        logger.error(f"Error: {str(e)}", exc_info=True)
         print_error(f"Unexpected error: {str(e)}")
         sys.exit(1)

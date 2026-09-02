@@ -3,6 +3,7 @@ HRMS-0118's scan gate -- the Development & Review Standard's own named
 example of a schema field that implies a rule without the enforcement
 behind it: `CandidateDocument.is_virus_scanned` defaults to False and,
 before this module, nothing anywhere in this codebase ever set it or
+import logging
 checked it before serving a file back to a browser.
 
 Two pieces, matching this codebase's established pattern for
@@ -38,6 +39,7 @@ from app.models.document import CandidateDocument
 
 VIRUS_SCAN_RESULTS = ("clean", "infected", "error")
 
+logger = logging.getLogger(__name__)
 
 class VirusScanUnavailable(Exception):
     """Raised by the default scanner client -- no AV scanning service is

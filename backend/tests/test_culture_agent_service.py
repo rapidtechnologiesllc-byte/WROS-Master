@@ -1,5 +1,6 @@
 """
 Executive Signal & Culture Agent -- quarterly feedback cycle,
+import logging
 recognition draft-and-approve, dissatisfaction triage.
 
 Proves: recognition is drafted, never auto-sent (approve_and_send_recognition

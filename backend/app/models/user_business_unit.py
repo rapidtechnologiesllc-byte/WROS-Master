@@ -1,9 +1,11 @@
+import logging
 """User-BusinessUnit junction table for many-to-many relationship."""
 
 from sqlalchemy import Column, String, Integer, ForeignKey, DateTime, func
 from sqlalchemy.orm import relationship
 from app.models.base import Base
 
+logger = logging.getLogger(__name__)
 
 class UserBusinessUnit(Base):
     """Junction table for many-to-many relationship between Users and BusinessUnits."""

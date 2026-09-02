@@ -1,4 +1,5 @@
 """
+import logging
 Ready-for-opportunity workflow.
 
 Proves: start_watching() is idempotent (no duplicate active watches),

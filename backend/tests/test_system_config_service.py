@@ -1,4 +1,5 @@
 """
+import logging
 S-213/HRMS-0115 -- System Configuration & Admin Settings Panel.
 
 Proves: BU-specific override beats tenant default (AC-3/BR-0115-03),

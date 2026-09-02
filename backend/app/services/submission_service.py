@@ -1,4 +1,5 @@
 """
+import logging
 HRMS-0711 -- Client Submission Pipeline, Phase 2 Domain 2.
 
 Compliance gates (checkExperienceEligibility / checkMarketProfileRule /
@@ -53,6 +54,7 @@ MARKET_PROFILE_ALLOWED_EMPLOYEE_STATUSES = {"BENCH", "ACTIVE", "ALLOCATED"}
 # same as C2C/1099 (BR-02 of that story).
 EMPLOYMENT_TYPE_ALLOWED = {"W2_FULLTIME"}
 
+logger = logging.getLogger(__name__)
 
 class SubmissionComplianceError(Exception):
     """Raised with every failed gate's blocker, not just the first."""

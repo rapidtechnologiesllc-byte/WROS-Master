@@ -4,6 +4,7 @@ Initialize resources for ALL tenants (companies).
 Each tenant gets its own complete module/resource structure.
 """
 import sys, os
+import logging
 sys.path.insert(0, os.path.dirname(__file__))
 
 from app.core.database import SessionLocal, engine
@@ -79,6 +80,8 @@ try:
     print("  • Ready for permission assignment")
 
 except Exception as e:
+   logger.error(f"Error: {str(e)}", exc_info=True)
+    logger.error(f"Error: {str(e)}", exc_info=True)
     print(f"Error: {e}")
     import traceback
     traceback.print_exc()

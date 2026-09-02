@@ -1,4 +1,5 @@
 """
+import logging
 S-215/HRMS-0117 -- Error Logging Framework.
 
 Proves: log_error() writes a real DB-queryable row (AC-3's real

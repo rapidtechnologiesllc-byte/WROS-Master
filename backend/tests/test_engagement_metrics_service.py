@@ -1,4 +1,5 @@
 """
+import logging
 S-070/HRMS-0470 -- Candidate Engagement Health Metrics.
 
 Real architecture under test (see engagement_metrics_service module

@@ -2,6 +2,7 @@
 Secure Document Upload Endpoints
 Uses service layer for better separation of concerns and scalability.
 Uses service account authentication - candidates don't need Microsoft accounts.
+import logging
 """
 
 from typing import Optional
@@ -52,8 +53,7 @@ async def _upload_document_helper(
     # Get Microsoft Graph access token using service account
     try:
         access_token = get_graph_token()
-    except Exception as e:
-        logger.error(f"Failed to get Graph token: {str(e)}")
+    except Exception as e:        logger.error(f"Failed to get Graph token: {str(e)}")
         raise HTTPException(
             status_code=500, 
             detail="Failed to authenticate with SharePoint. Please contact administrator."
@@ -78,6 +78,7 @@ async def _upload_document_helper(
     except HTTPException:
         raise
     except Exception as e:
+       logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"SharePoint upload failed: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
     
@@ -117,8 +118,7 @@ async def _upload_document_helper(
             uploaded_at=document.uploaded_at
         )
         
-    except Exception as e:
-        logger.error(f"Failed to save document metadata: {str(e)}")
+    except Exception as e:        logger.error(f"Failed to save document metadata: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to save document metadata")
 
 
@@ -544,6 +544,7 @@ async def view_document(
     try:
         access_token = get_graph_token()
     except Exception as exc:
+       logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.error(f"Failed to get Graph token for document view: {exc}")
         raise HTTPException(status_code=500, detail="Failed to authenticate with SharePoint")
 
@@ -733,6 +734,7 @@ async def delete_all_candidate_documents(
     try:
         access_token = get_graph_token()
     except Exception as exc:
+       logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.error(f"[DeleteAllDocs] Failed to get Graph token: {exc}")
         raise HTTPException(
             status_code=500,
@@ -771,6 +773,7 @@ async def delete_all_candidate_documents(
                     f"(doc id={doc.id}, type={doc.document_type})."
                 )
         except Exception as exc:
+           logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.warning(
                 f"[DeleteAllDocs] Could not delete SharePoint item "
                 f"{doc.sharepoint_file_id} (doc id={doc.id}): {exc}"

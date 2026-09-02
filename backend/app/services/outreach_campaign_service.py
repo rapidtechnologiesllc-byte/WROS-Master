@@ -1,4 +1,5 @@
 """
+import logging
 S-044/HRMS-0444 -- Multi-Touch Outreach Campaign.
 
 Real architecture adaptations:
@@ -218,6 +219,7 @@ def run_campaign_execution_job(db: Session) -> Dict:
             db.commit()
             result["skipped"] += 1
         except Exception as exc:
+           logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.error(f"[OutreachCampaign] Unexpected failure processing touchpoint id={touchpoint.id}: {exc}")
             db.rollback()
             touchpoint = db.query(CampaignTouchpoint).filter(CampaignTouchpoint.id == touchpoint.id).first()

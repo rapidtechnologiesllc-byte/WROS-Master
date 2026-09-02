@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Test the /org/nodes endpoint to see what it returns"""
 import sys, os
+import logging
 sys.path.insert(0, os.path.dirname(__file__))
 
 from app.core.database import SessionLocal
@@ -38,6 +39,8 @@ try:
     print(json.dumps(response_json, indent=2, default=str))
 
 except Exception as e:
+   logger.error(f"Error: {str(e)}", exc_info=True)
+    logger.error(f"Error: {str(e)}", exc_info=True)
     print(f"Error: {e}")
     import traceback
     traceback.print_exc()

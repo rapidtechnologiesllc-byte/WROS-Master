@@ -3,6 +3,7 @@ EPIC-16 Fully Loaded Cost + Blended Delivery Rate. Gated at
 revenue.view_pnl -- cost/margin figures are the same P&L-adjacent tier
 as markup_rate_pct and revenue leakage detail elsewhere.
 """
+import logging
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException

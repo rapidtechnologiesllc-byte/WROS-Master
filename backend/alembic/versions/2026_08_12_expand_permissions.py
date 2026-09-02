@@ -1,3 +1,4 @@
+import logging
 """Expand RBAC permissions: add 60+ module×verb permissions (HubSpot-style model)
 
 Revision ID: 2026_08_12_expand_perms

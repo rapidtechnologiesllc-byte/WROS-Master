@@ -1,5 +1,6 @@
 """
 HRMS-0706 -- Interview Panel Assignment, Phase 2 Domain 2 (the interview
+import logging
 half of the piece connecting Demand -> Candidate -> Employee).
 
 New tables, deliberately NOT named `interview_panels` / `interviews` --
@@ -62,6 +63,7 @@ def _new_uuid() -> str:
 INTERVIEW_LEVELS = ("L1", "L2")
 INTERVIEW_OUTCOMES = ("PENDING", "PASS", "FAIL")
 
+logger = logging.getLogger(__name__)
 
 class DemandInterviewPanel(Base):
     """HRMS-0706 -- the pool of employees eligible to interview for a

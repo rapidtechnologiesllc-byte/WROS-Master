@@ -3,6 +3,7 @@ S-256/HRMS-0506 (canonical) — Resource Demand Planning / Future Demand
 vs Bench Forecast — API Endpoints
 =========================================================================
 Prefix: /resource-forecast
+import logging
 Tag:    resource-forecast
 
 Wires app.services.resource_forecast_service (new this round -- no

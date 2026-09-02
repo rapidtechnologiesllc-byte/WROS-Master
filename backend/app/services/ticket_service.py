@@ -1,5 +1,6 @@
 """
 Help Desk / IT-HR Ticketing -- built on top of Task (task_type='TICKET'),
+import logging
 not a parallel object. Internal-employees-only.
 
 Real decisions, 2026-08-04 session (see module docstring in

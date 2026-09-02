@@ -1,8 +1,10 @@
 from datetime import date, datetime
+import logging
 from typing import Optional
 
 from pydantic import BaseModel
 
+logger = logging.getLogger(__name__)
 
 class OpportunityCreateRequest(BaseModel):
     # probability_pct is deliberately NOT client-supplied -- 2026-08-12,

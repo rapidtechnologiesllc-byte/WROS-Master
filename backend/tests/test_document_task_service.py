@@ -4,6 +4,7 @@ a document reopens/creates a real Task marked pending on the candidate;
 approving it closes that Task. Throwaway SQLite -- never the real database.
 """
 import os
+import logging
 import tempfile
 
 import pytest

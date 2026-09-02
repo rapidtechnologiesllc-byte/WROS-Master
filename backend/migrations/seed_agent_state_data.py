@@ -1,3 +1,4 @@
+import logging
 """Seed Agent State data with realistic outcomes."""
 
 import sys
@@ -295,6 +296,7 @@ def seed_data():
         print("    - CFO Agent: Fear 36/100 - NEUTRAL, steady pace")
 
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         db.rollback()
         print(f"[ERROR] Seeding failed: {e}")
         raise

@@ -12,6 +12,7 @@ from app.schemas.employee_conversion import (
     EmployeeAccountRequest, EmployeeAccountResponse,
     WelcomeEmailRequest, WelcomeEmailResponse
 )
+import logging
 from app.services.employee_conversion_service import EmployeeConversionService, InvalidCandidateState
 
 router = APIRouter(prefix="/employees", tags=["employees"])
@@ -49,6 +50,7 @@ def convert_candidate(request: EmployeeConversionRequest, db: Session = Depends(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Conversion failed: {str(e)}")
 
@@ -74,6 +76,7 @@ def create_employee_account(request: EmployeeAccountRequest, db: Session = Depen
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
 

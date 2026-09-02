@@ -5,6 +5,7 @@ check) accepts a valid internal-user bearer token as an alternative to
 the secret -- since POST /ai-agent/webhook/email-reply must work for
 both external callers (secret) and manual HR-portal use (their own
 login), and a plain require_permission() would have broken the
+import logging
 external-caller path entirely.
 
 The combined check takes `db` via Depends(get_db) (not its own

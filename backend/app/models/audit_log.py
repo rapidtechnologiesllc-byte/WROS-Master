@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime
 
 from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Text, event, func
@@ -5,6 +6,7 @@ from sqlalchemy.orm import Mapper
 
 from app.models.base import Base
 
+logger = logging.getLogger(__name__)
 
 class AppendOnlyViolation(Exception):
     """Raised when code tries to UPDATE or DELETE an audit_log row via the ORM."""

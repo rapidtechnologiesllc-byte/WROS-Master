@@ -2,10 +2,12 @@
 Pydantic Schemas — S-011/HRMS-0411 AI Recruiter Assignment Engine.
 """
 from datetime import datetime
+import logging
 from typing import Optional
 
 from pydantic import BaseModel, Field
 
+logger = logging.getLogger(__name__)
 
 class AIAssignmentResponse(BaseModel):
     ai_agent_name: str

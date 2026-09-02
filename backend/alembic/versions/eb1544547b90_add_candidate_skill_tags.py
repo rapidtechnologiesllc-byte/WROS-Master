@@ -1,3 +1,4 @@
+import logging
 """S-029/HRMS-0429: add candidate_skill_tags table
 
 Revision ID: eb1544547b90

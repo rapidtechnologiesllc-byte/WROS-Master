@@ -1,9 +1,11 @@
 """Pydantic Schemas -- S-061/HRMS-0461 AI Activity Feed."""
 from datetime import datetime
+import logging
 from typing import List, Optional
 
 from pydantic import BaseModel
 
+logger = logging.getLogger(__name__)
 
 class ActivityItem(BaseModel):
     id: int

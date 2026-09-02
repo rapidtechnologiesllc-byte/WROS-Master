@@ -1,3 +1,4 @@
+import logging
 """S-039/HRMS-0439: add jobs.urgency
 
 Revision ID: 4d8cb154d0b8

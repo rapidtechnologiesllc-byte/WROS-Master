@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+import logging
 """Master Initialization Script for Spartan System
 
 Runs all initialization steps in correct order:
@@ -46,6 +47,7 @@ def run_script(script_name: str, description: str) -> bool:
         print(f"Exit code: {e.returncode}")
         return False
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         print(f"\n✗ {description} - ERROR: {e}")
         return False
 

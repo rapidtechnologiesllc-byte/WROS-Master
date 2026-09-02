@@ -5,6 +5,7 @@ Identifies orphaned/dead code files that exist but aren't registered in the app
 """
 import os
 import sys
+import logging
 from pathlib import Path
 
 # Force UTF-8 encoding on Windows

@@ -2,6 +2,7 @@
 S-038/HRMS-0438 -- Compensation Fit Score, Step 2's budget-mismatch flag.
 S-053/HRMS-0453 -- Offer Readiness Check reads this table's
 COMPENSATION_MISMATCH flags as a warning (BR-03, non-blocking) and
+import logging
 COMPLIANCE_BLOCK flags as a hard blocker.
 
 candidate_job_flags: genuinely new table -- a real, queryable "warning
@@ -27,6 +28,7 @@ from app.models.base import Base
 FLAG_TYPES = ("COMPENSATION_MISMATCH", "COMPLIANCE_BLOCK")
 FLAG_SEVERITIES = ("LOW", "MEDIUM", "HIGH")
 
+logger = logging.getLogger(__name__)
 
 class CandidateJobFlag(Base):
     __tablename__ = "candidate_job_flags"

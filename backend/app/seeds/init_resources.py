@@ -1,4 +1,5 @@
 """
+import logging
 Initialize all Modules, Resources, and grant Super User role full permissions.
 
 STRICT CONTRACT ENFORCEMENT: This file imports module/resource definitions from api_contract.py
@@ -260,6 +261,7 @@ def main():
         print("=" * 70)
 
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         print(f"ERROR: {str(e)}")
         db.rollback()
         import traceback

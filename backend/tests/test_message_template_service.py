@@ -1,4 +1,5 @@
 """
+import logging
 S-014/HRMS-0414 -- Message Template Engine (app.services.message_template_service).
 
 Throwaway SQLite -- never the real database.

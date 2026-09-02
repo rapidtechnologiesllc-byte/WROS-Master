@@ -1,3 +1,4 @@
+import logging
 """add tasks.invoice_id (EPIC-16 AR follow-up)
 
 Revision ID: a1c3e5f7b9d1

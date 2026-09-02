@@ -1,4 +1,5 @@
 ﻿"""
+import logging
 SLM Encryption Models
 
 Database tables for encrypted SLM data and decryption access logs.
@@ -19,6 +20,7 @@ from sqlalchemy.ext.declarative import declarative_base
 
 from app.models.base import Base
 
+logger = logging.getLogger(__name__)
 
 class SalarySensitiveData(Base):
     """

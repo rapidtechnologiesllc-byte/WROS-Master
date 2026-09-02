@@ -1,4 +1,5 @@
 """
+import logging
 app.api.v1.endpoints.msgraph -- _require_account() identity resolution.
 
 Real bug fix, 2026-08-05: this used to trust a raw `account_id` cookie

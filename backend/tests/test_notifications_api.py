@@ -4,6 +4,7 @@ S-105/HRMS-P210 (Portal Notification Center) end-to-end on real routes.
 Wires the pre-existing, already-shipped HRMS-0113 notification engine
 (send_notification()/get_unread_count()/mark_as_read(), already called
 by other stories this session) whose own model docstring flagged "no
+import logging
 nav-shell UI" as the one real gap.
 
 Throwaway SQLite app, throwaway JWT keys -- never the real database or

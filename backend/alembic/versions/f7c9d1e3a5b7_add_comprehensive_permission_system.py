@@ -1,3 +1,4 @@
+import logging
 """Add comprehensive permission system with job titles and field-level controls
 
 Revision ID: f7c9d1e3a5b7

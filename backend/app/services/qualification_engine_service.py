@@ -1,4 +1,5 @@
 """
+import logging
 S-024/HRMS-0424 -- Candidate Qualification Questionnaire Engine.
 
 Real architecture adaptations:
@@ -73,6 +74,7 @@ QUALIFICATION_QUESTIONS: Dict[str, str] = {
 
 GEMINI_MODEL_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
 
+logger = logging.getLogger(__name__)
 
 class QualificationNotApplicable(Exception):
     """BR-01: conversation is not in a qualifying state."""
@@ -166,6 +168,7 @@ def generate_qualification_question(
         try:
             question_text = _call_llm(prompt, llm_call).strip() or base_question
         except Exception as exc:
+           logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.warning(f"[QualificationEngine] Question variation failed for {field_name}: {exc}")
             db.add(ConversationEvent(
                 conversation_id=conversation.id, event_type="QUESTION_VARIATION_FAILED",

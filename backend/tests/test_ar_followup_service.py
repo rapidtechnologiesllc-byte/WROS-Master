@@ -3,6 +3,7 @@ EPIC-16 AR Follow-Up. Throwaway SQLite -- never the real database.
 """
 import os
 import tempfile
+import logging
 from datetime import date, datetime, timedelta
 
 import pytest

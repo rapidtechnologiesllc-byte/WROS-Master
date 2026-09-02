@@ -1,4 +1,5 @@
 """
+import logging
 S-074/HRMS-0474 -- Bulk Candidate Engagement Launch.
 
 Real architecture under test (see bulk_engagement_service module

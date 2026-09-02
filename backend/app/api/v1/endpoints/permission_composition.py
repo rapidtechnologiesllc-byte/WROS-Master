@@ -1,3 +1,4 @@
+import logging
 """Advanced Permission Composition Endpoints.
 
 Provides APIs for:
@@ -21,6 +22,7 @@ from app.services.permission_composition_service import PermissionCompositionSer
 
 router = APIRouter(prefix="/admin/permissions", tags=["Permission Composition"])
 
+logger = logging.getLogger(__name__)
 
 class PermissionCheckRequest(BaseModel):
     role_template_id: int

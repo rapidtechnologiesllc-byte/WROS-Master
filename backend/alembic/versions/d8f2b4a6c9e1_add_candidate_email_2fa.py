@@ -1,3 +1,4 @@
+import logging
 """add candidates.email_2fa_opted_in/email_otp_code_hash/email_otp_expires_at (candidate email 2FA opt-in)
 
 Revision ID: d8f2b4a6c9e1

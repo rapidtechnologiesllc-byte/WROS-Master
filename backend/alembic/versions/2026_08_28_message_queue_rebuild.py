@@ -1,3 +1,4 @@
+import logging
 """Message Queue System Rebuild - Channel-based architecture with email tracking
 
 This migration creates the complete message queue infrastructure with:

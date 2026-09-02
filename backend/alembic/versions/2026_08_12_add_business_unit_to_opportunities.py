@@ -1,3 +1,4 @@
+import logging
 """Add business_unit_id to Opportunity model for BU cross-referencing
 
 Revision ID: 2026_08_12_opportunity_bu

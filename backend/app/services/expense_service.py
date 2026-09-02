@@ -4,6 +4,7 @@ boundary as the existing employee self-service timesheet: whoever is
 logged in logs their OWN expense -- `logged_by_user_id` is always
 resolved from the authenticated caller, never a caller-supplied field
 (Avinash: "the expense is logged by employee so they need to login to
+import logging
 their portal and add their expense").
 
 BU attribution is derived from the logger's own business_unit_id at
@@ -29,6 +30,7 @@ from app.models.org_structure import OrgNode
 
 FINANCE_INBOX_EMAIL = "accounts@blitzenx.com"
 
+logger = logging.getLogger(__name__)
 
 class ExpenseValidationError(Exception):
     pass
@@ -259,6 +261,7 @@ def _notify_finance_of_approval(db: Session, expense: ExpenseRecord) -> None:
             ),
         )
     except Exception as exc:
+       logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[ExpenseService] Could not notify {FINANCE_INBOX_EMAIL} of approval for expense {expense.id}: {exc}")
 
 

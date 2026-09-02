@@ -1,3 +1,4 @@
+import logging
 """updated newsletter model
 
 Revision ID: 91a71eaaad47

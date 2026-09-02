@@ -1,5 +1,6 @@
 """
 HRMS-0907 -- Invoice Generation, Status Tracking & PDF Export. Phase 2
+import logging
 Domain 4.
 
 PDF export and automatic sending are explicitly out of scope for this
@@ -30,6 +31,7 @@ def _new_uuid() -> str:
 
 INVOICE_STATUSES = ("DRAFT", "APPROVED", "SENT", "PAID")
 
+logger = logging.getLogger(__name__)
 
 class Invoice(Base):
     __tablename__ = "invoices"

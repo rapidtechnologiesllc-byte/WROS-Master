@@ -1,4 +1,5 @@
 """
+import logging
 HRMS-0110 — the one sanctioned way to write an audit row.
 
 Critical usage rule: call write_audit_log() and let the CALLER commit,

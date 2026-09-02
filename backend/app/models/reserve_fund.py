@@ -5,12 +5,14 @@ only added to. Real transactions (contributions/withdrawals), not a
 single running-balance field, so the full history is always
 reconstructable and auditable.
 """
+import logging
 from sqlalchemy import Column, DateTime, Enum, ForeignKey, Integer, String, Text, func
 
 from app.models.base import Base
 
 RESERVE_FUND_ENTRY_TYPES = ("CONTRIBUTION", "WITHDRAWAL")
 
+logger = logging.getLogger(__name__)
 
 class ReserveFundEntry(Base):
     __tablename__ = "reserve_fund_entries"

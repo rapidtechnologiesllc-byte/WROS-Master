@@ -1,6 +1,7 @@
 """
 POST/GET /templates -- proves the HTTP-level auth gating: activation is
 template.manage-only (Super User by default), create/list/preview are
+import logging
 any internal user. Business rules covered at the service layer.
 
 Throwaway SQLite app, throwaway JWT keys, real RBAC seed.

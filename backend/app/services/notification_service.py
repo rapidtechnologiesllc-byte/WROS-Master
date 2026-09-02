@@ -8,6 +8,7 @@ built for real here (the full dispatch/fallback/gating state machine).
 """
 import datetime as dt
 from typing import Callable, Dict, List, Optional
+import logging
 from zoneinfo import ZoneInfo
 
 from sqlalchemy.orm import Session
@@ -29,6 +30,7 @@ P0_FALLBACK_CHANNEL = {
     "IN_APP": "SMS", "EMAIL": "SMS", "WHATSAPP": "SMS", "SMS": "WHATSAPP",
 }
 
+logger = logging.getLogger(__name__)
 
 class CrossTenantNotificationError(Exception):
     """BR-0113-02."""

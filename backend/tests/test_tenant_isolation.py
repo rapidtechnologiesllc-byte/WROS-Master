@@ -2,6 +2,7 @@
 Proves HRMS-0109's tenant-isolation guarantee for the smallest possible
 slice: a `tenants` table, a `tenant_id` column on Users, and a dependency
 (app.core.tenant_context) that resolves tenant_id from the authenticated
+import logging
 session only.
 
 Runs entirely against a throwaway SQLite file created and deleted within

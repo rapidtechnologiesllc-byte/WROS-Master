@@ -1,4 +1,5 @@
 """
+import logging
 S-031/HRMS-0431 -- AI Prompt Template Catalog.
 
 BR-01: product decisions, not technical ones -- any change requires

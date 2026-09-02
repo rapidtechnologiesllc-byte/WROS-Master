@@ -1,4 +1,5 @@
 """
+import logging
 Comprehensive test suite for Employee Referral System with Role-Based Access Control.
 
 Tests:
@@ -19,6 +20,7 @@ from app.models.user import Jobs
 from app.services.employee_referral_service import EmployeeReferralService
 from app.services.referral_access_control import ReferralAccessControl
 
+logger = logging.getLogger(__name__)
 
 class TestJobReferralSetup:
     """Test job referral program setup."""

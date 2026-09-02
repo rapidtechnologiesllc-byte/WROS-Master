@@ -2,6 +2,7 @@
 S-059/HRMS-0459 -- Candidate Journey Dashboard
 ==================================================================
 Prefix: /candidates
+import logging
 Tag:    candidate-journey
 
 GET /candidates/{candidate_id}/journey
@@ -44,6 +45,7 @@ def get_journey(candidate_id: str, db: Session = Depends(get_db)):
     except CandidateNotFound:
         raise HTTPException(status_code=404, detail=f"Candidate {candidate_id!r} not found.")
     except Exception as exc:
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         # 2026-08-05 -- real prod report: candidates were hitting "Unable
         # to load journey" with zero diagnosable detail, because any
         # unexpected exception here (a data-shape edge case in one of

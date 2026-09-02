@@ -2,6 +2,7 @@
 Candidate AI Agentic Models
 ============================
 Supports the agentic automated hiring process where an AI agent is
+import logging
 assigned to a candidate after they are added and assigned to a job.
 
 Tables:
@@ -29,6 +30,7 @@ from app.models.base import Base
 # ---------------------------------------------------------------------------
 # 1. candidate_conversations
 # ---------------------------------------------------------------------------
+logger = logging.getLogger(__name__)
 
 class CandidateConversation(Base):
     """

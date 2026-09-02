@@ -1,4 +1,5 @@
 """add interview_rehire_reviews (rehire guard, Part 2 of the interview
+import logging
 regrouping + rehire guard priority)
 
 Revision ID: 076eb838c5cc

@@ -1,5 +1,6 @@
 """
 S-069/HRMS-0469 -- Multi-Channel Preference Detection
+import logging
 (app.services.channel_preference_service.detect_channel_preference).
 
 Reads ConversationEvent.event_data['channel'] on 'candidate_reply'

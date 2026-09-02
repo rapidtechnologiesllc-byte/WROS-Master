@@ -1,4 +1,5 @@
 """
+import logging
 HRMS-0527 -- Curtis Rule: Partner Intent ML Engine.
 
 Proves the inference math itself (AC-1, AC-2, AC-6, and the experience/

@@ -1,3 +1,4 @@
+import logging
 """add partner_incentive_events.period_year/period_month (EPIC-16 Partner Incentive Calculator)
 
 Revision ID: f6b8d0a2c4e6

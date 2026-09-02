@@ -1,4 +1,5 @@
 """
+import logging
 Personal Intelligence Service - 200+ Data Points for Deep Relationship Building
 
 Captures comprehensive personal profile to make genuine human connection:
@@ -33,6 +34,7 @@ from app.core.logging import logger
 from app.models.candidate import Candidate
 from app.services.candidate_memory_service import upsert_fact, get_memory
 
+logger = logging.getLogger(__name__)
 
 class PersonalDataCategory(str, Enum):
     """200+ personal data dimensions"""
@@ -331,6 +333,7 @@ class PersonalIntelligenceService:
             }
 
         except Exception as e:
+           logger.error(f"Error: {str(e)}", exc_info=True)
             logger.error(f"Personal profile extraction error: {str(e)}")
             return {"status": "error", "message": str(e)}
 
@@ -532,6 +535,7 @@ class PersonalIntelligenceService:
             db.commit()
 
         except Exception as e:
+           logger.error(f"Error: {str(e)}", exc_info=True)
             logger.error(f"Error storing personal facts: {str(e)}")
             db.rollback()
 

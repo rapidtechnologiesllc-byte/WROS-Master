@@ -1,4 +1,5 @@
 """
+import logging
 S-030/HRMS-0430 -- Resume Completeness Score.
 
 BR-01: distinct from profile completeness (get_missing_fields()) --

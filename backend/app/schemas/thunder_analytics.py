@@ -1,8 +1,10 @@
 """Pydantic Schemas -- S-071/HRMS-0471 AI Recruiter Performance Analytics."""
+import logging
 from typing import List, Optional
 
 from pydantic import BaseModel
 
+logger = logging.getLogger(__name__)
 
 class AnalyticsSummary(BaseModel):
     qualification_rate: int

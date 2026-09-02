@@ -1,3 +1,4 @@
+import logging
 """Interview → Hire → Onboarding workflow orchestration service.
 
 Coordinates the complete hiring flow:
@@ -143,6 +144,7 @@ def check_affordability_for_hire(db: Session, submission_id: str, bu_id: Optiona
             "reason": affordability.get("reason", ""),
         }
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         return {"error": str(e)}
 
 
@@ -174,6 +176,7 @@ def create_l2_interview_panel(db: Session, demand_id: str, submission_id: str,
             "status": "L2 panel created, awaiting scheduling",
         }
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         db.rollback()
         return {"error": str(e)}
 

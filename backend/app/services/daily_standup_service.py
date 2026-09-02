@@ -1,4 +1,5 @@
 """
+import logging
 Daily Standup Report - Shows metrics from ALL agents (50+ agents)
 
 Reports per agent:

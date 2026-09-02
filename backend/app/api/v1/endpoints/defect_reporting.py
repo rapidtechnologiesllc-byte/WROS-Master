@@ -2,6 +2,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from datetime import datetime
+import logging
 import os
 
 from app.core.database import get_db
@@ -82,6 +83,7 @@ def report_defect(
         )
 
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=500,
             detail=f"Failed to log defect: {str(e)}"

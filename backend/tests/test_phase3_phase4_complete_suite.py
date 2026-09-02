@@ -1,5 +1,6 @@
 """
 Comprehensive Test Suite for Phase 3 & Phase 4 Stories (15+ stories)
+import logging
 Tests cover: Unit tests, Integration tests, E2E tests, Edge cases
 
 Story Coverage:
@@ -268,6 +269,7 @@ def mock_employee(db: Session, mock_tenant, mock_candidate, mock_user):
 # ============================================================================
 # S-311: INTERVIEW DECISION ENGINE - Unit Tests
 # ============================================================================
+logger = logging.getLogger(__name__)
 
 class TestInterviewDecisionService:
     """Tests for Interview Decision Engine (S-311)."""

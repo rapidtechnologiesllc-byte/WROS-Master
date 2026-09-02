@@ -1,3 +1,4 @@
+import logging
 """add_business_unit_id_to_departments
 
 Revision ID: a1b2c3d4e5f6

@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from app.core.dependencies import get_current_internal_user, require_resource_permission
 from app.core.database import get_db
 from app.models.user import Users
+import logging
 from app.services import kpi_agent_service, hr_agent_service, employee_mental_health_agent_service
 
 router = APIRouter(prefix="/agents", tags=["Agent Operations"])
@@ -30,6 +31,7 @@ def get_daily_kpis(
         )
         return {"status": "success", "data": kpis}
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -43,6 +45,7 @@ def get_kpi_alerts(
         alerts = kpi_agent_service.get_kpi_alerts(db=db)
         return {"status": "success", "data": alerts}
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -63,6 +66,7 @@ def get_hr_dashboard(
         )
         return {"status": "success", "data": dashboard}
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -79,6 +83,7 @@ def detect_attrition_risks(
         )
         return {"status": "success", "data": at_risk}
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -95,6 +100,7 @@ def get_development_needs(
         )
         return {"status": "success", "data": needs}
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -111,6 +117,7 @@ def get_engagement_metrics(
         )
         return {"status": "success", "data": metrics}
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -131,6 +138,7 @@ def get_wellness_dashboard(
         )
         return {"status": "success", "data": dashboard}
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -147,6 +155,7 @@ def get_team_wellbeing(
         )
         return {"status": "success", "data": snapshot}
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -163,6 +172,7 @@ def get_burnout_risks(
         )
         return {"status": "success", "data": risks}
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -190,4 +200,5 @@ def get_employee_wellness(
             }
         }
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))

@@ -6,6 +6,7 @@ a real JobDiva client record: contacts belong on their own tab, not
 gating company creation) -- they're now optional at creation and
 captured via POST /clients/{client_id}/contacts instead, matching
 client_service.STATUSES_REQUIRING_CONTACT's existing enforcement point
+import logging
 (a client still can't go status=ACTIVE without at least one contact).
 
 2026-08-07 further: website is also now optional (prospect clients

@@ -1,3 +1,4 @@
+import logging
 """Add org_node_id to employees table
 
 Revision ID: 2026_08_12_add_org_node_to_employees

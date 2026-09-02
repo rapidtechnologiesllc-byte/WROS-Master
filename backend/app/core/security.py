@@ -4,6 +4,7 @@ from typing import Optional
 import jwt
 import bcrypt
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+import logging
 from fastapi import HTTPException, status
 
 ALGORITHM = "HS256"

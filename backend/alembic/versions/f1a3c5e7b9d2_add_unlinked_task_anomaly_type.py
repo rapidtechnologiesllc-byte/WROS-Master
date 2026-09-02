@@ -1,3 +1,4 @@
+import logging
 """expand timesheet_anomaly_flags.anomaly_type CHECK to include UNLINKED_TASK
 
 Revision ID: f1a3c5e7b9d2

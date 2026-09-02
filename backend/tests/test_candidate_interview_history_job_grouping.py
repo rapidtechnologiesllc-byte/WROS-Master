@@ -6,6 +6,7 @@ Avinash: a candidate can interview for N jobs, N rounds each, and the
 screen needs to show what happened per job (L1/L2/...), which requires
 job info on each interview row. Proves the real route now returns
 job_id/job_title per interview, and that they're correct per round --
+import logging
 not just that the underlying columns exist.
 
 Throwaway SQLite, throwaway JWT keys -- never the real database.

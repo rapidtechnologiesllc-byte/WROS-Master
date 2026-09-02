@@ -1,3 +1,4 @@
+import logging
 """add cost_rate_configs (EPIC-16 Fully Loaded Cost / Blended Delivery Rate)
 
 Revision ID: b7d9f1a3c5e7

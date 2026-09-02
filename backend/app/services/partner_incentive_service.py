@@ -1,4 +1,5 @@
 """
+import logging
 Partner incentive eligibility + calculation, 2026-08-05.
 
 check_new_logo_incentive() is the one entry point -- explicitly

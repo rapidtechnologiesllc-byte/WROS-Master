@@ -1,5 +1,6 @@
 """
 Report Generation Tasks
+import logging
 =======================
 
 Async tasks for generating reports:
@@ -58,6 +59,7 @@ def generate_report_task(self, report_type: str, user_id: str, filters: dict = N
         }
 
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         error_msg = f"Report generation failed: {str(e)}"
         log_task_message(task_id, error_msg, "error")
         TaskStatus.update_task(task_id, status="failed")

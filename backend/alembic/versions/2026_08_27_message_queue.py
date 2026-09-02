@@ -1,3 +1,4 @@
+import logging
 """Add message queue infrastructure tables (message_queue, message_log, slm_decision)
 
 Revision ID: 2026_08_27_message_queue

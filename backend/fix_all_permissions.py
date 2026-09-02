@@ -4,6 +4,7 @@ Fix all role template permissions at once.
 Ensures every role has permissions for all resources.
 """
 import sys, os
+import logging
 sys.path.insert(0, os.path.dirname(__file__))
 
 from app.core.database import SessionLocal, engine
@@ -108,6 +109,8 @@ try:
     print("3. No more 'blank navigation' issues")
 
 except Exception as e:
+   logger.error(f"Error: {str(e)}", exc_info=True)
+    logger.error(f"Error: {str(e)}", exc_info=True)
     print(f"\n❌ Error: {e}")
     import traceback
     traceback.print_exc()

@@ -1,4 +1,5 @@
 ﻿from datetime import datetime
+import logging
 from typing import Optional, List
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
@@ -874,6 +875,7 @@ def update_candidate(candidate_id: str, request: CandidateUpdateRequest, db: Ses
         db.commit()
         db.refresh(candidate)
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         db.rollback()
         raise HTTPException(
             status_code=500,
@@ -896,6 +898,7 @@ def update_candidate(candidate_id: str, request: CandidateUpdateRequest, db: Ses
             from app.core.logging import logger
             logger.info(f"[SLM] Recorded {len(corrections)} corrections for candidate: {candidate_id}")
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             from app.core.logging import logger
             logger.error(f"[SLM] Failed to record candidate corrections: {e}", exc_info=True)
             # Continue - SLM failure shouldn't block updates
@@ -1165,6 +1168,7 @@ def convert_candidate_to_employee(
             "message": f"Candidate {candidate.candidateFirstName} converted to employee successfully"
         }
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         db.rollback()
         logger.error(f"âŒ Conversion failed: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Conversion failed: {str(e)}")

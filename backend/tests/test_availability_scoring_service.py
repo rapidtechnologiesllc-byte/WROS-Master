@@ -1,4 +1,5 @@
 """
+import logging
 S-039/HRMS-0439 -- Availability Score.
 
 Real architecture under test (see availability_scoring_service module

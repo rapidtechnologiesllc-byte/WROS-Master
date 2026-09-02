@@ -2,6 +2,7 @@
 HRMS-P803/P810 (vendor-facing submission tracking) + HRMS-P805/P812
 (scorecard & portfolio analytics). Pure read-only query layers over the
 schema built for HRMS-P801/P806/P807/P808 -- no new tables needed for
+import logging
 either, per BR-0812-01's "computed, not manually entered" requirement.
 
 P803 and P810 describe the same vendor-facing concept from two doc

@@ -52,8 +52,7 @@ class RoundRobinLLMProvider:
                     model="gemini-1.5-flash",
                     max_retries=1
                 )
-            except Exception as e:
-                logger.error(f"Failed to initialize Gemini: {e}")
+            except Exception as e:                logger.error(f"Failed to initialize Gemini: {e}")
                 self.llm_instances["gemini"] = None
         return self.llm_instances["gemini"]
 
@@ -71,8 +70,7 @@ class RoundRobinLLMProvider:
                     model="claude-3-5-sonnet-20241022",
                     max_tokens=2048
                 )
-            except Exception as e:
-                logger.error(f"Failed to initialize Claude: {e}")
+            except Exception as e:                logger.error(f"Failed to initialize Claude: {e}")
                 self.llm_instances["claude"] = None
         return self.llm_instances["claude"]
 
@@ -86,8 +84,7 @@ class RoundRobinLLMProvider:
                     logger.warning("XAI_API_KEY not set")
                     return None
                 self.llm_instances["grok"] = XAIClient(api_key=api_key)
-            except Exception as e:
-                logger.error(f"Failed to initialize Grok: {e}")
+            except Exception as e:                logger.error(f"Failed to initialize Grok: {e}")
                 self.llm_instances["grok"] = None
         return self.llm_instances["grok"]
 
@@ -105,8 +102,7 @@ class RoundRobinLLMProvider:
                     model="gpt-4-turbo",
                     max_tokens=2048
                 )
-            except Exception as e:
-                logger.error(f"Failed to initialize OpenAI: {e}")
+            except Exception as e:                logger.error(f"Failed to initialize OpenAI: {e}")
                 self.llm_instances["openai"] = None
         return self.llm_instances["openai"]
 
@@ -171,5 +167,6 @@ def invoke_llm(prompt: str, provider_hint: Optional[LLMProvider] = None):
         logger.info(f"LLM invocation successful with {provider.value}")
         return result, provider
     except Exception as e:
+       logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"LLM invocation failed with {provider.value}: {e}")
         raise

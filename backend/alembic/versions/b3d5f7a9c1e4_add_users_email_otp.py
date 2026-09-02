@@ -1,3 +1,4 @@
+import logging
 """add users.email_otp_code_hash/email_otp_expires_at (email 2FA, supplements TOTP)
 
 Revision ID: b3d5f7a9c1e4

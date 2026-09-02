@@ -115,6 +115,7 @@ def get_candidate_by_id_with_bu_scope(db: Session, candidate_id: str, current_us
         ).first()
         return candidate_scoped
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         import logging
         logger = logging.getLogger(__name__)
         logger.error(f"[BU-Scope] Error fetching candidate {candidate_id}: {e}", exc_info=True)

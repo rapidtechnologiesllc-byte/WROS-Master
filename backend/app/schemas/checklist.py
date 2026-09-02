@@ -1,4 +1,5 @@
 """
+import logging
 Pydantic schemas for the Checklist feature.
 
 Covers:
@@ -15,6 +16,7 @@ from pydantic import BaseModel, Field
 # ---------------------------------------------------------------------------
 # Template Item Schemas
 # ---------------------------------------------------------------------------
+logger = logging.getLogger(__name__)
 
 class ChecklistItemCreate(BaseModel):
     title: str = Field(..., max_length=255)

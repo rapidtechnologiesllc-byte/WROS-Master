@@ -1,4 +1,5 @@
 """
+import logging
 S-011/HRMS-0411 -- AI Recruiter Assignment Engine.
 
 Real Thunder identity config: resolve_thunder_config() reads per-tenant

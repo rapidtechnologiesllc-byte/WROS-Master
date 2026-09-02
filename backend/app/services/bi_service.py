@@ -2,6 +2,7 @@
 from sqlalchemy.orm import Session
 from sqlalchemy import inspect, text, MetaData
 from sqlalchemy.sql.schema import Table as SQLTable
+import logging
 from typing import List, Dict, Any
 
 
@@ -116,6 +117,7 @@ def query_table(
             "offset": offset,
         }
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise ValueError(f"Query failed: {str(e)}")
 
 
@@ -138,4 +140,5 @@ def get_table_summary(db: Session, table_name: str) -> Dict[str, Any]:
             "available_for_analysis": True,
         }
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise ValueError(f"Summary query failed: {str(e)}")

@@ -1,4 +1,5 @@
 """
+import logging
 Operational Accountability Agents - Daily Business Health Checks
 
 Three agents that watch the business operations:
@@ -19,6 +20,7 @@ from app.models.business_unit import BusinessUnit
 from app.models.user import Users
 from app.core.logging import logger
 
+logger = logging.getLogger(__name__)
 
 class PartnerROIAgent:
     """

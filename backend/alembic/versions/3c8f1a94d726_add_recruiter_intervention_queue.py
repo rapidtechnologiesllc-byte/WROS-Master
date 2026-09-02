@@ -1,3 +1,4 @@
+import logging
 """S-062/HRMS-0462: add recruiter_intervention_queue table
 
 Revision ID: 3c8f1a94d726

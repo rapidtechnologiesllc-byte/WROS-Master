@@ -1,6 +1,7 @@
 """
 POST /htd-intake/calculate-monthly-metric|check-breach|resume, GET
 /htd-intake/status|pause-log -- proves S-359/HRMS-P511 (HTD Intake
+import logging
 Pause Engine: Conversion Rate Breach) end-to-end on real routes.
 
 Throwaway SQLite app, throwaway JWT keys -- never the real database or

@@ -1,3 +1,4 @@
+import logging
 """Add client_owner_id to Opportunity model for auto-population from job
 
 Revision ID: 2026_08_12_client_owner_opp

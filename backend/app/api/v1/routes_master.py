@@ -1,5 +1,6 @@
 """
 Master API Routes File - Integration Hub for WROS Core Story Endpoints
+import logging
 ========================================================================
 
 This master routes file orchestrates all 15 core WROS story endpoints with:
@@ -165,6 +166,7 @@ from app.middleware.auth_middleware import AuthenticationMiddleware
 # ============================================================================
 # MASTER ROUTER CONFIGURATION
 # ============================================================================
+logger = logging.getLogger(__name__)
 
 class MasterRouterConfig:
     """Configuration for master router setup."""

@@ -1,4 +1,5 @@
 """
+import logging
 S-076/HRMS-0476 -- Conversation Audit Log.
 
 Unit tests for app.services.audit_log_service.log_audit_event(), plus

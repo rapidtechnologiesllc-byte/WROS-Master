@@ -1,3 +1,4 @@
+import logging
 ﻿"""Candidate Isolation Service - Enforces BU-based candidate visibility and locking.
 
 ZERO-HARDCODING: All visibility rules determined by database-driven role_templates
@@ -25,6 +26,7 @@ from app.services.organization_service import OrganizationService
 from app.services.role_template_permission_service import RoleTemplatePermissionService
 from app.services.permission_helper import PermissionHelper
 
+logger = logging.getLogger(__name__)
 
 class CandidateIsolationService:
     """Manages candidate BU isolation and visibility enforcement."""

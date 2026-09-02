@@ -1,4 +1,5 @@
 """
+import logging
 Comprehensive test suite for Revenue Recognition (HRMS-0316)
 
 Tests all core functionality:
@@ -198,6 +199,7 @@ def test_line_item(db_session: Session, test_invoice_paid):
 # ============================================================================
 # TEST SUITE 1: REVENUE RECOGNITION
 # ============================================================================
+logger = logging.getLogger(__name__)
 
 class TestRevenueRecognition:
     """Tests for core revenue recognition functionality."""

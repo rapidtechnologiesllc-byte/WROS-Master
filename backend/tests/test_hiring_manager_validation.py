@@ -1,6 +1,7 @@
 """
 Tests for Hiring Manager Validation Service (HRMS-1104 / S-319)
 Tests for create_validation_questions, send_to_hm, record_hm_response
+import logging
 """
 
 import pytest
@@ -66,6 +67,7 @@ def sample_hiring_manager():
         user_name="Manager Name"
     )
 
+logger = logging.getLogger(__name__)
 
 class TestCreateValidationQuestions:
     """Tests for create_validation_questions method"""

@@ -5,6 +5,7 @@ same fixture shape as test_revenue_targets_api.py.
 """
 import os
 import tempfile
+import logging
 from datetime import date, datetime, timedelta
 
 import pytest

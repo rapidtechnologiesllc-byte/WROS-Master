@@ -1,4 +1,5 @@
 """
+import logging
 S-348/HRMS-P118 -- Desire Profile Builder.
 
 candidate_desire_profiles: one row per candidate (UNIQUE candidate_id,
@@ -18,6 +19,7 @@ from app.models.base import Base
 ENGAGEMENT_LEVELS = ("HOT", "WARM", "COOL", "COLD")
 DECISION_URGENCY_LEVELS = ("URGENT", "NORMAL", "SLOW")
 
+logger = logging.getLogger(__name__)
 
 class CandidateDesireProfile(Base):
     __tablename__ = "candidate_desire_profiles"

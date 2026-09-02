@@ -1,4 +1,5 @@
 """
+import logging
 KPI Agent Service - Complete Implementation
 
 Tracks company-wide KPIs and forecasts progress to strategic goals:

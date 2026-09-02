@@ -1,3 +1,4 @@
+import logging
 """S-031/HRMS-0431: add prompt_execution_log table
 
 Revision ID: f0dff8c39499

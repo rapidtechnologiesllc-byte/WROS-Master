@@ -1,3 +1,4 @@
+import logging
 """add timesheets.task_id, make allocation_id nullable (Task<->Timesheet tie)
 
 Revision ID: e7f2a4c6b8d1

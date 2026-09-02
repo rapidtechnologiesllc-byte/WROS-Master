@@ -1,3 +1,4 @@
+import logging
 """add employee_milestones table (S-356/HRMS-0517)
 
 Revision ID: d9e0f1a2b3c4

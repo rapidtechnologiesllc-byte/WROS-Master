@@ -1,4 +1,5 @@
 """
+import logging
 S-365/HRMS-0521 -- Buddy Program Graduation Gate: BU Head Approval.
 
 record_graduation_decision() is the one function that ever moves a
@@ -32,6 +33,7 @@ EXTENSION_DAYS = 15
 MIN_EXTENSION_NOTE_LENGTH = 50
 DECISIONS = ("GRADUATE", "EXTEND", "EXIT")
 
+logger = logging.getLogger(__name__)
 
 class InvalidGraduationDecision(Exception):
     pass

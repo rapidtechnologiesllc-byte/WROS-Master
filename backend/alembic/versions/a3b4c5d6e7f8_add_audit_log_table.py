@@ -1,3 +1,4 @@
+import logging
 """add audit_log table
 
 Revision ID: a3b4c5d6e7f8

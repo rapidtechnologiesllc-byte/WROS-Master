@@ -1,3 +1,4 @@
+import logging
 """add clients.business_unit_id (EPIC-02/03 partner/BU ownership)
 
 Revision ID: e1a3c5f7b9d2

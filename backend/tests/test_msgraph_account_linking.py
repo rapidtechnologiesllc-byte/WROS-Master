@@ -3,6 +3,7 @@ EPIC-14/S-379 (HRMS-1401) -- M365 Launchpad account linking.
 GET /msgraph/link/start, GET /msgraph/link-status, POST /msgraph/unlink,
 and /auth/callback's account-linking branch (an already-logged-in WROS
 user links their M365 account without their WROS session token being
+import logging
 silently swapped out).
 
 Throwaway SQLite app, throwaway JWT keys -- never the real database,

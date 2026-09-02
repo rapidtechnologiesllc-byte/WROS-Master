@@ -1,4 +1,5 @@
 """
+import logging
 Automatic AI Recruiter Assignment Service
 
 Every candidate automatically gets assigned to the Thunder AI recruiter system
@@ -29,6 +30,7 @@ from app.services.ai_conversation_service import (
     resolve_thunder_config,
 )
 
+logger = logging.getLogger(__name__)
 
 class CandidateAIAssignmentError(Exception):
     """Raised when automatic AI assignment fails."""
@@ -130,6 +132,7 @@ def auto_assign_ai_recruiter(
             f"Failed to assign AI recruiter to candidate {candidate_id}"
         )
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         db.rollback()
         logger.error(f"[AI_ASSIGN] Unexpected error: {e}")
         raise CandidateAIAssignmentError(str(e))

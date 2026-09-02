@@ -1,4 +1,5 @@
 """
+import logging
 S-059/HRMS-0459 -- Candidate Journey Dashboard.
 
 Real architecture adaptations:
@@ -71,6 +72,7 @@ from app.services.ai_conversation_service import CANDIDATE_CORE_FIELDS, INFO_FOR
 
 TOTAL_PROFILE_FIELDS = len(CANDIDATE_CORE_FIELDS) + len(INFO_FORM_FIELDS)
 
+logger = logging.getLogger(__name__)
 
 class CandidateNotFound(Exception):
     pass
@@ -218,6 +220,7 @@ def get_candidate_journey(db: Session, candidate_id: str, tenant_id: str) -> Dic
             },
         })
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         from app.core.logging import logger
         logger.error(f"[Journey] Stage 1 (ENGAGED) failed for {candidate_id}: {e}", exc_info=True)
         raise
@@ -248,6 +251,7 @@ def get_candidate_journey(db: Session, candidate_id: str, tenant_id: str) -> Dic
         try:
             thunder_count = _thunder_message_count(db, conversation)
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             from app.core.logging import logger
             logger.warning(f"[Journey] Stage 2 (QUALIFYING) thunder_message_count failed for {candidate_id}: {e}")
 
@@ -263,6 +267,7 @@ def get_candidate_journey(db: Session, candidate_id: str, tenant_id: str) -> Dic
             },
         })
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         from app.core.logging import logger
         logger.error(f"[Journey] Stage 2 (QUALIFYING) failed for {candidate_id}: {e}", exc_info=True)
         raise
@@ -332,6 +337,7 @@ def get_candidate_journey(db: Session, candidate_id: str, tenant_id: str) -> Dic
             },
         })
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         from app.core.logging import logger
         logger.error(f"[Journey] Stage 6 (PREBOARDING) failed for {candidate_id}: {e}", exc_info=True)
         raise

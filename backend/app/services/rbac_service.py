@@ -1,4 +1,5 @@
 """
+import logging
 DEPRECATED: RBAC service stub for backwards compatibility.
 
 The RBAC Permission system has been deprecated in favor of RoleTemplate-based permissions.
@@ -9,6 +10,7 @@ Use RoleTemplate and RoleTemplatePermission models instead for new code.
 from typing import Optional
 from sqlalchemy.orm import Session
 
+logger = logging.getLogger(__name__)
 
 class RBACService:
     """Deprecated RBAC service - stub for backwards compatibility."""

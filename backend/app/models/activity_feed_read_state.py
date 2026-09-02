@@ -1,4 +1,5 @@
 """
+import logging
 S-061/HRMS-0461 -- AI Activity Feed, read-state tracking.
 
 No new `thunder_activity_feed` denormalized table -- see
@@ -18,6 +19,7 @@ from sqlalchemy.orm import relationship
 
 from app.models.base import Base
 
+logger = logging.getLogger(__name__)
 
 class ActivityFeedReadState(Base):
     __tablename__ = "activity_feed_read_state"

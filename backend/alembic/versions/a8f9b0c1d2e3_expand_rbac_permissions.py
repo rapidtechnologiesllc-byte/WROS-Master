@@ -1,3 +1,4 @@
+import logging
 """expand RBAC permissions to module×verb model (45 modules × 3-5 verbs = 150+ permissions)
 
 Revision ID: a8f9b0c1d2e3
@@ -129,6 +130,8 @@ def upgrade():
         print("[OK] Expanded RBAC permissions inserted (150+)")
 
     except Exception as exc:
+       logger.error(f"Error: {str(exc)}", exc_info=True)
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         print(f"[ERROR] Migration failed: {exc}")
         raise
     finally:
@@ -154,5 +157,7 @@ def downgrade():
         print("[OK] Expanded RBAC permissions removed")
 
     except Exception as exc:
+       logger.error(f"Error: {str(exc)}", exc_info=True)
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         print(f"[ERROR] Downgrade failed: {exc}")
         raise

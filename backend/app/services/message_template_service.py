@@ -3,6 +3,7 @@ S-014/HRMS-0414 -- Message Template Engine.
 """
 import re
 from datetime import datetime
+import logging
 from typing import Dict, List, Optional
 
 from sqlalchemy.orm import Session
@@ -13,6 +14,7 @@ from app.models.message_template import TEMPLATE_KEYS, MessageTemplate
 
 VARIABLE_RE = re.compile(r"\{\{.*?\}\}")
 
+logger = logging.getLogger(__name__)
 
 class TemplateNotFoundError(Exception):
     """No active template for this key+channel+tenant -- caller falls

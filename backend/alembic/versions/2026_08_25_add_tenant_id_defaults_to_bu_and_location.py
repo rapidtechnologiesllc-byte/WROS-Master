@@ -1,3 +1,4 @@
+import logging
 """Add tenant_id defaults and FK to BusinessUnit and Location for production safety.
 
 Add server_default and application-level defaults to ensure tenant_id never NULL.

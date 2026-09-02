@@ -2,6 +2,7 @@
 """
 Populate test database with realistic data for all pages.
 Supports testing without breaking working systems.
+import logging
 """
 
 import sys
@@ -177,6 +178,8 @@ def main():
         print("\n")
 
     except Exception as e:
+       logger.error(f"Error: {str(e)}", exc_info=True)
+        logger.error(f"Error: {str(e)}", exc_info=True)
         print(f"\n❌ ERROR: {e}")
         import traceback
         traceback.print_exc()

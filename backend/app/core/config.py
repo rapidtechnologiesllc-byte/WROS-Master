@@ -1,5 +1,6 @@
 """
 Configuration management for the Onboarding Application.
+import logging
 Loads environment variables and provides centralized configuration.
 
 SECRETS MANAGEMENT (2026-08-18):
@@ -37,6 +38,7 @@ except ImportError:
     def get_secret(name: str, default: Optional[str] = None) -> Optional[str]:
         return os.getenv(name.replace("-", "_").upper(), default)
 
+logger = logging.getLogger(__name__)
 
 class Settings:
     """Application settings and configuration."""

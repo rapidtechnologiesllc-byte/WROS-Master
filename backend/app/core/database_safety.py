@@ -1,4 +1,5 @@
 """
+import logging
 Production Database Safety Guard
 
 Prevents accidental connections to production databases from local development.
@@ -9,6 +10,7 @@ import os
 import sys
 from typing import Optional
 
+logger = logging.getLogger(__name__)
 
 class ProductionDatabaseError(Exception):
     """Raised when production database is accessed outside production environment."""

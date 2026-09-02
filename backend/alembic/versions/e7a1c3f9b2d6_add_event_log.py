@@ -1,3 +1,4 @@
+import logging
 """add event_log table (S-078/HRMS-0478)
 
 Revision ID: e7a1c3f9b2d6

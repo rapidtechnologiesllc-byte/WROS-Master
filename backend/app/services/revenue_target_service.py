@@ -2,6 +2,7 @@
 S-267/HRMS-0301 (Set BU Revenue Target) + PartnerGoal + S-241/HRMS-0212
 (Executive Revenue Dashboard) + S-244/HRMS-0215 (Pipeline Coverage,
 exposed via calculate_pipeline_coverage_ratio() -- already built,
+import logging
 reused here not reimplemented).
 
 Actuals come from Invoice (client_id, total_usd_cents), never the
@@ -29,6 +30,7 @@ from app.services.permission_helper import PermissionHelper
 ON_TRACK_THRESHOLD = 0.95
 AT_RISK_THRESHOLD = 0.80
 
+logger = logging.getLogger(__name__)
 
 class RevenueTargetValidationError(Exception):
     pass

@@ -48,6 +48,7 @@ class FinanceService:
                 "created_at": invoice.created_at.isoformat()
             }
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             db.rollback()
             logger.error(f"Failed to create invoice: {e}", exc_info=True)
             raise ValueError(f"Invoice creation failed: {str(e)}")
@@ -79,6 +80,7 @@ class FinanceService:
                 "submitted_at": invoice.submitted_at.isoformat()
             }
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             db.rollback()
             logger.error(f"Failed to submit invoice: {e}", exc_info=True)
             raise
@@ -112,6 +114,7 @@ class FinanceService:
                 "approved_at": invoice.approved_at.isoformat()
             }
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             db.rollback()
             logger.error(f"Failed to approve invoice: {e}", exc_info=True)
             raise
@@ -136,6 +139,7 @@ class FinanceService:
                         invoice.approved_by = approved_by
                         approved_count += 1
                 except Exception as e:
+                   logger.error(f"Error: {str(e)}", exc_info=True)
                     logger.warning(f"Failed to approve invoice {invoice_id}: {e}")
                     failed_count += 1
 
@@ -148,6 +152,7 @@ class FinanceService:
                 "total": len(invoice_ids)
             }
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             db.rollback()
             logger.error(f"Bulk approval failed: {e}", exc_info=True)
             raise
@@ -193,6 +198,7 @@ class FinanceService:
                 "status": "RECOGNIZED"
             }
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             db.rollback()
             logger.error(f"Revenue recognition failed: {e}", exc_info=True)
             raise

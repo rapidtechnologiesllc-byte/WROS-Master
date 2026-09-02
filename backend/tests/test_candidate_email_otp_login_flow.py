@@ -3,6 +3,7 @@ Email OTP backlog item, 2026-08-05 (wros_email_2fa_backlog), candidate
 half: "for external we need to give a pop up to check if they want to
 register for 2 step." Opt-in, not enforced -- a candidate who has never
 been asked gets a normal login plus show_2fa_opt_in_popup=true; once
+import logging
 they opt in, every future login challenges them for an emailed code.
 
 Builds a small standalone FastAPI app (auth + mfa routers only) against

@@ -8,6 +8,7 @@ closed to Org-Pool-only rather than seeing everything. Real RBAC seed
 the real database.
 """
 import os
+import logging
 import tempfile
 
 import pytest

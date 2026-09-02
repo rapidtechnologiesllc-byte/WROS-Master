@@ -1,3 +1,4 @@
+import logging
 from sqlalchemy import Boolean, Column, DateTime, Enum, Integer, String, func
 
 from app.models.base import Base
@@ -8,6 +9,7 @@ from app.models.client import BILLING_CURRENCIES
 # tenant's users.
 TENANT_DATE_FORMATS = ("MM/DD/YYYY", "DD/MM/YYYY", "YYYY-MM-DD")
 
+logger = logging.getLogger(__name__)
 
 class Tenant(Base):
     """

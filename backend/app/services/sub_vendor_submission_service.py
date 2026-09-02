@@ -1,6 +1,7 @@
 """
 HRMS-P806 (FT-Only Enforcement Gate) + HRMS-P807 (Dedup Against Internal
 DB) + HRMS-P808 (Recruiter Review) + HRMS-P811's compliance-escalation
+import logging
 half (deadline auto-close lives in app.services.sub_vendor_service).
 
 The FT-only gate and dedup check reuse existing, real logic rather than
@@ -31,6 +32,7 @@ COMPLIANCE_REVIEW_THRESHOLD = 3   # BR-0806-02
 COMPLIANCE_SUSPENSION_THRESHOLD = 5  # BR-0806-02
 VIOLATION_WINDOW_DAYS = 90
 
+logger = logging.getLogger(__name__)
 
 class InvalidSubmissionReviewTransition(Exception):
     pass

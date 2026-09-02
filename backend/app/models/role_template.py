@@ -1,3 +1,4 @@
+import logging
 """Role Template system - Dynamic roles defined via modules and resources."""
 
 from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, DateTime, Text, JSON, UniqueConstraint
@@ -5,6 +6,7 @@ from sqlalchemy.orm import relationship
 from datetime import datetime
 from app.models.base import Base
 
+logger = logging.getLogger(__name__)
 
 class Module(Base):
     """Top-level modules (Recruitment, Finance, Admin, Executive, etc.)"""

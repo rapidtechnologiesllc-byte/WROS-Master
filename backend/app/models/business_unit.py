@@ -1,3 +1,4 @@
+import logging
 """Business Unit Model"""
 
 from datetime import datetime
@@ -5,6 +6,7 @@ from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text, Bool
 from sqlalchemy.orm import relationship
 from app.models.base import Base
 
+logger = logging.getLogger(__name__)
 
 class BusinessUnit(Base):
     """

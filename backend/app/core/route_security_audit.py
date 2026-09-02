@@ -1,5 +1,6 @@
 """
 HRMS-0114 -- "every route has an explicit permission declaration or the
+import logging
 application fails to start."
 
 This module provides the mechanism

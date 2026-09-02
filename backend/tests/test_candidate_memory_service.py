@@ -1,4 +1,5 @@
 """
+import logging
 S-021/HRMS-0421 -- Candidate Memory Store.
 
 Real architecture adaptations under test (see candidate_memory.py and

@@ -1,4 +1,5 @@
 """
+import logging
 COMPLETE REVENUE API ENDPOINTS - Production Grade
 
 All revenue recognition and reporting endpoints wired to business logic.
@@ -29,6 +30,7 @@ router = APIRouter(prefix="/api/v1/revenue", tags=["revenue"])
 # ============================================================================
 # REQUEST/RESPONSE MODELS
 # ============================================================================
+logger = logging.getLogger(__name__)
 
 class RevenueBreakdownResponse(BaseModel):
     dimension: str
@@ -148,6 +150,7 @@ def get_revenue_dashboard(
         return result
 
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -197,6 +200,7 @@ def get_revenue_by_opportunity(
     except HTTPException:
         raise
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -237,6 +241,7 @@ def get_revenue_by_account_manager(
     except HTTPException:
         raise
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -297,6 +302,7 @@ def get_revenue_breakdowns(
     except HTTPException:
         raise
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -334,6 +340,7 @@ def get_revenue_forecast_vs_actual(
     except HTTPException:
         raise
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -377,6 +384,7 @@ def get_revenue_margin_analysis(
     except HTTPException:
         raise
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -419,6 +427,7 @@ def get_revenue_partner_share(
     except HTTPException:
         raise
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -451,4 +460,5 @@ def get_revenue_alerts(
         return result[:limit]
 
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))

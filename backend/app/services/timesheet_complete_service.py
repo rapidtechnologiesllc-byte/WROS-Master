@@ -9,8 +9,10 @@ from sqlalchemy.orm import Session
 from app.models.timesheet import Timesheet, TimesheetEntry
 from app.models.allocation import EmployeeAllocation
 from app.models.project import Project
+import logging
 from app.models.employee import Employee
 
+logger = logging.getLogger(__name__)
 
 class TimesheetCompleteService:
     """Manages complete timesheet lifecycle."""

@@ -3,6 +3,7 @@ POST /ai-agent/conversations/{id}/send, /take-over, /hand-back -- proves
 S-009 (manual message send) and S-010 (conversation ownership/takeover)
 on real routes, wired on top of the already-tested
 app.services.whatsapp_routing_service layer (see test_whatsapp_routing.py
+import logging
 for the underlying service-level proof).
 
 Throwaway SQLite app, throwaway JWT keys -- never the real database or

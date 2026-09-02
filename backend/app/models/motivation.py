@@ -1,4 +1,5 @@
 """
+import logging
 S-349/HRMS-P119 -- Proactive Motivation Engine.
 
 motivation_content_library: BA-approved facts/proof-points per desire
@@ -24,6 +25,7 @@ from app.models.base import Base
 
 TRIGGER_TYPES = ("COMPETING_OFFER", "OFFER_PENDING_RESPONSE", "COOLING_ENGAGEMENT", "DESIRE_SHIFT", "SCHEDULED_NURTURE")
 
+logger = logging.getLogger(__name__)
 
 class MotivationContentLibrary(Base):
     __tablename__ = "motivation_content_library"

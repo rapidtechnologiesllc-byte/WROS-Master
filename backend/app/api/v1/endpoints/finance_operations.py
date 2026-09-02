@@ -8,6 +8,7 @@ from app.services.finance_operations_service import (
     get_bank_reconciliation_summary,
     get_ar_aging_breakdown,
     get_invoice_detail_drill_down
+import logging
 )
 
 router = APIRouter(prefix="/finance-operations", tags=["Finance Operations"])
@@ -24,6 +25,7 @@ def get_bank_reconciliation(
         summary = get_bank_reconciliation_summary(db, as_of_date)
         return {"status": "success", "data": summary}
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -38,6 +40,7 @@ def get_ar_aging(
         aging = get_ar_aging_breakdown(db, as_of_date)
         return {"status": "success", "data": aging}
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -56,4 +59,5 @@ def get_invoice_detail(
     except HTTPException:
         raise
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))

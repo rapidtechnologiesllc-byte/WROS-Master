@@ -1,4 +1,5 @@
 """
+import logging
 Schemas for Candidate Rejection Workflow
 
 Includes request/response models for:
@@ -11,6 +12,7 @@ from pydantic import BaseModel, EmailStr
 from typing import Optional, List
 from datetime import datetime
 
+logger = logging.getLogger(__name__)
 
 class CandidateRejectionReasonResponse(BaseModel):
     """Response model for predefined rejection reasons."""

@@ -3,6 +3,7 @@ HRMS-0401/0409 bug fix -- a candidate's reply to the AI recruiter's
 missing-fields email was never actually processed by anything (the
 webhook endpoint's own docstring said "by a scheduler polling the Graph
 inbox periodically", but no such scheduler job existed, and no UI called
+import logging
 the manual poll endpoint either).
 
 Covers app.services.ai_conversation_service.poll_all_awaiting_candidates(),

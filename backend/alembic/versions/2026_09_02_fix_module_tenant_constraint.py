@@ -1,3 +1,4 @@
+import logging
 """Fix module unique constraint for multi-tenant support
 
 Revision ID: fix_module_tenant

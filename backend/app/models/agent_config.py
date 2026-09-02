@@ -1,4 +1,5 @@
 """
+import logging
 Agent Configuration Model - Defines configurable agent pipeline settings.
 
 An AgentConfig represents a single agent in the system and its orchestration settings.
@@ -23,6 +24,7 @@ import uuid
 
 from app.core.database import Base
 
+logger = logging.getLogger(__name__)
 
 class AgentConfig(Base):
     """

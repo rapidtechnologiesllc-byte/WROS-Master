@@ -1,3 +1,4 @@
+import logging
 """Agent Performance Dashboard API - All 50+ agents with targets vs achievements."""
 
 from fastapi import APIRouter, Depends, HTTPException, Query

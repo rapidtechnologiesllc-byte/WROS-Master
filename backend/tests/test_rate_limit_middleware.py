@@ -1,6 +1,7 @@
 """
 Proves Phase 1 B4's acceptance test: "exceed the configured rate limit
 from a single source; confirm throttling engages before the request
+import logging
 reaches business logic."
 
 Uses a tiny standalone app (not the real app.main:app -- keeps this

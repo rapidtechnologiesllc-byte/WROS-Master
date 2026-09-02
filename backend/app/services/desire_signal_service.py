@@ -1,4 +1,5 @@
 """
+import logging
 S-347/HRMS-P117 -- Candidate Desire Intelligence Engine.
 
 Every candidate touchpoint (chat, WhatsApp, email, objections, response
@@ -74,6 +75,7 @@ def _record(
         db.refresh(signal)
         return signal
     except Exception as exc:
+       logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[DesireSignal] Failed to record {signal_source} signal for candidate {candidate_id!r}: {exc}")
         db.rollback()
         return None
@@ -241,6 +243,7 @@ def process_unprocessed_signals(db: Session, *, limit: int = BATCH_SIZE, llm_cal
             db.commit()
             processed_count += 1
         except Exception as exc:
+           logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.warning(f"[DesireSignal] SignalProcessingJob failed for signal {signal.id}: {exc}")
             db.rollback()
             failed_count += 1

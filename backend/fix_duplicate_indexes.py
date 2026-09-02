@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """
+import logging
 Fix duplicate index definitions across all models.
 
 Problem: Models define indexes both via index=True on Column AND via explicit Index()

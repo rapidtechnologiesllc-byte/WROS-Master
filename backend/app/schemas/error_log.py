@@ -1,9 +1,11 @@
 """Pydantic schemas -- S-215 Error Logging Framework."""
 from datetime import datetime
+import logging
 from typing import List, Optional
 
 from pydantic import BaseModel
 
+logger = logging.getLogger(__name__)
 
 class ErrorLogItem(BaseModel):
     id: str

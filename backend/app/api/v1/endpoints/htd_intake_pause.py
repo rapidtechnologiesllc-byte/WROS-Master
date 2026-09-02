@@ -3,6 +3,7 @@ S-359/HRMS-P511 -- HTD Intake Pause Engine: Conversion Rate Breach --
 API Endpoints
 =========================================================================
 Prefix: /htd-intake
+import logging
 Tag:    htd-intake
 
 Wires app.services.htd_intake_pause_service (new this round) to real

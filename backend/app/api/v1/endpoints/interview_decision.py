@@ -4,6 +4,7 @@ Full CRUD endpoints for interview decision workflow.
 """
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
+import logging
 from typing import Optional
 
 from app.core.database import get_db
@@ -65,6 +66,7 @@ async def get_interview_status(
     except HTTPException:
         raise
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to get interview status: {str(e)}"
@@ -100,6 +102,7 @@ async def calculate_panel_decision(
 
         return decision_data
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to calculate panel decision: {str(e)}"
@@ -154,6 +157,7 @@ async def move_to_offer(
     except HTTPException:
         raise
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to create offer: {str(e)}"
@@ -201,6 +205,7 @@ async def reject_candidate(
     except HTTPException:
         raise
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to reject candidate: {str(e)}"

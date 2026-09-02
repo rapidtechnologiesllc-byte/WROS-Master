@@ -1,5 +1,6 @@
 # 2026-08-17: Fixed PostgreSQL column quoting in unified_login
 from datetime import datetime
+import logging
 from typing import Optional
 
 from fastapi import APIRouter, Depends, FastAPI, Header, HTTPException, Response
@@ -206,6 +207,7 @@ def unified_login(request: UnifiedLoginRequest, db: Session = Depends(get_db)):
                     db, user.UserID, user.tenant_id
                 )
             except Exception as e:
+                logger.error(f"Error: {str(e)}", exc_info=True)
                 if "no role template" in str(e).lower():
                     raise HTTPException(
                         status_code=403,
@@ -250,6 +252,7 @@ def unified_login(request: UnifiedLoginRequest, db: Session = Depends(get_db)):
                 db, user.UserID, user.tenant_id
             )
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             if "no role template" in str(e).lower():
                 raise HTTPException(
                     status_code=403,

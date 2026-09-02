@@ -1,9 +1,11 @@
 """Pydantic Schemas -- S-062/HRMS-0462 Recruiter Intervention Queue."""
 from datetime import datetime
+import logging
 from typing import List, Optional
 
 from pydantic import BaseModel
 
+logger = logging.getLogger(__name__)
 
 class QueueItem(BaseModel):
     id: int

@@ -1,5 +1,6 @@
 """
 HRMS-1105 (canonical S-320) Resource Management Agent
+import logging
 (app.services.resource_management_agent_service).
 
 No real Gemini call is made -- ChatGoogleGenerativeAI is mocked, same

@@ -1,3 +1,4 @@
+import logging
 """Add 10 modules for Step 3 role template alignment
 
 This migration ensures 10 modules are defined to match the navigation menu:

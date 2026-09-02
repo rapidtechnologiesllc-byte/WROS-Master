@@ -1,4 +1,5 @@
 """
+import logging
 Agent Pyramid Reporting Endpoints - 6-Level Hierarchical Accountability with Flash Coaching
 
 CRITICAL FLOW:
@@ -39,6 +40,7 @@ from app.services.agent_pyramid_reporting import (
 
 router = APIRouter(prefix="/agents", tags=["agents-pyramid"])
 
+logger = logging.getLogger(__name__)
 
 class TechLeadReportForm(BaseModel):
     """Tech Lead weekly report form"""

@@ -1,3 +1,4 @@
+import logging
 """Add WorkOrder model for PO/SOW revenue linkage
 
 Revision ID: 2026_08_12_work_orders

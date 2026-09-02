@@ -2,6 +2,7 @@
 Proves the self-service ownership boundary at the route level: POST
 /expenses always attributes to the authenticated caller, never a
 request-body field -- and that list-all/approve/investment-position
+import logging
 stay gated behind revenue.view/revenue.view_pnl.
 
 Throwaway SQLite app, throwaway JWT keys -- never the real database.

@@ -2,10 +2,12 @@
 Pydantic Schemas — S-015/HRMS-0415 Conversation Search.
 """
 from datetime import datetime
+import logging
 from typing import List, Optional
 
 from pydantic import BaseModel
 
+logger = logging.getLogger(__name__)
 
 class SearchResultItem(BaseModel):
     candidate_id: Optional[str]

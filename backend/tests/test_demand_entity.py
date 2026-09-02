@@ -1,6 +1,7 @@
 """
 Proves HRMS-0103: BR-01 (employment_type always W2_FULLTIME), BR-02
 (sourcing gated on bench-first, R-04), BR-03 (auto-fill tracking), the
+import logging
 status state machine, and the duplicate-open-demand guard.
 
 Throwaway SQLite -- never the real database.

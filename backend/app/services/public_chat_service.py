@@ -9,6 +9,7 @@ creation entry point in this codebase uses (see
 app.api.v1.endpoints.create_job.apply_for_job for the other one). No
 shadow data model, no fabricated replies -- every message after the
 opening greeting goes through the real, context-aware
+import logging
 generate_thunder_reply_with_fallback().
 
 Session model: there's no login. The candidate_id returned by
@@ -44,6 +45,7 @@ from app.services.thunder_service import (
     send_thunder_message,
 )
 
+logger = logging.getLogger(__name__)
 
 class PublicChatConsentRequired(Exception):
     """The visitor didn't tick the consent checkbox -- fail closed, same

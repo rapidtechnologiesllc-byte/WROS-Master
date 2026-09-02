@@ -1,4 +1,5 @@
 """
+import logging
 S-029/HRMS-0429 -- Skill Extraction & Tagging from Resume.
 
 candidate_skill_tags: genuinely new table (like S-028's resume-parsed
@@ -13,6 +14,7 @@ from app.models.base import Base
 
 SKILL_TAG_SOURCES = ("RESUME", "CONVERSATION", "MANUAL")
 
+logger = logging.getLogger(__name__)
 
 class CandidateSkillTag(Base):
     __tablename__ = "candidate_skill_tags"

@@ -1,5 +1,6 @@
 """
 HRMS-0906 (Revenue Realization & Leakage Detection -- time-tracking
+import logging
 layer) + HRMS-0903 (Timesheet-to-Revenue Bridge Validation).
 
 Both are monitor-and-flag layers over the real Timesheet/Invoice
@@ -22,6 +23,7 @@ from app.models.base import Base
 def _new_uuid() -> str:
     return str(uuid.uuid4())
 
+logger = logging.getLogger(__name__)
 
 class RevenueLeakageFlag(Base):
     __tablename__ = "revenue_leakage_time_layer"

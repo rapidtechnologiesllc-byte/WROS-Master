@@ -1,3 +1,4 @@
+import logging
 """Module Service - Database-driven module and permission management."""
 
 from typing import List, Dict, Optional
@@ -6,6 +7,7 @@ from sqlalchemy import func
 
 from app.models.module import Module, ModulePermission
 
+logger = logging.getLogger(__name__)
 
 class ModuleService:
     """Service for managing modules and permissions from database."""

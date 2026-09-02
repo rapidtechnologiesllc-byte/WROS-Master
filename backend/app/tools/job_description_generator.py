@@ -46,8 +46,7 @@ Keep tone professional but friendly."""
         result = llm.invoke(prompt)
         state['generated_description'] = result.content
         logger.info(f"Job description generated using {provider.value}")
-    except Exception as e:
-        logger.error(f"Failed to generate job description: {e}. Using template fallback.")
+    except Exception as e:        logger.error(f"Failed to generate job description: {e}. Using template fallback.")
         # Return a professional template instead of error message
         state['generated_description'] = f"""Overview:
 {state['job_description_oneliner']}
@@ -84,8 +83,7 @@ Return ONLY the skills, comma-separated, nothing else."""
         skills_text = result.content.strip()
         state['skills_needed'] = [s.strip() for s in skills_text.split(',')]
         logger.info(f"Skills extracted using {provider.value}: {len(state['skills_needed'])} skills")
-    except Exception as e:
-        logger.error(f"Failed to extract skills: {e}")
+    except Exception as e:        logger.error(f"Failed to extract skills: {e}")
         state['skills_needed'] = []
     
     return state

@@ -1,3 +1,4 @@
+import logging
 """Pydantic schemas -- HRMS-0515 (Employee Performance Intelligence Store) read API."""
 
 from datetime import datetime
@@ -5,6 +6,7 @@ from typing import Dict, List, Optional
 
 from pydantic import BaseModel
 
+logger = logging.getLogger(__name__)
 
 class PerformanceEventItem(BaseModel):
     id: int

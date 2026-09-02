@@ -1,4 +1,5 @@
 """
+import logging
 S-019/HRMS-0419 -- Conversation Summary Auto-Generation.
 
 Real architecture adaptations under test (see conversation_summary_

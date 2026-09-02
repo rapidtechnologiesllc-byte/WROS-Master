@@ -1,3 +1,4 @@
+import logging
 """Add newsletters table
 
 Revision ID: dcedf384d6f6

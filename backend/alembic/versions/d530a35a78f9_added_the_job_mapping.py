@@ -1,3 +1,4 @@
+import logging
 """added the job mapping
 
 Revision ID: d530a35a78f9

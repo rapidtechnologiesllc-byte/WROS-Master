@@ -1,6 +1,7 @@
 """
 Pydantic schemas for Hiring Manager Validation (HRMS-1104 / S-319)
 Validation questions before interview scheduling
+import logging
 """
 
 from pydantic import BaseModel, Field, validator
@@ -8,6 +9,7 @@ from typing import Optional, List, Dict, Any
 from datetime import datetime
 from enum import Enum
 
+logger = logging.getLogger(__name__)
 
 class ValidationQuestionType(str, Enum):
     """Question type enum"""

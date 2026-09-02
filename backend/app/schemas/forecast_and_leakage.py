@@ -1,8 +1,10 @@
 from datetime import datetime
+import logging
 from typing import Optional
 
 from pydantic import BaseModel
 
+logger = logging.getLogger(__name__)
 
 class ForecastVsActualResponse(BaseModel):
     business_unit_id: Optional[int]

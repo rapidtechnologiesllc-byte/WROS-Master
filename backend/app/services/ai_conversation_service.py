@@ -1,6 +1,7 @@
 ﻿"""
 AI Conversation Agent Service
 ==============================
+import logging
 Core brain for the email-based AI hiring agent.
 
 Responsibilities:
@@ -573,6 +574,7 @@ def auto_assign_ai_agent_on_creation(
     try:
         assign_ai_agent(candidate_id=candidate_id, tenant_id=tenant_id, assigned_by=None, db=db)
     except Exception as exc:
+       logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.error(f"[AutoAssign] Automatic AI recruiter assignment failed for candidate '{candidate_id}': {exc}")
         return
 
@@ -634,6 +636,7 @@ def run_auto_assign_ai_agent_in_background(candidate_id: str) -> None:
             from app.services.first_engagement_service import send_first_whatsapp_engagement
             whatsapp_result = send_first_whatsapp_engagement(db, candidate_id, tenant_id)
         except Exception as exc:
+           logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.warning(f"[AutoAssign] First WhatsApp engagement did not complete for candidate '{candidate_id}': {exc}")
 
     email_result = None
@@ -642,6 +645,7 @@ def run_auto_assign_ai_agent_in_background(candidate_id: str) -> None:
             from app.services.email_first_engagement_service import send_first_email_engagement
             email_result = send_first_email_engagement(db, candidate_id, tenant_id)
         except Exception as exc:
+           logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.warning(f"[AutoAssign] First email engagement did not complete for candidate '{candidate_id}': {exc}")
 
     # S-044/HRMS-0444 Step 4: start the multi-touch campaign once at
@@ -666,6 +670,7 @@ def run_auto_assign_ai_agent_in_background(candidate_id: str) -> None:
             if conversation:
                 start_campaign(db, candidate_id, tenant_id, conversation.id)
     except Exception as exc:
+       logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[AutoAssign] Outreach campaign did not start for candidate '{candidate_id}': {exc}")
 
 
@@ -703,6 +708,7 @@ def _send_missing_fields_email(
         )
         return True
     except Exception as exc:
+       logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.error(f"[AIAgent] Email send failed: {exc}")
         _log_event(
             db, conversation.id, "email_send_failed",
@@ -844,6 +850,7 @@ def read_candidate_replies(
     except HTTPException:
         raise
     except Exception as exc:
+       logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.error(f"[AIAgent] Graph inbox read failed: {exc}")
         # CRITICAL FIX: Raise error instead of returning empty list
         raise Exception(f"Graph API failed to read inbox: {str(exc)}")
@@ -1018,6 +1025,7 @@ JSON output:"""
         logger.error(f"[AIAgent] Gemini returned invalid JSON: {e} | Raw: {text!r}")
         return {}
     except Exception as exc:
+       logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.error(f"[AIAgent] Gemini call failed: {exc}")
         return {}
 
@@ -1218,6 +1226,7 @@ def merge_fields_to_db(candidate_id: str, extracted: Dict[str, Any], db: Session
                 setattr(candidate, field, value)
                 updated.append(field)
             except Exception as exc:
+               logger.error(f"Error: {str(exc)}", exc_info=True)
                 logger.warning(f"[ReplyPipeline] core field {field}={raw_value!r}: {exc}")
                 skipped.append(field)
 
@@ -1232,6 +1241,7 @@ def merge_fields_to_db(candidate_id: str, extracted: Dict[str, Any], db: Session
                 setattr(info, field, str(raw_value).strip())
                 updated.append(field)
             except Exception as exc:
+               logger.error(f"Error: {str(exc)}", exc_info=True)
                 logger.warning(f"[ReplyPipeline] info field {field}={raw_value!r}: {exc}")
                 skipped.append(field)
 
@@ -1278,6 +1288,7 @@ def send_followup_email(candidate, still_missing: List[Dict[str, str]], conversa
             "still_missing": [m["field"] for m in still_missing],
         }
     except Exception as exc:
+       logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.error(f"[ReplyPipeline] send_followup_email failed: {exc}")
         return {"sent": False, "reason": str(exc)}
 
@@ -1643,6 +1654,7 @@ def poll_all_awaiting_candidates(db: Session) -> Dict[str, Any]:
             if result.get("status") in ("completed", "partial") and result.get("updated_fields"):
                 updated += 1
         except Exception as exc:
+            logger.error(f"Error: {str(exc)}", exc_info=True)
             errors.append(f"{conversation.candidate_id}: {exc}")
             logger.error(f"[AutoPoll] Failed processing candidate '{conversation.candidate_id}': {exc}")
 

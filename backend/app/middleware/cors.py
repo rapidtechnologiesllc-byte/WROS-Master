@@ -4,6 +4,7 @@ Handles Cross-Origin Resource Sharing for frontend applications.
 """
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+import logging
 from typing import List
 
 from app.core.config import settings
@@ -82,6 +83,7 @@ def get_cors_config() -> dict:
         "max_age": 3600
     }
 
+logger = logging.getLogger(__name__)
 
 class CORSConfig:
     """

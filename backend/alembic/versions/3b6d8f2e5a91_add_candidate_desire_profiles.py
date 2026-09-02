@@ -1,3 +1,4 @@
+import logging
 """add candidate_desire_profiles (S-348 Desire Profile Builder)
 
 Revision ID: 3b6d8f2e5a91

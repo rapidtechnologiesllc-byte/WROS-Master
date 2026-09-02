@@ -2,6 +2,7 @@
 Pydantic schemas — S-245 (Create Employee Profile) + S-246 (Mark
 Employee as Bench, extended with bench_periods history) + S-247/S-248
 (bench pool view / aging alerts) API.
+import logging
 """
 
 from datetime import date, datetime
@@ -9,6 +10,7 @@ from typing import List, Optional
 
 from pydantic import BaseModel, Field
 
+logger = logging.getLogger(__name__)
 
 class EmployeeCreateRequest(BaseModel):
     first_name: str = Field(..., min_length=1)

@@ -10,6 +10,7 @@ Also extends HRMS-0904's BR-02 (an open dispute blocks the period)
 for real, since TimesheetDispute already exists.
 """
 from datetime import datetime
+import logging
 from typing import List, Optional
 
 from sqlalchemy.orm import Session
@@ -20,6 +21,7 @@ from app.models.project import Project
 from app.models.timesheet import Timesheet
 from app.services.timesheet_dispute_service import has_open_dispute
 
+logger = logging.getLogger(__name__)
 
 class UnapprovedTimesheetBlocksInvoice(Exception):
     """R-10: no exceptions, no bypass."""

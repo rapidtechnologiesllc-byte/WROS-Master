@@ -1,3 +1,4 @@
+import logging
 """PostgreSQL database migration - SQLite to PostgreSQL switch.
 
 Revision ID: 2026_08_14_postgresql_migration

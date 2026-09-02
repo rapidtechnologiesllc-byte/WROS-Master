@@ -1,4 +1,5 @@
 """
+import logging
 Relation Building Agent API Endpoints
 
 Exposes relation building persona extraction for downstream systems.
@@ -79,6 +80,7 @@ async def extract_candidate_persona(
     except HTTPException:
         raise
     except Exception as e:
+       logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Relation building persona extraction error: {str(e)}")
         raise HTTPException(status_code=500, detail="Internal server error during persona extraction")
 
@@ -109,6 +111,7 @@ async def get_candidate_relationship_status(
     except HTTPException:
         raise
     except Exception as e:
+       logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Relationship status retrieval error: {str(e)}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
@@ -193,6 +196,7 @@ async def get_daily_standup(
         return result
 
     except Exception as e:
+       logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Standup report generation error: {str(e)}")
         raise HTTPException(status_code=500, detail="Internal server error generating standup report")
 
@@ -260,6 +264,7 @@ async def capture_email_interaction(
         )
         return result
     except Exception as e:
+       logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Email interaction capture error: {str(e)}")
         raise HTTPException(status_code=500, detail="Error capturing email interaction")
 
@@ -290,6 +295,7 @@ async def capture_whatsapp_interaction(
         )
         return result
     except Exception as e:
+       logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"WhatsApp interaction capture error: {str(e)}")
         raise HTTPException(status_code=500, detail="Error capturing WhatsApp interaction")
 
@@ -318,6 +324,7 @@ async def capture_ai_recruiter_conversation(
         )
         return result
     except Exception as e:
+       logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"AI Recruiter conversation capture error: {str(e)}")
         raise HTTPException(status_code=500, detail="Error capturing AI Recruiter conversation")
 
@@ -344,6 +351,7 @@ async def capture_interview_feedback(
         )
         return result
     except Exception as e:
+       logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Interview feedback capture error: {str(e)}")
         raise HTTPException(status_code=500, detail="Error capturing interview feedback")
 
@@ -370,6 +378,7 @@ async def capture_offer_response(
         )
         return result
     except Exception as e:
+       logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Offer response capture error: {str(e)}")
         raise HTTPException(status_code=500, detail="Error capturing offer response")
 
@@ -423,6 +432,7 @@ async def extract_personal_intelligence(
         )
         return result
     except Exception as e:
+       logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Personal intelligence extraction error: {str(e)}")
         raise HTTPException(status_code=500, detail="Error extracting personal intelligence")
 
@@ -470,6 +480,7 @@ async def get_personalization_strategy(
         return {"status": "success", "strategy": result}
 
     except Exception as e:
+       logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Personalization strategy error: {str(e)}")
         raise HTTPException(status_code=500, detail="Error generating personalization strategy")
 
@@ -512,6 +523,7 @@ async def customize_offer(
         return {"status": "success", "customized_offer": customized}
 
     except Exception as e:
+       logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Offer customization error: {str(e)}")
         raise HTTPException(status_code=500, detail="Error customizing offer")
 
@@ -538,5 +550,6 @@ async def capture_joining_signals(
         )
         return result
     except Exception as e:
+       logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Joining signals capture error: {str(e)}")
         raise HTTPException(status_code=500, detail="Error capturing joining signals")

@@ -1,4 +1,5 @@
 """
+import logging
 HRMS-0910 -- AI Time Entry Anomaly Detection (S-229).
 
 BR-0910-01: flags are advisory only and never block anything -- this

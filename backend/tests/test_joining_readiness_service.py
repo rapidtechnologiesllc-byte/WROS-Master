@@ -1,4 +1,5 @@
 """
+import logging
 S-058/HRMS-0458 -- Joining Readiness Score.
 
 Real architecture under test (see joining_readiness_service module

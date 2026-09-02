@@ -1,4 +1,5 @@
 """
+import logging
 Agent Config Service - Manages agent configuration and pipeline orchestration.
 
 Provides CRUD operations for agent configs and auto-syncs permissions
@@ -15,6 +16,7 @@ from app.models.role_template import RoleTemplate, RoleTemplatePermission
 from app.models.resource import Resource
 from app.core.logging import logger
 
+logger = logging.getLogger(__name__)
 
 class AgentConfigService:
     """Service for managing agent configurations and permissions."""
@@ -31,6 +33,7 @@ class AgentConfigService:
             ).order_by(AgentConfig.order).all()
             return agents
         except Exception as e:
+           logger.error(f"Error: {str(e)}", exc_info=True)
             logger.error(f"Error fetching agents for tenant {tenant_id}: {str(e)}")
             raise
 
@@ -76,6 +79,7 @@ class AgentConfigService:
             return agent
 
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             db.rollback()
             logger.error(f"Error creating agent config {name}: {str(e)}")
             raise
@@ -106,6 +110,7 @@ class AgentConfigService:
             return agent
 
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             db.rollback()
             logger.error(f"Error updating agent config {agent_id}: {str(e)}")
             raise
@@ -125,6 +130,7 @@ class AgentConfigService:
             return True
 
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             db.rollback()
             logger.error(f"Error deleting agent config {agent_id}: {str(e)}")
             raise
@@ -153,6 +159,7 @@ class AgentConfigService:
             ]
 
         except Exception as e:
+           logger.error(f"Error: {str(e)}", exc_info=True)
             logger.error(f"Error fetching pipeline order for tenant {tenant_id}: {str(e)}")
             raise
 
@@ -214,6 +221,7 @@ class AgentConfigService:
             db.commit()
 
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             db.rollback()
             logger.error(f"Error auto-syncing permissions for agent {agent_config.name}: {str(e)}")
             raise

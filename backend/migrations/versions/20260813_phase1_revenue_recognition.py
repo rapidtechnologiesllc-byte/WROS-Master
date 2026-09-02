@@ -1,4 +1,5 @@
 """
+import logging
 Phase 1: Revenue Recognition & P&L Attribution Infrastructure
 
 This migration adds:

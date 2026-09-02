@@ -1,4 +1,5 @@
 """
+import logging
 S-057/HRMS-0457 -- Document Collection Agent.
 
 Real architecture adaptations:
@@ -124,6 +125,7 @@ def _notify_recruiter(db: Session, submission: Optional[Submission], message: st
     try:
         send_notification(db, calling_context_tenant_id=recipient.tenant_id, recipient=recipient, priority_tier="P2", channel_preference="IN_APP", message=message)
     except Exception as exc:
+       logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[DocumentCollection] Failed to notify recruiter: {exc}")
 
 
@@ -160,6 +162,7 @@ def start_document_collection(db: Session, candidate: Candidate, conversation: C
 
         return {"outcome": "started", "documents_created": len(required)}
     except Exception as exc:
+       logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.error(f"[DocumentCollection] Failed starting collection for candidate {candidate.candidateID!r}: {exc}")
         db.rollback()
         return {"outcome": "start_failed"}
@@ -201,6 +204,7 @@ def classify_document_type(context_text: str, *, llm_call: Optional[Callable[[st
         classification = re.sub(r"[^A-Z_]", "", raw.upper())
         return classification if classification in VALID_DOCUMENT_CLASSIFICATIONS else "OTHER"
     except Exception as exc:
+       logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[DocumentCollection] Document classification failed: {exc}")
         return "OTHER"
 
@@ -248,6 +252,7 @@ def mark_document_received(db: Session, candidate: Candidate, conversation: Cand
         _notify_recruiter(db, submission, f"{candidate.candidateFirstName or candidate.candidateID} has submitted all required preboarding documents.")
         return {"outcome": "received", "all_complete": True}
     except Exception as exc:
+       logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.error(f"[DocumentCollection] Failed marking document received for candidate {candidate.candidateID!r}: {exc}")
         db.rollback()
         return {"outcome": "receive_failed"}
@@ -326,6 +331,7 @@ def run_document_reminder_job(db: Session) -> Dict:
                 else:
                     result["skipped"] += 1
         except Exception as exc:
+           logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.error(f"[DocumentCollection] Failed processing reminder for document id={doc.id}: {exc}")
             db.rollback()
             result["skipped"] += 1

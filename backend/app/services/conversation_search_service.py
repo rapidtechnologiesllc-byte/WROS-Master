@@ -1,4 +1,5 @@
 """
+import logging
 S-015/HRMS-0415 -- Conversation Search.
 
 Adapted to real architecture: the spec's PostgreSQL tsvector/
@@ -35,6 +36,7 @@ MIN_QUERY_LENGTH = 2
 SNIPPET_LENGTH = 150
 SEARCHABLE_EVENT_TYPES = ("candidate_reply", "ai_message_sent", "hr_message_sent")
 
+logger = logging.getLogger(__name__)
 
 class SearchTermTooShort(Exception):
     pass

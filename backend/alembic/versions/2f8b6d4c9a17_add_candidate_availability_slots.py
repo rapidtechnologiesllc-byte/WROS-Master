@@ -1,3 +1,4 @@
+import logging
 """S-047/HRMS-0447: add candidate_availability_slots table
 
 Revision ID: 2f8b6d4c9a17

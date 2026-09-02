@@ -1,3 +1,4 @@
+import logging
 ﻿"""Spartan Phalanx Formation API - Shield wall monitoring and integrity tracking."""
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -33,6 +34,7 @@ def get_phalanx_formations(
             "phalanxes": phalanxes,
         }
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -214,4 +216,5 @@ def get_phalanx_wall_dashboard(
         }
 
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))

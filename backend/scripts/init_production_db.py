@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 """
+import logging
 Production Database Initialization Script
 
 Initialize BlitzenX WROS database schema in production SQL Server.
@@ -98,6 +99,7 @@ def init_production_db():
         print("3. Seed initial data if needed")
 
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         print(f"\n❌ Database initialization failed: {e}", file=sys.stderr)
         import traceback
         traceback.print_exc()

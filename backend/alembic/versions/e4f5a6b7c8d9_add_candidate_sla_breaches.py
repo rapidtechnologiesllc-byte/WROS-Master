@@ -1,3 +1,4 @@
+import logging
 """S-020/HRMS-0420: add candidate_sla_breaches table
 
 Revision ID: e4f5a6b7c8d9

@@ -1,3 +1,4 @@
+import logging
 """add activity_timeline and file_uploads tables (S-216/HRMS-0118)
 
 Revision ID: d9c2e5b8f1a4

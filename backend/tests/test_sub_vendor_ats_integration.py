@@ -9,6 +9,7 @@ identically to a DIRECT candidate -- zero source_channel branching
 anywhere in the real pipeline (confirmed by grep: submission_service.py
 only carries source/subvendor_id as pass-through data on the Submission
 row, never as a conditional; interview_service.py and
+import logging
 candidate_service.py reference it nowhere at all).
 
 Throwaway SQLite -- never the real database.

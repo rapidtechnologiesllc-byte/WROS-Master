@@ -1,3 +1,4 @@
+import logging
 """S-074/HRMS-0474: add bulk_engagement_jobs + bulk_engagement_errors tables
 
 Revision ID: 9c3e5f7a1b4d

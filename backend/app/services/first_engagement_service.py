@@ -1,4 +1,5 @@
 """
+import logging
 S-012/HRMS-0412 -- WhatsApp First Engagement, 60-Second Rule.
 
 Adapted to real architecture: no `message_templates` table exists here
@@ -79,6 +80,7 @@ def _render_greeting(db: Session, candidate: Candidate, agent_name: str, tenant_
         raise TemplateRenderFailure(f"Un-replaced template variable in rendered greeting: {rendered!r}")
     return rendered
 
+logger = logging.getLogger(__name__)
 
 class TemplateRenderFailure(Exception):
     pass
@@ -128,6 +130,7 @@ def _send_first_whatsapp_attempt(
     try:
         delivered = bool(client(candidate.candidateMobile, from_number, body))
     except Exception as exc:
+       logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[FirstEngagement] WhatsApp send attempt raised: {exc}")
         delivered = False
 

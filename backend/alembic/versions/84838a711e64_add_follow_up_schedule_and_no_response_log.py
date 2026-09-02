@@ -1,3 +1,4 @@
+import logging
 """S-041/HRMS-0441 + S-042/HRMS-0442: add follow_up_schedule and candidate_no_response_log
 
 Revision ID: 84838a711e64

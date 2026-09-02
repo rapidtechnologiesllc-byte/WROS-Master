@@ -1,5 +1,6 @@
 ﻿"""
 Partner incentive rules + events, 2026-08-05.
+import logging
 Prefix: /partner-incentives
 
 POST /partner-incentives/rules                    -- configure eligibility (revenue.view_pnl -- comp data)

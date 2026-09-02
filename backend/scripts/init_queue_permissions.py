@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Initialize queue-related permissions in role templates."""
 import sys
+import logging
 sys.path.insert(0, '/c/dev/WROS-Master/backend')
 
 from app.core.database import SessionLocal
@@ -63,6 +64,7 @@ def init_queue_permissions():
         print("Queue permissions initialized successfully")
         
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         print(f"Error: {e}")
         db.rollback()
     finally:

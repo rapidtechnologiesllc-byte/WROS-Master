@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """
+import logging
 PHASE 3: Test Data Population with BU Scoping Scenarios
 
 This script creates test data that enables NEGATIVE TEST CASES for BU scoping:
@@ -309,6 +310,8 @@ Scenario D: Diana (will be reassigned across BUs)
         return True
 
     except Exception as e:
+       logger.error(f"Error: {str(e)}", exc_info=True)
+        logger.error(f"Error: {str(e)}", exc_info=True)
         print(f"✗ Error during test data creation: {str(e)}")
         db.rollback()
         import traceback

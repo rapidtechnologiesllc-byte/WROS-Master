@@ -1,6 +1,7 @@
 """
 GET /candidates/{id}/ai-assignment -- proves the HTTP-level auth
 gating; everything else covered at the service layer in
+import logging
 test_ai_recruiter_assignment.py.
 
 2026-08-06: this file used to also cover GET/PATCH /admin/tenant/ai-

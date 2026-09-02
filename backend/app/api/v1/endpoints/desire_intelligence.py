@@ -2,6 +2,7 @@
 S-350/HRMS-P120 -- HR Intelligence Briefing (Candidate Desire Dashboard)
 ==================================================================
 Prefix: /candidates
+import logging
 Tag:    desire-intelligence
 
 GET  /candidates/{candidate_id}/desire-intelligence

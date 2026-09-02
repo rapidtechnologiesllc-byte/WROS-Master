@@ -8,7 +8,9 @@ from app.models.candidate import Candidate
 from app.models.employee import Employee, EmployeeEngineHistory
 from app.models.user import Users
 from app.services.email_service import EmailService
+import logging
 from app.utils.uniq_id_generator import user_id_generator, generate_password
+logger = logging.getLogger(__name__)
 
 class InvalidCandidateState(Exception):
     pass
@@ -70,5 +72,6 @@ class EmployeeConversionService:
             EmailService.send_email_direct(to_email=employee_user.UserEmail, to_name=employee_user.UserName, subject="Welcome to BlitzenX", html_body=email_html)
             return True
         except Exception as e:
+           logger.error(f"Error: {str(e)}", exc_info=True)
             logger.error(f"Email failed: {str(e)}")
             return False

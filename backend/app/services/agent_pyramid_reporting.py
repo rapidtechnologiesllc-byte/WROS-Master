@@ -1,4 +1,5 @@
 """
+import logging
 Agent Pyramid Reporting System - 6-Level Hierarchical Accountability
 
 COMPLETE HIERARCHY (Deep to Shallow):
@@ -80,6 +81,7 @@ from app.models.opportunity import Opportunity
 from app.models.project import Project
 from app.core.logging import logger
 
+logger = logging.getLogger(__name__)
 
 class TechLeadWeeklyReportAgent:
     """

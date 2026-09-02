@@ -1,4 +1,5 @@
 """
+import logging
 S-045/HRMS-0445 -- Reactivation Campaign.
 
 *** REAL, EXPLICIT SPEC OVERRIDE FROM AVINASH -- READ BEFORE TOUCHING ***
@@ -150,6 +151,7 @@ def run_reactivation_job(db: Session) -> Dict:
             logger.info(f"[Reactivation] Reactivation for candidate {status_row.candidate_id!r} skipped: {exc}")
             result["skipped"] += 1
         except Exception as exc:
+           logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.error(f"[Reactivation] Unexpected failure processing candidate {status_row.candidate_id!r}: {exc}")
             db.rollback()
             result["skipped"] += 1
@@ -184,6 +186,7 @@ def run_reactivation_reschedule_job(db: Session) -> Dict:
             db.commit()
             result["rescheduled"] += 1
         except Exception as exc:
+           logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.error(f"[Reactivation] Failed to reschedule candidate {campaign.candidate_id!r}: {exc}")
             db.rollback()
 

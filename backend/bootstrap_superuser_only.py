@@ -4,6 +4,7 @@ BOOTSTRAP ONLY: Grant Super User all permissions ONCE.
 After this, all permissions are managed dynamically via templates (no hardcoding).
 """
 import sys, os
+import logging
 sys.path.insert(0, os.path.dirname(__file__))
 
 from app.core.database import SessionLocal, engine
@@ -89,6 +90,8 @@ try:
     print("When admins create new roles via UI, they select permissions there.")
 
 except Exception as e:
+   logger.error(f"Error: {str(e)}", exc_info=True)
+    logger.error(f"Error: {str(e)}", exc_info=True)
     print(f"\n❌ Error: {e}")
     import traceback
     traceback.print_exc()

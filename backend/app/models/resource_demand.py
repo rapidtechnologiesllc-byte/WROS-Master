@@ -1,5 +1,6 @@
 """Resource Demand Model - Track resource needs and fulfillment"""
 import uuid
+import logging
 from datetime import datetime, date
 
 from sqlalchemy import Column, String, Integer, DateTime, Date, ForeignKey, Enum, Text
@@ -11,6 +12,7 @@ def _new_uuid() -> str:
     return str(uuid.uuid4())
 
 DEMAND_STATUS = ("OPEN", "PARTIALLY_FULFILLED", "FULFILLED", "CLOSED", "CANCELLED")
+logger = logging.getLogger(__name__)
 
 class ResourceDemand(Base):
     """Track resource demand across the organization"""

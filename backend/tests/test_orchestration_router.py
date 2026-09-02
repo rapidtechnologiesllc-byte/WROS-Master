@@ -1,5 +1,6 @@
 """
 Phase 3 Part A2 -- HRMS-1101 System Orchestration Router
+import logging
 (app.services.orchestration_router_service).
 
 Covers every acceptance criterion in S-270_HRMS-1101.docx that this

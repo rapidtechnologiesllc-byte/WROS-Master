@@ -1,4 +1,5 @@
 """
+import logging
 S-027/HRMS-0427 -- Resume Upload via WhatsApp/Email.
 
 Real architecture facts under test (see resume_upload_service module

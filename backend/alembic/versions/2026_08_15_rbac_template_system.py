@@ -1,3 +1,4 @@
+import logging
 """RBAC Template System - Modules, Resources, Role Templates
 
 Revision ID: 2026_08_15_001

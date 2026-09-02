@@ -3,6 +3,7 @@ S-251 (Allocate Employee to Project) + S-252 (Allocation Conflict
 Detection) — API Endpoints
 =========================================================================
 Prefix: /allocations
+import logging
 Tag:    allocations
 
 Wires app.services.employee_allocation_service (real, tested backend,

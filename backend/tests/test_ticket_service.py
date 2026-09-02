@@ -1,4 +1,5 @@
 """
+import logging
 Help Desk/IT-HR Ticketing. Throwaway SQLite -- never the real database.
 
 Covers: Impact x Urgency -> Priority derivation, category->department

@@ -1,3 +1,4 @@
+import logging
 """add tasks / task_reassignment_requests / task_capacity_alerts (S-434)
 
 Revision ID: b7c4e2f8a1d9

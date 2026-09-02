@@ -2,6 +2,7 @@
 S-015/S-016 (HRMS-0415/0416) -- Conversation Search + Filters
 ==================================================================
 Prefix: /conversations
+import logging
 Tag:    conversation-search
 
 GET /conversations/search?q=&channel=&date_from=&date_to=&page=&per_page=

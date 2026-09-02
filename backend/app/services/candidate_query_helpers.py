@@ -1,3 +1,4 @@
+import logging
 """Candidate query helpers with isolation enforcement.
 
 Provides query functions that automatically apply candidate isolation rules
@@ -209,6 +210,7 @@ def submit_candidates_to_bu(
             results["failed"] += 1
             results["errors"].append(f"Candidate {candidate_id}: {str(e)}")
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             results["failed"] += 1
             results["errors"].append(f"Candidate {candidate_id}: Unexpected error: {str(e)}")
 

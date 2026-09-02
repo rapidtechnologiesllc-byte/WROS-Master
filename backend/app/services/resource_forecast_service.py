@@ -3,6 +3,7 @@ S-256/HRMS-0506 (canonical -- content-matched against `Requirements/
 S-171_HRMS-0506.docx`; that filename's own "S-171" label is the same
 class of ID drift already documented elsewhere in this codebase, e.g.
 BenchPeriod's docstring) -- Resource Demand Planning / Future Demand vs
+import logging
 Bench Forecast.
 
 Turns resource management from reactive to proactive: (1) which

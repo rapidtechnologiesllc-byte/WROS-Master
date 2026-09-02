@@ -1,4 +1,5 @@
 """
+import logging
 S-052/HRMS-0452 -- Interview No-Show Handling.
 
 Real architecture under test (see interview_no_show_service module

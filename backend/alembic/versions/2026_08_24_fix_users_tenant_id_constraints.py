@@ -1,3 +1,4 @@
+import logging
 """Fix users table tenant_id constraints for production safety.
 
 Add NOT NULL constraint and ensure all existing users have tenant_id set.

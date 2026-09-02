@@ -2,6 +2,7 @@
 S-014/HRMS-0414 -- Message Template Engine
 =============================================
 Prefix: /templates
+import logging
 Tag:    message-templates
 
 Routes:

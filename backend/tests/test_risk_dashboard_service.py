@@ -1,4 +1,5 @@
 """
+import logging
 S-063/HRMS-0463 -- Candidate Risk Dashboard.
 
 Real architecture under test (see risk_dashboard_service module

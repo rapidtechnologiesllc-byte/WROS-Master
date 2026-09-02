@@ -1,6 +1,7 @@
 """
 Database migration script to assign existing users to appropriate role templates.
 Run this ONCE to backfill role_template_id on users table.
+import logging
 """
 
 from app.core.database import SessionLocal
@@ -59,6 +60,8 @@ def assign_users_to_templates():
         print(f"⊘ Skipped {skipped_count} users (already assigned)")
 
     except Exception as e:
+       logger.error(f"Error: {str(e)}", exc_info=True)
+        logger.error(f"Error: {str(e)}", exc_info=True)
         db.rollback()
         logger.error(f"Migration failed: {e}")
         print(f"✗ Migration failed: {e}")

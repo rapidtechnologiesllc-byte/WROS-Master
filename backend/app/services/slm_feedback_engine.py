@@ -1,4 +1,5 @@
 """
+import logging
 SLM Feedback & Self-Improvement Engine
 
 The Self-Learning Model continuously improves by:
@@ -42,6 +43,7 @@ class ResumeParseFeedback:
     corrected_at: Optional[datetime] = None
     is_useful: bool = True  # Use in training? (false = noisy data)
 
+logger = logging.getLogger(__name__)
 
 class SLMFeedback(Base):
     """Database table for collecting parsing corrections"""

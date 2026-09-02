@@ -1,3 +1,4 @@
+import logging
 """add bu_revenue_targets + partner_goals (S-267 + CEO-set PartnerGoal)
 
 Revision ID: b5d7f9a1c3e5

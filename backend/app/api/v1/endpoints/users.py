@@ -1,4 +1,5 @@
 from datetime import datetime
+import logging
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -743,6 +744,7 @@ def create_user_with_roles(
         db.commit()
         db.refresh(org_node)
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         from app.core.logging import logger
         logger.error(f"Failed to create OrgNode for new user {user_email}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to create organizational hierarchy: {str(e)}")
@@ -1240,6 +1242,7 @@ def get_job_titles(
             ]
         }
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         # If table doesn't exist or other DB error, return empty list
         # (migration may not have run yet)
         return {"job_titles": []}

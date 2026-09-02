@@ -1,4 +1,5 @@
 """
+import logging
 Revenue Recognition & P&L Attribution Service.
 
 Handles:
@@ -20,6 +21,7 @@ from app.models.org_structure import PartnerBUAssignment
 from app.models.client import Client
 from app.models.employee import Employee
 
+logger = logging.getLogger(__name__)
 
 class RevenueRecognitionError(Exception):
     pass

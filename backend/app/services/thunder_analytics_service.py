@@ -1,4 +1,5 @@
 """
+import logging
 S-071/HRMS-0471 -- AI Recruiter Performance Analytics.
 
 Real architecture adaptations:

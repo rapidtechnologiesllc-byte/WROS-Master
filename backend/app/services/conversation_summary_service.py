@@ -1,4 +1,5 @@
 """
+import logging
 S-019/HRMS-0419 -- Conversation Summary Auto-Generation.
 
 Adapted to real architecture:
@@ -104,6 +105,7 @@ def _known_facts_text(db: Session, candidate: Candidate) -> str:
         facts.append("Profile is complete.")
     return "\n".join(facts)
 
+logger = logging.getLogger(__name__)
 
 class SummaryGenerationFailed(Exception):
     pass
@@ -166,6 +168,7 @@ def generate_conversation_summary(
         try:
             raw = _call_llm_for_summary(prompt, llm_call).strip()
         except Exception as exc:
+           logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.warning(f"[ConversationSummary] LLM call failed for conversation {conversation.id}: {exc}")
             db.add(ConversationEvent(
                 conversation_id=conversation.id, event_type="SUMMARY_GENERATION_FAILED",
@@ -219,5 +222,6 @@ def maybe_generate_summary_after_transition(
     try:
         return generate_conversation_summary(db, conversation, candidate, llm_call=llm_call)
     except Exception as exc:
+       logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.error(f"[ConversationSummary] Unexpected error generating summary for conversation {conversation.id}: {exc}")
         return None

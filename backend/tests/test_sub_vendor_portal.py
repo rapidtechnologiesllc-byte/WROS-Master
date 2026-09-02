@@ -6,6 +6,7 @@ HRMS-P811 BR-0811-01), the FT-only gate (HRMS-P806) and dedup
 (HRMS-P808, always through createCandidateSafe()), sourcing attribution
 (HRMS-P816), and the 3/5-strike compliance escalation
 (HRMS-P806/P811, SUSPENSION_PENDING requiring explicit Admin
+import logging
 confirmation, never automatic).
 
 Throwaway SQLite -- never the real database.

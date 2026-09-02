@@ -1,5 +1,6 @@
 from fastapi import APIRouter
 from app.api.v1.endpoints.candidates.crud import router as crud_router
+import logging
 from app.api.v1.endpoints.candidates.conversions import router as conversions_router
 
 # Combine both microservice routers into single export

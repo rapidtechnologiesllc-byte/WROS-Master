@@ -1,4 +1,5 @@
 """
+import logging
 Test Spartan Phalanx System - Real business scenario with 50+ metrics
 
 Scenario: Recruitment phalanx operating for 1 business day
@@ -346,6 +347,7 @@ try:
     print("="*80 + "\n")
 
 except Exception as e:
+    logger.error(f"Error: {str(e)}", exc_info=True)
     print(f"\n[ERROR] {e}")
     import traceback
     traceback.print_exc()

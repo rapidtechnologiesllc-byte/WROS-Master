@@ -73,6 +73,7 @@ class DoctorAgentDaemon:
             }
 
         except Exception as e:
+           logger.error(f"Error: {str(e)}", exc_info=True)
             logger.error(f"Doctor agent processing failed: {e}", exc_info=True)
             raise ValueError(f"Doctor agent failed: {str(e)}")
 
@@ -102,6 +103,7 @@ class DoctorAgentDaemon:
             return rollback_result
 
         except Exception as e:
+           logger.error(f"Error: {str(e)}", exc_info=True)
             logger.error(f"Auto-heal failed: {e}")
             return {"action": "AUTO_HEAL", "status": "FAILED", "error": str(e)}
 
@@ -147,6 +149,7 @@ class DoctorAgentDaemon:
             return shield_result
 
         except Exception as e:
+           logger.error(f"Error: {str(e)}", exc_info=True)
             logger.error(f"Adjacent shield activation failed: {e}")
             return {"action": "ADJACENT_SHIELD", "status": "FAILED", "error": str(e)}
 
@@ -233,6 +236,7 @@ class DoctorAgentDaemon:
             return escalation_ticket
 
         except Exception as e:
+           logger.error(f"Error: {str(e)}", exc_info=True)
             logger.error(f"Critical isolation failed: {e}")
             return {"action": "CRITICAL_ISOLATION", "status": "FAILED", "error": str(e)}
 
@@ -278,6 +282,7 @@ class DoctorAgentDaemon:
             return {"status": "NO_BALANCING_REQUIRED"}
 
         except Exception as e:
+           logger.error(f"Error: {str(e)}", exc_info=True)
             logger.error(f"Upstream balancing failed: {e}")
             raise
 
@@ -320,6 +325,7 @@ class DoctorAgentDaemon:
             return {"status": "MARGIN_HEALTHY", "no_constraint_required": True}
 
         except Exception as e:
+           logger.error(f"Error: {str(e)}", exc_info=True)
             logger.error(f"Margin guardrail enforcement failed: {e}")
             raise
 

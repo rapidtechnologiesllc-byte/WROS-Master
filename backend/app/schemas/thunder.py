@@ -1,5 +1,6 @@
 """
 Pydantic Schemas — "Test Thunder" chat mode.
+import logging
 """
 
 from datetime import datetime
@@ -7,6 +8,7 @@ from typing import List, Optional
 
 from pydantic import BaseModel, Field
 
+logger = logging.getLogger(__name__)
 
 class TestChatMessageRequest(BaseModel):
     message: str = Field(..., min_length=1, max_length=4000, description="Message to send as if you were the candidate")

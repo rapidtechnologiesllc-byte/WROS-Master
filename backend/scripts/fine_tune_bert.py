@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """
+import logging
 Fine-Tune BERT Model for Resume Parsing
 
 Trains a BERT-based named entity recognition (NER) model to extract resume fields.
@@ -43,6 +44,7 @@ except ImportError:
     print("   pip install transformers torch datasets scikit-learn")
     sys.exit(1)
 
+logger = logging.getLogger(__name__)
 
 class ResumeBERTTrainer:
     """Fine-tune BERT for resume field extraction"""

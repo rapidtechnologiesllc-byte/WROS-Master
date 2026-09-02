@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Create superuser role template and user account."""
 import sys, os, uuid
+import logging
 from datetime import datetime
 
 sys.path.insert(0, os.path.dirname(__file__))
@@ -106,6 +107,8 @@ try:
     print("="*60 + "\n")
 
 except Exception as e:
+   logger.error(f"Error: {str(e)}", exc_info=True)
+    logger.error(f"Error: {str(e)}", exc_info=True)
     print(f"\n❌ ERROR: {e}")
     import traceback
     traceback.print_exc()

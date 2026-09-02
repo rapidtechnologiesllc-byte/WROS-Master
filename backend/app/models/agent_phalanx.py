@@ -1,3 +1,4 @@
+import logging
 """Agent Phalanx Models - Spartan shield wall formation tracking."""
 
 from sqlalchemy import Column, String, Integer, Float, DateTime, Text, JSON, Boolean
@@ -5,6 +6,7 @@ from sqlalchemy.orm import relationship
 from app.models.base import Base
 from datetime import datetime
 
+logger = logging.getLogger(__name__)
 
 class AgentPhalanxFormation(Base):
     """Tracks phalanx formations (Recruitment, Resource, Finance, etc.)."""

@@ -32,6 +32,7 @@ def forecast_recruitment_needs(
         forecast = AutonomousForecastingService.forecast_recruitment_needs(db)
         return {"status": "success", "data": forecast}
     except Exception as e:
+       logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Recruitment forecasting failed: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -53,6 +54,7 @@ def forecast_resource_needs(
         forecast = AutonomousForecastingService.forecast_resource_needs(db)
         return {"status": "success", "data": forecast}
     except Exception as e:
+       logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Resource forecasting failed: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -77,6 +79,7 @@ def forecast_revenue_needs(
         forecast = AutonomousForecastingService.forecast_revenue_needs(db)
         return {"status": "success", "data": forecast}
     except Exception as e:
+       logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Revenue forecasting failed: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -119,6 +122,7 @@ def validate_decision(
         return {"status": "success", "data": validation}
 
     except Exception as e:
+       logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Decision validation failed: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -154,6 +158,7 @@ def generate_autonomous_alert(
         return {"status": "success", "data": alert}
 
     except Exception as e:
+       logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Alert generation failed: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -206,5 +211,6 @@ def forecasting_system_health(
         return {"status": "success", "data": health}
 
     except Exception as e:
+       logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Health check failed: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))

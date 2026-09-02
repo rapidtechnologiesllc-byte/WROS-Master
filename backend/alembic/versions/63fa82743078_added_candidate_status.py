@@ -1,3 +1,4 @@
+import logging
 """added candidate status
 
 Revision ID: 63fa82743078

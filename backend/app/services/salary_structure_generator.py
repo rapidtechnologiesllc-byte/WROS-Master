@@ -7,6 +7,7 @@ CTC breakdown rules:
   Medical         = ₹15,000 fixed
   Transport       = ₹19,200 fixed
   Deployment      = min(CTC - Basic - HRA - Medical - Transport, 60,000)
+import logging
   Fixed Allowance = CTC - Basic - HRA - Medical - Transport - Deployment
 
 EPF base (excl. HRA + Deployment) = Basic + Transport + Medical + Fixed

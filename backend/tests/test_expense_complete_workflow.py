@@ -1,4 +1,5 @@
 """
+import logging
 Complete Expense Management Workflow - S-325: Expense Management
 
 Tests the full lifecycle of expense management:
@@ -65,6 +66,7 @@ def _make_client(db, name, *, status="PROSPECT", tenant_id=None):
     db.commit()
     return client
 
+logger = logging.getLogger(__name__)
 
 class TestSubmitExpense:
     """S-325: submit_expense - Employee logs expense for reimbursement."""

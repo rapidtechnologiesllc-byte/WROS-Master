@@ -1,4 +1,5 @@
 """
+import logging
 S-205/HRMS-0107 -- Business Unit Entity & Context Switching.
 
 bu_access is the real junction table the spec asks for (user_id,
@@ -12,6 +13,7 @@ from sqlalchemy import Boolean, Column, ForeignKey, Integer, String, UniqueConst
 
 from app.models.base import Base
 
+logger = logging.getLogger(__name__)
 
 class BUAccess(Base):
     __tablename__ = "bu_access"

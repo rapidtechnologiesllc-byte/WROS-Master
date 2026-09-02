@@ -4,6 +4,7 @@ proves the real HTTP-level RBAC gate. offer.readiness_check is a new,
 narrower permission than offer.manage/offer.view (see rbac_service.py's
 own note) added specifically so Recruiter gets a real 403 here, without
 touching the two broader offer permissions other already-shipped routes
+import logging
 depend on (which currently, inconsistently, still include Recruiter).
 
 Throwaway SQLite app, throwaway JWT keys, real RBAC seed.

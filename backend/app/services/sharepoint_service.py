@@ -4,6 +4,7 @@ SharePoint Service
 Thin wrapper around the Microsoft Graph REST API for SharePoint Drive operations.
 Uses the application-level service-account token (AZURE_* credentials) already
 configured in app/core/graph_auth.py — no user sign-in required.
+import logging
 """
 
 import io
@@ -215,6 +216,7 @@ def get_file_download_link(path: str) -> Optional[str]:
         return resp.json().get("@microsoft.graph.downloadUrl")
 
     except Exception as exc:
+       logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"SharePoint get_file_download_link failed for {path}: {exc}")
         return None
 

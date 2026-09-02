@@ -1,3 +1,4 @@
+import logging
 """Add expense manager approval chain (PRIORITY-3: DEFECT-2026-08-12T6)
 
 Revision ID: c1d2e3f4a5b6

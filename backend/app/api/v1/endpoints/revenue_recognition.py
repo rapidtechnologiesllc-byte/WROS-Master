@@ -1,4 +1,5 @@
 """
+import logging
 REST API Endpoints for Revenue Recognition (HRMS-0316)
 
 Implements complete revenue recognition workflow:
@@ -137,6 +138,7 @@ def recognize_revenue(
     except ValidationError as e:
         raise HTTPException(status_code=422, detail=str(e))
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -191,6 +193,7 @@ def create_entries(
     except InvalidInvoiceError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -242,6 +245,7 @@ def calculate_annual_recurring_revenue(
         )
 
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -275,6 +279,7 @@ def get_revenue_monthly(
         )
 
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -302,6 +307,7 @@ def get_revenue_service(
         )
 
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -329,6 +335,7 @@ def get_revenue_module(
         )
 
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -356,6 +363,7 @@ def get_revenue_pricing_model(
         )
 
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -383,6 +391,7 @@ def get_revenue_client_owner(
         )
 
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -410,6 +419,7 @@ def get_partner_shares(
         )
 
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -441,6 +451,7 @@ def get_forecast_actual(
         )
 
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -469,6 +480,7 @@ def get_negative_margins(
         )
 
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -505,4 +517,5 @@ def get_pnl_summary(
         )
 
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))

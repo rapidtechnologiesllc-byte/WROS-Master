@@ -1,6 +1,7 @@
 from datetime import datetime
 from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text, Date, func, Boolean, Index, Enum
 from sqlalchemy.orm import relationship
+import logging
 from app.models.base import Base
 
 # HRMS-P606 (R-03): only W2_FULLTIME may ever be submitted. UNKNOWN is the
@@ -15,6 +16,7 @@ CANDIDATE_EMPLOYMENT_TYPES = ("W2_FULLTIME", "C2C", "1099", "UNKNOWN")
 # DB trigger.
 CANDIDATE_SOURCE_CHANNELS = ("DIRECT", "SUBVENDOR")
 
+logger = logging.getLogger(__name__)
 
 class Candidate(Base):
     __tablename__ = "candidates"

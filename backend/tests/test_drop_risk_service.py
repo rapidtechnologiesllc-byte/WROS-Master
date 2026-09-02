@@ -1,4 +1,5 @@
 """
+import logging
 S-060/HRMS-0460 -- Drop Risk Prediction.
 
 Real architecture under test (see drop_risk_service module docstring):

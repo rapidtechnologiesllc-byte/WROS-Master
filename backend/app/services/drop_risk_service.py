@@ -1,4 +1,5 @@
 """
+import logging
 S-060/HRMS-0460 -- Drop Risk Prediction.
 
 Real architecture adaptations:
@@ -108,6 +109,7 @@ def _qualifying_component(db: Session, candidate_id: str, tenant_id: str, conver
         try:
             abandonment_score = calculate_abandonment_score(db, candidate_id, tenant_id, conversation)["abandonment_score"]
         except Exception as exc:
+           logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.warning(f"[DropRisk] Abandonment score unavailable for {candidate_id!r}: {exc}")
             abandonment_score = 50
 
@@ -258,6 +260,7 @@ def _notify_recruiter_critical(db: Session, candidate: Candidate, score: int) ->
             message=f"URGENT: {candidate.candidateFirstName or candidate.candidateID} has a CRITICAL drop risk score of {score}. Immediate follow-up needed.",
         )
     except Exception as exc:
+       logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[DropRisk] Failed to notify recruiter of critical risk: {exc}")
 
 
@@ -341,6 +344,7 @@ def calculate_drop_risk(db: Session, candidate_id: str, tenant_id: str) -> Dict:
 
         return {"drop_risk_score": final_score, "risk_level": risk_level, "risk_signals": risk_signals, "is_flagged": is_flagged, "calculated_at": now}
     except Exception as exc:
+       logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.error(f"[DropRisk] Failed calculating drop risk for candidate {candidate_id!r}: {exc}")
         db.rollback()
         return {"outcome": "calculation_failed"}
@@ -364,6 +368,7 @@ def run_drop_risk_scoring_job(db: Session) -> Dict:
             else:
                 result["skipped"] += 1
         except Exception as exc:
+           logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.error(f"[DropRisk] Failed processing candidate {candidate.candidateID!r}: {exc}")
             db.rollback()
             result["skipped"] += 1

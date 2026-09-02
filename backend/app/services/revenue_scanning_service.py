@@ -1,4 +1,5 @@
 """
+import logging
 PRIORITY 2: Revenue Autonomous Scanning Service.
 
 Background job (runs daily) that proactively scans all active allocations
@@ -126,6 +127,7 @@ def run_daily_revenue_scan_job(db: Session) -> Dict:
                     )
 
             except Exception as exc:
+                logger.error(f"Error: {str(exc)}", exc_info=True)
                 error_msg = f"Project {project.id}: {str(exc)}"
                 errors.append(error_msg)
                 logger.warning(f"[RevenueScan] {error_msg}")
@@ -149,6 +151,7 @@ def run_daily_revenue_scan_job(db: Session) -> Dict:
         }
 
     except Exception as exc:
+       logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.error(f"[RevenueScan] Daily scan job failed: {exc}")
         return {
             "scanned_projects": scanned,

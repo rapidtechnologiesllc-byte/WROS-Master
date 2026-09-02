@@ -1,4 +1,5 @@
 """
+import logging
 Pydantic schemas for Revenue Recognition (HRMS-0316)
 
 Supports:
@@ -17,6 +18,7 @@ from pydantic import BaseModel, Field
 # ============================================================================
 # REQUEST SCHEMAS
 # ============================================================================
+logger = logging.getLogger(__name__)
 
 class RecognizeRevenueRequest(BaseModel):
     """Request to recognize revenue from a paid invoice."""

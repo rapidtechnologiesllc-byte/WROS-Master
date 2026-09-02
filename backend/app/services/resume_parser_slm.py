@@ -1,4 +1,5 @@
 """
+import logging
 Resume Parser SLM - Self-Learning Model for resume extraction
 
 This service uses pattern matching, regex, and structured extraction to parse resumes.
@@ -23,6 +24,7 @@ from datetime import datetime
 
 from app.core.logging import logger
 
+logger = logging.getLogger(__name__)
 
 class ResumeSLM:
     """

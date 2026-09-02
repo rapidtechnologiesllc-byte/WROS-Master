@@ -1,0 +1,638 @@
+
+============================================================
+CODEBASE SECURITY SCAN
+============================================================
+
+Scanning 963 Python files...
+
+🟡 add_bu_id_column.py
+   0 critical, 1 high, 0 medium, 0 low
+🟢 alembic\versions\b3d5f7a9c1e4_add_users_email_otp.py
+   0 critical, 0 high, 0 medium, 1 low
+🟢 alembic\versions\d8f2b4a6c9e1_add_candidate_email_2fa.py
+   0 critical, 0 high, 0 medium, 1 low
+🔴 app\api\v1\endpoints\activity_feed.py
+   3 critical, 0 high, 0 medium, 0 low
+🔴 app\api\v1\endpoints\activity_timeline.py
+   5 critical, 0 high, 0 medium, 0 low
+🔴 app\api\v1\endpoints\admin_queue.py
+   4 critical, 0 high, 0 medium, 0 low
+🔴 app\api\v1\endpoints\agent_daily_standup.py
+   2 critical, 0 high, 0 medium, 0 low
+🔴 app\api\v1\endpoints\agent_kill_switch.py
+   4 critical, 0 high, 0 medium, 0 low
+🔴 app\api\v1\endpoints\agent_operations.py
+   10 critical, 0 high, 0 medium, 0 low
+🔴 app\api\v1\endpoints\agent_performance_dashboard.py
+   8 critical, 0 high, 0 medium, 0 low
+🔴 app\api\v1\endpoints\agent_standups.py
+   3 critical, 0 high, 0 medium, 0 low
+🔴 app\api\v1\endpoints\agent_standups_dashboard.py
+   3 critical, 0 high, 0 medium, 0 low
+🔴 app\api\v1\endpoints\agent_state_dashboard.py
+   3 critical, 0 high, 0 medium, 0 low
+🔴 app\api\v1\endpoints\agents.py
+   12 critical, 0 high, 0 medium, 0 low
+🔴 app\api\v1\endpoints\ai_agent.py
+   4 critical, 0 high, 0 medium, 0 low
+🔴 app\api\v1\endpoints\ai_recruiter_assignment.py
+   1 critical, 0 high, 0 medium, 0 low
+🔴 app\api\v1\endpoints\allocations.py
+   4 critical, 0 high, 0 medium, 0 low
+🔴 app\api\v1\endpoints\auth.py
+   4 critical, 0 high, 0 medium, 14 low
+🔴 app\api\v1\endpoints\autonomous_job_management.py
+   2 critical, 0 high, 0 medium, 0 low
+🔴 app\api\v1\endpoints\bi_explorer.py
+   5 critical, 0 high, 0 medium, 0 low
+🔴 app\api\v1\endpoints\bu_context.py
+   3 critical, 0 high, 0 medium, 0 low
+🔴 app\api\v1\endpoints\buddy_program.py
+   9 critical, 0 high, 0 medium, 0 low
+🔴 app\api\v1\endpoints\bulk_engagement.py
+   3 critical, 0 high, 0 medium, 0 low
+🔴 app\api\v1\endpoints\business_metrics.py
+   5 critical, 0 high, 0 medium, 0 low
+🔴 app\api\v1\endpoints\candidate_portal.py
+   7 critical, 0 high, 0 medium, 0 low
+🔴 app\api\v1\endpoints\candidate_rejection.py
+   7 critical, 0 high, 0 medium, 2 low
+🟢 app\api\v1\endpoints\candidate_status.py
+   0 critical, 0 high, 0 medium, 1 low
+🔴 app\api\v1\endpoints\candidates.py
+   19 critical, 0 high, 0 medium, 0 low
+🔴 app\api\v1\endpoints\candidates\crud.py
+   1 critical, 0 high, 0 medium, 0 low
+🔴 app\api\v1\endpoints\certifications_admin.py
+   2 critical, 0 high, 0 medium, 0 low
+🔴 app\api\v1\endpoints\checklists.py
+   2 critical, 0 high, 0 medium, 0 low
+🔴 app\api\v1\endpoints\clients.py
+   6 critical, 0 high, 0 medium, 1 low
+🔴 app\api\v1\endpoints\complete_workflow.py
+   21 critical, 0 high, 0 medium, 0 low
+🔴 app\api\v1\endpoints\conversation_search.py
+   1 critical, 0 high, 0 medium, 0 low
+🔴 app\api\v1\endpoints\core_pull.py
+   5 critical, 0 high, 0 medium, 0 low
+🔴 app\api\v1\endpoints\create_job.py
+   1 critical, 0 high, 0 medium, 1 low
+🔴 app\api\v1\endpoints\defect_reporting.py
+   1 critical, 0 high, 0 medium, 0 low
+🔴 app\api\v1\endpoints\demand_confirmation.py
+   5 critical, 0 high, 0 medium, 0 low
+🔴 app\api\v1\endpoints\doctor_traces_dashboard.py
+   3 critical, 0 high, 0 medium, 0 low
+🔴 app\api\v1\endpoints\documents.py
+   9 critical, 0 high, 0 medium, 0 low
+🔴 app\api\v1\endpoints\email.py
+   7 critical, 0 high, 0 medium, 1 low
+🔴 app\api\v1\endpoints\employee_conversion.py
+   5 critical, 0 high, 0 medium, 2 low
+🔴 app\api\v1\endpoints\employee_milestones.py
+   4 critical, 0 high, 0 medium, 0 low
+🔴 app\api\v1\endpoints\employee_referrals.py
+   9 critical, 0 high, 0 medium, 0 low
+🔴 app\api\v1\endpoints\employees.py
+   17 critical, 2 high, 0 medium, 3 low
+🔴 app\api\v1\endpoints\error_log.py
+   1 critical, 0 high, 0 medium, 0 low
+🔴 app\api\v1\endpoints\executive_signal.py
+   9 critical, 0 high, 0 medium, 0 low
+🔴 app\api\v1\endpoints\expenses.py
+   2 critical, 0 high, 0 medium, 0 low
+🟢 app\api\v1\endpoints\finance_monitoring.py
+   0 critical, 0 high, 0 medium, 2 low
+🔴 app\api\v1\endpoints\finance_operations.py
+   3 critical, 0 high, 0 medium, 0 low
+🔴 app\api\v1\endpoints\flash.py
+   1 critical, 0 high, 0 medium, 0 low
+🔴 app\api\v1\endpoints\flash_interview.py
+   3 critical, 0 high, 0 medium, 1 low
+🔴 app\api\v1\endpoints\hiring_manager_validation.py
+   10 critical, 0 high, 0 medium, 2 low
+🔴 app\api\v1\endpoints\hiring_workflow.py
+   5 critical, 0 high, 0 medium, 0 low
+🔴 app\api\v1\endpoints\htd_intake_pause.py
+   5 critical, 0 high, 0 medium, 0 low
+🔴 app\api\v1\endpoints\intervention_queue.py
+   1 critical, 0 high, 0 medium, 0 low
+🔴 app\api\v1\endpoints\interview_decision.py
+   1 critical, 0 high, 0 medium, 0 low
+🔴 app\api\v1\endpoints\interviews.py
+   16 critical, 0 high, 0 medium, 5 low
+🔴 app\api\v1\endpoints\invoices.py
+   8 critical, 0 high, 0 medium, 0 low
+🔴 app\api\v1\endpoints\invoices_s316.py
+   6 critical, 0 high, 0 medium, 0 low
+🔴 app\api\v1\endpoints\message_templates.py
+   4 critical, 0 high, 0 medium, 0 low
+🔴 app\api\v1\endpoints\mfa.py
+   8 critical, 0 high, 0 medium, 12 low
+🔴 app\api\v1\endpoints\msgraph.py
+   9 critical, 0 high, 0 medium, 2 low
+🔴 app\api\v1\endpoints\my_timesheet.py
+   5 critical, 0 high, 0 medium, 0 low
+🟢 app\api\v1\endpoints\newsletter.py
+   0 critical, 0 high, 0 medium, 1 low
+🔴 app\api\v1\endpoints\notifications.py
+   2 critical, 0 high, 0 medium, 0 low
+🔴 app\api\v1\endpoints\offer_letters.py
+   5 critical, 0 high, 0 medium, 1 low
+🔴 app\api\v1\endpoints\onboarding_orchestrator.py
+   3 critical, 0 high, 0 medium, 0 low
+🟢 app\api\v1\endpoints\opportunities.py
+   0 critical, 0 high, 0 medium, 1 low
+🔴 app\api\v1\endpoints\opportunity_tracker.py
+   3 critical, 0 high, 0 medium, 0 low
+🔴 app\api\v1\endpoints\org_structure.py
+   1 critical, 0 high, 0 medium, 0 low
+🔴 app\api\v1\endpoints\permission_composition.py
+   5 critical, 0 high, 0 medium, 0 low
+🔴 app\api\v1\endpoints\portal_messages.py
+   3 critical, 0 high, 0 medium, 0 low
+🔴 app\api\v1\endpoints\preonboarding.py
+   1 critical, 0 high, 0 medium, 2 low
+🔴 app\api\v1\endpoints\projects.py
+   1 critical, 0 high, 0 medium, 0 low
+🔴 app\api\v1\endpoints\public_chat.py
+   3 critical, 0 high, 0 medium, 1 low
+🔴 app\api\v1\endpoints\queue.py
+   9 critical, 0 high, 0 medium, 0 low
+🔴 app\api\v1\endpoints\queue_dashboard.py
+   6 critical, 0 high, 0 medium, 0 low
+🔴 app\api\v1\endpoints\queues.py
+   2 critical, 0 high, 0 medium, 0 low
+🔴 app\api\v1\endpoints\resource_forecast.py
+   2 critical, 0 high, 0 medium, 0 low
+🔴 app\api\v1\endpoints\resource_management.py
+   7 critical, 0 high, 0 medium, 1 low
+🔴 app\api\v1\endpoints\resume_versions.py
+   4 critical, 0 high, 0 medium, 1 low
+🔴 app\api\v1\endpoints\revenue.py
+   9 critical, 0 high, 0 medium, 0 low
+🔴 app\api\v1\endpoints\revenue_recognition.py
+   12 critical, 0 high, 0 medium, 0 low
+🔴 app\api\v1\endpoints\risk_dashboard.py
+   1 critical, 0 high, 0 medium, 0 low
+🔴 app\api\v1\endpoints\role_based_dashboard.py
+   5 critical, 0 high, 0 medium, 0 low
+🔴 app\api\v1\endpoints\role_template_modules.py
+   2 critical, 0 high, 0 medium, 0 low
+🔴 app\api\v1\endpoints\role_templates.py
+   11 critical, 1 high, 0 medium, 1 low
+🔴 app\api\v1\endpoints\sla_breach.py
+   1 critical, 0 high, 0 medium, 0 low
+🔴 app\api\v1\endpoints\slm_feedback.py
+   8 critical, 0 high, 0 medium, 0 low
+🔴 app\api\v1\endpoints\spartan_forecasting.py
+   6 critical, 0 high, 0 medium, 0 low
+🔴 app\api\v1\endpoints\spartan_integration.py
+   15 critical, 0 high, 0 medium, 0 low
+🔴 app\api\v1\endpoints\spartan_phalanx.py
+   6 critical, 0 high, 0 medium, 0 low
+🔴 app\api\v1\endpoints\strategic_consul.py
+   5 critical, 0 high, 0 medium, 0 low
+🔴 app\api\v1\endpoints\submissions.py
+   3 critical, 0 high, 0 medium, 0 low
+🔴 app\api\v1\endpoints\system_config.py
+   1 critical, 0 high, 0 medium, 0 low
+🔴 app\api\v1\endpoints\system_health.py
+   2 critical, 0 high, 0 medium, 0 low
+🔴 app\api\v1\endpoints\tasks.py
+   8 critical, 0 high, 0 medium, 0 low
+🔴 app\api\v1\endpoints\tenants.py
+   1 critical, 0 high, 0 medium, 0 low
+🔴 app\api\v1\endpoints\thunder.py
+   2 critical, 0 high, 0 medium, 0 low
+🔴 app\api\v1\endpoints\thunder_analytics.py
+   1 critical, 0 high, 0 medium, 0 low
+🔴 app\api\v1\endpoints\tickets.py
+   4 critical, 0 high, 0 medium, 0 low
+🔴 app\api\v1\endpoints\timesheets.py
+   6 critical, 0 high, 0 medium, 0 low
+🔴 app\api\v1\endpoints\training_dashboards.py
+   3 critical, 0 high, 0 medium, 0 low
+🔴 app\api\v1\endpoints\users.py
+   6 critical, 0 high, 0 medium, 8 low
+🔴 app\api\v1\endpoints\users_access_control.py
+   21 critical, 0 high, 0 medium, 3 low
+🔴 app\api\v1\endpoints\whatsapp_webhook.py
+   2 critical, 0 high, 0 medium, 0 low
+🔴 app\api\v1\endpoints\work_orders.py
+   11 critical, 0 high, 0 medium, 0 low
+🟢 app\api\v1\routes.py
+   0 critical, 0 high, 0 medium, 1 low
+🟢 app\api\v1\routes_master.py
+   0 critical, 0 high, 0 medium, 1 low
+🔴 app\core\dependencies.py
+   3 critical, 0 high, 0 medium, 0 low
+🔴 app\core\graph_auth.py
+   3 critical, 0 high, 0 medium, 0 low
+🔴 app\core\permission_decorators.py
+   1 critical, 0 high, 0 medium, 0 low
+🔴 app\core\permission_enforcement.py
+   5 critical, 0 high, 0 medium, 0 low
+🟢 app\core\pytest_no_silent_failures.py
+   0 critical, 0 high, 0 medium, 1 low
+🟢 app\middleware\auth_middleware.py
+   0 critical, 0 high, 2 medium, 0 low
+🟢 app\models\newsletter.py
+   0 critical, 0 high, 0 medium, 1 low
+🔴 app\routes\api_v1_invoices.py
+   12 critical, 0 high, 0 medium, 0 low
+🔴 app\routes\api_v1_pnl.py
+   9 critical, 0 high, 0 medium, 0 low
+🔴 app\routes\api_v1_revenue.py
+   8 critical, 0 high, 0 medium, 0 low
+🟡 app\seeds\init_resources.py
+   0 critical, 1 high, 0 medium, 0 low
+🟡 app\services\abandonment_scoring_service.py
+   0 critical, 1 high, 0 medium, 0 low
+🔴 app\services\agent_event_service.py
+   1 critical, 3 high, 0 medium, 0 low
+🟡 app\services\agent_kill_switch_service.py
+   0 critical, 2 high, 0 medium, 0 low
+🟡 app\services\agent_shield_service.py
+   0 critical, 2 high, 0 medium, 0 low
+🔴 app\services\ai_conversation_service.py
+   2 critical, 0 high, 0 medium, 1 low
+🟡 app\services\autonomous_job_closure_service.py
+   0 critical, 2 high, 0 medium, 0 low
+🟡 app\services\bulk_engagement_service.py
+   0 critical, 1 high, 0 medium, 0 low
+🟡 app\services\calendar_matching_service.py
+   0 critical, 2 high, 0 medium, 0 low
+🟢 app\services\candidate_rejection_service.py
+   0 critical, 0 high, 0 medium, 3 low
+🔴 app\services\candidate_scoring_service.py
+   1 critical, 0 high, 0 medium, 0 low
+🟢 app\services\cfo_agent_service.py
+   0 critical, 0 high, 0 medium, 1 low
+🟢 app\services\channel_processors.py
+   0 critical, 0 high, 0 medium, 1 low
+🟢 app\services\compensation_scoring_service.py
+   0 critical, 0 high, 1 medium, 0 low
+🟢 app\services\core_pull_service.py
+   0 critical, 0 high, 0 medium, 1 low
+🟢 app\services\daily_digest_service.py
+   0 critical, 0 high, 0 medium, 1 low
+🟡 app\services\desire_profile_service.py
+   0 critical, 1 high, 0 medium, 0 low
+🟡 app\services\desire_signal_service.py
+   0 critical, 2 high, 0 medium, 0 low
+🟡 app\services\document_collection_service.py
+   0 critical, 3 high, 0 medium, 0 low
+🟡 app\services\document_task_service.py
+   0 critical, 1 high, 0 medium, 0 low
+🟡 app\services\drop_risk_service.py
+   0 critical, 2 high, 0 medium, 0 low
+🟢 app\services\email_first_engagement_service.py
+   0 critical, 0 high, 0 medium, 2 low
+🟢 app\services\employee_conversion_service.py
+   0 critical, 0 high, 0 medium, 2 low
+🟢 app\services\employee_mental_health_agent_service.py
+   0 critical, 0 high, 0 medium, 1 low
+🔴 app\services\employee_referral_service.py
+   1 critical, 6 high, 0 medium, 4 low
+🟡 app\services\engagement_metrics_service.py
+   0 critical, 2 high, 0 medium, 0 low
+🟢 app\services\expense_service.py
+   0 critical, 0 high, 0 medium, 1 low
+🔴 app\services\facts_extraction_service.py
+   1 critical, 0 high, 0 medium, 0 low
+🟢 app\services\finance_agent.py
+   0 critical, 0 high, 0 medium, 1 low
+🟡 app\services\flash_service.py
+   0 critical, 1 high, 0 medium, 0 low
+🟡 app\services\follow_up_scheduler_service.py
+   0 critical, 2 high, 0 medium, 0 low
+🟡 app\services\ghosting_detection_service.py
+   0 critical, 1 high, 0 medium, 0 low
+🔴 app\services\hiring_manager_validation_service.py
+   1 critical, 0 high, 0 medium, 0 low
+🟡 app\services\hiring_workflow_service.py
+   0 critical, 1 high, 0 medium, 0 low
+🔴 app\services\hm_validation_service.py
+   2 critical, 0 high, 0 medium, 2 low
+🟢 app\services\hr_agent_service.py
+   0 critical, 0 high, 0 medium, 1 low
+🟡 app\services\intervention_queue_service.py
+   0 critical, 1 high, 0 medium, 0 low
+🟡 app\services\interview_confirmation_service.py
+   0 critical, 1 high, 0 medium, 1 low
+🟡 app\services\interview_decision_service.py
+   0 critical, 2 high, 0 medium, 0 low
+🟢 app\services\interview_feedback_notification_service.py
+   0 critical, 0 high, 0 medium, 2 low
+🟡 app\services\interview_feedback_task_service.py
+   0 critical, 2 high, 0 medium, 0 low
+🟡 app\services\interview_no_show_service.py
+   0 critical, 5 high, 0 medium, 1 low
+🟡 app\services\interview_reminder_service.py
+   0 critical, 2 high, 0 medium, 1 low
+🟡 app\services\interview_reschedule_service.py
+   0 critical, 2 high, 0 medium, 0 low
+🟢 app\services\interview_sequencing_service.py
+   0 critical, 0 high, 0 medium, 1 low
+🟡 app\services\job_approval_workflow_service.py
+   0 critical, 1 high, 0 medium, 2 low
+🟡 app\services\joining_readiness_service.py
+   0 critical, 2 high, 0 medium, 0 low
+🟡 app\services\lifecycle_communication_linking_service.py
+   0 critical, 1 high, 0 medium, 0 low
+🟢 app\services\linkedin_sourcing_service.py
+   0 critical, 0 high, 0 medium, 1 low
+🟢 app\services\mellow_keepwarm_service.py
+   0 critical, 0 high, 0 medium, 1 low
+🟡 app\services\motivation_engine_service.py
+   0 critical, 1 high, 0 medium, 0 low
+🟡 app\services\newsletter_service.py
+   0 critical, 1 high, 0 medium, 7 low
+🟡 app\services\no_response_detection_service.py
+   0 critical, 1 high, 0 medium, 0 low
+🟢 app\services\notification_service.py
+   0 critical, 0 high, 0 medium, 1 low
+🟡 app\services\offer_decision_service.py
+   0 critical, 1 high, 0 medium, 1 low
+🟡 app\services\offer_faq_service.py
+   0 critical, 1 high, 0 medium, 0 low
+🟡 app\services\offer_readiness_service.py
+   0 critical, 1 high, 0 medium, 0 low
+🟢 app\services\offer_release_notification_service.py
+   0 critical, 0 high, 0 medium, 1 low
+🟡 app\services\onboarding_agent_service.py
+   0 critical, 1 high, 0 medium, 1 low
+🔴 app\services\onboarding_workflow_service.py
+   1 critical, 4 high, 0 medium, 9 low
+🟢 app\services\operational_accountability_agents.py
+   0 critical, 0 high, 0 medium, 1 low
+🔴 app\services\org_hierarchy_validator.py
+   1 critical, 0 high, 0 medium, 0 low
+🟡 app\services\outreach_campaign_service.py
+   0 critical, 2 high, 0 medium, 0 low
+🟡 app\services\partner_incentive_service.py
+   0 critical, 1 high, 0 medium, 0 low
+🟢 app\services\partner_success_agent_service.py
+   0 critical, 0 high, 0 medium, 2 low
+🔴 app\services\permission_helper.py
+   1 critical, 0 high, 0 medium, 0 low
+🟢 app\services\personal_goal_agents.py
+   0 critical, 0 high, 0 medium, 2 low
+🟡 app\services\personal_intelligence_service.py
+   0 critical, 1 high, 0 medium, 0 low
+🟡 app\services\portal_message_service.py
+   0 critical, 1 high, 0 medium, 0 low
+🟡 app\services\reactivation_campaign_service.py
+   0 critical, 3 high, 0 medium, 0 low
+🔴 app\services\referral_access_control.py
+   2 critical, 0 high, 0 medium, 0 low
+🟡 app\services\relation_building_agent_service.py
+   0 critical, 1 high, 0 medium, 0 low
+🟢 app\services\resource_forecast_service.py
+   0 critical, 0 high, 0 medium, 1 low
+🟢 app\services\resource_management_agent_service.py
+   0 critical, 0 high, 0 medium, 1 low
+🟢 app\services\response_parser_service.py
+   0 critical, 0 high, 2 medium, 0 low
+🟢 app\services\resume_completeness_service.py
+   0 critical, 0 high, 0 medium, 1 low
+🔴 app\services\resume_parser_agent.py
+   3 critical, 0 high, 0 medium, 0 low
+🟢 app\services\resume_parsing_service.py
+   0 critical, 0 high, 0 medium, 1 low
+🟡 app\services\role_template_seed.py
+   0 critical, 1 high, 0 medium, 0 low
+🟢 app\services\task_assignment_service.py
+   0 critical, 0 high, 0 medium, 1 low
+🟢 app\services\task_escalation_service.py
+   0 critical, 0 high, 0 medium, 1 low
+🟡 app\services\thunder_autonomous_loop.py
+   0 critical, 2 high, 0 medium, 0 low
+🟡 app\services\thunder_explanation_service.py
+   0 critical, 1 high, 0 medium, 0 low
+🟡 app\services\thunder_pause_service.py
+   0 critical, 1 high, 0 medium, 0 low
+🟢 app\services\timesheet_nag_service.py
+   0 critical, 0 high, 0 medium, 1 low
+🟢 app\services\timesheet_service.py
+   0 critical, 0 high, 0 medium, 2 low
+🟢 app\tasks\__init__.py
+   0 critical, 0 high, 0 medium, 1 low
+🟡 app\utils\agent_logger.py
+   0 critical, 1 high, 0 medium, 0 low
+🟡 apply_phase2_migration.py
+   0 critical, 1 high, 0 medium, 0 low
+🟢 assign_bu_to_partner.py
+   0 critical, 0 high, 0 medium, 1 low
+🟡 bootstrap_superuser_only.py
+   0 critical, 1 high, 0 medium, 0 low
+🟡 cleanup_bad_permissions.py
+   0 critical, 1 high, 0 medium, 0 low
+🟡 cleanup_old_users_resource.py
+   0 critical, 1 high, 0 medium, 0 low
+🟡 cleanup_resources.py
+   0 critical, 1 high, 0 medium, 0 low
+🟡 consolidate_to_single_tenant.py
+   0 critical, 1 high, 0 medium, 0 low
+🟡 create_recruiter_template.py
+   0 critical, 1 high, 0 medium, 0 low
+🟡 create_standup_test_data.py
+   0 critical, 1 high, 0 medium, 0 low
+🟢 debug_nav.py
+   0 critical, 0 high, 0 medium, 1 low
+🟡 finalize_multitenant_setup.py
+   0 critical, 1 high, 0 medium, 0 low
+🔴 fix_all_permissions.py
+   1 critical, 1 high, 0 medium, 0 low
+🟡 fix_data_final.py
+   0 critical, 3 high, 0 medium, 0 low
+🟡 fix_data_issues.py
+   0 critical, 4 high, 0 medium, 0 low
+🟡 fix_permissions_comprehensive.py
+   0 critical, 1 high, 0 medium, 0 low
+🟡 fix_superuser_tenant.py
+   0 critical, 1 high, 0 medium, 0 low
+🟡 init_org_hierarchy.py
+   0 critical, 1 high, 0 medium, 0 low
+🟡 init_resources_all_tenants.py
+   0 critical, 1 high, 0 medium, 0 low
+🔴 init_role_permissions_proper.py
+   1 critical, 1 high, 0 medium, 0 low
+🟡 init_roles.py
+   0 critical, 1 high, 0 medium, 0 low
+🟡 init_wros_db.py
+   0 critical, 1 high, 0 medium, 0 low
+🟡 migrations\seed_agent_performance_data.py
+   0 critical, 1 high, 0 medium, 0 low
+🟡 migrations\seed_agent_state_data.py
+   0 critical, 1 high, 0 medium, 0 low
+🟡 migrations\seed_real_business_data.py
+   0 critical, 1 high, 0 medium, 0 low
+🟡 migrations\seed_realistic_business_data.py
+   0 critical, 1 high, 0 medium, 0 low
+🟡 migrations\seed_scenario_data.py
+   0 critical, 1 high, 0 medium, 0 low
+🟡 phase1_final.py
+   0 critical, 5 high, 0 medium, 1 low
+🟢 phase1_reseed.py
+   0 critical, 0 high, 0 medium, 1 low
+🟡 scripts\create_admin_user.py
+   0 critical, 1 high, 0 medium, 1 low
+🟡 scripts\create_admin_user_direct.py
+   0 critical, 1 high, 0 medium, 1 low
+🔴 scripts\init_org_hierarchy.py
+   1 critical, 0 high, 0 medium, 17 low
+🟡 scripts\init_queue_permissions.py
+   0 critical, 1 high, 0 medium, 1 low
+🟢 scripts\load_test_data.py
+   0 critical, 0 high, 0 medium, 1 low
+🟢 scripts\seed_complete_resources.py
+   0 critical, 0 high, 0 medium, 1 low
+🟡 setup_minimal.py
+   0 critical, 1 high, 0 medium, 0 low
+🟡 setup_superuser.py
+   0 critical, 1 high, 0 medium, 0 low
+🔴 setup_superuser_final.py
+   1 critical, 1 high, 0 medium, 0 low
+🟡 setup_superuser_simple.py
+   0 critical, 1 high, 0 medium, 0 low
+🟡 setup_test_users.py
+   0 critical, 1 high, 0 medium, 0 low
+🟡 tests\regression_suite.py
+   0 critical, 1 high, 1 medium, 0 low
+🟢 verify_phase1.py
+   0 critical, 0 high, 0 medium, 1 low
+🟢 verify_s322_implementation.py
+   0 critical, 0 high, 0 medium, 1 low
+
+============================================================
+SCAN RESULTS SUMMARY
+============================================================
+
+Files Scanned: 963 / 963
+Files With Issues: 250
+Total Issues Found: 901
+
+Issue Severity Breakdown:
+  [91m🔴 CRITICAL: 597[0m
+  [93m🟡 HIGH: 128[0m
+  🟠 MEDIUM: 6
+  🟢 LOW: 170
+
+Issues by Type:
+  MISSING_RBAC: 573
+  MISSING_NULL_CHECK: 170
+  MISSING_ERROR_MSG: 128
+  SILENT_CATCH: 24
+  MAGIC_NUMBER: 6
+
+============================================================
+TOP ISSUES REQUIRING ATTENTION
+============================================================
+
+[91m🔴 backend\app\api\v1\endpoints\complete_workflow.py[0m
+   21 CRITICAL issues:
+
+   • Line 35: Missing role template permission check on protected endpoint
+     Impact: MISSING_RBAC
+   • Line 40: Missing role template permission check on protected endpoint
+     Impact: MISSING_RBAC
+   • Line 46: Missing role template permission check on protected endpoint
+     Impact: MISSING_RBAC
+
+[91m🔴 backend\app\api\v1\endpoints\users_access_control.py[0m
+   21 CRITICAL issues:
+
+   • Line 59: Missing role template permission check on protected endpoint
+     Impact: MISSING_RBAC
+   • Line 116: Missing role template permission check on protected endpoint
+     Impact: MISSING_RBAC
+   • Line 180: Missing role template permission check on protected endpoint
+     Impact: MISSING_RBAC
+
+[91m🔴 backend\app\api\v1\endpoints\candidates.py[0m
+   19 CRITICAL issues:
+
+   • Line 47: Missing role template permission check on protected endpoint
+     Impact: MISSING_RBAC
+   • Line 87: Missing role template permission check on protected endpoint
+     Impact: MISSING_RBAC
+   • Line 254: Missing role template permission check on protected endpoint
+     Impact: MISSING_RBAC
+
+[91m🔴 backend\app\api\v1\endpoints\employees.py[0m
+   17 CRITICAL issues:
+
+   • Line 137: Missing role template permission check on protected endpoint
+     Impact: MISSING_RBAC
+   • Line 173: Missing role template permission check on protected endpoint
+     Impact: MISSING_RBAC
+   • Line 233: Missing role template permission check on protected endpoint
+     Impact: MISSING_RBAC
+
+[91m🔴 backend\app\api\v1\endpoints\interviews.py[0m
+   16 CRITICAL issues:
+
+   • Line 744: Missing role template permission check on protected endpoint
+     Impact: MISSING_RBAC
+   • Line 998: Missing role template permission check on protected endpoint
+     Impact: MISSING_RBAC
+   • Line 1082: Missing role template permission check on protected endpoint
+     Impact: MISSING_RBAC
+
+[91m🔴 backend\app\api\v1\endpoints\spartan_integration.py[0m
+   15 CRITICAL issues:
+
+   • Line 21: Missing role template permission check on protected endpoint
+     Impact: MISSING_RBAC
+   • Line 41: Missing role template permission check on protected endpoint
+     Impact: MISSING_RBAC
+   • Line 58: Missing role template permission check on protected endpoint
+     Impact: MISSING_RBAC
+
+[91m🔴 backend\app\api\v1\endpoints\agents.py[0m
+   12 CRITICAL issues:
+
+   • Line 23: Missing role template permission check on protected endpoint
+     Impact: MISSING_RBAC
+   • Line 51: Missing role template permission check on protected endpoint
+     Impact: MISSING_RBAC
+   • Line 75: Missing role template permission check on protected endpoint
+     Impact: MISSING_RBAC
+
+[91m🔴 backend\app\api\v1\endpoints\revenue_recognition.py[0m
+   12 CRITICAL issues:
+
+   • Line 79: Missing role template permission check on protected endpoint
+     Impact: MISSING_RBAC
+   • Line 143: Missing role template permission check on protected endpoint
+     Impact: MISSING_RBAC
+   • Line 197: Missing role template permission check on protected endpoint
+     Impact: MISSING_RBAC
+
+[91m🔴 backend\app\routes\api_v1_invoices.py[0m
+   12 CRITICAL issues:
+
+   • Line 152: Missing role template permission check on protected endpoint
+     Impact: MISSING_RBAC
+   • Line 202: Missing role template permission check on protected endpoint
+     Impact: MISSING_RBAC
+   • Line 229: Missing role template permission check on protected endpoint
+     Impact: MISSING_RBAC
+
+[91m🔴 backend\app\api\v1\endpoints\role_templates.py[0m
+   11 CRITICAL issues:
+
+   • Line 59: Missing role template permission check on protected endpoint
+     Impact: MISSING_RBAC
+   • Line 102: Missing role template permission check on protected endpoint
+     Impact: MISSING_RBAC
+   • Line 146: Missing role template permission check on protected endpoint
+     Impact: MISSING_RBAC
+
+
+============================================================
+Run with --detailed flag to see full report:
+python scan_codebase.py --detailed
+============================================================

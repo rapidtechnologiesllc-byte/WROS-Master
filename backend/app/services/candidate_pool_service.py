@@ -1,6 +1,7 @@
 """
 Candidate Pool Service
 ======================
+import logging
 Central service for all pool ownership transitions.
 
 All four state-changing helpers write a CandidateHistory event automatically,

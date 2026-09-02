@@ -1,4 +1,5 @@
 """
+import logging
 S-062/HRMS-0462 -- Recruiter Intervention Queue.
 
 This is the real downstream consumer several earlier EPIC-04 stories
@@ -83,6 +84,7 @@ def add_to_queue(db: Session, candidate_id: str, tenant_id: str, queue_reason: s
         (db.commit() if commit else db.flush())
         return {"outcome": "created", "id": item.id}
     except Exception as exc:
+       logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.error(f"[InterventionQueue] Failed adding candidate {candidate_id!r} reason {queue_reason!r}: {exc}")
         # commit=True: this call owns its own transaction, safe to roll back
         # to a clean state. commit=False: it's riding inside a caller's own
@@ -117,6 +119,7 @@ def resolve_queue_items(db: Session, candidate_id: str, tenant_id: str, reasons:
             (db.commit() if commit else db.flush())
         return len(items)
     except Exception as exc:
+       logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.error(f"[InterventionQueue] Failed auto-resolving candidate {candidate_id!r} reasons {reasons}: {exc}")
         if commit:  # see add_to_queue()'s identical reasoning
             db.rollback()
@@ -168,6 +171,7 @@ def get_queue_summary(db: Session, tenant_id: str) -> Dict:
         "total": len(open_items),
     }
 
+logger = logging.getLogger(__name__)
 
 class QueueItemNotFound(Exception):
     pass

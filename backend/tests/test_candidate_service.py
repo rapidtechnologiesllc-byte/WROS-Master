@@ -3,6 +3,7 @@ Proves R-07: createCandidateSafe() is the only sanctioned candidate-
 creation path, and dedup checks email, phone, and LinkedIn each
 independently (the Development & Review Standard's own worked example
 of the historical gap: "A duplicate check exists but only matches one
+import logging
 field (e.g., email), missing phone/LinkedIn").
 
 Throwaway SQLite -- never the real database.

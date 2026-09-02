@@ -3,6 +3,7 @@ S-216/HRMS-0118 -- proves the real routes, not just the service layer.
 Specifically covers a routing-order bug caught before it shipped:
 GET /file-uploads/{file_id}/access-url must resolve to the access-url
 handler, not get swallowed by GET /file-uploads/{entity_type}/{entity_id}
+import logging
 treating "access-url" as an entity_id.
 
 Throwaway SQLite, throwaway JWT keys -- never the real database.

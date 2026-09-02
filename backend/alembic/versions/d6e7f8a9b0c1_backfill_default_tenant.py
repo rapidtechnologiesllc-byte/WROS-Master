@@ -1,3 +1,4 @@
+import logging
 """backfill default tenant for existing rows
 
 Revision ID: d6e7f8a9b0c1

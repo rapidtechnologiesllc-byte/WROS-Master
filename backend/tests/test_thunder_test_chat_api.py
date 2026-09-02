@@ -1,6 +1,7 @@
 """
 POST /thunder/test-chat, GET /thunder/test-chat/history, POST
 /thunder/test-chat/reset -- proves the "Test Thunder" flow end-to-end
+import logging
 on real routes.
 
 UPDATED 2026-07-23: access is now gated behind the "thunder.test" RBAC

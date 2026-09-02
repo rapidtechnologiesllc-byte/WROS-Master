@@ -1,3 +1,4 @@
+import logging
 """add bu_access table (S-205/HRMS-0107)
 
 Revision ID: a8e4d2c6f9b1
