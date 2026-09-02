@@ -121,12 +121,23 @@ def list_org_nodes(
     db: Session = Depends(get_db),
 ) -> List[OrgNodeResponse]:
     """Get all organizational nodes for the current tenant."""
+    from app.models.tenant import Tenant
+
     tenant_id = current_user.tenant_id
     if not tenant_id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User is not assigned to a tenant")
 
+    # Join with Tenant to include tenant name
     nodes = db.query(OrgNode).filter(OrgNode.tenant_id == tenant_id).all()
-    return [OrgNodeResponse.from_orm(n) for n in nodes]
+    tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
+
+    result = []
+    for node in nodes:
+        node_dict = OrgNodeResponse.from_orm(node).dict()
+        node_dict['tenant_name'] = tenant.name if tenant else f"Tenant {tenant_id}"
+        result.append(OrgNodeResponse(**node_dict))
+
+    return result
 
 
 @router.get(
@@ -142,6 +153,8 @@ def get_org_node(
     db: Session = Depends(get_db),
 ) -> OrgNodeResponse:
     """Get a specific organizational node by ID."""
+    from app.models.tenant import Tenant
+
     tenant_id = current_user.tenant_id
     if not tenant_id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User is not assigned to a tenant")
@@ -149,7 +162,13 @@ def get_org_node(
     node = db.query(OrgNode).filter(OrgNode.id == org_node_id, OrgNode.tenant_id == tenant_id).first()
     if not node:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Org node not found")
-    return OrgNodeResponse.from_orm(node)
+
+    # Include tenant name
+    node_dict = OrgNodeResponse.from_orm(node).dict()
+    tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
+    node_dict['tenant_name'] = tenant.name if tenant else f"Tenant {tenant_id}"
+
+    return OrgNodeResponse(**node_dict)
 
 
 @router.get(
@@ -190,12 +209,24 @@ def list_departments(
     db: Session = Depends(get_db),
 ) -> List[DepartmentResponse]:
     """Get all departments for the current tenant."""
+    from app.models.tenant import Tenant
+
     tenant_id = current_user.tenant_id
     if not tenant_id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User is not assigned to a tenant")
 
     departments = db.query(Department).filter(Department.tenant_id == tenant_id).all()
-    return [DepartmentResponse.from_orm(d) for d in departments]
+    tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
+    tenant_name = tenant.name if tenant else f"Tenant {tenant_id}"
+
+    result = []
+    for dept in departments:
+        dept_dict = DepartmentResponse.from_orm(dept).dict()
+        dept_dict['tenant_name'] = tenant_name
+        dept_dict['business_unit_name'] = dept.business_unit.name if dept.business_unit else f"BU {dept.business_unit_id}"
+        result.append(DepartmentResponse(**dept_dict))
+
+    return result
 
 
 @router.get(

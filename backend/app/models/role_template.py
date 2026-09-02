@@ -1,6 +1,6 @@
 """Role Template system - Dynamic roles defined via modules and resources."""
 
-from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, DateTime, Text, JSON
+from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, DateTime, Text, JSON, UniqueConstraint
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from app.models.base import Base
@@ -11,13 +11,16 @@ class Module(Base):
     __tablename__ = "modules"
 
     id = Column(Integer, primary_key=True)
-    name = Column(String(512), unique=True, nullable=False)  # e.g., "Recruitment"
+    name = Column(String(512), nullable=False)  # e.g., "Recruitment"
     display_name = Column(String(150), nullable=False)  # e.g., "Recruitment Management"
     description = Column(Text)
     enabled = Column(Boolean, default=True)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Composite unique constraint: (name, tenant_id) - allows same module name in different tenants
+    __table_args__ = (UniqueConstraint('name', 'tenant_id', name='uq_module_name_tenant'),)
 
     # Relationships
     resources = relationship("Resource", back_populates="module", cascade="all, delete-orphan")
