@@ -71,7 +71,6 @@ async def log_unhandled_exception(request: Request, exc: Exception):
             request_context={"method": request.method, "path": request.url.path},
         )
     except Exception as logging_exc:
-       logger.error(f"Error: {str(logging_exc)}", exc_info=True)
         logger.error(f"[ErrorLog] Failed to record unhandled exception: {logging_exc}")
     finally:
         db.close()
