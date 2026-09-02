@@ -1,4 +1,4 @@
-// Auth page with sample-style two-step sign-in flow.
+// Auth page with two-step sign-in flow. Production ready with fully automated CI/CD!
 import React, { useState } from "react";
 import { Eye, EyeOff } from "lucide-react";
 import {

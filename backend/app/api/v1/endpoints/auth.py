@@ -21,7 +21,7 @@ from app.core.security_local import (
     create_access_token,
     get_password_hash,
 )
-from app.core.dependencies import get_current_candidate, get_current_internal_user
+from app.core.dependencies import get_current_candidate, get_current_hr_or_admin
 from app.core.mfa import (
     EMAIL_OTP_TTL_MINUTES,
     MFA_PENDING_TOKEN_MINUTES,
@@ -36,7 +36,7 @@ from app.services.email_service import EmailService
 from app.services.role_template_permission_service import RoleTemplatePermissionService
 from app.models.candidate import Candidate
 from app.models.user import Users
-from app.schemas.auth import SignupRequest, SignupResponse, LoginRequest, LoginResponse, CandidateLoginRequest, CandidateLoginResponse
+from app.schemas.auth import SignupRequest, SignupResponse
 from app.contracts import UnifiedLoginRequest, UnifiedLoginResponse, ValidateEmailRequest, validate_login_request, validate_login_response
 from app.utils.uniq_id_generator import candidate_id_generator, generate_password, user_id_generator
 
@@ -134,9 +134,9 @@ def unified_login(request: UnifiedLoginRequest, db: Session = Depends(get_db)):
     user = authenticate_user(db, request.email, request.password)
     logger.info(f"[LOGIN] authenticate_user returned: {type(user).__name__ if user else 'False'}")
     if user:
-        # Get role_template_id from the user object (already loaded from DB)
-        role_template_id = getattr(user, 'role_template_id', None)
-        logger.info(f"[LOGIN] User {request.email} has role_template_id: {role_template_id}")
+        # Get authoritative role_template_id from database (ORM not loading correctly)
+        from sqlalchemy import text
+        role_template_id = db.execute(text('SELECT role_template_id FROM users WHERE "UserEmail" = :email'), {"email": request.email}).scalar()
 
         # Get role template name
         user_role = user.UserRole or "User"  # Fall back to UserRole field or "User"
@@ -198,13 +198,9 @@ def unified_login(request: UnifiedLoginRequest, db: Session = Depends(get_db)):
                     pass
 
             # Get user permissions for frontend navigation
-            try:
-                user_permissions = RoleTemplatePermissionService.get_user_permissions(
-                    db, user.UserID, user.tenant_id
-                )
-            except Exception as e:
-                logger.warning(f"[LOGIN] Failed to get user permissions: {e}")
-                user_permissions = {}
+            user_permissions = RoleTemplatePermissionService.get_user_permissions(
+                db, user.UserID, user.tenant_id
+            )
 
             return UnifiedLoginResponse(
                 entity_type="user",
@@ -229,13 +225,9 @@ def unified_login(request: UnifiedLoginRequest, db: Session = Depends(get_db)):
         )
 
         # Get user permissions for frontend navigation
-        try:
-            user_permissions = RoleTemplatePermissionService.get_user_permissions(
-                db, user.UserID, user.tenant_id
-            )
-        except Exception as e:
-            logger.warning(f"[LOGIN] Failed to get user permissions: {e}")
-            user_permissions = {}
+        user_permissions = RoleTemplatePermissionService.get_user_permissions(
+            db, user.UserID, user.tenant_id
+        )
 
         return UnifiedLoginResponse(
             entity_type="user",

@@ -5,11 +5,12 @@ from app.api.v1.endpoints.users import router as users_router
 from app.api.v1.endpoints.create_job import router as create_job_router
 from app.api.v1.endpoints.candidates import router as candidates_router
 from app.api.v1.endpoints.msgraph import router as msgraph_router
+from app.api.v1.endpoints.onboarding import router as onboarding_router
 from app.api.v1.endpoints.interviews import router as interviews_router
 from app.api.v1.endpoints.documents import router as documents_router
 from app.api.v1.endpoints.offer_letters import router as offer_letters_router
 from app.api.v1.endpoints.newsletter import router as newsletter_router
-# RBAC removed - using RoleTemplate system only
+from app.api.v1.endpoints.rbac import router as rbac_router
 from app.api.v1.endpoints.checklists import router as checklists_router
 from app.api.v1.endpoints.candidate_status import router as candidate_status_router
 from app.api.v1.endpoints.ats import router as ats_router
@@ -47,10 +48,6 @@ from app.api.v1.endpoints.forecast_and_leakage import router as forecast_and_lea
 from app.api.v1.endpoints.revenue_to_demand import router as revenue_to_demand_router
 from app.api.v1.endpoints.cost_rate import router as cost_rate_router
 from app.api.v1.endpoints.public_chat import router as public_chat_router
-from app.api.v1.endpoints.queue import router as queue_router
-from app.api.v1.endpoints.queues import router as queues_router
-from app.api.v1.endpoints.doctor_traces_dashboard import router as doctor_traces_router
-from app.api.v1.endpoints.system_health import router as system_health_router
 from app.api.v1.endpoints.flash import router as flash_router
 from app.api.v1.endpoints.whatsapp_webhook import router as whatsapp_webhook_router
 from app.api.v1.endpoints.portal_messages import router as portal_messages_router
@@ -117,21 +114,20 @@ from app.api.v1.endpoints.pipeline_orchestration import router as pipeline_orche
 from app.api.v1.endpoints.finance_monitoring import router as finance_monitoring_router
 from app.api.v1.endpoints.agent_pyramid_reporting import router as agent_pyramid_router
 from app.api.v1.endpoints.goals_management import router as goals_router
-from app.api.v1.endpoints.spartan_integration import router as spartan_router
-from app.api.v1.endpoints.strategic_consul import router as consul_router
-from app.api.v1.endpoints.spartan_forecasting import router as forecasting_router
+from app.api.v1.endpoints.slm_feedback import router as slm_feedback_router
 
 router = fastapi.APIRouter()
 
 router.include_router(router=auth_router)
 router.include_router(router=navigation_router)
-# RBAC removed - using RoleTemplate system only
+router.include_router(router=rbac_router)
 router.include_router(router=role_templates_router)
 router.include_router(router=role_template_modules_router)
 router.include_router(router=permission_composition_router)
 router.include_router(router=org_structure_router)
 router.include_router(router=users_router)
 router.include_router(router=create_job_router)
+router.include_router(router=onboarding_router)
 router.include_router(router=interviews_router)
 router.include_router(router=candidates_router)
 router.include_router(router=msgraph_router)
@@ -236,10 +232,4 @@ router.include_router(router=finance_monitoring_router)
 router.include_router(router=agent_pyramid_router)
 router.include_router(router=goals_router)
 router.include_router(router=certifications_admin_router)
-router.include_router(router=queue_router)
-router.include_router(router=queues_router)
-router.include_router(router=doctor_traces_router)
-router.include_router(router=system_health_router)
-router.include_router(router=spartan_router)
-router.include_router(router=consul_router)
-router.include_router(router=forecasting_router)
+router.include_router(router=slm_feedback_router)
