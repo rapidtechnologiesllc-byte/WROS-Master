@@ -92,6 +92,7 @@ def get_notes_by_candidate(
 # ---------------------------------------------------------------------------
 
 @router.post(
+    dependencies=[Depends(require_resource_permission("resource", "access"))],
     "/notes/{candidate_id}",
     response_model=InternalNoteResponse,
     status_code=201,

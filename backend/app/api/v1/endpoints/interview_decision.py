@@ -30,6 +30,7 @@ decision_service = InterviewDecisionService()
 
 
 @router.post(
+    dependencies=[Depends(require_resource_permission("interview", "manage"))],
     "/status",
     response_model=GetInterviewStatusResponse,
     status_code=status.HTTP_200_OK,
@@ -74,6 +75,7 @@ async def get_interview_status(
 
 
 @router.post(
+    dependencies=[Depends(require_resource_permission("interview", "manage"))],
     "/calculate-decision",
     response_model=CalculatePanelDecisionResponse,
     status_code=status.HTTP_200_OK,
@@ -110,6 +112,7 @@ async def calculate_panel_decision(
 
 
 @router.post(
+    dependencies=[Depends(require_resource_permission("interview", "manage"))],
     "/move-to-offer",
     response_model=MoveToOfferResponse,
     status_code=status.HTTP_201_CREATED,
@@ -165,6 +168,7 @@ async def move_to_offer(
 
 
 @router.post(
+    dependencies=[Depends(require_resource_permission("interview", "manage"))],
     "/reject-candidate",
     response_model=RejectCandidateResponse,
     status_code=status.HTTP_200_OK,

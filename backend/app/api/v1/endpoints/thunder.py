@@ -61,6 +61,7 @@ router = APIRouter(prefix="/thunder", tags=["thunder"])
 
 
 @router.post(
+    dependencies=[Depends(require_resource_permission("unknown", "create"))]
     "/test-chat",
     response_model=TestChatMessageResponse,
     summary="Send a message to Thunder as a test candidate and get a real reply",
@@ -102,6 +103,7 @@ def send_test_chat_message(
 
 
 @router.get(
+    dependencies=[Depends(require_resource_permission("candidate", "view"))],
     "/test-chat/history",
     response_model=TestChatHistoryResponse,
     summary="Get the current tester's Test Thunder conversation history",
@@ -118,6 +120,7 @@ def get_test_chat_history_endpoint(
 
 
 @router.post(
+    dependencies=[Depends(require_resource_permission("candidate", "view"))],
     "/test-chat/reset",
     status_code=200,
     summary="Start a fresh Test Thunder conversation",

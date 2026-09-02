@@ -230,6 +230,7 @@ def send_notification(
 
 
 @router.post(
+    dependencies=[Depends(require_resource_permission("message", "send"))],
     "/notify/event",
     summary="Send a rich event notification email (open to any authenticated user)",
     response_description="Email send result",

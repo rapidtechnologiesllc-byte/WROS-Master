@@ -70,6 +70,7 @@ def calculate_monthly_metric_endpoint(
 
 
 @router.post(
+    dependencies=[Depends(require_resource_permission("resource", "access"))],
     "/check-breach", response_model=HtdIntakeStatusResponse,
     summary="Check the 2 most recently calculated months; auto-pause if both are below 50%",
 )
