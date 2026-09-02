@@ -201,9 +201,17 @@ def unified_login(request: UnifiedLoginRequest, db: Session = Depends(get_db)):
                     pass
 
             # Get user permissions for frontend navigation
-            user_permissions = RoleTemplatePermissionService.get_user_permissions(
-                db, user.UserID, user.tenant_id
-            )
+            try:
+                user_permissions = RoleTemplatePermissionService.get_user_permissions(
+                    db, user.UserID, user.tenant_id
+                )
+            except Exception as e:
+                if "no role template" in str(e).lower():
+                    raise HTTPException(
+                        status_code=403,
+                        detail="Your user account doesn't have permissions loaded. Please reach out to help desk.",
+                    )
+                raise
 
             return UnifiedLoginResponse(
                 entity_type="user",
@@ -237,9 +245,17 @@ def unified_login(request: UnifiedLoginRequest, db: Session = Depends(get_db)):
         )
 
         # Get user permissions for frontend navigation
-        user_permissions = RoleTemplatePermissionService.get_user_permissions(
-            db, user.UserID, user.tenant_id
-        )
+        try:
+            user_permissions = RoleTemplatePermissionService.get_user_permissions(
+                db, user.UserID, user.tenant_id
+            )
+        except Exception as e:
+            if "no role template" in str(e).lower():
+                raise HTTPException(
+                    status_code=403,
+                    detail="Your user account doesn't have permissions loaded. Please reach out to help desk.",
+                )
+            raise
 
         return UnifiedLoginResponse(
             entity_type="user",
