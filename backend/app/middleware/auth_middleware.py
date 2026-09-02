@@ -37,6 +37,8 @@ class AuthenticationMiddleware(BaseHTTPMiddleware):
         "/auth/validate-email",
         "/api/v1/auth/login",
         "/api/v1/auth/validate-email",
+        "/auth/v1/refresh",  # Token refresh endpoint (uses refresh token for auth, not access token)
+        "/api/v1/auth/v1/refresh",  # Token refresh with full /api/v1 prefix
         "/msgraph/auth/signin",
         # OAuth redirect target -- called by Microsoft's servers before any
         # app-level session exists. Structurally cannot require a bearer
