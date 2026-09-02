@@ -141,6 +141,12 @@ jobs:
             "sudo systemctl reload nginx || echo 'Nginx reload failed'"
         continue-on-error: true
 
+      - name: Restart backend service
+        run: |
+          ssh -o StrictHostKeyChecking=no -p 22587 ${{ env.PROD_USER }}@${{ env.PROD_SERVER }} \
+            "cd /home/HRMS/WROS-Master/backend && find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null; find . -name '*.pyc' -delete 2>/dev/null; sudo systemctl restart wros-backend || echo 'Backend restart attempted'"
+        continue-on-error: true
+
       - name: Wait for backend to be ready
         run: |
           echo "Waiting for backend at http://46.224.149.7:8080/health"
