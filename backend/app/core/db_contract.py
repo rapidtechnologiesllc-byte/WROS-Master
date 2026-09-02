@@ -81,25 +81,39 @@ def _initialize_tenant():
 
 
 def _initialize_rbac():
-    """Ensure all modules, resources, and admin role exist."""
+    """Ensure all modules, resources, and admin role exist.
+
+    Uses MODULES_AND_RESOURCES from app.contracts as the source of truth.
+    This ensures the database always matches the API contract.
+    """
     db = SessionLocal()
     try:
-        # Define RBAC structure
-        modules_data = {
-            "recruitment": "Recruitment Management",
-            "workforce": "Workforce Management",
-            "projects": "Project Management",
-            "finance": "Finance",
-            "admin": "Administration",
+        # Import the authoritative API contract
+        from app.contracts.api_contract import MODULES_AND_RESOURCES
+
+        # Define display names for modules (can enhance as needed)
+        module_display_names = {
+            "Personal": "Personal",
+            "Recruitment": "Recruitment",
+            "Workforce": "Workforce",
+            "Sales": "Sales",
+            "Project Management": "Project Management",
+            "Finance": "Finance",
+            "Reporting": "Reporting",
+            "System": "System",
+            "Executive": "Executive",
+            "Executive Dashboards": "Executive Dashboards",
+            "AI & Automation": "AI & Automation",
+            "Admin": "Admin",
         }
 
-        resources_data = {
-            "recruitment": ["candidates", "jobs", "interviews", "offers"],
-            "workforce": ["employees", "timesheets", "leaves"],
-            "projects": ["projects", "allocations"],
-            "finance": ["invoices", "reports"],
-            "admin": ["users", "settings"],
+        # Use the authoritative contract structure
+        modules_data = {
+            module_name: module_display_names.get(module_name, module_name)
+            for module_name in MODULES_AND_RESOURCES.keys()
         }
+
+        resources_data = MODULES_AND_RESOURCES
 
         # Create modules
         modules = {}
