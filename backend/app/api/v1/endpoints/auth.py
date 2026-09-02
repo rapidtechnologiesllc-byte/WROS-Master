@@ -36,7 +36,7 @@ from app.services.email_service import EmailService
 from app.services.role_template_permission_service import RoleTemplatePermissionService
 from app.models.candidate import Candidate
 from app.models.user import Users
-from app.schemas.auth import SignupRequest, SignupResponse, LoginRequest, LoginResponse, CandidateLoginRequest, CandidateLoginResponse
+from app.schemas.auth import SignupRequest, SignupResponse
 from app.contracts import UnifiedLoginRequest, UnifiedLoginResponse, ValidateEmailRequest, validate_login_request, validate_login_response
 from app.utils.uniq_id_generator import candidate_id_generator, generate_password, user_id_generator
 
