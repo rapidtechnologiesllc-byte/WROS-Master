@@ -123,7 +123,6 @@ async def startup_event():
         Base.metadata.create_all(bind=engine, checkfirst=True)
         logger.info("[OK] Database tables initialized")
     except Exception as exc:
-       logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.error(f"[Startup] Failed to create DB tables: {exc}", exc_info=True)
         return  # Don't crash startup, but tables won't exist
 
