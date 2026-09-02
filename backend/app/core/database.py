@@ -82,19 +82,25 @@ def get_db():
     """
     from app.core.logging import logger
     from sqlalchemy import text
+    from fastapi import HTTPException
 
+    db = None
     try:
         db = SessionLocal()
         # Test connection immediately - fail fast if database is unreachable
         db.execute(text("SELECT 1"))
         logger.debug("Database connection established")
         yield db
+    except HTTPException:
+        # Don't catch HTTPExceptions - let them propagate (e.g., 401 Unauthorized from login)
+        raise
     except Exception as e:
         logger.error(f"Database session creation failed: {str(e)}", exc_info=True)
         raise RuntimeError(f"Database connection error: {str(e)}")
     finally:
         try:
-            db.close()
+            if db:
+                db.close()
         except Exception as e:
             logger.warning(f"Error closing database session: {str(e)}")
 
