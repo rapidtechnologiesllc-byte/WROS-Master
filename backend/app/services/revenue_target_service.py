@@ -23,6 +23,7 @@ from app.models.user import Users
 from app.services.opportunity_service import (
     aggregate_weighted_forecast, calculate_pipeline_coverage_ratio, calculate_weighted_forecast,
 )
+from app.services.permission_helper import PermissionHelper
 
 # S-267's own bands.
 ON_TRACK_THRESHOLD = 0.95
@@ -126,11 +127,11 @@ def set_partner_goal(
 ) -> PartnerGoal:
     """CEO-only, enforced via RBAC permission system.
     Users must have admin.manage or revenue.manage permission to set partner goals."""
-    from app.services.rbac_service import RBACService
 
+    tenant_id = getattr(created_by_user, 'TenantID', 1) if created_by_user else 1
     has_permission = (
-        RBACService.has_permission(db, created_by_user.UserID, "admin-settings", "edit") or
-        RBACService.has_permission(db, created_by_user.UserID, "revenue", "edit")
+        PermissionHelper.has_permission(created_by_user.UserID, "admin-settings.edit", db, tenant_id) or
+        PermissionHelper.has_permission(created_by_user.UserID, "revenue.edit", db, tenant_id)
     )
     if not has_permission:
         raise RevenueTargetValidationError(

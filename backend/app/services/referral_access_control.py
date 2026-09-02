@@ -16,6 +16,7 @@ from typing import Dict, Any, List, Optional
 from app.models.referral import EmployeeReferral, JobReferralSettings, ReferralBonus
 from app.models.employee import Employee
 from app.models.user import Users
+from app.services.permission_helper import PermissionHelper
 
 
 class ReferralAccessControl:
@@ -39,10 +40,11 @@ class ReferralAccessControl:
         Returns:
             True if user can view, False otherwise
         """
-        from app.services.rbac_service import RBACService
 
         # Admin and Workforce Manager see everything
-        if RBACService.has_any_permission(db, user_id, ["admin-settings", "edit", "revenue", "edit"]):
+        user = db.query(Users).filter(Users.UserID == user_id).first()
+        tenant_id = getattr(user, 'TenantID', 1) if user else 1
+        if PermissionHelper.has_any_permission(user_id, ["admin-settings", "edit", "revenue", "edit"], db, tenant_id):
             return True
 
         # BU Head/Partner see only their BU
@@ -57,14 +59,15 @@ class ReferralAccessControl:
         user_bu: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         """Get referrals visible to this user (database-driven permissions)."""
-        from app.services.rbac_service import RBACService
 
         try:
             # Admin and Finance see ALL referrals
-            if RBACService.has_any_permission(db, user_id, ["admin-settings", "edit", "revenue", "edit"]):
+            user = db.query(Users).filter(Users.UserID == user_id).first()
+            tenant_id = getattr(user, 'TenantID', 1) if user else 1
+            if PermissionHelper.has_any_permission(user_id, ["admin-settings", "edit", "revenue", "edit"], db, tenant_id):
                 referrals = db.query(EmployeeReferral).all()
             # BU Head/Partner and HR Manager see only their BU's referrals
-            elif RBACService.has_any_permission(db, user_id, ["business-units", "edit", "employees", "edit"]):
+            elif PermissionHelper.has_any_permission(user_id, ["business-units", "edit", "employees", "edit"], db, tenant_id):
                 referrals = (
                     db.query(EmployeeReferral)
                     .join(Employee, EmployeeReferral.referring_employee_id == Employee.id)
@@ -101,14 +104,15 @@ class ReferralAccessControl:
         user_bu: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         """Get referral bonuses visible to this user (database-driven permissions)."""
-        from app.services.rbac_service import RBACService
 
         try:
             # Admin and Finance see ALL bonuses for payment processing
-            if RBACService.has_any_permission(db, user_id, ["admin-settings", "edit", "revenue", "edit"]):
+            user = db.query(Users).filter(Users.UserID == user_id).first()
+            tenant_id = getattr(user, 'TenantID', 1) if user else 1
+            if PermissionHelper.has_any_permission(user_id, ["admin-settings", "edit", "revenue", "edit"], db, tenant_id):
                 bonuses = db.query(ReferralBonus).all()
             # BU Head/Partner and HR Manager see only their BU's bonuses
-            elif RBACService.has_any_permission(db, user_id, ["business-units", "edit", "employees", "edit"]):
+            elif PermissionHelper.has_any_permission(user_id, ["business-units", "edit", "employees", "edit"], db, tenant_id):
                 bonuses = (
                     db.query(ReferralBonus)
                     .join(Employee, ReferralBonus.referring_employee_id == Employee.id)
@@ -145,18 +149,20 @@ class ReferralAccessControl:
         user_bu: Optional[str] = None,
     ) -> Optional[Dict[str, Any]]:
         """Get job referral stats visible to this user (database-driven permissions)."""
-        from app.services.rbac_service import RBACService
 
         # Only admin, finance, and manager-level and above can see job stats
-        can_view_stats = RBACService.has_any_permission(
-            db, user_id,
-            ["admin-settings", "edit", "revenue", "edit", "business-units", "edit", "employees", "edit"]
+        user = db.query(Users).filter(Users.UserID == user_id).first()
+        tenant_id = getattr(user, 'TenantID', 1) if user else 1
+        can_view_stats = PermissionHelper.has_any_permission(
+            user_id,
+            ["admin-settings", "edit", "revenue", "edit", "business-units", "edit", "employees", "edit"],
+            db, tenant_id
         )
         if not can_view_stats:
             return None
 
         # BU Head/HR can only see their BU's jobs
-        if RBACService.has_any_permission(db, user_id, ["business-units", "edit", "employees", "edit"]):
+        if PermissionHelper.has_any_permission(user_id, ["business-units", "edit", "employees", "edit"], db, tenant_id):
             # Verify this job is in their BU
             # For now, assume job belongs to a BU (would need job model update)
             # TODO: Add business_unit field to Jobs model
@@ -204,7 +210,6 @@ class ReferralAccessControl:
         HR Manager Dashboard: HR-specific view
         Employee Dashboard: personal view
         """
-        from app.services.rbac_service import RBACService
 
         try:
             # CEO/Admin see org-wide dashboard

@@ -5,7 +5,6 @@ from typing import Optional
 from app.models.user import Users
 from app.services.agent_state_service import get_agent_state_target, get_all_agent_states
 from app.services.agent_kill_switch_service import AgentKillSwitchService
-from app.services.rbac_service import RBACService
 
 class RoleBasedDashboardService:
     """Generate role-specific dashboard views based on user authority."""

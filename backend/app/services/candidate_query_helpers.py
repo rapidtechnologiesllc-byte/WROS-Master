@@ -15,9 +15,9 @@ from sqlalchemy import or_
 
 from app.models.candidate import Candidate
 from app.models.user import Users
-from app.services.rbac_service import RBACService
 from app.services.organization_service import OrganizationService
 from app.services.candidate_isolation_service import CandidateIsolationService
+from app.services.permission_helper import PermissionHelper
 
 
 def get_candidates_for_user(
@@ -51,10 +51,10 @@ def get_candidates_for_user(
     base_query = db.query(Candidate).filter(Candidate.tenant_id == tenant_id)
 
     # Apply isolation rules
-    if RBACService.is_super_admin(user_id, db, tenant_id):
+    if PermissionHelper.is_super_admin(user_id, db, tenant_id):
         # Super admin sees all candidates
         pass
-    elif RBACService.has_any_permission(db, user_id, ["recruitment.manage", "employee.manage", "recruitment.view"]):
+    elif PermissionHelper.has_any_permission(user_id, ["recruitment.manage", "employee.manage", "recruitment.view"], db, tenant_id):
         # HR/Recruiter sees:
         # 1. All unassociated candidates
         # 2. Candidates associated to their BU(s)
@@ -155,11 +155,11 @@ def get_candidates_by_bu(
         List of Candidate objects in the BU
     """
     # Check permission to view BU data
-    if not RBACService.has_any_permission(db, user_id, ["admin.manage", "business_unit.manage", "employee.manage"]):
+    if not PermissionHelper.has_any_permission(user_id, ["admin.manage", "business_unit.manage", "employee.manage"], db, tenant_id):
         return []
 
     # For non-admin users, verify they have access to this BU
-    if not RBACService.is_super_admin(user_id, db, tenant_id):
+    if not PermissionHelper.is_super_admin(user_id, db, tenant_id):
         user_bus = OrganizationService.get_user_accessible_business_units(user_id, db, tenant_id)
         if bu_id not in user_bus:
             return []

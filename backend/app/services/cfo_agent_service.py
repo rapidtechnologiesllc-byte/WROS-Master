@@ -170,7 +170,6 @@ def get_bu_financial_comparison(db: Session, year_month: str = None) -> list:
     # Get all users with business_unit_id assigned (replaces hardcoded Partner role check)
     # Partner role is identified via role template permissions, not UserRole string
     # This query gets all users managing a BU, regardless of role name
-    from app.services.rbac_service import RBACService
     partners = db.query(Users).filter(
         Users.business_unit_id.isnot(None)
     ).all()

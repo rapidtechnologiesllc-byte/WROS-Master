@@ -168,7 +168,6 @@ def _finance_assignee(db: Session, tenant_id: Optional[int]) -> Optional[Users]:
 
     Zero-hardcoding: Finance users identified by 'payroll_access' attribute,
     not by hardcoded 'Finance' role name."""
-    from app.services.rbac_service import RBACService
 
     # Find all users with finance-level permissions (payroll access)
     all_users = db.query(Users)

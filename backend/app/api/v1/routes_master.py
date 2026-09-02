@@ -154,7 +154,6 @@ from app.api.v1.endpoints.create_job import router as create_job_router
 from app.api.v1.endpoints.offer_letters import router as offer_letters_router
 from app.api.v1.endpoints.employees import router as employees_router
 from app.api.v1.endpoints.notifications import router as notifications_router
-from app.api.v1.endpoints.rbac import router as rbac_router
 
 # Import middleware components
 from app.core.logging import logger, log_security_event
@@ -256,27 +255,7 @@ def create_master_router() -> APIRouter:
     # TIER 2: RBAC & USERS
     # =======================
     # Story: HRMS-0114 - Role-Based Access Control
-    # Endpoints: /users/create-with-roles, /users/{id}, /rbac/*
-    # Protected: requires valid JWT + user.manage permission
-    router.include_router(
-        rbac_router,
-        tags=["rbac"],
-        dependencies=[Depends(get_current_user)],
-        responses={
-            403: {
-                "description": "Insufficient permissions",
-                "content": {
-                    "application/json": {
-                        "example": {
-                            "status_code": 403,
-                            "error_type": "forbidden",
-                            "message": "User lacks permission: role.manage"
-                        }
-                    }
-                }
-            }
-        }
-    )
+    # Note: rbac router removed (functionality covered by role_templates, permission_composition, users_access_control)
 
     router.include_router(
         users_router,

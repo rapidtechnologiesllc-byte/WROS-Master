@@ -11,6 +11,7 @@ from app.services.cfo_agent_service import (
     get_expense_breakdown, get_financial_forecast
 )
 from app.services.ceo_fy_progress_service import get_fy_progress, get_fy_executive_summary, get_fy_executive_dashboard
+from app.services.permission_helper import PermissionHelper
 
 router = APIRouter(prefix="/agents", tags=["Agents"])
 
@@ -34,8 +35,8 @@ def get_partner_roi_kpis(
         kpis = get_partner_kpis(db, partner_id, year_month)
 
         # Scope check: Partner can only see their own KPIs; Finance/CEO see all
-        from app.services.rbac_service import RBACService
-        can_see_all = RBACService.has_any_permission(db, current_user.UserID, ["admin.manage", "revenue.manage"])
+        tenant_id = getattr(current_user, 'TenantID', 1)
+        can_see_all = PermissionHelper.has_any_permission(current_user.UserID, ["admin.manage", "revenue.manage"], db, tenant_id)
         if not can_see_all and current_user.UserID != partner_id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -57,8 +58,8 @@ def get_partner_roi_trend(
     """Get Partner's KPI trend over last N months."""
     try:
         # Scope check: Partner can only see their own; Finance/CEO see all
-        from app.services.rbac_service import RBACService
-        can_see_all = RBACService.has_any_permission(db, current_user.UserID, ["admin.manage", "revenue.manage"])
+        tenant_id = getattr(current_user, 'TenantID', 1)
+        can_see_all = PermissionHelper.has_any_permission(current_user.UserID, ["admin.manage", "revenue.manage"], db, tenant_id)
         if not can_see_all and current_user.UserID != partner_id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -79,8 +80,8 @@ def get_partner_roi_actions(
 ):
     """Get prioritized action items for Partner based on KPIs."""
     try:
-        from app.services.rbac_service import RBACService
-        can_see_all = RBACService.has_any_permission(db, current_user.UserID, ["admin.manage", "revenue.manage"])
+        tenant_id = getattr(current_user, 'TenantID', 1)
+        can_see_all = PermissionHelper.has_any_permission(current_user.UserID, ["admin.manage", "revenue.manage"], db, tenant_id)
         if not can_see_all and current_user.UserID != partner_id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,

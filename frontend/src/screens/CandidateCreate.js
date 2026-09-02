@@ -172,8 +172,9 @@ export default function CandidateCreate({ onBack, onSave }) {
 
   const loadAvailableJobs = async () => {
     try {
-      const jobs = await getAllJobs();
-      const openJobs = jobs.filter(job => job.jobStatus === "OPEN" || job.status === "OPEN");
+      const response = await getAllJobs();
+      const jobsList = Array.isArray(response) ? response : response?.jobs || [];
+      const openJobs = jobsList.filter(job => job.jobStatus === "OPEN" || job.status === "OPEN");
       setAvailableJobs(openJobs);
     } catch (error) {
       console.log("Could not load jobs", error);
@@ -830,7 +831,6 @@ export default function CandidateCreate({ onBack, onSave }) {
           </div>
           <div>
             <Input
-              ref={(ref) => (fieldRefs.current.email = ref?.input)}
               label="Email *"
               value={email}
               onChange={(value) => {
@@ -847,7 +847,6 @@ export default function CandidateCreate({ onBack, onSave }) {
 
           <div>
             <Input
-              ref={(ref) => (fieldRefs.current.firstName = ref?.input)}
               label="First Name *"
               value={firstName}
               onChange={(value) => {
@@ -872,7 +871,6 @@ export default function CandidateCreate({ onBack, onSave }) {
 
           <div>
             <Input
-              ref={(ref) => (fieldRefs.current.lastName = ref?.input)}
               label="Last Name *"
               value={lastName}
               onChange={(value) => {

@@ -28,7 +28,6 @@ def get_partner_for_bu(db: Session, business_unit_id: Optional[int]) -> Optional
 
     Zero-hardcoding: Partner identified by 'business_unit.manage' permission,
     not by hardcoded 'Partner' role name."""
-    from app.services.rbac_service import RBACService
 
     if business_unit_id is None:
         return None

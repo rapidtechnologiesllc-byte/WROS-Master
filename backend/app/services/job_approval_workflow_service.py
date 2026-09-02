@@ -18,7 +18,6 @@ from app.models.user import Jobs, Users
 from app.models.business_unit import BusinessUnit
 from app.services.recruiter_assignment_service import assign_to_recruiter_roundrobin
 from app.services.email_service import EmailService
-from app.services.rbac_service import RBACService
 
 
 def get_approval_routing(db: Session, job: Jobs, creator: Users) -> Tuple[Optional[Users], str]:

@@ -17,6 +17,7 @@ from typing import List, Optional
 from sqlalchemy.orm import Session
 
 from app.models.error_log import ERROR_SEVERITIES, ErrorLog
+from app.services.permission_helper import PermissionHelper
 
 MAX_STACK_TRACE_CHARS = 8000
 
@@ -29,13 +30,13 @@ def _page_on_call(db: Session, error: ErrorLog) -> None:
     from app.core.logging import logger
     from app.models.user import Users
     from app.services.notification_service import send_notification
-    from app.services.rbac_service import RBACService
 
     # Zero-hardcoding: Find admin via permission check, not hardcoded role name
     all_users = db.query(Users).order_by(Users.UserID.asc()).all()
     on_call = None
     for user in all_users:
-        if RBACService.has_permission(db, user.UserID, "admin-settings.edit"):
+        tenant_id = getattr(user, 'TenantID', 1)
+        if PermissionHelper.has_permission(user.UserID, "admin-settings.edit", db, tenant_id):
             on_call = user
             break
 

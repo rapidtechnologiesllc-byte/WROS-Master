@@ -5,10 +5,10 @@ from sqlalchemy.orm import Session
 from app.core.dependencies import get_current_internal_user, require_resource_permission
 from app.core.database import get_db
 from app.models.user import Users
-from app.services.rbac_service import RBACService
 from app.services.agent_state_service import (
     get_agent_state_target, get_all_agent_states, get_agent_recommendations
 )
+from app.services.permission_helper import PermissionHelper
 
 router = APIRouter(prefix="/agent-state", tags=["Agent State Dashboard"])
 
@@ -38,7 +38,8 @@ def get_all_agents_state(
     """
 
     try:
-        if not RBACService.has_permission(db, current_user.UserID, "admin.manage"):
+        tenant_id = getattr(current_user, 'TenantID', 1)
+        if not PermissionHelper.is_super_admin(current_user.UserID, db, tenant_id):
             raise HTTPException(
                 status_code=403,
                 detail="Only CEO/Admin can view agent state dashboard"
@@ -145,7 +146,8 @@ def get_agent_state(
     """Get detailed state for a single agent."""
 
     try:
-        if not RBACService.has_permission(db, current_user.UserID, "admin.manage"):
+        tenant_id = getattr(current_user, 'TenantID', 1)
+        if not PermissionHelper.is_super_admin(current_user.UserID, db, tenant_id):
             raise HTTPException(
                 status_code=403,
                 detail="Only CEO/Admin can view agent state dashboard"

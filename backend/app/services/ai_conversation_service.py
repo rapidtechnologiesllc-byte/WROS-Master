@@ -40,6 +40,7 @@ from app.models.candidate_ai import (
 )
 from app.models.user import Users
 from app.services.email_service import EmailService
+from app.services.permission_helper import PermissionHelper
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -317,13 +318,12 @@ def resolve_thunder_config(db: Session, tenant_id: Optional[str]) -> Dict[str, s
 
     Zero-hardcoding: Finds admin via permission check, not hardcoded role name.
     """
-    from app.services.rbac_service import RBACService
 
     # Find first user with admin permissions (tenant configuration access)
     all_users = db.query(Users).order_by(Users.UserID.asc()).all()
     tenant_user = None
     for user in all_users:
-        if RBACService.has_permission(db, user.UserID, "tenant-config.edit"):
+        if PermissionHelper.has_permission(user.UserID, "tenant-config.edit", db, tenant_id):
             tenant_user = user
             break
 
@@ -331,7 +331,7 @@ def resolve_thunder_config(db: Session, tenant_id: Optional[str]) -> Dict[str, s
     if not tenant_user:
         all_users = db.query(Users).order_by(Users.UserID.asc()).all()
         for user in all_users:
-            if RBACService.has_permission(db, user.UserID, "admin-settings.edit"):
+            if PermissionHelper.has_permission(user.UserID, "admin-settings.edit", db, tenant_id):
                 tenant_user = user
                 break
 
