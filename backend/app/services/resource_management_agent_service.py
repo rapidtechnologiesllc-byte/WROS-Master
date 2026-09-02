@@ -101,9 +101,9 @@ def _parse_skills(raw: Optional[str]) -> List[str]:
     try:
         parsed = json.loads(raw)
     except (json.JSONDecodeError, TypeError):
-        return []
+        raise ValueError("Operation failed")
     if not isinstance(parsed, list):
-        return []
+        raise ValueError("Operation failed")
     return [str(s).strip().lower() for s in parsed if str(s).strip()]
 
 

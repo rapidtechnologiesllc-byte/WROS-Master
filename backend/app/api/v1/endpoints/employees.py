@@ -99,7 +99,7 @@ def _skills_list(raw):
     try:
         parsed = json.loads(raw)
     except (json.JSONDecodeError, TypeError):
-        return []
+        raise ValueError("Operation failed")
     return parsed if isinstance(parsed, list) else []
 
 
@@ -173,6 +173,7 @@ def create_employee(
 
 
 @router.post(
+    dependencies=[Depends(get_current_user)]
     "/convert-candidate/{candidate_id}", response_model=EmployeeItem,
     summary="Convert a candidate to an employee (HRMS-0708 minimal slice)",
 )
@@ -233,6 +234,7 @@ def _parse_bulk_import_date(raw) -> date:
 
 
 @router.post(
+    dependencies=[Depends(get_current_user)]
     "/bulk-import", response_model=BulkImportResponse,
     summary="One-time bulk employee load from an .xlsx file",
     description=(
@@ -357,6 +359,7 @@ def list_employees(
 
 
 @router.get(
+    dependencies=[Depends(get_current_user)]
     "/bench-pool", response_model=EmployeeListResponse,
     summary="View the current bench pool (S-247)",
 )
@@ -374,6 +377,7 @@ def view_bench_pool(
 
 
 @router.get(
+    dependencies=[Depends(get_current_user)]
     "/bench-aging-alerts", response_model=BenchAgingAlertsResponse,
     summary="Employees who just crossed a 30/60/90-day bench milestone (S-248)",
 )
@@ -391,6 +395,7 @@ def bench_aging_alerts(
 
 
 @router.get(
+    dependencies=[Depends(get_current_user)]
     "/utilization-summary", response_model=UtilizationSummaryResponse,
     summary="Employee Utilization Dashboard (S-254) -- latest utilization per employee + low-utilization alerts",
 )
@@ -426,6 +431,7 @@ def utilization_summary(
 
 
 @router.get(
+    dependencies=[Depends(get_current_user)]
     "/bench-cost-summary", response_model=BenchCostSummaryResponse,
     summary="Bench Cost Visibility (S-255) -- daily/monthly/running bench cost per employee + total",
 )
@@ -468,6 +474,7 @@ def get_employee(
 
 
 @router.get(
+    dependencies=[Depends(get_current_user)]
     "/{employee_id}/staffing-eligibility", response_model=StaffingEligibilityResponse,
     summary="Staffing Eligibility Engine (S-250) -- can this employee appear in ranking for a delivery engine?",
 )
@@ -485,6 +492,7 @@ def staffing_eligibility(
 
 
 @router.get(
+    dependencies=[Depends(get_current_user)]
     "/{employee_id}/engine-history", response_model=EngineHistoryResponse,
     summary="S-351/HRMS-0512 -- read-only Speciality/Core engine change audit trail",
 )
@@ -518,6 +526,7 @@ def engine_history(
 
 
 @router.post(
+    dependencies=[Depends(get_current_user)]
     "/{employee_id}/record-utilization", response_model=UtilizationHistoryItem,
     summary="Calculate + snapshot one employee's utilization for a week (S-223/HRMS-0904) -- billable hours vs available hours",
 )
@@ -538,6 +547,7 @@ def record_utilization(
 
 
 @router.get(
+    dependencies=[Depends(get_current_user)]
     "/{employee_id}/performance", response_model=PerformanceStoreResponse,
     summary="HRMS-0515 -- performance event timeline + score averages (BU Head/RM/HR only, never the employee)",
 )
@@ -569,6 +579,7 @@ def get_employee_performance(
 
 
 @router.get(
+    dependencies=[Depends(get_current_user)]
     "/{employee_id}/utilization-history", response_model=UtilizationHistoryResponse,
     summary="Weekly utilization history for one employee (S-254)",
 )
@@ -592,6 +603,7 @@ def utilization_history(
 
 
 @router.post(
+    dependencies=[Depends(get_current_user)]
     "/{employee_id}/mark-bench", response_model=EmployeeItem,
     summary="Mark an employee as on the bench (S-246)",
 )
@@ -609,6 +621,7 @@ def mark_bench(
 
 
 @router.post(
+    dependencies=[Depends(get_current_user)]
     "/{employee_id}/remove-from-bench", response_model=EmployeeItem,
     summary="Remove an employee from the bench",
 )
@@ -625,6 +638,7 @@ def remove_from_bench(
 
 
 @router.get(
+    dependencies=[Depends(get_current_user)]
     "/{employee_id}/bench-history", response_model=BenchPeriodHistoryResponse,
     summary="Full bench episode history for an employee",
 )

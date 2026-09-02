@@ -403,6 +403,7 @@ def get_prompt_templates_endpoint(
 # ===========================================================================
 
 @router.post(
+    dependencies=[Depends(get_current_user)]
     "/webhook/email-reply",
     response_model=ProcessReplyResponse,
     summary="Process an incoming candidate reply email",
@@ -470,6 +471,7 @@ def poll_and_process(
 # ===========================================================================
 
 @router.get(
+    dependencies=[Depends(get_current_user)]
     "/conversations/{candidate_id}",
     response_model=ConversationThreadResponse,
     summary="Get full agent–candidate conversation thread",
@@ -507,6 +509,7 @@ def get_conversations(
 # ===========================================================================
 
 @router.get(
+    dependencies=[Depends(get_current_user)]
     "/conversations/{candidate_id}/active",
     response_model=ConversationThreadItem,
     summary="Get the active conversation for a candidate",
@@ -847,6 +850,7 @@ def thunder_resume(
 # ===========================================================================
 
 @router.get(
+    dependencies=[Depends(get_current_user)]
     "/assignments/{candidate_id}",
     response_model=List[AIAssignmentOut],
     summary="Get all AI agent assignments for a candidate",

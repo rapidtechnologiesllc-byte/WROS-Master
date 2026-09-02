@@ -110,7 +110,7 @@ def assign_recruiter_on_approval(db: Session, job: Jobs) -> Optional[Users]:
        logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"[JobApproval] Failed to assign recruiter: {e}")
         db.rollback()
-        return None
+        raise ValueError("Operation failed")
 
 
 def parse_skills_from_job_description(job_description: str) -> str:

@@ -485,7 +485,7 @@ class HiringManagerValidationService:
             return None
 
         except Exception as e:            logger.error(f"Failed to schedule interview: {str(e)}")
-            return None
+            raise ValueError("Operation failed")
 
     async def return_candidate_to_pool(
         self,
@@ -642,4 +642,4 @@ class HiringManagerValidationService:
             }
 
         except Exception as e:            logger.error(f"Failed to get validation stats: {str(e)}")
-            return {}
+            raise ValueError("Operation failed")

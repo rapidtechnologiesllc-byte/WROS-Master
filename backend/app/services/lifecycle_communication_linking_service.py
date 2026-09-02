@@ -117,4 +117,4 @@ def link_email_to_lifecycle_record(
        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[LifecycleCommunicationLinking] Failed to link email (direction={direction!r}): {exc}")
         db.rollback()
-        return None
+        raise ValueError("Operation failed")

@@ -94,7 +94,7 @@ def _generate_query(demand: Demand, *, llm_query_generator):
             False,
         )
     except Exception:
-        return None, None, None, None, True
+        raise ValueError("Operation failed"), None, None, None, True
 
 
 def process_sourcing_alert(

@@ -30,7 +30,7 @@ def verify_token(token: str):
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         return payload
     except jwt.InvalidTokenError:
-        return None
+        raise ValueError("Operation failed")
 
 def decode_access_token(token: str):
     """Decode JWT token for use in dependencies"""

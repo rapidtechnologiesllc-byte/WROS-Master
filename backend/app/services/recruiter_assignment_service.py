@@ -55,4 +55,4 @@ def assign_to_recruiter_roundrobin(db: Session) -> Users:
     except Exception as e:
        logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"[Recruiter Assignment] Error during round-robin assignment: {e}")
-        return None
+        raise ValueError("Operation failed")

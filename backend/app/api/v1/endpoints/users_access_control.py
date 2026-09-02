@@ -59,6 +59,7 @@ class UserUpdateRequest(BaseModel):
     business_unit_id: Optional[int] = None
 
 @router.get("/users")
+    dependencies=[Depends(get_current_user)]
 @require_action_permission("administration", "view")
 def list_users(
     db: Session = Depends(get_db),
@@ -116,6 +117,7 @@ def list_users(
     }
 
 @router.post("/users")
+    dependencies=[Depends(get_current_user)]
 @require_action_permission("administration", "create")
 def create_user(
     req: UserCreateRequest,
@@ -180,6 +182,7 @@ def create_user(
     }
 
 @router.put("/users/{user_id}")
+    dependencies=[Depends(get_current_user)]
 @require_action_permission("administration", "edit")
 def update_user(
     user_id: str,
@@ -224,6 +227,7 @@ def update_user(
     }
 
 @router.delete("/users/{user_id}")
+    dependencies=[Depends(get_current_user)]
 @require_action_permission("administration", "delete")
 def delete_user(
     user_id: str,

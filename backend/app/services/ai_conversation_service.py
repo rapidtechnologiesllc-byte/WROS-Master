@@ -1023,11 +1023,11 @@ JSON output:"""
 
     except json.JSONDecodeError as e:
         logger.error(f"[AIAgent] Gemini returned invalid JSON: {e} | Raw: {text!r}")
-        return {}
+        raise ValueError("Operation failed")
     except Exception as exc:
        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.error(f"[AIAgent] Gemini call failed: {exc}")
-        return {}
+        raise ValueError("Operation failed")
 
 
 # ===========================================================================
@@ -1174,7 +1174,7 @@ JSON output:"""
         return result
     except _json_mod.JSONDecodeError as e:
         logger.error(f"[ReplyPipeline] extract_fields_from_reply JSON error: {e} | raw={raw!r}")
-        return {}
+        raise ValueError("Operation failed")
 
 
 # ===========================================================================

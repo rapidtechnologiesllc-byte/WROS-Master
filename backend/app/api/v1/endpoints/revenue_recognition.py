@@ -78,6 +78,7 @@ router = APIRouter(prefix="/revenue", tags=["revenue-recognition"])
 # ============================================================================
 
 @router.post(
+    dependencies=[Depends(get_current_user)]
     "/recognize",
     response_model=RevenueRecognitionResponse,
     summary="Recognize revenue from paid invoice",
@@ -143,6 +144,7 @@ def recognize_revenue(
 
 
 @router.post(
+    dependencies=[Depends(get_current_user)]
     "/entries",
     response_model=RevenueEntriesResponse,
     summary="Create revenue entries for invoice",
@@ -198,6 +200,7 @@ def create_entries(
 
 
 @router.post(
+    dependencies=[Depends(get_current_user)]
     "/asr",
     response_model=ASRResponse,
     summary="Calculate Annual Recurring Revenue (ASR/ARR)",
@@ -254,6 +257,7 @@ def calculate_annual_recurring_revenue(
 # ============================================================================
 
 @router.get(
+    dependencies=[Depends(get_current_user)]
     "/by-month",
     response_model=RevenueByMonthResponse,
     summary="Get revenue by month",
@@ -284,6 +288,7 @@ def get_revenue_monthly(
 
 
 @router.get(
+    dependencies=[Depends(get_current_user)]
     "/by-service",
     response_model=RevenueByServiceResponse,
     summary="Get revenue by service",
@@ -312,6 +317,7 @@ def get_revenue_service(
 
 
 @router.get(
+    dependencies=[Depends(get_current_user)]
     "/by-module",
     response_model=RevenueByModuleResponse,
     summary="Get revenue by Guidewire module",
@@ -340,6 +346,7 @@ def get_revenue_module(
 
 
 @router.get(
+    dependencies=[Depends(get_current_user)]
     "/by-pricing-model",
     response_model=RevenueByPricingModelResponse,
     summary="Get revenue by pricing model",
@@ -368,6 +375,7 @@ def get_revenue_pricing_model(
 
 
 @router.get(
+    dependencies=[Depends(get_current_user)]
     "/by-client-owner",
     response_model=RevenueByClientOwnerResponse,
     summary="Get revenue by client owner",
@@ -396,6 +404,7 @@ def get_revenue_client_owner(
 
 
 @router.get(
+    dependencies=[Depends(get_current_user)]
     "/partner-shares",
     response_model=PartnerRevenueShareResponse,
     summary="Get partner revenue share analysis",
@@ -424,6 +433,7 @@ def get_partner_shares(
 
 
 @router.get(
+    dependencies=[Depends(get_current_user)]
     "/forecast-vs-actual",
     response_model=ForecastVsActualResponse,
     summary="Get forecast vs actual revenue",
@@ -456,6 +466,7 @@ def get_forecast_actual(
 
 
 @router.get(
+    dependencies=[Depends(get_current_user)]
     "/negative-margins",
     response_model=NegativeMarginAlertsResponse,
     summary="Get loss-making projects",
@@ -485,6 +496,7 @@ def get_negative_margins(
 
 
 @router.get(
+    dependencies=[Depends(get_current_user)]
     "/pnl-summary",
     response_model=PandLSummaryResponse,
     summary="Get P&L summary",

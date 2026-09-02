@@ -200,7 +200,7 @@ def extract_facts(
         logger.warning(f"[FactsExtraction] Extraction failed for candidate {candidate.candidateID}: {exc}")
         _log_extraction_event(db, conversation_id, "FACTS_EXTRACTION_FAILED", {"reason": str(exc)})
         db.commit()
-        return []
+        raise ValueError("Operation failed")
 
     for fact in facts:
         upsert_fact(

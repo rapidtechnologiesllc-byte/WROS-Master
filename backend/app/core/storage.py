@@ -32,7 +32,7 @@ def upload_to_s3(file_obj: BinaryIO, bucket: str, key: str, content_type: str = 
         logger.info(f"Upload to S3: {s3_url}")
         return s3_url
     except Exception as e:        logger.error(f"Failed to upload to S3: {e}")
-        return None
+        raise ValueError("Operation failed")
 
 
 def download_from_s3(bucket: str, key: str) -> Optional[bytes]:
@@ -53,7 +53,7 @@ def download_from_s3(bucket: str, key: str) -> Optional[bytes]:
         logger.info(f"Download from S3: s3://{bucket}/{key}")
         return None
     except Exception as e:        logger.error(f"Failed to download from S3: {e}")
-        return None
+        raise ValueError("Operation failed")
 
 
 def delete_from_s3(bucket: str, key: str) -> bool:

@@ -59,7 +59,7 @@ class FlashTranscriptService:
         except Exception as e:
            logger.error(f"Error: {str(e)}", exc_info=True)
             logger.error(f"[Flash] Error fetching transcript: {str(e)}")
-            return None
+            raise ValueError("Operation failed")
 
     @staticmethod
     def get_mock_transcript(candidate_name: str, role: str) -> str:

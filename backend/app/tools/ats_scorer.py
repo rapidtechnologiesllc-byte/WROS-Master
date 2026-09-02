@@ -78,7 +78,7 @@ def _extract_json(text: str) -> dict:
     try:
         return json.loads(text)
     except json.JSONDecodeError:
-        return {}
+        raise ValueError("Operation failed")
 
 
 # ---------------------------------------------------------------------------

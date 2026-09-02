@@ -43,6 +43,7 @@ router = APIRouter(tags=["ai-recruiter-assignment"])
 
 
 @router.get(
+    dependencies=[Depends(get_current_user)]
     "/candidates/{candidate_id}/ai-assignment",
     response_model=AIAssignmentResponse,
     summary="Get a candidate's current active Thunder assignment",

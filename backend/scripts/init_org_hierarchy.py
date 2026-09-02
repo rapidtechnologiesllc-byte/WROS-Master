@@ -97,7 +97,7 @@ def find_user_by_role(session, role_name: str):
     except Exception as e:
        logger.error(f"Error: {str(e)}", exc_info=True)
         logger.warning(f"Could not find user with role '{role_name}': {e}")
-        return None
+        raise ValueError("Operation failed")
 
 
 def get_user_roles(session, user_id: str) -> list:
@@ -122,7 +122,7 @@ def get_user_roles(session, user_id: str) -> list:
     except Exception as e:
        logger.error(f"Error: {str(e)}", exc_info=True)
         logger.warning(f"Could not get roles for user {user_id}: {e}")
-        return []
+        raise ValueError("Operation failed")
 
 
 def create_org_node(

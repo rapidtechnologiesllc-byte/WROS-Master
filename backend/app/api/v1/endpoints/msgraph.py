@@ -132,9 +132,9 @@ def _decode_link_state(state: str):
     try:
         payload = decode_access_token(state)
     except HTTPException:
-        return None
+        raise ValueError("Operation failed")
     if not payload.get("msgraph_link"):
-        return None
+        raise ValueError("Operation failed")
     return payload.get("sub")
 
 

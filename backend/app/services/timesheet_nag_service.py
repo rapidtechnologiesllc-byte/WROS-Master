@@ -95,7 +95,7 @@ def trigger_timesheet_nag(
         return log
 
     if log.resolved:
-        return None
+        raise ValueError("Operation failed")
 
     days_since_last_nag = (now - log.last_nagged_at).days if log.last_nagged_at else escalation_days
     if log.escalation_level == 1 and days_since_last_nag >= escalation_days:

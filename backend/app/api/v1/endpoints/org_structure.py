@@ -97,6 +97,7 @@ def initialize_org_structure(
 
 
 @router.get(
+    dependencies=[Depends(get_current_user)]
     "/positions",
     response_model=List[OrgPositionResponse],
     summary="List all org positions",

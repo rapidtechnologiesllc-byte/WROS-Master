@@ -51,6 +51,7 @@ router = APIRouter(prefix="/htd-intake", tags=["htd-intake"])
 
 
 @router.post(
+    dependencies=[Depends(get_current_user)]
     "/calculate-monthly-metric", response_model=MonthlyMetricItem,
     summary="Compute (or recompute) HTD conversion rate for one month",
 )
@@ -96,6 +97,7 @@ def get_status_endpoint(
 
 
 @router.post(
+    dependencies=[Depends(get_current_user)]
     "/resume", response_model=HtdIntakeStatusResponse,
     summary="Resume HTD intake -- requires 200+ char audit findings and corrective actions",
 )

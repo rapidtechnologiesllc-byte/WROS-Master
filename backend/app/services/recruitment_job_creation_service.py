@@ -86,7 +86,7 @@ class RecruitmentJobCreationAgent:
             self._validate_response_structure(parsed)
             return parsed
         except (json.JSONDecodeError, ValueError) as e:
-            return None
+            raise ValueError("Operation failed")
 
     # These field names are contractual: generate_complete_job() reads answers
     # back out by these exact keys, so every response must include them.

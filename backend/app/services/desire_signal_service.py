@@ -78,7 +78,7 @@ def _record(
        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[DesireSignal] Failed to record {signal_source} signal for candidate {candidate_id!r}: {exc}")
         db.rollback()
-        return None
+        raise ValueError("Operation failed")
 
 
 def minutes_since_last_outbound(db: Session, conversation_id: int, *, before: Optional[datetime] = None) -> Optional[float]:

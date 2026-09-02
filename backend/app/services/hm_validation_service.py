@@ -227,7 +227,7 @@ class HMValidationService:
         except Exception as e:
            logger.error(f"Error: {str(e)}", exc_info=True)
             logger.error(f"Error scheduling interview: {str(e)}")
-            return None
+            raise ValueError("Operation failed")
 
     async def return_candidate_to_pool(
         self,

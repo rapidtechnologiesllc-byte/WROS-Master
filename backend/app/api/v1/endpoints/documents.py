@@ -234,6 +234,7 @@ async def upload_uan_pf(
 # ============================================
 
 @router.get(
+    dependencies=[Depends(get_current_user)]
     "/my-documents",
     summary="Get all documents uploaded by the currently authenticated candidate",
 )
@@ -445,6 +446,7 @@ async def get_candidate_documents(
 
 
 @router.get(
+    dependencies=[Depends(get_current_user)]
     "/{document_id}",
     summary="Get a single document's metadata by its ID",
 )

@@ -250,7 +250,7 @@ class OrgHierarchyValidator:
         except Exception as e:
            logger.error(f"Error: {str(e)}", exc_info=True)
             logger.error(f"Error getting valid supervisors: {e}")
-            return []
+            raise ValueError("Operation failed")
 
     @staticmethod
     def print_hierarchy_rules():

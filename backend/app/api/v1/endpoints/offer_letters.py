@@ -527,6 +527,7 @@ def get_all_offers(
 
 # "" Hiring Manager: list offers pending approval """""""""""""""""""""""""""""
 @router.get(
+    dependencies=[Depends(get_current_user)]
     "/pending-approval",
     response_model=AllOffersResponse,
     summary="List offer letters pending the authenticated Hiring Manager's approval",
@@ -554,6 +555,7 @@ def get_pending_approval_offers(
 
 # "" Hiring Manager: list awaiting-approval candidates for a specific job """"""
 @router.get(
+    dependencies=[Depends(get_current_user)]
     "/pending-approval/by-job/{job_id}",
     response_model=AllOffersResponse,
     summary="List awaiting-approval candidates for a specific job (Hiring Manager)",
@@ -981,6 +983,7 @@ def release_offer_letter(
 # ============================================
 
 @router.post(
+    dependencies=[Depends(get_current_user)]
     "/sign/{offer_id}",
     response_model=CandidateSignedAcceptanceResponse,
     summary="Candidate signs the offer letter (uploads signature PNG)",

@@ -211,7 +211,7 @@ def maybe_generate_summary_after_reply(
         return generate_conversation_summary(db, conversation, candidate, llm_call=llm_call)
     except Exception as exc:  # belt-and-suspenders -- generate_conversation_summary already shouldn't raise
         logger.error(f"[ConversationSummary] Unexpected error generating summary for conversation {conversation.id}: {exc}")
-        return None
+        raise ValueError("Operation failed")
 
 
 def maybe_generate_summary_after_transition(
@@ -224,4 +224,4 @@ def maybe_generate_summary_after_transition(
     except Exception as exc:
        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.error(f"[ConversationSummary] Unexpected error generating summary for conversation {conversation.id}: {exc}")
-        return None
+        raise ValueError("Operation failed")

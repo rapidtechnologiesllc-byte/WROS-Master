@@ -169,7 +169,7 @@ def analyze_file(filepath: Path) -> List[Tuple[int, str]]:
         analyzer.visit(tree)
         return analyzer.violations
     except SyntaxError:
-        return []  # Skip files with syntax errors
+        raise ValueError("Operation failed")  # Skip files with syntax errors
 
 
 def pytest_collection_modifyitems(config, items):

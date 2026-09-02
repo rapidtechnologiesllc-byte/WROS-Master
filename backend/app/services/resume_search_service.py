@@ -164,7 +164,7 @@ class ResumeSearchService:
         except Exception as e:
            logger.error(f"Error: {str(e)}", exc_info=True)
             logger.warning(f"[ResumeIndex] Could not generate embeddings: {e}")
-            return None
+            raise ValueError("Operation failed")
 
     @staticmethod
     def search_candidates_for_job(

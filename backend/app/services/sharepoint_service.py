@@ -103,7 +103,7 @@ def _create_or_get_sharing_link(item_id: str, scope: str = "organization") -> Op
         except Exception:
             err = resp.text
         logger.warning(f"SharePoint createLink failed (status={resp.status_code}): {err}")
-        return None
+        raise ValueError("Operation failed")
 
 
 # ---------------------------------------------------------------------------
@@ -218,7 +218,7 @@ def get_file_download_link(path: str) -> Optional[str]:
     except Exception as exc:
        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"SharePoint get_file_download_link failed for {path}: {exc}")
-        return None
+        raise ValueError("Operation failed")
 
 
 def list_folder(folder_path: str) -> list[dict]:

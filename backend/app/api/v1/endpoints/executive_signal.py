@@ -49,6 +49,7 @@ def _current_employee(db: Session, current_user: Users) -> Employee:
 
 
 @router.get("/org-health", dependencies=[Depends(get_current_internal_user)])
+    dependencies=[Depends(get_current_user)]
 def org_health(db: Session = Depends(get_db)):
     return get_org_health_snapshot(db)
 

@@ -121,6 +121,7 @@ def _get_recommendation_or_404(db: Session, recommendation_id: str) -> BenchAllo
 
 
 @router.post(
+    dependencies=[Depends(get_current_user)]
     "/scan",
     response_model=ScanTriggerResponse,
     summary="Trigger one Resource Management Agent bench-scan cycle",
@@ -135,6 +136,7 @@ def trigger_scan(
 
 
 @router.get(
+    dependencies=[Depends(get_current_user)]
     "/recommendations",
     response_model=RecommendationQueueResponse,
     summary="Get the pending bench-allocation recommendation queue",
@@ -148,6 +150,7 @@ def get_queue(
 
 
 @router.post(
+    dependencies=[Depends(get_current_user)]
     "/recommendations/{recommendation_id}/pursue",
     response_model=RecommendationActionResponse,
     summary="Start actively pursuing a recommendation (interview stage)",
@@ -178,6 +181,7 @@ def pursue_recommendation(
 
 
 @router.post(
+    dependencies=[Depends(get_current_user)]
     "/recommendations/{recommendation_id}/approve",
     response_model=ApproveRecommendationResponse,
     summary="Approve a recommendation and create the real allocation",
@@ -204,6 +208,7 @@ def approve_recommendation(
 
 
 @router.post(
+    dependencies=[Depends(get_current_user)]
     "/recommendations/{recommendation_id}/reject",
     response_model=RecommendationActionResponse,
     summary="Reject a recommendation",
@@ -226,6 +231,7 @@ def reject_recommendation(
 
 
 @router.get(
+    dependencies=[Depends(get_current_user)]
     "/employees/{employee_id}/actively-engaged",
     summary="Check whether an employee is currently IN_PROGRESS on another recommendation",
 )
@@ -238,6 +244,7 @@ def check_actively_engaged(
 
 
 @router.get(
+    dependencies=[Depends(get_current_user)]
     "/demands/{demand_id}/matching-bench-resources",
     response_model=MatchBenchResourcesResponse,
     summary="Top bench candidates for a demand, by skill match (S-253)",

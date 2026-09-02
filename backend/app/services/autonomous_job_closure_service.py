@@ -77,7 +77,7 @@ def check_and_close_job_if_filled(db: Session, job_id: str) -> Optional[Dict]:
        logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"[Autonomous] Error closing job {job_id}: {e}")
         db.rollback()
-        return None
+        raise ValueError("Operation failed")
 
 
 def _notify_remaining_candidates(db: Session, job_id: str) -> None:

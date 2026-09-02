@@ -119,4 +119,4 @@ def get_candidate_by_id_with_bu_scope(db: Session, candidate_id: str, current_us
         import logging
         logger = logging.getLogger(__name__)
         logger.error(f"[BU-Scope] Error fetching candidate {candidate_id}: {e}", exc_info=True)
-        return None
+        raise ValueError("Operation failed")

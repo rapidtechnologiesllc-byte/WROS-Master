@@ -754,6 +754,7 @@ def _create_hm_review_task(db: Session, interview: Interview) -> None:
 # ============================================
 
 @router.post(
+    dependencies=[Depends(get_current_user)]
     "/panels/create",
     response_model=InterviewPanelResponse,
     status_code=201,
@@ -1008,6 +1009,7 @@ def get_all_interview_panels(
 
 
 @router.delete(
+    dependencies=[Depends(get_current_user)]
     "/panels/{panel_id}",
     response_model=DeleteResponse,
 
@@ -1092,6 +1094,7 @@ def _rehire_review_to_response(db: Session, review: InterviewRehireReview) -> Re
 
 
 @router.get(
+    dependencies=[Depends(get_current_user)]
     "/rehire-reviews",
     response_model=RehireReviewListResponse,
 
@@ -1114,6 +1117,7 @@ def list_rehire_reviews(
 
 
 @router.post(
+    dependencies=[Depends(get_current_user)]
     "/rehire-reviews/{review_id}/decide",
     response_model=RehireReviewResponse,
 
@@ -1185,6 +1189,7 @@ def _panel_diversity_warning(db: Session, panel: InterviewPanel, interviewer_id:
 # ============================================
 
 @router.post(
+    dependencies=[Depends(get_current_user)]
     "/panel-members/assign",
     response_model=PanelMemberResponse,
     status_code=201,
@@ -1336,6 +1341,7 @@ def get_panel_members(
 
 
 @router.delete(
+    dependencies=[Depends(get_current_user)]
     "/panel-members/{member_id}",
     response_model=DeleteResponse,
 
@@ -1380,6 +1386,7 @@ def remove_panel_member(
 # ============================================
 
 @router.post(
+    dependencies=[Depends(get_current_user)]
     "/create",
     response_model=InterviewResponse,
     status_code=201,
@@ -1495,6 +1502,7 @@ def create_interview(
 # ============================================
 
 @router.get(
+    dependencies=[Depends(get_current_user)]
     "/my-interviews",
     response_model=MyInterviewsResponse,
     summary="Get my interviews",
@@ -1784,6 +1792,7 @@ def get_all_interviews(
 
 
 @router.put(
+    dependencies=[Depends(get_current_user)]
     "/{interview_id}",
     response_model=InterviewResponse,
 
@@ -1882,6 +1891,7 @@ def update_interview(
 
 
 @router.delete(
+    dependencies=[Depends(get_current_user)]
     "/{interview_id}",
     response_model=DeleteResponse,
 
@@ -2578,6 +2588,7 @@ def get_interviewer_workload(
 
 
 @router.get(
+    dependencies=[Depends(get_current_user)]
     "/hm-review/my-candidates", response_model=HMCandidateReviewListResponse,
     summary="S-102/HRMS-P207 -- the caller's own hiring-manager candidate review list: profile + all interview feedback per candidate",
 )

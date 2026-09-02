@@ -89,6 +89,7 @@ def _alert_to_item(alert: ReconciliationAlert) -> ReconciliationAlertItem:
 
 
 @router.post(
+    dependencies=[Depends(get_current_user)]
     "/leakage/scan", response_model=Optional[LeakageFlagItem],
     summary="Scan a project+period for unbilled revenue leakage (null if too early or nothing unbilled)",
 )
@@ -110,6 +111,7 @@ def scan_leakage(
 
 
 @router.post(
+    dependencies=[Depends(get_current_user)]
     "/leakage/{flag_id}/log-reason", response_model=LeakageFlagItem,
     summary="Log a reason (e.g. client-negotiated cap) that suppresses a leakage flag",
 )
@@ -178,6 +180,7 @@ def rescan_all_projects(
 
 
 @router.post(
+    dependencies=[Depends(get_current_user)]
     "/reconciliation/scan", response_model=ReconciliationScanResponse,
     summary="Find approved-but-uninvoiced timesheets past the grace period and create alerts",
 )
@@ -194,6 +197,7 @@ def scan_reconciliation(
 
 
 @router.get(
+    dependencies=[Depends(get_current_user)]
     "/reconciliation/alerts", response_model=ReconciliationAlertsResponse,
     summary="List reconciliation alerts",
 )
@@ -210,6 +214,7 @@ def list_reconciliation_alerts(
 
 
 @router.post(
+    dependencies=[Depends(get_current_user)]
     "/reconciliation/alerts/{alert_id}/resolve", response_model=ReconciliationAlertItem,
     summary="Mark a reconciliation alert resolved",
 )
@@ -228,6 +233,7 @@ def resolve_reconciliation_alert_endpoint(
 
 
 @router.get(
+    dependencies=[Depends(get_current_user)]
     "/dashboard/clients/{client_id}", response_model=ClientRevenueDashboardResponse,
     summary="Client revenue realization dashboard (internal only, estimate)",
 )

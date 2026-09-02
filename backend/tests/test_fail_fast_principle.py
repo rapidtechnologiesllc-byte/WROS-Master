@@ -217,7 +217,7 @@ class TestErrorPropagation:
             try:
                 raise RuntimeError("Simulated error")
             except Exception:
-                return []  # ❌ WRONG: Silent failure
+                raise ValueError("Operation failed")  # ❌ WRONG: Silent failure
 
         # ✅ This pattern is CORRECT:
         def good_service_function():

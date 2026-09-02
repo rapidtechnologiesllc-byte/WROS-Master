@@ -98,6 +98,7 @@ def _to_invoice_response(db: Session, invoice: Invoice, tenant_id: int) -> Invoi
 # ============================================================================
 
 @router.post(
+    dependencies=[Depends(get_current_user)]
     "/generate",
     response_model=GenerateInvoiceResponse,
     status_code=201,
@@ -194,6 +195,7 @@ def generate_invoice_endpoint(
 # ============================================================================
 
 @router.get(
+    dependencies=[Depends(get_current_user)]
     "/{invoice_id}/calculate",
     response_model=CalculateBillAmountResponse,
     summary="Calculate bill amount for an invoice",
@@ -230,6 +232,7 @@ def calculate_bill_amount_endpoint(
 # ============================================================================
 
 @router.post(
+    dependencies=[Depends(get_current_user)]
     "/{invoice_id}/send",
     response_model=SendInvoiceResponse,
     summary="Approve and send invoice to client",
@@ -308,6 +311,7 @@ def send_invoice_endpoint(
 # ============================================================================
 
 @router.post(
+    dependencies=[Depends(get_current_user)]
     "/{invoice_id}/pay",
     response_model=TrackPaymentResponse,
     summary="Record payment against invoice",
@@ -373,6 +377,7 @@ def track_payment_endpoint(
 # ============================================================================
 
 @router.get(
+    dependencies=[Depends(get_current_user)]
     "/{invoice_id}",
     response_model=InvoiceDetailResponse,
     summary="Get invoice details with all line items",
@@ -404,6 +409,7 @@ def get_invoice_endpoint(
 # ============================================================================
 
 @router.get(
+    dependencies=[Depends(get_current_user)]
     "",
     response_model=InvoiceListResponse,
     summary="List invoices with optional filters",

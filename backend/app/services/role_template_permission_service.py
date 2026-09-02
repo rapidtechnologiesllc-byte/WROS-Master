@@ -54,7 +54,7 @@ class RoleTemplatePermissionService:
 
         except (AttributeError, ValueError, TypeError) as e:
             logger.error(f"get_user_role({user_id}, tenant={tenant_id}): {e}", exc_info=True)
-            return None
+            raise ValueError("Operation failed")
 
     @staticmethod
     def get_resource_by_name(db: Session, resource_name: str, tenant_id: int = 1) -> Resource | None:
@@ -70,7 +70,7 @@ class RoleTemplatePermissionService:
             ).first()
         except (AttributeError, ValueError) as e:
             logger.error(f"get_resource_by_name({resource_name}, tenant={tenant_id}): {e}", exc_info=True)
-            return None
+            raise ValueError("Operation failed")
 
     @staticmethod
     def has_permission(

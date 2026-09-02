@@ -227,7 +227,7 @@ def update_memory_summary(
         logger.warning(f"[CandidateMemory] Summary generation failed for candidate {candidate_id}: {exc}")
         _log_memory_event(db, candidate_id, "MEMORY_SUMMARY_FAILED", {"reason": str(exc)})
         db.commit()
-        return None
+        raise ValueError("Operation failed")
 
     word_count = len(raw.split())
     if word_count < MIN_SUMMARY_WORDS or word_count > MAX_SUMMARY_WORDS:

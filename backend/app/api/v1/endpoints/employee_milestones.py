@@ -79,6 +79,7 @@ def create_milestone_endpoint(
 
 
 @router.get(
+    dependencies=[Depends(get_current_user)]
     "/employee/{employee_id}", response_model=EmployeeMilestoneListResponse,
     summary="List one employee's PERSONAL/ORG milestones (and PROJECT ones assigned to them)",
 )
@@ -92,6 +93,7 @@ def list_employee_milestones(
 
 
 @router.post(
+    dependencies=[Depends(get_current_user)]
     "/{milestone_id}/complete", response_model=EmployeeMilestoneItem,
     summary="Complete a milestone -- completed_date is always today, never caller-supplied",
 )
@@ -114,6 +116,7 @@ def complete_milestone_endpoint(
 
 
 @router.post(
+    dependencies=[Depends(get_current_user)]
     "/scan-overdue", response_model=ScanOverdueMilestonesResponse,
     summary="Idempotent scan: flip past-due open milestones to OVERDUE + write a negative performance event",
 )
