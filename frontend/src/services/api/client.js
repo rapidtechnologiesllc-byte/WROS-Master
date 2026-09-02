@@ -54,6 +54,7 @@ export const formatApiErrorMessage = (payload) => {
 export const clearAuthSessionAndRedirectToLogin = () => {
   try {
     localStorage.removeItem("hrms_token");
+    localStorage.removeItem("hrms_refresh_token");
     localStorage.removeItem("hrms_role");
     localStorage.removeItem("hrms_user_name");
     localStorage.removeItem("hrms_user_email");
@@ -90,6 +91,50 @@ const withAuthHeaders = (headers = {}) => {
     result["X-Active-BU-Id"] = activeBuId;
   }
   return result;
+};
+
+// Track if we're already in a refresh attempt to prevent infinite loops
+let isRefreshing = false;
+let refreshPromise = null;
+
+const refreshAccessToken = async () => {
+  const refreshToken = localStorage.getItem("hrms_refresh_token");
+  if (!refreshToken) {
+    clearAuthSessionAndRedirectToLogin();
+    throw new Error("No refresh token available");
+  }
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/v1/auth/v1/refresh`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${refreshToken}`,
+      },
+      credentials: 'omit',
+    });
+
+    if (!response.ok) {
+      console.error("[API] Token refresh failed, redirecting to login");
+      clearAuthSessionAndRedirectToLogin();
+      throw new Error("Token refresh failed");
+    }
+
+    const data = await response.json();
+
+    // Store new tokens
+    localStorage.setItem("hrms_token", data.access_token);
+    if (data.refresh_token) {
+      localStorage.setItem("hrms_refresh_token", data.refresh_token);
+    }
+
+    console.log("[API] ✓ Token refreshed successfully");
+    return data.access_token;
+  } catch (error) {
+    console.error("[API] Token refresh error:", error);
+    clearAuthSessionAndRedirectToLogin();
+    throw error;
+  }
 };
 
 export const apiRequest = async (path, options = {}) => {
@@ -152,12 +197,67 @@ export const apiRequest = async (path, options = {}) => {
       console.warn(`[API] Status ${response.status} allowed for ${normalizedPath}`);
       return { data: null, response };
     }
-    // Expired or invalid JWT: redirect to login instead of surfacing "Invalid token" in the UI.
+
+    // Handle 401 with automatic token refresh
     if (response.status === 401 && !skipAuth) {
-      console.error(`[API] 401 Unauthorized - redirecting to login`);
-      clearAuthSessionAndRedirectToLogin();
-      throw new Error("Your session has expired. Please sign in again.");
+      const refreshToken = localStorage.getItem("hrms_refresh_token");
+
+      // Only attempt refresh if we have a refresh token and aren't already refreshing
+      if (refreshToken && !isRefreshing && normalizedPath !== "/auth/v1/refresh") {
+        isRefreshing = true;
+
+        try {
+          if (!refreshPromise) {
+            refreshPromise = refreshAccessToken();
+          }
+
+          const newAccessToken = await refreshPromise;
+          isRefreshing = false;
+          refreshPromise = null;
+
+          // Retry the original request with new token
+          console.log(`[API] Retrying ${method} ${normalizedPath} with refreshed token`);
+          const retryHeaders = withAuthHeaders(baseHeaders);
+          retryHeaders.Authorization = `Bearer ${newAccessToken}`;
+
+          const retryResponse = await fetch(url, {
+            headers: retryHeaders,
+            credentials: 'omit',
+            body,
+            ...rest,
+          });
+
+          let retryData = null;
+          try {
+            retryData = await retryResponse.json();
+          } catch (err) {
+            retryData = null;
+          }
+
+          if (retryResponse.ok) {
+            console.log(`[API] ✓ ${method} ${normalizedPath} (after refresh)`);
+            return { data: retryData, response: retryResponse };
+          } else {
+            // Retry still failed
+            if (retryResponse.status === 401) {
+              clearAuthSessionAndRedirectToLogin();
+            }
+            throw new Error(formatApiErrorMessage(retryData));
+          }
+        } catch (refreshError) {
+          isRefreshing = false;
+          refreshPromise = null;
+          clearAuthSessionAndRedirectToLogin();
+          throw refreshError;
+        }
+      } else {
+        // No refresh token or already refreshing, redirect to login
+        console.error(`[API] 401 Unauthorized - redirecting to login`);
+        clearAuthSessionAndRedirectToLogin();
+        throw new Error("Your session has expired. Please sign in again.");
+      }
     }
+
     const message = formatApiErrorMessage(data);
     console.error(`[API] Error ${response.status} for ${normalizedPath}: ${message}`, data);
     const error = new Error(message);

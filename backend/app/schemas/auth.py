@@ -27,6 +27,7 @@ class UnifiedLoginResponse(BaseModel):
     """Single login response – entity_type is either 'user' or 'candidate'."""
     entity_type: str            # "user" | "candidate"
     access_token: str
+    refresh_token: Optional[str] = None  # Refresh token (valid for 7 days)
     is_first_time: bool
 
     # Phase 1 B3 -- both default False so existing non-MFA callers see

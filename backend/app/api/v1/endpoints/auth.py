@@ -4,6 +4,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, FastAPI, Header, HTTPException, Response
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.security import HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 
 import app.schemas as schema
@@ -19,9 +20,11 @@ from app.core.database import (
 from app.core.security_local import (
     verify_password,
     create_access_token,
+    create_refresh_token,
     get_password_hash,
 )
 from app.core.dependencies import get_current_candidate, get_current_hr_or_admin
+from app.core.security import security, decode_access_token
 from app.core.mfa import (
     EMAIL_OTP_TTL_MINUTES,
     MFA_PENDING_TOKEN_MINUTES,
@@ -224,6 +227,15 @@ def unified_login(request: UnifiedLoginRequest, db: Session = Depends(get_db)):
             }
         )
 
+        # Create refresh token for automatic token renewal
+        refresh_token = create_refresh_token(
+            data={
+                "sub": user.UserID,
+                "email": user.UserEmail,
+                "type": "refresh",
+            }
+        )
+
         # Get user permissions for frontend navigation
         user_permissions = RoleTemplatePermissionService.get_user_permissions(
             db, user.UserID, user.tenant_id
@@ -232,6 +244,7 @@ def unified_login(request: UnifiedLoginRequest, db: Session = Depends(get_db)):
         return UnifiedLoginResponse(
             entity_type="user",
             access_token=access_token,
+            refresh_token=refresh_token,
             is_first_time=False,
             user_role=user_role,
             user_name=user.UserName or "",
@@ -301,9 +314,19 @@ def unified_login(request: UnifiedLoginRequest, db: Session = Depends(get_db)):
                 "type": "candidate",
             }
         )
+
+        # Create refresh token for automatic token renewal
+        refresh_token = create_refresh_token(
+            data={
+                "sub": candidate.candidateID,
+                "type": "refresh",
+            }
+        )
+
         return UnifiedLoginResponse(
             entity_type="candidate",
             access_token=access_token,
+            refresh_token=refresh_token,
             is_first_time=is_first_time,
             candidate_id=candidate.candidateID,
             candidate_role=candidate.candidateRole or "Candidate",
@@ -318,3 +341,127 @@ def unified_login(request: UnifiedLoginRequest, db: Session = Depends(get_db)):
         status_code=401,
         detail="Invalid email or password",
     )
+
+
+@router.post("/v1/refresh", response_model=UnifiedLoginResponse)
+def refresh_token_endpoint(credentials: HTTPAuthorizationCredentials = Depends(security), db: Session = Depends(get_db)):
+    """
+    Refresh an access token using a refresh token.
+
+    Accepts: Authorization: Bearer {refresh_token}
+    Returns: New access token + new refresh token
+
+    Raises:
+        HTTPException 401: If refresh token is invalid or expired
+    """
+    from app.core.security_local import verify_token
+    from app.core.logging import logger
+
+    if not credentials:
+        raise HTTPException(status_code=401, detail="Missing refresh token")
+
+    refresh_token_str = credentials.credentials
+
+    # Verify refresh token
+    payload = verify_token(refresh_token_str)
+    if not payload:
+        raise HTTPException(status_code=401, detail="Invalid refresh token")
+
+    # Verify it's actually a refresh token (has type: refresh)
+    if payload.get("type") != "refresh":
+        raise HTTPException(status_code=401, detail="Token is not a refresh token")
+
+    user_id = payload.get("sub")
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Invalid refresh token")
+
+    # Determine if this is a user or candidate
+    user = check_user(db, None, user_id)
+    candidate = check_candidate(db, None, user_id) if not user else None
+
+    if user:
+        # Create new access token for user
+        access_token = create_access_token(
+            data={
+                "sub": user.UserID,
+                "email": user.UserEmail,
+                "type": "user",
+                "name": user.UserName,
+            }
+        )
+
+        # Create new refresh token (rotate the refresh token for security)
+        new_refresh_token = create_refresh_token(
+            data={
+                "sub": user.UserID,
+                "email": user.UserEmail,
+                "type": "refresh",
+            }
+        )
+
+        # Get user permissions
+        user_permissions = RoleTemplatePermissionService.get_user_permissions(
+            db, user.UserID, user.tenant_id
+        )
+
+        # Get user role
+        user_role = user.UserRole or "User"
+        if user.role_template_id:
+            from app.models.role_template import RoleTemplate
+            rt = db.query(RoleTemplate).filter(RoleTemplate.id == user.role_template_id).first()
+            if rt:
+                user_role = rt.name
+
+        logger.info(f"[REFRESH] Successfully refreshed token for user {user.UserID}")
+
+        return UnifiedLoginResponse(
+            entity_type="user",
+            access_token=access_token,
+            refresh_token=new_refresh_token,
+            is_first_time=False,
+            user_role=user_role,
+            user_name=user.UserName or "",
+            user_email=user.UserEmail,
+            permissions=user_permissions,
+        )
+
+    elif candidate:
+        # Create new access token for candidate
+        access_token = create_access_token(
+            data={
+                "sub": candidate.candidateID,
+                "type": "candidate",
+            }
+        )
+
+        # Create new refresh token
+        new_refresh_token = create_refresh_token(
+            data={
+                "sub": candidate.candidateID,
+                "type": "refresh",
+            }
+        )
+
+        name_parts = [
+            candidate.candidateFirstName,
+            candidate.candidateMiddleName,
+            candidate.candidateLastName,
+        ]
+        candidate_name = " ".join(filter(None, name_parts)) or ""
+
+        logger.info(f"[REFRESH] Successfully refreshed token for candidate {candidate.candidateID}")
+
+        return UnifiedLoginResponse(
+            entity_type="candidate",
+            access_token=access_token,
+            refresh_token=new_refresh_token,
+            is_first_time=False,
+            candidate_id=candidate.candidateID,
+            candidate_role=candidate.candidateRole or "Candidate",
+            candidate_name=candidate_name,
+            candidate_email=candidate.candidateEmail,
+            candidate_mobile=candidate.candidateMobile,
+        )
+
+    else:
+        raise HTTPException(status_code=401, detail="User or candidate not found")

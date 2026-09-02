@@ -88,6 +88,10 @@ export default function AuthPage() {
   // never-asked candidate, shows the opt-in popup first.
   const finishLogin = async (data, { offer2faOptIn = false } = {}) => {
     localStorage.setItem("hrms_token", data.access_token);
+    // Store refresh token for automatic token renewal
+    if (data.refresh_token) {
+      localStorage.setItem("hrms_refresh_token", data.refresh_token);
+    }
     const user = await getCurrentUser();
     if (user) {
       localStorage.setItem("user_info", JSON.stringify(user));
