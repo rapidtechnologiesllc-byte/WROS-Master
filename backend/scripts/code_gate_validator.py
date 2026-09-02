@@ -30,13 +30,13 @@ class CodeGateValidator:
         # Downstream impact templates
         self.impacts = {
             'MISSING_RBAC': {
-                'impact': 'SECURITY BREACH',
+                'impact': 'ROLE TEMPLATE PERMISSION BYPASS',
                 'downstream': [
-                    'Unauthorized users can access admin endpoints',
-                    'Data leaks to unauthenticated users',
-                    'Regulatory compliance violation (GDPR, SOC2)',
-                    'Attackers can modify/delete data without permission',
-                    'Audit logs won\'t show who made the change'
+                    'Users bypass role template permission checks',
+                    'Data accessible to unauthorized business units',
+                    'Cannot track which user made changes (audit gap)',
+                    'Violates multi-tenant data isolation',
+                    'Compliance violations (role-based access required)'
                 ]
             },
             'SILENT_CATCH': {
@@ -112,21 +112,32 @@ class CodeGateValidator:
             return
 
         for i, line in enumerate(self.lines, 1):
-            # CRITICAL 1: Missing RBAC on router endpoint
+            # CRITICAL 1: Missing role template permission check on protected endpoint
             if '@router.get' in line or '@router.post' in line or '@router.put' in line or '@router.delete' in line:
-                # Look at next lines for RBAC
-                func_signature = ''
-                for j in range(i, min(i+5, len(self.lines))):
-                    if 'def ' in self.lines[j]:
-                        func_signature = self.lines[j]
-                        break
+                # Check if endpoint has public marker
+                if 'public' in self.lines[i]:
+                    continue
 
-                if func_signature and 'Depends(require_' not in func_signature and 'public' not in self.lines[i]:
+                # Look at decorator and next lines for permission enforcement
+                decorator_block = '\n'.join(self.lines[i:min(i+10, len(self.lines))])
+
+                # Check for role template permission patterns:
+                # 1. dependencies=[Depends(require_resource_permission(...))]
+                # 2. dependencies=[Depends(require_admin_role)] (legacy)
+                # 3. current_user parameter in function signature
+                has_permission_check = (
+                    'require_resource_permission' in decorator_block or
+                    'require_admin_role' in decorator_block or
+                    'require_permission' in decorator_block or
+                    'Depends(get_current_user)' in decorator_block
+                )
+
+                if not has_permission_check:
                     self.issues.append({
                         'severity': 'CRITICAL',
                         'line': i,
-                        'issue': 'Missing RBAC check on protected endpoint',
-                        'fix': 'Add RBAC: current_user: Users = Depends(require_admin_role)',
+                        'issue': 'Missing role template permission check on protected endpoint',
+                        'fix': 'Add role permission: dependencies=[Depends(require_resource_permission("resource", "action"))] or current_user: Users = Depends(get_current_user)',
                         'impact_type': 'MISSING_RBAC'
                     })
 
