@@ -126,6 +126,7 @@ import BIExplorerScreen from "../screens/BIExplorerScreen";
 import BuHeadDashboardScreen from "../screens/BuHeadDashboardScreen";
 import MyReferralsScreen from "../screens/MyReferralsScreen";
 import MessageQueueDashboard from "../screens/MessageQueueDashboard";
+import LinkedInPipelineScreen from "../screens/LinkedInPipelineScreen";
 
 
 // Wrapper component that renders the appropriate dashboard based on user permissions
@@ -630,6 +631,7 @@ export default function AppRoutes() {
             <Route path="demand-confirmation" element={<DemandConfirmationScreen />} />
             <Route path="employees" element={<EmployeesConsolidatedScreen />} />
             <Route path="employee-conversion" element={<EmployeeConversionScreen />} />
+            <Route path="linkedin-pipeline" element={<LinkedInPipelineScreen />} />
             <Route path="submissions" element={<SubmissionsScreen />} />
             <Route path="allocations" element={<AllocationsScreen />} />
             <Route path="projects" element={<ProjectsScreen />} />

@@ -32,6 +32,7 @@ import {
   Zap,
   Database,
   Cog,
+  Link2,
 } from "lucide-react";
 import { ROUTES } from "../utils/Routes";
 
@@ -58,6 +59,7 @@ export const NAV_ITEMS = {
   submissions: { path: ROUTES.SUBMISSIONS, label: "Submissions", icon: Send },
   employees: { path: ROUTES.EMPLOYEES, label: "Employees", icon: UserPlus },
   employeeConversion: { path: ROUTES.EMPLOYEE_CONVERSION, label: "Convert to Employee", icon: UserPlus },
+  linkedInPipeline: { path: ROUTES.LINKEDIN_PIPELINE, label: "LinkedIn Pipeline", icon: Link2 },
   // HRMS-1105/S-320 -- Resource Management Agent. No dedicated
   // Partner/Resource Manager role exists in this codebase's role set
   // yet, so this is scoped to the roles that already get HR/oversight

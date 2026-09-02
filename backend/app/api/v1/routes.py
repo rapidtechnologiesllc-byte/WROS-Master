@@ -116,6 +116,7 @@ from app.api.v1.endpoints.agent_pyramid_reporting import router as agent_pyramid
 from app.api.v1.endpoints.goals_management import router as goals_router
 from app.api.v1.endpoints.slm_feedback import router as slm_feedback_router
 from app.api.v1.endpoints.queue_dashboard import router as queue_dashboard_router
+from app.api.v1.endpoints.linkedin_candidate_pipeline import router as linkedin_pipeline_router
 
 router = fastapi.APIRouter(prefix="/api/v1")
 
@@ -130,6 +131,7 @@ router.include_router(router=create_job_router)
 router.include_router(router=onboarding_router)
 router.include_router(router=interviews_router)
 router.include_router(router=candidates_router)
+router.include_router(router=linkedin_pipeline_router)
 router.include_router(router=msgraph_router)
 router.include_router(router=documents_router)
 router.include_router(router=offer_letters_router)
