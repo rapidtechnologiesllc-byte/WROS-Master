@@ -111,7 +111,7 @@ def _check_and_auto_submit_for_hire(interview: Interview, db: Session) -> None:
     if len(completed_interviews) < 2:
         return
 
-    # --- All conditions met â†’ auto-promote to 'Pre-onboarding-Approval' ---
+    # --- All conditions met â†' auto-promote to 'Pre-onboarding-Approval' ---
     old_status = cs.piplineStatus
     cs.piplineStatus = "Pre-onboarding-Approval"
 
@@ -131,7 +131,7 @@ def _check_and_auto_submit_for_hire(interview: Interview, db: Session) -> None:
 
     logger.info(
         f"[AutoHire] Candidate '{candidate_id}' promoted "
-        f"'{old_status}' â†’ 'Pre-onboarding-Approval' after {len(completed_interviews)} completed interviews."
+        f"'{old_status}' â†' 'Pre-onboarding-Approval' after {len(completed_interviews)} completed interviews."
     )
 
     # --- Notify the hiring manager ---
@@ -212,7 +212,7 @@ def _check_and_auto_submit_for_hire(interview: Interview, db: Session) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Feedback submitted â€” email notification
+# Feedback submitted --" email notification
 # ---------------------------------------------------------------------------
 
 def _notify_feedback_submitted(
@@ -254,7 +254,7 @@ def _notify_feedback_submitted(
 
 
 # ---------------------------------------------------------------------------
-# Feedback reminder scheduler â€” fires after interview ends
+# Feedback reminder scheduler --" fires after interview ends
 # ---------------------------------------------------------------------------
 
 def _schedule_feedback_reminders(interview: Interview, db: Session) -> None:
@@ -275,7 +275,7 @@ def _schedule_feedback_reminders(interview: Interview, db: Session) -> None:
 
     interview_id = interview.id
 
-    # â”€â”€ Baseline: interview end time (or start + 1 h as fallback) â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # â"€â"€ Baseline: interview end time (or start + 1 h as fallback) â"€â"€â"€â"€â"€â"€â"€â"€â"€
     raw_end = interview.end_time or (
         interview.start_time + timedelta(hours=1) if interview.start_time else None
     )
@@ -288,7 +288,7 @@ def _schedule_feedback_reminders(interview: Interview, db: Session) -> None:
 
     end_ist = raw_end.replace(tzinfo=IST) if raw_end.tzinfo is None else raw_end
 
-    # â”€â”€ Collect panel members â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # â"€â"€ Collect panel members â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
     panel = db.query(InterviewPanel).filter(
         InterviewPanel.id == interview.panel_id
     ).first()
@@ -315,7 +315,7 @@ def _schedule_feedback_reminders(interview: Interview, db: Session) -> None:
     for member in members:
         member_id = member.interviewer_id
 
-        # Fix 1: skip members who already submitted â€” no point reminding them
+        # Fix 1: skip members who already submitted --" no point reminding them
         already_done = db.query(InterviewFeedback).filter(
             InterviewFeedback.interview_id == interview_id,
             InterviewFeedback.interviewer_id == member_id,
@@ -323,7 +323,7 @@ def _schedule_feedback_reminders(interview: Interview, db: Session) -> None:
         if already_done:
             logger.info(
                 f"[FeedbackReminder] Skipping reminder scheduling for member "
-                f"{member_id} on interview {interview_id} â€” feedback already submitted."
+                f"{member_id} on interview {interview_id} -- feedback already submitted."
             )
             continue
 
@@ -333,7 +333,7 @@ def _schedule_feedback_reminders(interview: Interview, db: Session) -> None:
             if fire_at <= now:
                 logger.info(
                     f"[FeedbackReminder] Skipping {suffix} reminder for member "
-                    f"{member_id} on interview {interview_id} â€” already past."
+                    f"{member_id} on interview {interview_id} -- already past."
                 )
                 continue
 
@@ -354,7 +354,7 @@ def _schedule_feedback_reminders(interview: Interview, db: Session) -> None:
                 __candidate_name=_candidate_name,
                 __round_name=_round_name,
             ):
-                """Async APScheduler job â€” send feedback reminder if not yet submitted."""
+                """Async APScheduler job --" send feedback reminder if not yet submitted."""
                 from app.core.database import SessionLocal
                 _db = SessionLocal()
                 try:
@@ -372,7 +372,7 @@ def _schedule_feedback_reminders(interview: Interview, db: Session) -> None:
                     if already_submitted:
                         logger.info(
                             f"[FeedbackReminder] Skipping {__label} reminder for member "
-                            f"{__member_id} on interview {__interview_id} â€” feedback already submitted."
+                            f"{__member_id} on interview {__interview_id} -- feedback already submitted."
                         )
                         return
 
@@ -390,7 +390,7 @@ def _schedule_feedback_reminders(interview: Interview, db: Session) -> None:
                         event_type="action_required",
                         heading=(
                             f"Reminder: Please Submit Your Interview Feedback "
-                            f"â€” {__candidate_name} | {__round_name}"
+                            f"-- {__candidate_name} | {__round_name}"
                         ),
                         message=(
                             f"Dear <strong>{interviewer_name}</strong>,<br><br>"
@@ -511,11 +511,11 @@ def _schedule_interview_reminder(interview: Interview, db: Session) -> None:
 
     FIX: The DB stores start_time as a *naive* local time (IST, UTC+5:30).
     APScheduler is configured with timezone="UTC", so a naive datetime passed
-    as run_date is interpreted as UTC â€” causing reminders to fire 5.5 h late.
+    as run_date is interpreted as UTC --" causing reminders to fire 5.5 h late.
     We attach the IST offset to make the datetime timezone-aware, which
     APScheduler then correctly converts to its UTC timeline.
 
-    Safe to call on both create and update â€” replaces any existing jobs so the
+    Safe to call on both create and update --" replaces any existing jobs so the
     reminder always matches the current start_time.
     """
     IST = timezone(timedelta(hours=5, minutes=30))  # UTC+05:30
@@ -543,7 +543,7 @@ def _schedule_interview_reminder(interview: Interview, db: Session) -> None:
         if fire_at <= now_local:
             logger.info(
                 f"[InterviewReminder] Skipping '{label}' reminder for interview {interview_id} "
-                f"â€” fire time {fire_at.isoformat()} is already past."
+                f"-- fire time {fire_at.isoformat()} is already past."
             )
             continue
 
@@ -573,7 +573,7 @@ def _schedule_interview_reminder(interview: Interview, db: Session) -> None:
                 start_str  = iv.start_time.strftime("%d %b %Y, %I:%M %p") if iv.start_time else "N/A"
                 end_str    = iv.end_time.strftime("%d %b %Y, %I:%M %p")   if iv.end_time   else "N/A"
 
-                # â”€â”€ Email to candidate â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+                # â"€â"€ Email to candidate â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
                 if cand and cand.candidateEmail:
                     cand_name = _candidate_display_name(cand)
                     try:
@@ -584,9 +584,9 @@ def _schedule_interview_reminder(interview: Interview, db: Session) -> None:
                                 f"Dear <strong>{cand_name}</strong>,<br><br>"
                                 f"This is a reminder that your <strong>{round_name}</strong> interview "
                                 f"is scheduled to begin in <strong>{_reminder_label}</strong>.<br><br>"
-                                f"âš¡ <strong>Start:</strong> {start_str}<br>"
+                                f"<strong>Start:</strong> {start_str}<br>"
                                 f"ðŸ• <strong>End:</strong>   {end_str}<br>"
-                                + (f"ðŸ”— <strong>Meeting Link:</strong> "
+                                + (f"<strong>Meeting Link:</strong> "
                                    f"<a href='{iv.meeting_link}'>{iv.meeting_link}</a><br>"
                                    if iv.meeting_link else "")
                                 + "<br>Please ensure you are ready and join on time. Best of luck!"
@@ -599,7 +599,7 @@ def _schedule_interview_reminder(interview: Interview, db: Session) -> None:
                     except Exception as exc:
                         logger.warning(f"[InterviewReminder] Could not email candidate: {exc}")
 
-                # â”€â”€ Emails to panel members â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+                # â"€â"€ Emails to panel members â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
                 if panel:
                     members = _db.query(PanelMember).filter(PanelMember.panel_id == panel.id).all()
                     for member in members:
@@ -613,16 +613,16 @@ def _schedule_interview_reminder(interview: Interview, db: Session) -> None:
                                     to_email=interviewer.UserEmail,
                                     heading=(
                                         f"Reminder: Interview in {_reminder_label} "
-                                        f"â€” {round_name}"
+                                        f"-- {round_name}"
                                     ),
                                     message=(
                                         f"Dear <strong>{interviewer.UserName or 'Interviewer'}</strong>,<br><br>"
                                         f"This is a reminder that the <strong>{round_name}</strong> interview "
                                         f"for candidate <strong>{cand_name}</strong> begins in "
                                         f"<strong>{_reminder_label}</strong>.<br><br>"
-                                        f"âš¡ <strong>Start:</strong> {start_str}<br>"
+                                        f"<strong>Start:</strong> {start_str}<br>"
                                         f"ðŸ• <strong>End:</strong>   {end_str}<br>"
-                                        + (f"ðŸ”— <strong>Meeting Link:</strong> "
+                                        + (f"<strong>Meeting Link:</strong> "
                                            f"<a href='{iv.meeting_link}'>{iv.meeting_link}</a><br>"
                                            if iv.meeting_link else "")
                                     ),
@@ -645,7 +645,7 @@ def _schedule_interview_reminder(interview: Interview, db: Session) -> None:
             scheduler.add_job(
                 _send_reminder,
                 trigger="date",
-                run_date=_fire_at,          # timezone-aware IST â†’ scheduler converts to UTC
+                run_date=_fire_at,          # timezone-aware IST â†' scheduler converts to UTC
                 id=_job_id,
                 replace_existing=True,
             )
@@ -2031,9 +2031,24 @@ def submit_interview_feedback(
                     interview.feedback_status = "Completed"
                     db.commit()
                     logger.info(
-                        f"[FeedbackComplete] Interview #{interview.id} marked as 'Completed' â€” "
+                        f"[FeedbackComplete] Interview #{interview.id} marked as Completed - "
                         f"all {len(panel_member_ids)} panel member(s) have submitted feedback."
                     )
+
+                    # Wire SLM: Record interview outcome
+                    try:
+                        from app.services.slm_job_metadata_service import SLMJobMetadataService
+                        if interview.job_id:
+                            SLMJobMetadataService.record_hiring_outcome(
+                                db=db,
+                                job_id=str(interview.job_id),
+                                candidate_interviewed=True
+                            )
+                            logger.info(f"[SLM] Recorded interview completion for job: {interview.job_id}")
+                    except Exception as e:
+                        logger.error(f"[SLM] Failed to record interview outcome: {e}", exc_info=True)
+                        # Continue - SLM failure should not block interview processing
+
                     _create_hm_review_task(db, interview)
     except Exception as exc:
         logger.warning(f"[FeedbackComplete] Auto-complete check failed non-critically: {exc}")
@@ -2044,13 +2059,13 @@ def submit_interview_feedback(
     except Exception as exc:
         logger.warning(f"[AutoHire] check failed non-critically: {exc}")
 
-    # â”€â”€ Notify HM + HR + panel members that feedback was submitted â”€â”€â”€â”€â”€â”€â”€â”€
+    # â"€â"€ Notify HM + HR + panel members that feedback was submitted â"€â"€â"€â"€â"€â"€â"€â"€
     try:
         _notify_feedback_submitted(interview, feedback, user, db)
     except Exception as exc:
         logger.warning(f"[FeedbackNotify] Notification error (non-critical): {exc}")
 
-    # â”€â”€ Cancel pending feedback reminders for the member who just submitted â”€â”€
+    # â"€â"€ Cancel pending feedback reminders for the member who just submitted â"€â"€
     try:
         _cancel_feedback_reminders(interview.id, request.interviewer_id)
     except Exception as exc:

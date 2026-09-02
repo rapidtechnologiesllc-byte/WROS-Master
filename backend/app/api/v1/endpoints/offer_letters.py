@@ -49,7 +49,7 @@ from app.services.email_service import EmailService
 router = APIRouter(prefix="/offer-letter", tags=["offer-letter"])
 
 
-# â”€â”€ Pipeline-status helper (fire-and-forget, never blocks offer flow) â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# "" Pipeline-status helper (fire-and-forget, never blocks offer flow) """""""""
 
 def _update_pipeline_status(candidate_id: str, new_status: str, db: Session) -> None:
     """
@@ -74,7 +74,7 @@ def _update_pipeline_status(candidate_id: str, new_status: str, db: Session) -> 
         pass  # Status update must never block offer operations
 
 
-# â”€â”€ helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# "" helpers """"""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
 
 def _candidate_name(c) -> str | None:
     if not c:
@@ -145,7 +145,7 @@ def list_offer_templates(
     templates folder (`SHAREPOINT_TEMPLATE_PATH` parent directory).
 
     **Optional query param:**
-    - `folder` â€” drill into a sub-folder, e.g. `?folder=full-time`
+    - `folder` - drill into a sub-folder, e.g. `?folder=full-time`
 
     **Required permission:** `offer.view`
     """
@@ -213,18 +213,18 @@ def respond_to_offer(
     db.commit()
     db.refresh(offer)
 
-    # â”€â”€ Update candidate pipeline status based on response â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # "" Update candidate pipeline status based on response """"""""""""""""""""
     if request.action.lower() == "accept":
         _update_pipeline_status(offer.candidate_id, "Hired", db)
     else:
         _update_pipeline_status(offer.candidate_id, "Rejected", db)
 
-    # â”€â”€ Pool ownership transition: candidate rejects offer â†’ Org Pool â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # "" Pool ownership transition: candidate rejects offer ' Org Pool """""""""
     if request.action.lower() == "reject":
         from app.services.candidate_pool_service import set_org_pool
         set_org_pool(
             candidate_id=offer.candidate_id,
-            reason=f"Candidate rejected offer #{offer.id} â€” returned to Org Pool",
+            reason=f"Candidate rejected offer #{offer.id} - returned to Org Pool",
             db=db,
             performed_by_id=candidate.candidateID,
             performed_by_name=(
@@ -234,7 +234,7 @@ def respond_to_offer(
         )
         db.commit()
 
-    # â”€â”€ Email HR on candidate response â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # "" Email HR on candidate response """""""""""""""""""""""""""""""""""""""
     try:
         hr_creator = db.query(Users).filter(Users.UserID == offer.created_by).first()
         if hr_creator:
@@ -277,8 +277,8 @@ def get_my_offers(
         c = db.query(Candidate).filter(Candidate.candidateID == offer.candidate_id).first()
         resp = _build_offer_response(offer, c)
 
-        # â”€â”€ Always generate a fresh download link so the 24-hour expiry
-        #    on SharePoint pre-signed URLs is never a problem â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        # "" Always generate a fresh download link so the 24-hour expiry
+        #    on SharePoint pre-signed URLs is never a problem """"""""""""""""
         if offer.sharepoint_path:
             try:
                 resp.download_url = get_file_download_link(offer.sharepoint_path)
@@ -342,11 +342,11 @@ def create_offer_letter(
     db.commit()
     db.refresh(new_offer)
 
-    # â”€â”€ Update candidate pipeline status â†’ OfferApproval â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-    # Offer created â€” candidate is in the offer approval workflow
+    # "" Update candidate pipeline status ' OfferApproval """""""""""""""""""""
+    # Offer created - candidate is in the offer approval workflow
     _update_pipeline_status(request.candidate_id, "OfferApproval", db)
 
-    # â”€â”€ Pool ownership transition: offer created â†’ BU Owned (90-day clock) â”€â”€â”€â”€
+    # "" Pool ownership transition: offer created ' BU Owned (90-day clock) """"
     # Determine BU from the linked job; if no job/BU, skip.
     try:
         linked_job = None
@@ -361,7 +361,7 @@ def create_offer_letter(
                 candidate_id=request.candidate_id,
                 bu_id=linked_job.business_unit_id,
                 bu_name=bu_name,
-                reason=f"Offer #{new_offer.id} released by HR â€” 90-day BU ownership started",
+                reason=f"Offer #{new_offer.id} released by HR - 90-day BU ownership started",
                 db=db,
                 performed_by_id=user.UserID,
             )
@@ -521,7 +521,7 @@ def get_all_offers(
     return AllOffersResponse(total_offers=len(offer_responses), offers=offer_responses)
 
 
-# â”€â”€ Hiring Manager: list offers pending approval â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# "" Hiring Manager: list offers pending approval """""""""""""""""""""""""""""
 @router.get(
     "/pending-approval",
     response_model=AllOffersResponse,
@@ -548,7 +548,7 @@ def get_pending_approval_offers(
     return AllOffersResponse(total_offers=len(offer_responses), offers=offer_responses)
 
 
-# â”€â”€ Hiring Manager: list awaiting-approval candidates for a specific job â”€â”€â”€â”€â”€â”€
+# "" Hiring Manager: list awaiting-approval candidates for a specific job """"""
 @router.get(
     "/pending-approval/by-job/{job_id}",
     response_model=AllOffersResponse,
@@ -600,7 +600,7 @@ def get_offer_by_id(
 
     candidate = db.query(Candidate).filter(Candidate.candidateID == offer.candidate_id).first()
 
-    # â”€â”€ Resolve document links â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # "" Resolve document links """"""""""""""""""""""""""""""""""""""""""""""""
     sp_url  = offer.sharepoint_url
     
     sp_path = offer.sharepoint_path
@@ -639,7 +639,7 @@ def generate_offer_letter_document(
 
     1. Load offer + candidate + job details from the database.
     2. Select the correct SharePoint template based on `template_type`
-       (`'intern'` â†’ Internship template, `'fulltime'` â†’ Full-Time template).
+       (`'intern'` ' Internship template, `'fulltime'` ' Full-Time template).
     3. Replace all `{{placeholder}}` tokens and inject the salary table.
     4. Upload the filled document back to SharePoint.
     5. Set `approval_status = AwaitingApproval` and notify the Hiring Manager by email.
@@ -651,7 +651,7 @@ def generate_offer_letter_document(
     if not offer:
         raise HTTPException(status_code=404, detail=f"Offer letter {offer_id} not found")
 
-    # Resolve template path â€” validate early so we fail fast before any DB work
+    # Resolve template path - validate early so we fail fast before any DB work
     try:
         resolved_template_path = get_template_path(template_type)
     except ValueError as exc:
@@ -664,7 +664,7 @@ def generate_offer_letter_document(
     first_name = candidate.candidateFirstName or ""
     last_name  = candidate.candidateLastName  or ""
 
-    # Job â†’ location + department
+    # Job ' location + department
     job_location   = offer.position or ""
     job_department = ""
     if offer.job_id:
@@ -710,7 +710,7 @@ def generate_offer_letter_document(
     download_link = get_file_download_link(dest_path) or web_url
     candidate_name = f"{first_name} {last_name}".strip() or offer.candidate_id
 
-    # â”€â”€ Persist URLs + set approval gate â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # "" Persist URLs + set approval gate """""""""""""""""""""""""""""""""""""
     offer.sharepoint_url    = web_url
     offer.download_url      = download_link
     offer.sharepoint_path   = dest_path
@@ -718,7 +718,7 @@ def generate_offer_letter_document(
     offer.approval_status   = "AwaitingApproval"
     db.commit()
 
-    # â”€â”€ Notify Hiring Manager by email (best-effort) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # "" Notify Hiring Manager by email (best-effort) """""""""""""""""""""""""
     try:
         if hm_user:
             EmailService.notify_hm_approval_requested(
@@ -852,18 +852,18 @@ async def approve_offer_letter(
         offer.sharepoint_path   = dest_path
         offer.hm_signature_path = sig_path
         offer.approval_status   = "Approved"
-        offer.offer_status      = "Approved"        # HM approved â†’ ready for HR to release
+        offer.offer_status      = "Approved"        # HM approved ' ready for HR to release
     else:
-        # Reject â€” no signature required
+        # Reject - no signature required
         offer.approval_status = "Rejected"
-        offer.offer_status    = "Rejected"          # HM rejected â†’ back to HR
+        offer.offer_status    = "Rejected"          # HM rejected ' back to HR
 
     offer.approved_at    = now
     offer.approved_by    = user.UserID
     offer.approval_notes = notes
     db.commit()
 
-    # â”€â”€ Notify the HR creator by email â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # "" Notify the HR creator by email """"""""""""""""""""""""""""""""""""""""
     try:
         hr_creator = db.query(Users).filter(Users.UserID == offer.created_by).first()
         candidate_for_email = db.query(Candidate).filter(Candidate.candidateID == offer.candidate_id).first()
@@ -906,7 +906,7 @@ def release_offer_letter(
 ):
     """
     HR releases an `Approved` offer to the candidate, changing
-    `offer_status` from `Approved` â†’ `Released`. The candidate is
+    `offer_status` from `Approved` ' `Released`. The candidate is
     notified via WhatsApp + email (S-054/HRMS-0454) and the offer
     appears in their `my-offers` list.
 
@@ -930,7 +930,7 @@ def release_offer_letter(
     if offer.approval_status != "Approved":
         raise HTTPException(
             status_code=400,
-            detail=f"Offer cannot be released â€” approval_status is '{offer.approval_status}' (must be 'Approved').",
+            detail=f"Offer cannot be released - approval_status is '{offer.approval_status}' (must be 'Approved').",
         )
 
     if offer.offer_status == "Released":
@@ -950,7 +950,7 @@ def release_offer_letter(
     offer.released_by  = user.UserID
     db.commit()
 
-    # â”€â”€ Notify the candidate via WhatsApp + email (S-054/HRMS-0454) â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # "" Notify the candidate via WhatsApp + email (S-054/HRMS-0454) """""""""
     from app.services.offer_release_notification_service import send_offer_release_notification
     try:
         send_offer_release_notification(db, offer)
@@ -1020,10 +1020,10 @@ async def candidate_sign_offer(
         f"{candidate.candidateFirstName or ''} {candidate.candidateLastName or ''}".strip()
     )
 
-    # â”€â”€ Step 2: Download the HM-approved docx from SharePoint â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # "" Step 2: Download the HM-approved docx from SharePoint """"""""""""""""
     # The document stored at offer.sharepoint_path already has the hiring
     # manager's signature embedded (done during the approval step).  We must
-    # inject the candidate signature INTO that document â€” NOT re-generate from
+    # inject the candidate signature INTO that document - NOT re-generate from
     # the blank template (which would lose the HM signature and might use the
     # wrong template type).
     if not offer.sharepoint_path:
@@ -1042,7 +1042,7 @@ async def candidate_sign_offer(
             detail=f"Failed to download the approved offer document from SharePoint: {exc}",
         )
 
-    # â”€â”€ Step 3: Inject only the candidate signature into the existing docx â”€â”€â”€â”€
+    # "" Step 3: Inject only the candidate signature into the existing docx """"
     try:
         signed_docx = inject_candidate_signature_into_docx(
             docx_bytes=existing_docx_bytes,
@@ -1070,11 +1070,11 @@ async def candidate_sign_offer(
     offer.sharepoint_path          = signed_path
     db.commit()
 
-    # â”€â”€ Update candidate pipeline status â†’ Hired â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-    # Candidate signed the offer â€” they are now officially Hired
+    # "" Update candidate pipeline status ' Hired """"""""""""""""""""""""""""""
+    # Candidate signed the offer - they are now officially Hired
     _update_pipeline_status(offer.candidate_id, "Hired", db)
 
-    # â”€â”€ Notify HR by email â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # "" Notify HR by email """"""""""""""""""""""""""""""""""""""""""""""""""""
     try:
         hr_creator = db.query(Users).filter(Users.UserID == offer.created_by).first()
         if hr_creator:
@@ -1118,11 +1118,11 @@ class SalaryStructureRequest(_BM):
 class SalaryStructureDetailResponse(_BM):
     """Full salary breakdown returned alongside the downloadable .docx."""
 
-    # â”€â”€ Identity â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # "" Identity """"""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
     employee_name: str
     annual_ctc: float
 
-    # â”€â”€ Earnings (per month & per annum) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # "" Earnings (per month & per annum) """""""""""""""""""""""""""""""""""""
     basic_pm: float
     basic_pa: float
     hra_pm: float
@@ -1136,11 +1136,11 @@ class SalaryStructureDetailResponse(_BM):
     fixed_allowance_pm: float
     fixed_allowance_pa: float
 
-    # â”€â”€ Totals â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # "" Totals """"""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
     gross_pm: float
     gross_pa: float
 
-    # â”€â”€ Deductions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # "" Deductions """"""""""""""""""""""""""""""""""""""""""""""""""""""""""""
     epf_employee_pm: float
     epf_employee_pa: float
     epf_employer_pm: float
@@ -1151,17 +1151,17 @@ class SalaryStructureDetailResponse(_BM):
     total_deductions_pm: float
     total_deductions_pa: float
 
-    # â”€â”€ Net â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # "" Net """""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
     net_pm: float
     net_pa: float
 
-    # â”€â”€ Other Benefits â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # "" Other Benefits """"""""""""""""""""""""""""""""""""""""""""""""""""""""
     esic_employer_pm: float
     esic_employer_pa: float
 
-    # â”€â”€ Document â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # "" Document """"""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
     filename: str
-    docx_base64: str  # base64-encoded .docx bytes â€” decode on frontend to download
+    docx_base64: str  # base64-encoded .docx bytes - decode on frontend to download
 
 
 class SalaryStructureWithDetailsResponse(_BM):
@@ -1170,7 +1170,7 @@ class SalaryStructureWithDetailsResponse(_BM):
     salary_structure: SalaryStructureDetailResponse
 
 
-# â”€â”€ existing file-download endpoint (unchanged) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# "" existing file-download endpoint (unchanged) """""""""""""""""""""""""""""""
 
 @router.post(
     "/salary-structure",
@@ -1193,8 +1193,8 @@ def generate_salary_structure(
 
     Components auto-calculated from annual CTC:
     - Basic = 50% CTC, HRA = 40% Basic
-    - Medical = â‚¹15 000, Transport = â‚¹19 200, Performance = â‚¹19 800 (all fixed)
-    - PT Deduction = â‚¹1 800 (fixed)
+    - Medical = 15 000, Transport = 19 200, Performance = 19 800 (all fixed)
+    - PT Deduction = 1 800 (fixed)
 
     **Required permission:** `offer.manage`
     """
@@ -1219,7 +1219,7 @@ def generate_salary_structure(
     )
 
 
-# â”€â”€ NEW: JSON response with salary breakdown + base64-encoded .docx â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# "" NEW: JSON response with salary breakdown + base64-encoded .docx """""""""""
 
 @router.post(
     "/salary-structure/details",
@@ -1244,18 +1244,18 @@ def generate_salary_structure_with_details(
     |---|---|
     | Basic | 50% of CTC |
     | HRA | 40% of Basic |
-    | Medical | Fixed â‚¹15,000 p.a. |
-    | Transport | Fixed â‚¹19,200 p.a. |
-    | Deployment / Performance | Remaining after above 4, capped â‚¹60,000 |
+    | Medical | Fixed 15,000 p.a. |
+    | Transport | Fixed 19,200 p.a. |
+    | Deployment / Performance | Remaining after above 4, capped 60,000 |
     | Fixed Allowance | Remainder after all above |
-    | EPF Employee & Employer | 12% of EPF base, capped â‚¹21,600 each |
-    | ESIC Employee | 0.75% of ESIC base (only if monthly base â‰¤ â‚¹21,000) |
+    | EPF Employee & Employer | 12% of EPF base, capped 21,600 each |
+    | ESIC Employee | 0.75% of ESIC base (only if monthly base  21,000) |
 
     **Required permission:** `offer.manage`
     """
     import base64
 
-    # â”€â”€ 1. Calculate salary breakdown â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # "" 1. Calculate salary breakdown """""""""""""""""""""""""""""""""""""""""
     try:
         sal = calculate_salary(
             employee_name=request.employee_name,
@@ -1264,7 +1264,7 @@ def generate_salary_structure_with_details(
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Salary calculation failed: {exc}")
 
-    # â”€â”€ 2. Generate .docx document â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # "" 2. Generate .docx document """"""""""""""""""""""""""""""""""""""""""""
     try:
         docx_bytes = generate_salary_structure_docx(
             employee_name=request.employee_name,
@@ -1276,7 +1276,7 @@ def generate_salary_structure_with_details(
     filename = get_salary_filename(request.employee_name)
     docx_b64 = base64.b64encode(docx_bytes).decode("utf-8")
 
-    # â”€â”€ 3. Build structured response â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # "" 3. Build structured response """"""""""""""""""""""""""""""""""""""""""
     detail = SalaryStructureDetailResponse(
         # Identity
         employee_name=sal.employee_name,
@@ -1319,7 +1319,7 @@ def generate_salary_structure_with_details(
 
     return SalaryStructureWithDetailsResponse(
         status="success",
-        message=f"Salary structure generated for '{request.employee_name}' (CTC: â‚¹{request.annual_ctc:,.2f})",
+        message=f"Salary structure generated for '{request.employee_name}' (CTC: {request.annual_ctc:,.2f})",
         salary_structure=detail,
     )
 
@@ -1337,7 +1337,7 @@ def preview_salary_structure(
 ):
     """
     Return the calculated salary breakdown (JSON) for an existing offer
-    without generating a file â€” useful for UI previews.
+    without generating a file - useful for UI previews.
 
     **Required permission:** `offer.view`
     """
@@ -1346,7 +1346,7 @@ def preview_salary_structure(
         raise HTTPException(status_code=404, detail=f"Offer letter {offer_id} not found")
 
     try:
-        ctc = float(str(offer.salary).replace(",", "").replace("â‚¹", "").strip())
+        ctc = float(str(offer.salary).replace(",", "").replace("", "").strip())
     except (ValueError, AttributeError):
         raise HTTPException(
             status_code=422,

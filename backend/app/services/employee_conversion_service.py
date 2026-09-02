@@ -38,7 +38,12 @@ class EmployeeConversionService:
         ln = last_name or getattr(candidate, "candidateLastName", "") or ""
         tid = tenant_id or getattr(candidate, "tenant_id", 1) or 1
         ph = phone or getattr(candidate, "candidateMobile", None)
-        user = EmployeeConversionService.create_employee_account(db=db, employee_name=f"{fn} {ln}".strip(), employee_email=email, business_unit_id=business_unit_id or 1, tenant_id=tid, role_ids=role_ids, phone=ph)
+
+        # BU Lifecycle: Preserve candidate's BU assignment on conversion
+        # Use provided business_unit_id, or fall back to candidate's associated_bu_id
+        final_bu_id = business_unit_id or getattr(candidate, "associated_bu_id", None) or 1
+
+        user = EmployeeConversionService.create_employee_account(db=db, employee_name=f"{fn} {ln}".strip(), employee_email=email, business_unit_id=final_bu_id, tenant_id=tid, role_ids=role_ids, phone=ph)
         if job_title:
             user.job_title = job_title
         fields.pop("delivery_engine", None)

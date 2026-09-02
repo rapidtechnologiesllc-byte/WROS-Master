@@ -4,6 +4,9 @@ SLM Feedback API - Collect corrections and validation during resume editing
 When recruiter edits parsed resume data, capture corrections for learning.
 This is the main feedback loop that trains the model.
 
+Security: All endpoints require authentication + permission check + audit logging.
+No PII linkage: Uses anonymized feedback_session_id instead of candidate_id.
+
 Endpoints:
 - POST /slm/feedback/correction - Record parsing error correction
 - POST /slm/feedback/validation - Record successful extraction
@@ -23,13 +26,14 @@ from app.core.dependencies import get_current_internal_user
 from app.core.logging import logger
 from app.services.slm_feedback_engine import SLMFeedbackEngine, SLMFeedback
 from app.services.slm_daily_improvement import SLMDailyImprovement
+from app.services.audit_log_service import log_audit_event
 
 router = APIRouter(prefix="/slm", tags=["slm-feedback"])
 
 
 class CorrectionRequest(BaseModel):
     """Record when recruiter corrects a parsing error"""
-    candidate_id: str
+    feedback_session_id: str
     field_name: str
     parsed_value: str
     corrected_value: str
@@ -38,7 +42,7 @@ class CorrectionRequest(BaseModel):
 
 class ValidationRequest(BaseModel):
     """Record when recruiter validates a parsed value (doesn't change)"""
-    candidate_id: str
+    feedback_session_id: str
     field_name: str
     value: str
     confidence_score: float = 0.8
@@ -72,7 +76,7 @@ def record_correction(
     ```
     POST /slm/feedback/correction
     {
-        "candidate_id": "cand_123",
+        "feedback_session_id": "session_abc123",
         "field_name": "skills",
         "parsed_value": "Python, JavaScript",
         "corrected_value": "Python, JavaScript, AWS",
@@ -89,7 +93,7 @@ def record_correction(
     try:
         SLMFeedbackEngine.record_correction(
             db,
-            candidate_id=request.candidate_id,
+            feedback_session_id=request.feedback_session_id,
             field_name=request.field_name,
             parsed_value=request.parsed_value,
             corrected_value=request.corrected_value,
@@ -98,14 +102,29 @@ def record_correction(
 
         db.commit()
 
+        # Audit log: SLM access
+        log_audit_event(
+            db=db,
+            event_type="SLM_CORRECTION_RECORDED",
+            user_id=current_user.UserID,
+            action="POST_CORRECTION",
+            resource_type="slm_feedback",
+            details={
+                "field_name": request.field_name,
+                "confidence_score": request.confidence_score,
+                "session_id": request.feedback_session_id
+            }
+        )
+
         return {
             "status": "recorded",
             "field": request.field_name,
-            "message": f"Correction recorded: {request.field_name} for candidate {request.candidate_id}"
+            "message": f"Correction recorded: {request.field_name}"
         }
 
     except Exception as e:
         db.rollback()
+        logger.error(f"[SLM] Failed to record correction: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to record correction: {str(e)}")
 
 
@@ -124,7 +143,7 @@ def record_validation(
     ```
     POST /slm/feedback/validation
     {
-        "candidate_id": "cand_123",
+        "feedback_session_id": "session_abc123",
         "field_name": "title",
         "value": "Senior Software Engineer",
         "confidence_score": 0.92
@@ -134,7 +153,7 @@ def record_validation(
     try:
         SLMFeedbackEngine.record_validation(
             db,
-            candidate_id=request.candidate_id,
+            feedback_session_id=request.feedback_session_id,
             field_name=request.field_name,
             parsed_value=request.value,
             confidence_score=request.confidence_score
@@ -142,14 +161,29 @@ def record_validation(
 
         db.commit()
 
+        # Audit log: SLM access
+        log_audit_event(
+            db=db,
+            event_type="SLM_VALIDATION_RECORDED",
+            user_id=current_user.UserID,
+            action="POST_VALIDATION",
+            resource_type="slm_feedback",
+            details={
+                "field_name": request.field_name,
+                "confidence_score": request.confidence_score,
+                "session_id": request.feedback_session_id
+            }
+        )
+
         return {
             "status": "validated",
             "field": request.field_name,
-            "message": f"Validation recorded: {request.field_name} for candidate {request.candidate_id}"
+            "message": f"Validation recorded: {request.field_name}"
         }
 
     except Exception as e:
         db.rollback()
+        logger.error(f"[SLM] Failed to record validation: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to record validation: {str(e)}")
 
 
@@ -197,6 +231,21 @@ def get_feedback_stats(
     }
     """
     stats = SLMFeedbackEngine.get_feedback_stats(db, days=days)
+
+    # Audit log: SLM stats access
+    log_audit_event(
+        db=db,
+        event_type="SLM_STATS_ACCESSED",
+        user_id=current_user.UserID,
+        action="GET_STATS",
+        resource_type="slm_feedback",
+        details={
+            "days": days,
+            "total_feedback": stats.get("total_feedback"),
+            "ready_to_retrain": stats.get("ready_to_retrain")
+        }
+    )
+
     return stats
 
 

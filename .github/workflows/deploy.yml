@@ -19,18 +19,24 @@ jobs:
         with:
           node-version: 'latest'
           cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
 
       - name: Install dependencies
+        working-directory: frontend
         run: npm ci
 
       - name: Build
-        run: REACT_APP_API_BASE_URL=http://46.224.149.7:8080 npm run build
+        working-directory: frontend
+        run: |
+          rm -rf node_modules build .env
+          npm ci
+          npm run build
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
           name: frontend-build
-          path: build/
+          path: frontend/build/
           retention-days: 1
 
   test:
@@ -45,11 +51,14 @@ jobs:
         with:
           node-version: 'latest'
           cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
 
       - name: Install dependencies
+        working-directory: frontend
         run: npm ci
 
       - name: Run tests (with fallback)
+        working-directory: frontend
         run: npm test -- --ci --coverage --passWithNoTests 2>/dev/null || echo "No test suite configured"
         continue-on-error: true
 
@@ -62,7 +71,7 @@ jobs:
     env:
       PROD_SERVER: ${{ secrets.PROD_SERVER_HOST }}
       PROD_USER: ${{ secrets.PROD_USER }}
-      PROD_PATH: /home/HRMS/HRMS-FE-V1/OnboardingModule-Frontend
+      PROD_PATH: /home/HRMS/WROS-Master/frontend
 
     steps:
       - uses: actions/checkout@v4
@@ -103,10 +112,11 @@ jobs:
              git checkout main && \
              git reset --hard origin/main"
 
-      - name: Create build-new directory on server
+      - name: Clean up stale build-new directory
         run: |
           ssh -o StrictHostKeyChecking=no -p 22587 ${{ env.PROD_USER }}@${{ env.PROD_SERVER }} \
-            "mkdir -p ${{ env.PROD_PATH }}/build-new"
+            "rm -rf ${{ env.PROD_PATH }}/build-new 2>/dev/null; mkdir -p ${{ env.PROD_PATH }}/build-new"
+        continue-on-error: true
 
       - name: Copy new build to production
         run: |
@@ -115,13 +125,42 @@ jobs:
 
           ssh -o StrictHostKeyChecking=no -p 22587 ${{ env.PROD_USER }}@${{ env.PROD_SERVER }} \
             "cd ${{ env.PROD_PATH }} && \
-             rm -rf build && \
+             rm -rf build-old 2>/dev/null; \
+             [ -d build ] && mv build build-old || true; \
+             rm -rf build 2>/dev/null; \
              mv build-new build"
 
-      - name: Restart Nginx service
+      - name: Fix file permissions for Nginx
         run: |
           ssh -o StrictHostKeyChecking=no -p 22587 ${{ env.PROD_USER }}@${{ env.PROD_SERVER }} \
-            "systemctl restart nginx || service nginx restart || echo 'Nginx restart skipped'"
+            "find ${{ env.PROD_PATH }}/build -type d -exec chmod 755 {} \; && find ${{ env.PROD_PATH }}/build -type f -exec chmod 644 {} \;"
+
+      - name: Reload Nginx service
+        run: |
+          ssh -o StrictHostKeyChecking=no -p 22587 ${{ env.PROD_USER }}@${{ env.PROD_SERVER }} \
+            "sudo systemctl reload nginx || echo 'Nginx reload failed'"
+        continue-on-error: true
+
+      - name: Initialize PostgreSQL database and create admin user
+        run: |
+          ssh -o StrictHostKeyChecking=no -p 22587 ${{ env.PROD_USER }}@${{ env.PROD_SERVER }} \
+            "cd /home/HRMS/WROS-Master/backend && \
+             /home/HRMS/WROS-Master/venv/bin/python -c 'from app.models.base import Base; from app.core.database import engine; from app import models; Base.metadata.create_all(bind=engine); print(\"Database tables created\")' && \
+             /home/HRMS/WROS-Master/venv/bin/python scripts/create_admin_user.py"
+        continue-on-error: true
+
+      - name: Restart backend service
+        run: |
+          ssh -o StrictHostKeyChecking=no -p 22587 ${{ env.PROD_USER }}@${{ env.PROD_SERVER }} \
+            "cd /home/HRMS/WROS-Master/backend && \
+             find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null; \
+             find . -name '*.pyc' -delete 2>/dev/null; \
+             pkill -9 -f 'uvicorn app.main' 2>/dev/null || true; \
+             sleep 3; \
+             cd /home/HRMS/WROS-Master/backend && \
+             nohup /home/HRMS/WROS-Master/venv/bin/python -m uvicorn app.main:app --host 0.0.0.0 --port 8080 > /tmp/backend.log 2>&1 & \
+             sleep 2; \
+             curl -s http://127.0.0.1:8080/health || echo 'Health check attempt'"
         continue-on-error: true
 
       - name: Wait for backend to be ready

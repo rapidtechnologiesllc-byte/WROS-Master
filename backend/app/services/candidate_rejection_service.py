@@ -82,6 +82,9 @@ def reject_candidate(
         raise CandidateNotFoundError(f"Candidate {candidate_id} not found in tenant {tenant_id}")
 
     try:
+        # BU Lifecycle: Revert to org-wide (NULL) on rejection
+        candidate.associated_bu_id = None
+
         # Create rejection record
         rejection = CandidateRejection(
             candidate_id=candidate_id,
