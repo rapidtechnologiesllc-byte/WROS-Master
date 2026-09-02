@@ -24,6 +24,7 @@ class OrgNodeResponse(BaseModel):
     """An instance of a position in the org tree (e.g., 'CEO', 'Partner - BlitzenX', 'Manager - East Coast')"""
     id: str
     tenant_id: int
+    tenant_name: Optional[str] = None
     position_id: int
     name: str = Field(..., description="Descriptive name for this specific node")
     parent_id: Optional[str] = None
@@ -40,7 +41,9 @@ class DepartmentResponse(BaseModel):
     """A department/team within a business unit"""
     id: str
     tenant_id: int
+    tenant_name: Optional[str] = None
     business_unit_id: str
+    business_unit_name: Optional[str] = None
     name: str
     description: Optional[str] = None
     hiring_manager_id: Optional[str] = None
