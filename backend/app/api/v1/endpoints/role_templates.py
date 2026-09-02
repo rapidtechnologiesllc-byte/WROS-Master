@@ -603,6 +603,49 @@ def get_template_audit_trail(
     }
 
 
+@router.get("/{template_id}/users")
+def get_users_for_role_template(
+    template_id: int,
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_internal_user)
+):
+    """Get all users assigned to a specific role template."""
+    # Verify template exists and belongs to current tenant
+    template = db.query(RoleTemplate).filter(
+        RoleTemplate.id == template_id,
+        RoleTemplate.tenant_id == current_user.tenant_id
+    ).first()
+
+    if not template:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Role template not found"
+        )
+
+    # Get users assigned to this role template
+    users = db.query(Users).filter(
+        Users.role_template_id == template_id,
+        Users.tenant_id == current_user.tenant_id
+    ).all()
+
+    return {
+        "template_id": template_id,
+        "template_name": template.name,
+        "user_count": len(users),
+        "users": [
+            {
+                "user_id": u.UserID,
+                "email": u.UserEmail,
+                "name": u.UserName,
+                "role": template.name,
+                "business_unit": u.business_unit_name if hasattr(u, 'business_unit_name') else None,
+                "active": u.UserActive
+            }
+            for u in users
+        ]
+    }
+
+
 @router.get("/audit/logs")
 def get_rbac_audit_logs(
     entity_type: str = None,
