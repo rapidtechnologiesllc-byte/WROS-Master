@@ -125,6 +125,14 @@ async def startup_event():
         logger.error(f"[Startup] Failed to create DB tables: {exc}", exc_info=True)
         return  # Don't crash startup, but tables won't exist
 
+    # Initialize database contract (tenant, RBAC, admin user)
+    try:
+        from app.core.db_contract import initialize_database
+        initialize_database()
+    except Exception as exc:
+        logger.error(f"[Startup] Failed to initialize database contract: {exc}", exc_info=True)
+        return  # Don't crash startup, but contract won't be initialized
+
     # Initialize default organizational positions (CEO, Partner, BU Head, etc.)
     try:
         logger.info("[Startup] Initializing default organizational positions...")
