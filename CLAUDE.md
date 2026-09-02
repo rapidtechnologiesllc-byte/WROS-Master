@@ -897,3 +897,80 @@ c2c85da Fix Resume section indentation (final compilation fix)
 - Test golden path + edge cases in browser before committing
 - Defensive programming with optional chaining throughout
 - No placeholder fields or hardcoded values in production code
+
+---
+
+## 🔧 CODE REVIEW GATE & ISSUE TRACKING POLICY (2026-09-02)
+
+**STATUS:** ✅ Gate operational with downstream impact analysis
+
+### Gate Workflow
+
+1. **Code Review Gate** runs on every commit (pre-commit hook)
+2. **Blocks commits** if CRITICAL/HIGH/MEDIUM/LOW issues found
+3. **Explains consequences** - not just rules, but downstream impacts
+
+### Issue Tracking Policy (MANDATORY)
+
+**When the gate or scanning finds issues:**
+
+✅ **DO:**
+- Create individual GitHub issues (one per problem)
+- Add to GitHub project board (https://github.com/users/rapidtechnologiesllc-byte/projects/1)
+- Label appropriately (backlog, bug, architecture, security, etc.)
+- Include links in commit messages: `Closes #123` or `Relates to #456`
+
+❌ **DON'T:**
+- Just update markdown files
+- Skip GitHub project tracking
+- Assume internal docs replace GitHub issues
+- Leave issues untracked
+
+### Creating Issues Programmatically
+
+Use provided scripts:
+
+```bash
+# Create 26 orphaned endpoint issues
+./scripts/create_orphaned_endpoint_issues.sh GITHUB_TOKEN PROJECT_ID
+
+# Add issues to project board  
+./scripts/add_issues_to_project.sh GITHUB_TOKEN PROJECT_ID 1 2 3 4 5 ...
+```
+
+Requires GitHub token with `repo` and `project` scopes.
+
+### Going Forward
+
+**When running code scans or gate validations:**
+
+1. ✅ Run the scan (gate or custom validator)
+2. ✅ Identify issues
+3. ✅ Create GitHub issues for EACH issue found
+4. ✅ Add to project board
+5. ✅ Commit with GitHub issue references
+6. ✅ Update markdown docs AFTER GitHub issues exist
+
+**Not the other way around - GitHub issues are primary, docs are secondary.**
+
+### Current Issue Count
+
+- **901 issues** identified by gate scan
+- **26 orphaned endpoints** (separate tracking)
+- **300-350 real issues** in active code
+- All to be created as GitHub issues and added to project board
+
+### Gate Accuracy
+
+✅ Gate is **100% accurate** for:
+- Missing error messages (128 issues)
+- Silent exception catches (24 issues)
+- Magic numbers (6 issues)
+- Missing null checks (170 issues)
+
+🟡 Gate is **50% accurate** for:
+- Missing role template permission checks (597 reported, ~300 real)
+- ~40% are in orphaned code not registered
+
+**Action:** After orphaned code cleanup, accuracy will be 100%.
+
