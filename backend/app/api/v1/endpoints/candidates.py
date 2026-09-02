@@ -50,6 +50,7 @@ from app.services.linkedin_import_service import (
     CandidateNotOpenToWork,
     DuplicateCandidateExists
 )
+from app.services.apollo_integration import search_apollo_by_linkedin_url
 
 router = APIRouter(prefix="/candidate", tags=["candidate"])
 
@@ -117,27 +118,22 @@ async def import_linkedin_candidate_endpoint(
         HTTPException 409: Duplicate candidate already exists
     """
     try:
-        # NOTE: Apollo MCP requires authentication via claude.ai connectors
-        # This is a stub showing the expected signature
-        # Real implementation requires wiring Apollo MCP client
-
-        async def apollo_search_stub(search_params):
-            """
-            STUB: In production, this calls Apollo.io MCP server
-
-            Real call would be:
-            from mcp.servers import apollo
-            result = await apollo.contacts_search(search_params)
-            """
-            raise NotImplementedError(
-                "Apollo MCP integration required. "
-                "Authenticate via claude.ai Settings → Connectors → Apollo.io"
+        # Create Apollo search function that calls the integration module
+        # In production, this would receive a real MCP client
+        # For now, it will raise NotImplementedError with setup instructions
+        async def apollo_search_func(search_params):
+            """Call Apollo.io MCP to enrich candidate data"""
+            # NOTE: apollo_mcp_client would be injected from environment/config
+            # in production. For now, None triggers NotImplementedError with setup steps
+            return await search_apollo_by_linkedin_url(
+                linkedin_url=search_params.get('linkedin_url'),
+                apollo_mcp_client=None  # Not configured in current environment
             )
 
         candidate, import_info = await import_linkedin_candidate(
             db,
             request.linkedin_url,
-            apollo_search_func=apollo_search_stub
+            apollo_search_func=apollo_search_func
         )
 
         return LinkedInImportResponse(**import_info)
