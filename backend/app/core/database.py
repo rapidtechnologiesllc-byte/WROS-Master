@@ -29,6 +29,11 @@ if not DATABASE_URL:
         "Format: postgresql://username:password@host:port/database_name"
     )
 
+# Log which database we're connecting to
+import sys
+print(f"[STARTUP] DATABASE_URL={DATABASE_URL[:70]}...", file=sys.stderr)
+print(f"[STARTUP] Connecting to database...", file=sys.stderr)
+
 if not DATABASE_URL.startswith("postgresql://"):
     raise ValueError(
         f"Invalid DATABASE_URL: '{DATABASE_URL[:30]}...'. "
