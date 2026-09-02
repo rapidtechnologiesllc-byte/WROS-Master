@@ -1,0 +1,63 @@
+name: Code Review Gate - All Branches
+
+on:
+  push:
+    branches:
+      - '**'  # Run on ALL branches
+  pull_request:
+    branches:
+      - '**'
+
+jobs:
+  code-gate:
+    name: Code Review Validation
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history for diff analysis
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Get changed files
+        id: changed-files
+        run: |
+          if [ "${{ github.event_name }}" == "pull_request" ]; then
+            # For PRs, get files changed in this PR
+            git diff --name-only origin/${{ github.base_ref }} HEAD > changed_files.txt
+          else
+            # For push events, compare with main branch
+            if git rev-parse origin/main >/dev/null 2>&1; then
+              git diff --name-only origin/main HEAD > changed_files.txt
+            else
+              # First push to branch - check all files in commit
+              git diff --name-only HEAD~1 HEAD > changed_files.txt
+            fi
+          fi
+
+          echo "Files to check:"
+          cat changed_files.txt
+          echo "file_count=$(wc -l < changed_files.txt)" >> $GITHUB_OUTPUT
+
+      - name: Run Code Gate Validator
+        run: |
+          python backend/scripts/code_gate_validator.py
+        env:
+          CHANGED_FILES: ${{ steps.changed-files.outputs.file_count }}
+        continue-on-error: false
+
+      - name: Report Status
+        if: success()
+        run: echo "✅ Code Review Gate PASSED - All files approved"
+
+      - name: Fail on Gate Violation
+        if: failure()
+        run: |
+          echo "❌ Code Review Gate FAILED"
+          echo "This branch cannot be merged until code violations are fixed."
+          echo "See 'Run Code Gate Validator' step above for details."
+          exit 1
