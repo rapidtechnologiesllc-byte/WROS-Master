@@ -7,7 +7,6 @@ from app.core.dependencies import get_current_internal_user
 from app.models.user import Users
 from app.models.role_template import Module, Resource, RoleTemplate, RoleTemplatePermission
 from app.models.business_unit import BusinessUnit
-from app.services.rbac_audit_service import RBACauditService
 from pydantic import BaseModel
 from typing import List, Optional
 
@@ -349,17 +348,6 @@ def grant_permission(
     if action_updated or not perm.id:
         db.commit()
 
-    # Audit log
-    RBACauditService.log_permission_granted(
-        db=db,
-        template_id=template.id,
-        resource_name=resource_name,
-        action=action,
-        user_id=current_user.UserID,
-        tenant_id=current_user.tenant_id,
-        ip_address=request.client.host if request.client else None
-    )
-
     return {"message": f"Permission granted: {resource_name} - {action}"}
 
 
@@ -419,17 +407,6 @@ def revoke_permission(
     # Only commit if something changed
     if action_updated:
         db.commit()
-
-    # Audit log
-    RBACauditService.log_permission_revoked(
-        db=db,
-        template_id=template.id,
-        resource_name=resource_name,
-        action=action,
-        user_id=current_user.UserID,
-        tenant_id=current_user.tenant_id,
-        ip_address=request.client.host if request.client else None
-    )
 
     return {"message": f"Permission revoked: {resource_name} - {action}"}
 
