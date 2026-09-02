@@ -95,7 +95,7 @@ class ReferralAccessControl:
             ]
 
         except Exception as e:
-            return []
+            raise ValueError(f"Failed to get referrals: {str(e)}")
 
     @staticmethod
     def get_bonuses_for_user(
@@ -139,7 +139,7 @@ class ReferralAccessControl:
             ]
 
         except Exception as e:
-            return []
+            raise ValueError(f"Failed to get bonuses: {str(e)}")
 
     @staticmethod
     def get_job_referral_stats_for_user(
@@ -194,7 +194,9 @@ class ReferralAccessControl:
             }
 
         except Exception as e:
-            return None
+
+
+            raise RuntimeError(f"Operation failed: {str(e)}")
 
     @staticmethod
     def get_dashboard_view_for_role(
