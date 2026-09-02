@@ -45,7 +45,7 @@ try:
         ).first()
 
         if not role:
-            print(f"  ⚠️  Role '{role_name}' not found in database, skipping")
+            print(f"  [WARN] Role '{role_name}' not found in database, skipping")
             continue
 
         # For each resource with permissions defined in ROLE_TEMPLATE_PERMISSIONS
@@ -64,7 +64,7 @@ try:
                 ).first()
 
             if not resource:
-                print(f"  ⚠️  Resource '{resource_name}' not found, skipping")
+                print(f"  [WARN] Resource '{resource_name}' not found, skipping")
                 continue
 
             # Check if permission already exists
@@ -91,10 +91,10 @@ try:
         perm_count = db.query(RoleTemplatePermission).filter(
             RoleTemplatePermission.role_template_id == role.id
         ).count()
-        print(f"  ✅ Role has {perm_count} permissions\n")
+        print(f"  [OK] Role has {perm_count} permissions\n")
 
     print("="*60)
-    print(f"✅ GRANTED {total_granted} PROPER ROLE-SPECIFIC PERMISSIONS")
+    print(f"[SUCCESS] GRANTED {total_granted} PROPER ROLE-SPECIFIC PERMISSIONS")
     print("="*60)
     print("\nPermissions are now ROLE-SPECIFIC, not all-to-all:")
     print("  • Super User: Full access to all resources")
@@ -104,7 +104,7 @@ try:
     print("\nEach role sees only what it needs. RBAC is now working correctly!")
 
 except Exception as e:
-    print(f"\n❌ Error: {e}")
+    print(f"\n[ERROR] Error: {e}")
     import traceback
     traceback.print_exc()
     db.rollback()
