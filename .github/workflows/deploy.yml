@@ -144,7 +144,12 @@ jobs:
       - name: Restart backend service
         run: |
           ssh -o StrictHostKeyChecking=no -p 22587 ${{ env.PROD_USER }}@${{ env.PROD_SERVER }} \
-            "cd /home/HRMS/WROS-Master/backend && find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null; find . -name '*.pyc' -delete 2>/dev/null; sudo systemctl restart wros-backend || echo 'Backend restart attempted'"
+            "cd /home/HRMS/WROS-Master/backend && \
+             find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null; \
+             find . -name '*.pyc' -delete 2>/dev/null; \
+             pkill -f 'uvicorn app.main' 2>/dev/null || true; \
+             sleep 2; \
+             nohup python -m uvicorn app.main:app --host 127.0.0.1 --port 8080 > /tmp/backend.log 2>&1 &"
         continue-on-error: true
 
       - name: Wait for backend to be ready
