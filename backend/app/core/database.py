@@ -114,6 +114,7 @@ def check_candidate(db: Session, email: str):
 def check_user(db: Session, email: str):
     # Import here to avoid circular import
     from app.models import Users
+    from sqlalchemy import func
     return db.query(Users).filter(func.lower(Users.UserEmail) == email.lower()).first()
 
 def get_user(db: Session, email: str):
