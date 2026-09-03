@@ -24,6 +24,7 @@ from app.core.dependencies import get_db, get_current_user, require_resource_per
 from app.models.user import Users
 from app.models.business_unit import BusinessUnit
 from app.services.finance_agent import FinanceAgent
+from app.core.database import get_db
 
 router = APIRouter(prefix="/finance", tags=["finance"])
 

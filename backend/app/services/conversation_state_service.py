@@ -53,6 +53,7 @@ from typing import Dict, Optional
 from sqlalchemy.orm import Session
 
 from app.models.candidate_ai import CandidateConversation, ConversationEvent
+from app.core.logging import logger
 
 # Axis 1: conversation lifecycle. "closed" is terminal -- matches BR-02's
 # "COMPLETED cannot go back to QUALIFYING" (forward-only, non-reversible).

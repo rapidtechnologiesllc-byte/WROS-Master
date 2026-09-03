@@ -1,3 +1,4 @@
+from app.core.logging import logger
 """Pydantic Schemas -- S-021/HRMS-0421 Candidate Memory Store."""
 from datetime import datetime
 import logging

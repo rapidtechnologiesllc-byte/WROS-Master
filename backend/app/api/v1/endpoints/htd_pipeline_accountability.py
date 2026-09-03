@@ -1,3 +1,4 @@
+from app.core.logging import logger
 """HTD Pipeline Accountability Agent endpoints."""
 from fastapi import APIRouter, Depends, HTTPException
 import logging

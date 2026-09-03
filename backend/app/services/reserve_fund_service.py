@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 
 from app.models.reserve_fund import ReserveFundEntry
 from app.services.pnl_service import get_bu_pnl
+from app.core.logging import logger
 
 logger = logging.getLogger(__name__)
 

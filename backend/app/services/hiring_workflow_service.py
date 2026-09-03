@@ -23,6 +23,7 @@ from app.models.employee import Employee
 from app.models.user import Users
 from app.services.hiring_affordability_service import check_hiring_affordability
 from app.services.task_service import create_task
+from app.core.logging import logger
 
 
 def suggest_panelists(db: Session, demand_id: str, level: str = "L1") -> List[Dict]:

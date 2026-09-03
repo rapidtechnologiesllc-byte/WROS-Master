@@ -11,6 +11,7 @@ from typing import List, Optional
 from pydantic import BaseModel, Field
 
 from app.models.candidate_ownership import POOL_BU, POOL_ORG
+from app.core.logging import logger
 
 
 # ---------------------------------------------------------------------------

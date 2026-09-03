@@ -19,6 +19,7 @@ from sqlalchemy.orm import Session
 from app.models.user import Users
 from app.models.role_template import RoleTemplate, RoleTemplatePermission, Module, Resource
 from app.services.organization_service import OrganizationService
+from app.core.logging import logger
 
 
 @dataclass

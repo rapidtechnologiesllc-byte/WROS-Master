@@ -44,6 +44,7 @@ from app.models.sourcing import SourcingAlert, SourcingSearchRun, StagedCandidat
 from app.models.user import Users
 from app.services.candidate_service import create_candidate_safe, find_duplicate_candidate
 from app.services.notification_service import send_notification
+from app.core.logging import logger
 
 CONSECUTIVE_SEARCH_FAILURES_BEFORE_ESCALATION = 2  # AC-6
 

@@ -1,3 +1,4 @@
+from app.core.logging import logger
 """EPIC-16 -- Bank Reconciliation. See app.models.bank_reconciliation
 for why this is manual-entry, not a real bank feed."""
 import logging

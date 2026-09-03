@@ -9,6 +9,7 @@ import os as _os
 
 from app.core.database import get_db
 from app.core.dependencies import (
+from fastapi import Request
     get_current_candidate,
     get_current_internal_user,
     require_permission,

@@ -21,6 +21,7 @@ from sqlalchemy import func, and_
 
 from app.core.agent_logging import log_agent_execution
 from app.models.opportunity import Opportunity
+from app.core.logging import logger
 
 logger = logging.getLogger(__name__)
 

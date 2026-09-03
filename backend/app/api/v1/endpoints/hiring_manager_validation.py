@@ -13,6 +13,7 @@ from app.models import HiringManagerValidation, HMValidationStatus, HMValidation
 from app.services.hiring_manager_validation_service import HiringManagerValidationService
 from app.core.database import get_db
 from app.schemas.hm_validation_schemas import (
+from fastapi import Depends
     HMValidationListResponse,
     HMValidationDetailResponse,
     HMValidationResponseSubmit,

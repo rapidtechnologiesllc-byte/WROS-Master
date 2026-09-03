@@ -27,6 +27,7 @@ from sqlalchemy.orm import Session
 
 from app.models.employee import Employee
 from app.models.htd_intake_pause import HtdIntakeStatus, HtdMonthlyMetric, HtdPauseLogEntry
+from app.core.logging import logger
 
 CONVERSION_RATE_THRESHOLD = Decimal("0.50")
 CORE_CONVERSION_WINDOW_DAYS = 400

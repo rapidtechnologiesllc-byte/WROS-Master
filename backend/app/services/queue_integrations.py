@@ -19,6 +19,7 @@ from typing import Any, Dict, List, Optional
 from sqlalchemy.orm import Session
 
 from app.services.message_queue_service import MessageQueueService
+from app.core.logging import logger
 
 logger = logging.getLogger(__name__)
 

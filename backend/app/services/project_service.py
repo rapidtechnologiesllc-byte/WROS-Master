@@ -20,6 +20,7 @@ from app.models.employee import Employee
 from app.models.employee_allocation import EmployeeAllocation
 from app.models.opportunity import Opportunity
 from app.models.project import Project, ProjectMilestone
+from app.core.logging import logger
 
 PROJECT_STATUS_TRANSITIONS = {
     "PLANNING": {"ACTIVE", "CLOSED"},

@@ -27,6 +27,7 @@ from typing import Any, Dict, List, Optional
 
 from sqlalchemy import and_, asc, desc
 from sqlalchemy.orm import Session
+from app.core.logging import logger
 
 logger = logging.getLogger(__name__)
 

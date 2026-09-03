@@ -17,6 +17,7 @@ from sqlalchemy.orm import Session
 
 from app.models.employee import Employee
 from app.models.org_structure import OrgNode
+from app.core.logging import logger
 
 logger = logging.getLogger(__name__)
 

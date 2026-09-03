@@ -29,6 +29,7 @@ from app.core.graph_auth import get_graph_token
 from app.core.llm_prompt_safety import build_safe_prompt, flag_suspicious_patterns
 from app.core.logging import logger
 from app.models.candidate import (
+from fastapi import Depends
     Candidate,
     CandidateInfoForm,
     CandidateExperienceForm,

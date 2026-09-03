@@ -22,6 +22,7 @@ from app.models.candidate_resume_parsed import CandidateResumeParsed
 from app.schemas.candidate import CandidateResponse
 from app.services.resume_comparison_service import ResumeComparisonService, ResumeChangeAnalysis
 from app.services.resume_search_service import ResumeSearchService
+from app.core.logging import logger
 
 router = APIRouter(prefix="/candidates", tags=["resume-versions"])
 

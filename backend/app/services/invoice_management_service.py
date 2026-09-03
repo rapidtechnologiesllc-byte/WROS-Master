@@ -29,6 +29,7 @@ from app.models.client import Client
 from app.models.org_structure import BusinessUnit
 
 from app.services.revenue_recognition_service import recognize_revenue_from_paid_invoice
+from app.core.logging import logger
 
 logger = logging.getLogger(__name__)
 

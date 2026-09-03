@@ -2,6 +2,7 @@ from pydantic import BaseModel, EmailStr, Field
 from typing import Optional, List
 import logging
 from datetime import datetime
+from app.core.logging import logger
 
 
 # ---------------------------------------------------------------------------

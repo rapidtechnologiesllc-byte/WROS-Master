@@ -44,6 +44,7 @@ from sqlalchemy.orm import Session
 
 from app.models.candidate import Candidate, CandidateStatus
 from app.models.user import (
+from app.core.logging import logger
     CandidateAssignment,
     Interview,
     InterviewFeedback,

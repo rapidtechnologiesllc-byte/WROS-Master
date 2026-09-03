@@ -28,6 +28,7 @@ from app.core.audit import write_audit_log
 from app.models.client import BILLING_CURRENCIES
 from app.models.system_config import CONFIG_CATEGORIES, SystemConfig
 from app.models.tenant import TENANT_DATE_FORMATS, Tenant
+from app.core.logging import logger
 
 CACHE_TTL_SECONDS = 60  # AC-4 -- a saved change must be visible within 60s
 _CONFIG_CACHE: Dict[Tuple[int, Optional[int], str], Tuple[float, Any]] = {}

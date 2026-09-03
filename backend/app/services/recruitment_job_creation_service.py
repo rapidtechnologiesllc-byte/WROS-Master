@@ -21,6 +21,7 @@ from langchain_anthropic import ChatAnthropic
 import os
 import json
 from dotenv import load_dotenv
+from app.core.logging import logger
 
 load_dotenv()
 

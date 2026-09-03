@@ -1,4 +1,5 @@
 import logging
+from app.core.logging import logger
 ﻿"""Spartan Phalanx Formation API - Shield wall monitoring and integrity tracking."""
 
 from fastapi import APIRouter, Depends, HTTPException, Query

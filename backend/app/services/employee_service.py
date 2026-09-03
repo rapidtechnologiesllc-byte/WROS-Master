@@ -17,6 +17,7 @@ from sqlalchemy.orm import Session
 
 from app.models.candidate import Candidate
 from app.models.employee import (
+from app.core.logging import logger
     ALLOWED_STATUS_TRANSITIONS,
     Employee,
     EmployeeEmploymentHistory,

@@ -27,6 +27,7 @@ from app.models.employee import Employee
 from app.models.employee_allocation import EmployeeAllocation
 from app.models.timesheet import Timesheet
 from app.models.user import Users
+from app.core.logging import logger
 
 logger = logging.getLogger(__name__)
 

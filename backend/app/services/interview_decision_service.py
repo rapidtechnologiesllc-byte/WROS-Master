@@ -8,6 +8,7 @@ from datetime import datetime
 from typing import Optional, List, Dict, Any
 from sqlalchemy.orm import Session
 from sqlalchemy import func
+from app.core.logging import logger
 
 logger = logging.getLogger(__name__)
 from app.models.user import Interview, Jobs, Users

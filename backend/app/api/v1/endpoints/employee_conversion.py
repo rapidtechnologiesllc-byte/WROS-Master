@@ -1,3 +1,4 @@
+from app.core.logging import logger
 """S-313 Employee Conversion REST Endpoints"""
 from datetime import date
 from fastapi import APIRouter, Depends, HTTPException

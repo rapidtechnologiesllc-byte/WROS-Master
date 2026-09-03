@@ -1,4 +1,5 @@
 import logging
+from fastapi import Request
 """Employee Referral API - Job referrals and bonus tracking."""
 
 from fastapi import APIRouter, Depends, HTTPException, Query

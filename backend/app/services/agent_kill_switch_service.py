@@ -1,4 +1,5 @@
 import logging
+from app.core.logging import logger
 """Agent Kill Switch Automation - Disable agents that can't hit minimum targets."""
 
 from sqlalchemy.orm import Session

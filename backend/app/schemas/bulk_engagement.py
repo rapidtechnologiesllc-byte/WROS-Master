@@ -1,3 +1,4 @@
+from app.core.logging import logger
 """Pydantic Schemas -- S-074/HRMS-0474 Bulk Candidate Engagement Launch."""
 import logging
 from typing import Dict, List, Optional

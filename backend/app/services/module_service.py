@@ -1,4 +1,5 @@
 import logging
+from app.core.logging import logger
 """Module Service - Database-driven module and permission management."""
 
 from typing import List, Dict, Optional

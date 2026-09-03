@@ -1,3 +1,4 @@
+from app.core.logging import logger
 """Defect reporting endpoint - logs user-reported issues for QA review."""
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session

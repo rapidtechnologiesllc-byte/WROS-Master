@@ -21,6 +21,7 @@ from app.models.project import Project
 from app.models.org_structure import PartnerBUAssignment
 from app.models.client import Client
 from app.models.employee import Employee
+from app.core.logging import logger
 
 logger = logging.getLogger(__name__)
 

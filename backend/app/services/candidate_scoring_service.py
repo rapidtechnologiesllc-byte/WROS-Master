@@ -22,6 +22,7 @@ import logging
 
 from app.models.candidate import Candidate
 from app.models.demand import Demand
+from app.core.logging import logger
 
 logger = logging.getLogger(__name__)
 

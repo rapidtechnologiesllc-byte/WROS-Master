@@ -50,6 +50,7 @@ from app.models.user import Jobs
 from app.services.ai_conversation_service import get_conversation_thread, get_missing_fields, resolve_thunder_config
 from app.services.candidate_memory_service import get_memory
 from app.services.qualification_engine_service import QualificationNotApplicable, get_qualification_plan, is_qualifying_state
+from app.core.logging import logger
 
 CACHE_TTL_SECONDS = 30
 

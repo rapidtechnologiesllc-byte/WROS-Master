@@ -14,6 +14,7 @@ from app.models.employee import Employee
 from app.models.employee_allocation import EmployeeAllocation
 from app.models.timesheet import Timesheet
 from app.services.forecast_variance_service import get_monthly_actual_revenue
+from app.core.logging import logger
 
 logger = logging.getLogger(__name__)
 

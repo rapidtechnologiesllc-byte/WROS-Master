@@ -2,6 +2,7 @@ from pydantic import BaseModel, EmailStr, constr, Field
 from typing import Optional, List
 import logging
 from datetime import datetime, date
+from app.core.logging import logger
 
 
 # Candidate Assignment Schemas

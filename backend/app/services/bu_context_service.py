@@ -28,6 +28,7 @@ from app.models.audit_log import AuditLog
 from app.models.bu_access import BUAccess
 from app.models.business_unit import BusinessUnit
 from app.models.user import Users
+from app.core.logging import logger
 
 ALL_BUS_ROLES = ("Super User",)  # see module docstring -- "Director" analog
 

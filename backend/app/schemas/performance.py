@@ -1,4 +1,5 @@
 import logging
+from app.core.logging import logger
 """Pydantic schemas -- HRMS-0515 (Employee Performance Intelligence Store) read API."""
 
 from datetime import datetime

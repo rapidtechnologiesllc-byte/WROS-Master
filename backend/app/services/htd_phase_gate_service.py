@@ -40,6 +40,7 @@ from app.models.employee import Employee
 from app.models.htd_phase_gate import HTD_GATE_DECISIONS, HTD_GATE_PHASES, HTDPhaseGate
 from app.services.employee_service import transition_employee_status
 from app.services.performance_store_service import write_performance_event
+from app.core.logging import logger
 
 PHASE_SEQUENCE = HTD_GATE_PHASES  # INDUCTION -> SHADOW_DELIVERY -> CONTROLLED_OWNERSHIP -> CORE_ELIGIBILITY_REVIEW
 PHASE_GATE_OWNERS = {

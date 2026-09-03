@@ -46,6 +46,7 @@ from app.models.candidate_ai import CandidateConversation, ConversationEvent
 from app.models.user import Users
 from app.services.ai_conversation_service import AI_AGENT_NAME
 from app.services.notification_service import ChannelNotConfigured
+from app.core.logging import logger
 
 # The shared/Thunder number -- used when the AI owns the conversation, or
 # as a fallback for a human owner with no personal number registered.

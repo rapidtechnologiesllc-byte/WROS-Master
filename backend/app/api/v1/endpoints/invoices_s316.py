@@ -28,6 +28,7 @@ from app.core.dependencies import get_current_internal_user
 from app.core.visibility import should_bypass_bu_filter, get_user_bu_id
 from app.models.user import Users
 from app.schemas.invoice_s316 import (
+from fastapi import Request
     GenerateInvoiceRequest,
     GenerateInvoiceResponse,
     SendInvoiceRequest,

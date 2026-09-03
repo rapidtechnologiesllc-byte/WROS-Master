@@ -1,3 +1,4 @@
+from app.core.logging import logger
 """Agent Standups Dashboard - Daily aggregated view for CEO."""
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session

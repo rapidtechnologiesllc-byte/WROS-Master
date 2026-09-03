@@ -15,6 +15,7 @@ from app.core.dependencies import get_current_internal_user, get_current_user, r
 from app.core.logging import logger
 from app.models import Candidate, Interview, InterviewPanel, PanelMember, Users
 from app.services.email_service import EmailService
+from fastapi import Request
 
 router = APIRouter(prefix="/email", tags=["Email Service"])
 

@@ -8,6 +8,7 @@ import logging
 from pydantic import BaseModel
 from typing import Optional
 from datetime import datetime
+from app.core.logging import logger
 
 logger = logging.getLogger(__name__)
 

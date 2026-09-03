@@ -1,3 +1,4 @@
+from app.core.logging import logger
 """HRMS-1104 -- Hiring Manager Validation Questions (Phase 3, S-319)"""
 import uuid
 import logging

@@ -25,6 +25,7 @@ from app.models.candidate import Candidate
 from app.models.offer_letter import OfferLetter
 from app.models.employee import Employee
 from app.models.business_unit import BusinessUnit
+from app.core.logging import logger
 
 logger = logging.getLogger(__name__)
 

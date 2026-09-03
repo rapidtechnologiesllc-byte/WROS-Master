@@ -1,4 +1,5 @@
 import logging
+from app.core.logging import logger
 """Agent Shield Service - Spartan Phalanx formation monitoring and integrity checks."""
 
 from sqlalchemy.orm import Session

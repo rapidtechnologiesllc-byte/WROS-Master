@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from app.core.security import get_password_hash
 from app.models.demand import Demand
 from app.models.sub_vendor import SubVendorAccount, SubVendorRequest, SubVendorUser
+from app.core.logging import logger
 
 logger = logging.getLogger(__name__)
 

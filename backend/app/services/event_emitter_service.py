@@ -28,6 +28,7 @@ from typing import Any, Dict, List, Optional
 from sqlalchemy.orm import Session
 
 from app.models.event_log import EventLog
+from app.core.logging import logger
 
 # Step 1's literal event catalog. candidate_scoped=True means BR-02
 # requires candidate_id on every emit of that type.

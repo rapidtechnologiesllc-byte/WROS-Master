@@ -16,6 +16,7 @@ from app.core.database import get_db
 from app.models.candidate import Candidate
 from app.models.linkedin_candidate_pipeline import LinkedInCandidatePipeline, LinkedInPipelineStatus
 from app.models.consent import ConsentRecord
+from fastapi import Request
 
 router = APIRouter(prefix="/linkedin-candidate-pipeline", tags=["LinkedIn Pipeline"])
 

@@ -1,3 +1,4 @@
+from app.core.logging import logger
 """Pydantic Schemas -- S-062/HRMS-0462 Recruiter Intervention Queue."""
 from datetime import datetime
 import logging

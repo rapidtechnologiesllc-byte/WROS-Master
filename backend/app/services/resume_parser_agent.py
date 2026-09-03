@@ -4,6 +4,7 @@ Resume Parser Agent - parses resumes using LLM
 
 import logging
 from typing import Dict, Any, Optional
+from app.core.logging import logger
 
 logger = logging.getLogger(__name__)
 

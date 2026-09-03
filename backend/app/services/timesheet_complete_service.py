@@ -11,6 +11,7 @@ from app.models.allocation import EmployeeAllocation
 from app.models.project import Project
 import logging
 from app.models.employee import Employee
+from app.core.logging import logger
 
 logger = logging.getLogger(__name__)
 

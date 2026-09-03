@@ -1,3 +1,4 @@
+from app.core.logging import logger
 """Pydantic Schemas -- S-070/HRMS-0470 Candidate Engagement Health Metrics."""
 from datetime import datetime
 import logging

@@ -39,6 +39,7 @@ from app.models.candidate import Candidate
 from app.models.demand import Demand
 from app.models.employee import Employee
 from app.models.submission import (
+from app.core.logging import logger
     ALLOWED_SUBMISSION_TRANSITIONS,
     Submission,
     SubmissionViolation,

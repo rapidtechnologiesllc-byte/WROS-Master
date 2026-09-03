@@ -14,6 +14,7 @@ from typing import Any, Dict, List, Optional
 from datetime import datetime, timedelta
 
 from sqlalchemy.orm import Session
+from app.core.logging import logger
 
 logger = logging.getLogger(__name__)
 

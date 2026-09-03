@@ -1,4 +1,5 @@
 import logging
+from app.core.logging import logger
 """Role-Based Dashboard API endpoints."""
 
 from fastapi import APIRouter, Depends, HTTPException

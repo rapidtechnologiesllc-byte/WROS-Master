@@ -18,6 +18,7 @@ from app.core.dependencies import get_current_internal_user, require_resource_pe
 from app.models.user import Users
 from app.models.role_template import RoleTemplate
 from app.services.permission_composition_service import PermissionCompositionService
+from app.core.logging import logger
 
 
 router = APIRouter(prefix="/admin/permissions", tags=["Permission Composition"])

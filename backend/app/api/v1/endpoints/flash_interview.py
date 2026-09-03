@@ -1,3 +1,4 @@
+from app.core.logging import logger
 """Flash Interview Analysis endpoints â€” AI-powered interview assessment."""
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session

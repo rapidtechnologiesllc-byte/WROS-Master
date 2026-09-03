@@ -37,6 +37,7 @@ import logging
 from typing import Callable, Optional
 
 from app.models.document import CandidateDocument
+from app.core.logging import logger
 
 VIRUS_SCAN_RESULTS = ("clean", "infected", "error")
 

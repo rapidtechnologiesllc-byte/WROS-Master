@@ -19,6 +19,7 @@ from app.models.user import Users
 from app.services.organization_service import OrganizationService
 from app.services.candidate_isolation_service import CandidateIsolationService
 from app.services.permission_helper import PermissionHelper
+from app.core.logging import logger
 
 
 def get_candidates_for_user(

@@ -1,3 +1,4 @@
+from app.core.logging import logger
 """Training and Certification Dashboard Service."""
 from datetime import datetime, timedelta
 from sqlalchemy.orm import Session

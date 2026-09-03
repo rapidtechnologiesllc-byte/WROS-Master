@@ -4,6 +4,7 @@ from typing import Optional, List
 from datetime import datetime, date
 import logging
 from pydantic import Field
+from app.core.logging import logger
 
 # Candidate schemas
 class CandidateCreateRequest(BaseModel):

@@ -28,6 +28,7 @@ from app.models.employee import Employee
 from app.models.employee_allocation import EmployeeAllocation
 from app.services.employee_service import transition_employee_status
 from app.services.resource_management_service import (
+from app.core.logging import logger
     log_allocation_conflict,
     mark_employee_on_bench,
     remove_employee_from_bench,

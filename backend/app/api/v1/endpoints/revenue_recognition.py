@@ -26,6 +26,7 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.visibility import should_bypass_bu_filter, get_user_bu_id
 from app.schemas.revenue_recognition import (
+from app.core.dependencies import get_current_internal_user
     RecognizeRevenueRequest,
     CreateRevenueEntriesRequest,
     CalculateASRRequest,

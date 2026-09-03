@@ -29,6 +29,7 @@ from typing import List, Optional
 from app.core.database import get_db
 from app.core.dependencies import get_current_internal_user, require_resource_permission
 from app.core.permission_enforcement import (
+from fastapi import Request
     require_action_permission, check_permission, check_any_permission
 )
 from app.models.user import Users

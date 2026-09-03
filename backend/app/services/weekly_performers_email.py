@@ -16,6 +16,7 @@ from app.models.candidate import Candidate
 from app.models.user import User
 from app.core.logging import logger
 from app.services.email_service import send_email
+import logging
 
 
 def calculate_weekly_performance(db: Session) -> List[Tuple[dict, int]]:

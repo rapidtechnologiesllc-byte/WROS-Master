@@ -7,6 +7,7 @@ This stub file prevents import errors during the transition period.
 """
 
 import logging
+from app.core.logging import logger
 logger = logging.getLogger(__name__)
 
 class RBACauditService:

@@ -14,6 +14,7 @@ from app.core.logging import logger
 from app.services.relation_building_agent_service import RelationBuildingAgent
 from app.services.relation_building_dashboard_service import RelationBuildingDashboard
 from app.models.user import Users
+from app.core.database import get_db
 
 router = APIRouter(prefix="/relation-building", tags=["relation-building"])
 

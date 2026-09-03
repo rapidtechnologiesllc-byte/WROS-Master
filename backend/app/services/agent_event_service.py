@@ -1,4 +1,5 @@
 import logging
+from app.core.logging import logger
 """Agent Event Service - Inter-agent communication via structured events."""
 
 from sqlalchemy.orm import Session

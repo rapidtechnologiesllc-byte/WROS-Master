@@ -8,6 +8,7 @@ This module supports both production (real MCP calls) and test (mocked) scenario
 """
 import logging
 from typing import Optional, Dict, Any
+from app.core.logging import logger
 
 logger = logging.getLogger(__name__)
 

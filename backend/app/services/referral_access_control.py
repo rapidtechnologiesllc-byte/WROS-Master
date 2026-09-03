@@ -1,4 +1,5 @@
 import logging
+from app.core.logging import logger
 ﻿"""Role-Based Access Control for Employee Referrals.
 
 ZERO-HARDCODING: All access rules determined by database-driven role_templates,

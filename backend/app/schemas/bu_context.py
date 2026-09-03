@@ -1,3 +1,4 @@
+from app.core.logging import logger
 """Pydantic schemas -- S-205 Business Unit Context Switching."""
 import logging
 from typing import List, Optional

@@ -1,3 +1,4 @@
+from app.core.logging import logger
 """Queue Management Endpoints - Channel-based message queue API."""
 import logging
 from typing import Any, Dict, Optional

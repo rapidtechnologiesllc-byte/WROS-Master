@@ -6,6 +6,7 @@ import logging
 from typing import List, Optional
 
 from pydantic import BaseModel
+from app.core.logging import logger
 
 logger = logging.getLogger(__name__)
 

@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 from app.core.dependencies import get_db, get_current_user, require_resource_permission
 from app.services.recruitment_funnel_dashboard_service import RecruitmentFunnelDashboard
 from app.core.logging import logger
+from app.core.database import get_db
 
 router = APIRouter(prefix="/recruiting", tags=["recruitment-funnel"])
 

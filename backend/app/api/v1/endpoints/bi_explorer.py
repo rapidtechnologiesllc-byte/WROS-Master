@@ -1,3 +1,4 @@
+from app.core.logging import logger
 """Business Intelligence Explorer - Dynamic table and column selection."""
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session

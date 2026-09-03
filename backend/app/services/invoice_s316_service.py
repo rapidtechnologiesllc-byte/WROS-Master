@@ -31,6 +31,7 @@ from app.models.client import Client
 from app.models.project import Project
 from app.models.employee_allocation import EmployeeAllocation
 from app.models.timesheet_dispute import TimesheetDispute
+from app.core.logging import logger
 
 logger = logging.getLogger(__name__)
 

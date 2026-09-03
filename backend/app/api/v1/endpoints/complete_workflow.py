@@ -17,6 +17,7 @@ from app.services.project_allocation_service import ProjectAllocationService
 from app.services.candidate_scoring_service import CandidateScoringService
 from app.services.hiring_manager_validation_service import HiringManagerValidationService
 from app.services.core_pull_service import CorePullService
+from app.core.logging import logger
 
 router = APIRouter(prefix="/workflow", tags=["workflow"])
 logger = logging.getLogger(__name__)

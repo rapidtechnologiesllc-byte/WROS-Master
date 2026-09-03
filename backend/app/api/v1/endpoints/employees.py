@@ -44,6 +44,7 @@ from app.models.resource_management import BenchPoolEntry
 from app.models.user import Users
 from app.schemas.performance import PerformanceEventItem, PerformanceStoreResponse
 from app.schemas.employee import (
+from app.core.logging import logger
     BenchAgingAlertItem,
     BenchAgingAlertsResponse,
     BenchCostSummaryItem,

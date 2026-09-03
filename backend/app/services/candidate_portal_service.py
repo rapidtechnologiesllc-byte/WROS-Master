@@ -53,6 +53,7 @@ from app.models.candidate import Candidate
 from app.models.candidate_ai import CandidateConversation, ConversationEvent
 from app.models.user import Interview
 from app.services.ai_conversation_service import get_conversation_thread, get_missing_fields
+from app.core.dependencies import get_current_candidate
 
 PORTAL_LINK_EXPIRY_DAYS = 14
 

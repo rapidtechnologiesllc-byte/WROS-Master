@@ -20,6 +20,7 @@ from sqlalchemy import func
 
 from app.utils.agent_logger import log_agent_execution
 from app.models.agent_execution_log import AgentExecutionLog
+from app.core.logging import logger
 
 logger = logging.getLogger(__name__)
 

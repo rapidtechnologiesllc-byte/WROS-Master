@@ -33,6 +33,7 @@ from sqlalchemy.orm import Session
 from app.models.buddy_program import BuddyKPIScore, BuddyProgramRecord
 from app.models.employee import Employee
 from app.services.performance_store_service import write_performance_event
+from app.core.logging import logger
 
 # kpi_number -> (category, name), per S-364's Step 2 seed data.
 KPI_DEFINITIONS: Dict[int, tuple] = {

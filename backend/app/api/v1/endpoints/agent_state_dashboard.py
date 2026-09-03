@@ -1,4 +1,5 @@
 import logging
+from app.core.logging import logger
 """Agent State Dashboard - Strategic alignment, fear scores, and accountability."""
 
 from fastapi import APIRouter, Depends, HTTPException

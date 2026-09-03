@@ -17,6 +17,7 @@ from sqlalchemy import and_, or_
 from app.models.user import Users
 from app.models.task import Task, TASK_STATUSES
 from app.models.audit_log import AuditLog
+from app.core.logging import logger
 
 logger = logging.getLogger(__name__)
 

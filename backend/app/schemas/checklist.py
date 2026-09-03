@@ -12,6 +12,7 @@ import logging
 from datetime import datetime
 from typing import Optional, List
 from pydantic import BaseModel, Field
+from app.core.logging import logger
 
 
 # ---------------------------------------------------------------------------

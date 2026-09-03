@@ -1,3 +1,4 @@
+from app.core.logging import logger
 """Agent endpoints for Partner ROI, CFO, and CEO agents."""
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status

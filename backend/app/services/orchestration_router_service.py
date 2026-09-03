@@ -51,6 +51,7 @@ from app.models.candidate_ai import CandidateConversation
 from app.models.orchestration import RESOLUTION_ACTIONS, SEVERITIES, ConflictRule, OrchestrationEvent
 from app.models.user import Users
 from app.services.notification_service import send_notification
+from app.core.logging import logger
 
 NOVEL_PATTERN_WINDOW_MINUTES = 5   # BR-1101 Step 4
 HIGH_SEVERITY_PAGE_SLA_SECONDS = 300  # BR-1101-04

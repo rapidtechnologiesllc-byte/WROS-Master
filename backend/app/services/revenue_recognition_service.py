@@ -26,6 +26,7 @@ from app.models.opportunity import Opportunity
 from app.models.client import Client
 from app.models.org_structure import PartnerBUAssignment, OrgNode
 from app.models.business_unit_context import BusinessUnitContext
+from app.core.logging import logger
 
 
 # Custom exceptions

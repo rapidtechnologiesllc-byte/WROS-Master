@@ -1,4 +1,5 @@
 import logging
+from app.core.logging import logger
 """Pydantic schemas -- HRMS-0907 (Invoice Generation, Status Tracking) API."""
 
 from datetime import date, datetime

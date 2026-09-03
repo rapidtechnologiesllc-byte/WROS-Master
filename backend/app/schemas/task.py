@@ -1,3 +1,4 @@
+from app.core.logging import logger
 """Pydantic schemas -- S-434 Task Dashboard."""
 from datetime import datetime
 import logging

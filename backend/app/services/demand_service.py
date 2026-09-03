@@ -1,3 +1,4 @@
+from app.core.logging import logger
 """HRMS-0103 — demand creation, status state machine, and the
 bench-first sourcing gate (R-04)."""
 import json

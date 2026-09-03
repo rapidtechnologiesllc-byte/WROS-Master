@@ -15,6 +15,7 @@ from datetime import datetime
 
 from app.core.dependencies import get_db, get_current_user, require_resource_permission
 from app.models.user import Users
+from app.core.database import get_db
 
 router = APIRouter(prefix="/goals", tags=["goals"])
 

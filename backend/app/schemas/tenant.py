@@ -1,4 +1,5 @@
 import logging
+from app.core.logging import logger
 """Pydantic schemas -- S-219/HRMS-0121 (Multi-Continent Locale & Currency Config)."""
 
 from typing import Optional

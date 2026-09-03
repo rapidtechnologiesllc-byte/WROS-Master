@@ -32,6 +32,7 @@ from app.models.core_pull import CorePullEvent, SpecialtyPoolReplacementPlan
 from app.models.user import Users
 from app.services.notification_service import send_notification
 from app.services.orchestration_router_service import evaluate_action_intent
+from app.core.logging import logger
 
 CORE_PULL_AGENT_ID = "core_pull_engine"
 SPECIALTY_POOL_MINIMUM = 40  # S-373 BR: a hard floor, not a target

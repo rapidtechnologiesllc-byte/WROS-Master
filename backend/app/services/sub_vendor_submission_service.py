@@ -21,6 +21,7 @@ from sqlalchemy.orm import Session
 from app.models.candidate import Candidate
 from app.models.sub_vendor import SubVendorAccount, SubVendorRequest
 from app.models.sub_vendor_submission import (
+from app.core.logging import logger
     SubVendorDedupRejection,
     SubVendorSubmission,
     SubVendorViolation,

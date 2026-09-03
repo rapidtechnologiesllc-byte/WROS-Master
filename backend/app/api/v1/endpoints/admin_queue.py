@@ -20,6 +20,7 @@ from app.core.database import SessionLocal
 from app.core.dependencies import get_current_internal_user, require_resource_permission
 from datetime import datetime, timedelta
 from typing import List, Optional
+from app.core.logging import logger
 
 router = APIRouter(prefix="/admin/queue", tags=["admin"])
 

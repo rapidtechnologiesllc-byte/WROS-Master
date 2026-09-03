@@ -1,4 +1,5 @@
 import logging
+from app.core.logging import logger
 """Agent Performance Dashboard - Individual agent metrics vs targets."""
 
 from sqlalchemy.orm import Session

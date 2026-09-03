@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 from app.core.dependencies import get_db, get_current_user, require_resource_permission
 from app.services.agent_accountability_service import AgentAccountabilityService
 from app.core.logging import logger
+from app.core.database import get_db
 
 router = APIRouter(prefix="/agents", tags=["agent-accountability"])
 

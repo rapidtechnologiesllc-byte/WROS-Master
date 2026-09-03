@@ -1,3 +1,4 @@
+from app.core.logging import logger
 """Daily standup (8:00 AM EST) and scrum of scrums (8:30 AM EST) endpoints."""
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session

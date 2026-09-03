@@ -10,6 +10,7 @@ from typing import Optional, Dict, List
 from enum import Enum
 
 from app.models import (
+from app.core.logging import logger
     HiringManagerValidation,
     HMValidationStatus,
     HMValidationResponse,

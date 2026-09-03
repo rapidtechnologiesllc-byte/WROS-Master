@@ -1,3 +1,4 @@
+from app.core.logging import logger
 """Opportunity Tracker Agent endpoints for sales pipeline management."""
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session

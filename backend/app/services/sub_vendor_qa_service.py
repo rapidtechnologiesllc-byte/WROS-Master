@@ -1,3 +1,4 @@
+from app.core.logging import logger
 """HRMS-P814 -- Sub-Vendor Request for Clarification."""
 from datetime import datetime
 import logging

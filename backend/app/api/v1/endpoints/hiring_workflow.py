@@ -1,3 +1,4 @@
+from app.core.logging import logger
 """Interview â†’ Hire â†’ Onboarding workflow API endpoints."""
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session

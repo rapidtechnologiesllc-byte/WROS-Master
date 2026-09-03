@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field
 from typing import Optional, List, Dict, Any
 import logging
 from datetime import datetime
+from app.core.logging import logger
 
 
 # ────────────────────────────────────────────────────────────────────────────

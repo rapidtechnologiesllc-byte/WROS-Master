@@ -34,6 +34,7 @@ from app.services.htd_pipeline_accountability_agent import HTDPipelineAccountabi
 from app.services.opportunity_tracker_agent_service import OpportunityTrackerAgent
 from app.services.relation_building_agent_service import RelationBuildingAgent
 from app.services.performance_store_service import write_performance_event
+from app.core.logging import logger
 
 logger = logging.getLogger(__name__)
 

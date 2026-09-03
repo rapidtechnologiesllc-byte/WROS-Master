@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 import app.schemas as schema
 from app.core.database import SessionLocal, engine, check_candidate, check_user, get_db
 from app.core.security import (
+from fastapi import Request
     verify_password,
     create_access_token,
     get_password_hash,

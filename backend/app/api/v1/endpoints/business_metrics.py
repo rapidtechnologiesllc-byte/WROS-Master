@@ -1,4 +1,5 @@
 import logging
+from app.core.logging import logger
 """Business Metrics Endpoints - Daily standup business outcomes."""
 
 from fastapi import APIRouter, Depends, HTTPException

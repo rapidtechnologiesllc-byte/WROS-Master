@@ -25,6 +25,7 @@ from app.models.demand import Demand
 from app.models.client import Client
 from app.models.employee import Employee
 from app.models.project import Project
+from app.core.logging import logger
 
 logger = logging.getLogger(__name__)
 

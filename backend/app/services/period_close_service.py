@@ -19,6 +19,7 @@ from app.models.invoice import Invoice
 from app.models.revenue import Revenue
 from app.models.org_structure import BusinessUnit
 from app.models.timesheet import Timesheet
+from app.core.logging import logger
 
 logger = logging.getLogger(__name__)
 

@@ -18,6 +18,7 @@ from sqlalchemy.orm import Session
 
 from app.models.timesheet import Timesheet
 from app.models.timesheet_dispute import OPEN_DISPUTE_STATUSES, TimesheetDispute
+from app.core.logging import logger
 
 MIN_REASON_LENGTH = 50
 

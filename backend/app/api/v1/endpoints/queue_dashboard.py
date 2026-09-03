@@ -1,3 +1,4 @@
+from app.core.logging import logger
 """Queue Dashboard Endpoints - Admin only"""
 import logging
 from typing import Optional

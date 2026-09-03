@@ -32,6 +32,7 @@ from sqlalchemy.orm import Session
 from app.core.security import get_password_hash
 from app.models.candidate import Candidate
 from app.utils.uniq_id_generator import candidate_id_generator, generate_password
+from app.core.logging import logger
 
 logger = logging.getLogger(__name__)
 

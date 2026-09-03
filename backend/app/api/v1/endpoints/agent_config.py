@@ -19,6 +19,7 @@ from pydantic import BaseModel
 from app.core.dependencies import get_db, get_current_user, require_resource_permission
 from app.services.agent_config_service import AgentConfigService
 from app.core.logging import logger
+from fastapi import Request
 
 router = APIRouter(prefix="/admin/agents/config", tags=["agent-config"])
 

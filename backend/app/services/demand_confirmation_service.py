@@ -15,6 +15,7 @@ from app.models.demand_confirmation import DemandAlignmentCall
 from app.models.employee import Employee
 from app.models.user import Users
 from app.services.notification_service import send_notification
+from app.core.logging import logger
 
 PARTICIPANTS = ("EMPLOYEE", "BU_HEAD")
 

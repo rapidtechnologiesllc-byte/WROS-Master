@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 from app.core.database import SessionLocal
 from app.models.message_queue import MessageQueue
 from app.services.message_queue_service import MessageQueueService
+from fastapi import Depends
 
 logger = logging.getLogger(__name__)
 

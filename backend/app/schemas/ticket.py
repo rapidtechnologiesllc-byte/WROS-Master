@@ -1,3 +1,4 @@
+from app.core.logging import logger
 """Pydantic schemas -- Help Desk/IT-HR Ticketing."""
 from datetime import datetime
 import logging

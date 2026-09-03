@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session
 from app.models.notification import NOTIFICATION_CHANNELS, PRIORITY_TIERS, Notification
 from app.models.user import Users
 from app.services.email_service import EmailService
+from app.core.logging import logger
 
 DEFAULT_TIMEZONE = "Asia/Kolkata"
 # BR-0113-03's stated default; HRMS-0121 (the story meant to make this

@@ -32,6 +32,7 @@ from app.core.dependencies import get_current_internal_user, require_resource_pe
 from app.models.user import Users
 from app.models.work_order import WorkOrder
 from app.schemas.work_order import (
+from app.core.logging import logger
     CreateWorkOrderRequest,
     UpdateWorkOrderRequest,
     WorkOrderItem,

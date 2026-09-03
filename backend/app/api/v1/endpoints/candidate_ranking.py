@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.dependencies import get_current_user, require_resource_permission
 from app.schemas.candidate_ranking import (
+from fastapi import Request
     CalculateFitScoreRequest,
     CalculateFitScoreResponse,
     RankCandidatesRequest,

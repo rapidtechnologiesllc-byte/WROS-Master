@@ -3,6 +3,7 @@ from pydantic import BaseModel, EmailStr, constr
 from typing import Optional, List
 import logging
 from datetime import datetime, date
+from app.core.logging import logger
 logger = logging.getLogger(__name__)
 
 class SignupRequest(BaseModel):

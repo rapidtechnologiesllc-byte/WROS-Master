@@ -10,6 +10,7 @@ Use RoleTemplate and RoleTemplatePermission models instead for new code.
 import logging
 from typing import Optional
 from sqlalchemy.orm import Session
+from app.core.logging import logger
 
 logger = logging.getLogger(__name__)
 

@@ -1,3 +1,4 @@
+from app.core.logging import logger
 """Flash Orchestration Engine endpoints - Daily command coordination."""
 from fastapi import APIRouter, Depends, HTTPException
 import logging

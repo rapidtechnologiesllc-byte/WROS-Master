@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 
 from app.core.dependencies import get_db, get_current_user, require_resource_permission
 from app.services.agent_orchestration_service import (
+from app.core.database import get_db
     FlashOrchestrator,
     ThunderAgent,
     RecruitmentScreenerAgent,

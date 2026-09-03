@@ -1,3 +1,4 @@
+from app.core.logging import logger
 """Agent operations endpoints for KPI, HR, and Employee Mental Health agents."""
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session

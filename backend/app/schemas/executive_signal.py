@@ -1,3 +1,4 @@
+from app.core.logging import logger
 """Pydantic schemas -- Executive Signal & Culture Agent."""
 from datetime import datetime
 import logging

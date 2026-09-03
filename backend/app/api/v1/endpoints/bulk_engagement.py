@@ -22,6 +22,7 @@ from app.models.user import Users
 from app.schemas.bulk_engagement import BulkEngageRequest, BulkEngageResponse, BulkImportResponse, BulkJobStatusResponse
 from app.services.ai_conversation_service import resolve_default_tenant_id
 from app.services.bulk_engagement_service import (
+from app.core.database import get_db
     BulkTooLarge, CsvMissingRequiredColumn, CsvTooLarge, get_bulk_job_status,
     import_candidates_from_csv, launch_bulk_engagement, run_bulk_engagement_worker,
 )

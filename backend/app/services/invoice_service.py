@@ -20,6 +20,7 @@ from app.models.invoice import Invoice, InvoiceLineItem
 from app.models.project import Project
 from app.models.timesheet import Timesheet
 from app.services.timesheet_dispute_service import has_open_dispute
+from app.core.logging import logger
 
 logger = logging.getLogger(__name__)
 

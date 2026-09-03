@@ -1,4 +1,5 @@
 import logging
+from app.core.logging import logger
 """Agent Kill Switch API - Execute and manage kill switches."""
 
 from fastapi import APIRouter, Depends, HTTPException

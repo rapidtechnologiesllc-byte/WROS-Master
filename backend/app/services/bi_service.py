@@ -1,3 +1,4 @@
+from app.core.logging import logger
 """Business Intelligence Service - Dynamic table and column exploration."""
 from sqlalchemy.orm import Session
 from sqlalchemy import inspect, text, MetaData

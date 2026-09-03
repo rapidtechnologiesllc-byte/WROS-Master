@@ -1,3 +1,4 @@
+from app.core.logging import logger
 """EPIC-16 Finance Operations endpoints: bank reconciliation, AR aging, invoice details."""
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session

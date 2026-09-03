@@ -1,4 +1,5 @@
 import logging
+from app.core.logging import logger
 """Employee Referral Service - Handle job referrals and bonus tracking."""
 
 from sqlalchemy.orm import Session
