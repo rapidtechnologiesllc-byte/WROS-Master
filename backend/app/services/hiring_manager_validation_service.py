@@ -233,7 +233,7 @@ class HiringManagerValidationService:
             logger.error(f"Failed to send validation to HM: {str(e)}")
             raise
 
-            def record_hm_response(
+    def record_hm_response(
         self,
         db: Session,
         validation_id: str,

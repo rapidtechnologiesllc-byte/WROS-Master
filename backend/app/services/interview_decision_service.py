@@ -259,7 +259,7 @@ class InterviewDecisionService:
             db.rollback()
             raise ValueError(f"Failed to create offer: {str(e)}")
 
-            def reject_candidate(
+    def reject_candidate(
         self,
         db: Session,
         interview_id: int,

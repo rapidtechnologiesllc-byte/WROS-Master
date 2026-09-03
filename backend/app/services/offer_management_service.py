@@ -124,7 +124,7 @@ class OfferManagementService:
             logger.error(f"Unexpected error creating offer: {str(e)}")
             return {"status": "error", "message": f"Unexpected error: {str(e)}"}
 
-            def approve_offer(
+    def approve_offer(
         self,
         db: Session,
         offer_id: str,
