@@ -215,6 +215,11 @@ class CodeGateValidator:
                         'impact_type': 'MISSING_NULL_CHECK'
                     })
 
+        # ──── CRITICAL ARCHITECTURAL CHECKS (ALL FILES) ────
+        # These rules apply EVERYWHERE - no exceptions
+        self._check_thunder_autonomy()
+        self._check_role_template_mandatory()
+
         # ──── CRITICAL CHECKS FOR DATABASE INITIALIZATION FILES ────
         is_db_init = 'init_' in self.file_path or '_seed.py' in self.file_path or 'reset_' in self.file_path
         if is_db_init:
@@ -226,8 +231,6 @@ class CodeGateValidator:
         Database initialization code is CRITICAL PATH - failures here corrupt the entire system.
         These checks are aggressive because silent failures leave the database in inconsistent state.
         """
-        self._check_thunder_autonomy()
-        self._check_role_template_mandatory()
 
     def _check_thunder_autonomy(self):
         """CRITICAL: Thunder must be fully autonomous - ZERO manual intervention allowed.
