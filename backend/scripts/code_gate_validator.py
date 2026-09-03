@@ -109,15 +109,19 @@ class CodeGateValidator:
     def _check_python(self):
         """Check Python files."""
 
-        # Skip validation for utility/script files (not API endpoints)
-        if 'scripts/' in self.file_path or 'utils/' in self.file_path or 'core/' in self.file_path:
+        # Database initialization files get EXTRA STRICT validation (no skipping)
+        is_db_init = 'init_' in self.file_path or '_seed.py' in self.file_path or 'reset_' in self.file_path
+
+        # Skip validation for utility/script files (not API endpoints) - BUT NOT DB INIT FILES
+        if not is_db_init and ('scripts/' in self.file_path or 'utils/' in self.file_path or 'core/' in self.file_path):
             return
 
         for i, line in enumerate(self.lines, 1):
             # CRITICAL 1: Missing role template permission check on protected endpoint
             if '@router.get' in line or '@router.post' in line or '@router.put' in line or '@router.delete' in line:
-                # Check if endpoint has public marker
-                if 'public' in self.lines[i]:
+                # Check if endpoint has public marker (in docstring or comment)
+                next_20_lines = '\n'.join(self.lines[i:min(i+20, len(self.lines))]).upper()
+                if 'PUBLIC' in next_20_lines:
                     continue
 
                 # Look at decorator and next lines for permission enforcement
@@ -210,6 +214,104 @@ class CodeGateValidator:
                         'fix': 'Add null check: if obj: return obj.attribute',
                         'impact_type': 'MISSING_NULL_CHECK'
                     })
+
+        # ──── CRITICAL CHECKS FOR DATABASE INITIALIZATION FILES ────
+        is_db_init = 'init_' in self.file_path or '_seed.py' in self.file_path or 'reset_' in self.file_path
+        if is_db_init:
+            self._check_db_init_safety()
+
+    def _check_db_init_safety(self):
+        """STRICT validation for database initialization code.
+
+        Database initialization code is CRITICAL PATH - failures here corrupt the entire system.
+        These checks are aggressive because silent failures leave the database in inconsistent state.
+        """
+
+        # CRITICAL: Function calls without verification
+        # Pattern: function_call() followed immediately by db.commit() with no checks
+        for i, line in enumerate(self.lines, 1):
+            # Check for function calls (often to other modules)
+            if re.search(r'^\s*\w+\(.*\)\s*$', line) and not line.strip().startswith('#'):
+                # Look ahead to see if there's any error checking
+                next_5_lines = '\n'.join(self.lines[i:min(i+5, len(self.lines))])
+
+                # Pattern 1: Function call → immediately commit with no checks
+                if 'db.commit()' in next_5_lines and not ('if ' in next_5_lines or 'try' in next_5_lines):
+                    if not any(x in line for x in ['logger', 'print', 'db.', '#']):
+                        self.issues.append({
+                            'severity': 'CRITICAL',
+                            'line': i,
+                            'issue': 'Database initialization function called without verification before commit',
+                            'fix': 'Add: result = func(); assert result or raise; then db.commit()',
+                            'impact_type': 'SILENT_CATCH'
+                        })
+
+                # Pattern 2: Function might fail silently (returns None, doesn't raise)
+                if 'seed_' in line or 'assign_' in line or 'init_' in line:
+                    # These are initialization functions - they MUST either:
+                    # 1. Return a truthy value indicating success
+                    # 2. Raise an exception on failure
+                    # 3. Have explicit verification after the call
+
+                    has_verification = False
+                    for j in range(i, min(i+10, len(self.lines))):
+                        check_line = self.lines[j].strip()
+                        # Look for: assert, if result, if not result, except, logger.error
+                        if any(x in check_line for x in ['assert', 'if ', 'except', 'logger.', 'raise', 'result =']):
+                            has_verification = True
+                            break
+
+                    if not has_verification and i < len(self.lines) - 3:
+                        self.issues.append({
+                            'severity': 'CRITICAL',
+                            'line': i,
+                            'issue': 'Initialization function called without post-execution verification (might fail silently)',
+                            'fix': 'Add verification: result = func(); if not result: raise RuntimeError(...)',
+                            'impact_type': 'SILENT_CATCH'
+                        })
+
+        # CRITICAL: db.commit() without preceding error handling
+        for i, line in enumerate(self.lines, 1):
+            if 'db.commit()' in line:
+                # Look backward to see if there was try/except or error checking
+                prev_10_lines = self.lines[max(0, i-10):i]
+
+                has_error_handling = False
+                for check_line in prev_10_lines:
+                    if 'try:' in check_line or 'except' in check_line or 'assert' in check_line:
+                        has_error_handling = True
+                        break
+
+                # If we're in init code and committing data, there MUST be error handling nearby
+                if not has_error_handling and i > 5:  # Skip first few lines
+                    self.issues.append({
+                        'severity': 'CRITICAL',
+                        'line': i,
+                        'issue': 'db.commit() in initialization code without preceding try/except or validation',
+                        'fix': 'Wrap initialization logic in try/except: db.add(obj); validate(); db.commit()',
+                        'impact_type': 'MISSING_ERROR_MSG'
+                    })
+
+        # CRITICAL: Idempotency check - db.query().first() pattern
+        # Pattern: Creating data without checking if it already exists (will fail on re-run)
+        found_create_without_check = False
+        for i, line in enumerate(self.lines, 1):
+            if 'db.add(' in line:
+                # Look backward - did we check if it already exists?
+                prev_lines = '\n'.join(self.lines[max(0, i-10):i])
+
+                if '.first()' not in prev_lines and '.exists()' not in prev_lines and 'if not ' not in prev_lines:
+                    # This db.add might be adding a duplicate on second run
+                    if 'test_' not in prev_lines and 'Test' not in prev_lines:  # Skip test data
+                        self.issues.append({
+                            'severity': 'CRITICAL',
+                            'line': i,
+                            'issue': 'db.add() without checking if record already exists - will fail on re-run',
+                            'fix': 'Add: existing = db.query(...).filter(...).first(); if not existing: db.add(...)',
+                            'impact_type': 'SILENT_CATCH'
+                        })
+                        found_create_without_check = True
+                        break  # Only report first instance
 
     def _check_javascript(self):
         """Check JavaScript files."""
