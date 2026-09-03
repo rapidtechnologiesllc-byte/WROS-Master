@@ -118,10 +118,13 @@ def check_user(db: Session, email: str):
 
 def get_user(db: Session, email: str):
     # Import here to avoid circular import
+    from app.models import Users
+    from sqlalchemy import func
     return db.query(Users).filter(func.lower(Users.UserEmail) == email.lower()).first()
 
 def authenticate_user(db: Session, email: str, password: str):
     from app.core.security import verify_password
+    from app.core.logging import logger
     import hashlib
     import bcrypt
 

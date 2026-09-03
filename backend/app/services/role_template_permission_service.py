@@ -12,7 +12,7 @@ import logging
 
 from sqlalchemy.orm import Session
 from app.models.role_template import RoleTemplate, RoleTemplatePermission, Resource
-from app.models.user import Users
+from app.models.user import Users, UserCustomPermission
 from app.core.logging import logger
 
 logger = logging.getLogger(__name__)
