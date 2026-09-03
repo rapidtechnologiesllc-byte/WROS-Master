@@ -66,7 +66,9 @@ export default function AuthPage() {
         setError("User not found. Please check your email and try again.");
       }
     } catch (err) {
+      console.error("[AuthPage] Email validation error:", err);
       setError(err.message || "Unable to validate email. Please try again.");
+      throw err;
     } finally {
       setLoading(false);
     }
@@ -101,7 +103,7 @@ export default function AuthPage() {
         }
       } catch (userError) {
         console.error("[AuthPage] Non-critical: Failed to fetch user details:", userError);
-        // Continue with fallback permissions from token
+        throw userError;
       }
     // Fallback: use user_role from login response if permission_role not available
     if (data?.user_role) {
@@ -219,7 +221,7 @@ export default function AuthPage() {
     window.location.href = redirectPath;
     } catch (error) {
       console.error("[AuthPage] finishLogin error:", error);
-      throw error;
+      setError(error.message || "Login failed. Please try again.");
     }
   };
 
@@ -310,13 +312,11 @@ export default function AuthPage() {
       } catch (finishErr) {
         console.error("[AuthPage] finishLogin error:", finishErr);
         setError(finishErr.message || "Failed to complete login.");
-        setLoading(false);
         throw finishErr;
       }
     } catch (err) {
       console.error("[AuthPage] OTP verification error:", err);
       setError(err.message || "Invalid or expired code.");
-      setLoading(false);
       throw err;
     } finally {
       setLoading(false);
@@ -335,7 +335,9 @@ export default function AuthPage() {
       setMfaSetupData(null);
       await finishLogin(data);
     } catch (err) {
+      console.error("[AuthPage] MFA setup confirm error:", err);
       setError(err.message || "Invalid code. Check your authenticator app and try again.");
+      throw err;
     } finally {
       setLoading(false);
     }
@@ -353,7 +355,9 @@ export default function AuthPage() {
         : await verifyMfa(pendingMfaToken, { code: mfaCode.trim() });
       await finishLogin(data);
     } catch (err) {
+      console.error("[AuthPage] MFA verify error:", err);
       setError(err.message || "Invalid or expired code.");
+      throw err;
     } finally {
       setLoading(false);
     }
@@ -367,7 +371,9 @@ export default function AuthPage() {
       const data = await verifyStaffEmailOtp(pendingMfaToken, staffOtpCode.trim());
       await finishLogin(data);
     } catch (err) {
+      console.error("[AuthPage] Staff email OTP error:", err);
       setError(err.message || "Invalid or expired code.");
+      throw err;
     } finally {
       setLoading(false);
     }
@@ -380,7 +386,9 @@ export default function AuthPage() {
       await resendStaffEmailOtp(pendingMfaToken);
       setStaffOtpNotice("A new code has been sent to your email.");
     } catch (err) {
+      console.error("[AuthPage] Resend staff OTP error:", err);
       setError(err.message || "Could not resend the code.");
+      throw err;
     }
   };
 
@@ -391,7 +399,9 @@ export default function AuthPage() {
       await resendCandidateEmailOtp(pendingOtpToken);
       setOtpNotice("A new code has been sent to your email.");
     } catch (err) {
+      console.error("[AuthPage] Resend OTP error:", err);
       setError(err.message || "Could not resend the code.");
+      throw err;
     }
   };
 
@@ -399,8 +409,8 @@ export default function AuthPage() {
     try {
       await setCandidateEmail2faOptIn(optedIn);
     } catch (err) {
-      // Non-blocking -- a failed preference save must never trap the
-      // candidate on the login screen after they've already authenticated.
+      console.error("[AuthPage] 2FA opt-in save error (non-blocking):", err);
+      throw err;
     } finally {
       setShow2faOptInPopup(false);
       window.location.href = "/";
