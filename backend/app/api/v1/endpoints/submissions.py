@@ -38,7 +38,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_internal_user
+from app.core.dependencies import get_current_internal_user, require_resource_permission
 from app.models.candidate import Candidate
 from app.models.demand import Demand
 from app.models.submission import Submission, SubmissionViolation
@@ -86,9 +86,9 @@ def _to_item(db: Session, submission: Submission) -> SubmissionItem:
 
 
 @router.post(
-    "", response_model=SubmissionItem,
+    "",
+    response_model=SubmissionItem,
     dependencies=[Depends(get_current_internal_user)],
-    "", response_model=SubmissionItem,
     summary="Submit a candidate to a demand (runs all compliance gates)",
 )
 def submit_candidate(
@@ -150,7 +150,7 @@ def submit_candidate(
     "",
     response_model=SubmissionListResponse,
     summary="List submissions",
-    dependencies=[Depends(require_resource_permission(", response_model=SubmissionListResponse, summary=", "view"))]
+    dependencies=[Depends(require_resource_permission("submission", "view"))]
 )
 def list_submissions(
     demand_id: Optional[str] = None,
@@ -165,7 +165,8 @@ def list_submissions(
 
 
 @router.get(
-    "/violations", response_model=SubmissionViolationListResponse,
+    "/violations",
+    response_model=SubmissionViolationListResponse,
     dependencies=[Depends(get_current_internal_user)],
     summary="Compliance violation audit log",
 )
