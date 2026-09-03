@@ -37,7 +37,7 @@ from openpyxl import load_workbook
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_internal_user
+from app.core.dependencies import get_current_internal_user, require_resource_permission
 from app.models.candidate import Candidate
 from app.models.employee import Employee, EmployeeEngineHistory
 from app.models.resource_management import BenchPoolEntry
@@ -139,7 +139,7 @@ def _get_employee_or_404(db: Session, employee_id: str) -> Employee:
     "",
     response_model=EmployeeItem,
     summary="Create an employee profile",
-    dependencies=[Depends(require_resource_permission(", response_model=EmployeeItem, summary=", "create"))]
+    dependencies=[Depends(require_resource_permission("employee", "create"))]
 )
 def create_employee(
     body: EmployeeCreateRequest,
@@ -351,7 +351,7 @@ async def bulk_import_employees(
     "",
     response_model=EmployeeListResponse,
     summary="List employees",
-    dependencies=[Depends(require_resource_permission(", response_model=EmployeeListResponse, summary=", "view"))]
+    dependencies=[Depends(require_resource_permission("employee", "view"))]
 )
 def list_employees(
     db: Session = Depends(get_db),
@@ -474,7 +474,7 @@ def bench_cost_summary(
     "/{employee_id}",
     response_model=EmployeeItem,
     summary="Get one employee",
-    dependencies=[Depends(require_resource_permission("{employee_id}", "view"))]
+    dependencies=[Depends(require_resource_permission("employee", "view"))]
 )
 def get_employee(
     employee_id: str,
