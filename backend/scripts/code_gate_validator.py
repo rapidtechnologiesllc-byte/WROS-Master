@@ -226,6 +226,74 @@ class CodeGateValidator:
         Database initialization code is CRITICAL PATH - failures here corrupt the entire system.
         These checks are aggressive because silent failures leave the database in inconsistent state.
         """
+        self._check_thunder_autonomy()
+        self._check_role_template_mandatory()
+
+    def _check_thunder_autonomy(self):
+        """CRITICAL: Thunder must be fully autonomous - ZERO manual intervention allowed.
+
+        Thunder processes candidates end-to-end without human approval.
+        Any code that introduces a manual step is a CRITICAL violation.
+        """
+        for i, line in enumerate(self.lines, 1):
+            # Pattern: requires_approval, needs_review, manual_step, await_decision, pending_approval
+            manual_patterns = [
+                'requires_approval',
+                'needs_review',
+                'manual_',
+                'await_decision',
+                'pending_approval',
+                'human_review',
+                'manager_approval',
+                'wait_for_human',
+                'manual_intervention',
+                'requires_confirmation'
+            ]
+
+            for pattern in manual_patterns:
+                if pattern in line.lower() and 'thunder' in '\n'.join(self.lines[max(0, i-5):i+5]).lower():
+                    self.issues.append({
+                        'severity': 'CRITICAL',
+                        'line': i,
+                        'issue': f'THUNDER VIOLATION: Manual intervention detected in Thunder flow ({pattern})',
+                        'fix': f'Remove ALL manual steps from Thunder. Thunder is FULLY AUTONOMOUS.',
+                        'impact_type': 'MISSING_RBAC'
+                    })
+
+    def _check_role_template_mandatory(self):
+        """CRITICAL: role_template_id MUST be required - never make it optional.
+
+        Users CANNOT log in without explicit role assignment.
+        Any code that allows NULL role_template_id is FORBIDDEN.
+        """
+        for i, line in enumerate(self.lines, 1):
+            # Detect attempts to make role_template_id optional
+            patterns_to_reject = [
+                'role_template_id is None',
+                'role_template_id == None',
+                'not role_template_id',
+                'if role_template_id',
+                '# optional',
+                'nullable=True.*role_template',
+                'allow.*null.*role',
+                'skip.*role_template',
+                'role_template.*optional'
+            ]
+
+            for pattern in patterns_to_reject:
+                if 'role_template' in line.lower():
+                    # Check if this is trying to make it optional
+                    if any(x in line.lower() for x in ['optional', 'nullable', 'none', 'null', 'skip', 'or none', 'if not']):
+                        # Make sure it's not in a REJECTION context
+                        context = '\n'.join(self.lines[max(0, i-3):min(i+3, len(self.lines))])
+                        if 'reject' not in context.lower() and 'raise' not in context.lower() and 'error' not in context.lower():
+                            self.issues.append({
+                                'severity': 'CRITICAL',
+                                'line': i,
+                                'issue': 'ROLE TEMPLATE VIOLATION: Attempting to make role_template_id optional',
+                                'fix': 'role_template_id is MANDATORY. Reject users without roles, do NOT allow them through.',
+                                'impact_type': 'MISSING_RBAC'
+                            })
 
         # CRITICAL: Function calls without verification
         # Pattern: function_call() followed immediately by db.commit() with no checks
