@@ -377,7 +377,7 @@ def assign_account_manager(
                     ),
                 )
             except Exception as exc:
-               logger.error(f"Error: {str(exc)}", exc_info=True)
+                logger.error(f"Error: {str(exc)}", exc_info=True)
                 logger.warning(f"[ClientService] Could not send AM assignment notification: {exc}")
 
     return client

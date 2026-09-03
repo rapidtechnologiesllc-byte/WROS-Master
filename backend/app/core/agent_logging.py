@@ -85,7 +85,7 @@ def log_agent_execution(agent_name: str, action_taken: str):
           ...
     """
     def decorator(func):
-        @wraps(func)
+    @wraps(func)
         async def wrapper(*args, **kwargs):
             # Extract db, tenant_id, candidate_id from kwargs or positional args
             db = kwargs.get("db")

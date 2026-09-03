@@ -89,7 +89,7 @@ def _notify_recruiter(db: Session, submission: Optional[Submission], message: st
     try:
         send_notification(db, calling_context_tenant_id=recipient.tenant_id, recipient=recipient, priority_tier="P2", channel_preference="IN_APP", message=message)
     except Exception as exc:
-       logger.error(f"Error: {str(exc)}", exc_info=True)
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[OnboardingAgent] Failed to notify recruiter: {exc}")
 
 
@@ -156,7 +156,7 @@ def _send_touchpoint_message(db: Session, conversation: CandidateConversation, c
         db.commit()
         email_sent = True
     except Exception as exc:
-       logger.error(f"Error: {str(exc)}", exc_info=True)
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.error(f"[OnboardingAgent] Email touchpoint failed for candidate {candidate.candidateID!r}: {exc}")
 
     return whatsapp_sent or email_sent
@@ -212,7 +212,7 @@ def check_onboarding_completion(db: Session, candidate_id: str, offer_id: int, t
         readiness = calculate_joining_readiness(db, candidate_id, offer_id, tenant_id)
         readiness_score = readiness.get("readiness_score") if isinstance(readiness, dict) else None
     except Exception as exc:
-       logger.error(f"Error: {str(exc)}", exc_info=True)
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[OnboardingAgent] Could not compute joining readiness for candidate {candidate_id!r}: {exc}")
 
     submission = _relevant_submission(db, candidate_id)
@@ -232,7 +232,7 @@ def check_onboarding_completion(db: Session, candidate_id: str, offer_id: int, t
             tenant_id, candidate_id,
         )
     except Exception as exc:
-       logger.error(f"Error: {str(exc)}", exc_info=True)
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[OnboardingAgent] Failed to emit onboarding.complete for candidate {candidate_id!r}: {exc}")
 
     return True
@@ -282,7 +282,7 @@ def run_onboarding_touchpoint_job(db: Session) -> Dict:
             else:
                 result["skipped"] += 1
         except Exception as exc:
-           logger.error(f"Error: {str(exc)}", exc_info=True)
+            logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.error(f"[OnboardingAgent] Failed processing touchpoint id={touchpoint.id}: {exc}")
             db.rollback()
             result["skipped"] += 1
@@ -296,7 +296,7 @@ def run_onboarding_touchpoint_job(db: Session) -> Dict:
             if check_onboarding_completion(db, touchpoint.candidate_id, offer_id, touchpoint.tenant_id):
                 result["completions_detected"] += 1
         except Exception as exc:
-           logger.error(f"Error: {str(exc)}", exc_info=True)
+            logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.error(f"[OnboardingAgent] Completion check failed for offer_id={offer_id}: {exc}")
 
     return result

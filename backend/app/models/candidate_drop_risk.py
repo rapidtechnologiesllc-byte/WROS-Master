@@ -13,6 +13,7 @@ drop_risk_score (LOW 0-39, MEDIUM 40-59, HIGH 60-79, CRITICAL 80-100),
 same native_enum=False/create_constraint=True convention used
 throughout this codebase.
 """
+import logging
 from sqlalchemy import Boolean, Column, DateTime, Enum, ForeignKey, Integer, JSON, String, UniqueConstraint, func
 from sqlalchemy.orm import relationship
 

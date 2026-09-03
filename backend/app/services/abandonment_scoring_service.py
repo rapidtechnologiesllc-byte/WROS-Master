@@ -245,7 +245,7 @@ def _notify_recruiter_of_high_risk(db: Session, tenant_id: str, candidate: Candi
             message=f"{_candidate_name(candidate)} has a high abandonment risk score ({score}%) and may need direct outreach.",
         )
     except Exception as exc:
-       logger.error(f"Error: {str(exc)}", exc_info=True)
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[AbandonmentScoring] Failed to notify recruiter for candidate {candidate.candidateID!r}: {exc}")
 
 
@@ -276,7 +276,7 @@ def run_abandonment_scoring_job(db: Session) -> Dict:
             if score_result["newly_flagged"]:
                 _notify_recruiter_of_high_risk(db, conversation.tenant_id, candidate, score_result["abandonment_score"])
         except Exception as exc:
-           logger.error(f"Error: {str(exc)}", exc_info=True)
+            logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.error(f"[AbandonmentScoring] Failed processing conversation id={conversation.id}: {exc}")
             db.rollback()
 

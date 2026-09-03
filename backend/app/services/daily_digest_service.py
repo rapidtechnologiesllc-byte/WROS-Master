@@ -311,7 +311,7 @@ def send_daily_digest(db: Session, recruiter_user_id: str, tenant_id: str) -> Di
             result = EmailService.send_email(recruiter.UserEmail, subject, html_body, is_html=True)
             email_sent = result.get("status") == "success"
         except Exception as exc:
-           logger.error(f"Error: {str(exc)}", exc_info=True)
+            logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.error(f"[DailyDigest] DIGEST_EMAIL_FAILED for recruiter {recruiter_user_id!r}: {exc}")
 
         # WhatsApp Business API is not provisioned in this codebase (same
@@ -322,7 +322,7 @@ def send_daily_digest(db: Session, recruiter_user_id: str, tenant_id: str) -> Di
 
         return {"outcome": "sent", "email_sent": email_sent, "whatsapp_sent": False, "whatsapp_text": whatsapp_text}
     except Exception as exc:
-       logger.error(f"Error: {str(exc)}", exc_info=True)
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.error(f"[DailyDigest] Failed generating/sending digest for recruiter {recruiter_user_id!r}: {exc}")
         return {"outcome": "failed"}
 
@@ -374,7 +374,7 @@ def run_daily_digest_job(db: Session) -> Dict:
                 else:
                     result["skipped"] += 1
             except Exception as exc:
-               logger.error(f"Error: {str(exc)}", exc_info=True)
+                logger.error(f"Error: {str(exc)}", exc_info=True)
                 logger.error(f"[DailyDigest] Failed processing recruiter {recruiter_id!r}: {exc}")
                 result["skipped"] += 1
 

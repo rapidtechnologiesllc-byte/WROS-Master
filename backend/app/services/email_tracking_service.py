@@ -449,7 +449,8 @@ class EmailTrackingService:
             logger.debug(f"Found {len(trackings)} email tracking records to poll")
             return trackings
 
-        except Exception as e:            logger.error(f"Failed to fetch pending email trackings: {e}", exc_info=True)
+        except Exception as e:
+            logger.error(f"Failed to fetch pending email trackings: {e}", exc_info=True)
             raise RuntimeError(f"Failed to fetch pending email trackings: {str(e)}")
 
     @staticmethod
@@ -543,5 +544,6 @@ class EmailTrackingService:
                 "reply_rate": round(replied / total * 100, 2) if total > 0 else 0,
             }
 
-        except Exception as e:            logger.error(f"Failed to get engagement metrics: {e}", exc_info=True)
+        except Exception as e:
+            logger.error(f"Failed to get engagement metrics: {e}", exc_info=True)
             raise RuntimeError(f"Failed to get engagement metrics: {str(e)}")

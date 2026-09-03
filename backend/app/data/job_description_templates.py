@@ -29,6 +29,7 @@ since that's BlitzenX's core specialty). Everything else still goes
 through the LLM until you add more entries here.
 """
 
+import logging
 from typing import Dict, TypedDict, List
 
 logger = logging.getLogger(__name__)

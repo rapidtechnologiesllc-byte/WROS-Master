@@ -1,4 +1,4 @@
-﻿"""
+"""
 Task 6 (EPIC-03 Revenue-to-Workforce Conversion). Gated at
 revenue.view_pnl -- revenue-per-head is a P&L-adjacent figure, same
 tier as target-setting and leakage detail elsewhere in EPIC-02/03.
@@ -16,8 +16,11 @@ from app.services.revenue_to_demand_service import get_revenue_to_demand_project
 router = APIRouter(tags=["revenue-to-demand"])
 
 
-@router.get("/revenue-to-demand/bu/{business_unit_id}", response_model=RevenueToDemandProjectionResponse)
+@router.get(
+    "/revenue-to-demand/bu/{business_unit_id}",
+    response_model=RevenueToDemandProjectionResponse,
     dependencies=[Depends(require_resource_permission("revenue-to-demand", "view"))]
+)
 def revenue_to_demand_projection(
     business_unit_id: int, year: int, month: int,
     db: Session = Depends(get_db),

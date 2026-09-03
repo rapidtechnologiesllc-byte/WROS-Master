@@ -19,6 +19,7 @@ Same SQL-Server/SQLite-portable translation conventions as
 app.models.client/demand: UUID as String(36),
 Enum(native_enum=False, create_constraint=True).
 """
+import logging
 import uuid
 
 from sqlalchemy import (

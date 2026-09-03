@@ -16,6 +16,7 @@ question -- "is this candidate's qualification data complete" vs. "is
 this candidate about to actually show up on day one"). Never combined
 or confused here.
 """
+import logging
 from sqlalchemy import Column, DateTime, ForeignKey, Integer, JSON, String, UniqueConstraint, func
 from sqlalchemy.orm import relationship
 

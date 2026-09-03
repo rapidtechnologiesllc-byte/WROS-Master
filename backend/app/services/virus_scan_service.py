@@ -33,6 +33,7 @@ silently no-op'ing):
                                virus_scan_result=None or "error", never
                                silently treated as safe.
 """
+import logging
 from typing import Callable, Optional
 
 from app.models.document import CandidateDocument

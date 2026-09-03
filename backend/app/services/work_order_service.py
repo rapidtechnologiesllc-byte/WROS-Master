@@ -14,6 +14,7 @@ Unlike Opportunity (revenue estimate), WorkOrder is revenue authority:
 
 Linkage: Demand → Candidate → Employee → WorkOrder → Project → Revenue
 """
+import logging
 from datetime import date, datetime
 from typing import List, Optional
 

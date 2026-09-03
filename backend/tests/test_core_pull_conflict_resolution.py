@@ -9,6 +9,7 @@ Tests for the three main user-required methods:
 
 These tests use local SQLite to avoid conftest PostgreSQL setup issues.
 """
+import logging
 import os
 import tempfile
 from datetime import date, datetime

@@ -4,6 +4,7 @@ COMPLETE P&L REPORTING API ENDPOINTS - Production Grade
 
 Executive P&L dashboards, month-end close, and financial reporting.
 """
+import logging
 from datetime import date, datetime
 from typing import Optional, List
 from fastapi import APIRouter, Depends, HTTPException, Query

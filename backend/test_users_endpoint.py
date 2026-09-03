@@ -41,7 +41,7 @@ try:
         print("\n[SUCCESS] All relationships accessible")
 
 except Exception as e:
-   logger.error(f"Error: {str(e)}", exc_info=True)
+    logger.error(f"Error: {str(e)}", exc_info=True)
     logger.error(f"Error: {str(e)}", exc_info=True)
     print(f"\n[ERROR] {type(e).__name__}: {e}")
     import traceback

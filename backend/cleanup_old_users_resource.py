@@ -60,7 +60,7 @@ if __name__ == "__main__":
         else:
             print("\nERROR: Cleanup failed. See above for details.")
     except Exception as e:
-       logger.error(f"Error: {str(e)}", exc_info=True)
+        logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Error: {str(e)}", exc_info=True)
         print(f"ERROR: {str(e)}")
         db.rollback()

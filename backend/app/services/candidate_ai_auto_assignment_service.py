@@ -18,6 +18,7 @@ No recruiter clicks required - Thunder autonomously manages candidates through
 the funnel while recruiters maintain oversight/override capability.
 """
 
+import logging
 from datetime import datetime
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError

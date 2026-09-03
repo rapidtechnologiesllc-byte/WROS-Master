@@ -1,4 +1,4 @@
-﻿"""Opportunity Tracker Agent endpoints for sales pipeline management."""
+"""Opportunity Tracker Agent endpoints for sales pipeline management."""
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from datetime import datetime

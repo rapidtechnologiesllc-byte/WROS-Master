@@ -40,6 +40,7 @@ scenario (someone already deployed at PwC) is really about
 find_open_demand_matches() territory instead. Flagging rather than
 forcing an ad-hoc fit onto a scoring model that wasn't built for it.
 """
+import logging
 import json
 import os
 from datetime import datetime
@@ -228,7 +229,7 @@ def detect_core_pull_triggers(
             try:
                 event = detect_core_pull_conflict(db, employee, core_demand)
             except Exception as exc:
-               logger.error(f"Error: {str(exc)}", exc_info=True)
+                logger.error(f"Error: {str(exc)}", exc_info=True)
                 logger.error(f"[ResourceAgent] Core-Pull detection failed for employee {employee.id}: {exc}")
                 if bu_head is not None:
                     try:
@@ -310,7 +311,7 @@ No markdown, no code fences, no explanation outside the JSON array."""
             raise ValueError("LLM ranking response was not a JSON array")
         return ranked
     except Exception as exc:
-       logger.error(f"Error: {str(exc)}", exc_info=True)
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.error(f"[ResourceAgent] LLM ranking failed, falling back to raw skill-match scores: {exc}")
         return [
             {"demand_id": d.id, "confidence_pct": round(score * 100, 2), "rationale": None}

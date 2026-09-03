@@ -34,6 +34,7 @@ and the gate in send_whatsapp_message() below are that enforcement,
 built for real now that a competing send path (per-recruiter WhatsApp)
 exists.
 """
+import logging
 import os
 from datetime import datetime
 from typing import Callable, Optional

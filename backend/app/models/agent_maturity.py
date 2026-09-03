@@ -11,6 +11,7 @@ Models:
 - AgentPerformanceMetric: Weekly performance rollup (for trends & history)
 """
 
+import logging
 from sqlalchemy import (
     Column, DateTime, Float, ForeignKey, Integer, String, Text, func, Boolean
 )

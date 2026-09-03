@@ -6,6 +6,7 @@ the highest-value target, since it holds real candidate PII.
 Same pattern as test_tenant_isolation.py: throwaway SQLite file, never
 the real database.
 """
+import logging
 import os
 import tempfile
 

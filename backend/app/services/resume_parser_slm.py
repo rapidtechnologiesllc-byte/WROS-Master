@@ -18,6 +18,7 @@ Current Implementation:
 - Can be replaced with ML model when ready
 """
 
+import logging
 import re
 from typing import Dict, List, Optional, Set
 from datetime import datetime

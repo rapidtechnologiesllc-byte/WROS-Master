@@ -3,6 +3,7 @@ Pydantic schemas for Work Order API (DEFECT-1: Work Order / PO Model)
 import logging
 """
 
+import logging
 from datetime import date
 from typing import List, Optional
 

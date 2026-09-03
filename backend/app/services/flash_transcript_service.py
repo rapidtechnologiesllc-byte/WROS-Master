@@ -9,6 +9,7 @@ Production: Real transcripts from Office 365
 Local: Mock transcripts for testing
 """
 
+import logging
 import json
 import requests
 from typing import Optional
@@ -57,7 +58,7 @@ class FlashTranscriptService:
                 return None
 
         except Exception as e:
-           logger.error(f"Error: {str(e)}", exc_info=True)
+            logger.error(f"Error: {str(e)}", exc_info=True)
             logger.error(f"[Flash] Error fetching transcript: {str(e)}")
             raise ValueError("Operation failed")
 
@@ -174,7 +175,7 @@ Respond ONLY with valid JSON (no markdown, no extra text):
                 }
 
         except Exception as e:
-           logger.error(f"Error: {str(e)}", exc_info=True)
+            logger.error(f"Error: {str(e)}", exc_info=True)
             logger.error(f"[Flash] Claude analysis failed: {str(e)}")
             return {
                 "error": str(e),

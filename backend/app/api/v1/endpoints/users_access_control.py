@@ -20,6 +20,7 @@ Permission Model:
 Same pattern applied to all other resources (business_units, role_templates, etc.).
 """
 
+import logging
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import or_
@@ -58,8 +59,10 @@ class UserUpdateRequest(BaseModel):
     job_title: Optional[str] = None
     business_unit_id: Optional[int] = None
 
-@router.get("/users")
+@router.get(
+    "/users",
     dependencies=[Depends(get_current_user)]
+)
 @require_action_permission("administration", "view")
 def list_users(
     db: Session = Depends(get_db),
@@ -116,8 +119,10 @@ def list_users(
         "limit": limit
     }
 
-@router.post("/users")
+@router.post(
+    "/users",
     dependencies=[Depends(get_current_user)]
+)
 @require_action_permission("administration", "create")
 def create_user(
     req: UserCreateRequest,
@@ -181,8 +186,10 @@ def create_user(
         "status": "created"
     }
 
-@router.put("/users/{user_id}")
+@router.put(
+    "/users/{user_id}",
     dependencies=[Depends(get_current_user)]
+)
 @require_action_permission("administration", "edit")
 def update_user(
     user_id: str,
@@ -226,8 +233,10 @@ def update_user(
         "status": "updated"
     }
 
-@router.delete("/users/{user_id}")
+@router.delete(
+    "/users/{user_id}",
     dependencies=[Depends(get_current_user)]
+)
 @require_action_permission("administration", "delete")
 def delete_user(
     user_id: str,
@@ -268,8 +277,10 @@ class BusinessUnitCreateRequest(BaseModel):
     bu_code: Optional[str] = None
     description: Optional[str] = None
 
-@router.get("/business-units")
+@router.get(
+    "/business-units",
     dependencies=[Depends(require_resource_permission("business-unit", "view"))]
+)
 def list_business_units(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user),
@@ -309,8 +320,10 @@ def list_business_units(
         traceback.print_exc()
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
-@router.post("/business-units")
+@router.post(
+    "/business-units",
     dependencies=[Depends(require_resource_permission("business-unit", "create"))]
+)
 def create_business_unit(
     req: BusinessUnitCreateRequest,
     db: Session = Depends(get_db),
@@ -351,8 +364,10 @@ def create_business_unit(
         "status": "created"
     }
 
-@router.put("/business-units/{bu_id}")
+@router.put(
+    "/business-units/{bu_id}",
     dependencies=[Depends(require_resource_permission("business-unit", "update"))]
+)
 def update_business_unit(
     bu_id: int,
     req: BusinessUnitCreateRequest,
@@ -392,8 +407,10 @@ def update_business_unit(
         "status": "updated"
     }
 
-@router.delete("/business-units/{bu_id}")
+@router.delete(
+    "/business-units/{bu_id}",
     dependencies=[Depends(require_resource_permission("business-unit", "delete"))]
+)
 def delete_business_unit(
     bu_id: int,
     db: Session = Depends(get_db),
@@ -427,8 +444,10 @@ class DeliveryCenterCreateRequest(BaseModel):
     center_type: Optional[str] = "Delivery"  # HQ, Delivery, etc.
     headcount: Optional[int] = 0
 
-@router.get("/delivery-centers")
+@router.get(
+    "/delivery-centers",
     dependencies=[Depends(require_resource_permission("delivery-center", "view"))]
+)
 def list_delivery_centers(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user),
@@ -462,8 +481,10 @@ def list_delivery_centers(
         "limit": limit
     }
 
-@router.post("/delivery-centers")
+@router.post(
+    "/delivery-centers",
     dependencies=[Depends(require_resource_permission("delivery-center", "create"))]
+)
 def create_delivery_center(
     req: DeliveryCenterCreateRequest,
     db: Session = Depends(get_db),
@@ -497,8 +518,10 @@ def create_delivery_center(
         "status": "created"
     }
 
-@router.put("/delivery-centers/{dc_id}")
+@router.put(
+    "/delivery-centers/{dc_id}",
     dependencies=[Depends(require_resource_permission("delivery-center", "update"))]
+)
 def update_delivery_center(
     dc_id: int,
     req: DeliveryCenterCreateRequest,
@@ -535,8 +558,10 @@ def update_delivery_center(
         "status": "updated"
     }
 
-@router.delete("/delivery-centers/{dc_id}")
+@router.delete(
+    "/delivery-centers/{dc_id}",
     dependencies=[Depends(require_resource_permission("delivery-center", "delete"))]
+)
 def delete_delivery_center(
     dc_id: int,
     db: Session = Depends(get_db),
@@ -574,8 +599,10 @@ class OrgNodeUpdateRequest(BaseModel):
     business_unit_id: Optional[int] = None
     location: Optional[str] = None
 
-@router.get("/organizational-hierarchy")
+@router.get(
+    "/organizational-hierarchy",
     dependencies=[Depends(require_resource_permission("organizational-hierarchy", "view"))]
+)
 def get_organizational_hierarchy(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user),
@@ -609,8 +636,10 @@ def get_organizational_hierarchy(
         "limit": limit
     }
 
-@router.post("/organizational-hierarchy")
+@router.post(
+    "/organizational-hierarchy",
     dependencies=[Depends(require_resource_permission("organizational-hierarchy", "create"))]
+)
 def create_org_node(
     req: OrgNodeCreateRequest,
     db: Session = Depends(get_db),
@@ -644,8 +673,10 @@ def create_org_node(
         "status": "created"
     }
 
-@router.put("/organizational-hierarchy/{node_id}")
+@router.put(
+    "/organizational-hierarchy/{node_id}",
     dependencies=[Depends(require_resource_permission("organizational-hierarchy", "update"))]
+)
 def update_org_node(
     node_id: int,
     req: OrgNodeUpdateRequest,
@@ -682,8 +713,10 @@ def update_org_node(
         "status": "updated"
     }
 
-@router.delete("/organizational-hierarchy/{node_id}")
+@router.delete(
+    "/organizational-hierarchy/{node_id}",
     dependencies=[Depends(require_resource_permission("organizational-hierarchy", "delete"))]
+)
 def delete_org_node(
     node_id: int,
     db: Session = Depends(get_db),
@@ -713,8 +746,10 @@ class RoleTemplateCreateRequest(BaseModel):
     description: Optional[str] = None
     permissions: Optional[list] = []
 
-@router.get("/role-templates")
+@router.get(
+    "/role-templates",
     dependencies=[Depends(require_resource_permission("role-template", "view"))]
+)
 def list_role_templates(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user),
@@ -747,8 +782,10 @@ def list_role_templates(
         "limit": limit
     }
 
-@router.get("/role-templates/{template_id}")
+@router.get(
+    "/role-templates/{template_id}",
     dependencies=[Depends(require_resource_permission("role-template", "view"))]
+)
 def get_role_template(
     template_id: int,
     db: Session = Depends(get_db),
@@ -795,8 +832,10 @@ def get_role_template(
     }
 
 
-@router.post("/role-templates")
+@router.post(
+    "/role-templates",
     dependencies=[Depends(require_resource_permission("role-template", "create"))]
+)
 def create_role_template(
     req: RoleTemplateCreateRequest,
     db: Session = Depends(get_db),
@@ -830,8 +869,10 @@ def create_role_template(
         "status": "created"
     }
 
-@router.put("/role-templates/{template_id}")
+@router.put(
+    "/role-templates/{template_id}",
     dependencies=[Depends(require_resource_permission("role-template", "update"))]
+)
 def update_role_template(
     template_id: int,
     req: RoleTemplateCreateRequest,
@@ -864,8 +905,10 @@ def update_role_template(
         "status": "updated"
     }
 
-@router.delete("/role-templates/{template_id}")
+@router.delete(
+    "/role-templates/{template_id}",
     dependencies=[Depends(require_resource_permission("role-template", "delete"))]
+)
 def delete_role_template(
     template_id: int,
     db: Session = Depends(get_db),

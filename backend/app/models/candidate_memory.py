@@ -17,6 +17,7 @@ is_active=true row per key" is enforced at the application layer in
 candidate_memory_service.upsert_fact() instead; a regular (non-unique)
 index on the same columns + is_active supports that lookup.
 """
+import logging
 from sqlalchemy import (
     Boolean, Column, DateTime, Float, ForeignKey, Index, Integer, String, Text, func,
 )

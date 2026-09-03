@@ -214,4 +214,4 @@ def submit_candidates_to_bu(
             results["failed"] += 1
             results["errors"].append(f"Candidate {candidate_id}: Unexpected error: {str(e)}")
 
-    return results
+            return results

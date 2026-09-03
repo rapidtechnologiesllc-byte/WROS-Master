@@ -10,6 +10,7 @@ build doesn't have (that's HRMS-0605, not built) -- reconciliation
 here goes straight to flagging a gap rather than attempting an
 automatic re-process first, since there's no processor to re-run.
 """
+import logging
 import uuid
 
 from sqlalchemy import (

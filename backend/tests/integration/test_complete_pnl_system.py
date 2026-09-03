@@ -10,6 +10,7 @@ Complete end-to-end testing of all layers:
 
 TARGET: 100% test pass rate before production commit
 """
+import logging
 import pytest
 from datetime import datetime, date, timedelta
 from decimal import Decimal

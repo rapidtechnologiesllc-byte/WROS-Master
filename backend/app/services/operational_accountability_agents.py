@@ -8,6 +8,7 @@ Three agents that watch the business operations:
 3. Employee Health Agent - Monitor wellbeing, engagement, motivation
 """
 
+import logging
 from datetime import datetime, timedelta
 from typing import Dict, Any, List, Optional
 from sqlalchemy.orm import Session

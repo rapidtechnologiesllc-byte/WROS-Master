@@ -24,6 +24,7 @@ would need a schema change (a real, indexed message_body column) this
 round didn't make -- flagged for a future pass if message volume ever
 makes this measurably slow.
 """
+import logging
 from datetime import datetime
 from typing import Dict, List, Optional
 

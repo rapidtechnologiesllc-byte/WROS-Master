@@ -124,6 +124,6 @@ def sync_task_for_document_decision(
             logger.info(f"[DocumentTask] Task {task.id} closed -- document {document.id} ({document.document_type}) approved for candidate {document.candidate_id}")
 
     except Exception as exc:
-       logger.error(f"Error: {str(exc)}", exc_info=True)
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[DocumentTask] Failed to sync task for document {document.id} decision={decision!r}: {exc}")
         db.rollback()

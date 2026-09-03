@@ -42,14 +42,20 @@ def _get_record_or_404(db: Session, record_id: str) -> BuddyProgramRecord:
     return record
 
 
-@router.get("/records", response_model=list[BuddyProgramRecordResponse])
+@router.get(
+    "/records",
+    response_model=list[BuddyProgramRecordResponse],
     dependencies=[Depends(require_resource_permission("record", "view"))]
+)
 def list_records(current_user: Users = Depends(get_current_internal_user), db: Session = Depends(get_db)):
     return db.query(BuddyProgramRecord).filter(BuddyProgramRecord.status.in_(("IN_PROGRESS", "EXTENDED"))).all()
 
 
-@router.post("/records", response_model=BuddyProgramRecordResponse)
+@router.post(
+    "/records",
+    response_model=BuddyProgramRecordResponse,
     dependencies=[Depends(require_resource_permission("record", "create"))]
+)
 def create_record(
     body: BuddyProgramRecordCreateRequest, current_user: Users = Depends(get_current_internal_user), db: Session = Depends(get_db),
 ):
@@ -70,14 +76,19 @@ def create_record(
         raise HTTPException(status_code=422, detail=str(exc))
 
 
-@router.get("/records/{record_id}", response_model=BuddyProgramRecordResponse)
+@router.get(
+    "/records/{record_id}",
+    response_model=BuddyProgramRecordResponse,
     dependencies=[Depends(require_resource_permission("record", "view"))]
+)
 def get_record(record_id: str, current_user: Users = Depends(get_current_internal_user), db: Session = Depends(get_db)):
     return _get_record_or_404(db, record_id)
 
 
-@router.post("/records/{record_id}/scores")
+@router.post(
+    "/records/{record_id}/scores",
     dependencies=[Depends(require_resource_permission("record", "create"))]
+)
 def submit_scores(
     record_id: str, body: WeeklyScoresSubmitRequest,
     current_user: Users = Depends(get_current_internal_user), db: Session = Depends(get_db),
@@ -94,8 +105,11 @@ def submit_scores(
         raise HTTPException(status_code=422, detail=str(exc))
 
 
-@router.get("/records/{record_id}/scorecard", response_model=ScorecardResponse)
+@router.get(
+    "/records/{record_id}/scorecard",
+    response_model=ScorecardResponse,
     dependencies=[Depends(require_resource_permission("record", "view"))]
+)
 def get_scorecard(record_id: str, current_user: Users = Depends(get_current_internal_user), db: Session = Depends(get_db)):
     record = _get_record_or_404(db, record_id)
     return compute_day30_scorecard(db, record)
@@ -116,8 +130,10 @@ def _decide(db: Session, record_id: str, decision: str, notes: "str | None", cha
         raise HTTPException(status_code=422, detail=str(exc))
 
 
-@router.get("/records/{record_id}/can-extend")
+@router.get(
+    "/records/{record_id}/can-extend",
     dependencies=[Depends(require_resource_permission("record", "view"))]
+)
 def get_can_extend(record_id: str, current_user: Users = Depends(get_current_internal_user), db: Session = Depends(get_db)):
     """AC-5: whether the Extend option should even be shown -- hidden
     entirely on the third review, not just rejected after the fact."""
@@ -125,19 +141,28 @@ def get_can_extend(record_id: str, current_user: Users = Depends(get_current_int
     return {"can_extend": can_extend(record)}
 
 
-@router.post("/records/{record_id}/graduate", response_model=BuddyProgramRecordResponse)
+@router.post(
+    "/records/{record_id}/graduate",
+    response_model=BuddyProgramRecordResponse,
     dependencies=[Depends(require_resource_permission("record", "create"))]
+)
 def graduate(record_id: str, body: GraduationDecisionRequest, current_user: Users = Depends(get_current_internal_user), db: Session = Depends(get_db)):
     return _decide(db, record_id, "GRADUATE", body.notes, current_user.UserID)
 
 
-@router.post("/records/{record_id}/extend", response_model=BuddyProgramRecordResponse)
+@router.post(
+    "/records/{record_id}/extend",
+    response_model=BuddyProgramRecordResponse,
     dependencies=[Depends(require_resource_permission("record", "create"))]
+)
 def extend(record_id: str, body: GraduationDecisionRequest, current_user: Users = Depends(get_current_internal_user), db: Session = Depends(get_db)):
     return _decide(db, record_id, "EXTEND", body.notes, current_user.UserID)
 
 
-@router.post("/records/{record_id}/exit", response_model=BuddyProgramRecordResponse)
+@router.post(
+    "/records/{record_id}/exit",
+    response_model=BuddyProgramRecordResponse,
     dependencies=[Depends(require_resource_permission("record", "create"))]
+)
 def exit_record(record_id: str, body: GraduationDecisionRequest, current_user: Users = Depends(get_current_internal_user), db: Session = Depends(get_db)):
     return _decide(db, record_id, "EXIT", body.notes, current_user.UserID)

@@ -14,6 +14,7 @@ Complete integration tests for revenue recognition engine:
 REQUIREMENT: ALL TESTS MUST PASS BEFORE PRODUCTION DEPLOYMENT
 Current Status: Building...
 """
+import logging
 import pytest
 from datetime import datetime, date, timedelta
 from decimal import Decimal

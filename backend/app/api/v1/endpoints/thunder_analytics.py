@@ -1,4 +1,4 @@
-﻿"""
+"""
 S-071/HRMS-0471 -- AI Recruiter Performance Analytics
 ==================================================================
 Prefix: /analytics

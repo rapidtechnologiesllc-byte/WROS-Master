@@ -131,7 +131,7 @@ def run_no_response_detection_job(db: Session) -> Dict:
                     db.commit()
                     result["post_third"] += 1
         except Exception as exc:
-           logger.error(f"Error: {str(exc)}", exc_info=True)
+            logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.error(f"[NoResponseDetection] Failed processing conversation {conversation.id}: {exc}")
             db.rollback()
 

@@ -169,7 +169,7 @@ def _notify_recruiter(db: Session, submission: Submission, message: str) -> None
             priority_tier="P1", channel_preference="IN_APP", message=message,
         )
     except Exception as exc:
-       logger.error(f"Error: {str(exc)}", exc_info=True)
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[InterviewConfirmation] Failed to notify recruiter for submission {submission.id!r}: {exc}")
 
 
@@ -231,7 +231,7 @@ def confirm_interview(
             db.add(ConversationEvent(conversation_id=conversation.id, event_type="ai_message_sent", event_data={"channel": "email", "body": email_body[:500], "auto_generated": True}, triggered_by="ai_agent"))
             email_sent = True
         except Exception as exc:
-           logger.error(f"Error: {str(exc)}", exc_info=True)
+            logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.error(f"[InterviewConfirmation] CONFIRMATION_EMAIL_FAILED for candidate {candidate.candidateID!r}: {exc}")
             db.add(ConversationEvent(conversation_id=conversation.id, event_type="CONFIRMATION_EMAIL_FAILED", event_data={"reason": str(exc)}, triggered_by="system"))
 
@@ -259,11 +259,12 @@ def confirm_interview(
                 try:
                     EmailService.send_email(interviewer_user.UserEmail, subject, "\n".join(body_lines) + f"\n\nTime: {interviewer_local.strftime('%A, %b %d, %Y %I:%M %p %Z')}", is_html=False)
                 except Exception as email_exc:
-                   logger.error(f"Error: {str(email_exc)}", exc_info=True)
+                    logger.error(f"Error: {str(email_exc)}", exc_info=True)
                     logger.error(f"[InterviewConfirmation] Interviewer fallback email also failed: {email_exc}")
                 if submission:
                     _notify_recruiter(db, submission, f"Outlook calendar invite failed for {candidate.candidateFirstName or candidate.candidateID}'s interview -- interviewer was emailed directly as a fallback.")
-        else:
+                else:
+                    pass
             calendar_invite_failed = True
             db.add(ConversationEvent(conversation_id=conversation.id, event_type="CALENDAR_INVITE_FAILED", event_data={"reason": "no_interviewer_user_resolved"}, triggered_by="system"))
 
@@ -280,7 +281,7 @@ def confirm_interview(
             "calendar_event_id": calendar_event_id, "calendar_invite_failed": calendar_invite_failed,
         }
     except Exception as exc:
-       logger.error(f"Error: {str(exc)}", exc_info=True)
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.error(f"[InterviewConfirmation] Unexpected failure confirming interview {interview_id!r}: {exc}")
         db.rollback()
         return {"outcome": "confirmation_failed"}

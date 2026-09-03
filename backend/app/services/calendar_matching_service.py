@@ -281,7 +281,7 @@ def _notify_recruiter(db: Session, submission: Submission, message: str) -> None
             priority_tier="P1", channel_preference="IN_APP", message=message,
         )
     except Exception as exc:
-       logger.error(f"Error: {str(exc)}", exc_info=True)
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[CalendarMatching] Failed to notify recruiter for submission {submission.id!r}: {exc}")
 
 
@@ -343,7 +343,7 @@ def attempt_calendar_match(
         try:
             busy_events = get_interviewer_busy_events(interviewer_user.UserEmail, windows[0][0], windows[-1][1], graph_call=graph_call)
         except Exception as exc:
-           logger.error(f"Error: {str(exc)}", exc_info=True)
+            logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.warning(f"[CalendarMatching] Failed to read interviewer calendar for candidate {candidate.candidateID!r}: {exc}")
             db.add(ConversationEvent(conversation_id=conversation.id, event_type="calendar_check_failed", event_data={"reason": str(exc)}, triggered_by="system"))
             db.commit()
@@ -405,7 +405,7 @@ def attempt_calendar_match(
         db.rollback()
         return {"outcome": "no_interviewer_assigned"}
     except Exception as exc:
-       logger.error(f"Error: {str(exc)}", exc_info=True)
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.error(f"[CalendarMatching] Unexpected failure matching candidate {candidate.candidateID!r}: {exc}")
         db.rollback()
         return {"outcome": "calendar_check_failed"}

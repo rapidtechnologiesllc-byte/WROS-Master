@@ -1,4 +1,4 @@
-﻿"""HTD Pipeline Accountability Agent endpoints."""
+"""HTD Pipeline Accountability Agent endpoints."""
 from fastapi import APIRouter, Depends, HTTPException
 import logging
 from sqlalchemy.orm import Session

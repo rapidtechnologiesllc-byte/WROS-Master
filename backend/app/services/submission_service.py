@@ -29,6 +29,7 @@ that's supposed to read that log (HRMS-P605/P606) and HRMS-0440's full
 AI ranking (submission_rank here is caller-supplied, e.g. from the
 existing ATSScore.overall_score -- not recomputed by this module).
 """
+import logging
 from datetime import datetime
 from typing import List, Optional
 

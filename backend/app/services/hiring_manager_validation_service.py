@@ -106,7 +106,7 @@ class HiringManagerValidationService:
             logger.error(f"Failed to create validation questions: {str(e)}")
             raise
 
-    def send_to_hm(
+            def send_to_hm(
         self,
         db: Session,
         job_id: str,
@@ -233,7 +233,7 @@ class HiringManagerValidationService:
             logger.error(f"Failed to send validation to HM: {str(e)}")
             raise
 
-    def record_hm_response(
+            def record_hm_response(
         self,
         db: Session,
         validation_id: str,
@@ -331,7 +331,7 @@ class HiringManagerValidationService:
             logger.error(f"Failed to record HM response: {str(e)}")
             raise
 
-    def determine_decision(
+            def determine_decision(
         self,
         responses: Dict[str, Any],
         decision_score: Optional[int],
@@ -484,10 +484,11 @@ class HiringManagerValidationService:
 
             return None
 
-        except Exception as e:            logger.error(f"Failed to schedule interview: {str(e)}")
+        except Exception as e:
+            logger.error(f"Failed to schedule interview: {str(e)}")
             raise ValueError("Operation failed")
 
-    async def return_candidate_to_pool(
+            async def return_candidate_to_pool(
         self,
         validation: HiringManagerValidation,
         db: Session
@@ -510,9 +511,10 @@ class HiringManagerValidationService:
             # TODO: Trigger "try next candidate" in Thunder
             # This would call thunder_service.try_next_candidate(job_id=validation.job_id)
 
-        except Exception as e:            logger.error(f"Failed to return candidate to pool: {str(e)}")
+        except Exception as e:
+            logger.error(f"Failed to return candidate to pool: {str(e)}")
 
-    async def escalate_validation(
+            async def escalate_validation(
         self,
         validation: HiringManagerValidation,
         reason: str,
@@ -555,7 +557,7 @@ class HiringManagerValidationService:
             db.rollback()
             logger.error(f"Failed to escalate validation: {str(e)}")
 
-    async def send_validation_email(
+            async def send_validation_email(
         self,
         validation: HiringManagerValidation,
         is_reminder: bool = False,
@@ -594,9 +596,11 @@ class HiringManagerValidationService:
             #     is_reminder=is_reminder
             # )
 
-        except Exception as e:            logger.error(f"Failed to send email: {str(e)}")
+        except Exception as e:
+            logger.error(f"Failed to send email: {str(e)}")
 
-    def get_validation_stats(self, db: Session, job_id: Optional[str] = None) -> Dict[str, Any]:
+            def get_validation_stats(self, db: Session, job_id: Optional[str] = None) -> Dict[str, Any]:
+                pass
         """
         Get validation statistics for dashboard.
 
@@ -641,5 +645,6 @@ class HiringManagerValidationService:
                 "rejection_rate": round(rejection_rate, 2)
             }
 
-        except Exception as e:            logger.error(f"Failed to get validation stats: {str(e)}")
+        except Exception as e:
+            logger.error(f"Failed to get validation stats: {str(e)}")
             raise ValueError("Operation failed")

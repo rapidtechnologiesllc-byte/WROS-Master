@@ -292,8 +292,8 @@ def unfilled_roles(
 
 
 @router.get(
-    dependencies=[Depends(get_current_user)]
     "/{project_id}/expected-revenue", response_model=ExpectedRevenueResponse,
+    dependencies=[Depends(get_current_user)],
     summary="Rough expected-revenue/margin estimate -- not a finance figure",
 )
 def expected_revenue(

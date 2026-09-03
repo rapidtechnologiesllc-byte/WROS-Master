@@ -46,7 +46,7 @@ async def test_endpoint():
                 if i == 0:
                     print(f"[OK] Successfully created UserResponse for user {u.UserEmail}")
             except Exception as e:
-               logger.error(f"Error: {str(e)}", exc_info=True)
+                logger.error(f"Error: {str(e)}", exc_info=True)
                 logger.error(f"Error: {str(e)}", exc_info=True)
                 print(f"[ERROR] Failed to create UserResponse for user {u.UserEmail}: {e}")
                 raise
@@ -60,7 +60,7 @@ async def test_endpoint():
         print(f"[SUCCESS] Created response with {response.total_users} users")
 
     except Exception as e:
-       logger.error(f"Error: {str(e)}", exc_info=True)
+        logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Error: {str(e)}", exc_info=True)
         print(f"[ERROR] {type(e).__name__}: {e}")
         import traceback

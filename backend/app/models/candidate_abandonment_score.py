@@ -22,6 +22,7 @@ docstring for the full formula/wiring rationale):
   components (response_rate/sentiment_trend/days_silent/followup_count
   points), for the auditability the spec itself calls for.
 """
+import logging
 from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, JSON, String, UniqueConstraint, func
 from sqlalchemy.orm import relationship
 

@@ -11,6 +11,7 @@ HRMS Dependencies:
 - R-07: Candidates only created via create_candidate_safe()
 """
 
+import logging
 from datetime import datetime
 from sqlalchemy import Column, String, DateTime, Integer, Text, ForeignKey, Boolean, func, Index, Enum as SQLAlchemyEnum
 from sqlalchemy.orm import relationship

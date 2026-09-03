@@ -28,6 +28,7 @@ story's own spec vocabulary (PENDING/CLEAN/QUARANTINED, not
 virus_scan_service's clean/infected/error) -- same posture, not
 duplicated logic on a shared field.
 """
+import logging
 from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, func
 
 from app.models.base import Base

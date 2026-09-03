@@ -12,6 +12,7 @@ Shows status of every agent:
 This is Flash's control center.
 """
 
+import logging
 from datetime import datetime, timedelta
 from typing import Dict, Any, List
 from sqlalchemy.orm import Session
@@ -167,7 +168,7 @@ class MasterAgentDashboard:
             }
 
         except Exception as e:
-           logger.error(f"Error: {str(e)}", exc_info=True)
+            logger.error(f"Error: {str(e)}", exc_info=True)
             logger.error(f"Error getting health for {agent_name}: {str(e)}")
             return {
                 "agent_name": agent_name,

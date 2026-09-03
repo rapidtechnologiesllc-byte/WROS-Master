@@ -112,7 +112,7 @@ def import_candidates_batch_task(csv_content: str, batch_id: str = None):
         return {"status": "success", "task_id": task_id}
 
     except Exception as e:
-       logger.error(f"Error: {str(e)}", exc_info=True)
+        logger.error(f"Error: {str(e)}", exc_info=True)
         log_task_message(task_id, f"Error: {str(e)}", "error")
         TaskStatus.update_task(task_id, status="failed")
         return {"status": "error", "task_id": task_id, "error": str(e)}

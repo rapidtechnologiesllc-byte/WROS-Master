@@ -109,7 +109,7 @@ def schedule_reminders_for_interview(db: Session, interview_id: str, *, now: Opt
         db.commit()
         return {"outcome": "scheduled", "reminders_created": created}
     except Exception as exc:
-       logger.error(f"Error: {str(exc)}", exc_info=True)
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.error(f"[InterviewReminder] Failed scheduling reminders for interview {interview_id!r}: {exc}")
         db.rollback()
         return {"outcome": "scheduling_failed"}
@@ -152,7 +152,7 @@ def _notify_recruiter(db: Session, submission: Optional[Submission], message: st
             priority_tier="P1", channel_preference="IN_APP", message=message,
         )
     except Exception as exc:
-       logger.error(f"Error: {str(exc)}", exc_info=True)
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[InterviewReminder] Failed to notify recruiter: {exc}")
 
 
@@ -235,7 +235,7 @@ def run_reminder_execution_job(db: Session) -> Dict:
                     db.add(ConversationEvent(conversation_id=conversation.id, event_type="ai_message_sent", event_data={"channel": "email", "body": message[:500], "auto_generated": True}, triggered_by="ai_agent"))
                 email_sent = True
             except Exception as exc:
-               logger.error(f"Error: {str(exc)}", exc_info=True)
+                logger.error(f"Error: {str(exc)}", exc_info=True)
                 logger.error(f"[InterviewReminder] Email reminder failed for candidate {candidate.candidateID!r}: {exc}")
 
             if not whatsapp_sent and not email_sent:  # BR-02's own integrations note: both fail -> escalate
@@ -254,7 +254,7 @@ def run_reminder_execution_job(db: Session) -> Dict:
             db.commit()
             result["sent"] += 1
         except Exception as exc:
-           logger.error(f"Error: {str(exc)}", exc_info=True)
+            logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.error(f"[InterviewReminder] Unexpected failure processing reminder id={reminder.id}: {exc}")
             db.rollback()
             result["skipped"] += 1

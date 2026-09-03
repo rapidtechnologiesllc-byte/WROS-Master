@@ -1,4 +1,4 @@
-﻿"""
+"""
 HRMS-0312: Offer Management & Approval REST Endpoints
 Complete offer lifecycle API endpoints.
 """
@@ -108,7 +108,7 @@ def create_offer(
     except HTTPException:
         raise
     except Exception as e:
-       logger.error(f"Error: {str(e)}", exc_info=True)
+        logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Error creating offer: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to create offer")
 
@@ -166,7 +166,7 @@ def approve_offer(
     except HTTPException:
         raise
     except Exception as e:
-       logger.error(f"Error: {str(e)}", exc_info=True)
+        logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Error approving offer {offer_id}: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to approve offer")
 
@@ -226,7 +226,7 @@ def send_offer_to_candidate(
     except HTTPException:
         raise
     except Exception as e:
-       logger.error(f"Error: {str(e)}", exc_info=True)
+        logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Error sending offer {offer_id}: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to send offer")
 
@@ -236,8 +236,8 @@ def send_offer_to_candidate(
 # â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 @router.post(
-    dependencies=[Depends(require_resource_permission("offer", "manage"))],
     "/{offer_id}/reject",
+    dependencies=[Depends(require_resource_permission("offer", "manage"))],
     response_model=OfferStatusResponse,
     summary="Reject an offer (candidate action)"
 )
@@ -280,7 +280,7 @@ def reject_offer(
     except HTTPException:
         raise
     except Exception as e:
-       logger.error(f"Error: {str(e)}", exc_info=True)
+        logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Error rejecting offer {offer_id}: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to reject offer")
 
@@ -335,7 +335,7 @@ def retract_offer(
     except HTTPException:
         raise
     except Exception as e:
-       logger.error(f"Error: {str(e)}", exc_info=True)
+        logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Error retracting offer {offer_id}: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to retract offer")
 
@@ -345,8 +345,8 @@ def retract_offer(
 # â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 @router.post(
-    dependencies=[Depends(require_resource_permission("offer", "manage"))],
     "/{offer_id}/accept",
+    dependencies=[Depends(require_resource_permission("offer", "manage"))],
     response_model=OfferAcceptanceResponse,
     summary="Accept an offer (candidate action)"
 )
@@ -393,7 +393,7 @@ def accept_offer(
     except HTTPException:
         raise
     except Exception as e:
-       logger.error(f"Error: {str(e)}", exc_info=True)
+        logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Error accepting offer {offer_id}: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to accept offer")
 
@@ -434,7 +434,7 @@ def get_offer(
     except HTTPException:
         raise
     except Exception as e:
-       logger.error(f"Error: {str(e)}", exc_info=True)
+        logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Error fetching offer {offer_id}: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to fetch offer")
 
@@ -491,7 +491,7 @@ def list_offers(
     except HTTPException:
         raise
     except Exception as e:
-       logger.error(f"Error: {str(e)}", exc_info=True)
+        logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Error listing offers: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to list offers")
 
@@ -501,8 +501,8 @@ def list_offers(
 # â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 @router.get(
-    dependencies=[Depends(require_resource_permission("offer", "manage"))],
     "/candidate/{candidate_id}",
+    dependencies=[Depends(require_resource_permission("offer", "manage"))],
     response_model=OfferListResponse,
     summary="Get all offers for a candidate"
 )
@@ -532,6 +532,6 @@ def get_candidate_offers(
     except HTTPException:
         raise
     except Exception as e:
-       logger.error(f"Error: {str(e)}", exc_info=True)
+        logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Error fetching offers for candidate {candidate_id}: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to fetch offers")

@@ -17,6 +17,7 @@ Fields:
 - created_at, updated_at: Audit timestamps
 """
 
+import logging
 from sqlalchemy import Column, String, Boolean, Integer, DateTime, UUID, ForeignKey, Text
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func

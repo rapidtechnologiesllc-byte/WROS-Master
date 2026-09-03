@@ -54,6 +54,7 @@ Real architecture adaptations:
   matching this story's own UI spec (green/blue/gray), and consistent
   with BR-02 since JOINED only lights up on real Employee data.
 """
+import logging
 from datetime import date, datetime
 from typing import Dict, List, Optional
 

@@ -6,6 +6,7 @@ import logging
 """
 
 # Stub classes for backward compatibility
+import logging
 class BusinessUnit:
     pass
 logger = logging.getLogger(__name__)

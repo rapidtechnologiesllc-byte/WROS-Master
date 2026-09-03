@@ -15,6 +15,7 @@ one hard rule from this domain that's cheap to enforce for real without
 importing HRMS-P608's full auto-reject + BU Head reversal workflow
 (deferred, see app.models.interview_pipeline docstring).
 """
+import logging
 from datetime import datetime
 from typing import Optional
 

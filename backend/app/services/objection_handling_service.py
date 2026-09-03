@@ -46,6 +46,7 @@ Step 1's taxonomy below is copied verbatim from this story's own spec
 candidates, same posture as S-029's synonym library / S-055's
 DEFAULT_FAQ_CONTENT / S-067's joining-instructions template.
 """
+import logging
 import json
 from typing import Callable, Dict, Optional
 
@@ -141,7 +142,7 @@ def _generate_objection_response(db: Session, conversation: CandidateConversatio
         )
         return response.strip() or SAFE_FALLBACK_MESSAGE
     except Exception as exc:
-       logger.error(f"Error: {str(exc)}", exc_info=True)
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[ObjectionHandling] Response generation failed for candidate {candidate.candidateID!r}: {exc}")
         return SAFE_FALLBACK_MESSAGE
 
@@ -173,7 +174,7 @@ def handle_objection(db: Session, conversation: CandidateConversation, candidate
     try:
         upsert_fact(db, candidate.candidateID, conversation.tenant_id, fact_category="OBJECTION", fact_key=objection_type, fact_value=key_concern, confidence=classification["confidence"])
     except Exception as exc:
-       logger.error(f"Error: {str(exc)}", exc_info=True)
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[ObjectionHandling] Failed to store objection memory fact for candidate {candidate.candidateID!r}: {exc}")
 
     if occurrence_number >= MAX_SAME_OBJECTION_BEFORE_ESCALATE:

@@ -129,7 +129,7 @@ def create_candidates_in_batch(candidates: list, batch_size: int = 50) -> list:
                     logger.info(f"Committed batch at record {i+1}/{len(candidates)}")
 
             except Exception as e:
-               logger.error(f"Error: {str(e)}", exc_info=True)
+                logger.error(f"Error: {str(e)}", exc_info=True)
                 logger.error(f"Error creating candidate {i+1}: {str(e)}")
                 db.rollback()
                 db.add(candidate)
@@ -139,7 +139,7 @@ def create_candidates_in_batch(candidates: list, batch_size: int = 50) -> list:
         logger.info(f"Final commit: {len(created_ids)} total candidates created")
 
     except Exception as e:
-       logger.error(f"Error: {str(e)}", exc_info=True)
+        logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Database error: {str(e)}")
         db.rollback()
     finally:
@@ -167,7 +167,7 @@ def queue_tasks(candidate_ids: list) -> list:
                 logger.info(f"Queued {i+1}/{len(candidate_ids)} tasks")
 
         except Exception as e:
-           logger.error(f"Error: {str(e)}", exc_info=True)
+            logger.error(f"Error: {str(e)}", exc_info=True)
             logger.error(f"Error queuing task for candidate {i+1}: {str(e)}")
 
     return task_ids
@@ -279,6 +279,6 @@ if __name__ == "__main__":
         print(f"   Created: {result['created_candidates']} candidates")
         print(f"   Queued:  {result['queued_tasks']} tasks")
     except Exception as e:
-       logger.error(f"Error: {str(e)}", exc_info=True)
+        logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"❌ FAILED: {str(e)}", exc_info=True)
         sys.exit(1)

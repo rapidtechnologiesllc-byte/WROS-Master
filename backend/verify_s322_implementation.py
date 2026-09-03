@@ -352,7 +352,7 @@ if __name__ == "__main__":
         print(f"\nTEST FAILED: {str(e)}")
         sys.exit(1)
     except Exception as e:
-       logger.error(f"Error: {str(e)}", exc_info=True)
+        logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Error: {str(e)}", exc_info=True)
         print(f"\nERROR: {str(e)}")
         import traceback

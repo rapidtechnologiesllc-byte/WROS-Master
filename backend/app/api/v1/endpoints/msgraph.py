@@ -62,8 +62,10 @@ def _auth_url(state: str = "xyz"):
     }
     return f"{AUTHORITY}/oauth2/v2.0/authorize?{urlencode(params)}"
 
-@router.get("/auth/signin")
+@router.get(
+    "/auth/signin",
     dependencies=[Depends(require_resource_permission("auth", "view"))]
+)
 def signin():
     return RedirectResponse(_auth_url())
 
@@ -90,8 +92,10 @@ def signin():
 LINK_STATE_TTL_MINUTES = 10
 
 
-@router.get("/link/start")
+@router.get(
+    "/link/start",
     dependencies=[Depends(require_resource_permission("link", "view"))]
+)
 def start_link(current_user: Users = Depends(get_current_internal_user)):
     """Returns the Microsoft sign-in URL for the CURRENTLY authenticated
     WROS user to link their M365 account. The frontend must call this
@@ -105,16 +109,20 @@ def start_link(current_user: Users = Depends(get_current_internal_user)):
     return {"auth_url": _auth_url(state=link_state)}
 
 
-@router.get("/link-status")
+@router.get(
+    "/link-status",
     dependencies=[Depends(require_resource_permission("link-statu", "view"))]
+)
 def link_status(current_user: Users = Depends(get_current_internal_user)):
     account_id = _account_id_by_user_id.get(current_user.UserID)
     linked = bool(account_id and account_id in user_tokens)
     return {"linked": linked}
 
 
-@router.post("/unlink")
+@router.post(
+    "/unlink",
     dependencies=[Depends(require_resource_permission("unlink", "create"))]
+)
 def unlink(current_user: Users = Depends(get_current_internal_user)):
     account_id = _account_id_by_user_id.pop(current_user.UserID, None)
     if account_id:
@@ -138,8 +146,10 @@ def _decode_link_state(state: str):
     return payload.get("sub")
 
 
-@router.get("/auth/callback")
+@router.get(
+    "/auth/callback",
     dependencies=[Depends(require_resource_permission("auth", "view"))]
+)
 def callback(request: Request, db: Session = Depends(get_db)):
     code = request.query_params.get("code")
     if not code:
@@ -266,8 +276,10 @@ def _make_graph_request(method: str, endpoint: str, access_token: str, json_data
     
     return response
 
-@router.get("/me")
+@router.get(
+    "/me",
     dependencies=[Depends(require_resource_permission("me", "view"))]
+)
 def me(db: Session = Depends(get_db), user: Users = Depends(get_current_internal_user)):
     """
     Return the current authenticated user's profile from the database.
@@ -316,8 +328,10 @@ def _require_account(current_user: Users = Depends(get_current_internal_user)) -
     return account_id
 
 # ---------- SEND MAIL ----------
-@router.post("/mail/send")
+@router.post(
+    "/mail/send",
     dependencies=[Depends(require_resource_permission("mail", "create"))]
+)
 def send_mail(to: str, subject: str, body_text: str, account_id: str = Depends(_require_account)):
     token_data = _graph_client_for(account_id)
 
@@ -343,8 +357,10 @@ def send_mail(to: str, subject: str, body_text: str, account_id: str = Depends(_
     return {"status": "Mail sent"}
 
 # ---------- CREATE MEETING (CALENDAR EVENT) ----------
-@router.post("/calendar/schedule")
+@router.post(
+    "/calendar/schedule",
     dependencies=[Depends(require_resource_permission("calendar", "create"))]
+)
 def schedule_meeting(
     subject: str,
     start_iso: str,
@@ -387,8 +403,10 @@ def schedule_meeting(
     return {"eventId": created_json.get("id"), "joinUrl": join_url}
 
 
-@router.get("/calendar/meetings")
+@router.get(
+    "/calendar/meetings",
     dependencies=[Depends(require_resource_permission("calendar", "view"))]
+)
 def get_my_meetings(
     top: int = 10,
     skip: int = 0,
@@ -819,7 +837,7 @@ def test_sharepoint_connection(
                 else:
                     folder_response.raise_for_status()
             except Exception as folder_error:
-               logger.error(f"Error: {str(folder_error)}", exc_info=True)
+                logger.error(f"Error: {str(folder_error)}", exc_info=True)
                 logger.warning(f"Could not list folders: {str(folder_error)}")
                 folders = []
             
@@ -868,8 +886,8 @@ def test_sharepoint_connection(
                 "sharepoint_configured": True
             }
             
-    except Exception as e:
-       logger.error(f"Error: {str(e)}", exc_info=True)
+            except Exception as e:
+                logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"SharePoint connection test failed: {str(e)}")
         return {
             "status": "error",

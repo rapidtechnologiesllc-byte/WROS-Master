@@ -18,6 +18,7 @@ This creates a virtuous cycle:
 No manual intervention needed - the system learns from production usage.
 """
 
+import logging
 import json
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Tuple

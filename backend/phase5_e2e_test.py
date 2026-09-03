@@ -16,6 +16,7 @@ Test Scenarios:
 - Rejection reverts BU_ID to NULL
 """
 
+import logging
 import os
 import sys
 import requests
@@ -63,7 +64,7 @@ class TestRunner:
             self.failed.append("backend_health (connection refused)")
             return False
         except Exception as e:
-           logger.error(f"Error: {str(e)}", exc_info=True)
+            logger.error(f"Error: {str(e)}", exc_info=True)
             logger.error(f"Error: {str(e)}", exc_info=True)
             print(f"  [FAIL] Error: {str(e)}")
             self.failed.append(f"backend_health (error: {str(e)})")
@@ -92,7 +93,7 @@ class TestRunner:
                 self.passed.append("bu_context_endpoint")
                 return True
         except Exception as e:
-           logger.error(f"Error: {str(e)}", exc_info=True)
+            logger.error(f"Error: {str(e)}", exc_info=True)
             logger.error(f"Error: {str(e)}", exc_info=True)
             print(f"  [FAIL] Error: {str(e)}")
             self.failed.append(f"bu_context_endpoint (error)")
@@ -134,7 +135,7 @@ class TestRunner:
                 self.passed.append("candidates_endpoint")
                 return True
         except Exception as e:
-           logger.error(f"Error: {str(e)}", exc_info=True)
+            logger.error(f"Error: {str(e)}", exc_info=True)
             logger.error(f"Error: {str(e)}", exc_info=True)
             print(f"  [FAIL] Error: {str(e)}")
             self.failed.append("candidates_endpoint (error)")
@@ -193,7 +194,7 @@ class TestRunner:
             return True
 
         except Exception as e:
-           logger.error(f"Error: {str(e)}", exc_info=True)
+            logger.error(f"Error: {str(e)}", exc_info=True)
             logger.error(f"Error: {str(e)}", exc_info=True)
             print(f"  [ERROR] {str(e)}")
             self.failed.append(f"bu_scoping_logic (error)")
@@ -233,7 +234,7 @@ class TestRunner:
                 return True
 
         except Exception as e:
-           logger.error(f"Error: {str(e)}", exc_info=True)
+            logger.error(f"Error: {str(e)}", exc_info=True)
             logger.error(f"Error: {str(e)}", exc_info=True)
             print(f"  [ERROR] {str(e)}")
             return False

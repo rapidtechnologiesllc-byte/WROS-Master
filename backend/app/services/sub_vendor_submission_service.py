@@ -12,6 +12,7 @@ literally the same function HRMS-0711's Submission pipeline and
 createCandidateSafe() both use -- per BR-0807-01's explicit "one dedup
 path in the platform" requirement.
 """
+import logging
 from datetime import datetime, timedelta
 from typing import Optional
 

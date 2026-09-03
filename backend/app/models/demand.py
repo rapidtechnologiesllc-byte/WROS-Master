@@ -14,6 +14,7 @@ as its own table rather than retrofitting Jobs -- reconciling the two
 (or migrating Jobs data into demands) is a separate decision, flagged
 in the developer handoff, not resolved by silently picking one here.
 """
+import logging
 import uuid
 
 from sqlalchemy import (

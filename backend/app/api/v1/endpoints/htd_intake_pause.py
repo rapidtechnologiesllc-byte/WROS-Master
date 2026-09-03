@@ -51,8 +51,8 @@ router = APIRouter(prefix="/htd-intake", tags=["htd-intake"])
 
 
 @router.post(
-    dependencies=[Depends(get_current_user)]
     "/calculate-monthly-metric", response_model=MonthlyMetricItem,
+    dependencies=[Depends(get_current_user)],
     summary="Compute (or recompute) HTD conversion rate for one month",
 )
 def calculate_monthly_metric_endpoint(
@@ -70,8 +70,8 @@ def calculate_monthly_metric_endpoint(
 
 
 @router.post(
-    dependencies=[Depends(require_resource_permission("resource", "access"))],
     "/check-breach", response_model=HtdIntakeStatusResponse,
+    dependencies=[Depends(require_resource_permission("resource", "access"))],
     summary="Check the 2 most recently calculated months; auto-pause if both are below 50%",
 )
 def check_breach_endpoint(
@@ -84,8 +84,12 @@ def check_breach_endpoint(
     return HtdIntakeStatusResponse(is_paused=status.is_paused, paused_at=status.paused_at, pause_reason=status.pause_reason)
 
 
-@router.get("/status", response_model=HtdIntakeStatusResponse, summary="Current HTD intake pause status")
+@router.get(
+    "/status",
+    response_model=HtdIntakeStatusResponse,
+    summary="Current HTD intake pause status",
     dependencies=[Depends(require_resource_permission("statu", "view"))]
+)
 def get_status_endpoint(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user),
@@ -98,8 +102,8 @@ def get_status_endpoint(
 
 
 @router.post(
-    dependencies=[Depends(get_current_user)]
     "/resume", response_model=HtdIntakeStatusResponse,
+    dependencies=[Depends(get_current_user)],
     summary="Resume HTD intake -- requires 200+ char audit findings and corrective actions",
 )
 def resume_endpoint(
@@ -119,8 +123,12 @@ def resume_endpoint(
     return HtdIntakeStatusResponse(is_paused=status.is_paused, paused_at=status.paused_at, pause_reason=status.pause_reason)
 
 
-@router.get("/pause-log", response_model=PauseLogResponse, summary="Permanent pause/resume audit trail")
+@router.get(
+    "/pause-log",
+    response_model=PauseLogResponse,
+    summary="Permanent pause/resume audit trail",
     dependencies=[Depends(require_resource_permission("pause-log", "view"))]
+)
 def get_pause_log_endpoint(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user),

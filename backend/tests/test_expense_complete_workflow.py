@@ -15,6 +15,7 @@ Avinash's 2026-08-05 direction:
 - After finance approval, accounts@blitzenx.com is notified
 - Finance Task tracks "mark paid once paid" to prevent approval-and-forget
 """
+import logging
 import os
 import tempfile
 from datetime import date, datetime

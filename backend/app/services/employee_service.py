@@ -8,6 +8,7 @@ sanctioned function per state machine, never a bare column UPDATE
 scattered across call sites, so the transition-validity + history-
 logging guarantee lives in one place.
 """
+import logging
 import json
 from datetime import date
 from typing import Optional

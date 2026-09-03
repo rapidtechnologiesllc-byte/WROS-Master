@@ -28,6 +28,7 @@ escalation). Same explicitly-approved "flag every new addition, don't
 silently compound" posture already established for the four
 "candidate went silent" mechanisms during S-041/042/043.
 """
+import logging
 from sqlalchemy import Column, DateTime, ForeignKey, Index, Integer, String, func
 from sqlalchemy.orm import relationship
 

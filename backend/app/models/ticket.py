@@ -21,6 +21,7 @@ Department table (TicketCategoryRoute), not a hardcoded HR/IT/
 Facilities/Other list -- covers every department/function per
 Avinash's explicit direction, including ones that don't exist yet.
 """
+import logging
 import uuid
 from datetime import datetime
 

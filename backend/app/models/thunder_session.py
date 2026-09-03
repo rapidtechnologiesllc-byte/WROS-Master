@@ -4,6 +4,7 @@ Tracks form state, question progression, resume data, and session persistence
 import logging
 """
 
+import logging
 from datetime import datetime
 from sqlalchemy import Column, String, DateTime, Text, Integer, Boolean, ForeignKey, JSON, func, Enum, Index
 from sqlalchemy.orm import relationship

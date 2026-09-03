@@ -14,6 +14,7 @@ BlitzenX Model:
 Partner Focus: "Here's your CORE conversion forecast. Here's where people are stuck. Here's what you need to do."
 """
 
+import logging
 from typing import Dict, Any, List, Optional
 from datetime import datetime, timedelta
 from sqlalchemy.orm import Session

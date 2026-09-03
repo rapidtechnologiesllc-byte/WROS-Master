@@ -1,4 +1,4 @@
-﻿"""Interview â†’ Hire â†’ Onboarding workflow API endpoints."""
+"""Interview â†’ Hire â†’ Onboarding workflow API endpoints."""
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app.core.dependencies import get_current_internal_user, require_resource_permission

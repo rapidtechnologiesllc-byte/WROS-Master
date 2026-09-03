@@ -37,6 +37,7 @@ confirmed product decision** -- flagged for whoever owns the interview
 process to confirm or override, same posture as the MFA role-mapping
 and Client v2 contact-role-vocabulary calls made earlier this session.
 """
+import logging
 from typing import List
 
 from sqlalchemy.orm import Session

@@ -114,7 +114,7 @@ def sync_pending_feedback_tasks_for_interview(db: Session, interview: Interview)
         if created_any:
             db.commit()
     except Exception as exc:
-       logger.error(f"Error: {str(exc)}", exc_info=True)
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[InterviewFeedbackTask] Failed to sync pending-feedback tasks for interview {interview.id}: {exc}")
         db.rollback()
 
@@ -139,7 +139,7 @@ def close_pending_feedback_task(db: Session, interview_id: int, interviewer_id: 
         db.add(task)
         db.commit()
     except Exception as exc:
-       logger.error(f"Error: {str(exc)}", exc_info=True)
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(
             f"[InterviewFeedbackTask] Failed to close pending-feedback task for interview "
             f"{interview_id}, interviewer {interviewer_id}: {exc}"

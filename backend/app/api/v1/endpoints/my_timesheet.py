@@ -42,8 +42,11 @@ def _current_employee_or_404(db: Session, current_user: Users):
         raise HTTPException(status_code=404, detail=str(exc))
 
 
-@router.get("/allocations", response_model=AllocationListResponse)
+@router.get(
+    "/allocations",
+    response_model=AllocationListResponse,
     dependencies=[Depends(require_resource_permission("allocation", "view"))]
+)
 def my_allocations(current_user: Users = Depends(get_current_internal_user), db: Session = Depends(get_db)):
     from app.api.v1.endpoints.allocations import _to_item as allocation_to_item
 
@@ -52,8 +55,11 @@ def my_allocations(current_user: Users = Depends(get_current_internal_user), db:
     return AllocationListResponse(allocations=[allocation_to_item(db, a) for a in allocations])
 
 
-@router.get("/timesheet/current", response_model=TimesheetItem)
+@router.get(
+    "/timesheet/current",
+    response_model=TimesheetItem,
     dependencies=[Depends(require_resource_permission("timesheet", "view"))]
+)
 def my_current_timesheet(
     allocation_id: str, current_user: Users = Depends(get_current_internal_user), db: Session = Depends(get_db),
 ):
@@ -67,8 +73,11 @@ def my_current_timesheet(
     return timesheet_to_item(db, timesheet)
 
 
-@router.put("/timesheet/{timesheet_id}/entries", response_model=TimesheetItem)
+@router.put(
+    "/timesheet/{timesheet_id}/entries",
+    response_model=TimesheetItem,
     dependencies=[Depends(require_resource_permission("timesheet", "update"))]
+)
 def log_my_hours(
     timesheet_id: str, body: UpsertEntriesRequest,
     current_user: Users = Depends(get_current_internal_user), db: Session = Depends(get_db),
@@ -86,8 +95,11 @@ def log_my_hours(
     return timesheet_to_item(db, timesheet)
 
 
-@router.post("/timesheet/{timesheet_id}/submit", response_model=TimesheetItem)
+@router.post(
+    "/timesheet/{timesheet_id}/submit",
+    response_model=TimesheetItem,
     dependencies=[Depends(require_resource_permission("timesheet", "create"))]
+)
 def submit_my_own_timesheet(
     timesheet_id: str, current_user: Users = Depends(get_current_internal_user), db: Session = Depends(get_db),
 ):
@@ -101,8 +113,11 @@ def submit_my_own_timesheet(
     return timesheet_to_item(db, timesheet)
 
 
-@router.get("/timesheet/history", response_model=TimesheetListResponse)
+@router.get(
+    "/timesheet/history",
+    response_model=TimesheetListResponse,
     dependencies=[Depends(require_resource_permission("timesheet", "view"))]
+)
 def my_timesheet_history(current_user: Users = Depends(get_current_internal_user), db: Session = Depends(get_db)):
     from app.api.v1.endpoints.timesheets import _to_item as timesheet_to_item
 

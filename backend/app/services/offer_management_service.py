@@ -124,7 +124,7 @@ class OfferManagementService:
             logger.error(f"Unexpected error creating offer: {str(e)}")
             return {"status": "error", "message": f"Unexpected error: {str(e)}"}
 
-    def approve_offer(
+            def approve_offer(
         self,
         db: Session,
         offer_id: str,
@@ -198,7 +198,7 @@ class OfferManagementService:
             logger.error(f"Unexpected error approving offer {offer_id}: {str(e)}")
             return {"status": "error", "message": f"Unexpected error: {str(e)}"}
 
-    def send_offer_to_candidate(
+            def send_offer_to_candidate(
         self,
         db: Session,
         offer_id: str,
@@ -269,7 +269,7 @@ class OfferManagementService:
             logger.error(f"Unexpected error sending offer {offer_id}: {str(e)}")
             return {"status": "error", "message": f"Unexpected error: {str(e)}"}
 
-    def accept_offer(
+            def accept_offer(
         self,
         db: Session,
         offer_id: str,
@@ -379,7 +379,7 @@ class OfferManagementService:
             logger.error(f"Unexpected error rejecting offer {offer_id}: {str(e)}")
             return {"status": "error", "message": f"Unexpected error: {str(e)}"}
 
-    def retract_offer(
+            def retract_offer(
         self,
         db: Session,
         offer_id: str,

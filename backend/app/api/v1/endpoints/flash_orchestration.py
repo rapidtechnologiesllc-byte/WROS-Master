@@ -1,4 +1,4 @@
-﻿"""Flash Orchestration Engine endpoints - Daily command coordination."""
+"""Flash Orchestration Engine endpoints - Daily command coordination."""
 from fastapi import APIRouter, Depends, HTTPException
 import logging
 from sqlalchemy.orm import Session

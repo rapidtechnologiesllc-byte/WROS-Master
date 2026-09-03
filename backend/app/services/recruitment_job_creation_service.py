@@ -14,6 +14,7 @@ Agent learns from patterns in successful jobs vs. dropped inquiries.
 Logs all actions to agent_execution_log for maturity tracking.
 """
 
+import logging
 from typing import Dict, List, Optional
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_anthropic import ChatAnthropic
@@ -39,7 +40,8 @@ def _get_llm_provider():
             print(f"Gemini provider failed: {e}, trying Claude...", flush=True)
 
     # Fall back to Claude (backup) - skip if dummy key
-    if ANTHROPIC_API_KEY and ANTHROPIC_API_KEY not in ["sk-ant-d01-dummy-for-local-dev", ""]:
+            if ANTHROPIC_API_KEY and ANTHROPIC_API_KEY not in ["sk-ant-d01-dummy-for-local-dev", ""]:
+                pass
         try:
             return ChatAnthropic(api_key=ANTHROPIC_API_KEY, model="claude-opus-4-1", temperature=0, max_retries=1)
         except Exception as e:
@@ -48,7 +50,7 @@ def _get_llm_provider():
 
     # If all real providers fail/unavailable, return a dummy LLM that will always fail
     # and trigger the _get_fallback_response() in the agent
-    return ChatGoogleGenerativeAI(api_key="dummy", model="gemini-3-flash-preview", temperature=0, max_retries=1)
+            return ChatGoogleGenerativeAI(api_key="dummy", model="gemini-3-flash-preview", temperature=0, max_retries=1)
 
 llm = _get_llm_provider()
 

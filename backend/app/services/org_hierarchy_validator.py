@@ -186,7 +186,6 @@ class OrgHierarchyValidator:
             return (True, None)
 
         except Exception as e:
-           logger.error(f"Error: {str(e)}", exc_info=True)
             logger.error(f"Reporting validation error: {e}", exc_info=True)
             return (False, f"Validation error: {str(e)}")
 
@@ -248,8 +247,7 @@ class OrgHierarchyValidator:
             return query.all()
 
         except Exception as e:
-           logger.error(f"Error: {str(e)}", exc_info=True)
-            logger.error(f"Error getting valid supervisors: {e}")
+            logger.error(f"Error getting valid supervisors: {e}", exc_info=True)
             raise ValueError("Operation failed")
 
     @staticmethod

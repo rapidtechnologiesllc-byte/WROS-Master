@@ -115,10 +115,11 @@ class MessageQueueCoordinator:
                         )
                         db.commit()
 
-            logger.info(f"Message processing complete: {stats}")
+                    logger.info(f"Message processing complete: {stats}")
             return stats
 
-        except Exception as e:            logger.error(f"Failed to process pending messages: {e}", exc_info=True)
+        except Exception as e:
+            logger.error(f"Failed to process pending messages: {e}", exc_info=True)
             raise RuntimeError(f"Failed to process pending messages: {str(e)}")
 
     @staticmethod
@@ -214,10 +215,11 @@ class MessageQueueCoordinator:
                     channel.error_details = str(e)
                     db.commit()
 
-            logger.info(f"{queue_type} processing complete: {stats}")
+                    logger.info(f"{queue_type} processing complete: {stats}")
             return stats
 
-        except Exception as e:            logger.error(f"Failed to process channel messages for {queue_type}: {e}", exc_info=True)
+        except Exception as e:
+            logger.error(f"Failed to process channel messages for {queue_type}: {e}", exc_info=True)
             raise RuntimeError(f"Failed to process channel messages: {str(e)}")
 
     @staticmethod
@@ -288,7 +290,8 @@ class MessageQueueCoordinator:
             logger.info(f"Message completion check done: {stats}")
             return stats
 
-        except Exception as e:            logger.error(f"Failed to complete messages: {e}", exc_info=True)
+        except Exception as e:
+            logger.error(f"Failed to complete messages: {e}", exc_info=True)
             raise RuntimeError(f"Failed to complete messages: {str(e)}")
 
     @staticmethod
@@ -345,5 +348,6 @@ class MessageQueueCoordinator:
             logger.debug(f"Queue health: {health}")
             return health
 
-        except Exception as e:            logger.error(f"Failed to get queue health: {e}", exc_info=True)
+        except Exception as e:
+            logger.error(f"Failed to get queue health: {e}", exc_info=True)
             raise RuntimeError(f"Failed to get queue health: {str(e)}")

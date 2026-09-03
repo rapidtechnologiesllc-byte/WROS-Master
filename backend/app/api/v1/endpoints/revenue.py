@@ -89,8 +89,8 @@ def _alert_to_item(alert: ReconciliationAlert) -> ReconciliationAlertItem:
 
 
 @router.post(
-    dependencies=[Depends(get_current_user)]
     "/leakage/scan", response_model=Optional[LeakageFlagItem],
+    dependencies=[Depends(get_current_user)],
     summary="Scan a project+period for unbilled revenue leakage (null if too early or nothing unbilled)",
 )
 def scan_leakage(
@@ -111,8 +111,8 @@ def scan_leakage(
 
 
 @router.post(
-    dependencies=[Depends(get_current_user)]
     "/leakage/{flag_id}/log-reason", response_model=LeakageFlagItem,
+    dependencies=[Depends(get_current_user)],
     summary="Log a reason (e.g. client-negotiated cap) that suppresses a leakage flag",
 )
 def log_leakage_reason(
@@ -130,8 +130,12 @@ def log_leakage_reason(
     return _flag_to_item(flag)
 
 
-@router.get("/leakage", response_model=LeakageFlagsResponse, summary="List active (unresolved) leakage flags (cached from daily scan)")
+@router.get(
+    "/leakage",
+    response_model=LeakageFlagsResponse,
+    summary="List active (unresolved) leakage flags (cached from daily scan)",
     dependencies=[Depends(require_resource_permission("leakage", "view"))]
+)
 def list_leakage_flags(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user),
@@ -146,8 +150,12 @@ def list_leakage_flags(
     return LeakageFlagsResponse(flags=[_flag_to_item(f) for f in flags])
 
 
-@router.get("/leakage/statistics", response_model=dict, summary="Get revenue leakage statistics and totals")
+@router.get(
+    "/leakage/statistics",
+    response_model=dict,
+    summary="Get revenue leakage statistics and totals",
     dependencies=[Depends(require_resource_permission("leakage", "view"))]
+)
 def get_leakage_statistics(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user),
@@ -163,8 +171,12 @@ def get_leakage_statistics(
     return stats
 
 
-@router.post("/leakage/rescan-all", response_model=dict, summary="Manually trigger full revenue scan (secondary action)")
+@router.post(
+    "/leakage/rescan-all",
+    response_model=dict,
+    summary="Manually trigger full revenue scan (secondary action)",
     dependencies=[Depends(require_resource_permission("leakage", "create"))]
+)
 def rescan_all_projects(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user),
@@ -180,8 +192,8 @@ def rescan_all_projects(
 
 
 @router.post(
-    dependencies=[Depends(get_current_user)]
     "/reconciliation/scan", response_model=ReconciliationScanResponse,
+    dependencies=[Depends(get_current_user)],
     summary="Find approved-but-uninvoiced timesheets past the grace period and create alerts",
 )
 def scan_reconciliation(
@@ -197,8 +209,8 @@ def scan_reconciliation(
 
 
 @router.get(
-    dependencies=[Depends(get_current_user)]
     "/reconciliation/alerts", response_model=ReconciliationAlertsResponse,
+    dependencies=[Depends(get_current_user)],
     summary="List reconciliation alerts",
 )
 def list_reconciliation_alerts(
@@ -214,8 +226,8 @@ def list_reconciliation_alerts(
 
 
 @router.post(
-    dependencies=[Depends(get_current_user)]
     "/reconciliation/alerts/{alert_id}/resolve", response_model=ReconciliationAlertItem,
+    dependencies=[Depends(get_current_user)],
     summary="Mark a reconciliation alert resolved",
 )
 def resolve_reconciliation_alert_endpoint(
@@ -233,8 +245,8 @@ def resolve_reconciliation_alert_endpoint(
 
 
 @router.get(
-    dependencies=[Depends(get_current_user)]
     "/dashboard/clients/{client_id}", response_model=ClientRevenueDashboardResponse,
+    dependencies=[Depends(get_current_user)],
     summary="Client revenue realization dashboard (internal only, estimate)",
 )
 def get_client_dashboard(

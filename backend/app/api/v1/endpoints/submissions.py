@@ -86,7 +86,8 @@ def _to_item(db: Session, submission: Submission) -> SubmissionItem:
 
 
 @router.post(
-    dependencies=[Depends(get_current_user)]
+    "", response_model=SubmissionItem,
+    dependencies=[Depends(get_current_user)],
     "", response_model=SubmissionItem,
     summary="Submit a candidate to a demand (runs all compliance gates)",
 )
@@ -145,8 +146,12 @@ def submit_candidate(
     return _to_item(db, submission)
 
 
-@router.get("", response_model=SubmissionListResponse, summary="List submissions")
+@router.get(
+    "",
+    response_model=SubmissionListResponse,
+    summary="List submissions",
     dependencies=[Depends(require_resource_permission(", response_model=SubmissionListResponse, summary=", "view"))]
+)
 def list_submissions(
     demand_id: Optional[str] = None,
     db: Session = Depends(get_db),
@@ -160,8 +165,8 @@ def list_submissions(
 
 
 @router.get(
-    dependencies=[Depends(get_current_user)]
     "/violations", response_model=SubmissionViolationListResponse,
+    dependencies=[Depends(get_current_user)],
     summary="Compliance violation audit log",
 )
 def list_violations(
@@ -187,8 +192,8 @@ def list_violations(
 
 
 @router.patch(
-    dependencies=[Depends(get_current_user)]
     "/{submission_id}/client-response", response_model=SubmissionItem,
+    dependencies=[Depends(get_current_user)],
     summary="Record the client's response to a submission",
 )
 def client_response(

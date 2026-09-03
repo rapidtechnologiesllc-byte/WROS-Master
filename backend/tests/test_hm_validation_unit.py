@@ -4,6 +4,7 @@ Focused on business logic without database setup
 import logging
 """
 
+import logging
 import pytest
 from datetime import datetime, timedelta
 from uuid import uuid4

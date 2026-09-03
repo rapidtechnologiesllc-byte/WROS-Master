@@ -17,6 +17,7 @@ Created: 2026-08-25
 Last Updated: 2026-08-25
 """
 
+import logging
 from typing import Optional, List, Dict, Any
 from enum import Enum
 from pydantic import BaseModel, Field, EmailStr, validator

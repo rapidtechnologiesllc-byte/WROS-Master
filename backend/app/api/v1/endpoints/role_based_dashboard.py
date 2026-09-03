@@ -12,8 +12,10 @@ from app.services.permission_helper import PermissionHelper
 router = APIRouter(prefix="/dashboard", tags=["Role-Based Dashboard"])
 
 
-@router.get("/my-dashboard")
+@router.get(
+    "/my-dashboard",
     dependencies=[Depends(require_resource_permission("my-dashboard", "view"))]
+)
 def get_my_dashboard(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user)
@@ -49,8 +51,10 @@ def get_my_dashboard(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/ceo-strategic")
+@router.get(
+    "/ceo-strategic",
     dependencies=[Depends(require_resource_permission("ceo-strategic", "view"))]
+)
 def get_ceo_dashboard(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user)
@@ -85,8 +89,10 @@ def get_ceo_dashboard(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/recruiter-pipeline")
+@router.get(
+    "/recruiter-pipeline",
     dependencies=[Depends(require_resource_permission("recruiter-pipeline", "view"))]
+)
 def get_recruiter_dashboard(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user)
@@ -126,8 +132,10 @@ def get_recruiter_dashboard(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/hr-people")
+@router.get(
+    "/hr-people",
     dependencies=[Depends(require_resource_permission("hr-people", "view"))]
+)
 def get_hr_dashboard(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user)
@@ -167,8 +175,10 @@ def get_hr_dashboard(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/finance-revenue")
+@router.get(
+    "/finance-revenue",
     dependencies=[Depends(require_resource_permission("finance-revenue", "view"))]
+)
 def get_finance_dashboard(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user)

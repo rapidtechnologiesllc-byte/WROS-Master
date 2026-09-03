@@ -93,7 +93,7 @@ class AutonomousForecastingService:
             return forecast
 
         except Exception as e:
-           logger.error(f"Error: {str(e)}", exc_info=True)
+            logger.error(f"Error: {str(e)}", exc_info=True)
             logger.error(f"Recruitment forecasting failed: {e}", exc_info=True)
             raise
 
@@ -153,7 +153,7 @@ class AutonomousForecastingService:
             return forecast
 
         except Exception as e:
-           logger.error(f"Error: {str(e)}", exc_info=True)
+            logger.error(f"Error: {str(e)}", exc_info=True)
             logger.error(f"Resource forecasting failed: {e}", exc_info=True)
             raise
 
@@ -214,7 +214,7 @@ class AutonomousForecastingService:
             return forecast
 
         except Exception as e:
-           logger.error(f"Error: {str(e)}", exc_info=True)
+            logger.error(f"Error: {str(e)}", exc_info=True)
             logger.error(f"Revenue forecasting failed: {e}", exc_info=True)
             raise
 
@@ -287,7 +287,7 @@ class AutonomousForecastingService:
                 }
 
         except Exception as e:
-           logger.error(f"Error: {str(e)}", exc_info=True)
+            logger.error(f"Error: {str(e)}", exc_info=True)
             logger.error(f"Decision validation failed: {e}", exc_info=True)
             raise
 
@@ -399,6 +399,6 @@ Autonomous Governance System
             return alert
 
         except Exception as e:
-           logger.error(f"Error: {str(e)}", exc_info=True)
+            logger.error(f"Error: {str(e)}", exc_info=True)
             logger.error(f"Alert generation failed: {e}", exc_info=True)
             raise

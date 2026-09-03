@@ -677,7 +677,7 @@ def generate_filled_docx(
                 f"({len(sig_img_bytes)} bytes) from {HR_MANAGER_SIGNATURE_PATH}"
             )
         except Exception as exc:
-           logger.error(f"Error: {str(exc)}", exc_info=True)
+            logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.warning(
                 f"offer_letter_generator — could not download static signature image "
                 f"from '{HR_MANAGER_SIGNATURE_PATH}': {exc}"

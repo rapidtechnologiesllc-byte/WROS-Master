@@ -22,6 +22,7 @@ Login is explicitly email+password, NOT magic link, per P801's own
 "sub-vendors are business accounts, not candidates" note -- SubVendorUser
 is a separate account space from the internal `users` table.
 """
+import logging
 import uuid
 
 from sqlalchemy import (

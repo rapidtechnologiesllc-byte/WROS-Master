@@ -10,6 +10,7 @@ close for invoicing") -- not wired to an actual invoice-period-close gate
 since invoicing doesn't exist in this codebase yet, same posture as
 every other not-yet-reachable dependency this session.
 """
+import logging
 from datetime import datetime
 from typing import Optional
 

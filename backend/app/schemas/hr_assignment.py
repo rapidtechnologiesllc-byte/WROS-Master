@@ -5,6 +5,7 @@ Pydantic request / response models for the HR Assignment API.
 import logging
 """
 
+import logging
 from datetime import datetime
 from typing import Optional
 from pydantic import BaseModel, Field, field_validator

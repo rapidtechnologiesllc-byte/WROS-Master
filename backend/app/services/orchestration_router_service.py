@@ -41,6 +41,7 @@ rate-limiter gap. Every call in this module still executes inside a
 single DB transaction (caller commits), so the window is narrow, not
 absent.
 """
+import logging
 from datetime import datetime, timedelta
 from typing import Callable, Optional
 

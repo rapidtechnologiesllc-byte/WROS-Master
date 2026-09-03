@@ -19,6 +19,7 @@ captured whatsapp_outreach consent at candidate creation. Fixed at the
 source (candidate_service.create_candidate_safe), not worked around
 here.
 """
+import logging
 import time
 from datetime import datetime
 from typing import Dict, Optional
@@ -130,7 +131,7 @@ def _send_first_whatsapp_attempt(
     try:
         delivered = bool(client(candidate.candidateMobile, from_number, body))
     except Exception as exc:
-       logger.error(f"Error: {str(exc)}", exc_info=True)
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[FirstEngagement] WhatsApp send attempt raised: {exc}")
         delivered = False
 

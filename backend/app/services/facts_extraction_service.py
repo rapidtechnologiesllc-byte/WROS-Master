@@ -143,7 +143,7 @@ def _resolve_confidence_threshold(db: Session, candidate: Candidate) -> float:
             db, tenant_id=candidate.tenant_id, key="profile_update_confidence_threshold",
         )
     except Exception as exc:
-       logger.error(f"Error: {str(exc)}", exc_info=True)
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[FactsExtraction] Config read failed, using default threshold: {exc}")
         return PROFILE_UPDATE_CONFIDENCE_THRESHOLD
 
@@ -196,7 +196,7 @@ def extract_facts(
         parsed = json.loads(raw)
         facts = _validate_extracted_items(parsed)
     except Exception as exc:
-       logger.error(f"Error: {str(exc)}", exc_info=True)
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[FactsExtraction] Extraction failed for candidate {candidate.candidateID}: {exc}")
         _log_extraction_event(db, conversation_id, "FACTS_EXTRACTION_FAILED", {"reason": str(exc)})
         db.commit()

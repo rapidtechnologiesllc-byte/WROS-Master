@@ -220,7 +220,7 @@ def parse_availability_response(
     try:
         raw_slots = _extract_raw_slots(message_body, today, llm_call)
     except Exception as exc:
-       logger.error(f"Error: {str(exc)}", exc_info=True)
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[InterviewAvailability] Parse failed for candidate {candidate.candidateID!r}: {exc}")
         db.add(ConversationEvent(
             conversation_id=conversation.id, event_type="availability_parse_failed",

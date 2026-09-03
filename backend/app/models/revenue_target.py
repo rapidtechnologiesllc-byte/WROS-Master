@@ -26,6 +26,7 @@ reliably autoincrement outside the primary-key position in either
 dialect. `id` is used only as a stable identifier here, same as it
 would be as a UUID everywhere else in this codebase.
 """
+import logging
 from sqlalchemy import Column, DateTime, Enum, ForeignKey, Integer, String, Text, func
 
 from app.models.base import Base

@@ -168,7 +168,7 @@ def _run_cycle_for_tenant(db: Session, tenant_id: str, window_start: datetime, t
                 action_data=None, success=False, error_message=str(exc)[:2000],
             ))
             logger.error(f"[SupervisorAgent] Evaluation failed for candidate {conversation.candidate_id!r}: {exc}")
-    db.commit()
+            db.commit()
 
     conflicts = _detect_conflicts(db, tenant_id, window_start)
 
@@ -184,7 +184,7 @@ def _run_cycle_for_tenant(db: Session, tenant_id: str, window_start: datetime, t
         actions_dispatched = breakdown.get("thunder_actions", 0)
         thunder_autonomy_pct = breakdown.get("thunder_pct")
     except Exception as exc:
-       logger.error(f"Error: {str(exc)}", exc_info=True)
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[SupervisorAgent] Could not compute thunder analytics for tenant {tenant_id!r}: {exc}")
 
     duration_ms = int((datetime.utcnow() - cycle_started).total_seconds() * 1000)
@@ -200,7 +200,7 @@ def _run_cycle_for_tenant(db: Session, tenant_id: str, window_start: datetime, t
             tenant_id,
         )
     except Exception as exc:
-       logger.error(f"Error: {str(exc)}", exc_info=True)
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[SupervisorAgent] Failed to emit supervisor.cycle_completed for tenant {tenant_id!r}: {exc}")
 
     return {
@@ -228,7 +228,7 @@ def run_supervisor_cycle(db: Session, tenant_id: Optional[str] = None) -> Dict:
             overall["conflicts_detected"] += result["conflicts_detected"]
             overall["tenants_processed"] += 1
         except Exception as exc:
-           logger.error(f"Error: {str(exc)}", exc_info=True)
+            logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.error(f"[SupervisorAgent] Cycle failed for tenant {tid!r}: {exc}")
 
     return overall

@@ -79,7 +79,8 @@ class QueueIntegrations:
             )
             return message_id
 
-        except Exception as e:            logger.error(f"Failed to queue candidate_created: {e}", exc_info=True)
+        except Exception as e:
+            logger.error(f"Failed to queue candidate_created: {e}", exc_info=True)
             raise
 
     @staticmethod
@@ -139,7 +140,8 @@ class QueueIntegrations:
             logger.info(f"Queued interview_scheduled: {interview_id} (message: {message_id})")
             return message_id
 
-        except Exception as e:            logger.error(f"Failed to queue interview_scheduled: {e}", exc_info=True)
+        except Exception as e:
+            logger.error(f"Failed to queue interview_scheduled: {e}", exc_info=True)
             raise
 
     @staticmethod
@@ -190,7 +192,8 @@ class QueueIntegrations:
             logger.info(f"Queued offer_generated: {offer_id} (message: {message_id})")
             return message_id
 
-        except Exception as e:            logger.error(f"Failed to queue offer_generated: {e}", exc_info=True)
+        except Exception as e:
+            logger.error(f"Failed to queue offer_generated: {e}", exc_info=True)
             raise
 
     # ==================== TIMESHEET QUEUES ====================
@@ -240,7 +243,8 @@ class QueueIntegrations:
             logger.info(f"Queued timesheet_submitted: {timesheet_id} (message: {message_id})")
             return message_id
 
-        except Exception as e:            logger.error(f"Failed to queue timesheet_submitted: {e}", exc_info=True)
+        except Exception as e:
+            logger.error(f"Failed to queue timesheet_submitted: {e}", exc_info=True)
             raise
 
     # ==================== KPI QUEUES ====================
@@ -296,7 +300,8 @@ class QueueIntegrations:
             logger.info(f"Queued kpi_updated: {kpi_id} (message: {message_id})")
             return message_id
 
-        except Exception as e:            logger.error(f"Failed to queue kpi_updated: {e}", exc_info=True)
+        except Exception as e:
+            logger.error(f"Failed to queue kpi_updated: {e}", exc_info=True)
             raise
 
     # ==================== SALES QUEUES ====================
@@ -346,7 +351,8 @@ class QueueIntegrations:
             logger.info(f"Queued sales_deal: {deal_id} (message: {message_id})")
             return message_id
 
-        except Exception as e:            logger.error(f"Failed to queue sales_deal: {e}", exc_info=True)
+        except Exception as e:
+            logger.error(f"Failed to queue sales_deal: {e}", exc_info=True)
             raise
 
     # ==================== CLIENT QUEUES ====================
@@ -396,5 +402,6 @@ class QueueIntegrations:
             logger.info(f"Queued client_contact: {client_id} (message: {message_id})")
             return message_id
 
-        except Exception as e:            logger.error(f"Failed to queue client_contact: {e}", exc_info=True)
+        except Exception as e:
+            logger.error(f"Failed to queue client_contact: {e}", exc_info=True)
             raise

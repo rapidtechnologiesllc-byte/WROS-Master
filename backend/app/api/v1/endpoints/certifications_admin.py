@@ -268,8 +268,10 @@ def recalculate_employee_kpi_score(db: Session, employee_id: str, business_unit_
 
 # ==== Form Dropdown Data Endpoints ====
 
-@router.get("/business-units")
+@router.get(
+    "/business-units",
     dependencies=[Depends(require_resource_permission("business-unit", "view"))]
+)
 def list_business_units_for_form(db: Session = Depends(get_db)):
     """List all business units for form dropdown"""
     from app.models.business_unit import BusinessUnit
@@ -287,8 +289,10 @@ def list_business_units_for_form(db: Session = Depends(get_db)):
     return data
 
 
-@router.get("/roles")
+@router.get(
+    "/roles",
     dependencies=[Depends(require_resource_permission("role", "view"))]
+)
 def list_roles_for_form(db: Session = Depends(get_db)):
     """List all role templates for form dropdown"""
     from app.models.role_template import RoleTemplate

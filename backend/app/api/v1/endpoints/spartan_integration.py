@@ -18,8 +18,10 @@ from app.services.kpi_service import KPIService
 router = APIRouter(prefix="/spartan", tags=["spartan-integration"])
 
 # Finance Endpoints
-@router.post("/finance/invoices")
+@router.post(
+    "/finance/invoices",
     dependencies=[Depends(require_resource_permission("finance", "create"))]
+)
 def create_invoice(
     opportunity_id: str,
     amount: float,
@@ -36,12 +38,14 @@ def create_invoice(
             created_by="api"
         )
     except Exception as e:
-       logger.error(f"Error: {str(e)}", exc_info=True)
+        logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Invoice creation failed: {e}")
         raise HTTPException(status_code=400, detail=str(e))
 
-@router.post("/finance/invoices/{invoice_id}/approve")
+@router.post(
+    "/finance/invoices/{invoice_id}/approve",
     dependencies=[Depends(require_resource_permission("finance", "create"))]
+)
 def approve_invoice(
     invoice_id: str,
     approved_by: str = "finance@example.com",
@@ -55,12 +59,14 @@ def approve_invoice(
             approved_by=approved_by
         )
     except Exception as e:
-       logger.error(f"Error: {str(e)}", exc_info=True)
+        logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Invoice approval failed: {e}")
         raise HTTPException(status_code=400, detail=str(e))
 
-@router.post("/finance/invoices/bulk-approve")
+@router.post(
+    "/finance/invoices/bulk-approve",
     dependencies=[Depends(require_resource_permission("finance", "create"))]
+)
 def bulk_approve_invoices(
     invoice_ids: List[str],
     approved_by: str = "finance@example.com",
@@ -74,12 +80,14 @@ def bulk_approve_invoices(
             approved_by=approved_by
         )
     except Exception as e:
-       logger.error(f"Error: {str(e)}", exc_info=True)
+        logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Bulk approval failed: {e}")
         raise HTTPException(status_code=400, detail=str(e))
 
-@router.post("/finance/revenue/recognize")
+@router.post(
+    "/finance/revenue/recognize",
     dependencies=[Depends(require_resource_permission("finance", "create"))]
+)
 def recognize_revenue(
     invoice_id: str,
     amount: float = None,
@@ -93,13 +101,15 @@ def recognize_revenue(
             amount=amount
         )
     except Exception as e:
-       logger.error(f"Error: {str(e)}", exc_info=True)
+        logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Revenue recognition failed: {e}")
         raise HTTPException(status_code=400, detail=str(e))
 
 # Timesheet Endpoints
-@router.get("/timesheets/pending")
+@router.get(
+    "/timesheets/pending",
     dependencies=[Depends(require_resource_permission("timesheet", "view"))]
+)
 def get_pending_timesheets(
     manager_id: str = None,
     limit: int = 100,
@@ -113,11 +123,14 @@ def get_pending_timesheets(
             limit=limit
         )
         return {"data": timesheets}
-    except Exception as e:        logger.error(f"Failed to get pending timesheets: {e}")
+    except Exception as e:
+        logger.error(f"Failed to get pending timesheets: {e}")
         raise HTTPException(status_code=400, detail=str(e))
 
-@router.post("/timesheets/bulk-approve")
+@router.post(
+    "/timesheets/bulk-approve",
     dependencies=[Depends(require_resource_permission("timesheet", "create"))]
+)
 def bulk_approve_timesheets(
     timesheet_ids: List[str],
     approved_by: str = "manager@example.com",
@@ -131,12 +144,14 @@ def bulk_approve_timesheets(
             approved_by=approved_by
         )
     except Exception as e:
-       logger.error(f"Error: {str(e)}", exc_info=True)
+        logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Bulk timesheet approval failed: {e}")
         raise HTTPException(status_code=400, detail=str(e))
 
-@router.get("/timesheets/kpis")
+@router.get(
+    "/timesheets/kpis",
     dependencies=[Depends(require_resource_permission("timesheet", "view"))]
+)
 def get_timesheet_kpis(
     manager_id: str = None,
     db: Session = Depends(get_db)
@@ -148,12 +163,15 @@ def get_timesheet_kpis(
             manager_id=manager_id
         )
         return {"data": kpis}
-    except Exception as e:        logger.error(f"Failed to get timesheet KPIs: {e}")
+    except Exception as e:
+        logger.error(f"Failed to get timesheet KPIs: {e}")
         raise HTTPException(status_code=400, detail=str(e))
 
 # Job Management Endpoints
-@router.put("/jobs/{job_id}")
+@router.put(
+    "/jobs/{job_id}",
     dependencies=[Depends(require_resource_permission("job", "update"))]
+)
 def update_job(
     job_id: str,
     title: str = None,
@@ -176,12 +194,14 @@ def update_job(
             updated_by=updated_by
         )
     except Exception as e:
-       logger.error(f"Error: {str(e)}", exc_info=True)
+        logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Job update failed: {e}")
         raise HTTPException(status_code=400, detail=str(e))
 
-@router.post("/jobs/{job_id}/close")
+@router.post(
+    "/jobs/{job_id}/close",
     dependencies=[Depends(require_resource_permission("job", "create"))]
+)
 def close_job(
     job_id: str,
     reason: str = "FILLED",
@@ -197,13 +217,15 @@ def close_job(
             closed_by=closed_by
         )
     except Exception as e:
-       logger.error(f"Error: {str(e)}", exc_info=True)
+        logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Job closure failed: {e}")
         raise HTTPException(status_code=400, detail=str(e))
 
 # Demand Management Endpoints
-@router.post("/demand")
+@router.post(
+    "/demand",
     dependencies=[Depends(require_resource_permission("demand", "create"))]
+)
 def create_demand(
     resource_type: str,
     quantity: int,
@@ -223,12 +245,14 @@ def create_demand(
             business_unit_id=business_unit_id
         )
     except Exception as e:
-       logger.error(f"Error: {str(e)}", exc_info=True)
+        logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Demand creation failed: {e}")
         raise HTTPException(status_code=400, detail=str(e))
 
-@router.put("/demand/{demand_id}")
+@router.put(
+    "/demand/{demand_id}",
     dependencies=[Depends(require_resource_permission("demand", "update"))]
+)
 def adjust_demand(
     demand_id: str,
     new_quantity: int,
@@ -244,13 +268,15 @@ def adjust_demand(
             adjusted_by=adjusted_by
         )
     except Exception as e:
-       logger.error(f"Error: {str(e)}", exc_info=True)
+        logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Demand adjustment failed: {e}")
         raise HTTPException(status_code=400, detail=str(e))
 
 # KPI Endpoints
-@router.get("/kpis/{phalanx}")
+@router.get(
+    "/kpis/{phalanx}",
     dependencies=[Depends(require_resource_permission("kpi", "view"))]
+)
 def get_kpi(
     phalanx: str,
     period: str = "weekly",
@@ -260,12 +286,15 @@ def get_kpi(
     try:
         health = KPIService.get_phalanx_health_score(db, phalanx, period)
         return {"data": health}
-    except Exception as e:        logger.error(f"Failed to get KPI: {e}")
+    except Exception as e:
+        logger.error(f"Failed to get KPI: {e}")
         raise HTTPException(status_code=400, detail=str(e))
 
 # Orchestration Endpoints
-@router.post("/operations/queue")
+@router.post(
+    "/operations/queue",
     dependencies=[Depends(require_resource_permission("operation", "create"))]
+)
 def queue_operation(
     phalanx: str,  # "recruitment", "resource_management", "finance"
     operation: str,
@@ -299,12 +328,14 @@ def queue_operation(
         else:
             raise ValueError(f"Unknown phalanx: {phalanx}")
     except Exception as e:
-       logger.error(f"Error: {str(e)}", exc_info=True)
+        logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Operation queueing failed: {e}")
         raise HTTPException(status_code=400, detail=str(e))
 
-@router.get("/formation/status")
+@router.get(
+    "/formation/status",
     dependencies=[Depends(require_resource_permission("formation", "view"))]
+)
 def get_formation_status(
     db: Session = Depends(get_db)
 ) -> Dict[str, Any]:
@@ -312,11 +343,14 @@ def get_formation_status(
     try:
         status = SpartanOrchestrationService.get_spartan_formation_status(db)
         return {"data": status}
-    except Exception as e:        logger.error(f"Failed to get formation status: {e}")
+    except Exception as e:
+        logger.error(f"Failed to get formation status: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.get("/phalanx/{phalanx}/integrity")
+@router.get(
+    "/phalanx/{phalanx}/integrity",
     dependencies=[Depends(require_resource_permission("phalanx", "view"))]
+)
 def check_integrity(
     phalanx: str,
     db: Session = Depends(get_db)
@@ -325,5 +359,6 @@ def check_integrity(
     try:
         integrity = SpartanOrchestrationService.check_phalanx_integrity(db, phalanx)
         return {"data": integrity}
-    except Exception as e:        logger.error(f"Failed to check integrity: {e}")
+    except Exception as e:
+        logger.error(f"Failed to check integrity: {e}")
         raise HTTPException(status_code=400, detail=str(e))

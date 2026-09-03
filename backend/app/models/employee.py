@@ -1,5 +1,4 @@
 """
-import logging
 HRMS-0101 (+ 0101-REV) — Employee Entity Model, Phase 2 Domain 3.
 
 Translated from the requirements doc's PostgreSQL-flavored spec to this
@@ -25,6 +24,7 @@ existed. That's not true here: this table has zero rows before this
 migration runs, so there's nothing to backfill and no reason to
 replay history that doesn't apply.
 """
+import logging
 import uuid
 from datetime import date, datetime
 

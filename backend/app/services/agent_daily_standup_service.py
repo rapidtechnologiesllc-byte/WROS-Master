@@ -12,6 +12,7 @@ This is an aggressive execution system where Flash drives the build.
 Every update is questioned and validated.
 """
 
+import logging
 from typing import Dict, Any, List, Optional
 from datetime import datetime, timedelta
 from sqlalchemy.orm import Session

@@ -13,6 +13,7 @@ per the spec's own table shape (Step 1), but S-037 only ever computes
 technical_score -- left nullable for the later stories that own those
 (HRMS-0440 Overall Candidate Score and friends), not computed here.
 """
+import logging
 from sqlalchemy import Column, DateTime, ForeignKey, Integer, JSON, String, UniqueConstraint, func
 from sqlalchemy.orm import relationship
 

@@ -26,6 +26,7 @@ mechanism) -- the real surface here is a handful of specific
 candidate/interview/feedback list endpoints, not the ~180-call-site
 scale that justified a global session-level filter for tenant scoping.
 """
+import logging
 from typing import Optional, Set
 
 from sqlalchemy import or_

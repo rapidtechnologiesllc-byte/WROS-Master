@@ -11,6 +11,7 @@ desire_ranking is the full sorted array (JSON) -- top_desire_category/
 top_desire_score are denormalized copies of desire_ranking[0] for fast
 reads without deserializing the array on every list view.
 """
+import logging
 from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Integer, JSON, String, Text, UniqueConstraint, func
 from sqlalchemy.orm import relationship
 

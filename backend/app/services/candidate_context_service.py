@@ -37,6 +37,7 @@ Real architecture adaptations:
   jobExperience, jobLocation, salaryRange as the closest real
   equivalent to the spec's bill_rate -- no bill_rate field exists).
 """
+import logging
 import time
 from datetime import datetime
 from typing import Dict, Optional, Tuple

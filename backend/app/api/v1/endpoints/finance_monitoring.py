@@ -57,8 +57,10 @@ def check_bu_access(user_id: str, bu_id: str, tenant_id: int, db: Session) -> bo
     return bu_id in allowed_bus
 
 
-@router.get("/dashboard")
+@router.get(
+    "/dashboard",
     dependencies=[Depends(require_resource_permission("dashboard", "view"))]
+)
 async def get_finance_dashboard(
     current_user: Users = Depends(get_current_user),
     db: Session = Depends(get_db)
@@ -136,8 +138,10 @@ async def get_finance_dashboard(
         raise HTTPException(status_code=500, detail=f"Finance calculation error: {str(e)}")
 
 
-@router.get("/partner/{partner_id}/consolidation")
+@router.get(
+    "/partner/{partner_id}/consolidation",
     dependencies=[Depends(require_resource_permission("partner", "view"))]
+)
 async def get_partner_consolidated_pl(
     partner_id: str,
     current_user: Users = Depends(get_current_user),
@@ -162,8 +166,10 @@ async def get_partner_consolidated_pl(
     )
 
 
-@router.get("/bu/{bu_id}/metrics")
+@router.get(
+    "/bu/{bu_id}/metrics",
     dependencies=[Depends(require_resource_permission("bu", "view"))]
+)
 async def get_bu_pl(
     bu_id: str,
     current_user: Users = Depends(get_current_user),
@@ -190,8 +196,10 @@ async def get_bu_pl(
     )
 
 
-@router.get("/forecast/{partner_id}")
+@router.get(
+    "/forecast/{partner_id}",
     dependencies=[Depends(require_resource_permission("forecast", "view"))]
+)
 async def forecast_partner_margin(
     partner_id: str,
     days: int = 7,
@@ -213,8 +221,10 @@ async def forecast_partner_margin(
     )
 
 
-@router.get("/anomalies/{partner_id}")
+@router.get(
+    "/anomalies/{partner_id}",
     dependencies=[Depends(require_resource_permission("anomalie", "view"))]
+)
 async def detect_cost_anomalies(
     partner_id: str,
     current_user: Users = Depends(get_current_user),
@@ -244,8 +254,10 @@ async def detect_cost_anomalies(
     }
 
 
-@router.get("/health-check")
+@router.get(
+    "/health-check",
     dependencies=[Depends(require_resource_permission("health-check", "view"))]
+)
 async def hourly_profitability_check(
     current_user: Users = Depends(get_current_user),
     db: Session = Depends(get_db)

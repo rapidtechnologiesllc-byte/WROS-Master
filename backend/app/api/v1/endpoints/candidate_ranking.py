@@ -27,8 +27,8 @@ scoring_service = CandidateScoringService()
 
 
 @router.post(
-    dependencies=[Depends(require_resource_permission("candidate", "view"))],
     "/fit-score",
+    dependencies=[Depends(require_resource_permission("candidate", "view"))],
     response_model=CalculateFitScoreResponse,
     summary="Calculate candidate fit score",
     description="Calculate how well a candidate matches a specific job demand (0-100 scale)"
@@ -77,8 +77,8 @@ def calculate_fit_score(
 
 
 @router.post(
-    dependencies=[Depends(require_resource_permission("candidate", "view"))],
     "/rank",
+    dependencies=[Depends(require_resource_permission("candidate", "view"))],
     response_model=RankCandidatesResponse,
     summary="Rank candidates for a job",
     description="Rank all candidates for a specific job demand by fit score"
@@ -125,8 +125,8 @@ def rank_candidates(
 
 
 @router.post(
-    dependencies=[Depends(require_resource_permission("candidate", "view"))],
     "/best-match",
+    dependencies=[Depends(require_resource_permission("candidate", "view"))],
     response_model=IdentifyBestMatchResponse,
     summary="Identify best candidate for a job",
     description="Find the top-ranked candidate for a specific job demand"

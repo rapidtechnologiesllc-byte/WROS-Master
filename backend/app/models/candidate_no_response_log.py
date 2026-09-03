@@ -9,6 +9,7 @@ UserID-as-tenant_id convention, matching every other new table this
 round. last_outbound_message_id FKs into ConversationEvent.id (the
 real message log; no conversation_messages table exists).
 """
+import logging
 from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, func
 from sqlalchemy.orm import relationship
 

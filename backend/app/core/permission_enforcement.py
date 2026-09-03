@@ -33,8 +33,8 @@ def require_permission(permission: str):
     Decorator to enforce a specific permission on an endpoint.
 
     Usage:
-        @router.get("/candidates")
-        @require_permission("candidates.view")
+    @router.get("/candidates")
+    @require_permission("candidates.view")
         async def get_candidates(db: Session = Depends(get_db),
                                 current_user: Users = Depends(get_current_internal_user)):
             ...
@@ -75,7 +75,7 @@ def require_permission(permission: str):
             # Call the original function
             return await func(*args, **kwargs) if hasattr(func, '__await__') else func(*args, **kwargs)
 
-        @wraps(func)
+    @wraps(func)
         def sync_wrapper(*args, **kwargs):
             db = kwargs.get("db")
             current_user = kwargs.get("current_user")
@@ -121,8 +121,8 @@ def require_any_permission(permissions: List[str]):
     Decorator to enforce that user has ANY of the given permissions.
 
     Usage:
-        @router.get("/reports")
-        @require_any_permission(["reports.view", "analytics.view"])
+    @router.get("/reports")
+    @require_any_permission(["reports.view", "analytics.view"])
         async def get_reports(...):
             ...
     """
@@ -156,7 +156,7 @@ def require_any_permission(permissions: List[str]):
 
             return await func(*args, **kwargs) if hasattr(func, '__await__') else func(*args, **kwargs)
 
-        @wraps(func)
+    @wraps(func)
         def sync_wrapper(*args, **kwargs):
             db = kwargs.get("db")
             current_user = kwargs.get("current_user")
@@ -198,8 +198,8 @@ def require_all_permissions(permissions: List[str]):
     Decorator to enforce that user has ALL of the given permissions.
 
     Usage:
-        @router.post("/approve-offer")
-        @require_all_permissions(["offers.view", "offers.approve"])
+    @router.post("/approve-offer")
+    @require_all_permissions(["offers.view", "offers.approve"])
         async def approve_offer(...):
             ...
     """
@@ -233,7 +233,7 @@ def require_all_permissions(permissions: List[str]):
 
             return await func(*args, **kwargs) if hasattr(func, '__await__') else func(*args, **kwargs)
 
-        @wraps(func)
+    @wraps(func)
         def sync_wrapper(*args, **kwargs):
             db = kwargs.get("db")
             current_user = kwargs.get("current_user")
@@ -275,23 +275,23 @@ def require_action_permission(resource: str, action: str):
     Decorator for V, C, E, D (View, Create, Edit, Delete) permission enforcement.
 
     Usage:
-        @router.get("/candidates")
-        @require_action_permission("administration", "view")
+    @router.get("/candidates")
+    @require_action_permission("administration", "view")
         async def get_users(...):
             ...
 
-        @router.post("/users")
-        @require_action_permission("administration", "create")
+    @router.post("/users")
+    @require_action_permission("administration", "create")
         async def create_user(...):
             ...
 
-        @router.put("/users/{id}")
-        @require_action_permission("administration", "edit")
+    @router.put("/users/{id}")
+    @require_action_permission("administration", "edit")
         async def update_user(...):
             ...
 
-        @router.delete("/users/{id}")
-        @require_action_permission("administration", "delete")
+    @router.delete("/users/{id}")
+    @require_action_permission("administration", "delete")
         async def delete_user(...):
             ...
 
@@ -348,7 +348,8 @@ def _log_permission_check(
         )
         db.add(audit_log)
         db.commit()
-    except Exception as e:        logger.error(f"Failed to log permission check: {str(e)}")
+    except Exception as e:
+        logger.error(f"Failed to log permission check: {str(e)}")
         # Don't raise - audit logging failure shouldn't break the app
 
 

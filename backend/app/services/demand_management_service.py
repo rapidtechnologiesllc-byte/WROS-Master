@@ -152,5 +152,6 @@ class DemandManagementService:
                 "start_date": demand.start_date.isoformat() if hasattr(demand, 'start_date') else None,
                 "end_date": demand.end_date.isoformat() if hasattr(demand, 'end_date') else None
             }
-        except Exception as e:            logger.error(f"Failed to get fulfillment status: {e}", exc_info=True)
+        except Exception as e:
+            logger.error(f"Failed to get fulfillment status: {e}", exc_info=True)
             raise

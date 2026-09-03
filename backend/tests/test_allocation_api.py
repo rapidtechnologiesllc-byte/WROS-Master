@@ -13,6 +13,7 @@ Test Coverage:
   7. GET /allocations/dropdowns/for-create — Get form dropdowns
 """
 
+import logging
 import pytest
 from datetime import date, timedelta
 from fastapi.testclient import TestClient

@@ -9,7 +9,7 @@ try:
     Base.metadata.create_all(bind=engine)
     print("✅ Database schema initialized successfully")
 except Exception as e:
-   logger.error(f"Error: {str(e)}", exc_info=True)
+    logger.error(f"Error: {str(e)}", exc_info=True)
     logger.error(f"Error: {str(e)}", exc_info=True)
     print(f"⚠️  Some tables may already exist (expected): {e}")
     print("✅ Schema initialization complete (table existence errors are ok)")

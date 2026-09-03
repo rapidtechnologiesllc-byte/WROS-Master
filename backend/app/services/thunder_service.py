@@ -33,6 +33,7 @@ this codebase -- it's EPIC-11 scope (HRMS-1101-1110, Phase 3 Workstream
 desire_profile=None rather than fabricating one, so a caller can tell
 "not built yet" apart from "built and empty."
 """
+import logging
 import os
 import re
 import secrets
@@ -298,11 +299,11 @@ def send_outbound_campaign_message(db: Session, conversation: CandidateConversat
                 MessageQueueService.mark_completed(message.id, db=db)
                 logger.debug(f"[Thunder] Marked candidate_created message as COMPLETED: {message.id}")
         except Exception as msg_err:
-           logger.error(f"Error: {str(msg_err)}", exc_info=True)
+            logger.error(f"Error: {str(msg_err)}", exc_info=True)
             logger.error(f"[Thunder] Failed to mark message as completed: {msg_err}", exc_info=True)
             # Don't fail email sending if message queue update fails
     except Exception as exc:
-       logger.error(f"Error: {str(exc)}", exc_info=True)
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.error(f"[Thunder] Email send failed for candidate {candidate.candidateID!r}: {exc}")
 
     db.add(ConversationEvent(
@@ -663,7 +664,7 @@ def generate_thunder_reply_with_fallback(
             logger.error(f"[Thunder] reply generation failed (attempt {attempt + 1}): {exc}")
             continue
         except Exception as exc:
-           logger.error(f"Error: {str(exc)}", exc_info=True)
+            logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.error(f"[Thunder] context build or unexpected failure (attempt {attempt + 1}): {exc}")
             context_build_failed = True
             break
@@ -792,7 +793,7 @@ def generate_followup_message_with_fallback(
             logger.error(f"[Thunder] follow-up generation failed (attempt {attempt + 1}): {exc}")
             continue
         except Exception as exc:
-           logger.error(f"Error: {str(exc)}", exc_info=True)
+            logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.error(f"[Thunder] follow-up context build or unexpected failure (attempt {attempt + 1}): {exc}")
             break
         if validate_thunder_reply(message):
@@ -893,7 +894,7 @@ def generate_reactivation_message_with_fallback(
             logger.error(f"[Thunder] reactivation generation failed (attempt {attempt + 1}): {exc}")
             continue
         except Exception as exc:
-           logger.error(f"Error: {str(exc)}", exc_info=True)
+            logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.error(f"[Thunder] reactivation context build or unexpected failure (attempt {attempt + 1}): {exc}")
             break
         if validate_thunder_reply(message):

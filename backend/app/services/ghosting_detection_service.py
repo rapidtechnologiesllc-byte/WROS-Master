@@ -105,7 +105,7 @@ def _notify_recruiter_of_ghosting(db: Session, tenant_id: str, candidate: Candid
             ),
         )
     except Exception as exc:
-       logger.error(f"Error: {str(exc)}", exc_info=True)
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[GhostingDetection] Failed to notify recruiter for candidate {candidate.candidateID!r}: {exc}")
 
 
@@ -159,7 +159,7 @@ def run_ghosting_detection_job(db: Session) -> dict:
 
             result["ghosted"] += 1
         except Exception as exc:
-           logger.error(f"Error: {str(exc)}", exc_info=True)
+            logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.error(f"[GhostingDetection] Failed processing POST_THIRD log id={log_row.id}: {exc}")
             db.rollback()
 

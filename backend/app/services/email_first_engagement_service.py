@@ -22,6 +22,7 @@ candidate.email is a NOT NULL unique column in this schema (every
 candidate has one) -- EMAIL_SKIPPED_NO_EMAIL is implemented per spec
 but is structurally unreachable here, not a live gap.
 """
+import logging
 import time
 from datetime import datetime
 from typing import Dict
@@ -110,7 +111,7 @@ def _send_attempt(candidate: Candidate, subject: str, body: str) -> bool:
         logger.warning(f"[EmailFirstEngagement] Send attempt failed: {exc.detail}")
         return False
     except Exception as exc:
-       logger.error(f"Error: {str(exc)}", exc_info=True)
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[EmailFirstEngagement] Send attempt raised: {exc}")
         return False
 

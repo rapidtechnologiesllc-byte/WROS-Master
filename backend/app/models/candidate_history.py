@@ -14,6 +14,7 @@ Each row represents one event in the candidate's journey, for example:
   - Onboarded
 """
 
+import logging
 from datetime import datetime
 from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text, func
 from sqlalchemy.orm import relationship

@@ -178,7 +178,7 @@ def main():
         print("\n")
 
     except Exception as e:
-       logger.error(f"Error: {str(e)}", exc_info=True)
+        logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Error: {str(e)}", exc_info=True)
         print(f"\n❌ ERROR: {e}")
         import traceback

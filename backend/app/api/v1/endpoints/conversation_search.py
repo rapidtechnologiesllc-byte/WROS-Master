@@ -29,8 +29,11 @@ from app.services.conversation_search_service import SearchTermTooShort, search_
 router = APIRouter(prefix="/conversations", tags=["conversation-search"])
 
 
-@router.get("/search", response_model=SearchResponse)
+@router.get(
+    "/search",
+    response_model=SearchResponse,
     dependencies=[Depends(require_resource_permission("search", "view"))]
+)
 def search_conversations_endpoint(
     q: str,
     channel: Optional[str] = None,

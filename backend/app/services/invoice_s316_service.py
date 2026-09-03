@@ -16,6 +16,7 @@ Four core methods:
 4. track_payment() - Record payment, calculate remaining balance, mark PAID
 """
 
+import logging
 import uuid
 from datetime import datetime, date, timedelta
 from typing import Optional, List, Dict, Tuple

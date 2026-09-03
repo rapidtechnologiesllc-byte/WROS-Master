@@ -5,6 +5,7 @@ Pydantic request / response models for the candidate history (timeline) API.
 import logging
 """
 
+import logging
 from app.models.user import Interview
 from docx import Document
 from datetime import datetime

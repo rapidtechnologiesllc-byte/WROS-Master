@@ -12,6 +12,7 @@ Test Coverage:
   6. Validation — Pre-allocation checks
 """
 
+import logging
 import pytest
 from datetime import date, timedelta
 from sqlalchemy.orm import Session

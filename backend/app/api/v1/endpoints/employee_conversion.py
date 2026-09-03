@@ -17,8 +17,11 @@ from app.services.employee_conversion_service import EmployeeConversionService, 
 
 router = APIRouter(prefix="/employees", tags=["employees"])
 
-@router.post("/convert-candidate", response_model=EmployeeConversionResponse)
+@router.post(
+    "/convert-candidate",
+    response_model=EmployeeConversionResponse,
     dependencies=[Depends(require_resource_permission("convert-candidate", "create"))]
+)
 def convert_candidate(request: EmployeeConversionRequest, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     candidate = db.query(Candidate).filter(Candidate.candidateID == request.candidate_id).first()
     if not candidate:
@@ -55,8 +58,11 @@ def convert_candidate(request: EmployeeConversionRequest, db: Session = Depends(
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Conversion failed: {str(e)}")
 
-@router.post("/create-account", response_model=EmployeeAccountResponse)
+@router.post(
+    "/create-account",
+    response_model=EmployeeAccountResponse,
     dependencies=[Depends(require_resource_permission("create-account", "create"))]
+)
 def create_employee_account(request: EmployeeAccountRequest, db: Session = Depends(get_db)):
     try:
         user = EmployeeConversionService.create_employee_account(
@@ -82,8 +88,11 @@ def create_employee_account(request: EmployeeAccountRequest, db: Session = Depen
         db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/send-welcome-email", response_model=WelcomeEmailResponse)
+@router.post(
+    "/send-welcome-email",
+    response_model=WelcomeEmailResponse,
     dependencies=[Depends(require_resource_permission("send-welcome-email", "create"))]
+)
 def send_welcome_email(request: WelcomeEmailRequest, db: Session = Depends(get_db)):
     employee = db.query(Employee).filter(Employee.id == request.employee_id).first()
     if not employee:
@@ -111,8 +120,10 @@ def send_welcome_email(request: WelcomeEmailRequest, db: Session = Depends(get_d
         employee_email=user.UserEmail
     )
 
-@router.get("/status/{employee_id}")
+@router.get(
+    "/status/{employee_id}",
     dependencies=[Depends(require_resource_permission("statu", "view"))]
+)
 def get_employee_status(employee_id: str, db: Session = Depends(get_db)):
     employee = db.query(Employee).filter(Employee.id == employee_id).first()
     if not employee:
@@ -125,8 +136,10 @@ def get_employee_status(employee_id: str, db: Session = Depends(get_db)):
         "delivery_engine": employee.delivery_engine
     }
 
-@router.put("/update/{employee_id}")
+@router.put(
+    "/update/{employee_id}",
     dependencies=[Depends(require_resource_permission("update", "update"))]
+)
 def update_employee(employee_id: str, updates: dict, db: Session = Depends(get_db)):
     employee = db.query(Employee).filter(Employee.id == employee_id).first()
     if not employee:
@@ -139,8 +152,10 @@ def update_employee(employee_id: str, updates: dict, db: Session = Depends(get_d
     db.commit()
     return {"status": "updated", "employee_id": employee.id}
 
-@router.delete("/delete/{employee_id}")
+@router.delete(
+    "/delete/{employee_id}",
     dependencies=[Depends(require_resource_permission("delete", "delete"))]
+)
 def delete_employee(employee_id: str, db: Session = Depends(get_db)):
     employee = db.query(Employee).filter(Employee.id == employee_id).first()
     if not employee:

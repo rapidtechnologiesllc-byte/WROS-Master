@@ -11,6 +11,7 @@ Tests all core functionality:
 - Error handling and validation
 """
 
+import logging
 import pytest
 from datetime import datetime, date, timedelta
 from decimal import Decimal

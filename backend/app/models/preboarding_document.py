@@ -27,6 +27,7 @@ inbound document today. `mark_document_received()`
 has no live trigger yet, same honest gap S-027 already flagged for
 the identical missing infrastructure.
 """
+import logging
 from sqlalchemy import Boolean, Column, DateTime, Enum, ForeignKey, Integer, String, Text, UniqueConstraint, func
 from sqlalchemy.orm import relationship
 

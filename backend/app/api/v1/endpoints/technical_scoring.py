@@ -1,4 +1,4 @@
-﻿"""
+"""
 S-037/HRMS-0437 -- Technical Qualification Score
 S-038/HRMS-0438 -- Compensation Fit Score
 S-039/HRMS-0439 -- Availability Score

@@ -301,10 +301,10 @@ def require_permission(permission: str):
     This is kept for backward compatibility during migration.
 
     Old Usage (deprecated):
-        @router.get("/path", dependencies=[Depends(require_permission("candidate.view"))])
+    @router.get("/path", dependencies=[Depends(require_permission("candidate.view"))])
 
     New Usage (preferred):
-        @router.post("/path", dependencies=[Depends(require_resource_permission("candidates", "create"))])
+    @router.post("/path", dependencies=[Depends(require_resource_permission("candidates", "create"))])
     """
     async def _check(
         credentials: HTTPAuthorizationCredentials = Depends(security),
@@ -346,10 +346,10 @@ def require_resource_permission(resource_name: str, action: str = "view"):
     Checks if user has the specified action (view, create, edit, delete) on a resource.
 
     Usage:
-        @router.get("/candidates", dependencies=[Depends(require_resource_permission("candidates", "view"))])
-        @router.post("/candidates", dependencies=[Depends(require_resource_permission("candidates", "create"))])
-        @router.put("/candidates/{id}", dependencies=[Depends(require_resource_permission("candidates", "edit"))])
-        @router.delete("/candidates/{id}", dependencies=[Depends(require_resource_permission("candidates", "delete"))])
+    @router.get("/candidates", dependencies=[Depends(require_resource_permission("candidates", "view"))])
+    @router.post("/candidates", dependencies=[Depends(require_resource_permission("candidates", "create"))])
+    @router.put("/candidates/{id}", dependencies=[Depends(require_resource_permission("candidates", "edit"))])
+    @router.delete("/candidates/{id}", dependencies=[Depends(require_resource_permission("candidates", "delete"))])
 
     Returns 403 if the user doesn't have the required permission.
     Super Users automatically have all permissions.
@@ -390,7 +390,7 @@ def require_attribute(attribute: str, expected: bool = True):
     FastAPI dependency factory that enforces a role attribute flag.
 
     Usage:
-        @router.post("/pipeline", dependencies=[Depends(require_attribute("pipeline_control"))])
+    @router.post("/pipeline", dependencies=[Depends(require_attribute("pipeline_control"))])
 
     Returns 403 if the authenticated user's role does not have the attribute set to `expected`.
     """

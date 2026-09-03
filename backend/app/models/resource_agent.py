@@ -24,6 +24,7 @@ employee is already IN_PROGRESS on a different recommendation) ->
 APPROVED (offer/placement, creates the real allocation) or REJECTED
 (declined, from either PENDING_RM_REVIEW or IN_PROGRESS).
 """
+import logging
 import uuid
 
 from sqlalchemy import (

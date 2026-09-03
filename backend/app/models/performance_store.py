@@ -13,6 +13,7 @@ Real append-only enforcement is a database-grant-level guarantee (not
 built here -- same as audit_log's own note); the ORM-level guard below
 is defense-in-depth against this codebase's own ORM calls only.
 """
+import logging
 from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Text, event, func
 from sqlalchemy.orm import Mapper
 

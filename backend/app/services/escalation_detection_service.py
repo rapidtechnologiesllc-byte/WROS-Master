@@ -139,7 +139,7 @@ def check_escalation(
     try:
         context = candidate_context_service.build_candidate_context(db, candidate_id, tenant_id, use_cache=False)
     except Exception as exc:
-       logger.error(f"Error: {str(exc)}", exc_info=True)
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[Escalation] Failed to build context for candidate {candidate_id!r}: {exc}")
         return {"needs_escalation": False, "reason": None, "trigger_type": None}
 
@@ -168,7 +168,7 @@ def check_escalation(
         needs_escalation = bool(parsed.get("needs_escalation", False))
         reason = str(parsed.get("reason") or "LLM-detected escalation need")
     except Exception as exc:
-       logger.error(f"Error: {str(exc)}", exc_info=True)
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[Escalation] ESCALATION_LLM_FAILED for candidate {candidate_id!r}: {exc}")
         return {"needs_escalation": False, "reason": None, "trigger_type": None}
 
@@ -214,7 +214,7 @@ def _notify_escalation(db: Session, conversation: CandidateConversation, candida
                 priority_tier="P0", channel_preference="IN_APP", message=primary_message,
             )
         except Exception as exc:
-           logger.error(f"Error: {str(exc)}", exc_info=True)
+            logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.warning(f"[Escalation] Failed to notify recruiter for conversation {conversation.id}: {exc}")
 
     if is_legal:  # BR-02 -- see module docstring on the "recruiting manager" adaptation
@@ -227,7 +227,7 @@ def _notify_escalation(db: Session, conversation: CandidateConversation, candida
                     message=f"LEGAL/COMPLIANCE escalation for {name}: {reason}. Review immediately (conversation {conversation.id}).",
                 )
             except Exception as exc:
-               logger.error(f"Error: {str(exc)}", exc_info=True)
+                logger.error(f"Error: {str(exc)}", exc_info=True)
                 logger.warning(f"[Escalation] Failed to notify manager for conversation {conversation.id}: {exc}")
 
 

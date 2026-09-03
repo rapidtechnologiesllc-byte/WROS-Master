@@ -19,6 +19,7 @@ has no separate "MSA signed" flag; the contract fields already on
 Client represent exactly this). First revenue invoice: the earliest
 non-DRAFT Invoice for that client.
 """
+import logging
 import uuid
 
 from sqlalchemy import Boolean, Column, DateTime, Enum, ForeignKey, Integer, Numeric, String, Text, UniqueConstraint, func

@@ -13,14 +13,14 @@ def require_permission(permission: str):
     """Decorator to require specific permission before endpoint execution.
 
     Usage:
-        @router.get("/candidates")
-        @require_permission("candidate.view")
+    @router.get("/candidates")
+    @require_permission("candidate.view")
         async def get_candidates(db: Session = Depends(get_db),
                                 current_user: Users = Depends(get_current_internal_user)):
             ...
     """
     def decorator(func: Callable):
-        @wraps(func)
+    @wraps(func)
         async def wrapper(*args, **kwargs):
             # Get db and current_user from kwargs if present, else via dependency injection
             db = kwargs.get("db")
@@ -62,8 +62,8 @@ def apply_data_scope(module: str):
     Adds 'data_scope' dict to kwargs with scope type and filtering info.
 
     Usage:
-        @router.get("/candidates")
-        @apply_data_scope("candidates")
+    @router.get("/candidates")
+    @apply_data_scope("candidates")
         async def get_candidates(db: Session = Depends(get_db),
                                 current_user: Users = Depends(get_current_internal_user),
                                 data_scope: dict = None):
@@ -71,7 +71,7 @@ def apply_data_scope(module: str):
             ...
     """
     def decorator(func: Callable):
-        @wraps(func)
+    @wraps(func)
         async def wrapper(*args, **kwargs):
             db = kwargs.get("db")
             current_user = kwargs.get("current_user")

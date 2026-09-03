@@ -14,6 +14,7 @@ the same secrets-manager discipline as every other credential here --
 never hardcoded, never logged (already covered by the redaction filter's
 generic secret-name pattern).
 """
+import logging
 import base64
 import os
 

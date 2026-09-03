@@ -13,6 +13,7 @@ Respects pause state (kill switch) via thunder_pause_service.
 Runs in background via APScheduler - starts with app initialization.
 """
 
+import logging
 from datetime import datetime, timedelta
 from typing import List, Optional
 from sqlalchemy.orm import Session
@@ -137,7 +138,7 @@ def run_thunder_autonomous_cycle(db: Session) -> dict:
                 db.rollback()
 
         # Step 3: Advance existing open sequences
-        open_sequences = db.query(OutreachSequence).filter(
+                open_sequences = db.query(OutreachSequence).filter(
             OutreachSequence.status.in_(["SENT", "QUEUED"])
         ).limit(20).all()
 
@@ -159,7 +160,7 @@ def run_thunder_autonomous_cycle(db: Session) -> dict:
                 logger.error(f"Error: {str(e)}", exc_info=True)
                 errors.append(f"Sequence {sequence.id}: {str(e)}")
 
-        db.commit()
+                db.commit()
 
         return {
             "status": "success",

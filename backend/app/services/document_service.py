@@ -6,6 +6,7 @@ Uses service account authentication for SharePoint access.
 import logging
 """
 
+import logging
 import os
 import hashlib
 import mimetypes
@@ -90,7 +91,7 @@ class DocumentService:
             return True, None, file_content
             
         except Exception as e:
-           logger.error(f"Error: {str(e)}", exc_info=True)
+            logger.error(f"Error: {str(e)}", exc_info=True)
             logger.error(f"Error reading file: {str(e)}")
             return False, f"Error reading file: {str(e)}", None
     
@@ -188,7 +189,7 @@ class DocumentService:
             logger.error(f"SharePoint upload failed: {str(e)}")
             raise HTTPException(status_code=500, detail=f"Failed to upload to SharePoint: {str(e)}")
         except Exception as e:
-           logger.error(f"Error: {str(e)}", exc_info=True)
+            logger.error(f"Error: {str(e)}", exc_info=True)
             logger.error(f"Unexpected error during upload: {str(e)}")
             raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
     

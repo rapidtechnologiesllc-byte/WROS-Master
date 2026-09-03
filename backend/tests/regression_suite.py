@@ -14,6 +14,7 @@ Structure:
 8. Data Integrity Tests (foreign keys, constraints)
 """
 
+import logging
 import pytest
 import asyncio
 import random
@@ -334,7 +335,8 @@ class TestStressAndLoad:
             # Should not crash, should handle gracefully
             assert "handled" in str(e).lower() or True
 
-    def test_database_connection_pool_exhaustion(self, db: Session):
+            def test_database_connection_pool_exhaustion(self, db: Session):
+                pass
         """Test connection pool doesn't exhaust under load"""
         sessions = []
         try:

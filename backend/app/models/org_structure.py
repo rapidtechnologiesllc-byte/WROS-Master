@@ -1,5 +1,4 @@
 """
-import logging
 Organizational Hierarchy Models — Corporate → Business Unit → Department → Org Hierarchy
 
 Full structure: Corporate (Tenant) → Business Unit → Department → OrgNode hierarchy
@@ -12,6 +11,7 @@ Full structure: Corporate (Tenant) → Business Unit → Department → OrgNode 
 - Approval rules (e.g., "a Manager approves their team's timesheets") live in a separate
   ApprovalChain table that references position transitions (e.g., Manager → Director).
 """
+import logging
 from datetime import datetime
 from sqlalchemy import (
     Column, Integer, String, DateTime, ForeignKey, Boolean, Text, Index

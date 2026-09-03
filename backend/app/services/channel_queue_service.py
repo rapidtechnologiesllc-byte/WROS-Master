@@ -183,7 +183,8 @@ class ChannelQueueService:
                 for item in items
             ]
 
-        except Exception as e:            logger.error(f"Failed to fetch pending items for channel {channel_type}: {e}", exc_info=True)
+        except Exception as e:
+            logger.error(f"Failed to fetch pending items for channel {channel_type}: {e}", exc_info=True)
             raise RuntimeError(f"Failed to fetch pending items: {str(e)}")
 
     @staticmethod
@@ -363,5 +364,6 @@ class ChannelQueueService:
                 "channels": channels,
             }
 
-        except Exception as e:            logger.error(f"Failed to fetch stats: {e}", exc_info=True)
+        except Exception as e:
+            logger.error(f"Failed to fetch stats: {e}", exc_info=True)
             raise RuntimeError(f"Failed to fetch stats: {str(e)}")

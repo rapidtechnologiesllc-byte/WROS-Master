@@ -17,6 +17,7 @@ there instead -- employee performance, revenue leakage, SLA breaches,
 bench aging, recruiting risk/intervention queue, Task system health --
 not fabricated scores.
 """
+import logging
 import uuid
 from datetime import datetime
 

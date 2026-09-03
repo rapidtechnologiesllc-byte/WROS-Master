@@ -20,6 +20,7 @@ marked processed=True at insert time by desire_signal_service, never
 queued for the LLM SignalProcessingJob. Every other source is inserted
 unprocessed and picked up by that job.
 """
+import logging
 from sqlalchemy import Column, DateTime, Float, ForeignKey, Index, Integer, String, JSON, Boolean, Text, func
 from sqlalchemy.orm import relationship
 

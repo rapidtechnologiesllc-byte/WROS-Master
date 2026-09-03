@@ -29,6 +29,7 @@ allocate_employee_to_project()'s existing AllocationOverCapacity check
 (HRMS-0803/HRMS-0508 -- already built, not duplicated here) actually
 blocks an attempt, for audit/reporting visibility.
 """
+import logging
 import uuid
 from datetime import datetime as datetime_type
 

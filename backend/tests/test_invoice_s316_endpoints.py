@@ -4,6 +4,7 @@ Integration tests for invoice generation, sending, and payment endpoints.
 import logging
 """
 
+import logging
 import pytest
 from datetime import datetime, date, timedelta
 from fastapi.testclient import TestClient

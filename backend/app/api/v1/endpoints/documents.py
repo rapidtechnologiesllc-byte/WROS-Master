@@ -12,6 +12,9 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.dependencies import get_current_candidate, get_current_internal_user, require_resource_permission
 from app.core.graph_auth import get_graph_token
+
+# Alias for backward compatibility
+get_current_user = get_current_internal_user
 from app.schemas.document import DocumentUploadResponse
 from app.services.document_service import DocumentService, SHAREPOINT_SITE_ID, SHAREPOINT_DRIVE_ID, MULTI_UPLOAD_TYPES
 from app.services.virus_scan_service import document_is_accessible, scan_document_content
@@ -53,7 +56,8 @@ async def _upload_document_helper(
     # Get Microsoft Graph access token using service account
     try:
         access_token = get_graph_token()
-    except Exception as e:        logger.error(f"Failed to get Graph token: {str(e)}")
+    except Exception as e:
+        logger.error(f"Failed to get Graph token: {str(e)}")
         raise HTTPException(
             status_code=500, 
             detail="Failed to authenticate with SharePoint. Please contact administrator."
@@ -78,7 +82,7 @@ async def _upload_document_helper(
     except HTTPException:
         raise
     except Exception as e:
-       logger.error(f"Error: {str(e)}", exc_info=True)
+        logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"SharePoint upload failed: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
     
@@ -118,7 +122,8 @@ async def _upload_document_helper(
             uploaded_at=document.uploaded_at
         )
         
-    except Exception as e:        logger.error(f"Failed to save document metadata: {str(e)}")
+    except Exception as e:
+        logger.error(f"Failed to save document metadata: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to save document metadata")
 
 
@@ -153,8 +158,7 @@ async def upload_resume(
     return await _upload_document_helper(file, "resume", candidate, db)
 
 
-@router.post("/upload/pan", response_model=DocumentUploadResponse)
-    dependencies=[Depends(require_resource_permission("upload", "create"))]
+@router.post("/upload/pan", response_model=DocumentUploadResponse, dependencies=[Depends(require_resource_permission("upload", "create"))])
 async def upload_pan(
     file: UploadFile = File(..., description="PAN card file (PDF, JPG, PNG)"),
     user = Depends(get_current_candidate),
@@ -164,8 +168,7 @@ async def upload_pan(
     return await _upload_document_helper(file, "pan", user, db)
 
 
-@router.post("/upload/aadhar", response_model=DocumentUploadResponse)
-    dependencies=[Depends(require_resource_permission("upload", "create"))]
+@router.post("/upload/aadhar", response_model=DocumentUploadResponse, dependencies=[Depends(require_resource_permission("upload", "create"))])
 async def upload_aadhar(
     file: UploadFile = File(..., description="Aadhar card file (PDF, JPG, PNG)"),
     user = Depends(get_current_candidate),
@@ -175,8 +178,7 @@ async def upload_aadhar(
     return await _upload_document_helper(file, "aadhar", user, db)
 
 
-@router.post("/upload/education", response_model=DocumentUploadResponse)
-    dependencies=[Depends(require_resource_permission("upload", "create"))]
+@router.post("/upload/education", response_model=DocumentUploadResponse, dependencies=[Depends(require_resource_permission("upload", "create"))])
 async def upload_education_certificate(
     file: UploadFile = File(..., description="Education certificate file (PDF, JPG, PNG)"),
     user = Depends(get_current_candidate),
@@ -186,8 +188,7 @@ async def upload_education_certificate(
     return await _upload_document_helper(file, "education", user, db)
 
 
-@router.post("/upload/experience", response_model=DocumentUploadResponse)
-    dependencies=[Depends(require_resource_permission("upload", "create"))]
+@router.post("/upload/experience", response_model=DocumentUploadResponse, dependencies=[Depends(require_resource_permission("upload", "create"))])
 async def upload_experience_letter(
     file: UploadFile = File(..., description="Experience letter file (PDF, JPG, PNG)"),
     user = Depends(get_current_candidate),
@@ -197,8 +198,7 @@ async def upload_experience_letter(
     return await _upload_document_helper(file, "experience", user, db)
 
 
-@router.post("/upload/salary-slip", response_model=DocumentUploadResponse)
-    dependencies=[Depends(require_resource_permission("upload", "create"))]
+@router.post("/upload/salary-slip", response_model=DocumentUploadResponse, dependencies=[Depends(require_resource_permission("upload", "create"))])
 async def upload_salary_slip(
     file: UploadFile = File(..., description="Salary slip file (PDF, JPG, PNG)"),
     user = Depends(get_current_candidate),
@@ -208,8 +208,7 @@ async def upload_salary_slip(
     return await _upload_document_helper(file, "salary_slip", user, db)
 
 
-@router.post("/upload/bank-statement", response_model=DocumentUploadResponse)
-    dependencies=[Depends(require_resource_permission("upload", "create"))]
+@router.post("/upload/bank-statement", response_model=DocumentUploadResponse, dependencies=[Depends(require_resource_permission("upload", "create"))])
 async def upload_bank_statement(
     file: UploadFile = File(..., description="Bank statement file (PDF, JPG, PNG)"),
     user = Depends(get_current_candidate),
@@ -218,8 +217,7 @@ async def upload_bank_statement(
     """Upload bank statement to SharePoint with database tracking."""
     return await _upload_document_helper(file, "bank_statement", user, db)
 
-@router.post("/upload/uan-pf", response_model=DocumentUploadResponse)
-    dependencies=[Depends(require_resource_permission("upload", "create"))]
+@router.post("/upload/uan-pf", response_model=DocumentUploadResponse, dependencies=[Depends(require_resource_permission("upload", "create"))])
 async def upload_uan_pf(
     file: UploadFile = File(..., description="UAN-PF file (PDF, JPG, PNG)"),
     user = Depends(get_current_candidate),
@@ -234,9 +232,9 @@ async def upload_uan_pf(
 # ============================================
 
 @router.get(
-    dependencies=[Depends(get_current_user)]
     "/my-documents",
     summary="Get all documents uploaded by the currently authenticated candidate",
+    dependencies=[Depends(get_current_user)]
 )
 async def get_my_documents(
     current_user=Depends(get_current_candidate),
@@ -446,9 +444,9 @@ async def get_candidate_documents(
 
 
 @router.get(
-    dependencies=[Depends(get_current_user)]
     "/{document_id}",
     summary="Get a single document's metadata by its ID",
+    dependencies=[Depends(get_current_user)]
 )
 async def get_document_by_id(
     document_id: int,
@@ -553,7 +551,7 @@ async def view_document(
     try:
         access_token = get_graph_token()
     except Exception as exc:
-       logger.error(f"Error: {str(exc)}", exc_info=True)
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.error(f"Failed to get Graph token for document view: {exc}")
         raise HTTPException(status_code=500, detail="Failed to authenticate with SharePoint")
 
@@ -743,7 +741,7 @@ async def delete_all_candidate_documents(
     try:
         access_token = get_graph_token()
     except Exception as exc:
-       logger.error(f"Error: {str(exc)}", exc_info=True)
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.error(f"[DeleteAllDocs] Failed to get Graph token: {exc}")
         raise HTTPException(
             status_code=500,
@@ -782,7 +780,7 @@ async def delete_all_candidate_documents(
                     f"(doc id={doc.id}, type={doc.document_type})."
                 )
         except Exception as exc:
-           logger.error(f"Error: {str(exc)}", exc_info=True)
+            logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.warning(
                 f"[DeleteAllDocs] Could not delete SharePoint item "
                 f"{doc.sharepoint_file_id} (doc id={doc.id}): {exc}"

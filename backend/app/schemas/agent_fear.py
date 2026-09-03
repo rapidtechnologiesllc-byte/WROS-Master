@@ -4,6 +4,7 @@ Agent Fear State Schemas
 import logging
 """
 
+import logging
 from pydantic import BaseModel
 from typing import Optional
 from datetime import datetime

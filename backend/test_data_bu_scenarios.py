@@ -310,7 +310,7 @@ Scenario D: Diana (will be reassigned across BUs)
         return True
 
     except Exception as e:
-       logger.error(f"Error: {str(e)}", exc_info=True)
+        logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Error: {str(e)}", exc_info=True)
         print(f"✗ Error during test data creation: {str(e)}")
         db.rollback()

@@ -1,4 +1,4 @@
-﻿"""CFO Agent â€” financial Q&A and insights for Chief Financial Officer."""
+"""CFO Agent â€” financial Q&A and insights for Chief Financial Officer."""
 from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
 from sqlalchemy import func, and_

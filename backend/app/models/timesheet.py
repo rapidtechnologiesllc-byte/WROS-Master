@@ -18,6 +18,7 @@ doc's own CREATE TABLE lists it) but no code path in this build
 transitions a timesheet into it -- that's HRMS-0904's dispute process,
 a separate story.
 """
+import logging
 import uuid
 
 from sqlalchemy import (

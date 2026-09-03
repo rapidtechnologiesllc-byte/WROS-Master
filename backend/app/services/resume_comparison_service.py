@@ -11,6 +11,7 @@ Enables detection of:
 Used by Thunder to assess resume authenticity before scheduling interviews.
 """
 
+import logging
 from typing import List, Dict, Optional, Tuple
 from datetime import datetime
 from difflib import SequenceMatcher

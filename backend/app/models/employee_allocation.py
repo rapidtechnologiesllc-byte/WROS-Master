@@ -25,6 +25,7 @@ none) once HRMS-0801 landed. `role`/`utilization_pct` double as HRMS-
 0803's "role"/"allocation_pct" fields -- same concept, no new column
 needed for the latter.
 """
+import logging
 import uuid
 from datetime import date as date_type
 

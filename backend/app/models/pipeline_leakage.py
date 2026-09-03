@@ -23,6 +23,7 @@ placement fee?) before a field gets added -- flagged, not invented.
 See pipeline_leakage_service.scan_subvendor_cost_overruns()'s own
 docstring.
 """
+import logging
 import uuid
 
 from sqlalchemy import Column, DateTime, Enum, ForeignKey, Integer, String, Text, func

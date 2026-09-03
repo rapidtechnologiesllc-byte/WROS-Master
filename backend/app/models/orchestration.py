@@ -16,6 +16,7 @@ resolution_action on orchestration_events is a snapshot of the rule's
 value at match time (per the doc's own Data Mapping note: "rule can
 change later without altering history"), not a live FK dereference.
 """
+import logging
 import uuid
 
 from sqlalchemy import (

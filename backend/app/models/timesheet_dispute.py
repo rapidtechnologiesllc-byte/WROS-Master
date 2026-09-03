@@ -14,6 +14,7 @@ dispute record is a complete, real audit trail on its own (what was
 disputed, by whom, how it was resolved, what the adjusted hours were)
 that a future revenue layer can read once it exists -- not a stub.
 """
+import logging
 import uuid
 
 from sqlalchemy import (

@@ -124,7 +124,7 @@ class CandidateScoringService:
                 "demand_id": demand_id
             }
         except Exception as e:
-           logger.error(f"Error: {str(e)}", exc_info=True)
+            logger.error(f"Error: {str(e)}", exc_info=True)
             logger.error(f"Error calculating fit score: {e}")
             return {
                 "status": "error",
@@ -202,7 +202,7 @@ class CandidateScoringService:
                 "demand_id": demand_id
             }
         except Exception as e:
-           logger.error(f"Error: {str(e)}", exc_info=True)
+            logger.error(f"Error: {str(e)}", exc_info=True)
             logger.error(f"Error ranking candidates: {e}")
             return {
                 "status": "error",
@@ -289,7 +289,7 @@ class CandidateScoringService:
                 "demand_id": demand_id
             }
         except Exception as e:
-           logger.error(f"Error: {str(e)}", exc_info=True)
+            logger.error(f"Error: {str(e)}", exc_info=True)
             logger.error(f"Error identifying best match: {e}")
             return {
                 "status": "error",
@@ -333,7 +333,7 @@ class CandidateScoringService:
             skills_score = int((required_match_pct * 0.8) + (nice_match_pct * 0.2))
             return max(0, min(100, skills_score))
         except Exception as e:
-           logger.error(f"Error: {str(e)}", exc_info=True)
+            logger.error(f"Error: {str(e)}", exc_info=True)
             logger.warning(f"Error calculating skills match: {e}")
             return 0
 
@@ -371,7 +371,7 @@ class CandidateScoringService:
 
             return 100
         except Exception as e:
-           logger.error(f"Error: {str(e)}", exc_info=True)
+            logger.error(f"Error: {str(e)}", exc_info=True)
             logger.warning(f"Error calculating experience match: {e}")
             return 0
 
@@ -413,7 +413,7 @@ class CandidateScoringService:
 
             return 0  # No location match
         except Exception as e:
-           logger.error(f"Error: {str(e)}", exc_info=True)
+            logger.error(f"Error: {str(e)}", exc_info=True)
             logger.warning(f"Error calculating location match: {e}")
             return 50
 
@@ -469,7 +469,7 @@ class CandidateScoringService:
             # Single skill
             return [skills_json.lower().strip()]
         except Exception as e:
-           logger.error(f"Error: {str(e)}", exc_info=True)
+            logger.error(f"Error: {str(e)}", exc_info=True)
             logger.warning(f"Error parsing skills: {e}")
             # CRITICAL FIX: Raise error instead of returning empty list
             raise Exception(f"Failed to parse candidate skills: {str(e)}")

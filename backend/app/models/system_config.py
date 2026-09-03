@@ -19,6 +19,7 @@ The Admin Settings UI's Locale tab reads/writes those columns directly
 through this same service, so there is exactly one source of truth per
 setting, never two.
 """
+import logging
 from sqlalchemy import Column, DateTime, ForeignKey, Integer, JSON, String, UniqueConstraint, func
 from sqlalchemy.orm import relationship
 

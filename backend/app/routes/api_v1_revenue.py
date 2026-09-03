@@ -4,6 +4,7 @@ COMPLETE REVENUE API ENDPOINTS - Production Grade
 
 All revenue recognition and reporting endpoints wired to business logic.
 """
+import logging
 from datetime import datetime, date
 from typing import Optional, List
 from fastapi import APIRouter, Depends, HTTPException, Query

@@ -18,6 +18,7 @@ This creates exponential accuracy growth:
 - Month 1: 85% (+3%)
 """
 
+import logging
 import json
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional
@@ -304,7 +305,7 @@ class SLMImprovementScheduler:
                 )
                 logger.info(f"[SLMScheduler] Posted status: {status_message}")
             except Exception as e:
-               logger.error(f"Error: {str(e)}", exc_info=True)
+                logger.error(f"Error: {str(e)}", exc_info=True)
                 logger.error(f"[SLMScheduler] Failed to post status message: {e}")
                 # Continue even if message posting fails
 
@@ -319,7 +320,7 @@ class SLMImprovementScheduler:
             }
 
         except Exception as e:
-           logger.error(f"Error: {str(e)}", exc_info=True)
+            logger.error(f"Error: {str(e)}", exc_info=True)
             logger.error(f"[SLMScheduler] Improvement cycle failed: {e}", exc_info=True)
             return {
                 "status": "error",
@@ -350,7 +351,7 @@ class SLMImprovementScheduler:
             return report
 
         except Exception as e:
-           logger.error(f"Error: {str(e)}", exc_info=True)
+            logger.error(f"Error: {str(e)}", exc_info=True)
             logger.error(f"[SLMScheduler] Daily improvement failed: {e}")
             return {"status": "error", "error": str(e)}
 

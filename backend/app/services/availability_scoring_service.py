@@ -198,7 +198,7 @@ def recalculate_for_candidate(db: Session, candidate: Candidate, tenant_id: str)
         try:
             results.append(calculate_availability_score(db, candidate.candidateID, job_id, tenant_id))
         except Exception as exc:
-           logger.error(f"Error: {str(exc)}", exc_info=True)
+            logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.warning(f"[AvailabilityScoring] Failed to recalculate score for candidate {candidate.candidateID!r} / job {job_id!r}: {exc}")
     db.commit()
     return results

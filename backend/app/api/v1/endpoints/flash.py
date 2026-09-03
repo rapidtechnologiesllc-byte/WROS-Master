@@ -41,8 +41,8 @@ router = APIRouter(prefix="/flash", tags=["flash"])
 
 
 @router.post(
-    dependencies=[Depends(get_current_user)]
     "/",
+    dependencies=[Depends(get_current_user)],
     response_model=FlashResponse,
     summary="Ask Flash an operational question — real data, no hallucinated answers",
 )

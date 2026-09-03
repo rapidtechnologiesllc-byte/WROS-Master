@@ -11,6 +11,7 @@ Format: SDLC Daily Kanban Standup
 - Metrics: Impact on hiring pipeline
 """
 
+import logging
 from datetime import datetime, timedelta
 from typing import Dict, Any, List
 from sqlalchemy import func
@@ -107,7 +108,7 @@ class RelationBuildingDashboard:
             }
 
         except Exception as e:
-           logger.error(f"Error: {str(e)}", exc_info=True)
+            logger.error(f"Error: {str(e)}", exc_info=True)
             logger.error(f"Dashboard generation error: {str(e)}")
             return {
                 "status": "error",

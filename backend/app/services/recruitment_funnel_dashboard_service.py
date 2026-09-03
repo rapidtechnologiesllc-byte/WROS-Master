@@ -15,6 +15,7 @@ Metrics tracked:
 This is the ONLY dashboard that answers: "Are Phase 1 agents working?"
 """
 
+import logging
 from datetime import datetime, timedelta
 from typing import Dict, Any, List, Optional
 from sqlalchemy.orm import Session

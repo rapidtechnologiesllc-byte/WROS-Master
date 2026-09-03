@@ -9,6 +9,7 @@ their home BU (Users.business_unit_id); cross-BU users get multiple
 rows, seeded/managed via the API this story adds, not automatically
 inferred beyond that one default row.
 """
+import logging
 from sqlalchemy import Boolean, Column, ForeignKey, Integer, String, UniqueConstraint
 
 from app.models.base import Base

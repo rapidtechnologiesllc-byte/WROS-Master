@@ -117,13 +117,13 @@ def process_message_queue() -> None:
                         db=db,
                     )
                 except Exception as retry_error:
-                   logger.error(f"Error: {str(retry_error)}", exc_info=True)
+                    logger.error(f"Error: {str(retry_error)}", exc_info=True)
                     logger.error(
                         f"Failed to mark message as failed: {retry_error}",
                         exc_info=True,
                     )
 
-        elapsed_time = time.time() - start_time
+                elapsed_time = time.time() - start_time
 
         logger.info(
             f"Message queue worker completed: "
@@ -132,7 +132,7 @@ def process_message_queue() -> None:
         )
 
     except Exception as e:
-       logger.error(f"Error: {str(e)}", exc_info=True)
+        logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Worker failed: {e}", exc_info=True)
     finally:
         db.close()
@@ -207,7 +207,7 @@ def process_channel_queues() -> None:
                             total_failed += 1
 
                     except Exception as e:
-                       logger.error(f"Error: {str(e)}", exc_info=True)
+                        logger.error(f"Error: {str(e)}", exc_info=True)
                         logger.error(
                             f"Failed to process channel item: {item_id} error: {e}",
                             exc_info=True,
@@ -223,12 +223,13 @@ def process_channel_queues() -> None:
                                 db=db,
                             )
                         except Exception as mark_error:
-                           logger.error(f"Error: {str(mark_error)}", exc_info=True)
+                            logger.error(f"Error: {str(mark_error)}", exc_info=True)
                             logger.error(f"Failed to mark item as failed: {mark_error}")
 
-            except Exception as e:                logger.error(f"Failed to process channel {channel_type}: {e}", exc_info=True)
+            except Exception as e:
+                logger.error(f"Failed to process channel {channel_type}: {e}", exc_info=True)
 
-        elapsed_time = time.time() - start_time
+                elapsed_time = time.time() - start_time
 
         logger.info(
             f"Channel queue processor completed: "
@@ -237,7 +238,7 @@ def process_channel_queues() -> None:
         )
 
     except Exception as e:
-       logger.error(f"Error: {str(e)}", exc_info=True)
+        logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Channel processor worker failed: {e}", exc_info=True)
     finally:
         db.close()

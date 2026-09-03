@@ -7,6 +7,7 @@ This stub file prevents import errors during the transition period.
 
 Use RoleTemplate and RoleTemplatePermission models instead for new code.
 """
+import logging
 from typing import Optional
 from sqlalchemy.orm import Session
 

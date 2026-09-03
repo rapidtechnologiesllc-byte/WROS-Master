@@ -1,4 +1,4 @@
-﻿"""EPIC-16 Finance Operations endpoints: bank reconciliation, AR aging, invoice details."""
+"""EPIC-16 Finance Operations endpoints: bank reconciliation, AR aging, invoice details."""
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app.core.dependencies import get_current_internal_user, require_resource_permission

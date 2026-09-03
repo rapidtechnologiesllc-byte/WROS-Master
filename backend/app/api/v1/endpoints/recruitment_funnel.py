@@ -62,7 +62,7 @@ async def get_full_recruitment_funnel(
         }
 
     except Exception as e:
-       logger.error(f"Error: {str(e)}", exc_info=True)
+        logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Error fetching recruitment funnel: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
 
@@ -82,7 +82,7 @@ async def get_recruitment_only(
             "health": funnel["recruitment"]["health"]
         }
     except Exception as e:
-       logger.error(f"Error: {str(e)}", exc_info=True)
+        logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Error fetching recruitment metrics: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -101,7 +101,7 @@ async def get_resources_only(
             "health": funnel["resources"]["health"]
         }
     except Exception as e:
-       logger.error(f"Error: {str(e)}", exc_info=True)
+        logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Error fetching resource metrics: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -120,7 +120,7 @@ async def get_happiness_only(
             "health": funnel["employee_happiness"]["health"]
         }
     except Exception as e:
-       logger.error(f"Error: {str(e)}", exc_info=True)
+        logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Error fetching happiness metrics: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -149,6 +149,6 @@ async def get_2030_trajectory(
             "health": funnel["progress_2030"]["health"]
         }
     except Exception as e:
-       logger.error(f"Error: {str(e)}", exc_info=True)
+        logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Error calculating 2030 trajectory: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))

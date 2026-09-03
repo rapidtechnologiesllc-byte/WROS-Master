@@ -14,6 +14,7 @@ one row per conversation_event actually marked read. No row = unread
 (the default), avoiding a wasteful is_read=False row for every one of
 the thousands of events this codebase already logs.
 """
+import logging
 from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, UniqueConstraint, func
 from sqlalchemy.orm import relationship
 

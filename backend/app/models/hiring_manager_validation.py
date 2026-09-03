@@ -4,6 +4,7 @@ Manages validation of candidates by hiring managers before interviews
 import logging
 """
 
+import logging
 from datetime import datetime
 from sqlalchemy import Column, String, DateTime, Text, Integer, ForeignKey, JSON, func, Enum, Boolean, Index
 from sqlalchemy.orm import relationship

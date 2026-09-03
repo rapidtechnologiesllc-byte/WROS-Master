@@ -1,4 +1,4 @@
-﻿from datetime import datetime
+from datetime import datetime
 import logging
 from typing import Optional, List
 
@@ -905,7 +905,7 @@ def update_candidate(candidate_id: str, request: CandidateUpdateRequest, db: Ses
 
     # Return full candidate object so frontend doesn't need separate refresh GET
     # Convert skills list to comma-separated string if it's a list
-    skills_str = candidate.candidateSkills
+            skills_str = candidate.candidateSkills
     if isinstance(skills_str, list):
         skills_str = ", ".join(filter(None, skills_str)) if skills_str else None
 

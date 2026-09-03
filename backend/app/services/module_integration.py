@@ -69,7 +69,8 @@ class ModuleIntegration:
             logger.info(f"Enqueued {message_type}: {message_id}")
             return message_id
 
-        except Exception as e:            logger.error(f"Failed to enqueue {message_type}: {e}", exc_info=True)
+        except Exception as e:
+            logger.error(f"Failed to enqueue {message_type}: {e}", exc_info=True)
             raise RuntimeError(f"Failed to enqueue {message_type}: {str(e)}")
 
     # ===== RECRUITMENT EVENTS =====

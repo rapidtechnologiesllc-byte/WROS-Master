@@ -15,6 +15,7 @@ This creates a LIVING relationship profile that evolves with every touchpoint.
 Reports to: Relation Building Agent (for persona updates) + Flash (interaction signals)
 """
 
+import logging
 from typing import Dict, Any, Optional, List
 from datetime import datetime
 from sqlalchemy.orm import Session
@@ -175,7 +176,7 @@ class InteractionTracker:
             }
 
         except Exception as e:
-           logger.error(f"Error: {str(e)}", exc_info=True)
+            logger.error(f"Error: {str(e)}", exc_info=True)
             logger.error(f"Email interaction tracking error: {str(e)}")
             return {"status": "error", "message": str(e)}
 
@@ -272,7 +273,7 @@ class InteractionTracker:
             }
 
         except Exception as e:
-           logger.error(f"Error: {str(e)}", exc_info=True)
+            logger.error(f"Error: {str(e)}", exc_info=True)
             logger.error(f"WhatsApp interaction tracking error: {str(e)}")
             return {"status": "error", "message": str(e)}
 
@@ -363,7 +364,7 @@ class InteractionTracker:
             }
 
         except Exception as e:
-           logger.error(f"Error: {str(e)}", exc_info=True)
+            logger.error(f"Error: {str(e)}", exc_info=True)
             logger.error(f"AI Recruiter conversation tracking error: {str(e)}")
             return {"status": "error", "message": str(e)}
 
@@ -464,7 +465,7 @@ class InteractionTracker:
             }
 
         except Exception as e:
-           logger.error(f"Error: {str(e)}", exc_info=True)
+            logger.error(f"Error: {str(e)}", exc_info=True)
             logger.error(f"Interview feedback tracking error: {str(e)}")
             return {"status": "error", "message": str(e)}
 
@@ -565,7 +566,7 @@ class InteractionTracker:
             }
 
         except Exception as e:
-           logger.error(f"Error: {str(e)}", exc_info=True)
+            logger.error(f"Error: {str(e)}", exc_info=True)
             logger.error(f"Offer response tracking error: {str(e)}")
             return {"status": "error", "message": str(e)}
 
@@ -647,7 +648,7 @@ class InteractionTracker:
             }
 
         except Exception as e:
-           logger.error(f"Error: {str(e)}", exc_info=True)
+            logger.error(f"Error: {str(e)}", exc_info=True)
             logger.error(f"Joining signals tracking error: {str(e)}")
             return {"status": "error", "message": str(e)}
 

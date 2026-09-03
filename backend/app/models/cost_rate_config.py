@@ -15,6 +15,7 @@ formula shape (salary + statutory components + admin overhead
 allocation) is followed; exact percentages are Avinash's to configure,
 never invented here.
 """
+import logging
 from sqlalchemy import Column, Date, DateTime, ForeignKey, Integer, Numeric, String, Text, func
 
 from app.models.base import Base

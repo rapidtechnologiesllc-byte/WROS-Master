@@ -14,6 +14,7 @@ BR-03: candidate_id is nullable (some prompt types, e.g. a general
 classification call, may not have one); tenant_id is not, per the
 spec's own real requirement that every call be attributable.
 """
+import logging
 from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, Text, func
 
 from app.models.base import Base

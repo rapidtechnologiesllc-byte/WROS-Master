@@ -240,10 +240,11 @@ class SLMOrchestrationService:
                         status="PENDING",
                     )
                     db.add(channel)
-                except Exception as e:                    logger.error(f"Failed to create channel routing for {queue_type}: {e}")
+                except Exception as e:
+                    logger.error(f"Failed to create channel routing for {queue_type}: {e}")
                     # Continue with other channels
 
-            db.commit()
+                    db.commit()
 
             # Update message status to SLM_PROCESSING
             from app.models.message_queue import MessageQueue

@@ -98,8 +98,8 @@ def _to_invoice_response(db: Session, invoice: Invoice, tenant_id: int) -> Invoi
 # ============================================================================
 
 @router.post(
-    dependencies=[Depends(get_current_user)]
     "/generate",
+    dependencies=[Depends(get_current_user)],
     response_model=GenerateInvoiceResponse,
     status_code=201,
     summary="Generate a DRAFT invoice from approved timesheets",
@@ -195,8 +195,8 @@ def generate_invoice_endpoint(
 # ============================================================================
 
 @router.get(
-    dependencies=[Depends(get_current_user)]
     "/{invoice_id}/calculate",
+    dependencies=[Depends(get_current_user)],
     response_model=CalculateBillAmountResponse,
     summary="Calculate bill amount for an invoice",
 )
@@ -232,8 +232,8 @@ def calculate_bill_amount_endpoint(
 # ============================================================================
 
 @router.post(
-    dependencies=[Depends(get_current_user)]
     "/{invoice_id}/send",
+    dependencies=[Depends(get_current_user)],
     response_model=SendInvoiceResponse,
     summary="Approve and send invoice to client",
     responses={
@@ -311,8 +311,8 @@ def send_invoice_endpoint(
 # ============================================================================
 
 @router.post(
-    dependencies=[Depends(get_current_user)]
     "/{invoice_id}/pay",
+    dependencies=[Depends(get_current_user)],
     response_model=TrackPaymentResponse,
     summary="Record payment against invoice",
     responses={
@@ -377,8 +377,8 @@ def track_payment_endpoint(
 # ============================================================================
 
 @router.get(
-    dependencies=[Depends(get_current_user)]
     "/{invoice_id}",
+    dependencies=[Depends(get_current_user)],
     response_model=InvoiceDetailResponse,
     summary="Get invoice details with all line items",
 )
@@ -409,7 +409,8 @@ def get_invoice_endpoint(
 # ============================================================================
 
 @router.get(
-    dependencies=[Depends(get_current_user)]
+    "",
+    dependencies=[Depends(get_current_user)],
     "",
     response_model=InvoiceListResponse,
     summary="List invoices with optional filters",

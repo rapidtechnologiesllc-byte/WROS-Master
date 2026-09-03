@@ -15,6 +15,7 @@ Endpoints:
 - GET /slm/feedback/report - Get daily improvement report
 """
 
+import logging
 from datetime import datetime
 from typing import List, Optional
 
@@ -61,8 +62,10 @@ class FeedbackStats(BaseModel):
     recommendation: str
 
 
-@router.post("/feedback/correction")
+@router.post(
+    "/feedback/correction",
     dependencies=[Depends(require_resource_permission("feedback", "create"))]
+)
 def record_correction(
     request: CorrectionRequest,
     db: Session = Depends(get_db),
@@ -132,8 +135,10 @@ def record_correction(
         raise HTTPException(status_code=500, detail=f"Failed to record correction: {str(e)}")
 
 
-@router.post("/feedback/validation")
+@router.post(
+    "/feedback/validation",
     dependencies=[Depends(require_resource_permission("feedback", "create"))]
+)
 def record_validation(
     request: ValidationRequest,
     db: Session = Depends(get_db),
@@ -193,8 +198,11 @@ def record_validation(
         raise HTTPException(status_code=500, detail=f"Failed to record validation: {str(e)}")
 
 
-@router.get("/feedback/stats", response_model=dict)
+@router.get(
+    "/feedback/stats",
+    response_model=dict,
     dependencies=[Depends(require_resource_permission("feedback", "view"))]
+)
 def get_feedback_stats(
     days: int = 7,
     db: Session = Depends(get_db),
@@ -256,8 +264,10 @@ def get_feedback_stats(
     return stats
 
 
-@router.get("/feedback/report")
+@router.get(
+    "/feedback/report",
     dependencies=[Depends(require_resource_permission("feedback", "view"))]
+)
 def get_improvement_report(
     db: Session = Depends(get_db),
     current_user = Depends(get_current_internal_user),
@@ -285,8 +295,10 @@ def get_improvement_report(
     }
 
 
-@router.get("/feedback/trajectory")
+@router.get(
+    "/feedback/trajectory",
     dependencies=[Depends(require_resource_permission("feedback", "view"))]
+)
 def get_improvement_trajectory(
     db: Session = Depends(get_db),
     current_user = Depends(get_current_internal_user),
@@ -311,8 +323,10 @@ def get_improvement_trajectory(
     return trajectory
 
 
-@router.get("/feedback/patterns/{field_name}")
+@router.get(
+    "/feedback/patterns/{field_name}",
     dependencies=[Depends(require_resource_permission("feedback", "view"))]
+)
 def get_error_patterns(
     field_name: str,
     limit: int = 20,
@@ -359,8 +373,10 @@ def get_error_patterns(
     }
 
 
-@router.get("/feedback/training-batch")
+@router.get(
+    "/feedback/training-batch",
     dependencies=[Depends(require_resource_permission("feedback", "view"))]
+)
 def get_training_batch(
     min_examples: int = 20,
     db: Session = Depends(get_db),
@@ -413,8 +429,10 @@ def get_training_batch(
     }
 
 
-@router.post("/feedback/bulk-import")
+@router.post(
+    "/feedback/bulk-import",
     dependencies=[Depends(require_resource_permission("feedback", "create"))]
+)
 def bulk_import_corrections(
     corrections: List[CorrectionRequest],
     db: Session = Depends(get_db),
@@ -444,7 +462,7 @@ def bulk_import_corrections(
                 )
                 imported += 1
         except Exception as e:
-           logger.error(f"Error: {str(e)}", exc_info=True)
+            logger.error(f"Error: {str(e)}", exc_info=True)
             logger.warning(f"Failed to import correction: {e}")
             failed += 1
 

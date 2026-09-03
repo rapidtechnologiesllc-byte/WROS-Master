@@ -147,5 +147,6 @@ class JobManagementService:
                 "offers_accepted": 0,  # Would calculate from hired employees
                 "created_at": job.created_at.isoformat() if hasattr(job, 'created_at') and job.created_at else None
             }
-        except Exception as e:            logger.error(f"Failed to get job metrics: {e}", exc_info=True)
+        except Exception as e:
+            logger.error(f"Failed to get job metrics: {e}", exc_info=True)
             raise

@@ -19,6 +19,7 @@ and are NOT built here. SubmissionViolation exists as a real audit log
 of every blocked attempt; the escalation cascade reading it does not
 exist yet -- flagged as explicit follow-up work, not silently skipped.
 """
+import logging
 import uuid
 
 from sqlalchemy import (

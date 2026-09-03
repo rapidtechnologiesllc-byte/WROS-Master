@@ -22,6 +22,7 @@ separate counter table needed; a single Integer IDENTITY/autoincrement
 column is already a real, atomic, monotonic, org-wide sequence in both
 SQLite and SQL Server.
 """
+import logging
 import uuid
 from datetime import datetime
 

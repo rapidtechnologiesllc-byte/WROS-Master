@@ -18,6 +18,7 @@ is_htd_intake_paused() below is the real, callable gate a future build
 of it would check, same "real function, deferred wiring" posture as
 every other not-yet-existing consumer this session.
 """
+import logging
 from datetime import date, datetime
 from decimal import Decimal
 from typing import Optional

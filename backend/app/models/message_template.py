@@ -6,6 +6,7 @@ tenant_id here follows this subsystem's real convention (the org-owner
 Users.UserID -- see ai_conversation_service.resolve_thunder_config's
 docstring), not the separate app.models.tenant.Tenant table.
 """
+import logging
 from sqlalchemy import Boolean, Column, DateTime, Enum, ForeignKey, Integer, String, Text, UniqueConstraint, func
 from sqlalchemy.orm import relationship
 

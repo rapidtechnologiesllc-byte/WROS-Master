@@ -141,6 +141,7 @@ Release History:
 - RBAC permission checks
 """
 
+import logging
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 from datetime import datetime
@@ -604,8 +605,8 @@ def require_permission(permission: str):
     Decorator to require specific permission before route execution.
 
     Usage:
-        @router.post("/candidates")
-        @require_permission("candidate.create")
+    @router.post("/candidates")
+    @require_permission("candidate.create")
         def create_candidate(...):
             pass
     """

@@ -104,7 +104,7 @@ def create_test_users(db: Session):
             db.rollback()
             logger.error(f"Failed to create user {user_data['email']}: {e}")
 
-    logger.info(f"\nCreated {created_count} test users")
+            logger.info(f"\nCreated {created_count} test users")
     return created_count
 
 if __name__ == "__main__":

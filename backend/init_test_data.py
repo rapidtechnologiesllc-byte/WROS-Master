@@ -115,7 +115,7 @@ def init_test_data():
             print(f"   Test Job: {job.jobTitle}")
 
         except Exception as e:
-           logger.error(f"Error: {str(e)}", exc_info=True)
+            logger.error(f"Error: {str(e)}", exc_info=True)
             logger.error(f"Error: {str(e)}", exc_info=True)
             print(f"ERROR: {e}")
             db.rollback()

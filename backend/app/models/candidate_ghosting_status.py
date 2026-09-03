@@ -17,6 +17,7 @@ ever be left"), it is NEVER used as a cutoff/cap. See
 reactivation_campaign_service's own module docstring for the full
 override rationale.
 """
+import logging
 from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, UniqueConstraint, func
 from sqlalchemy.orm import relationship
 

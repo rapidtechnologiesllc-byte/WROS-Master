@@ -112,8 +112,8 @@ def _get_call_or_404(db: Session, call_id: str) -> DemandAlignmentCall:
 
 
 @router.post(
-    dependencies=[Depends(get_current_user)]
     "/demands/{demand_id}/confirm-sow",
+    dependencies=[Depends(get_current_user)],
     response_model=ConfirmSOWResponse,
     summary="Record a SOW reference and confirm the demand",
 )
@@ -141,8 +141,8 @@ def confirm_sow(
 
 
 @router.post(
-    dependencies=[Depends(get_current_user)]
     "/demands/{demand_id}/employees/{employee_id}/schedule-call",
+    dependencies=[Depends(get_current_user)],
     response_model=AlignmentCallItem,
     summary="Book (or return the existing) 3-way alignment call",
 )
@@ -168,8 +168,8 @@ def schedule_call(
 
 
 @router.get(
-    dependencies=[Depends(get_current_user)]
     "/demands/{demand_id}/calls",
+    dependencies=[Depends(get_current_user)],
     response_model=AlignmentCallListResponse,
     summary="Get all alignment calls for a demand",
 )
@@ -189,8 +189,8 @@ def get_calls_for_demand(
 
 
 @router.post(
-    dependencies=[Depends(get_current_user)]
     "/calls/{call_id}/confirm-fit",
+    dependencies=[Depends(get_current_user)],
     response_model=ConfirmFitResponse,
     summary="Record one participant's fit confirmation (immutable once set)",
 )
@@ -215,8 +215,8 @@ def confirm_call_fit(
 
 
 @router.post(
-    dependencies=[Depends(get_current_user)]
     "/calls/{call_id}/trigger-release",
+    dependencies=[Depends(get_current_user)],
     response_model=TriggerReleaseResponse,
     summary="Trigger Specialty client release (hard gate: CONFIRMED + both fits True)",
 )

@@ -16,6 +16,7 @@ one candidate considered over time), not folded into Demand itself --
 the 3-way call, both fit confirmations, and the release trigger are all
 scoped to a specific employee being proposed for a specific demand.
 """
+import logging
 import uuid
 
 from sqlalchemy import (

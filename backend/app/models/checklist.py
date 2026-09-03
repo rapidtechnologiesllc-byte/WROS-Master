@@ -8,6 +8,7 @@ Two item types:
               Completing it automatically activates the next queue item.
 """
 
+import logging
 from datetime import datetime
 from sqlalchemy import (
     Column, Integer, String, Text, DateTime, Date, Boolean,

@@ -207,7 +207,7 @@ try:
     print("\nYou can now login and create additional users/roles")
 
 except Exception as e:
-   logger.error(f"Error: {str(e)}", exc_info=True)
+    logger.error(f"Error: {str(e)}", exc_info=True)
     logger.error(f"Error: {str(e)}", exc_info=True)
     print(f"\nERROR: {e}")
     import traceback

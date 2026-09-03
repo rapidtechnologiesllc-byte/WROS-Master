@@ -31,6 +31,7 @@ SLA escalation to BU Head (AC-3) has no scheduler in this codebase --
 same cron-wiring-is-follow-up posture as every other scheduled-job
 story already in this codebase (e.g. S-365's own 48h SLA).
 """
+import logging
 from typing import Optional
 
 from sqlalchemy.orm import Session

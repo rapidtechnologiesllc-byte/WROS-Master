@@ -169,7 +169,7 @@ def _notify_recruiter(db: Session, submission: Optional[Submission], message: st
     try:
         send_notification(db, calling_context_tenant_id=recipient.tenant_id, recipient=recipient, priority_tier="P1", channel_preference="IN_APP", message=message)
     except Exception as exc:
-       logger.error(f"Error: {str(exc)}", exc_info=True)
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[JoiningReadiness] Failed to notify recruiter: {exc}")
 
 
@@ -221,7 +221,7 @@ def calculate_joining_readiness(db: Session, candidate_id: str, offer_id: int, t
 
         return {"readiness_score": readiness_score, "score_breakdown": score_breakdown}
     except Exception as exc:
-       logger.error(f"Error: {str(exc)}", exc_info=True)
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.error(f"[JoiningReadiness] Failed calculating readiness for candidate {candidate_id!r}: {exc}")
         db.rollback()
         return {"outcome": "calculation_failed"}
@@ -256,7 +256,7 @@ def run_joining_readiness_job(db: Session) -> Dict:
             else:
                 result["skipped"] += 1
         except Exception as exc:
-           logger.error(f"Error: {str(exc)}", exc_info=True)
+            logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.error(f"[JoiningReadiness] Failed processing offer id={offer.id}: {exc}")
             db.rollback()
             result["skipped"] += 1

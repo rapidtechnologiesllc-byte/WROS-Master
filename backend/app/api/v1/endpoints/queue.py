@@ -16,8 +16,10 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/queues", tags=["queue"])
 
 
-@router.get("")
+@router.get(
+    "",
     dependencies=[Depends(require_resource_permission("unknown", "view"))]
+)
 def list_queue_messages(
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=1000),
@@ -93,8 +95,10 @@ def list_queue_messages(
     }
 
 
-@router.get("/stats")
+@router.get(
+    "/stats",
     dependencies=[Depends(require_resource_permission("stat", "view"))]
+)
 def get_queue_stats(db: Session = Depends(get_db)) -> Dict[str, Any]:
     """Get queue statistics aggregated by queue type and status."""
     all_messages = db.query(MessageQueue).all()
@@ -240,8 +244,10 @@ def clear_message(message_id: str, db: Session = Depends(get_db)) -> Dict[str, A
     }
 
 
-@router.post("/{queue_type}/start")
+@router.post(
+    "/{queue_type}/start",
     dependencies=[Depends(require_resource_permission("{queue_type}", "create"))]
+)
 def start_queue(queue_type: str, db: Session = Depends(get_db)) -> Dict[str, Any]:
     """Start processing a queue - mark all pending messages as active for processing."""
     try:
@@ -260,12 +266,15 @@ def start_queue(queue_type: str, db: Session = Depends(get_db)) -> Dict[str, Any
             "messages_queued": count,
             "message": f"Queue {queue_type} started. {count} pending messages will be processed.",
         }
-    except Exception as e:        logger.error(f"Failed to start queue {queue_type}: {e}", exc_info=True)
+    except Exception as e:
+        logger.error(f"Failed to start queue {queue_type}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to start queue: {str(e)}")
 
 
-@router.post("/{queue_type}/stop")
+@router.post(
+    "/{queue_type}/stop",
     dependencies=[Depends(require_resource_permission("{queue_type}", "create"))]
+)
 def stop_queue(queue_type: str, db: Session = Depends(get_db)) -> Dict[str, Any]:
     """Stop processing a queue - pause all pending messages."""
     try:
@@ -284,12 +293,15 @@ def stop_queue(queue_type: str, db: Session = Depends(get_db)) -> Dict[str, Any]
             "messages_paused": count,
             "message": f"Queue {queue_type} stopped. {count} messages paused.",
         }
-    except Exception as e:        logger.error(f"Failed to stop queue {queue_type}: {e}", exc_info=True)
+    except Exception as e:
+        logger.error(f"Failed to stop queue {queue_type}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to stop queue: {str(e)}")
 
 
-@router.post("/{queue_type}/retry")
+@router.post(
+    "/{queue_type}/retry",
     dependencies=[Depends(require_resource_permission("{queue_type}", "create"))]
+)
 def retry_queue(queue_type: str, db: Session = Depends(get_db)) -> Dict[str, Any]:
     """Retry all failed messages in a queue."""
     try:

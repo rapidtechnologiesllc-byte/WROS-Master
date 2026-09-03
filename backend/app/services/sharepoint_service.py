@@ -216,7 +216,7 @@ def get_file_download_link(path: str) -> Optional[str]:
         return resp.json().get("@microsoft.graph.downloadUrl")
 
     except Exception as exc:
-       logger.error(f"Error: {str(exc)}", exc_info=True)
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"SharePoint get_file_download_link failed for {path}: {exc}")
         raise ValueError("Operation failed")
 

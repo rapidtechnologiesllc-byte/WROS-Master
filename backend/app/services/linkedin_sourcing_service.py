@@ -30,6 +30,7 @@ POSSIBLE_DUPLICATE is modeled (matches the doc's enum) but never
 produced by this implementation; it's reserved for a future fuzzy-
 matching capability this codebase doesn't have.
 """
+import logging
 import json
 from datetime import datetime
 from typing import Callable, List, Optional

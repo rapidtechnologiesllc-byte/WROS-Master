@@ -37,6 +37,7 @@ get_portal_message_history's `after_id` support below) instead of
 introducing a first-ever async WS layer into an otherwise-synchronous
 FastAPI/SQLAlchemy app for one screen.
 """
+import logging
 from datetime import datetime, timedelta
 from typing import Dict, Optional
 

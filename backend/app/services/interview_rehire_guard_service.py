@@ -32,6 +32,7 @@ prompt_framework_service (that module's placeholder catalogue is built
 for candidate-facing Thunder replies; this is an internal recruiter
 tool with no candidate context object to feed it).
 """
+import logging
 import json
 import os
 import re
@@ -181,7 +182,7 @@ def review_rehire_justification(
             "confidence": max(0.0, min(1.0, confidence)),
         }
     except Exception as exc:
-       logger.error(f"Error: {str(exc)}", exc_info=True)
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[RehireGuard] AI review failed, failing closed to ESCALATE: {exc}")
         return {"decision": "ESCALATE", "reasoning": FAIL_CLOSED_REASONING, "confidence": 0.0}
 

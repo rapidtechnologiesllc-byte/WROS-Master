@@ -17,6 +17,7 @@ Employee.wros_user_id, same pattern task/buddy_program/executive_signal
 already use) and only ever touches allocations/timesheets that belong
 to that employee -- never a client-supplied employee_id.
 """
+import logging
 from datetime import date, timedelta
 from typing import List, Optional
 

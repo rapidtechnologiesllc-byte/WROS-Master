@@ -19,6 +19,7 @@ allocation") lives in exactly one place -- detect_core_pull_conflict()
 below. HRMS-1105 (Part A, not yet built) and S-372 (Part A, not yet
 built) must call this, never reimplement "Core wins" themselves.
 """
+import logging
 from datetime import date, datetime, timedelta
 from typing import Dict, Optional
 

@@ -35,6 +35,7 @@ S-018's just-stabilized call sites and its 159-test regression
 baseline, this late before tonight's launch. Flagged as an explicit
 follow-up wiring task, not a silent gap.
 """
+import logging
 import json
 import re
 from datetime import datetime
@@ -168,7 +169,7 @@ def generate_conversation_summary(
         try:
             raw = _call_llm_for_summary(prompt, llm_call).strip()
         except Exception as exc:
-           logger.error(f"Error: {str(exc)}", exc_info=True)
+            logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.warning(f"[ConversationSummary] LLM call failed for conversation {conversation.id}: {exc}")
             db.add(ConversationEvent(
                 conversation_id=conversation.id, event_type="SUMMARY_GENERATION_FAILED",
@@ -209,7 +210,8 @@ def maybe_generate_summary_after_reply(
         return None
     try:
         return generate_conversation_summary(db, conversation, candidate, llm_call=llm_call)
-    except Exception as exc:  # belt-and-suspenders -- generate_conversation_summary already shouldn't raise
+    except Exception as exc:
+        # belt-and-suspenders -- generate_conversation_summary already shouldn't raise
         logger.error(f"[ConversationSummary] Unexpected error generating summary for conversation {conversation.id}: {exc}")
         raise ValueError("Operation failed")
 
@@ -222,6 +224,6 @@ def maybe_generate_summary_after_transition(
     try:
         return generate_conversation_summary(db, conversation, candidate, llm_call=llm_call)
     except Exception as exc:
-       logger.error(f"Error: {str(exc)}", exc_info=True)
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.error(f"[ConversationSummary] Unexpected error generating summary for conversation {conversation.id}: {exc}")
         raise ValueError("Operation failed")

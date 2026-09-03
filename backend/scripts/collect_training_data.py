@@ -16,6 +16,7 @@ Usage:
     python collect_training_data.py --resume-dir "/path/to/resumes" --output training_data.json
 """
 
+import logging
 import json
 import os
 import sys
@@ -119,7 +120,8 @@ class TrainingDataCollector:
                 "error": str(e)
             })
 
-    def _extract_text(self, resume_file: Path) -> str:
+            def _extract_text(self, resume_file: Path) -> str:
+                pass
         """Extract text from resume file"""
         suffix = resume_file.suffix.lower()
 

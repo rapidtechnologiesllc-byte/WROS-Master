@@ -7,6 +7,7 @@ Test coverage:
 - Integration tests for full ranking flow
 - Edge cases and error handling
 """
+import logging
 import os
 import tempfile
 import json

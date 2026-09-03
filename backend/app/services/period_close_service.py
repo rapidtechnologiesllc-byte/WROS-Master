@@ -9,6 +9,7 @@ Handles:
 - Complete reconciliation reporting
 - Audit trail for all closes
 """
+import logging
 from datetime import datetime, date
 from typing import Optional, Dict, List
 from sqlalchemy.orm import Session

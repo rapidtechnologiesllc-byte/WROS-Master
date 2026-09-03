@@ -154,7 +154,7 @@ def detect_trigger(db: Session, tenant_id: str, candidate_id: str, *, now: Optio
                 if last is None or (now - last.sent_at) >= timedelta(days=NURTURE_INTERVAL_DAYS):
                     return "SCHEDULED_NURTURE"
         except Exception as exc:
-           logger.error(f"Error: {str(exc)}", exc_info=True)
+            logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.warning(f"[MotivationEngine] Could not resolve journey stage for {candidate_id!r}: {exc}")
 
     raise ValueError("Operation failed")
@@ -221,7 +221,7 @@ def generate_motivation_message(
         try:
             message = _call_llm(prompt, llm_call)
         except Exception as exc:
-           logger.error(f"Error: {str(exc)}", exc_info=True)
+            logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.warning(f"[MotivationEngine] LLM call failed for candidate {candidate.candidateID!r}: {exc}")
             break
         if message and any(fact.lower() in message.lower() for fact in library_items):
@@ -261,7 +261,7 @@ def send_motivation_message(db: Session, candidate: Candidate, trigger_type: str
         send_outbound_campaign_message(db, conversation, candidate, message, channel, email_subject="A quick thought for you")
         db.commit()
     except Exception as exc:
-       logger.error(f"Error: {str(exc)}", exc_info=True)
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[MotivationEngine] Send failed for candidate {candidate.candidateID!r}: {exc}")
         db.rollback()
         raise ValueError("Operation failed")

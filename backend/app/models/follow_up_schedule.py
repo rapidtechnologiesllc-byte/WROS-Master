@@ -28,6 +28,7 @@ inconsistency, not resolved by picking one name globally; each
 reference in code matches whichever spec section it's implementing
 (the DB column vs. the schedule_follow_up() parameter).
 """
+import logging
 from sqlalchemy import Column, DateTime, ForeignKey, Index, Integer, String, func
 from sqlalchemy.orm import relationship
 

@@ -24,7 +24,7 @@ for pwd in passwords_to_try:
         status = '✅' if result else '❌'
         print(f'{status} "{pwd}": {result}')
     except Exception as e:
-       logger.error(f"Error: {str(e)}", exc_info=True)
+        logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Error: {str(e)}", exc_info=True)
         print(f'❌ "{pwd}": Error - {type(e).__name__}: {e}')
 

@@ -5,6 +5,7 @@ This allows candidates without Microsoft accounts to upload documents.
 import logging
 """
 
+import logging
 import os
 import requests
 from datetime import datetime, timedelta

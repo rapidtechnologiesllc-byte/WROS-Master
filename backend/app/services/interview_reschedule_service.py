@@ -161,7 +161,7 @@ def _notify_recruiter(db: Session, submission: Optional[Submission], message: st
             priority_tier="P1", channel_preference="IN_APP", message=message,
         )
     except Exception as exc:
-       logger.error(f"Error: {str(exc)}", exc_info=True)
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[InterviewReschedule] Failed to notify recruiter: {exc}")
 
 
@@ -210,7 +210,7 @@ def start_reschedule(
                 try:
                     call(interviewer_user.UserEmail, interview.scheduled_via_graph_event_id)
                 except Exception as exc:
-                   logger.error(f"Error: {str(exc)}", exc_info=True)
+                    logger.error(f"Error: {str(exc)}", exc_info=True)
                     logger.error(f"[InterviewReschedule] Failed to cancel old Outlook event for interview {interview.id!r}: {exc}")
                     submission = db.query(Submission).filter(Submission.id == interview.submission_id).first()
                     _notify_recruiter(db, submission, f"Could not cancel the old Outlook invite for {candidate.candidateFirstName or candidate.candidateID}'s interview -- please decline it manually.")
@@ -227,7 +227,7 @@ def start_reschedule(
 
         return {"outcome": "reschedule_started", "message": RESCHEDULE_ACK_MESSAGE}
     except Exception as exc:
-       logger.error(f"Error: {str(exc)}", exc_info=True)
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.error(f"[InterviewReschedule] Unexpected failure starting reschedule for candidate {candidate.candidateID!r}: {exc}")
         db.rollback()
         return {"outcome": "reschedule_failed"}
@@ -276,7 +276,7 @@ def complete_reschedule_match_and_confirm(
             "confirm_result": confirm_result, "reminders_created": reminder_result.get("reminders_created", []),
         }
     except Exception as exc:
-       logger.error(f"Error: {str(exc)}", exc_info=True)
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.error(f"[InterviewReschedule] Unexpected failure completing reschedule for candidate {candidate.candidateID!r}: {exc}")
         db.rollback()
         return {"outcome": "reschedule_failed"}

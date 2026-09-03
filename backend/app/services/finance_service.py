@@ -139,7 +139,7 @@ class FinanceService:
                         invoice.approved_by = approved_by
                         approved_count += 1
                 except Exception as e:
-                   logger.error(f"Error: {str(e)}", exc_info=True)
+                    logger.error(f"Error: {str(e)}", exc_info=True)
                     logger.warning(f"Failed to approve invoice {invoice_id}: {e}")
                     failed_count += 1
 

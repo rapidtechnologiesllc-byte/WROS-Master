@@ -10,6 +10,7 @@ Implements complete revenue recognition workflow:
 - Tracks cost, margin, and P&L by business unit
 - Supports multi-currency tracking (USD cents)
 """
+import logging
 from datetime import datetime, timedelta, date
 from typing import Dict, List, Optional, Tuple
 from decimal import Decimal

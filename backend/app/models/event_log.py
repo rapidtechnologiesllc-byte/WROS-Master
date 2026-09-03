@@ -18,6 +18,7 @@ Integer autoincrement PK + String(50) UserID-as-tenant_id convention,
 matching every other new table this round, not the spec's UUID
 assumption.
 """
+import logging
 from sqlalchemy import Column, DateTime, ForeignKey, Integer, JSON, String, func
 from sqlalchemy.orm import relationship
 

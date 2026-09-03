@@ -10,6 +10,7 @@ Provides REST endpoints for onboarding workflow operations:
 - GET /onboarding-workflow/{workflow_id}
 - GET /onboarding-workflow/employee/{employee_id}
 """
+import logging
 from datetime import datetime, date
 from typing import Optional, List
 
@@ -172,7 +173,7 @@ def start_onboarding_endpoint(
     except HTTPException:
         raise
     except Exception as exc:
-       logger.error(f"Error: {str(exc)}", exc_info=True)
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.error(f"[OnboardingWorkflow API] start failed: {exc}")
         raise HTTPException(status_code=500, detail=f"Failed to start onboarding: {str(exc)}")
 
@@ -212,7 +213,7 @@ def assign_buddy_endpoint(
     except HTTPException:
         raise
     except Exception as exc:
-       logger.error(f"Error: {str(exc)}", exc_info=True)
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.error(f"[OnboardingWorkflow API] assign_buddy failed: {exc}")
         raise HTTPException(status_code=500, detail=f"Failed to assign buddy: {str(exc)}")
 
@@ -259,7 +260,7 @@ def send_welcome_kit_endpoint(
     except HTTPException:
         raise
     except Exception as exc:
-       logger.error(f"Error: {str(exc)}", exc_info=True)
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.error(f"[OnboardingWorkflow API] send_welcome_kit failed: {exc}")
         raise HTTPException(status_code=500, detail=f"Failed to send welcome kit: {str(exc)}")
 
@@ -310,7 +311,7 @@ def schedule_training_endpoint(
     except HTTPException:
         raise
     except Exception as exc:
-       logger.error(f"Error: {str(exc)}", exc_info=True)
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.error(f"[OnboardingWorkflow API] schedule_training failed: {exc}")
         raise HTTPException(status_code=500, detail=f"Failed to schedule training: {str(exc)}")
 
@@ -347,7 +348,7 @@ def get_workflow(
     except HTTPException:
         raise
     except Exception as exc:
-       logger.error(f"Error: {str(exc)}", exc_info=True)
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.error(f"[OnboardingWorkflow API] get_workflow failed: {exc}")
         raise HTTPException(status_code=500, detail=f"Failed to retrieve workflow: {str(exc)}")
 
@@ -442,7 +443,7 @@ def get_workflow_by_employee(
     except HTTPException:
         raise
     except Exception as exc:
-       logger.error(f"Error: {str(exc)}", exc_info=True)
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.error(f"[OnboardingWorkflow API] get_workflow_by_employee failed: {exc}")
         raise HTTPException(status_code=500, detail=f"Failed to retrieve workflow: {str(exc)}")
 
@@ -487,7 +488,7 @@ def get_workflow_tasks(
         }
 
     except Exception as exc:
-       logger.error(f"Error: {str(exc)}", exc_info=True)
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.error(f"[OnboardingWorkflow API] get_workflow_tasks failed: {exc}")
         raise HTTPException(status_code=500, detail=f"Failed to retrieve tasks: {str(exc)}")
 
@@ -532,6 +533,6 @@ def get_workflow_training_sessions(
         }
 
     except Exception as exc:
-       logger.error(f"Error: {str(exc)}", exc_info=True)
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.error(f"[OnboardingWorkflow API] get_workflow_training_sessions failed: {exc}")
         raise HTTPException(status_code=500, detail=f"Failed to retrieve training sessions: {str(exc)}")

@@ -17,6 +17,7 @@ separate scheduled job, so bench_pool can never drift out of sync with
 Employee.status. log_allocation_conflict() records a permanent audit
 row the moment AllocationOverCapacity is about to be raised.
 """
+import logging
 from datetime import date
 from typing import Optional
 

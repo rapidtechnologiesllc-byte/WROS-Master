@@ -18,6 +18,7 @@ language describes; no ML retraining loop is built (out of scope,
 same posture as S-046's "explicitly-NOT-ML" formula), the row is the
 honest, queryable outcome record itself.
 """
+import logging
 from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, JSON, String, Text, UniqueConstraint, func
 from sqlalchemy.orm import relationship
 

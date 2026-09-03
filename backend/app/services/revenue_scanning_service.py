@@ -133,7 +133,7 @@ def run_daily_revenue_scan_job(db: Session) -> Dict:
                 logger.warning(f"[RevenueScan] {error_msg}")
 
         # Commit all changes
-        db.commit()
+                db.commit()
 
         logger.info(
             f"[RevenueScan] Daily scan complete: "
@@ -151,7 +151,7 @@ def run_daily_revenue_scan_job(db: Session) -> Dict:
         }
 
     except Exception as exc:
-       logger.error(f"Error: {str(exc)}", exc_info=True)
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.error(f"[RevenueScan] Daily scan job failed: {exc}")
         return {
             "scanned_projects": scanned,

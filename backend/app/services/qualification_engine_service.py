@@ -40,6 +40,7 @@ Real architecture adaptations:
   unspecified LLM; question-variation failure falls back to the base
   catalog question and logs QUESTION_VARIATION_FAILED, never crashes.
 """
+import logging
 import os
 import re
 from typing import Callable, Dict, List, Optional
@@ -168,7 +169,7 @@ def generate_qualification_question(
         try:
             question_text = _call_llm(prompt, llm_call).strip() or base_question
         except Exception as exc:
-           logger.error(f"Error: {str(exc)}", exc_info=True)
+            logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.warning(f"[QualificationEngine] Question variation failed for {field_name}: {exc}")
             db.add(ConversationEvent(
                 conversation_id=conversation.id, event_type="QUESTION_VARIATION_FAILED",

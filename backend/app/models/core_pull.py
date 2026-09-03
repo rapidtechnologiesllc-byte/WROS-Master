@@ -11,6 +11,7 @@ is an unrelated story (Workforce Scenario Planning); the real, canonical
 Core-Pull ID is HRMS-0514/S-353, confirmed against
 `WROS_Canonical_Backlog_S001-401.xlsx`. See CLAUDE.md's correction note.
 """
+import logging
 import uuid
 
 from sqlalchemy import (

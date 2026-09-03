@@ -15,6 +15,7 @@ Personal Goal Agents:
 - BU Head Goal Agent (for each BU leader)
 """
 
+import logging
 from datetime import datetime, timedelta
 from typing import Dict, Any, List
 from sqlalchemy.orm import Session

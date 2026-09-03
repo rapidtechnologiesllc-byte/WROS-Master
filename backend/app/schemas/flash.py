@@ -6,6 +6,7 @@ Renamed 2026-08-06 from "Ask Thunder" -- see app.api.v1.endpoints.flash
 module docstring for the Thunder-vs-Flash product split rationale.
 """
 
+import logging
 from typing import List, Optional, Dict, Any
 
 from pydantic import BaseModel, Field

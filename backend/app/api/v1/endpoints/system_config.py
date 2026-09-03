@@ -38,8 +38,11 @@ def _require_tenant(current_user: Users) -> int:
     return current_user.tenant_id
 
 
-@router.get("/settings", response_model=SettingsPanelResponse)
+@router.get(
+    "/settings",
+    response_model=SettingsPanelResponse,
     dependencies=[Depends(require_resource_permission("setting", "view"))]
+)
 def get_settings(
     current_user: Users = Depends(get_current_internal_user),
     business_unit_id: Optional[int] = Depends(get_active_business_unit_id),
@@ -50,8 +53,10 @@ def get_settings(
     return SettingsPanelResponse(**panel)
 
 
-@router.put("/settings/{config_key}")
+@router.put(
+    "/settings/{config_key}",
     dependencies=[Depends(require_resource_permission("setting", "update"))]
+)
 def update_setting(
     config_key: str,
     body: UpdateConfigValueRequest,
@@ -72,8 +77,10 @@ def update_setting(
     return {"config_key": config_key, "value": row.config_value, "business_unit_id": row.business_unit_id}
 
 
-@router.put("/locale")
+@router.put(
+    "/locale",
     dependencies=[Depends(require_resource_permission("locale", "update"))]
+)
 def update_locale(
     body: UpdateLocaleRequest,
     current_user: Users = Depends(require_admin_role),

@@ -72,6 +72,6 @@ class EmployeeConversionService:
             EmailService.send_email_direct(to_email=employee_user.UserEmail, to_name=employee_user.UserName, subject="Welcome to BlitzenX", html_body=email_html)
             return True
         except Exception as e:
-           logger.error(f"Error: {str(e)}", exc_info=True)
+            logger.error(f"Error: {str(e)}", exc_info=True)
             logger.error(f"Email failed: {str(e)}")
             return False

@@ -14,6 +14,7 @@ No `interviews.candidate_timezone` column exists (the spec's own
 field S-047/048/049 already use) is read fresh at send time instead of
 being duplicated onto this table or the interview row.
 """
+import logging
 import uuid
 
 from sqlalchemy import Column, DateTime, Enum, ForeignKey, Integer, String, func

@@ -13,6 +13,7 @@ Fields:
   - updated_at     : timestamp of the last update
 """
 
+import logging
 from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, func
 from sqlalchemy.orm import relationship
 

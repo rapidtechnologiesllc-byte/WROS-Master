@@ -8,6 +8,7 @@ Includes request/response models for:
 - archive_candidate(): Archive/soft-delete candidate
 """
 
+import logging
 from pydantic import BaseModel, EmailStr
 from typing import Optional, List
 from datetime import datetime

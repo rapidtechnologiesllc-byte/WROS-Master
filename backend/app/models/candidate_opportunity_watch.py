@@ -12,6 +12,7 @@ fresh row. is_active is the "still watching" flag; a match deactivates
 it rather than deleting it, so the match history stays real and
 queryable.
 """
+import logging
 import uuid
 from datetime import datetime
 

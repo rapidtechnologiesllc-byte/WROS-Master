@@ -11,6 +11,7 @@ a hardcoded FX rate would be guessing at real-world numbers that go
 stale immediately; better to leave it unconverted and flagged than
 silently wrong.
 """
+import logging
 from typing import Optional
 
 from sqlalchemy.orm import Session

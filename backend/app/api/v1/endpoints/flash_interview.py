@@ -1,4 +1,4 @@
-﻿"""Flash Interview Analysis endpoints â€” AI-powered interview assessment."""
+"""Flash Interview Analysis endpoints â€” AI-powered interview assessment."""
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 from app.core.dependencies import get_current_internal_user, require_resource_permission

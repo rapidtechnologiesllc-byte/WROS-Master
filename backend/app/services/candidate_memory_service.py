@@ -21,6 +21,7 @@ docstring for the model-level ones):
   unspecified LLM. Validation is 200-500 WORDS (per this story's own
   spec), not characters -- distinct from S-019's char-based rule.
 """
+import logging
 import os
 import re
 from datetime import datetime, timedelta
@@ -223,7 +224,7 @@ def update_memory_summary(
     try:
         raw = _call_llm(prompt, llm_call).strip()
     except Exception as exc:
-       logger.error(f"Error: {str(exc)}", exc_info=True)
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[CandidateMemory] Summary generation failed for candidate {candidate_id}: {exc}")
         _log_memory_event(db, candidate_id, "MEMORY_SUMMARY_FAILED", {"reason": str(exc)})
         db.commit()

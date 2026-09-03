@@ -16,8 +16,10 @@ import logging
 router = APIRouter(prefix="/bi", tags=["Business Intelligence"])
 
 
-@router.get("/tables")
+@router.get(
+    "/tables",
     dependencies=[Depends(require_resource_permission("table", "view"))]
+)
 def list_available_tables(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user)
@@ -37,8 +39,10 @@ def list_available_tables(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/tables/{table_name}/schema")
+@router.get(
+    "/tables/{table_name}/schema",
     dependencies=[Depends(require_resource_permission("table", "view"))]
+)
 def get_table_schema_endpoint(
     table_name: str,
     db: Session = Depends(get_db),
@@ -58,8 +62,10 @@ def get_table_schema_endpoint(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/tables/{table_name}/summary")
+@router.get(
+    "/tables/{table_name}/summary",
     dependencies=[Depends(require_resource_permission("table", "view"))]
+)
 def get_table_summary_endpoint(
     table_name: str,
     db: Session = Depends(get_db),
@@ -79,8 +85,10 @@ def get_table_summary_endpoint(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/query")
+@router.post(
+    "/query",
     dependencies=[Depends(require_resource_permission("query", "create"))]
+)
 def execute_bi_query(
     table_name: str = Query(...),
     columns: Optional[List[str]] = Query(None),
@@ -122,8 +130,10 @@ def execute_bi_query(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/query/{table_name}")
+@router.get(
+    "/query/{table_name}",
     dependencies=[Depends(require_resource_permission("query", "view"))]
+)
 def query_table_endpoint(
     table_name: str,
     columns: Optional[List[str]] = Query(None),

@@ -4,6 +4,7 @@ Comprehensive testing of autonomous hiring flow
 import logging
 """
 
+import logging
 import pytest
 import json
 from datetime import datetime, timedelta

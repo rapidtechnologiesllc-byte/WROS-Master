@@ -266,7 +266,7 @@ def _send_approval_notifications(
             )
             logger.info(f"[Approval] Sent approval notification to candidate: {candidate.candidateEmail}")
         except Exception as exc:
-           logger.error(f"Error: {str(exc)}", exc_info=True)
+            logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.warning(f"[Approval] Could not email candidate: {exc}")
 
     # â”€â”€ 4. Email to hiring manager â”€â”€
@@ -285,7 +285,7 @@ def _send_approval_notifications(
             )
             logger.info(f"[Approval] Sent approval notification to hiring manager: {hiring_manager_email}")
         except Exception as exc:
-           logger.error(f"Error: {str(exc)}", exc_info=True)
+            logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.warning(f"[Approval] Could not email hiring manager: {exc}")
 
     # â”€â”€ 5. Email to recruiter â”€â”€
@@ -304,7 +304,7 @@ def _send_approval_notifications(
             )
             logger.info(f"[Approval] Sent approval notification to recruiter: {recruiter_email}")
         except Exception as exc:
-           logger.error(f"Error: {str(exc)}", exc_info=True)
+            logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.warning(f"[Approval] Could not email recruiter: {exc}")
 
 
@@ -313,8 +313,8 @@ def _send_approval_notifications(
 # ---------------------------------------------------------------------------
 
 @router.get(
-    dependencies=[Depends(get_current_user)]
     "/hiring-manager/review",
+    dependencies=[Depends(get_current_user)],
     response_model=HMCandidateReviewListResponse,
 
     summary="Hiring Manager: list candidates with â‰¥2 completed interviews (ready for approval/rejection)",
@@ -607,7 +607,7 @@ def hiring_manager_approval(
                 candidate, db, performed_by_id=user.UserID
             )
         except Exception as exc:
-           logger.error(f"Error: {str(exc)}", exc_info=True)
+            logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.warning(f"[Approval] Checklist auto-assign failed: {exc}")
 
         db.commit()
@@ -639,7 +639,7 @@ def hiring_manager_approval(
             )
             db.commit()
         except Exception as exc:
-           logger.error(f"Error: {str(exc)}", exc_info=True)
+            logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.warning(f"[Approval] Org Pool transfer failed: {exc}")
 
     return StatusActionResponse(

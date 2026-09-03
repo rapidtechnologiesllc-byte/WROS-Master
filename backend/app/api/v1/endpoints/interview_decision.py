@@ -30,8 +30,8 @@ decision_service = InterviewDecisionService()
 
 
 @router.post(
-    dependencies=[Depends(require_resource_permission("interview", "manage"))],
     "/status",
+    dependencies=[Depends(require_resource_permission("interview", "manage"))],
     response_model=GetInterviewStatusResponse,
     status_code=status.HTTP_200_OK,
     summary="Get Interview Status",
@@ -75,8 +75,8 @@ async def get_interview_status(
 
 
 @router.post(
-    dependencies=[Depends(require_resource_permission("interview", "manage"))],
     "/calculate-decision",
+    dependencies=[Depends(require_resource_permission("interview", "manage"))],
     response_model=CalculatePanelDecisionResponse,
     status_code=status.HTTP_200_OK,
     summary="Calculate Panel Decision",
@@ -112,8 +112,8 @@ async def calculate_panel_decision(
 
 
 @router.post(
-    dependencies=[Depends(require_resource_permission("interview", "manage"))],
     "/move-to-offer",
+    dependencies=[Depends(require_resource_permission("interview", "manage"))],
     response_model=MoveToOfferResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Move to Offer",
@@ -168,8 +168,8 @@ async def move_to_offer(
 
 
 @router.post(
-    dependencies=[Depends(require_resource_permission("interview", "manage"))],
     "/reject-candidate",
+    dependencies=[Depends(require_resource_permission("interview", "manage"))],
     response_model=RejectCandidateResponse,
     status_code=status.HTTP_200_OK,
     summary="Reject Candidate",
@@ -220,8 +220,11 @@ async def reject_candidate(
 # Health Check Endpoint
 # ────────────────────────────────────────────────────────────────────────────
 
-@router.get("/health", status_code=status.HTTP_200_OK)
+@router.get(
+    "/health",
+    status_code=status.HTTP_200_OK,
     dependencies=[Depends(require_resource_permission("health", "view"))]
+)
 async def health_check():
     """Health check for interview decision service."""
     return {

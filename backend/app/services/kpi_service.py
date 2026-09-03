@@ -71,7 +71,8 @@ class KPIService:
 
             return {"status": "unknown", "value": 0, "period": period}
 
-        except Exception as e:            logger.error(f"Failed to calculate KPI {phalanx}.{kpi_name}: {e}", exc_info=True)
+        except Exception as e:
+            logger.error(f"Failed to calculate KPI {phalanx}.{kpi_name}: {e}", exc_info=True)
             raise
 
     @staticmethod
@@ -97,7 +98,7 @@ class KPIService:
                 "period": period
             }
         except Exception as e:
-           logger.error(f"Error: {str(e)}", exc_info=True)
+            logger.error(f"Error: {str(e)}", exc_info=True)
             logger.warning(f"Could not calculate recruitment candidates KPI: {e}")
             return {"kpi": "candidates_sourced", "value": 0, "status": "unknown"}
 
@@ -135,7 +136,7 @@ class KPIService:
                 "period": period
             }
         except Exception as e:
-           logger.error(f"Error: {str(e)}", exc_info=True)
+            logger.error(f"Error: {str(e)}", exc_info=True)
             logger.warning(f"Could not calculate time-to-hire KPI: {e}")
             return {"kpi": "time_to_hire", "value": 0, "status": "unknown"}
 
@@ -170,7 +171,7 @@ class KPIService:
                 "period": period
             }
         except Exception as e:
-           logger.error(f"Error: {str(e)}", exc_info=True)
+            logger.error(f"Error: {str(e)}", exc_info=True)
             logger.warning(f"Could not calculate offer acceptance KPI: {e}")
             return {"kpi": "offer_acceptance_rate", "value": 0, "status": "unknown"}
 
@@ -203,7 +204,7 @@ class KPIService:
                 "period": period
             }
         except Exception as e:
-           logger.error(f"Error: {str(e)}", exc_info=True)
+            logger.error(f"Error: {str(e)}", exc_info=True)
             logger.warning(f"Could not calculate resource utilization KPI: {e}")
             return {"kpi": "resource_utilization", "value": 0, "status": "unknown"}
 
@@ -237,7 +238,7 @@ class KPIService:
                 "period": period
             }
         except Exception as e:
-           logger.error(f"Error: {str(e)}", exc_info=True)
+            logger.error(f"Error: {str(e)}", exc_info=True)
             logger.warning(f"Could not calculate timesheet approval KPI: {e}")
             return {"kpi": "timesheet_approval_rate", "value": 0, "status": "unknown"}
 
@@ -268,7 +269,7 @@ class KPIService:
                 "period": period
             }
         except Exception as e:
-           logger.error(f"Error: {str(e)}", exc_info=True)
+            logger.error(f"Error: {str(e)}", exc_info=True)
             logger.warning(f"Could not calculate demand fulfillment KPI: {e}")
             return {"kpi": "demand_fulfillment", "value": 0, "status": "unknown"}
 
@@ -302,7 +303,7 @@ class KPIService:
                 "period": period
             }
         except Exception as e:
-           logger.error(f"Error: {str(e)}", exc_info=True)
+            logger.error(f"Error: {str(e)}", exc_info=True)
             logger.warning(f"Could not calculate invoice approval KPI: {e}")
             return {"kpi": "invoice_approval_rate", "value": 0, "status": "unknown"}
 
@@ -337,7 +338,7 @@ class KPIService:
                 "period": period
             }
         except Exception as e:
-           logger.error(f"Error: {str(e)}", exc_info=True)
+            logger.error(f"Error: {str(e)}", exc_info=True)
             logger.warning(f"Could not calculate revenue recognition KPI: {e}")
             return {"kpi": "revenue_recognition_rate", "value": 0, "status": "unknown"}
 
@@ -396,5 +397,6 @@ class KPIService:
                 "kpi_count": len(scores),
                 "period": period
             }
-        except Exception as e:            logger.error(f"Failed to calculate phalanx health: {e}", exc_info=True)
+        except Exception as e:
+            logger.error(f"Failed to calculate phalanx health: {e}", exc_info=True)
             return {"phalanx": phalanx, "health_score": 0, "status": "unknown"}

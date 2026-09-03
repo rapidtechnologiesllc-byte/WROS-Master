@@ -15,8 +15,10 @@ from app.services.autonomous_forecasting_service import AutonomousForecastingSer
 
 router = APIRouter(prefix="/spartan/forecasting", tags=["forecasting"])
 
-@router.post("/recruitment/forecast")
+@router.post(
+    "/recruitment/forecast",
     dependencies=[Depends(require_resource_permission("recruitment", "create"))]
+)
 def forecast_recruitment_needs(
     db: Session = Depends(get_db)
 ) -> Dict[str, Any]:
@@ -33,13 +35,15 @@ def forecast_recruitment_needs(
         forecast = AutonomousForecastingService.forecast_recruitment_needs(db)
         return {"status": "success", "data": forecast}
     except Exception as e:
-       logger.error(f"Error: {str(e)}", exc_info=True)
+        logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Recruitment forecasting failed: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/resources/forecast")
+@router.post(
+    "/resources/forecast",
     dependencies=[Depends(require_resource_permission("resource", "create"))]
+)
 def forecast_resource_needs(
     db: Session = Depends(get_db)
 ) -> Dict[str, Any]:
@@ -56,13 +60,15 @@ def forecast_resource_needs(
         forecast = AutonomousForecastingService.forecast_resource_needs(db)
         return {"status": "success", "data": forecast}
     except Exception as e:
-       logger.error(f"Error: {str(e)}", exc_info=True)
+        logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Resource forecasting failed: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/revenue/forecast")
+@router.post(
+    "/revenue/forecast",
     dependencies=[Depends(require_resource_permission("revenue", "create"))]
+)
 def forecast_revenue_needs(
     db: Session = Depends(get_db)
 ) -> Dict[str, Any]:
@@ -82,13 +88,15 @@ def forecast_revenue_needs(
         forecast = AutonomousForecastingService.forecast_revenue_needs(db)
         return {"status": "success", "data": forecast}
     except Exception as e:
-       logger.error(f"Error: {str(e)}", exc_info=True)
+        logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Revenue forecasting failed: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/decision/validate")
+@router.post(
+    "/decision/validate",
     dependencies=[Depends(require_resource_permission("decision", "create"))]
+)
 def validate_decision(
     decision_type: str,  # "APPROVE_PROPOSAL", "ADJUST_TIMELINE", "HIRE", "SET_PRICING"
     parameters: Dict[str, Any],  # Decision-specific params (margin_percent, delay_days, etc.)
@@ -126,13 +134,15 @@ def validate_decision(
         return {"status": "success", "data": validation}
 
     except Exception as e:
-       logger.error(f"Error: {str(e)}", exc_info=True)
+        logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Decision validation failed: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/alert/generate")
+@router.post(
+    "/alert/generate",
     dependencies=[Depends(require_resource_permission("alert", "create"))]
+)
 def generate_autonomous_alert(
     alert_type: str,  # "KPI_FALLEN", "DECISION_VIOLATES_POLICY", "FORECAST_NEED"
     content: Dict[str, Any],  # Alert-specific content
@@ -163,13 +173,15 @@ def generate_autonomous_alert(
         return {"status": "success", "data": alert}
 
     except Exception as e:
-       logger.error(f"Error: {str(e)}", exc_info=True)
+        logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Alert generation failed: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/health/summary")
+@router.get(
+    "/health/summary",
     dependencies=[Depends(require_resource_permission("health", "view"))]
+)
 def forecasting_system_health(
     db: Session = Depends(get_db)
 ) -> Dict[str, Any]:
@@ -217,6 +229,6 @@ def forecasting_system_health(
         return {"status": "success", "data": health}
 
     except Exception as e:
-       logger.error(f"Error: {str(e)}", exc_info=True)
+        logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Health check failed: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))

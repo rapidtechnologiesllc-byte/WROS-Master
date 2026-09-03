@@ -25,6 +25,7 @@ Reports to: Relation Building Agent (for personalization)
 Used by: Thunder, Interview Scheduler, Offer Generator (for authentic engagement)
 """
 
+import logging
 from typing import Dict, Any, Optional, List
 from datetime import datetime
 from sqlalchemy.orm import Session
@@ -333,7 +334,7 @@ class PersonalIntelligenceService:
             }
 
         except Exception as e:
-           logger.error(f"Error: {str(e)}", exc_info=True)
+            logger.error(f"Error: {str(e)}", exc_info=True)
             logger.error(f"Personal profile extraction error: {str(e)}")
             return {"status": "error", "message": str(e)}
 
@@ -535,7 +536,7 @@ class PersonalIntelligenceService:
             db.commit()
 
         except Exception as e:
-           logger.error(f"Error: {str(e)}", exc_info=True)
+            logger.error(f"Error: {str(e)}", exc_info=True)
             logger.error(f"Error storing personal facts: {str(e)}")
             db.rollback()
 

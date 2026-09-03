@@ -37,8 +37,10 @@ def _get_services():
     }
 
 # ============ INTERVIEW DECISIONS ============
-@router.get("/interviews/{interview_id}/status")
+@router.get(
+    "/interviews/{interview_id}/status",
     dependencies=[Depends(require_resource_permission("interview", "view"))]
+)
 def get_interview_status(interview_id: int, db: Session = Depends(get_db)):
     """Get complete interview status with all feedback."""
     if not interview_id:
@@ -52,11 +54,14 @@ def get_interview_status(interview_id: int, db: Session = Depends(get_db)):
         return result
     except HTTPException:
         raise
-    except Exception as e:        logger.error(f"Failed to get interview status: {e}", exc_info=True)
+    except Exception as e:
+        logger.error(f"Failed to get interview status: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to get interview status: {str(e)}")
 
-@router.post("/interviews/{interview_id}/decide")
+@router.post(
+    "/interviews/{interview_id}/decide",
     dependencies=[Depends(require_resource_permission("interview", "create"))]
+)
 def calculate_interview_decision(interview_id: int, db: Session = Depends(get_db)):
     """Calculate panel decision from feedback."""
     if not interview_id:
@@ -70,12 +75,15 @@ def calculate_interview_decision(interview_id: int, db: Session = Depends(get_db
         return result
     except HTTPException:
         raise
-    except Exception as e:        logger.error(f"Failed to calculate interview decision: {e}", exc_info=True)
+    except Exception as e:
+        logger.error(f"Failed to calculate interview decision: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to calculate interview decision: {str(e)}")
 
 # ============ OFFERS ============
-@router.post("/offers")
+@router.post(
+    "/offers",
     dependencies=[Depends(require_resource_permission("offer", "create"))]
+)
 def create_offer(candidate_id: str, job_id: str, salary: int, db: Session = Depends(get_db)):
     """Create new offer."""
     if not candidate_id or not job_id or not salary:
@@ -91,11 +99,14 @@ def create_offer(candidate_id: str, job_id: str, salary: int, db: Session = Depe
         return result
     except HTTPException:
         raise
-    except Exception as e:        logger.error(f"Failed to create offer: {e}", exc_info=True)
+    except Exception as e:
+        logger.error(f"Failed to create offer: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to create offer: {str(e)}")
 
-@router.post("/offers/{offer_id}/approve")
+@router.post(
+    "/offers/{offer_id}/approve",
     dependencies=[Depends(require_resource_permission("offer", "create"))]
+)
 def approve_offer(offer_id: str, approved_by: str, db: Session = Depends(get_db)):
     """Approve offer for sending."""
     if not offer_id or not approved_by:
@@ -109,11 +120,14 @@ def approve_offer(offer_id: str, approved_by: str, db: Session = Depends(get_db)
         return result
     except HTTPException:
         raise
-    except Exception as e:        logger.error(f"Failed to approve offer: {e}", exc_info=True)
+    except Exception as e:
+        logger.error(f"Failed to approve offer: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to approve offer: {str(e)}")
 
-@router.post("/offers/{offer_id}/send")
+@router.post(
+    "/offers/{offer_id}/send",
     dependencies=[Depends(require_resource_permission("offer", "create"))]
+)
 def send_offer(offer_id: str, candidate_email: str, db: Session = Depends(get_db)):
     """Send offer to candidate."""
     if not offer_id or not candidate_email:
@@ -129,11 +143,14 @@ def send_offer(offer_id: str, candidate_email: str, db: Session = Depends(get_db
         return result
     except HTTPException:
         raise
-    except Exception as e:        logger.error(f"Failed to send offer: {e}", exc_info=True)
+    except Exception as e:
+        logger.error(f"Failed to send offer: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to send offer: {str(e)}")
 
-@router.post("/offers/{offer_id}/accept")
+@router.post(
+    "/offers/{offer_id}/accept",
     dependencies=[Depends(require_resource_permission("offer", "create"))]
+)
 def accept_offer(offer_id: str, candidate_id: str, db: Session = Depends(get_db)):
     """Accept offer."""
     if not offer_id or not candidate_id:
@@ -147,12 +164,15 @@ def accept_offer(offer_id: str, candidate_id: str, db: Session = Depends(get_db)
         return result
     except HTTPException:
         raise
-    except Exception as e:        logger.error(f"Failed to accept offer: {e}", exc_info=True)
+    except Exception as e:
+        logger.error(f"Failed to accept offer: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to accept offer: {str(e)}")
 
 # ============ EMPLOYEE CONVERSION ============
-@router.post("/employees/convert")
+@router.post(
+    "/employees/convert",
     dependencies=[Depends(require_resource_permission("employee", "create"))]
+)
 def convert_candidate(candidate_id: str, name: str, email: str, bu_id: int, db: Session = Depends(get_db)):
     """Convert candidate to employee."""
     if not candidate_id or not name or not email or not bu_id:
@@ -170,12 +190,15 @@ def convert_candidate(candidate_id: str, name: str, email: str, bu_id: int, db: 
         return result
     except HTTPException:
         raise
-    except Exception as e:        logger.error(f"Failed to convert candidate: {e}", exc_info=True)
+    except Exception as e:
+        logger.error(f"Failed to convert candidate: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to convert candidate: {str(e)}")
 
 # ============ PROJECT ALLOCATION ============
-@router.post("/allocations")
+@router.post(
+    "/allocations",
     dependencies=[Depends(require_resource_permission("allocation", "create"))]
+)
 def allocate_to_project(employee_id: str, project_id: str, db: Session = Depends(get_db)):
     """Allocate employee to project."""
     if not employee_id or not project_id:
@@ -189,12 +212,15 @@ def allocate_to_project(employee_id: str, project_id: str, db: Session = Depends
         return result
     except HTTPException:
         raise
-    except Exception as e:        logger.error(f"Failed to allocate employee: {e}", exc_info=True)
+    except Exception as e:
+        logger.error(f"Failed to allocate employee: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to allocate employee: {str(e)}")
 
 # ============ TIMESHEETS ============
-@router.post("/timesheets")
+@router.post(
+    "/timesheets",
     dependencies=[Depends(require_resource_permission("timesheet", "create"))]
+)
 def create_timesheet(employee_id: str, allocation_id: str, db: Session = Depends(get_db)):
     """Create timesheet."""
     if not employee_id or not allocation_id:
@@ -208,11 +234,14 @@ def create_timesheet(employee_id: str, allocation_id: str, db: Session = Depends
         return result
     except HTTPException:
         raise
-    except Exception as e:        logger.error(f"Failed to create timesheet: {e}", exc_info=True)
+    except Exception as e:
+        logger.error(f"Failed to create timesheet: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to create timesheet: {str(e)}")
 
-@router.post("/timesheets/{timesheet_id}/submit")
+@router.post(
+    "/timesheets/{timesheet_id}/submit",
     dependencies=[Depends(require_resource_permission("timesheet", "create"))]
+)
 def submit_timesheet(timesheet_id: str, db: Session = Depends(get_db)):
     """Submit timesheet."""
     if not timesheet_id:
@@ -226,11 +255,14 @@ def submit_timesheet(timesheet_id: str, db: Session = Depends(get_db)):
         return result
     except HTTPException:
         raise
-    except Exception as e:        logger.error(f"Failed to submit timesheet: {e}", exc_info=True)
+    except Exception as e:
+        logger.error(f"Failed to submit timesheet: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to submit timesheet: {str(e)}")
 
-@router.post("/timesheets/{timesheet_id}/approve")
+@router.post(
+    "/timesheets/{timesheet_id}/approve",
     dependencies=[Depends(require_resource_permission("timesheet", "create"))]
+)
 def approve_timesheet(timesheet_id: str, approver_id: str, db: Session = Depends(get_db)):
     """Approve timesheet."""
     if not timesheet_id or not approver_id:
@@ -244,12 +276,15 @@ def approve_timesheet(timesheet_id: str, approver_id: str, db: Session = Depends
         return result
     except HTTPException:
         raise
-    except Exception as e:        logger.error(f"Failed to approve timesheet: {e}", exc_info=True)
+    except Exception as e:
+        logger.error(f"Failed to approve timesheet: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to approve timesheet: {str(e)}")
 
 # ============ INVOICES ============
-@router.post("/invoices/generate")
+@router.post(
+    "/invoices/generate",
     dependencies=[Depends(require_resource_permission("invoice", "create"))]
+)
 def generate_invoice(client_id: str, project_id: str, db: Session = Depends(get_db)):
     """Generate invoice from timesheets."""
     if not client_id or not project_id:
@@ -263,11 +298,14 @@ def generate_invoice(client_id: str, project_id: str, db: Session = Depends(get_
         return result
     except HTTPException:
         raise
-    except Exception as e:        logger.error(f"Failed to generate invoice: {e}", exc_info=True)
+    except Exception as e:
+        logger.error(f"Failed to generate invoice: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to generate invoice: {str(e)}")
 
-@router.post("/invoices/{invoice_id}/send")
+@router.post(
+    "/invoices/{invoice_id}/send",
     dependencies=[Depends(require_resource_permission("invoice", "create"))]
+)
 def send_invoice(invoice_id: str, client_email: str, db: Session = Depends(get_db)):
     """Send invoice to client."""
     if not invoice_id or not client_email:
@@ -283,11 +321,14 @@ def send_invoice(invoice_id: str, client_email: str, db: Session = Depends(get_d
         return result
     except HTTPException:
         raise
-    except Exception as e:        logger.error(f"Failed to send invoice: {e}", exc_info=True)
+    except Exception as e:
+        logger.error(f"Failed to send invoice: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to send invoice: {str(e)}")
 
-@router.post("/invoices/{invoice_id}/payment")
+@router.post(
+    "/invoices/{invoice_id}/payment",
     dependencies=[Depends(require_resource_permission("invoice", "create"))]
+)
 def record_payment(invoice_id: str, amount: int, db: Session = Depends(get_db)):
     """Record payment received."""
     if not invoice_id or not amount:
@@ -303,12 +344,15 @@ def record_payment(invoice_id: str, amount: int, db: Session = Depends(get_db)):
         return result
     except HTTPException:
         raise
-    except Exception as e:        logger.error(f"Failed to record payment: {e}", exc_info=True)
+    except Exception as e:
+        logger.error(f"Failed to record payment: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to record payment: {str(e)}")
 
 # ============ REVENUE ============
-@router.post("/revenue/recognize")
+@router.post(
+    "/revenue/recognize",
     dependencies=[Depends(require_resource_permission("revenue", "create"))]
+)
 def recognize_revenue(invoice_id: str, db: Session = Depends(get_db)):
     """Recognize revenue from invoice."""
     if not invoice_id:
@@ -322,11 +366,14 @@ def recognize_revenue(invoice_id: str, db: Session = Depends(get_db)):
         return result
     except HTTPException:
         raise
-    except Exception as e:        logger.error(f"Failed to recognize revenue: {e}", exc_info=True)
+    except Exception as e:
+        logger.error(f"Failed to recognize revenue: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to recognize revenue: {str(e)}")
 
-@router.get("/revenue/arr/{client_id}")
+@router.get(
+    "/revenue/arr/{client_id}",
     dependencies=[Depends(require_resource_permission("revenue", "view"))]
+)
 def get_arr(client_id: str, db: Session = Depends(get_db)):
     """Get annual recurring revenue."""
     if not client_id:
@@ -340,12 +387,15 @@ def get_arr(client_id: str, db: Session = Depends(get_db)):
         return {"arr": result}
     except HTTPException:
         raise
-    except Exception as e:        logger.error(f"Failed to calculate ARR: {e}", exc_info=True)
+    except Exception as e:
+        logger.error(f"Failed to calculate ARR: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to calculate ARR: {str(e)}")
 
 # ============ CANDIDATE SCORING ============
-@router.post("/candidates/{candidate_id}/score")
+@router.post(
+    "/candidates/{candidate_id}/score",
     dependencies=[Depends(require_resource_permission("candidate", "create"))]
+)
 def score_candidate(candidate_id: str, job_id: str, db: Session = Depends(get_db)):
     """Score candidate against job."""
     if not candidate_id or not job_id:
@@ -359,11 +409,14 @@ def score_candidate(candidate_id: str, job_id: str, db: Session = Depends(get_db
         return {"score": result}
     except HTTPException:
         raise
-    except Exception as e:        logger.error(f"Failed to score candidate: {e}", exc_info=True)
+    except Exception as e:
+        logger.error(f"Failed to score candidate: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to score candidate: {str(e)}")
 
-@router.get("/jobs/{job_id}/candidates/ranked")
+@router.get(
+    "/jobs/{job_id}/candidates/ranked",
     dependencies=[Depends(require_resource_permission("job", "view"))]
+)
 def rank_candidates(job_id: str, db: Session = Depends(get_db)):
     """Rank all candidates for job."""
     if not job_id:
@@ -377,12 +430,15 @@ def rank_candidates(job_id: str, db: Session = Depends(get_db)):
         return {"candidates": result}
     except HTTPException:
         raise
-    except Exception as e:        logger.error(f"Failed to rank candidates: {e}", exc_info=True)
+    except Exception as e:
+        logger.error(f"Failed to rank candidates: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to rank candidates: {str(e)}")
 
 # ============ HIRING MANAGER VALIDATION ============
-@router.post("/validation/send")
+@router.post(
+    "/validation/send",
     dependencies=[Depends(require_resource_permission("validation", "create"))]
+)
 def send_validation(job_id: str, candidate_id: str, hm_email: str, db: Session = Depends(get_db)):
     """Send validation to hiring manager."""
     if not job_id or not candidate_id or not hm_email:
@@ -398,11 +454,14 @@ def send_validation(job_id: str, candidate_id: str, hm_email: str, db: Session =
         return result
     except HTTPException:
         raise
-    except Exception as e:        logger.error(f"Failed to send validation: {e}", exc_info=True)
+    except Exception as e:
+        logger.error(f"Failed to send validation: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to send validation: {str(e)}")
 
-@router.post("/validation/{validation_id}/respond")
+@router.post(
+    "/validation/{validation_id}/respond",
     dependencies=[Depends(require_resource_permission("validation", "create"))]
+)
 def record_validation_response(validation_id: str, decision: str, db: Session = Depends(get_db)):
     """Record HM validation response."""
     if not validation_id or not decision:
@@ -418,12 +477,15 @@ def record_validation_response(validation_id: str, decision: str, db: Session = 
         return result
     except HTTPException:
         raise
-    except Exception as e:        logger.error(f"Failed to record validation response: {e}", exc_info=True)
+    except Exception as e:
+        logger.error(f"Failed to record validation response: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to record validation response: {str(e)}")
 
 # ============ CORE-PULL ============
-@router.post("/allocations/{allocation_id}/core-pull")
+@router.post(
+    "/allocations/{allocation_id}/core-pull",
     dependencies=[Depends(require_resource_permission("allocation", "create"))]
+)
 def apply_core_pull(allocation_id: str, db: Session = Depends(get_db)):
     """Apply core-pull rules."""
     if not allocation_id:
@@ -437,5 +499,6 @@ def apply_core_pull(allocation_id: str, db: Session = Depends(get_db)):
         return result
     except HTTPException:
         raise
-    except Exception as e:        logger.error(f"Failed to apply core-pull: {e}", exc_info=True)
+    except Exception as e:
+        logger.error(f"Failed to apply core-pull: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to apply core-pull: {str(e)}")

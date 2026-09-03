@@ -16,6 +16,7 @@ recompute it, is NOT built here: there is no score to display yet, and
 building a second, competing health-scoring formula would be exactly
 the kind of drift HRMS-0807's own BR-0807-01 warns against.
 """
+import logging
 import uuid
 from datetime import date as date_type, datetime
 

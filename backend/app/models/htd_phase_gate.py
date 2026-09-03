@@ -12,6 +12,7 @@ it's worth flagging: baking a specific individual's name into a role
 enum is fragile (breaks the moment that person changes roles or
 leaves) and this session doesn't have standing to rename it.
 """
+import logging
 import uuid
 
 from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Text, func

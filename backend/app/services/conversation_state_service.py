@@ -46,6 +46,7 @@ PREBOARDING/COMPLETED/ESCALATED/PAUSED/WITHDRAWN):
   target status from live data on every reply, so rejecting a same-
   state call would turn an idempotent recompute into a hard failure.
 """
+import logging
 from datetime import datetime
 from typing import Dict, Optional
 

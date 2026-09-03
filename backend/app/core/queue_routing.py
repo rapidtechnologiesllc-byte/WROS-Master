@@ -54,6 +54,6 @@ class QueueRouter:
             logger.error(f"Queue routing validation failed for {message_type}: {e}")
             raise  # Fail fast - per FAIL FAST principle in CLAUDE.md
         except Exception as e:
-           logger.error(f"Error: {str(e)}", exc_info=True)
+            logger.error(f"Error: {str(e)}", exc_info=True)
             logger.error(f"Unexpected error in queue routing: {e}", exc_info=True)
             raise  # Fail fast

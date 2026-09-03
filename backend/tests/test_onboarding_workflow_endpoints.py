@@ -10,6 +10,7 @@ Test coverage for:
 - GET /onboarding-workflow/{workflow_id}
 - GET /onboarding-workflow/employee/{employee_id}
 """
+import logging
 import pytest
 import json
 from datetime import date, datetime, timedelta

@@ -31,8 +31,8 @@ router = APIRouter(prefix="/onboarding", tags=["onboarding-orchestrator"])
 
 # WORKFLOW: Complete Hiring Pipeline
 @router.post(
-    dependencies=[Depends(get_current_user)]
     "/workflows/hire-complete",
+    dependencies=[Depends(get_current_user)],
     summary="Complete hiring pipeline: candidate → job → interview → offer → hire"
 )
 def hire_complete_workflow(
@@ -95,15 +95,15 @@ def hire_complete_workflow(
             "message": "Hiring workflow initiated. Check queue for status updates."
         }
     except Exception as e:
-       logger.error(f"Error: {str(e)}", exc_info=True)
+        logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"[Orchestrator] ❌ Workflow failed: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Workflow failed: {str(e)}")
 
 
 # WORKFLOW: Rehire Employee
 @router.post(
-    dependencies=[Depends(get_current_user)]
     "/workflows/rehire",
+    dependencies=[Depends(get_current_user)],
     summary="Rehire workflow: employee → candidate → hire"
 )
 def rehire_workflow(
@@ -147,15 +147,15 @@ def rehire_workflow(
             "message": "Rehire workflow initiated. Check queue for status updates."
         }
     except Exception as e:
-       logger.error(f"Error: {str(e)}", exc_info=True)
+        logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"[Orchestrator] ❌ Rehire failed: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Rehire failed: {str(e)}")
 
 
 # WORKFLOW: Hiring Pipeline Status
 @router.get(
-    dependencies=[Depends(get_current_user)]
     "/workflows/pipeline-status",
+    dependencies=[Depends(get_current_user)],
     summary="Get status of all hiring pipeline stages"
 )
 def hiring_pipeline_status(
@@ -200,7 +200,7 @@ def hiring_pipeline_status(
             }
         }
     except Exception as e:
-       logger.error(f"Error: {str(e)}", exc_info=True)
+        logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"[Orchestrator] ❌ Status check failed: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Status check failed: {str(e)}")
 

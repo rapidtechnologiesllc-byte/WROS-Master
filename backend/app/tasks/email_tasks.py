@@ -34,7 +34,7 @@ def send_email_task(self, to_email: str, subject: str, body: str, html_body: str
         return {"status": "success", "to_email": to_email}
 
     except Exception as e:
-       logger.error(f"Error: {str(e)}", exc_info=True)
+        logger.error(f"Error: {str(e)}", exc_info=True)
         log_task_message(task_id, f"Failed to send email: {str(e)}", "error")
         TaskStatus.update_task(task_id, status="failed")
         return {"status": "error", "error": str(e)}
@@ -74,7 +74,7 @@ def send_bulk_emails_task(self, recipient_list: list, subject: str, body: str):
                 failed += 1
                 log_task_message(task_id, f"Failed to send to {recipient}: {str(e)}", "warning")
 
-        TaskStatus.update_task(task_id, status="completed", progress=100)
+                TaskStatus.update_task(task_id, status="completed", progress=100)
         log_task_message(task_id, f"Bulk email complete: {sent} sent, {failed} failed", "info")
 
         return {
@@ -85,7 +85,7 @@ def send_bulk_emails_task(self, recipient_list: list, subject: str, body: str):
         }
 
     except Exception as e:
-       logger.error(f"Error: {str(e)}", exc_info=True)
+        logger.error(f"Error: {str(e)}", exc_info=True)
         log_task_message(task_id, f"Bulk email task failed: {str(e)}", "error")
         TaskStatus.update_task(task_id, status="failed")
         return {"status": "error", "error": str(e)}

@@ -281,6 +281,7 @@ class ResumeParserBERT:
         return extracted_fields
 '''
 
+import logging
         wrapper_path = self.output_dir / "inference.py"
         with open(wrapper_path, 'w') as f:
             f.write(wrapper_code)

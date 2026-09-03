@@ -1,4 +1,4 @@
-﻿"""
+"""
 import logging
 Organizational Structure API â€” Initialize and manage org hierarchy.
 
@@ -88,7 +88,7 @@ def initialize_org_structure(
             approval_chains_created=chain_result["approval_chains_created"],
         )
     except Exception as e:
-       logger.error(f"Error: {str(e)}", exc_info=True)
+        logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"[OrgInit] Tenant {tenant_id}: Failed to initialize: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -97,12 +97,11 @@ def initialize_org_structure(
 
 
 @router.get(
-    dependencies=[Depends(get_current_user)]
     "/positions",
+    dependencies=[Depends(get_current_user)],
     response_model=List[OrgPositionResponse],
     summary="List all org positions",
     description="Returns all organizational positions (CEO, Partner, BU Head, etc.)",
-    dependencies=[Depends(get_current_internal_user)],
 )
 def list_org_positions(
     db: Session = Depends(get_db),

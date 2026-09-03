@@ -1,4 +1,4 @@
-﻿"""
+"""
 S-267/HRMS-0301 (BU Revenue Target) + PartnerGoal + S-241/HRMS-0212
 import logging
 (Executive Revenue Dashboard) + S-244/HRMS-0215 (Pipeline Coverage).
@@ -32,8 +32,12 @@ from app.services.revenue_target_service import (
 router = APIRouter(tags=["revenue-targets"])
 
 
-@router.post("/revenue-targets/bu", response_model=BUTargetVsActualResponse, status_code=201)
+@router.post(
+    "/revenue-targets/bu",
+    response_model=BUTargetVsActualResponse,
+    status_code=201,
     dependencies=[Depends(require_resource_permission("revenue-target", "create"))]
+)
 def create_bu_target(
     body: BUTargetCreateRequest,
     db: Session = Depends(get_db),
@@ -50,8 +54,11 @@ def create_bu_target(
     return get_bu_target_vs_actual(db, body.business_unit_id, body.target_period, body.fiscal_year)
 
 
-@router.get("/revenue-targets/bu/{business_unit_id}", response_model=BUTargetVsActualResponse)
+@router.get(
+    "/revenue-targets/bu/{business_unit_id}",
+    response_model=BUTargetVsActualResponse,
     dependencies=[Depends(require_resource_permission("revenue-target", "view"))]
+)
 def get_bu_target(
     business_unit_id: int,
     target_period: str,
@@ -62,8 +69,12 @@ def get_bu_target(
     return get_bu_target_vs_actual(db, business_unit_id, target_period, fiscal_year)
 
 
-@router.post("/revenue-targets/partner-goals", response_model=PartnerGoalItem, status_code=201)
+@router.post(
+    "/revenue-targets/partner-goals",
+    response_model=PartnerGoalItem,
+    status_code=201,
     dependencies=[Depends(require_resource_permission("revenue-target", "create"))]
+)
 def create_partner_goal(
     body: PartnerGoalCreateRequest,
     db: Session = Depends(get_db),
@@ -79,8 +90,11 @@ def create_partner_goal(
         raise HTTPException(status_code=403, detail=str(exc))
 
 
-@router.get("/revenue-targets/partners/{partner_user_id}/position", response_model=PartnerMultiYearPositionResponse)
+@router.get(
+    "/revenue-targets/partners/{partner_user_id}/position",
+    response_model=PartnerMultiYearPositionResponse,
     dependencies=[Depends(require_resource_permission("revenue-target", "view"))]
+)
 def get_partner_position(
     partner_user_id: str,
     db: Session = Depends(get_db),
@@ -89,8 +103,11 @@ def get_partner_position(
     return get_partner_multi_year_position(db, partner_user_id)
 
 
-@router.get("/revenue-targets/dashboard", response_model=ExecutiveRevenueDashboardResponse)
+@router.get(
+    "/revenue-targets/dashboard",
+    response_model=ExecutiveRevenueDashboardResponse,
     dependencies=[Depends(require_resource_permission("revenue-target", "view"))]
+)
 def executive_dashboard(
     db: Session = Depends(get_db),
     current_user: Users = Depends(require_resource_permission("revenue", "view")),
@@ -99,8 +116,11 @@ def executive_dashboard(
     return get_executive_revenue_dashboard(db, client_ids=list(client_ids) if client_ids is not None else None)
 
 
-@router.get("/revenue-targets/pipeline-coverage", response_model=PipelineCoverageResponse)
+@router.get(
+    "/revenue-targets/pipeline-coverage",
+    response_model=PipelineCoverageResponse,
     dependencies=[Depends(require_resource_permission("revenue-target", "view"))]
+)
 def pipeline_coverage(
     revenue_target_usd_cents: int,
     db: Session = Depends(get_db),

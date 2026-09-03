@@ -14,6 +14,7 @@ The pipeline runs in a single synchronous call; async usage wraps with
 `asyncio.get_event_loop().run_in_executor(...)`.
 """
 
+import logging
 import json
 import os
 import re

@@ -207,7 +207,7 @@ def _check_and_auto_submit_for_hire(interview: Interview, db: Session) -> None:
             )
             logger.info(f"[AutoHire] Approval-request email sent to hiring manager: {hiring_manager_email}")
         except Exception as exc:
-           logger.error(f"Error: {str(exc)}", exc_info=True)
+            logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.warning(f"[AutoHire] Could not send hiring manager email: {exc}")
     else:
         logger.warning(f"[AutoHire] No hiring manager email found for candidate '{candidate_id}'.")
@@ -252,7 +252,7 @@ def _notify_feedback_submitted(
         )
 
     except Exception as exc:
-       logger.error(f"Error: {str(exc)}", exc_info=True)
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[FeedbackNotify-DEFECT13] Non-critical notification error: {exc}")
 
 
@@ -415,7 +415,7 @@ def _schedule_feedback_reminders(interview: Interview, db: Session) -> None:
                     )
 
                 except Exception as exc:
-                   logger.error(f"Error: {str(exc)}", exc_info=True)
+                    logger.error(f"Error: {str(exc)}", exc_info=True)
                     logger.error(
                         f"[FeedbackReminder] Error in reminder job for interview "
                         f"{__interview_id}, member {__member_id}: {exc}"
@@ -436,7 +436,7 @@ def _schedule_feedback_reminders(interview: Interview, db: Session) -> None:
                     f"{member_id} on interview {interview_id} at {_fire_at.isoformat()} (IST)"
                 )
             except Exception as exc:
-               logger.error(f"Error: {str(exc)}", exc_info=True)
+                logger.error(f"Error: {str(exc)}", exc_info=True)
                 logger.warning(
                     f"[FeedbackReminder] Could not schedule {suffix} reminder "
                     f"for member {member_id}: {exc}"
@@ -462,7 +462,7 @@ def _cancel_feedback_reminders(interview_id: int, member_id: str) -> None:
                     f"{member_id} on interview {interview_id} (feedback submitted)."
                 )
         except Exception as exc:
-           logger.error(f"Error: {str(exc)}", exc_info=True)
+            logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.warning(
                 f"[FeedbackReminder] Could not cancel {suffix} reminder "
                 f"for member {member_id} on interview {interview_id}: {exc}"
@@ -501,7 +501,7 @@ def _cancel_interview_reminders(interview_id: int) -> None:
                     f"for interview {interview_id}."
                 )
         except Exception as exc:
-           logger.error(f"Error: {str(exc)}", exc_info=True)
+            logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.warning(
                 f"[InterviewReminder] Could not cancel {suffix} reminder "
                 f"for interview {interview_id}: {exc}"
@@ -604,7 +604,7 @@ def _schedule_interview_reminder(interview: Interview, db: Session) -> None:
                             f"{cand.candidateEmail}"
                         )
                     except Exception as exc:
-                       logger.error(f"Error: {str(exc)}", exc_info=True)
+                        logger.error(f"Error: {str(exc)}", exc_info=True)
                         logger.warning(f"[InterviewReminder] Could not email candidate: {exc}")
 
                 # â"€â"€ Emails to panel members â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
@@ -640,13 +640,13 @@ def _schedule_interview_reminder(interview: Interview, db: Session) -> None:
                                     f"panel member {interviewer.UserEmail}"
                                 )
                             except Exception as exc:
-                               logger.error(f"Error: {str(exc)}", exc_info=True)
+                                logger.error(f"Error: {str(exc)}", exc_info=True)
                                 logger.warning(
                                     f"[InterviewReminder] Could not email panel member "
                                     f"{interviewer.UserID}: {exc}"
                                 )
             except Exception as exc:
-               logger.error(f"Error: {str(exc)}", exc_info=True)
+                logger.error(f"Error: {str(exc)}", exc_info=True)
                 logger.error(f"[InterviewReminder] Unexpected error in reminder job: {exc}")
             finally:
                 _db.close()
@@ -664,7 +664,7 @@ def _schedule_interview_reminder(interview: Interview, db: Session) -> None:
                 f"{interview_id} at {_fire_at.isoformat()} (IST)"
             )
         except Exception as exc:
-           logger.error(f"Error: {str(exc)}", exc_info=True)
+            logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.warning(
                 f"[InterviewReminder] Could not schedule [{_label}] reminder "
                 f"for interview {interview_id}: {exc}"
@@ -737,7 +737,7 @@ def _create_hm_review_task(db: Session, interview: Interview) -> None:
         db.add(task)
         db.commit()
     except Exception as exc:
-       logger.error(f"Error: {str(exc)}", exc_info=True)
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[HMReviewTask] Failed to create review task for interview {interview.id}: {exc}")
 
 
@@ -754,8 +754,8 @@ def _create_hm_review_task(db: Session, interview: Interview) -> None:
 # ============================================
 
 @router.post(
-    dependencies=[Depends(get_current_user)]
     "/panels/create",
+    dependencies=[Depends(get_current_user)],
     response_model=InterviewPanelResponse,
     status_code=201,
 )
@@ -1009,8 +1009,8 @@ def get_all_interview_panels(
 
 
 @router.delete(
-    dependencies=[Depends(get_current_user)]
     "/panels/{panel_id}",
+    dependencies=[Depends(get_current_user)],
     response_model=DeleteResponse,
 
 )
@@ -1094,8 +1094,8 @@ def _rehire_review_to_response(db: Session, review: InterviewRehireReview) -> Re
 
 
 @router.get(
-    dependencies=[Depends(get_current_user)]
     "/rehire-reviews",
+    dependencies=[Depends(get_current_user)],
     response_model=RehireReviewListResponse,
 
 )
@@ -1117,8 +1117,8 @@ def list_rehire_reviews(
 
 
 @router.post(
-    dependencies=[Depends(get_current_user)]
     "/rehire-reviews/{review_id}/decide",
+    dependencies=[Depends(get_current_user)],
     response_model=RehireReviewResponse,
 
 )
@@ -1189,8 +1189,8 @@ def _panel_diversity_warning(db: Session, panel: InterviewPanel, interviewer_id:
 # ============================================
 
 @router.post(
-    dependencies=[Depends(get_current_user)]
     "/panel-members/assign",
+    dependencies=[Depends(get_current_user)],
     response_model=PanelMemberResponse,
     status_code=201,
 
@@ -1273,7 +1273,7 @@ def assign_panel_member(
                 f"{request.interviewer_id} on interview {iv.id}."
             )
     except Exception as exc:
-       logger.error(f"Error: {str(exc)}", exc_info=True)
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(
             f"[FeedbackReminder] Could not schedule reminders for new panel member "
             f"{request.interviewer_id}: {exc}"
@@ -1341,8 +1341,8 @@ def get_panel_members(
 
 
 @router.delete(
-    dependencies=[Depends(get_current_user)]
     "/panel-members/{member_id}",
+    dependencies=[Depends(get_current_user)],
     response_model=DeleteResponse,
 
 )
@@ -1386,8 +1386,8 @@ def remove_panel_member(
 # ============================================
 
 @router.post(
-    dependencies=[Depends(get_current_user)]
     "/create",
+    dependencies=[Depends(get_current_user)],
     response_model=InterviewResponse,
     status_code=201,
 
@@ -1477,7 +1477,7 @@ def create_interview(
     try:
         _schedule_feedback_reminders(interview, db)
     except Exception as exc:
-       logger.error(f"Error: {str(exc)}", exc_info=True)
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[FeedbackReminder] Scheduler error on create (non-critical): {exc}")
 
     # Backlog item, 2026-08-05: real Task Dashboard entries for each
@@ -1502,8 +1502,8 @@ def create_interview(
 # ============================================
 
 @router.get(
-    dependencies=[Depends(get_current_user)]
     "/my-interviews",
+    dependencies=[Depends(get_current_user)],
     response_model=MyInterviewsResponse,
     summary="Get my interviews",
     description=(
@@ -1792,8 +1792,8 @@ def get_all_interviews(
 
 
 @router.put(
-    dependencies=[Depends(get_current_user)]
     "/{interview_id}",
+    dependencies=[Depends(get_current_user)],
     response_model=InterviewResponse,
 
 )
@@ -1862,13 +1862,13 @@ def update_interview(
                 f"{interview.id} (status: {interview.status})."
             )
         except Exception as exc:
-           logger.error(f"Error: {str(exc)}", exc_info=True)
+            logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.warning(f"[FeedbackReminder] Cancel-all error on update (non-critical): {exc}")
     else:
         try:
             _schedule_feedback_reminders(interview, db)
         except Exception as exc:
-           logger.error(f"Error: {str(exc)}", exc_info=True)
+            logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.warning(f"[FeedbackReminder] Scheduler error on update (non-critical): {exc}")
 
     # Backlog item, 2026-08-05: create the HM review Task the first time
@@ -1891,8 +1891,8 @@ def update_interview(
 
 
 @router.delete(
-    dependencies=[Depends(get_current_user)]
     "/{interview_id}",
+    dependencies=[Depends(get_current_user)],
     response_model=DeleteResponse,
 
 )
@@ -1927,12 +1927,12 @@ def delete_interview(
     try:
         _cancel_all_feedback_reminders(interview_id, db)
     except Exception as exc:
-       logger.error(f"Error: {str(exc)}", exc_info=True)
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[FeedbackReminder] Cancel-all error on delete (non-critical): {exc}")
     try:
         _cancel_interview_reminders(interview_id)
     except Exception as exc:
-       logger.error(f"Error: {str(exc)}", exc_info=True)
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[InterviewReminder] Cancel error on delete (non-critical): {exc}")
 
     # Delete all associated feedback
@@ -2074,34 +2074,34 @@ def submit_interview_feedback(
                             )
                             logger.info(f"[SLM] Recorded interview completion for job: {interview.job_id}")
                     except Exception as e:
-                       logger.error(f"Error: {str(e)}", exc_info=True)
+                        logger.error(f"Error: {str(e)}", exc_info=True)
                         logger.error(f"[SLM] Failed to record interview outcome: {e}", exc_info=True)
                         # Continue - SLM failure should not block interview processing
 
                     _create_hm_review_task(db, interview)
     except Exception as exc:
-       logger.error(f"Error: {str(exc)}", exc_info=True)
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[FeedbackComplete] Auto-complete check failed non-critically: {exc}")
 
     # Auto-hire check: promote to Approval if all interviews are Hire/Must Hire
     try:
         _check_and_auto_submit_for_hire(interview, db)
     except Exception as exc:
-       logger.error(f"Error: {str(exc)}", exc_info=True)
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[AutoHire] check failed non-critically: {exc}")
 
     # â"€â"€ Notify HM + HR + panel members that feedback was submitted â"€â"€â"€â"€â"€â"€â"€â"€
     try:
         _notify_feedback_submitted(interview, feedback, user, db)
     except Exception as exc:
-       logger.error(f"Error: {str(exc)}", exc_info=True)
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[FeedbackNotify] Notification error (non-critical): {exc}")
 
     # â"€â"€ Cancel pending feedback reminders for the member who just submitted â"€â"€
     try:
         _cancel_feedback_reminders(interview.id, request.interviewer_id)
     except Exception as exc:
-       logger.error(f"Error: {str(exc)}", exc_info=True)
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[FeedbackReminder] Cancel error (non-critical): {exc}")
 
     return InterviewFeedbackResponse(
@@ -2184,8 +2184,11 @@ def get_feedback_by_interview(
     return results
 
 
-@router.get("/feedback/{feedback_id}", response_model=InterviewFeedbackWithDetails)
+@router.get(
+    "/feedback/{feedback_id}",
+    response_model=InterviewFeedbackWithDetails,
     dependencies=[Depends(require_resource_permission("feedback", "view"))]
+)
 def get_feedback_by_id(
     feedback_id: int,
     db: Session = Depends(get_db),
@@ -2239,8 +2242,11 @@ def get_feedback_by_id(
     )
 
 
-@router.put("/feedback/{feedback_id}", response_model=InterviewFeedbackResponse)
+@router.put(
+    "/feedback/{feedback_id}",
+    response_model=InterviewFeedbackResponse,
     dependencies=[Depends(require_resource_permission("feedback", "update"))]
+)
 def update_interview_feedback(
     feedback_id: int,
     request: InterviewFeedbackUpdate,
@@ -2307,8 +2313,11 @@ def update_interview_feedback(
     )
 
 
-@router.delete("/feedback/{feedback_id}", response_model=DeleteResponse)
+@router.delete(
+    "/feedback/{feedback_id}",
+    response_model=DeleteResponse,
     dependencies=[Depends(require_resource_permission("feedback", "delete"))]
+)
 def delete_interview_feedback(
     feedback_id: int,
     db: Session = Depends(get_db),
@@ -2348,8 +2357,11 @@ def delete_interview_feedback(
 # Statistics and Analytics Endpoints
 # ============================================
 
-@router.get("/statistics", response_model=InterviewStatistics)
+@router.get(
+    "/statistics",
+    response_model=InterviewStatistics,
     dependencies=[Depends(require_resource_permission("statistic", "view"))]
+)
 def get_interview_statistics(
     db: Session = Depends(get_db),
     user = Depends(get_current_internal_user)
@@ -2393,9 +2405,7 @@ def get_interview_statistics(
     )
 
 
-@router.get("/candidate-history/{candidate_id}",
- response_model=CandidateInterviewHistory,
- dependencies=[Depends(require_resource_permission("candidates", "view"))],
+@router.get("/candidate-history/{candidate_id}", response_model=CandidateInterviewHistory, dependencies=[Depends(require_resource_permission("candidates", "view"))],
  )
 def get_candidate_interview_history(
     candidate_id: str,
@@ -2486,8 +2496,11 @@ def get_candidate_interview_history(
     )
 
 
-@router.get("/interviewer-workload/{interviewer_id}", response_model=InterviewerWorkload)
+@router.get(
+    "/interviewer-workload/{interviewer_id}",
+    response_model=InterviewerWorkload,
     dependencies=[Depends(require_resource_permission("interviewer-workload", "view"))]
+)
 def get_interviewer_workload(
     interviewer_id: str,
     db: Session = Depends(get_db),
@@ -2588,8 +2601,8 @@ def get_interviewer_workload(
 
 
 @router.get(
-    dependencies=[Depends(get_current_user)]
     "/hm-review/my-candidates", response_model=HMCandidateReviewListResponse,
+    dependencies=[Depends(get_current_user)],
     summary="S-102/HRMS-P207 -- the caller's own hiring-manager candidate review list: profile + all interview feedback per candidate",
 )
 def get_my_hiring_manager_candidate_review(

@@ -33,7 +33,7 @@ def create_test_database():
         admin_url = "postgresql://postgres:123@localhost:5432/postgres"
         admin_engine = create_engine(admin_url)
 
-        @event.listens_for(admin_engine, 'connect')
+    @event.listens_for(admin_engine, 'connect')
         def on_connect(dbapi_conn, connection_record):
             dbapi_conn.set_isolation_level(0)  # autocommit mode
 
@@ -164,7 +164,7 @@ def setup_database():
             raise
 
     # Step 5: Verify tables were created
-    inspector = inspect(engine)
+            inspector = inspect(engine)
     table_count = len(inspector.get_table_names())
     if table_count == 0:
         raise RuntimeError("Schema creation reported success but no tables exist in database!")

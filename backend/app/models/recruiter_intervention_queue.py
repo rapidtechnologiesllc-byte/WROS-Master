@@ -26,6 +26,7 @@ spec asks, flag the real overlap" posture already established for the
 several other overlapping "candidate went silent" mechanisms earlier
 in this EPIC-04 round, not silently resolved by dropping one.
 """
+import logging
 from sqlalchemy import Column, DateTime, Enum, ForeignKey, Index, Integer, String, Text, func, text
 from sqlalchemy.orm import relationship
 

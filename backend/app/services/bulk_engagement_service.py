@@ -35,6 +35,7 @@ Real architecture adaptations:
   same documented-gap posture as every other missing
   system_configuration need this session.
 """
+import logging
 import csv
 import io
 from datetime import datetime
@@ -116,7 +117,7 @@ def import_candidates_from_csv(db: Session, csv_text: str, recruiter_id: str, te
         except DuplicateCandidateError:
             skipped_duplicates += 1
         except Exception as exc:
-           logger.error(f"Error: {str(exc)}", exc_info=True)
+            logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.error(f"[BulkEngagement] Row {index} import failed: {exc}")
             errors.append({"row": index, "reason": str(exc)})
 
@@ -153,7 +154,7 @@ def _notify_recruiter(db: Session, recruiter_id: str, tenant_id: str, message: s
     try:
         send_notification(db, calling_context_tenant_id=recipient.tenant_id, recipient=recipient, priority_tier="P2", channel_preference="EMAIL", message=message)
     except Exception as exc:
-       logger.error(f"Error: {str(exc)}", exc_info=True)
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[BulkEngagement] Failed to notify recruiter of completion: {exc}")
 
 
@@ -190,7 +191,7 @@ def run_bulk_engagement_worker(db: Session, job_id: str, *, sleep_fn=None, batch
                 auto_assign_ai_agent_on_creation(candidate_id, job.tenant_id, db)
                 job.success_count += 1
             except Exception as exc:
-               logger.error(f"Error: {str(exc)}", exc_info=True)
+                logger.error(f"Error: {str(exc)}", exc_info=True)
                 logger.error(f"[BulkEngagement] Failed engaging candidate {candidate_id!r} for job {job_id!r}: {exc}")
                 db.rollback()
                 job.failed_count += 1

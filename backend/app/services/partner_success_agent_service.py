@@ -14,6 +14,7 @@ Removes friction: "Your deal with Client X needs Y. I found Z. Done."
 Philosophy: Partners succeed = company succeeds.
 """
 
+import logging
 from typing import Dict, Any, List, Optional
 from datetime import datetime, timedelta
 from sqlalchemy.orm import Session

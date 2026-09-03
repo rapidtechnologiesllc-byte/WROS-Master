@@ -121,7 +121,7 @@ def _notify_recruiter_of_storage_failure(db: Session, tenant_id: str, candidate:
             message=STORAGE_FAILED_RECRUITER_ALERT.format(name=candidate.candidateFirstName or candidate.candidateID),
         )
     except Exception as exc:
-       logger.error(f"Error: {str(exc)}", exc_info=True)
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[ResumeUpload] Failed to notify recruiter of storage failure for candidate {candidate.candidateID}: {exc}")
 
 
@@ -176,7 +176,7 @@ def handle_resume_document(
             )
             break
         except Exception as exc:
-           logger.error(f"Error: {str(exc)}", exc_info=True)
+            logger.error(f"Error: {str(exc)}", exc_info=True)
             last_error = exc
             logger.warning(f"[ResumeUpload] Storage attempt {attempt + 1} failed for candidate {candidate.candidateID}: {exc}")
 

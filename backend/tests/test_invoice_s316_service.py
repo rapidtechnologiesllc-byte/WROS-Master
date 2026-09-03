@@ -4,6 +4,7 @@ Comprehensive test coverage for invoice generation, calculation, sending, and pa
 import logging
 """
 
+import logging
 import pytest
 from datetime import datetime, date, timedelta
 from decimal import Decimal

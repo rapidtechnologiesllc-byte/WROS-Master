@@ -78,8 +78,8 @@ router = APIRouter(prefix="/revenue", tags=["revenue-recognition"])
 # ============================================================================
 
 @router.post(
-    dependencies=[Depends(get_current_user)]
     "/recognize",
+    dependencies=[Depends(get_current_user)],
     response_model=RevenueRecognitionResponse,
     summary="Recognize revenue from paid invoice",
     description="Create revenue recognition entry for a PAID invoice per ASC 606"
@@ -144,8 +144,8 @@ def recognize_revenue(
 
 
 @router.post(
-    dependencies=[Depends(get_current_user)]
     "/entries",
+    dependencies=[Depends(get_current_user)],
     response_model=RevenueEntriesResponse,
     summary="Create revenue entries for invoice",
     description="Creates individual or aggregated revenue entries based on recognition method"
@@ -200,8 +200,8 @@ def create_entries(
 
 
 @router.post(
-    dependencies=[Depends(get_current_user)]
     "/asr",
+    dependencies=[Depends(get_current_user)],
     response_model=ASRResponse,
     summary="Calculate Annual Recurring Revenue (ASR/ARR)",
     description="Calculates ARR and MRR for a client over a period"
@@ -257,8 +257,8 @@ def calculate_annual_recurring_revenue(
 # ============================================================================
 
 @router.get(
-    dependencies=[Depends(get_current_user)]
     "/by-month",
+    dependencies=[Depends(get_current_user)],
     response_model=RevenueByMonthResponse,
     summary="Get revenue by month",
     description="Aggregates recognized revenue by month with margin analysis"
@@ -288,8 +288,8 @@ def get_revenue_monthly(
 
 
 @router.get(
-    dependencies=[Depends(get_current_user)]
     "/by-service",
+    dependencies=[Depends(get_current_user)],
     response_model=RevenueByServiceResponse,
     summary="Get revenue by service",
     description="Aggregates revenue by service type"
@@ -317,8 +317,8 @@ def get_revenue_service(
 
 
 @router.get(
-    dependencies=[Depends(get_current_user)]
     "/by-module",
+    dependencies=[Depends(get_current_user)],
     response_model=RevenueByModuleResponse,
     summary="Get revenue by Guidewire module",
     description="Aggregates revenue by Guidewire product module"
@@ -346,8 +346,8 @@ def get_revenue_module(
 
 
 @router.get(
-    dependencies=[Depends(get_current_user)]
     "/by-pricing-model",
+    dependencies=[Depends(get_current_user)],
     response_model=RevenueByPricingModelResponse,
     summary="Get revenue by pricing model",
     description="Aggregates revenue by pricing model (FTE, T&M, etc.)"
@@ -375,8 +375,8 @@ def get_revenue_pricing_model(
 
 
 @router.get(
-    dependencies=[Depends(get_current_user)]
     "/by-client-owner",
+    dependencies=[Depends(get_current_user)],
     response_model=RevenueByClientOwnerResponse,
     summary="Get revenue by client owner",
     description="Aggregates revenue by client owner (account manager) for P&L attribution"
@@ -404,8 +404,8 @@ def get_revenue_client_owner(
 
 
 @router.get(
-    dependencies=[Depends(get_current_user)]
     "/partner-shares",
+    dependencies=[Depends(get_current_user)],
     response_model=PartnerRevenueShareResponse,
     summary="Get partner revenue share analysis",
     description="Aggregates partner revenue shares (CORE business only)"
@@ -433,8 +433,8 @@ def get_partner_shares(
 
 
 @router.get(
-    dependencies=[Depends(get_current_user)]
     "/forecast-vs-actual",
+    dependencies=[Depends(get_current_user)],
     response_model=ForecastVsActualResponse,
     summary="Get forecast vs actual revenue",
     description="Compares forecasted revenue (opportunities) vs actual recognized revenue"
@@ -466,8 +466,8 @@ def get_forecast_actual(
 
 
 @router.get(
-    dependencies=[Depends(get_current_user)]
     "/negative-margins",
+    dependencies=[Depends(get_current_user)],
     response_model=NegativeMarginAlertsResponse,
     summary="Get loss-making projects",
     description="Identifies projects/invoices with negative gross margin (losses)"
@@ -496,8 +496,8 @@ def get_negative_margins(
 
 
 @router.get(
-    dependencies=[Depends(get_current_user)]
     "/pnl-summary",
+    dependencies=[Depends(get_current_user)],
     response_model=PandLSummaryResponse,
     summary="Get P&L summary",
     description="Provides complete Profit & Loss summary for a period"

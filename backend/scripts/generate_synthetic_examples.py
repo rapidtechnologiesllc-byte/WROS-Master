@@ -22,6 +22,7 @@ This solves the training data bottleneck:
 - Total: 5000-5100 examples for fine-tuning
 """
 
+import logging
 import json
 import os
 import sys

@@ -32,6 +32,7 @@ Fear relief triggers:
 - Exceeding targets: -10 fear
 """
 
+import logging
 from sqlalchemy import (
     Column, DateTime, Float, ForeignKey, Integer, String, Text, func, Boolean
 )

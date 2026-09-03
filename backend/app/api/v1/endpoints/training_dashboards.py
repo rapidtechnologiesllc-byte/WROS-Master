@@ -21,8 +21,10 @@ router = APIRouter(prefix="/dashboards", tags=["Dashboards"])
 # Training & Certification Dashboard
 # ============================================================================
 
-@router.get("/training-certification")
+@router.get(
+    "/training-certification",
     dependencies=[Depends(require_resource_permission("training-certification", "view"))]
+)
 def get_training_certification_dashboard(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user)
@@ -52,8 +54,10 @@ def get_training_certification_dashboard(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/training-certification/employee/{employee_id}")
+@router.get(
+    "/training-certification/employee/{employee_id}",
     dependencies=[Depends(require_resource_permission("training-certification", "view"))]
+)
 def get_employee_training_details(
     employee_id: str,
     db: Session = Depends(get_db),
@@ -85,8 +89,10 @@ def get_employee_training_details(
 # Troy's Partner Dashboard (Current Demand, Pipeline, Certifications, Buddy, Core Certified)
 # ============================================================================
 
-@router.get("/troy-partner")
+@router.get(
+    "/troy-partner",
     dependencies=[Depends(require_resource_permission("troy-partner", "view"))]
+)
 def get_troy_partner_dashboard(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user)

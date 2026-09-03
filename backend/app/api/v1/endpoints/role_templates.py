@@ -58,8 +58,10 @@ class RoleTemplateResponse(BaseModel):
         from_attributes = True
 
 
-@router.get("")
+@router.get(
+    "",
     dependencies=[Depends(require_resource_permission("unknown", "view"))]
+)
 def list_role_templates(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user)
@@ -102,8 +104,10 @@ def list_role_templates(
     return {"role_templates": result}
 
 
-@router.get("/{template_id}")
+@router.get(
+    "/{template_id}",
     dependencies=[Depends(require_resource_permission("{template_id}", "view"))]
+)
 def get_role_template(
     template_id: int,
     db: Session = Depends(get_db),
@@ -147,8 +151,10 @@ def get_role_template(
     }
 
 
-@router.post("")
+@router.post(
+    "",
     dependencies=[Depends(require_resource_permission("unknown", "create"))]
+)
 def create_role_template(
     data: RoleTemplateCreate,
     request: Request,
@@ -217,8 +223,10 @@ def create_role_template(
     }
 
 
-@router.put("/{template_id}")
+@router.put(
+    "/{template_id}",
     dependencies=[Depends(require_resource_permission("{template_id}", "update"))]
+)
 def update_role_template(
     template_id: int,
     data: RoleTemplateUpdate,
@@ -280,7 +288,7 @@ def update_role_template(
 
         return {"message": "Role template updated successfully"}
     except Exception as e:
-       logger.error(f"Error: {str(e)}", exc_info=True)
+        logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"[PUT] Error updating role template {template_id}: {str(e)}", exc_info=True)
         db.rollback()
         import traceback
@@ -290,8 +298,10 @@ def update_role_template(
         raise HTTPException(status_code=500, detail=f"Error updating role template: {str(e)}")
 
 
-@router.post("/{template_id}/grant-permission")
+@router.post(
+    "/{template_id}/grant-permission",
     dependencies=[Depends(require_resource_permission("{template_id}", "create"))]
+)
 def grant_permission(
     template_id: int,
     data: GrantRevokePermissionInput,
@@ -359,8 +369,10 @@ def grant_permission(
     return {"message": f"Permission granted: {resource_name} - {action}"}
 
 
-@router.post("/{template_id}/revoke-permission")
+@router.post(
+    "/{template_id}/revoke-permission",
     dependencies=[Depends(require_resource_permission("{template_id}", "create"))]
+)
 def revoke_permission(
     template_id: int,
     data: GrantRevokePermissionInput,
@@ -420,8 +432,10 @@ def revoke_permission(
     return {"message": f"Permission revoked: {resource_name} - {action}"}
 
 
-@router.delete("/{template_id}")
+@router.delete(
+    "/{template_id}",
     dependencies=[Depends(require_resource_permission("{template_id}", "delete"))]
+)
 def delete_role_template(
     template_id: int,
     db: Session = Depends(get_db),
@@ -461,8 +475,10 @@ def delete_role_template(
     return {"message": "Role template deleted successfully"}
 
 
-@router.post("/{template_id}/toggle-status")
+@router.post(
+    "/{template_id}/toggle-status",
     dependencies=[Depends(require_resource_permission("{template_id}", "create"))]
+)
 def toggle_template_status(
     template_id: int,
     request: ToggleStatusRequest,
@@ -563,8 +579,10 @@ def create_business_unit_rbac(
     }
 
 
-@router.get("/{template_id}/audit-trail")
+@router.get(
+    "/{template_id}/audit-trail",
     dependencies=[Depends(require_resource_permission("{template_id}", "view"))]
+)
 def get_template_audit_trail(
     template_id: int,
     db: Session = Depends(get_db),
@@ -592,8 +610,10 @@ def get_template_audit_trail(
     }
 
 
-@router.get("/{template_id}/users")
+@router.get(
+    "/{template_id}/users",
     dependencies=[Depends(require_resource_permission("{template_id}", "view"))]
+)
 def get_users_for_role_template(
     template_id: int,
     db: Session = Depends(get_db),
@@ -636,8 +656,10 @@ def get_users_for_role_template(
     }
 
 
-@router.get("/audit/logs")
+@router.get(
+    "/audit/logs",
     dependencies=[Depends(require_resource_permission("audit", "view"))]
+)
 def get_rbac_audit_logs(
     entity_type: str = None,
     action: str = None,

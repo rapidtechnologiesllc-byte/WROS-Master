@@ -58,8 +58,11 @@ def _employee_name_map(db: Session, employee_ids) -> dict:
     }
 
 
-@router.get("", response_model=ClientListResponse)
+@router.get(
+    "",
+    response_model=ClientListResponse,
     dependencies=[Depends(require_resource_permission("unknown", "view"))]
+)
 def list_clients(
     active_only: bool = True,
     db: Session = Depends(get_db),
@@ -90,8 +93,10 @@ def list_clients(
     )
 
 
-@router.get("/business-units/{business_unit_id}/assignments")
+@router.get(
+    "/business-units/{business_unit_id}/assignments",
     dependencies=[Depends(require_resource_permission("business-unit", "view"))]
+)
 def get_business_unit_assignments(
     business_unit_id: int,
     db: Session = Depends(get_db),
@@ -131,8 +136,12 @@ def get_business_unit_assignments(
     }
 
 
-@router.post("", response_model=ClientCreateResponse, status_code=201)
+@router.post(
+    "",
+    response_model=ClientCreateResponse,
+    status_code=201,
     dependencies=[Depends(require_resource_permission("unknown", "create"))]
+)
 def create_client_endpoint(
     body: ClientCreateRequest,
     db: Session = Depends(get_db),
@@ -172,8 +181,11 @@ def _to_detail_response(db: Session, client: Client) -> ClientDetailResponse:
     )
 
 
-@router.get("/{client_id}", response_model=ClientDetailResponse)
+@router.get(
+    "/{client_id}",
+    response_model=ClientDetailResponse,
     dependencies=[Depends(require_resource_permission("{client_id}", "view"))]
+)
 def get_client_endpoint(
     client_id: str,
     db: Session = Depends(get_db),
@@ -185,8 +197,11 @@ def get_client_endpoint(
     return _to_detail_response(db, client)
 
 
-@router.get("/{client_id}/contacts", response_model=ClientContactsListResponse)
+@router.get(
+    "/{client_id}/contacts",
+    response_model=ClientContactsListResponse,
     dependencies=[Depends(require_resource_permission("{client_id}", "view"))]
+)
 def list_client_contacts_endpoint(
     client_id: str,
     db: Session = Depends(get_db),
@@ -199,8 +214,12 @@ def list_client_contacts_endpoint(
     return ClientContactsListResponse(contacts=contacts)
 
 
-@router.post("/{client_id}/contacts", response_model=ClientContactResponse, status_code=201)
+@router.post(
+    "/{client_id}/contacts",
+    response_model=ClientContactResponse,
+    status_code=201,
     dependencies=[Depends(require_resource_permission("{client_id}", "create"))]
+)
 def add_client_contact_endpoint(
     client_id: str,
     body: ClientContactAddRequest,
@@ -221,8 +240,11 @@ def add_client_contact_endpoint(
     return contact
 
 
-@router.patch("/{client_id}", response_model=ClientDetailResponse)
+@router.patch(
+    "/{client_id}",
+    response_model=ClientDetailResponse,
     dependencies=[Depends(require_resource_permission("{client_id}", "update"))]
+)
 def update_client_endpoint(
     client_id: str,
     body: ClientUpdateRequest,

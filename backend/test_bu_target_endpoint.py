@@ -50,7 +50,7 @@ try:
     print(f"         ID: {target.id}")
     print(f"         Amount: ${target.target_amount_usd_cents / 100:,.0f} USD")
 except Exception as e:
-   logger.error(f"Error: {str(e)}", exc_info=True)
+    logger.error(f"Error: {str(e)}", exc_info=True)
     logger.error(f"Error: {str(e)}", exc_info=True)
     print(f"    [FAIL] Error creating target:")
     print(f"         Type: {type(e).__name__}")
@@ -67,7 +67,7 @@ try:
     print(f"         Target: ${result.get('target_amount_usd_cents', 0) / 100:,.0f} USD")
     print(f"         Actual: ${result.get('actual_usd_cents', 0) / 100:,.0f} USD")
 except Exception as e:
-   logger.error(f"Error: {str(e)}", exc_info=True)
+    logger.error(f"Error: {str(e)}", exc_info=True)
     logger.error(f"Error: {str(e)}", exc_info=True)
     print(f"    [FAIL] Error retrieving target:")
     print(f"         Type: {type(e).__name__}")

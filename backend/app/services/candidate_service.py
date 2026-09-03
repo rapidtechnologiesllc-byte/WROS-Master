@@ -23,6 +23,7 @@ only matches one field (e.g., email), missing phone/LinkedIn." Fixed
 here: email, phone, and LinkedIn URL are each checked independently, so
 a duplicate caught only by phone (or only by LinkedIn) is still caught.
 """
+import logging
 import re
 from typing import Optional, Tuple
 

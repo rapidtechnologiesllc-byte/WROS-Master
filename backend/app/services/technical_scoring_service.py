@@ -56,6 +56,7 @@ Real architecture adaptations:
   for one job must not block the resume/skill pipeline it's wired into,
   nor prevent scoring the candidate's other linked jobs.
 """
+import logging
 import re
 from datetime import datetime
 from typing import Dict, List, Optional
@@ -240,7 +241,7 @@ def recalculate_for_candidate(db: Session, candidate: Candidate, tenant_id: str)
         try:
             results.append(calculate_technical_score(db, candidate.candidateID, job_id, tenant_id))
         except Exception as exc:
-           logger.error(f"Error: {str(exc)}", exc_info=True)
+            logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.warning(f"[TechnicalScoring] Failed to recalculate score for candidate {candidate.candidateID!r} / job {job_id!r}: {exc}")
     db.commit()
     return results

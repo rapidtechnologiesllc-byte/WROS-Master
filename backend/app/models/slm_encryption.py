@@ -1,4 +1,4 @@
-﻿"""
+"""
 import logging
 SLM Encryption Models
 

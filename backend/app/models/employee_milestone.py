@@ -19,6 +19,7 @@ already-shipped Projects API (POST/GET /projects/{id}/milestones) is
 built against and tested -- a real, avoidable break for something that
 is conceptually a different feature. Flagged, not guessed at.
 """
+import logging
 import uuid
 
 from sqlalchemy import Column, Date, DateTime, Enum, ForeignKey, Integer, String, Text, func

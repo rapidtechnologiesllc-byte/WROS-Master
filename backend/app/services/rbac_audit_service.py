@@ -6,6 +6,7 @@ The RBAC Permission system has been deprecated in favor of RoleTemplate-based pe
 This stub file prevents import errors during the transition period.
 """
 
+import logging
 logger = logging.getLogger(__name__)
 
 class RBACauditService:

@@ -20,6 +20,7 @@ not the spec's DECIMAL(3,2).
 message_event_id points at ConversationEvent.id (the real message log),
 not a fictional conversation_messages.id.
 """
+import logging
 from sqlalchemy import Column, DateTime, Float, ForeignKey, Index, Integer, String, func
 from sqlalchemy.orm import relationship
 

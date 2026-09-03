@@ -20,6 +20,7 @@ this codebase yet, so every slot this story writes stays
 is_confirmed=false; see interview_availability_service's own module
 docstring for the full "no calendar-matching consumer exists yet" note.
 """
+import logging
 from sqlalchemy import Boolean, Column, Date, DateTime, ForeignKey, Integer, String, Time, func
 from sqlalchemy.orm import relationship
 

@@ -4,6 +4,7 @@ Tests for create_validation_questions, send_to_hm, record_hm_response
 import logging
 """
 
+import logging
 import pytest
 from datetime import datetime, timedelta
 from uuid import uuid4

@@ -9,6 +9,7 @@ for what this story actually needs): a per-tenant singleton pause
 flag, a monthly metrics history, and a permanent pause/resume audit
 log (AC-6).
 """
+import logging
 import uuid
 
 from sqlalchemy import (

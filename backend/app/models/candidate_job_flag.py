@@ -20,6 +20,7 @@ ever creates it, same "built and tested standalone, ready for a future
 producer" posture as follow_up_schedule (S-041)/candidate_field_skips
 (S-024).
 """
+import logging
 from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Index, Integer, String, Text, func
 from sqlalchemy.orm import relationship
 

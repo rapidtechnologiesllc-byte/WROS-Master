@@ -19,6 +19,7 @@ from client state, even though the client is the one that supplies it
 store -- see module docstring on get_active_business_unit_id in
 app.api.v1.endpoints.bu_context for how a caller wires this in).
 """
+import logging
 from typing import List, Optional
 
 from sqlalchemy.orm import Session

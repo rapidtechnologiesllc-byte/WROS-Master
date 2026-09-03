@@ -19,6 +19,7 @@ buddy_program_records for scorecard-ready-but-undecided rows past 48h
 and call send_notification(priority_tier="P0", ...), reusing the real
 notification path already built.
 """
+import logging
 from datetime import date, timedelta
 from typing import Optional
 

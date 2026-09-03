@@ -20,8 +20,11 @@ from app.services.sla_monitoring_service import get_active_breaches
 router = APIRouter(prefix="/sla", tags=["sla-monitoring"])
 
 
-@router.get("/breaches", response_model=SLABreachListResponse)
+@router.get(
+    "/breaches",
+    response_model=SLABreachListResponse,
     dependencies=[Depends(require_resource_permission("breache", "view"))]
+)
 def list_sla_breaches(
     is_resolved: bool = False,
     db: Session = Depends(get_db),

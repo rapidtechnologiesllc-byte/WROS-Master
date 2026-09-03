@@ -81,8 +81,11 @@ def _to_item(wo: WorkOrder) -> WorkOrderItem:
     )
 
 
-@router.post("", response_model=WorkOrderItem)
+@router.post(
+    "",
+    response_model=WorkOrderItem,
     dependencies=[Depends(require_resource_permission("unknown", "create"))]
+)
 def create_work_order_endpoint(
     req: CreateWorkOrderRequest,
     db: Session = Depends(get_db),
@@ -131,8 +134,11 @@ def create_work_order_endpoint(
         raise HTTPException(status_code=500, detail=f"Failed to create work order: {str(e)}")
 
 
-@router.get("", response_model=WorkOrderListResponse)
+@router.get(
+    "",
+    response_model=WorkOrderListResponse,
     dependencies=[Depends(require_resource_permission("unknown", "view"))]
+)
 def list_work_orders(
     status: Optional[str] = Query(None, description="Filter by status (ACTIVE, ENDED, PAUSED)"),
     client_id: Optional[str] = Query(None, description="Filter by client ID"),
@@ -164,8 +170,11 @@ def list_work_orders(
         raise HTTPException(status_code=500, detail=f"Failed to list work orders: {str(e)}")
 
 
-@router.get("/{work_order_id}", response_model=WorkOrderItem)
+@router.get(
+    "/{work_order_id}",
+    response_model=WorkOrderItem,
     dependencies=[Depends(require_resource_permission("{work_order_id}", "view"))]
+)
 def get_work_order(
     work_order_id: str,
     db: Session = Depends(get_db),
@@ -184,8 +193,11 @@ def get_work_order(
         raise HTTPException(status_code=500, detail=f"Failed to get work order: {str(e)}")
 
 
-@router.put("/{work_order_id}", response_model=WorkOrderItem)
+@router.put(
+    "/{work_order_id}",
+    response_model=WorkOrderItem,
     dependencies=[Depends(require_resource_permission("{work_order_id}", "update"))]
+)
 def update_work_order_endpoint(
     work_order_id: str,
     req: UpdateWorkOrderRequest,
@@ -234,8 +246,11 @@ def update_work_order_endpoint(
         raise HTTPException(status_code=500, detail=f"Failed to update work order: {str(e)}")
 
 
-@router.get("/by-demand/{demand_id}", response_model=WorkOrderListResponse)
+@router.get(
+    "/by-demand/{demand_id}",
+    response_model=WorkOrderListResponse,
     dependencies=[Depends(require_resource_permission("by-demand", "view"))]
+)
 def get_work_orders_by_demand_endpoint(
     demand_id: str,
     db: Session = Depends(get_db),
@@ -250,8 +265,11 @@ def get_work_orders_by_demand_endpoint(
         raise HTTPException(status_code=500, detail=f"Failed to get work orders: {str(e)}")
 
 
-@router.get("/by-project/{project_id}", response_model=WorkOrderListResponse)
+@router.get(
+    "/by-project/{project_id}",
+    response_model=WorkOrderListResponse,
     dependencies=[Depends(require_resource_permission("by-project", "view"))]
+)
 def get_work_orders_by_project_endpoint(
     project_id: str,
     db: Session = Depends(get_db),
@@ -266,8 +284,11 @@ def get_work_orders_by_project_endpoint(
         raise HTTPException(status_code=500, detail=f"Failed to get work orders: {str(e)}")
 
 
-@router.get("/by-employee/{employee_id}", response_model=WorkOrderListResponse)
+@router.get(
+    "/by-employee/{employee_id}",
+    response_model=WorkOrderListResponse,
     dependencies=[Depends(require_resource_permission("by-employee", "view"))]
+)
 def get_work_orders_by_employee_endpoint(
     employee_id: str,
     db: Session = Depends(get_db),
@@ -282,8 +303,11 @@ def get_work_orders_by_employee_endpoint(
         raise HTTPException(status_code=500, detail=f"Failed to get work orders: {str(e)}")
 
 
-@router.get("/by-client/{client_id}", response_model=WorkOrderListResponse)
+@router.get(
+    "/by-client/{client_id}",
+    response_model=WorkOrderListResponse,
     dependencies=[Depends(require_resource_permission("by-client", "view"))]
+)
 def get_work_orders_by_client_endpoint(
     client_id: str,
     db: Session = Depends(get_db),
@@ -298,8 +322,11 @@ def get_work_orders_by_client_endpoint(
         raise HTTPException(status_code=500, detail=f"Failed to get work orders: {str(e)}")
 
 
-@router.post("/{work_order_id}/end", response_model=WorkOrderItem)
+@router.post(
+    "/{work_order_id}/end",
+    response_model=WorkOrderItem,
     dependencies=[Depends(require_resource_permission("{work_order_id}", "create"))]
+)
 def end_work_order_endpoint(
     work_order_id: str,
     req: EndWorkOrderRequest,
@@ -326,8 +353,11 @@ def end_work_order_endpoint(
         raise HTTPException(status_code=500, detail=f"Failed to end work order: {str(e)}")
 
 
-@router.post("/{work_order_id}/pause", response_model=WorkOrderItem)
+@router.post(
+    "/{work_order_id}/pause",
+    response_model=WorkOrderItem,
     dependencies=[Depends(require_resource_permission("{work_order_id}", "create"))]
+)
 def pause_work_order_endpoint(
     work_order_id: str,
     req: PauseWorkOrderRequest,
@@ -354,8 +384,11 @@ def pause_work_order_endpoint(
         raise HTTPException(status_code=500, detail=f"Failed to pause work order: {str(e)}")
 
 
-@router.post("/{work_order_id}/resume", response_model=WorkOrderItem)
+@router.post(
+    "/{work_order_id}/resume",
+    response_model=WorkOrderItem,
     dependencies=[Depends(require_resource_permission("{work_order_id}", "create"))]
+)
 def resume_work_order_endpoint(
     work_order_id: str,
     req: ResumeWorkOrderRequest,

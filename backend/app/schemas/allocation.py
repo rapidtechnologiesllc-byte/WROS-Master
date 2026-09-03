@@ -4,6 +4,7 @@ Pydantic schemas — S-251 (Allocate Employee to Project) + S-252
 import logging
 """
 
+import logging
 from datetime import date, datetime
 from typing import List, Optional
 

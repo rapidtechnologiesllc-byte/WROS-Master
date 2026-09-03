@@ -46,6 +46,7 @@ timestamp-presence signal, same convention as `confirmed_at`/
 spec calls for -- there is still no separate literal status enum
 column on this row.
 """
+import logging
 import uuid
 
 from sqlalchemy import (

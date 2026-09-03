@@ -8,6 +8,7 @@ All monetary values use USD cents (BIGINT per R-09).
 All responses include tenant_id for audit/compliance tracking.
 """
 
+import logging
 from datetime import date, datetime
 from typing import List, Optional
 from pydantic import BaseModel, Field, validator

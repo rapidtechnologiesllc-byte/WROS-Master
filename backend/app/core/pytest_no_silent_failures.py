@@ -23,6 +23,7 @@ Installation:
 3. Run tests with pytest to catch violations during CI/CD
 """
 
+import logging
 import ast
 import pytest
 from pathlib import Path

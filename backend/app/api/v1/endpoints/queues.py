@@ -18,8 +18,10 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/queues", tags=["queues"])
 
 
-@router.get("")
+@router.get(
+    "",
     dependencies=[Depends(require_resource_permission("unknown", "view"))]
+)
 def get_queue_messages(
     queue_type: Optional[str] = Query(None),
     status: Optional[str] = Query(None),
@@ -94,14 +96,17 @@ def get_queue_messages(
             "limit": limit,
             "offset": offset,
         }
-    except Exception as e:        logger.error(f"Failed to fetch queue messages: {e}", exc_info=True)
+    except Exception as e:
+        logger.error(f"Failed to fetch queue messages: {e}", exc_info=True)
         raise
     finally:
         db.close()
 
 
-@router.get("/stats")
+@router.get(
+    "/stats",
     dependencies=[Depends(require_resource_permission("stat", "view"))]
+)
 def get_queue_stats():
     """
     Get queue statistics.
@@ -145,7 +150,8 @@ def get_queue_stats():
             "by_queue_type": by_queue_type,
             "by_status": by_status,
         }
-    except Exception as e:        logger.error(f"Failed to get queue stats: {e}", exc_info=True)
+    except Exception as e:
+        logger.error(f"Failed to get queue stats: {e}", exc_info=True)
         raise
     finally:
         db.close()

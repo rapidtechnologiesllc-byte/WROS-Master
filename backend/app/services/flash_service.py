@@ -66,6 +66,7 @@ outside the supported intents gets an explicit "I can't answer that
 yet" instead of an invented answer -- "strict mode," per Avinash's own
 words, same "no fake success" principle as the rest of this codebase.
 """
+import logging
 import json
 import re
 from datetime import datetime, timedelta
@@ -827,7 +828,7 @@ def _parse_skills_from_string(skills_str: str) -> list:
                 except ValueError:
                     continue
     except Exception as e:
-       logger.error(f"Error: {str(e)}", exc_info=True)
+        logger.error(f"Error: {str(e)}", exc_info=True)
         logger.warning(f"Failed to parse skills string: {e}")
 
     return skills if skills else [{"name": skill_str.strip(), "years": 0, "mandatory": True} for skill_str in skills_str.split(",")]
@@ -887,7 +888,7 @@ def _create_job_from_details(db: Session, user: Users, details: Dict) -> Dict:
         }
 
     except Exception as e:
-       logger.error(f"Error: {str(e)}", exc_info=True)
+        logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"[Flash] Job creation failed: {e}")
         db.rollback()
         return {

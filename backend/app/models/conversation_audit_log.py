@@ -24,6 +24,7 @@ role) isn't practical to add generically across this codebase's SQLite
 test / SQL Server prod split -- enforced at the application level only:
 no update/delete function exists anywhere in audit_log_service.py.
 """
+import logging
 from sqlalchemy import Column, DateTime, ForeignKey, Integer, JSON, String, Text, func, Index
 
 from app.models.base import Base

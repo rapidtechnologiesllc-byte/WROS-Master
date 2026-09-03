@@ -8,6 +8,7 @@ This ensures the "fail fast" principle is enforced across the codebase.
 All service functions must raise exceptions on error, never silently return empty collections.
 """
 
+import logging
 import json
 import pytest
 from unittest.mock import Mock, patch, MagicMock
@@ -228,7 +229,7 @@ class TestErrorPropagation:
                 raise ValueError(f"Failed: {e}")  # ✅ CORRECT: Fail fast
 
         # Verify bad pattern returns silently
-        result = bad_service_function()
+                result = bad_service_function()
         assert result == []
 
         # Verify good pattern raises
@@ -273,7 +274,8 @@ class TestRegressionPrevention:
                 raise ValueError(f"Failed to index: {e}")
 
         # Should raise, not silently continue
-        with pytest.raises(ValueError, match="Failed to index"):
+                with pytest.raises(ValueError, match="Failed to index"):
+                    pass
             resume_indexing(None)
 
 
@@ -312,7 +314,8 @@ class TestErrorHandlingBestPractices:
                 # ✅ CORRECT: Include context in error
                 raise ValueError(f"Failed to {action} for user_id={user_id}: {e}")
 
-        with pytest.raises(ValueError, match="Failed to.*user_id="):
+                with pytest.raises(ValueError, match="Failed to.*user_id="):
+                    pass
             operation_with_context('user-123', 'fetch_data')
 
 

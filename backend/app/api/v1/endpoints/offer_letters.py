@@ -185,8 +185,11 @@ def list_offer_templates(
 # CANDIDATE ENDPOINTS
 # ============================================
 
-@router.post("/respond", response_model=OfferAcceptanceResponse)
+@router.post(
+    "/respond",
+    response_model=OfferAcceptanceResponse,
     dependencies=[Depends(require_resource_permission("respond", "create"))]
+)
 def respond_to_offer(
     request: OfferAcceptanceRequest,
     db: Session = Depends(get_db),
@@ -264,8 +267,11 @@ def respond_to_offer(
     )
 
 
-@router.get("/my-offers", response_model=AllOffersResponse)
+@router.get(
+    "/my-offers",
+    response_model=AllOffersResponse,
     dependencies=[Depends(require_resource_permission("my-offer", "view"))]
+)
 def get_my_offers(
     db: Session = Depends(get_db),
     candidate=Depends(get_current_candidate),
@@ -527,8 +533,8 @@ def get_all_offers(
 
 # "" Hiring Manager: list offers pending approval """""""""""""""""""""""""""""
 @router.get(
-    dependencies=[Depends(get_current_user)]
     "/pending-approval",
+    dependencies=[Depends(get_current_user)],
     response_model=AllOffersResponse,
     summary="List offer letters pending the authenticated Hiring Manager's approval",
 )
@@ -555,8 +561,8 @@ def get_pending_approval_offers(
 
 # "" Hiring Manager: list awaiting-approval candidates for a specific job """"""
 @router.get(
-    dependencies=[Depends(get_current_user)]
     "/pending-approval/by-job/{job_id}",
+    dependencies=[Depends(get_current_user)],
     response_model=AllOffersResponse,
     summary="List awaiting-approval candidates for a specific job (Hiring Manager)",
 )
@@ -966,7 +972,7 @@ def release_offer_letter(
     try:
         send_offer_release_notification(db, offer)
     except Exception as exc:
-       logger.error(f"Error: {str(exc)}", exc_info=True)
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[OfferRelease] Notification failed for offer {offer_id}: {exc}")
 
     return OfferReleaseResponse(
@@ -983,8 +989,8 @@ def release_offer_letter(
 # ============================================
 
 @router.post(
-    dependencies=[Depends(get_current_user)]
     "/sign/{offer_id}",
+    dependencies=[Depends(get_current_user)],
     response_model=CandidateSignedAcceptanceResponse,
     summary="Candidate signs the offer letter (uploads signature PNG)",
 )

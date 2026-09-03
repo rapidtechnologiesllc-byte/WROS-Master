@@ -90,7 +90,7 @@ try:
     print("When admins create new roles via UI, they select permissions there.")
 
 except Exception as e:
-   logger.error(f"Error: {str(e)}", exc_info=True)
+    logger.error(f"Error: {str(e)}", exc_info=True)
     logger.error(f"Error: {str(e)}", exc_info=True)
     print(f"\n❌ Error: {e}")
     import traceback

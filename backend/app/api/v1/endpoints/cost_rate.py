@@ -48,8 +48,12 @@ from app.services.reserve_fund_service import (
 router = APIRouter(tags=["cost-rate"])
 
 
-@router.post("/cost-rate-configs", response_model=CostRateConfigResponse, status_code=201)
+@router.post(
+    "/cost-rate-configs",
+    response_model=CostRateConfigResponse,
+    status_code=201,
     dependencies=[Depends(require_resource_permission("cost-rate-config", "create"))]
+)
 def create_cost_rate_config(
     body: SetCostRateConfigRequest,
     db: Session = Depends(get_db),
@@ -65,8 +69,11 @@ def create_cost_rate_config(
         raise HTTPException(status_code=400, detail=str(exc))
 
 
-@router.get("/employees/{employee_id}/fully-loaded-cost", response_model=FullyLoadedCostResponse)
+@router.get(
+    "/employees/{employee_id}/fully-loaded-cost",
+    response_model=FullyLoadedCostResponse,
     dependencies=[Depends(require_resource_permission("employee", "view"))]
+)
 def fully_loaded_cost(
     employee_id: str, business_unit_id: Optional[int] = None,
     db: Session = Depends(get_db),
@@ -85,8 +92,11 @@ def fully_loaded_cost(
     )
 
 
-@router.get("/blended-delivery-rate/bu/{business_unit_id}", response_model=BlendedDeliveryRateResponse)
+@router.get(
+    "/blended-delivery-rate/bu/{business_unit_id}",
+    response_model=BlendedDeliveryRateResponse,
     dependencies=[Depends(require_resource_permission("blended-delivery-rate", "view"))]
+)
 def blended_delivery_rate(
     business_unit_id: int, year: int, month: int,
     db: Session = Depends(get_db),
@@ -99,8 +109,11 @@ def blended_delivery_rate(
     )
 
 
-@router.get("/pnl/bu/{business_unit_id}", response_model=BuPnlResponse)
+@router.get(
+    "/pnl/bu/{business_unit_id}",
+    response_model=BuPnlResponse,
     dependencies=[Depends(require_resource_permission("pnl", "view"))]
+)
 def bu_pnl(
     business_unit_id: int, year: int, month: int,
     db: Session = Depends(get_db),
@@ -109,8 +122,12 @@ def bu_pnl(
     return get_bu_pnl(db, business_unit_id=business_unit_id, year=year, month=month)
 
 
-@router.get("/pnl/org-summary", response_model=OrgPnlSummaryResponse, summary="EPIC-16 Executive Dashboard: org-wide P&L rollup across all Business Units")
+@router.get(
+    "/pnl/org-summary",
+    response_model=OrgPnlSummaryResponse,
+    summary="EPIC-16 Executive Dashboard: org-wide P&L rollup across all Business Units",
     dependencies=[Depends(require_resource_permission("pnl", "view"))]
+)
 def org_pnl_summary(
     year: int, month: int,
     db: Session = Depends(get_db),
@@ -119,8 +136,12 @@ def org_pnl_summary(
     return get_org_pnl_summary(db, year=year, month=month, tenant_id=current_user.tenant_id)
 
 
-@router.post("/reserve-fund/entries", response_model=ReserveFundEntryResponse, status_code=201)
+@router.post(
+    "/reserve-fund/entries",
+    response_model=ReserveFundEntryResponse,
+    status_code=201,
     dependencies=[Depends(require_resource_permission("reserve-fund", "create"))]
+)
 def create_reserve_fund_entry(
     body: RecordReserveFundEntryRequest,
     db: Session = Depends(get_db),
@@ -137,8 +158,11 @@ def create_reserve_fund_entry(
         raise HTTPException(status_code=400, detail=str(exc))
 
 
-@router.get("/reserve-fund/bu/{business_unit_id}/status", response_model=ReserveFundStatusResponse)
+@router.get(
+    "/reserve-fund/bu/{business_unit_id}/status",
+    response_model=ReserveFundStatusResponse,
     dependencies=[Depends(require_resource_permission("reserve-fund", "view"))]
+)
 def reserve_fund_status(
     business_unit_id: int, year: int, month: int,
     db: Session = Depends(get_db),
@@ -147,8 +171,11 @@ def reserve_fund_status(
     return get_reserve_fund_status(db, business_unit_id=business_unit_id, as_of_year=year, as_of_month=month)
 
 
-@router.get("/hiring-affordability/bu/{business_unit_id}", response_model=HiringAffordabilityResponse)
+@router.get(
+    "/hiring-affordability/bu/{business_unit_id}",
+    response_model=HiringAffordabilityResponse,
     dependencies=[Depends(require_resource_permission("hiring-affordability", "view"))]
+)
 def hiring_affordability(
     business_unit_id: int, proposed_annual_salary_usd_cents: int, year: int, month: int,
     db: Session = Depends(get_db),
@@ -160,8 +187,12 @@ def hiring_affordability(
     )
 
 
-@router.post("/intercompany-settlements", response_model=IntercompanySettlementResponse, status_code=201)
+@router.post(
+    "/intercompany-settlements",
+    response_model=IntercompanySettlementResponse,
+    status_code=201,
     dependencies=[Depends(require_resource_permission("intercompany-settlement", "create"))]
+)
 def create_intercompany_settlement(
     body: RecordIntercompanySettlementRequest,
     db: Session = Depends(get_db),
@@ -177,8 +208,11 @@ def create_intercompany_settlement(
         raise HTTPException(status_code=400, detail=str(exc))
 
 
-@router.get("/intercompany-settlements", response_model=list[IntercompanySettlementResponse])
+@router.get(
+    "/intercompany-settlements",
+    response_model=list[IntercompanySettlementResponse],
     dependencies=[Depends(require_resource_permission("intercompany-settlement", "view"))]
+)
 def list_intercompany_settlements(
     db: Session = Depends(get_db),
     current_user: Users = Depends(require_resource_permission("revenue", "view")),
@@ -186,8 +220,11 @@ def list_intercompany_settlements(
     return list_settlements(db, tenant_id=current_user.tenant_id)
 
 
-@router.get("/intercompany-settlements/entity/{entity}/net-position", response_model=EntityNetPositionResponse)
+@router.get(
+    "/intercompany-settlements/entity/{entity}/net-position",
+    response_model=EntityNetPositionResponse,
     dependencies=[Depends(require_resource_permission("intercompany-settlement", "view"))]
+)
 def entity_net_position(
     entity: str,
     db: Session = Depends(get_db),
@@ -198,8 +235,12 @@ def entity_net_position(
     )
 
 
-@router.post("/bank-transactions", response_model=BankTransactionResponse, status_code=201)
+@router.post(
+    "/bank-transactions",
+    response_model=BankTransactionResponse,
+    status_code=201,
     dependencies=[Depends(require_resource_permission("bank-transaction", "create"))]
+)
 def create_bank_transaction(
     body: RecordBankTransactionRequest,
     db: Session = Depends(get_db),
@@ -214,8 +255,11 @@ def create_bank_transaction(
         raise HTTPException(status_code=400, detail=str(exc))
 
 
-@router.post("/bank-transactions/{transaction_id}/match", response_model=BankTransactionResponse)
+@router.post(
+    "/bank-transactions/{transaction_id}/match",
+    response_model=BankTransactionResponse,
     dependencies=[Depends(require_resource_permission("bank-transaction", "create"))]
+)
 def match_bank_transaction(
     transaction_id: int, body: MatchTransactionRequest,
     db: Session = Depends(get_db),
@@ -235,8 +279,11 @@ def match_bank_transaction(
         raise HTTPException(status_code=400, detail=str(exc))
 
 
-@router.get("/bank-transactions/unreconciled", response_model=list[BankTransactionResponse])
+@router.get(
+    "/bank-transactions/unreconciled",
+    response_model=list[BankTransactionResponse],
     dependencies=[Depends(require_resource_permission("bank-transaction", "view"))]
+)
 def unreconciled_bank_transactions(
     db: Session = Depends(get_db),
     current_user: Users = Depends(require_resource_permission("revenue", "view")),
@@ -244,8 +291,11 @@ def unreconciled_bank_transactions(
     return get_unreconciled_transactions(db, tenant_id=current_user.tenant_id)
 
 
-@router.get("/invoices/unmatched-paid", response_model=list[UnmatchedPaidInvoiceResponse])
+@router.get(
+    "/invoices/unmatched-paid",
+    response_model=list[UnmatchedPaidInvoiceResponse],
     dependencies=[Depends(require_resource_permission("invoice", "view"))]
+)
 def unmatched_paid_invoices(
     db: Session = Depends(get_db),
     current_user: Users = Depends(require_resource_permission("revenue", "view")),

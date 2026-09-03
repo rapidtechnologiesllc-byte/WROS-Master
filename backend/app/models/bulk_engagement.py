@@ -15,6 +15,7 @@ tracking has no existing real substitute) -- Integer/String(36) PK,
 String(50) UserID-as-tenant_id convention, matching every other new
 table this round.
 """
+import logging
 import uuid
 
 from sqlalchemy import Column, DateTime, ForeignKey, Integer, JSON, String, Text, func

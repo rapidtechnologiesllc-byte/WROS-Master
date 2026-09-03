@@ -105,7 +105,7 @@ try:
     print("\nEach role sees only what it needs. RBAC is now working correctly!")
 
 except Exception as e:
-   logger.error(f"Error: {str(e)}", exc_info=True)
+    logger.error(f"Error: {str(e)}", exc_info=True)
     logger.error(f"Error: {str(e)}", exc_info=True)
     print(f"\n[ERROR] Error: {e}")
     import traceback

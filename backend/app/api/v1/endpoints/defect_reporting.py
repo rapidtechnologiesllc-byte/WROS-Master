@@ -22,8 +22,11 @@ def ensure_defect_log_exists():
             f.write("# Defect Reports - Production\n\n")
 
 
-@router.post("/defects/report", response_model=DefectReportResponse)
+@router.post(
+    "/defects/report",
+    response_model=DefectReportResponse,
     dependencies=[Depends(require_resource_permission("defect", "create"))]
+)
 def report_defect(
     report: DefectReportRequest,
     db: Session = Depends(get_db),

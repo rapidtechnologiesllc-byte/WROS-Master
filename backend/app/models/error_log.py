@@ -11,6 +11,7 @@ files aren't queryable by integration_name/time_window) and CRITICAL
 paging (Step 3/AC-1). This table is the real, additive DB sink; not a
 replacement for the file logger.
 """
+import logging
 import uuid
 from datetime import datetime
 

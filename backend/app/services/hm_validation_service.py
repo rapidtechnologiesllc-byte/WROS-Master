@@ -74,7 +74,7 @@ class HMValidationService:
             return validation
 
         except Exception as e:
-           logger.error(f"Error: {str(e)}", exc_info=True)
+            logger.error(f"Error: {str(e)}", exc_info=True)
             logger.error(f"Error creating validation request: {str(e)}")
             raise
 
@@ -129,7 +129,7 @@ class HMValidationService:
             return True
 
         except Exception as e:
-           logger.error(f"Error: {str(e)}", exc_info=True)
+            logger.error(f"Error: {str(e)}", exc_info=True)
             logger.error(f"Error sending validation email: {str(e)}")
             return False
 
@@ -178,7 +178,7 @@ class HMValidationService:
                 return {"status": HMValidationStatus.MAYBE}
 
         except Exception as e:
-           logger.error(f"Error: {str(e)}", exc_info=True)
+            logger.error(f"Error: {str(e)}", exc_info=True)
             logger.error(f"Error determining decision: {str(e)}")
             return {"status": HMValidationStatus.MAYBE}  # Default to uncertain on error
 
@@ -225,7 +225,7 @@ class HMValidationService:
             return interview
 
         except Exception as e:
-           logger.error(f"Error: {str(e)}", exc_info=True)
+            logger.error(f"Error: {str(e)}", exc_info=True)
             logger.error(f"Error scheduling interview: {str(e)}")
             raise ValueError("Operation failed")
 
@@ -251,7 +251,7 @@ class HMValidationService:
             return True
 
         except Exception as e:
-           logger.error(f"Error: {str(e)}", exc_info=True)
+            logger.error(f"Error: {str(e)}", exc_info=True)
             logger.error(f"Error returning candidate to pool: {str(e)}")
             return False
 
@@ -281,7 +281,7 @@ class HMValidationService:
             return True
 
         except Exception as e:
-           logger.error(f"Error: {str(e)}", exc_info=True)
+            logger.error(f"Error: {str(e)}", exc_info=True)
             logger.error(f"Error escalating validation: {str(e)}")
             return False
 
@@ -310,7 +310,7 @@ class HMValidationService:
             return count
 
         except Exception as e:
-           logger.error(f"Error: {str(e)}", exc_info=True)
+            logger.error(f"Error: {str(e)}", exc_info=True)
             logger.error(f"Error handling expired validations: {str(e)}")
             return 0
 
@@ -343,7 +343,7 @@ class HMValidationService:
             return briefing
 
         except Exception as e:
-           logger.error(f"Error: {str(e)}", exc_info=True)
+            logger.error(f"Error: {str(e)}", exc_info=True)
             logger.error(f"Error generating interview briefing: {str(e)}")
             # CRITICAL FIX: Raise error instead of returning empty dict
             raise Exception(f"Failed to generate interview briefing: {str(e)}")
@@ -368,7 +368,7 @@ class HMValidationService:
             return query.order_by(HiringManagerValidation.due_at).limit(limit).all()
 
         except Exception as e:
-           logger.error(f"Error: {str(e)}", exc_info=True)
+            logger.error(f"Error: {str(e)}", exc_info=True)
             logger.error(f"Error fetching pending validations: {str(e)}")
             # CRITICAL FIX: Raise error instead of returning empty list
             raise Exception(f"Failed to fetch pending validations: {str(e)}")

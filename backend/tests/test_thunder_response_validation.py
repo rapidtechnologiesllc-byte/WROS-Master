@@ -17,6 +17,7 @@ must never burn an LLM call, not just be caught after the fact) and
 inside generate_thunder_reply() must escalate to the recruiter queue
 and fall back safely, not crash or retry blindly).
 """
+import logging
 import os
 import tempfile
 

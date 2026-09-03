@@ -24,7 +24,7 @@ for statement in statements:
     try:
         db.execute(text(statement))
     except Exception as e:
-       logger.error(f"Error: {str(e)}", exc_info=True)
+        logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Error: {str(e)}", exc_info=True)
         pass  # Ignore cleanup errors
 
@@ -50,7 +50,7 @@ for i, statement in enumerate(statements):
     try:
         db.execute(text(statement))
     except Exception as e:
-       logger.error(f"Error: {str(e)}", exc_info=True)
+        logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Error: {str(e)}", exc_info=True)
         print(f'Error in statement {i+1}: {str(e)[:150]}')
 
@@ -74,7 +74,7 @@ for i, statement in enumerate(statements):
     try:
         db.execute(text(statement))
     except Exception as e:
-       logger.error(f"Error: {str(e)}", exc_info=True)
+        logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Error: {str(e)}", exc_info=True)
         if 'already exists' not in str(e).lower() and 'duplicate' not in str(e).lower():
             print(f'Note: {str(e)[:100]}')

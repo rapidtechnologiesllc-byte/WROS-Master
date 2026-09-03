@@ -112,8 +112,8 @@ class SendLoginCredentialsRequest(BaseModel):
 # â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 @router.post(
-    dependencies=[Depends(get_current_user)]
     "/send",
+    dependencies=[Depends(get_current_user)],
 
     summary="Send a plain or HTML email from the HRMS service mailbox",
 )
@@ -138,8 +138,8 @@ def send_mail(
 
 
 @router.post(
-    dependencies=[Depends(get_current_user)]
     "/send-with-attachments",
+    dependencies=[Depends(get_current_user)],
 
     summary="Send an email with one or more file attachments",
 )
@@ -205,8 +205,8 @@ async def send_mail_with_attachments(
 
 
 @router.post(
-    dependencies=[Depends(get_current_user)]
     "/notify",
+    dependencies=[Depends(get_current_user)],
 
     summary="Send a styled HRMS notification email",
 )
@@ -230,8 +230,8 @@ def send_notification(
 
 
 @router.post(
-    dependencies=[Depends(require_resource_permission("message", "send"))],
     "/notify/event",
+    dependencies=[Depends(require_resource_permission("message", "send"))],
     summary="Send a rich event notification email (open to any authenticated user)",
     response_description="Email send result",
 )
@@ -304,8 +304,8 @@ def send_event_notification(
     )
 
 @router.post(
-    dependencies=[Depends(get_current_user)]
     "/interview/invite/{interview_id}",
+    dependencies=[Depends(get_current_user)],
 
     summary="Send interview invite for an existing scheduled interview",
 )
@@ -401,8 +401,8 @@ def send_interview_invite_by_id(
 
 
 @router.delete(
-    dependencies=[Depends(get_current_user)]
     "/interview/cancel/{interview_id}",
+    dependencies=[Depends(get_current_user)],
 
     summary="Cancel a scheduled interview â€” removes the Teams event and notifies everyone",
 )
@@ -497,8 +497,8 @@ def cancel_interview_by_id(
 
 
 @router.post(
-    dependencies=[Depends(get_current_user)]
     "/interview/invite/custom",
+    dependencies=[Depends(get_current_user)],
 
     summary="Send a custom ad-hoc interview invite (no interview_id needed)",
 )
@@ -528,8 +528,8 @@ def send_custom_interview_invite(
 
 
 @router.post(
-    dependencies=[Depends(get_current_user)]
     "/login-credentials/{candidate_id}",
+    dependencies=[Depends(get_current_user)],
 
     summary="Send login credentials to a candidate via email",
 )

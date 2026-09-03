@@ -23,6 +23,7 @@ R-08 BLOCKED_OWNERSHIP halt. Not in scope to fake those transports (the
 story's own "Not In Scope" section rules out raw channel API calls
 entirely -- sendThunderMessage() only).
 """
+import logging
 import json
 from datetime import datetime, timedelta
 from typing import Callable, Optional
@@ -217,7 +218,7 @@ def _attempt_send(
             db.add(sequence)
             return sequence
 
-    conversation = _get_or_create_conversation(
+            conversation = _get_or_create_conversation(
         db, candidate, conversation_tenant_id=conversation_tenant_id or candidate.candidateID,
     )
 

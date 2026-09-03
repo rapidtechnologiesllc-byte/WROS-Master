@@ -114,7 +114,7 @@ def link_email_to_lifecycle_record(
             "timeline_entry_id": entry.id,
         }
     except Exception as exc:
-       logger.error(f"Error: {str(exc)}", exc_info=True)
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[LifecycleCommunicationLinking] Failed to link email (direction={direction!r}): {exc}")
         db.rollback()
         raise ValueError("Operation failed")

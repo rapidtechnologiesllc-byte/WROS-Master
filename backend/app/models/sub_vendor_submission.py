@@ -21,6 +21,7 @@ Field name note: P808's own data-mapping table calls this column
 `status` here since the value space includes PENDING_REVIEW (nothing's
 been decided yet), which "review_decision" implies excludes.
 """
+import logging
 import uuid
 
 from sqlalchemy import (

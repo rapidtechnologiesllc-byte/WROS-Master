@@ -9,6 +9,7 @@ doesn't exist), never recompute one; there's nothing to display yet,
 and building a second scoring formula would contradict that story's
 own BR-0807-01.
 """
+import logging
 from datetime import date, datetime
 from typing import List, Optional
 

@@ -207,10 +207,12 @@ def test_concurrent_requests_for_different_tenants_never_bleed(client):
                     headers={"Authorization": f"Bearer {bx_token}"},
                 )
                 results["bx"].append(r.status_code)
-        except Exception as exc:  # pragma: no cover -- surfaced via errors list
+        except Exception as exc:
+            # pragma: no cover -- surfaced via errors list
             errors.append(exc)
 
-    def hit_other():
+            def hit_other():
+                pass
         try:
             for _ in range(15):
                 r = client.get(
@@ -218,10 +220,11 @@ def test_concurrent_requests_for_different_tenants_never_bleed(client):
                     headers={"Authorization": f"Bearer {other_token}"},
                 )
                 results["other"].append(r.status_code)
-        except Exception as exc:  # pragma: no cover
+        except Exception as exc:
+            # pragma: no cover
             errors.append(exc)
 
-    threads = [threading.Thread(target=hit_bx) for _ in range(4)] + [
+            threads = [threading.Thread(target=hit_bx) for _ in range(4)] + [
         threading.Thread(target=hit_other) for _ in range(4)
     ]
     for t in threads:

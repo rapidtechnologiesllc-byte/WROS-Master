@@ -10,6 +10,7 @@ update on a row that doesn't exist; this small table is the real
 minimal state needed to remember "don't ask this candidate about this
 field again" without touching get_missing_fields() itself.
 """
+import logging
 from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, func
 
 from app.models.base import Base

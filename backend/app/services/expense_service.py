@@ -1,4 +1,4 @@
-﻿"""
+"""
 Partner/BU spend tracking, 2026-08-05. Self-service, same ownership
 boundary as the existing employee self-service timesheet: whoever is
 logged in logs their OWN expense -- `logged_by_user_id` is always
@@ -261,7 +261,7 @@ def _notify_finance_of_approval(db: Session, expense: ExpenseRecord) -> None:
             ),
         )
     except Exception as exc:
-       logger.error(f"Error: {str(exc)}", exc_info=True)
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[ExpenseService] Could not notify {FINANCE_INBOX_EMAIL} of approval for expense {expense.id}: {exc}")
 
 

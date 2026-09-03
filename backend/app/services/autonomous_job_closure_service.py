@@ -74,7 +74,7 @@ def check_and_close_job_if_filled(db: Session, job_id: str) -> Optional[Dict]:
         }
 
     except Exception as e:
-       logger.error(f"Error: {str(e)}", exc_info=True)
+        logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"[Autonomous] Error closing job {job_id}: {e}")
         db.rollback()
         raise ValueError("Operation failed")
@@ -127,7 +127,7 @@ def _notify_remaining_candidates(db: Session, job_id: str) -> None:
                     )
 
     except Exception as e:
-       logger.error(f"Error: {str(e)}", exc_info=True)
+        logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"[Autonomous] Error notifying candidates for job {job_id}: {e}")
         db.rollback()
 
@@ -170,6 +170,6 @@ def get_job_closure_status(db: Session, job_id: str) -> Dict:
         }
 
     except Exception as e:
-       logger.error(f"Error: {str(e)}", exc_info=True)
+        logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"[Autonomous] Error getting closure status for job {job_id}: {e}")
         return {"error": str(e)}

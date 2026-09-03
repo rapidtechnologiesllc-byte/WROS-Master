@@ -26,6 +26,7 @@ If any link breaks, we escalate to Flash (daily).
 If 2+ links broken, escalate to CEO.
 """
 
+import logging
 from datetime import datetime, timedelta
 from typing import Dict, Any, List
 from sqlalchemy.orm import Session

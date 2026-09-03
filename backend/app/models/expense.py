@@ -18,6 +18,7 @@ BU attribution is derived from the logged-by user's own business_unit_id
 at creation time, never a caller-supplied field -- same
 attribution-locking discipline as app.services.client_service.create_client().
 """
+import logging
 import uuid
 
 from sqlalchemy import Column, Date, DateTime, Enum, ForeignKey, Integer, String, Text, func

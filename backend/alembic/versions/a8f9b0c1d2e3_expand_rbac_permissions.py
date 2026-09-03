@@ -130,7 +130,7 @@ def upgrade():
         print("[OK] Expanded RBAC permissions inserted (150+)")
 
     except Exception as exc:
-       logger.error(f"Error: {str(exc)}", exc_info=True)
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.error(f"Error: {str(exc)}", exc_info=True)
         print(f"[ERROR] Migration failed: {exc}")
         raise
@@ -157,7 +157,7 @@ def downgrade():
         print("[OK] Expanded RBAC permissions removed")
 
     except Exception as exc:
-       logger.error(f"Error: {str(exc)}", exc_info=True)
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.error(f"Error: {str(exc)}", exc_info=True)
         print(f"[ERROR] Downgrade failed: {exc}")
         raise

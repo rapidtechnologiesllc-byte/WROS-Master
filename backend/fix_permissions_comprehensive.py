@@ -103,7 +103,7 @@ try:
     print("Every user will see proper navigation on next login.")
 
 except Exception as e:
-   logger.error(f"Error: {str(e)}", exc_info=True)
+    logger.error(f"Error: {str(e)}", exc_info=True)
     logger.error(f"Error: {str(e)}", exc_info=True)
     print(f"\n❌ Error: {e}")
     import traceback

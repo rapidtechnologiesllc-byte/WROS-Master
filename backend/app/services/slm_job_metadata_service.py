@@ -28,6 +28,7 @@ Usage:
     )
 """
 
+import logging
 from datetime import datetime
 from typing import Optional, Dict, Any
 from sqlalchemy import Column, String, Integer, DateTime, Float, JSON, func, Text
@@ -155,7 +156,8 @@ class SLMJobMetadataService:
             db.commit()
             return True
 
-        except Exception as e:            logger.error(f"Failed to store job metadata: {str(e)}", exc_info=True)
+        except Exception as e:
+            logger.error(f"Failed to store job metadata: {str(e)}", exc_info=True)
             db.rollback()
             raise ValueError(f"Failed to store job metadata: {str(e)}")
 
@@ -217,7 +219,8 @@ class SLMJobMetadataService:
             db.commit()
             return True
 
-        except Exception as e:            logger.error(f"Failed to record hiring outcome: {str(e)}", exc_info=True)
+        except Exception as e:
+            logger.error(f"Failed to record hiring outcome: {str(e)}", exc_info=True)
             db.rollback()
             raise ValueError(f"Failed to record outcome: {str(e)}")
 
@@ -248,7 +251,8 @@ class SLMJobMetadataService:
                 "offer_acceptance_rate": job_metadata.offer_acceptance_rate,
             }
 
-        except Exception as e:            logger.error(f"Failed to get job metadata: {str(e)}", exc_info=True)
+        except Exception as e:
+            logger.error(f"Failed to get job metadata: {str(e)}", exc_info=True)
             raise ValueError(f"Failed to get job metadata: {str(e)}")
 
     @staticmethod
@@ -286,5 +290,6 @@ class SLMJobMetadataService:
                 for job in jobs
             ]
 
-        except Exception as e:            logger.error(f"Failed to get top jobs: {str(e)}", exc_info=True)
+        except Exception as e:
+            logger.error(f"Failed to get top jobs: {str(e)}", exc_info=True)
             raise ValueError(f"Failed to get top jobs: {str(e)}")

@@ -99,7 +99,7 @@ def _notify_recruiter_of_breach(db: Session, tenant_id: str, candidate: Candidat
             ),
         )
     except Exception as exc:
-       logger.error(f"Error: {str(exc)}", exc_info=True)
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[SLAMonitoring] Failed to notify recruiter of breach for candidate {candidate.candidateID}: {exc}")
 
 

@@ -4,6 +4,7 @@ COMPLETE INVOICE API ENDPOINTS - Production Grade
 
 Full invoice lifecycle management from creation through revenue recognition.
 """
+import logging
 from datetime import date, datetime
 from typing import Optional, List
 from fastapi import APIRouter, Depends, HTTPException, Query

@@ -4,6 +4,7 @@ S-372/HRMS-0528 -- Confirmed vs Potential Demand Workflow.
 
 Built from `Requirements/S-372_HRMS-0528.docx` directly.
 """
+import logging
 from datetime import date, datetime
 from typing import Callable, Optional
 

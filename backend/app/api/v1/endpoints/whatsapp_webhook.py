@@ -35,8 +35,8 @@ router = APIRouter(prefix="/webhooks", tags=["whatsapp-webhook"])
 
 
 @router.get(
-    dependencies=[Depends(get_current_user)]
     "/whatsapp",
+    dependencies=[Depends(get_current_user)],
     summary="Meta WhatsApp Cloud API webhook verification handshake",
 )
 def whatsapp_webhook_verify(request: Request):
@@ -65,15 +65,15 @@ def _process_webhook_payload(payload: dict) -> None:
                 for status in value.get("statuses") or []:
                     process_delivery_status(db, status)
     except Exception as exc:
-       logger.error(f"Error: {str(exc)}", exc_info=True)
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.error(f"[WhatsAppWebhook] Failed processing payload: {exc}", exc_info=True)
     finally:
         db.close()
 
 
 @router.post(
-    dependencies=[Depends(get_current_user)]
     "/whatsapp",
+    dependencies=[Depends(get_current_user)],
     status_code=200,
     summary="Receive inbound WhatsApp messages and delivery status updates",
 )

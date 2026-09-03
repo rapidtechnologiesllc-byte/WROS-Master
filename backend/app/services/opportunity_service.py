@@ -17,6 +17,7 @@ Stage transition to WON auto-creates a Project (HRMS-0801 BR-0801-01,
 completing the hook this module's own docstring used to defer -- Project
 now exists as of the Projects build round).
 """
+import logging
 from datetime import datetime
 from typing import Iterable, List, Optional
 

@@ -16,7 +16,7 @@ try:
     print(f"✅ Removed all {count} permissions")
     print("   Ready for proper role-specific permissions")
 except Exception as e:
-   logger.error(f"Error: {str(e)}", exc_info=True)
+    logger.error(f"Error: {str(e)}", exc_info=True)
     logger.error(f"Error: {str(e)}", exc_info=True)
     print(f"Error: {e}")
     db.rollback()

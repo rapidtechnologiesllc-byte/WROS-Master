@@ -79,7 +79,7 @@ try:
     print("  - All Recruitment screens: View=YES, Create=YES, Edit=YES, Delete=YES")
 
 except Exception as e:
-   logger.error(f"Error: {str(e)}", exc_info=True)
+    logger.error(f"Error: {str(e)}", exc_info=True)
     logger.error(f"Error: {str(e)}", exc_info=True)
     db.rollback()
     print("[ERROR] Error: {}".format(str(e)))

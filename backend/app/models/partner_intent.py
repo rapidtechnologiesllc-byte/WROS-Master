@@ -26,6 +26,7 @@ math (the part with real business value and real risk of getting
 wrong) is genuinely built and tested regardless of when that follow-up
 lands.
 """
+import logging
 import uuid
 
 from sqlalchemy import Column, DateTime, ForeignKey, Integer, Numeric, String, Text, func

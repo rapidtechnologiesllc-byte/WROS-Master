@@ -172,7 +172,7 @@ def create_agent_standups_test_data():
         print("   - Scrum of Scrums coordination data")
 
     except Exception as e:
-       logger.error(f"Error: {str(e)}", exc_info=True)
+        logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Error: {str(e)}", exc_info=True)
         db.rollback()
         print("[ERROR] Error creating test data: {}".format(e))

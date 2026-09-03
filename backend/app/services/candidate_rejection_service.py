@@ -17,6 +17,7 @@ Business Rules:
 - All operations logged to audit trail
 """
 
+import logging
 from typing import Optional, List, Tuple
 from datetime import datetime
 from sqlalchemy.orm import Session
@@ -137,7 +138,7 @@ def reject_candidate(
                 rejection.email_sent = True
                 rejection.email_sent_at = datetime.utcnow()
             except Exception as e:
-               logger.error(f"Error: {str(e)}", exc_info=True)
+                logger.error(f"Error: {str(e)}", exc_info=True)
                 logger.warning(f"Failed to send rejection email for candidate {candidate_id}: {str(e)}")
                 # Don't fail the entire rejection if email fails
                 rejection.email_sent = False
@@ -380,7 +381,7 @@ def _send_rejection_email_internal(
         logger.info(f"Rejection email sent via Thunder for {rejection.candidate_id}")
         return
     except Exception as e:
-       logger.error(f"Error: {str(e)}", exc_info=True)
+        logger.error(f"Error: {str(e)}", exc_info=True)
         logger.debug(f"Thunder message send failed, falling back to EmailService: {str(e)}")
 
     # Fallback to direct email
@@ -393,7 +394,8 @@ def _send_rejection_email_internal(
             is_html=False,
         )
         logger.info(f"Rejection email sent directly for {rejection.candidate_id}")
-    except Exception as e:        logger.error(f"Failed to send rejection email: {str(e)}")
+    except Exception as e:
+        logger.error(f"Failed to send rejection email: {str(e)}")
         raise
 
 

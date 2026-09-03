@@ -8,6 +8,7 @@ Handles:
 - Task redistribution via round-robin when user terminates
 - User audit trail retrieval (all changes: create, terminate, reinstate, permission changes)
 """
+import logging
 from datetime import datetime
 from typing import List, Dict, Any, Optional
 from sqlalchemy.orm import Session

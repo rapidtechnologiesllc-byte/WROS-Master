@@ -3,6 +3,7 @@ Pydantic Schemas — "Test Thunder" chat mode.
 import logging
 """
 
+import logging
 from datetime import datetime
 from typing import List, Optional
 

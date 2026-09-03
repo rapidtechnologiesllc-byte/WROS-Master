@@ -14,6 +14,7 @@ Uses this codebase's real Integer-autoincrement PK + String(50)
 UserID-as-tenant_id conventions (CandidateConversation, ConversationEvent,
 MessageTemplate all do this), not the spec's UUID assumption.
 """
+import logging
 from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, func
 from sqlalchemy.orm import relationship
 

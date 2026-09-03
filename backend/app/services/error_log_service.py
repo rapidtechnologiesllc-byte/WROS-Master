@@ -1,4 +1,4 @@
-﻿"""
+"""
 import logging
 S-215/HRMS-0117 -- Error Logging Framework.
 

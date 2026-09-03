@@ -100,7 +100,7 @@ def verify_database_connection():
 
         return True
     except Exception as e:
-      logger.error(f"Error: {str(e)}", exc_info=True)
+        logger.error(f"Error: {str(e)}", exc_info=True)
        logger.error(f"Error: {str(e)}", exc_info=True)
         log_error(f"PostgreSQL connection failed: {e}")
         return False
@@ -119,7 +119,7 @@ def initialize_database_schema():
 
         return True
     except Exception as e:
-      logger.error(f"Error: {str(e)}", exc_info=True)
+        logger.error(f"Error: {str(e)}", exc_info=True)
        logger.error(f"Error: {str(e)}", exc_info=True)
         log_error(f"Schema initialization failed: {e}")
         return False
@@ -160,7 +160,7 @@ def run_alembic_migrations():
             log_warning("Alembic not available or not configured (this is optional)")
             return True
     except Exception as e:
-      logger.error(f"Error: {str(e)}", exc_info=True)
+        logger.error(f"Error: {str(e)}", exc_info=True)
        logger.error(f"Error: {str(e)}", exc_info=True)
         log_warning(f"Alembic migration skipped: {e}")
         return True
@@ -198,7 +198,7 @@ def initialize_rbac():
         finally:
             db.close()
     except Exception as e:
-      logger.error(f"Error: {str(e)}", exc_info=True)
+        logger.error(f"Error: {str(e)}", exc_info=True)
        logger.error(f"Error: {str(e)}", exc_info=True)
         log_warning(f"RBAC initialization: {e}")
         return True
@@ -217,7 +217,7 @@ def verify_database_performance():
 
         return True
     except Exception as e:
-      logger.error(f"Error: {str(e)}", exc_info=True)
+        logger.error(f"Error: {str(e)}", exc_info=True)
        logger.error(f"Error: {str(e)}", exc_info=True)
         log_warning(f"Performance verification: {e}")
         return True
@@ -263,7 +263,7 @@ def main():
         try:
             results[step_name] = step_func()
         except Exception as e:
-          logger.error(f"Error: {str(e)}", exc_info=True)
+            logger.error(f"Error: {str(e)}", exc_info=True)
            logger.error(f"Error: {str(e)}", exc_info=True)
             log_error(f"Unexpected error in {step_name}: {e}")
             results[step_name] = False

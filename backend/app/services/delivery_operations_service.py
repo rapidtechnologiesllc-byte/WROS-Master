@@ -57,7 +57,7 @@ class DeliveryOperationsService:
             return provisioning_result
 
         except Exception as e:
-           logger.error(f"Error: {str(e)}", exc_info=True)
+            logger.error(f"Error: {str(e)}", exc_info=True)
             logger.error(f"Project provisioning failed: {e}", exc_info=True)
             raise ValueError(f"Provisioning failed: {str(e)}")
 
@@ -102,7 +102,7 @@ class DeliveryOperationsService:
             return monitoring_result
 
         except Exception as e:
-           logger.error(f"Error: {str(e)}", exc_info=True)
+            logger.error(f"Error: {str(e)}", exc_info=True)
             logger.error(f"Velocity monitoring failed: {e}", exc_info=True)
             raise ValueError(f"Monitoring failed: {str(e)}")
 
@@ -153,7 +153,7 @@ class DeliveryOperationsService:
             return upskilling_plan
 
         except Exception as e:
-           logger.error(f"Error: {str(e)}", exc_info=True)
+            logger.error(f"Error: {str(e)}", exc_info=True)
             logger.error(f"Upskilling assignment failed: {e}", exc_info=True)
             raise ValueError(f"Upskilling failed: {str(e)}")
 
@@ -227,6 +227,6 @@ class DeliveryOperationsService:
             }
 
         except Exception as e:
-           logger.error(f"Error: {str(e)}", exc_info=True)
+            logger.error(f"Error: {str(e)}", exc_info=True)
             logger.error(f"Land-and-expand check failed: {e}", exc_info=True)
             raise

@@ -6,6 +6,7 @@ Provides CRUD operations for agent configs and auto-syncs permissions
 to ensure proper access control across the system.
 """
 
+import logging
 from typing import List, Dict, Any, Optional
 from sqlalchemy.orm import Session
 from sqlalchemy import and_
@@ -33,7 +34,7 @@ class AgentConfigService:
             ).order_by(AgentConfig.order).all()
             return agents
         except Exception as e:
-           logger.error(f"Error: {str(e)}", exc_info=True)
+            logger.error(f"Error: {str(e)}", exc_info=True)
             logger.error(f"Error fetching agents for tenant {tenant_id}: {str(e)}")
             raise
 
@@ -159,7 +160,7 @@ class AgentConfigService:
             ]
 
         except Exception as e:
-           logger.error(f"Error: {str(e)}", exc_info=True)
+            logger.error(f"Error: {str(e)}", exc_info=True)
             logger.error(f"Error fetching pipeline order for tenant {tenant_id}: {str(e)}")
             raise
 

@@ -6,6 +6,7 @@ This test follows a candidate through the entire hiring pipeline
 and shows exactly what breaks or fails at each stage.
 """
 
+import logging
 import pytest
 from datetime import datetime, date, timedelta
 from sqlalchemy.orm import Session

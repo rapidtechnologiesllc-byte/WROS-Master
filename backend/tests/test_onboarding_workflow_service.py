@@ -8,6 +8,7 @@ Test coverage for:
 - send_welcome_kit()
 - schedule_training()
 """
+import logging
 import pytest
 from datetime import date, datetime, timedelta
 from sqlalchemy.orm import Session

@@ -8,6 +8,7 @@ dedupe/unique semantics doesn't fit any existing structure. Integer-PK
 + String(50) UserID-as-tenant_id convention, matching every other new
 table this round.
 """
+import logging
 from sqlalchemy import Column, DateTime, Float, ForeignKey, Index, Integer, String, UniqueConstraint, func
 
 from app.models.base import Base

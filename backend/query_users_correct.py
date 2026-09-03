@@ -54,7 +54,7 @@ try:
             print("  ✗ No role template found for formtest user")
 
 except Exception as e:
-   logger.error(f"Error: {str(e)}", exc_info=True)
+    logger.error(f"Error: {str(e)}", exc_info=True)
     logger.error(f"Error: {str(e)}", exc_info=True)
     print(f"✗ Error: {e}")
     import traceback

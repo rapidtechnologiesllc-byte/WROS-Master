@@ -21,6 +21,7 @@ timestamp/FK-presence convention this codebase uses everywhere else
 (confirmed_at, superseded_at, etc.) rather than a second status flag
 duplicating what the status column already says.
 """
+import logging
 from sqlalchemy import (
     Column, DateTime, Enum, ForeignKey, Integer, JSON, Numeric, String, Text, func,
 )

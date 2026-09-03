@@ -23,6 +23,7 @@ performance store (HRMS-0515, built alongside S-360 in the same
 session) -- this wiring was originally deferred when the Buddy Program
 was first built, since that table didn't exist yet.
 """
+import logging
 import json
 from datetime import date
 from typing import Dict, List, Optional

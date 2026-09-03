@@ -83,7 +83,7 @@ def analyze_sentiment(
             sentiment, confidence = NEUTRAL_RESULT["sentiment"], NEUTRAL_RESULT["confidence"]
         confidence = max(0.0, min(1.0, confidence))
     except Exception as exc:
-       logger.error(f"Error: {str(exc)}", exc_info=True)
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[Sentiment] SENTIMENT_LLM_FAILED for candidate {candidate_id!r}: {exc}")
         sentiment, confidence, response = NEUTRAL_RESULT["sentiment"], NEUTRAL_RESULT["confidence"], None
 

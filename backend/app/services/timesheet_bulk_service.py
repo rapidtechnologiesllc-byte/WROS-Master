@@ -41,7 +41,8 @@ class TimesheetBulkService:
                 }
                 for ts in timesheets
             ]
-        except Exception as e:            logger.error(f"Failed to get pending timesheets: {e}", exc_info=True)
+        except Exception as e:
+            logger.error(f"Failed to get pending timesheets: {e}", exc_info=True)
             raise
 
     @staticmethod
@@ -77,7 +78,7 @@ class TimesheetBulkService:
                     approved_count += 1
 
                 except Exception as e:
-                   logger.error(f"Error: {str(e)}", exc_info=True)
+                    logger.error(f"Error: {str(e)}", exc_info=True)
                     logger.warning(f"Failed to approve timesheet {ts_id}: {e}")
                     failed_ids.append(ts_id)
                     failed_count += 1
@@ -118,7 +119,7 @@ class TimesheetBulkService:
                         timesheet.rejection_reason = reason
                         rejected_count += 1
                 except Exception as e:
-                   logger.error(f"Error: {str(e)}", exc_info=True)
+                    logger.error(f"Error: {str(e)}", exc_info=True)
                     logger.warning(f"Failed to reject timesheet {ts_id}: {e}")
 
             db.commit()
@@ -172,5 +173,6 @@ class TimesheetBulkService:
                 "average_hours": round(avg_hours, 2),
                 "kpi_score": round(approval_rate, 2)  # KPI = approval rate %
             }
-        except Exception as e:            logger.error(f"Failed to get timesheet KPIs: {e}", exc_info=True)
+        except Exception as e:
+            logger.error(f"Failed to get timesheet KPIs: {e}", exc_info=True)
             raise

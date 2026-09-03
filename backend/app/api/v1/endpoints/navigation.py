@@ -50,8 +50,10 @@ def get_icon_for_resource(resource_name: str) -> str:
     return icon_map.get(resource_name, "Briefcase")
 
 
-@router.get("/navigation")
+@router.get(
+    "/navigation",
     dependencies=[Depends(require_resource_permission("navigation", "view"))]
+)
 def get_user_navigation(db: Session = Depends(get_db), current_user = Depends(get_current_user)):
     """
     Get personalized navigation structure for the logged-in user.
@@ -120,7 +122,7 @@ def get_user_navigation(db: Session = Depends(get_db), current_user = Depends(ge
                 try:
                     can_view = RoleTemplatePermissionService.can_view(db, user_id, resource_name, tenant_id)
                 except Exception as e:
-                   logger.error(f"Error: {str(e)}", exc_info=True)
+                    logger.error(f"Error: {str(e)}", exc_info=True)
                     logger.warning(f"[NAV] Permission check failed for {resource_name}: {e}")
                     can_view = False
 
@@ -143,7 +145,7 @@ def get_user_navigation(db: Session = Depends(get_db), current_user = Depends(ge
         return response
 
     except Exception as e:
-       logger.error(f"Error: {str(e)}", exc_info=True)
+        logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Navigation error: {e}", exc_info=True)
         # Do NOT return fallback empty response - let error propagate
         # ALL navigation should be fully dynamic, no hardcoded fallbacks

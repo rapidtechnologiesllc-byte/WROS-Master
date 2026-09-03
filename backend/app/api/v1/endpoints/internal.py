@@ -1,4 +1,4 @@
-﻿"""
+"""
 Internal HR Notes API
 =====================
 Private notes that HR team members can attach to a candidate for internal
@@ -92,8 +92,8 @@ def get_notes_by_candidate(
 # ---------------------------------------------------------------------------
 
 @router.post(
-    dependencies=[Depends(require_resource_permission("resource", "access"))],
     "/notes/{candidate_id}",
+    dependencies=[Depends(require_resource_permission("resource", "access"))],
     response_model=InternalNoteResponse,
     status_code=201,
     summary="Add an internal HR note to a candidate",

@@ -17,6 +17,7 @@ completion()), which doubles as this table's own idempotency guard:
 its presence means "onboarding.complete has already been handled for
 this candidate," so HR is never notified twice.
 """
+import logging
 from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, func
 from sqlalchemy.orm import relationship
 

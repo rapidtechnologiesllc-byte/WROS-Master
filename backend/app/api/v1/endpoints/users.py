@@ -8,8 +8,11 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db, check_user
 from app.core.security import get_password_hash, create_access_token
-from app.core.dependencies import get_current_internal_user, require_resource_permission, get_current_internal_user
+from app.core.dependencies import get_current_internal_user, require_resource_permission
 from app.models import Users, Candidate, CandidateAssignment, Interview, InterviewPanel, InterviewFeedback, PanelMember, BusinessUnit, Department
+
+# Alias for backward compatibility
+get_current_user = get_current_internal_user
 from app.models.user import Jobs
 from app.models.offer_letter import OfferLetter
 from app.models.document import CandidateDocument
@@ -40,8 +43,8 @@ router = APIRouter(prefix="/hr", tags=["hr"])
 
 
 @router.get(
-    dependencies=[Depends(get_current_user)]
     "/me",
+    dependencies=[Depends(get_current_user)],
     summary="Get current HR/Admin user's profile with a fresh access token",
 )
 def get_me(
@@ -126,8 +129,8 @@ def get_me(
 
 
 @router.patch(
-    dependencies=[Depends(get_current_user)]
     "/me/digest-preference",
+    dependencies=[Depends(get_current_user)],
     response_model=DigestPreferenceResponse,
     summary="Enable/disable the recruiter's own Thunder morning digest (S-065/HRMS-0465)",
 )
@@ -143,16 +146,16 @@ def update_digest_preference(
 
 
 @router.get(
-    dependencies=[Depends(get_current_user)]
     "/me/permissions",
+    dependencies=[Depends(get_current_user)],
     summary="Get current user's permissions for frontend access control",
 )
 def get_current_user_permissions(
-        if not current_user:
-            raise HTTPException(status_code=401, detail="Authentication required")
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user),
 ):
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Authentication required")
     """
     Get current user's permissions in a format optimized for frontend use.
 
@@ -189,8 +192,8 @@ def get_current_user_permissions(
 
 
 @router.get(
-    dependencies=[Depends(get_current_user)]
     "/users/all",
+    dependencies=[Depends(get_current_user)],
     response_model=AllUsersResponse,
 )
 def get_all_users(
@@ -237,8 +240,8 @@ def get_all_users(
 
 
 @router.get(
-    dependencies=[Depends(get_current_user)]
     "/users/search",
+    dependencies=[Depends(get_current_user)],
     response_model=AllUsersResponse,
     summary="Search / filter users by name, permission role, or user role",
 )
@@ -352,8 +355,8 @@ def search_users(
 
 
 @router.get(
-    dependencies=[Depends(get_current_user)]
     "/users/details/{user_id}",
+    dependencies=[Depends(get_current_user)],
     response_model=UserResponse,
     summary="Get user details by user ID",
 )
@@ -1216,8 +1219,8 @@ def get_hiring_manager_assigned_candidates(
 
 
 @router.get(
-    dependencies=[Depends(get_current_user)]
     "/job-titles",
+    dependencies=[Depends(get_current_user)],
     summary="Get all active job titles for the tenant",
     tags=["reference-data"]
 )

@@ -162,7 +162,7 @@ def check_offer_readiness(db: Session, candidate_id: str, job_id: str, tenant_id
             ))
             db.commit()
     except Exception as exc:
-       logger.error(f"Error: {str(exc)}", exc_info=True)
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[OfferReadiness] Failed to log OFFER_READINESS_CHECKED for candidate {candidate_id!r}: {exc}")
         db.rollback()
 

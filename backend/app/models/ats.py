@@ -6,6 +6,7 @@ HR users can review scores without re-running the LLM pipeline.
 import logging
 """
 
+import logging
 from datetime import datetime
 
 from sqlalchemy import (

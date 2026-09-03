@@ -230,7 +230,7 @@ def parse_field_response(
     try:
         extracted = _extract_raw_value(field_name, message_body, llm_call)
     except Exception as exc:
-       logger.error(f"Error: {str(exc)}", exc_info=True)
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[ResponseParser] Parse failed for field {field_name}, candidate {candidate.candidateID}: {exc}")
         db.add(ConversationEvent(
             conversation_id=conversation.id, event_type="PARSE_API_FAILED",

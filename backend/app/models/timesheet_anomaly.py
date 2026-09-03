@@ -12,6 +12,7 @@ advisory annotations only -- see app.services.timesheet_anomaly_service,
 never called from timesheet_service.submit_timesheet(), so a flag can
 never block a submission or approval.
 """
+import logging
 import uuid
 
 from sqlalchemy import Column, DateTime, Enum, ForeignKey, Integer, String, func

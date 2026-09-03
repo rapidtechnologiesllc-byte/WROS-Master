@@ -9,6 +9,7 @@ goes through app.services.thunder_service.send_thunder_message(), the
 same governed path Thunder itself uses, so R-08 ownership and consent
 are enforced uniformly (BR-1104-01).
 """
+import logging
 from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, Text, func
 
 from app.models.base import Base

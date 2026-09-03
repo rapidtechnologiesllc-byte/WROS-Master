@@ -9,6 +9,7 @@ they're a Python constant (KPI_DEFINITIONS in the service module), not
 an ORM-backed, app-editable table. Only the two tables that hold actual
 per-hire, per-week data are modeled here.
 """
+import logging
 import uuid
 
 from sqlalchemy import Boolean, Column, Date, DateTime, ForeignKey, Integer, String, Text, func

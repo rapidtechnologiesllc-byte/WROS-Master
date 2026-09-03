@@ -32,7 +32,7 @@ def start_scheduler():
                     if count:
                         logger.info(f"[scheduler] Expired {count} BU ownership lock(s)")
                 except Exception as exc:
-                   logger.error(f"Error: {str(exc)}", exc_info=True)
+                    logger.error(f"Error: {str(exc)}", exc_info=True)
                     logger.error(f"[scheduler] BU ownership expiry error: {exc}")
                 finally:
                     db.close()
@@ -47,7 +47,7 @@ def start_scheduler():
             )
             logger.info("[OK] Scheduled daily BU ownership expiry job (00:00 UTC)")
         except Exception as exc:
-           logger.error(f"Error: {str(exc)}", exc_info=True)
+            logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.warning(f"Could not register BU ownership expiry scheduler: {exc}")
 
         # ── Every 15 min: poll for candidate email replies ─────────────────
@@ -66,7 +66,7 @@ def start_scheduler():
                     if result["checked"]:
                         logger.info(f"[scheduler] Candidate reply poll: {result}")
                 except Exception as exc:
-                   logger.error(f"Error: {str(exc)}", exc_info=True)
+                    logger.error(f"Error: {str(exc)}", exc_info=True)
                     logger.error(f"[scheduler] Candidate reply poll error: {exc}")
                 finally:
                     db.close()
@@ -80,7 +80,7 @@ def start_scheduler():
             )
             logger.info("[OK] Scheduled candidate reply poll job (every 15 min)")
         except Exception as exc:
-           logger.error(f"Error: {str(exc)}", exc_info=True)
+            logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.warning(f"Could not register candidate reply poll scheduler: {exc}")
 
         # ── Every 30 min: SLA_MONITORING_JOB (S-020/HRMS-0420) ──────────────
@@ -95,7 +95,7 @@ def start_scheduler():
                     if result["created"] or result["resolved"]:
                         logger.info(f"[scheduler] SLA monitoring: {result}")
                 except Exception as exc:
-                   logger.error(f"Error: {str(exc)}", exc_info=True)
+                    logger.error(f"Error: {str(exc)}", exc_info=True)
                     logger.error(f"[scheduler] SLA monitoring error: {exc}")
                 finally:
                     db.close()
@@ -109,7 +109,7 @@ def start_scheduler():
             )
             logger.info("[OK] Scheduled SLA monitoring job (every 30 min)")
         except Exception as exc:
-           logger.error(f"Error: {str(exc)}", exc_info=True)
+            logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.warning(f"Could not register SLA monitoring scheduler: {exc}")
 
         # ── Every 15 min: FOLLOW_UP_EXECUTION_JOB (S-041/HRMS-0441) ─────────
@@ -124,7 +124,7 @@ def start_scheduler():
                     if result["processed"]:
                         logger.info(f"[scheduler] Follow-up execution: {result}")
                 except Exception as exc:
-                   logger.error(f"Error: {str(exc)}", exc_info=True)
+                    logger.error(f"Error: {str(exc)}", exc_info=True)
                     logger.error(f"[scheduler] Follow-up execution error: {exc}")
                 finally:
                     db.close()
@@ -138,7 +138,7 @@ def start_scheduler():
             )
             logger.info("[OK] Scheduled follow-up execution job (every 15 min)")
         except Exception as exc:
-           logger.error(f"Error: {str(exc)}", exc_info=True)
+            logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.warning(f"Could not register follow-up execution scheduler: {exc}")
 
         # ── Every 30 min: NO_RESPONSE_DETECTION_JOB (S-042/HRMS-0442) ───────
@@ -153,7 +153,7 @@ def start_scheduler():
                     if result["first_detected"] or result["post_third"]:
                         logger.info(f"[scheduler] No-response detection: {result}")
                 except Exception as exc:
-                   logger.error(f"Error: {str(exc)}", exc_info=True)
+                    logger.error(f"Error: {str(exc)}", exc_info=True)
                     logger.error(f"[scheduler] No-response detection error: {exc}")
                 finally:
                     db.close()
@@ -167,7 +167,7 @@ def start_scheduler():
             )
             logger.info("[OK] Scheduled no-response detection job (every 30 min)")
         except Exception as exc:
-           logger.error(f"Error: {str(exc)}", exc_info=True)
+            logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.warning(f"Could not register no-response detection scheduler: {exc}")
 
         # ── Every 30 min: GHOSTING_DETECTION_JOB (S-043/HRMS-0443) ──────────
@@ -182,7 +182,7 @@ def start_scheduler():
                     if result["ghosted"]:
                         logger.info(f"[scheduler] Ghosting detection: {result}")
                 except Exception as exc:
-                   logger.error(f"Error: {str(exc)}", exc_info=True)
+                    logger.error(f"Error: {str(exc)}", exc_info=True)
                     logger.error(f"[scheduler] Ghosting detection error: {exc}")
                 finally:
                     db.close()
@@ -196,7 +196,7 @@ def start_scheduler():
             )
             logger.info("[OK] Scheduled ghosting detection job (every 30 min)")
         except Exception as exc:
-           logger.error(f"Error: {str(exc)}", exc_info=True)
+            logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.warning(f"Could not register ghosting detection scheduler: {exc}")
 
         # ── Every 15 min: CAMPAIGN_EXECUTION_JOB (S-044/HRMS-0444) ──────────
@@ -211,7 +211,7 @@ def start_scheduler():
                     if result["processed"]:
                         logger.info(f"[scheduler] Campaign execution: {result}")
                 except Exception as exc:
-                   logger.error(f"Error: {str(exc)}", exc_info=True)
+                    logger.error(f"Error: {str(exc)}", exc_info=True)
                     logger.error(f"[scheduler] Campaign execution error: {exc}")
                 finally:
                     db.close()
@@ -225,7 +225,7 @@ def start_scheduler():
             )
             logger.info("[OK] Scheduled campaign execution job (every 15 min)")
         except Exception as exc:
-           logger.error(f"Error: {str(exc)}", exc_info=True)
+            logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.warning(f"Could not register campaign execution scheduler: {exc}")
 
         # ── Every 30 min: REACTIVATION_JOB (S-045/HRMS-0445) ────────────────
@@ -240,7 +240,7 @@ def start_scheduler():
                     if result["processed"]:
                         logger.info(f"[scheduler] Reactivation: {result}")
                 except Exception as exc:
-                   logger.error(f"Error: {str(exc)}", exc_info=True)
+                    logger.error(f"Error: {str(exc)}", exc_info=True)
                     logger.error(f"[scheduler] Reactivation error: {exc}")
                 finally:
                     db.close()
@@ -254,7 +254,7 @@ def start_scheduler():
             )
             logger.info("[OK] Scheduled reactivation job (every 30 min)")
         except Exception as exc:
-           logger.error(f"Error: {str(exc)}", exc_info=True)
+            logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.warning(f"Could not register reactivation scheduler: {exc}")
 
         # ── Daily: REACTIVATION_RESCHEDULE_JOB (S-045/HRMS-0445) ────────────
@@ -273,7 +273,7 @@ def start_scheduler():
                     if result["rescheduled"]:
                         logger.info(f"[scheduler] Reactivation reschedule: {result}")
                 except Exception as exc:
-                   logger.error(f"Error: {str(exc)}", exc_info=True)
+                    logger.error(f"Error: {str(exc)}", exc_info=True)
                     logger.error(f"[scheduler] Reactivation reschedule error: {exc}")
                 finally:
                     db.close()
@@ -288,7 +288,7 @@ def start_scheduler():
             )
             logger.info("[OK] Scheduled reactivation reschedule job (01:00 UTC daily)")
         except Exception as exc:
-           logger.error(f"Error: {str(exc)}", exc_info=True)
+            logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.warning(f"Could not register reactivation reschedule scheduler: {exc}")
 
         # ── Every 6 hours: ABANDONMENT_SCORING_JOB (S-046/HRMS-0446) ────────
@@ -303,7 +303,7 @@ def start_scheduler():
                     if result["scored"]:
                         logger.info(f"[scheduler] Abandonment scoring: {result}")
                 except Exception as exc:
-                   logger.error(f"Error: {str(exc)}", exc_info=True)
+                    logger.error(f"Error: {str(exc)}", exc_info=True)
                     logger.error(f"[scheduler] Abandonment scoring error: {exc}")
                 finally:
                     db.close()
@@ -317,7 +317,7 @@ def start_scheduler():
             )
             logger.info("[OK] Scheduled abandonment scoring job (every 6 hours)")
         except Exception as exc:
-           logger.error(f"Error: {str(exc)}", exc_info=True)
+            logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.warning(f"Could not register abandonment scoring scheduler: {exc}")
 
         # ── Every 10 min: REMINDER_EXECUTION_JOB (S-050/HRMS-0450) ──────────
@@ -332,7 +332,7 @@ def start_scheduler():
                     if result["processed"]:
                         logger.info(f"[scheduler] Interview reminder execution: {result}")
                 except Exception as exc:
-                   logger.error(f"Error: {str(exc)}", exc_info=True)
+                    logger.error(f"Error: {str(exc)}", exc_info=True)
                     logger.error(f"[scheduler] Interview reminder execution error: {exc}")
                 finally:
                     db.close()
@@ -346,7 +346,7 @@ def start_scheduler():
             )
             logger.info("[OK] Scheduled interview reminder execution job (every 10 min)")
         except Exception as exc:
-           logger.error(f"Error: {str(exc)}", exc_info=True)
+            logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.warning(f"Could not register interview reminder execution scheduler: {exc}")
 
         # ── Every 5 min: NO_SHOW_DETECTION_JOB (S-052/HRMS-0452) ────────────
@@ -361,7 +361,7 @@ def start_scheduler():
                     if result["processed"]:
                         logger.info(f"[scheduler] No-show detection: {result}")
                 except Exception as exc:
-                   logger.error(f"Error: {str(exc)}", exc_info=True)
+                    logger.error(f"Error: {str(exc)}", exc_info=True)
                     logger.error(f"[scheduler] No-show detection error: {exc}")
                 finally:
                     db.close()
@@ -375,7 +375,7 @@ def start_scheduler():
             )
             logger.info("[OK] Scheduled no-show detection job (every 5 min)")
         except Exception as exc:
-           logger.error(f"Error: {str(exc)}", exc_info=True)
+            logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.warning(f"Could not register no-show detection scheduler: {exc}")
 
         # ── Every 6 hours: DOCUMENT_REMINDER_JOB (S-057/HRMS-0457) ──────────
@@ -390,7 +390,7 @@ def start_scheduler():
                     if result["processed"]:
                         logger.info(f"[scheduler] Document reminder: {result}")
                 except Exception as exc:
-                   logger.error(f"Error: {str(exc)}", exc_info=True)
+                    logger.error(f"Error: {str(exc)}", exc_info=True)
                     logger.error(f"[scheduler] Document reminder error: {exc}")
                 finally:
                     db.close()
@@ -404,7 +404,7 @@ def start_scheduler():
             )
             logger.info("[OK] Scheduled document reminder job (every 6 hours)")
         except Exception as exc:
-           logger.error(f"Error: {str(exc)}", exc_info=True)
+            logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.warning(f"Could not register document reminder scheduler: {exc}")
 
         # ── Every 6 hours: JOINING_READINESS_JOB (S-058/HRMS-0458) ──────────
@@ -419,7 +419,7 @@ def start_scheduler():
                     if result["processed"]:
                         logger.info(f"[scheduler] Joining readiness: {result}")
                 except Exception as exc:
-                   logger.error(f"Error: {str(exc)}", exc_info=True)
+                    logger.error(f"Error: {str(exc)}", exc_info=True)
                     logger.error(f"[scheduler] Joining readiness error: {exc}")
                 finally:
                     db.close()
@@ -433,7 +433,7 @@ def start_scheduler():
             )
             logger.info("[OK] Scheduled joining readiness job (every 6 hours)")
         except Exception as exc:
-           logger.error(f"Error: {str(exc)}", exc_info=True)
+            logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.warning(f"Could not register joining readiness scheduler: {exc}")
 
         # ── Every 30 min: DAILY_DIGEST_JOB (S-065/HRMS-0465) ────────────────
@@ -448,7 +448,7 @@ def start_scheduler():
                     if result["sent"]:
                         logger.info(f"[scheduler] Daily digest: {result}")
                 except Exception as exc:
-                   logger.error(f"Error: {str(exc)}", exc_info=True)
+                    logger.error(f"Error: {str(exc)}", exc_info=True)
                     logger.error(f"[scheduler] Daily digest error: {exc}")
                 finally:
                     db.close()
@@ -462,7 +462,7 @@ def start_scheduler():
             )
             logger.info("[OK] Scheduled daily digest job (every 30 minutes, checks each recruiter's local 8 AM)")
         except Exception as exc:
-           logger.error(f"Error: {str(exc)}", exc_info=True)
+            logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.warning(f"Could not register daily digest scheduler: {exc}")
 
         # ── Every 4 hours: ENGAGEMENT_METRICS_JOB (S-070/HRMS-0470) ─────────
@@ -477,7 +477,7 @@ def start_scheduler():
                     if result["processed"]:
                         logger.info(f"[scheduler] Engagement metrics: {result}")
                 except Exception as exc:
-                   logger.error(f"Error: {str(exc)}", exc_info=True)
+                    logger.error(f"Error: {str(exc)}", exc_info=True)
                     logger.error(f"[scheduler] Engagement metrics error: {exc}")
                 finally:
                     db.close()
@@ -491,7 +491,7 @@ def start_scheduler():
             )
             logger.info("[OK] Scheduled engagement metrics job (every 4 hours)")
         except Exception as exc:
-           logger.error(f"Error: {str(exc)}", exc_info=True)
+            logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.warning(f"Could not register engagement metrics scheduler: {exc}")
 
         # ── Every 4 hours: DROP_RISK_SCORING_JOB (S-060/HRMS-0460) ──────────
@@ -506,7 +506,7 @@ def start_scheduler():
                     if result["processed"]:
                         logger.info(f"[scheduler] Drop risk scoring: {result}")
                 except Exception as exc:
-                   logger.error(f"Error: {str(exc)}", exc_info=True)
+                    logger.error(f"Error: {str(exc)}", exc_info=True)
                     logger.error(f"[scheduler] Drop risk scoring error: {exc}")
                 finally:
                     db.close()
@@ -520,7 +520,7 @@ def start_scheduler():
             )
             logger.info("[OK] Scheduled drop risk scoring job (every 4 hours)")
         except Exception as exc:
-           logger.error(f"Error: {str(exc)}", exc_info=True)
+            logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.warning(f"Could not register drop risk scoring scheduler: {exc}")
 
         # ── Every 15 min: NO_SHOW_FOLLOWUP_JOB (S-052/HRMS-0452) ────────────
@@ -535,7 +535,7 @@ def start_scheduler():
                     if result["processed"]:
                         logger.info(f"[scheduler] No-show follow-up: {result}")
                 except Exception as exc:
-                   logger.error(f"Error: {str(exc)}", exc_info=True)
+                    logger.error(f"Error: {str(exc)}", exc_info=True)
                     logger.error(f"[scheduler] No-show follow-up error: {exc}")
                 finally:
                     db.close()
@@ -549,7 +549,7 @@ def start_scheduler():
             )
             logger.info("[OK] Scheduled no-show follow-up job (every 15 min)")
         except Exception as exc:
-           logger.error(f"Error: {str(exc)}", exc_info=True)
+            logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.warning(f"Could not register no-show follow-up scheduler: {exc}")
 
         # ── Every 15 min: PAUSE_EXPIRY_JOB (S-075/HRMS-0475) ────────────────
@@ -564,7 +564,7 @@ def start_scheduler():
                     if result["resumed"]:
                         logger.info(f"[scheduler] Pause expiry: {result}")
                 except Exception as exc:
-                   logger.error(f"Error: {str(exc)}", exc_info=True)
+                    logger.error(f"Error: {str(exc)}", exc_info=True)
                     logger.error(f"[scheduler] Pause expiry error: {exc}")
                 finally:
                     db.close()
@@ -578,7 +578,7 @@ def start_scheduler():
             )
             logger.info("[OK] Scheduled pause expiry job (every 15 min)")
         except Exception as exc:
-           logger.error(f"Error: {str(exc)}", exc_info=True)
+            logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.warning(f"Could not register pause expiry scheduler: {exc}")
 
         # ── Every 15 min: SUPERVISOR_AGENT_JOB (S-066/HRMS-0466) ────────────
@@ -593,7 +593,7 @@ def start_scheduler():
                     if result["tenants_processed"]:
                         logger.info(f"[scheduler] Supervisor cycle: {result}")
                 except Exception as exc:
-                   logger.error(f"Error: {str(exc)}", exc_info=True)
+                    logger.error(f"Error: {str(exc)}", exc_info=True)
                     logger.error(f"[scheduler] Supervisor cycle error: {exc}")
                 finally:
                     db.close()
@@ -607,7 +607,7 @@ def start_scheduler():
             )
             logger.info("[OK] Scheduled supervisor agent job (every 15 min)")
         except Exception as exc:
-           logger.error(f"Error: {str(exc)}", exc_info=True)
+            logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.warning(f"Could not register supervisor agent scheduler: {exc}")
 
         # ── Every 6 hours: ONBOARDING_TOUCHPOINT_JOB (S-067/HRMS-0467) ──────
@@ -622,7 +622,7 @@ def start_scheduler():
                     if result["processed"] or result["completions_detected"]:
                         logger.info(f"[scheduler] Onboarding touchpoint job: {result}")
                 except Exception as exc:
-                   logger.error(f"Error: {str(exc)}", exc_info=True)
+                    logger.error(f"Error: {str(exc)}", exc_info=True)
                     logger.error(f"[scheduler] Onboarding touchpoint job error: {exc}")
                 finally:
                     db.close()
@@ -636,7 +636,7 @@ def start_scheduler():
             )
             logger.info("[OK] Scheduled onboarding touchpoint job (every 6 hours)")
         except Exception as exc:
-           logger.error(f"Error: {str(exc)}", exc_info=True)
+            logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.warning(f"Could not register onboarding touchpoint scheduler: {exc}")
 
         # ── Every hour: TASK_ESCALATION_JOB (S-434) ─────────────────────────
@@ -651,7 +651,7 @@ def start_scheduler():
                     if escalated:
                         logger.info(f"[scheduler] Task escalation: {len(escalated)} task(s) escalated")
                 except Exception as exc:
-                   logger.error(f"Error: {str(exc)}", exc_info=True)
+                    logger.error(f"Error: {str(exc)}", exc_info=True)
                     logger.error(f"[scheduler] Task escalation job error: {exc}")
                 finally:
                     db.close()
@@ -665,7 +665,7 @@ def start_scheduler():
             )
             logger.info("[OK] Scheduled task escalation job (every 1 hour)")
         except Exception as exc:
-           logger.error(f"Error: {str(exc)}", exc_info=True)
+            logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.warning(f"Could not register task escalation scheduler: {exc}")
 
         # ── Daily: BIRTHDAY_DRAFTS_JOB (Executive Signal & Culture Agent) ───
@@ -680,7 +680,7 @@ def start_scheduler():
                     if drafts:
                         logger.info(f"[scheduler] Birthday drafts: {len(drafts)} drafted for review")
                 except Exception as exc:
-                   logger.error(f"Error: {str(exc)}", exc_info=True)
+                    logger.error(f"Error: {str(exc)}", exc_info=True)
                     logger.error(f"[scheduler] Birthday drafts job error: {exc}")
                 finally:
                     db.close()
@@ -694,7 +694,7 @@ def start_scheduler():
             )
             logger.info("[OK] Scheduled birthday drafts job (every 24 hours)")
         except Exception as exc:
-           logger.error(f"Error: {str(exc)}", exc_info=True)
+            logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.warning(f"Could not register birthday drafts scheduler: {exc}")
 
         # ── Daily: MELLOW_KEEPWARM_JOB (outreach cadence-by-stage) ──────────
@@ -709,7 +709,7 @@ def start_scheduler():
                     if result["nudged"]:
                         logger.info(f"[scheduler] Mellow keep-warm: {result}")
                 except Exception as exc:
-                   logger.error(f"Error: {str(exc)}", exc_info=True)
+                    logger.error(f"Error: {str(exc)}", exc_info=True)
                     logger.error(f"[scheduler] Mellow keep-warm job error: {exc}")
                 finally:
                     db.close()
@@ -723,7 +723,7 @@ def start_scheduler():
             )
             logger.info("[OK] Scheduled mellow keep-warm job (every 24 hours)")
         except Exception as exc:
-           logger.error(f"Error: {str(exc)}", exc_info=True)
+            logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.warning(f"Could not register mellow keep-warm scheduler: {exc}")
 
         # ── Every 30 min: S-347 Desire Signal Processing Job ────────────────
@@ -738,7 +738,7 @@ def start_scheduler():
                     if result["batch_size"]:
                         logger.info(f"[scheduler] Desire signal processing: {result}")
                 except Exception as exc:
-                   logger.error(f"Error: {str(exc)}", exc_info=True)
+                    logger.error(f"Error: {str(exc)}", exc_info=True)
                     logger.error(f"[scheduler] Desire signal processing error: {exc}")
                 finally:
                     db.close()
@@ -752,7 +752,7 @@ def start_scheduler():
             )
             logger.info("[OK] Scheduled desire signal processing job (every 30 minutes)")
         except Exception as exc:
-           logger.error(f"Error: {str(exc)}", exc_info=True)
+            logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.warning(f"Could not register desire signal processing scheduler: {exc}")
 
         # ── Every 4 hours: S-348 Desire Profile Update Job ──────────────────
@@ -767,7 +767,7 @@ def start_scheduler():
                     if result["candidates_due"]:
                         logger.info(f"[scheduler] Desire profile update: {result}")
                 except Exception as exc:
-                   logger.error(f"Error: {str(exc)}", exc_info=True)
+                    logger.error(f"Error: {str(exc)}", exc_info=True)
                     logger.error(f"[scheduler] Desire profile update error: {exc}")
                 finally:
                     db.close()
@@ -781,7 +781,7 @@ def start_scheduler():
             )
             logger.info("[OK] Scheduled desire profile update job (every 4 hours)")
         except Exception as exc:
-           logger.error(f"Error: {str(exc)}", exc_info=True)
+            logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.warning(f"Could not register desire profile update scheduler: {exc}")
 
         # ── Every 30 min: S-349 ScheduledMotivationJob ──────────────────────
@@ -796,7 +796,7 @@ def start_scheduler():
                     if result["sent"]:
                         logger.info(f"[scheduler] Motivation job: {result}")
                 except Exception as exc:
-                   logger.error(f"Error: {str(exc)}", exc_info=True)
+                    logger.error(f"Error: {str(exc)}", exc_info=True)
                     logger.error(f"[scheduler] Motivation job error: {exc}")
                 finally:
                     db.close()
@@ -810,7 +810,7 @@ def start_scheduler():
             )
             logger.info("[OK] Scheduled proactive motivation job (every 30 minutes)")
         except Exception as exc:
-           logger.error(f"Error: {str(exc)}", exc_info=True)
+            logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.warning(f"Could not register proactive motivation scheduler: {exc}")
 
         # ── Every 30 min: EPIC-14/S-435 M365 mail sync (lifecycle linking) ──
@@ -825,7 +825,7 @@ def start_scheduler():
                     if result["total_linked"]:
                         logger.info(f"[scheduler] M365 mail sync: {result}")
                 except Exception as exc:
-                   logger.error(f"Error: {str(exc)}", exc_info=True)
+                    logger.error(f"Error: {str(exc)}", exc_info=True)
                     logger.error(f"[scheduler] M365 mail sync error: {exc}")
                 finally:
                     db.close()
@@ -839,7 +839,7 @@ def start_scheduler():
             )
             logger.info("[OK] Scheduled M365 mail sync job (every 30 minutes)")
         except Exception as exc:
-           logger.error(f"Error: {str(exc)}", exc_info=True)
+            logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.warning(f"Could not register M365 mail sync scheduler: {exc}")
 
         # ── Daily: TIMESHEET_NAG_JOB (EPIC-16) ───────────────────────────────
@@ -861,7 +861,7 @@ def start_scheduler():
                     if result["processed"]:
                         logger.info(f"[scheduler] Timesheet nag: {result}")
                 except Exception as exc:
-                   logger.error(f"Error: {str(exc)}", exc_info=True)
+                    logger.error(f"Error: {str(exc)}", exc_info=True)
                     logger.error(f"[scheduler] Timesheet nag job error: {exc}")
                 finally:
                     db.close()
@@ -876,7 +876,7 @@ def start_scheduler():
             )
             logger.info("[OK] Scheduled timesheet nag job (09:00 UTC daily)")
         except Exception as exc:
-           logger.error(f"Error: {str(exc)}", exc_info=True)
+            logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.warning(f"Could not register timesheet nag scheduler: {exc}")
 
         # ── Daily: AR_FOLLOW_UP_JOB (EPIC-16) ────────────────────────────────
@@ -892,7 +892,7 @@ def start_scheduler():
                     if result["processed"]:
                         logger.info(f"[scheduler] AR follow-up: {result}")
                 except Exception as exc:
-                   logger.error(f"Error: {str(exc)}", exc_info=True)
+                    logger.error(f"Error: {str(exc)}", exc_info=True)
                     logger.error(f"[scheduler] AR follow-up job error: {exc}")
                 finally:
                     db.close()
@@ -907,7 +907,7 @@ def start_scheduler():
             )
             logger.info("[OK] Scheduled AR follow-up job (09:30 UTC daily)")
         except Exception as exc:
-           logger.error(f"Error: {str(exc)}", exc_info=True)
+            logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.warning(f"Could not register AR follow-up scheduler: {exc}")
 
         # ── Weekly (Monday 00:00 UTC): TIMESHEET_DRAFT_CREATION_JOB (EPIC-05) ─
@@ -924,7 +924,7 @@ def start_scheduler():
                     result = create_weekly_draft_batch(db)
                     logger.info(f"[scheduler] Weekly timesheet draft creation: {result}")
                 except Exception as exc:
-                   logger.error(f"Error: {str(exc)}", exc_info=True)
+                    logger.error(f"Error: {str(exc)}", exc_info=True)
                     logger.error(f"[scheduler] Weekly timesheet draft creation error: {exc}")
                 finally:
                     db.close()
@@ -940,7 +940,7 @@ def start_scheduler():
             )
             logger.info("[OK] Scheduled weekly timesheet draft creation job (Monday 00:00 UTC)")
         except Exception as exc:
-           logger.error(f"Error: {str(exc)}", exc_info=True)
+            logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.warning(f"Could not register weekly timesheet draft creation scheduler: {exc}")
 
         # ── Daily: AGENT_DAILY_STANDUP_JOB (8:00 AM EST) ─────────────────────
@@ -961,7 +961,7 @@ def start_scheduler():
                     if result.get("agent_reports"):
                         logger.info(f"[scheduler] Agent daily standup: {len(result['agent_reports'])} agents reported, {len(result.get('validation_issues', []))} issues flagged")
                 except Exception as exc:
-                   logger.error(f"Error: {str(exc)}", exc_info=True)
+                    logger.error(f"Error: {str(exc)}", exc_info=True)
                     logger.error(f"[scheduler] Agent daily standup error: {exc}")
                 finally:
                     db.close()
@@ -976,7 +976,7 @@ def start_scheduler():
             )
             logger.info("[OK] Scheduled agent daily standup job (8:00 AM EST / 13:00 UTC)")
         except Exception as exc:
-           logger.error(f"Error: {str(exc)}", exc_info=True)
+            logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.warning(f"Could not register agent daily standup scheduler: {exc}")
 
         # ── Daily: AGENT_SCRUM_OF_SCRUMS_JOB (8:30 AM EST) ──────────────────
@@ -997,7 +997,7 @@ def start_scheduler():
                     if critical_count > 0:
                         logger.info(f"[scheduler] Scrum of Scrums: {critical_count} CEO directives issued")
                 except Exception as exc:
-                   logger.error(f"Error: {str(exc)}", exc_info=True)
+                    logger.error(f"Error: {str(exc)}", exc_info=True)
                     logger.error(f"[scheduler] Scrum of Scrums error: {exc}")
                 finally:
                     db.close()
@@ -1012,7 +1012,7 @@ def start_scheduler():
             )
             logger.info("[OK] Scheduled agent scrum of scrums job (8:30 AM EST / 13:30 UTC)")
         except Exception as exc:
-           logger.error(f"Error: {str(exc)}", exc_info=True)
+            logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.warning(f"Could not register agent scrum of scrums scheduler: {exc}")
 
         # ── Daily: HTD_PIPELINE_ACCOUNTABILITY_JOB (8:05 AM EST) ─────────────────
@@ -1037,7 +1037,7 @@ def start_scheduler():
                     if critical > 0 or at_risk > 0:
                         logger.info(f"[scheduler] HTD Pipeline: {critical} critical (no dev pipeline), {at_risk} at-risk (< 50% CORE)")
                 except Exception as exc:
-                   logger.error(f"Error: {str(exc)}", exc_info=True)
+                    logger.error(f"Error: {str(exc)}", exc_info=True)
                     logger.error(f"[scheduler] HTD pipeline tracking error: {exc}")
                 finally:
                     db.close()
@@ -1052,7 +1052,7 @@ def start_scheduler():
             )
             logger.info("[OK] Scheduled HTD pipeline accountability job (8:05 AM EST / 13:05 UTC)")
         except Exception as exc:
-           logger.error(f"Error: {str(exc)}", exc_info=True)
+            logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.warning(f"Could not register HTD pipeline accountability scheduler: {exc}")
 
         # ── Daily: FLASH_DAILY_COORDINATION_JOB (8:15 AM EST) ──────────────────
@@ -1077,7 +1077,7 @@ def start_scheduler():
                     high = result.get("summary", {}).get("high_alerts", 0)
                     logger.info(f"[scheduler] Flash Coordination: {partners_with_action} partners have directives, {critical} critical, {high} high alerts")
                 except Exception as exc:
-                   logger.error(f"Error: {str(exc)}", exc_info=True)
+                    logger.error(f"Error: {str(exc)}", exc_info=True)
                     logger.error(f"[scheduler] Flash coordination error: {exc}")
                 finally:
                     db.close()
@@ -1092,7 +1092,7 @@ def start_scheduler():
             )
             logger.info("[OK] Scheduled Flash daily coordination job (8:15 AM EST / 13:15 UTC)")
         except Exception as exc:
-           logger.error(f"Error: {str(exc)}", exc_info=True)
+            logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.warning(f"Could not register Flash coordination scheduler: {exc}")
 
         # ── Weekly (Thursday): PARTNER_SUCCESS_AGENT_JOB ────────────────────
@@ -1116,7 +1116,7 @@ def start_scheduler():
                         if result.get("action_items"):
                             logger.info(f"[scheduler] Partner Success ({partner_key}): {len(result['action_items'])} items, {result['this_week']['revenue_closed_usd']:,.0f} closed this week")
                 except Exception as exc:
-                   logger.error(f"Error: {str(exc)}", exc_info=True)
+                    logger.error(f"Error: {str(exc)}", exc_info=True)
                     logger.error(f"[scheduler] Partner success check error: {exc}")
                 finally:
                     db.close()
@@ -1132,7 +1132,7 @@ def start_scheduler():
             )
             logger.info("[OK] Scheduled partner success check (Thursday 7 AM EST / 12:00 UTC - before CEO call)")
         except Exception as exc:
-           logger.error(f"Error: {str(exc)}", exc_info=True)
+            logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.warning(f"Could not register partner success scheduler: {exc}")
 
         # ── Daily (02:00 UTC): REVENUE_AUTONOMOUS_SCANNING_JOB (PRIORITY-2) ───
@@ -1150,7 +1150,7 @@ def start_scheduler():
                     if result["leakage_detected"]:
                         logger.info(f"[scheduler] Revenue scan: {result}")
                 except Exception as exc:
-                   logger.error(f"Error: {str(exc)}", exc_info=True)
+                    logger.error(f"Error: {str(exc)}", exc_info=True)
                     logger.error(f"[scheduler] Revenue scan error: {exc}")
                 finally:
                     db.close()
@@ -1165,7 +1165,7 @@ def start_scheduler():
             )
             logger.info("[OK] Scheduled daily revenue autonomous scanning job (02:00 UTC)")
         except Exception as exc:
-           logger.error(f"Error: {str(exc)}", exc_info=True)
+            logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.warning(f"Could not register revenue scanning scheduler: {exc}")
 
         # ── Every 2 min: MESSAGE_QUEUE_PROCESSING_JOB ───────────────────────
@@ -1195,7 +1195,7 @@ def start_scheduler():
                         logger.info(f"[scheduler] Message completion check: {complete_result}")
 
                 except Exception as exc:
-                   logger.error(f"Error: {str(exc)}", exc_info=True)
+                    logger.error(f"Error: {str(exc)}", exc_info=True)
                     logger.error(f"[scheduler] Message queue processing error: {exc}", exc_info=True)
                 finally:
                     db.close()
@@ -1209,7 +1209,7 @@ def start_scheduler():
             )
             logger.info("[OK] Scheduled message queue processing (every 2 min)")
         except Exception as exc:
-           logger.error(f"Error: {str(exc)}", exc_info=True)
+            logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.warning(f"Could not register message queue processing scheduler: {exc}")
 
         # ── Every 5 min: THUNDER_AUTONOMOUS_LOOP (Candidate Outreach) ────────
@@ -1229,7 +1229,7 @@ def start_scheduler():
                     else:
                         logger.error(f"[scheduler] Thunder autonomous error: {result.get('error')}")
                 except Exception as exc:
-                   logger.error(f"Error: {str(exc)}", exc_info=True)
+                    logger.error(f"Error: {str(exc)}", exc_info=True)
                     logger.error(f"[scheduler] Thunder autonomous error: {exc}")
                 finally:
                     db.close()
@@ -1243,7 +1243,7 @@ def start_scheduler():
             )
             logger.info("[OK] Scheduled Thunder autonomous loop (every 5 min)")
         except Exception as exc:
-           logger.error(f"Error: {str(exc)}", exc_info=True)
+            logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.warning(f"Could not register Thunder autonomous loop scheduler: {exc}")
 
         # ── Every 30 min: SLM_IMPROVEMENT_CYCLE (Self-Learning Model) ───────
@@ -1258,7 +1258,7 @@ def start_scheduler():
                     if result.get("corrections_processed") > 0 or result.get("outcomes_processed") > 0:
                         logger.info(f"[scheduler] SLM improvement: {result}")
                 except Exception as exc:
-                   logger.error(f"Error: {str(exc)}", exc_info=True)
+                    logger.error(f"Error: {str(exc)}", exc_info=True)
                     logger.error(f"[scheduler] SLM improvement error: {exc}")
                 finally:
                     db.close()
@@ -1272,7 +1272,7 @@ def start_scheduler():
             )
             logger.info("[OK] Scheduled SLM improvement cycle (every 30 min)")
         except Exception as exc:
-           logger.error(f"Error: {str(exc)}", exc_info=True)
+            logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.warning(f"Could not register SLM improvement scheduler: {exc}")
 
 

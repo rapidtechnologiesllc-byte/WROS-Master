@@ -17,6 +17,7 @@ app.models.tenant.Tenant). get_settings_panel()/update_locale() read and
 write those columns directly so there's exactly one source of truth,
 never a shadow copy in this table.
 """
+import logging
 import time
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple

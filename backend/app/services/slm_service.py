@@ -99,7 +99,8 @@ class SLMService:
 
             return decision
 
-        except Exception as e:            logger.error(f"Failed to analyze message result: {e}", exc_info=True)
+        except Exception as e:
+            logger.error(f"Failed to analyze message result: {e}", exc_info=True)
             raise RuntimeError(f"Failed to analyze message result: {str(e)}")
 
     @staticmethod

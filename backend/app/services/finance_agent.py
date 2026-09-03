@@ -16,6 +16,7 @@ It doesn't care about excuses, deadlines, or strategic plans.
 If net profit < 25%, it sounds the alarm immediately.
 """
 
+import logging
 from datetime import datetime, timedelta
 from typing import Dict, Any, List
 from sqlalchemy.orm import Session

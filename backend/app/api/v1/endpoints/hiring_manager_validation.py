@@ -28,8 +28,11 @@ logger = logging.getLogger(__name__)
 hm_service = HiringManagerValidationService()
 
 
-@router.post("/jobs/{job_id}/create-questions", response_model=dict)
+@router.post(
+    "/jobs/{job_id}/create-questions",
+    response_model=dict,
     dependencies=[Depends(require_resource_permission("job", "create"))]
+)
 async def create_validation_questions_endpoint(
     job_id: str,
     req: CreateValidationQuestionsRequest,
@@ -63,13 +66,16 @@ async def create_validation_questions_endpoint(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-       logger.error(f"Error: {str(e)}", exc_info=True)
+        logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Error creating validation questions for job {job_id}: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to create validation questions")
 
 
-@router.post("/send-to-hiring-manager", response_model=SendValidationToHMResponse)
+@router.post(
+    "/send-to-hiring-manager",
+    response_model=SendValidationToHMResponse,
     dependencies=[Depends(require_resource_permission("send-to-hiring-manager", "create"))]
+)
 async def send_to_hiring_manager(
     req: SendValidationToHMRequest,
     db=None
@@ -100,13 +106,16 @@ async def send_to_hiring_manager(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-       logger.error(f"Error: {str(e)}", exc_info=True)
+        logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Error sending validation to HM: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to send validation")
 
 
-@router.post("/record-response", response_model=dict)
+@router.post(
+    "/record-response",
+    response_model=dict,
     dependencies=[Depends(require_resource_permission("record-response", "create"))]
+)
 async def record_hm_response_endpoint(
     validation_id: str,
     req: HMValidationResponseSubmit,
@@ -140,13 +149,16 @@ async def record_hm_response_endpoint(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-       logger.error(f"Error: {str(e)}", exc_info=True)
+        logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Error recording HM response: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to record response")
 
 
-@router.get("", response_model=List[HMValidationListResponse])
+@router.get(
+    "",
+    response_model=List[HMValidationListResponse],
     dependencies=[Depends(require_resource_permission("unknown", "view"))]
+)
 async def list_validations(
     status: Optional[str] = Query(None),
     hiring_manager_id: Optional[str] = Query(None),
@@ -187,13 +199,16 @@ async def list_validations(
     except HTTPException:
         raise
     except Exception as e:
-       logger.error(f"Error: {str(e)}", exc_info=True)
+        logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Error listing validations: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to fetch validations")
 
 
-@router.get("/{validation_id}", response_model=HMValidationDetailResponse)
+@router.get(
+    "/{validation_id}",
+    response_model=HMValidationDetailResponse,
     dependencies=[Depends(require_resource_permission("{validation_id}", "view"))]
+)
 async def get_validation(validation_id: str, db=None):
     """
     Get HM validation with questions and candidate details.
@@ -237,13 +252,16 @@ async def get_validation(validation_id: str, db=None):
     except HTTPException:
         raise
     except Exception as e:
-       logger.error(f"Error: {str(e)}", exc_info=True)
+        logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Error fetching validation {validation_id}: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to fetch validation")
 
 
-@router.post("/{validation_id}/respond", response_model=HMValidationDecisionResponse)
+@router.post(
+    "/{validation_id}/respond",
+    response_model=HMValidationDecisionResponse,
     dependencies=[Depends(require_resource_permission("{validation_id}", "create"))]
+)
 async def submit_validation_response(
     validation_id: str,
     req: HMValidationResponseSubmit,
@@ -336,13 +354,15 @@ async def submit_validation_response(
     except HTTPException:
         raise
     except Exception as e:
-       logger.error(f"Error: {str(e)}", exc_info=True)
+        logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Error submitting validation response {validation_id}: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to submit response")
 
 
-@router.put("/{validation_id}/remind")
+@router.put(
+    "/{validation_id}/remind",
     dependencies=[Depends(require_resource_permission("{validation_id}", "update"))]
+)
 async def send_reminder(validation_id: str, db=None):
     """
     Send reminder email to HM for pending validations.
@@ -382,13 +402,15 @@ async def send_reminder(validation_id: str, db=None):
     except HTTPException:
         raise
     except Exception as e:
-       logger.error(f"Error: {str(e)}", exc_info=True)
+        logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Error sending reminder for validation {validation_id}: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to send reminder")
 
 
-@router.get("/{validation_id}/audit-trail")
+@router.get(
+    "/{validation_id}/audit-trail",
     dependencies=[Depends(require_resource_permission("{validation_id}", "view"))]
+)
 async def get_audit_trail(validation_id: str, db=None):
     """
     Get full audit trail of HM validation (all Q&A responses with timestamps).
@@ -405,13 +427,16 @@ async def get_audit_trail(validation_id: str, db=None):
         }
 
     except Exception as e:
-       logger.error(f"Error: {str(e)}", exc_info=True)
+        logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Error fetching audit trail for validation {validation_id}: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to fetch audit trail")
 
 
-@router.post("/jobs/{job_id}/validation-template", response_model=dict)
+@router.post(
+    "/jobs/{job_id}/validation-template",
+    response_model=dict,
     dependencies=[Depends(require_resource_permission("job", "create"))]
+)
 async def create_validation_template(
     job_id: str,
     template_req: "CreateValidationQuestionsRequest",
@@ -440,13 +465,16 @@ async def create_validation_template(
     except HTTPException:
         raise
     except Exception as e:
-       logger.error(f"Error: {str(e)}", exc_info=True)
+        logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Error creating validation template for job {job_id}: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to create template")
 
 
-@router.get("/jobs/{job_id}/validation-template", response_model=dict)
+@router.get(
+    "/jobs/{job_id}/validation-template",
+    response_model=dict,
     dependencies=[Depends(require_resource_permission("job", "view"))]
+)
 async def get_validation_template(job_id: str, db=None):
     """
     Get HM validation question template for a job.
@@ -471,6 +499,6 @@ async def get_validation_template(job_id: str, db=None):
     except HTTPException:
         raise
     except Exception as e:
-       logger.error(f"Error: {str(e)}", exc_info=True)
+        logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Error fetching validation template for job {job_id}: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to fetch template")

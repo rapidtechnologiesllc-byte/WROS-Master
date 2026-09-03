@@ -11,6 +11,7 @@ Revenue is recognized (recorded) when Invoice.status = PAID, not when SENT.
 All revenue flows to Client Owner (opportunity owner at time of creation).
 Partner revenue share applies to Core business type only.
 """
+import logging
 import uuid
 
 from sqlalchemy import (

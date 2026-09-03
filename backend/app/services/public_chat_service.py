@@ -19,6 +19,7 @@ functionally a bearer token, same trust model as any other opaque
 session id. Nothing about a candidate's real identity is derivable
 from it.
 """
+import logging
 from datetime import datetime
 from typing import Dict, List, Optional
 

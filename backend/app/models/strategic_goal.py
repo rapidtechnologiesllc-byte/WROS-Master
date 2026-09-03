@@ -15,6 +15,7 @@ Table: cascaded_goals
 - Flash validation compares actual progress to cascaded goal targets
 """
 
+import logging
 from datetime import datetime
 from sqlalchemy import Column, String, Integer, Float, DateTime, ForeignKey, Text, func, Index
 from sqlalchemy.orm import relationship

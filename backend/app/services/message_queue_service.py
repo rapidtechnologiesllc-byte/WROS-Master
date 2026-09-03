@@ -164,7 +164,8 @@ class MessageQueueService:
                 for m in messages
             ]
 
-        except Exception as e:            logger.error(f"Failed to fetch pending messages: {e}", exc_info=True)
+        except Exception as e:
+            logger.error(f"Failed to fetch pending messages: {e}", exc_info=True)
             raise RuntimeError(f"Failed to fetch pending messages: {str(e)}")
 
     @staticmethod
@@ -353,7 +354,8 @@ class MessageQueueService:
                 for m in messages
             ]
 
-        except Exception as e:            logger.error(f"Failed to fetch message history: {e}", exc_info=True)
+        except Exception as e:
+            logger.error(f"Failed to fetch message history: {e}", exc_info=True)
             raise RuntimeError(f"Failed to fetch message history: {str(e)}")
 
     @staticmethod
@@ -418,5 +420,6 @@ class MessageQueueService:
 
             return result
 
-        except Exception as e:            logger.error(f"Failed to fetch queue statistics: {e}", exc_info=True)
+        except Exception as e:
+            logger.error(f"Failed to fetch queue statistics: {e}", exc_info=True)
             raise RuntimeError(f"Failed to fetch queue statistics: {str(e)}")

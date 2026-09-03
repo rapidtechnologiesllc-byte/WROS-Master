@@ -11,6 +11,7 @@ Tests:
 6. Analytics and reporting
 """
 
+import logging
 import pytest
 from sqlalchemy.orm import Session
 from app.core.database import SessionLocal

@@ -35,6 +35,7 @@ Real architecture:
   by call_llm() always writing a row, success or failure, before
   returning or raising.
 """
+import logging
 import os
 import re
 import time
@@ -195,7 +196,7 @@ def call_llm(
             db.commit()
             return response
         except Exception as exc:
-           logger.error(f"Error: {str(exc)}", exc_info=True)
+            logger.error(f"Error: {str(exc)}", exc_info=True)
             last_error = exc
             latency_ms = int((time.monotonic() - start) * 1000)
             db.add(PromptExecutionLog(

@@ -31,6 +31,7 @@ every other Thunder gate) -- pausing Thunder must never block a human
 from messaging a candidate themselves, matching BR-01's "pause is a
 separate flag from ownership" framing.
 """
+import logging
 from datetime import datetime, timedelta
 from typing import Dict, Optional
 
@@ -137,7 +138,7 @@ def run_pause_expiry_job(db: Session) -> Dict:
             db.commit()
             result["resumed"] += 1
         except Exception as exc:
-           logger.error(f"Error: {str(exc)}", exc_info=True)
+            logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.error(f"[ThunderPause] Failed auto-resuming conversation {conversation.id!r}: {exc}")
             db.rollback()
     return result

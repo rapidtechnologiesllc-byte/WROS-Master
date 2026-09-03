@@ -1,4 +1,4 @@
-﻿"""
+"""
 Help Desk / IT-HR Ticketing.
 ==================================================================
 Prefix: /tickets
@@ -38,8 +38,11 @@ from app.services.ticket_service import create_ticket, list_categories, record_f
 router = APIRouter(prefix="/tickets", tags=["tickets"])
 
 
-@router.post("", response_model=TaskResponse)
+@router.post(
+    "",
+    response_model=TaskResponse,
     dependencies=[Depends(require_resource_permission("unknown", "create"))]
+)
 def create_ticket_endpoint(
     body: TicketCreateRequest, current_user: Users = Depends(get_current_internal_user), db: Session = Depends(get_db),
 ):
@@ -53,14 +56,20 @@ def create_ticket_endpoint(
         raise HTTPException(status_code=422, detail=str(exc))
 
 
-@router.get("/categories", response_model=list[TicketCategoryResponse])
+@router.get(
+    "/categories",
+    response_model=list[TicketCategoryResponse],
     dependencies=[Depends(require_resource_permission("categorie", "view"))]
+)
 def get_categories(current_user: Users = Depends(get_current_internal_user), db: Session = Depends(get_db)):
     return list_categories(db)
 
 
-@router.post("/{task_id}/first-response", response_model=TicketDetailResponse)
+@router.post(
+    "/{task_id}/first-response",
+    response_model=TicketDetailResponse,
     dependencies=[Depends(require_resource_permission("{task_id}", "create"))]
+)
 def first_response(task_id: int, current_user: Users = Depends(get_current_internal_user), db: Session = Depends(get_db)):
     task = db.query(Task).filter(Task.id == task_id, Task.task_type == "TICKET").first()
     if not task:
@@ -71,8 +80,11 @@ def first_response(task_id: int, current_user: Users = Depends(get_current_inter
     return detail
 
 
-@router.get("/{task_id}/detail", response_model=TicketDetailResponse)
+@router.get(
+    "/{task_id}/detail",
+    response_model=TicketDetailResponse,
     dependencies=[Depends(require_resource_permission("{task_id}", "view"))]
+)
 def get_ticket_detail(task_id: int, current_user: Users = Depends(get_current_internal_user), db: Session = Depends(get_db)):
     detail = db.query(TicketDetail).filter(TicketDetail.task_id == task_id).first()
     if not detail:

@@ -29,6 +29,7 @@ takes bench_match_count as a required, caller-supplied value rather
 than inventing a fake skill-matching engine to produce it -- flagged
 here, not silently faked with a number that would look real but isn't.
 """
+import logging
 import uuid
 
 from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, Text, func

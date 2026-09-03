@@ -44,7 +44,7 @@ try:
             conn.commit()
             print("  ✅ Created")
         except Exception as e:
-           logger.error(f"Error: {str(e)}", exc_info=True)
+            logger.error(f"Error: {str(e)}", exc_info=True)
             logger.error(f"Error: {str(e)}", exc_info=True)
             if "already exists" in str(e):
                 print("  ✅ Already exists")
@@ -60,7 +60,7 @@ try:
     print("  • Each tenant gets its own module/resource hierarchy")
 
 except Exception as e:
-   logger.error(f"Error: {str(e)}", exc_info=True)
+    logger.error(f"Error: {str(e)}", exc_info=True)
     logger.error(f"Error: {str(e)}", exc_info=True)
     print(f"Error: {e}")
     import traceback

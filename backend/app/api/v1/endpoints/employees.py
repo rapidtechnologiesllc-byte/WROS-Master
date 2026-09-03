@@ -135,8 +135,12 @@ def _get_employee_or_404(db: Session, employee_id: str) -> Employee:
     return employee
 
 
-@router.post("", response_model=EmployeeItem, summary="Create an employee profile")
+@router.post(
+    "",
+    response_model=EmployeeItem,
+    summary="Create an employee profile",
     dependencies=[Depends(require_resource_permission(", response_model=EmployeeItem, summary=", "create"))]
+)
 def create_employee(
     body: EmployeeCreateRequest,
     db: Session = Depends(get_db),
@@ -173,8 +177,8 @@ def create_employee(
 
 
 @router.post(
-    dependencies=[Depends(get_current_user)]
     "/convert-candidate/{candidate_id}", response_model=EmployeeItem,
+    dependencies=[Depends(get_current_user)],
     summary="Convert a candidate to an employee (HRMS-0708 minimal slice)",
 )
 def convert_candidate(
@@ -234,8 +238,8 @@ def _parse_bulk_import_date(raw) -> date:
 
 
 @router.post(
-    dependencies=[Depends(get_current_user)]
     "/bulk-import", response_model=BulkImportResponse,
+    dependencies=[Depends(get_current_user)],
     summary="One-time bulk employee load from an .xlsx file",
     description=(
         "Header row (first row, any casing) must include first_name, last_name, "
@@ -340,11 +344,15 @@ async def bulk_import_employees(
             skipped += 1
             errors.append(BulkImportRowError(row=row_num, email=str(email) if email else None, reason=str(exc)))
 
-    return BulkImportResponse(created=created, skipped=skipped, errors=errors)
+            return BulkImportResponse(created=created, skipped=skipped, errors=errors)
 
 
-@router.get("", response_model=EmployeeListResponse, summary="List employees")
+@router.get(
+    "",
+    response_model=EmployeeListResponse,
+    summary="List employees",
     dependencies=[Depends(require_resource_permission(", response_model=EmployeeListResponse, summary=", "view"))]
+)
 def list_employees(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user),
@@ -359,8 +367,8 @@ def list_employees(
 
 
 @router.get(
-    dependencies=[Depends(get_current_user)]
     "/bench-pool", response_model=EmployeeListResponse,
+    dependencies=[Depends(get_current_user)],
     summary="View the current bench pool (S-247)",
 )
 def view_bench_pool(
@@ -377,8 +385,8 @@ def view_bench_pool(
 
 
 @router.get(
-    dependencies=[Depends(get_current_user)]
     "/bench-aging-alerts", response_model=BenchAgingAlertsResponse,
+    dependencies=[Depends(get_current_user)],
     summary="Employees who just crossed a 30/60/90-day bench milestone (S-248)",
 )
 def bench_aging_alerts(
@@ -395,8 +403,8 @@ def bench_aging_alerts(
 
 
 @router.get(
-    dependencies=[Depends(get_current_user)]
     "/utilization-summary", response_model=UtilizationSummaryResponse,
+    dependencies=[Depends(get_current_user)],
     summary="Employee Utilization Dashboard (S-254) -- latest utilization per employee + low-utilization alerts",
 )
 def utilization_summary(
@@ -431,8 +439,8 @@ def utilization_summary(
 
 
 @router.get(
-    dependencies=[Depends(get_current_user)]
     "/bench-cost-summary", response_model=BenchCostSummaryResponse,
+    dependencies=[Depends(get_current_user)],
     summary="Bench Cost Visibility (S-255) -- daily/monthly/running bench cost per employee + total",
 )
 def bench_cost_summary(
@@ -462,8 +470,12 @@ def bench_cost_summary(
     return BenchCostSummaryResponse(employees=items, total_running_cost_usd_cents=total_running)
 
 
-@router.get("/{employee_id}", response_model=EmployeeItem, summary="Get one employee")
+@router.get(
+    "/{employee_id}",
+    response_model=EmployeeItem,
+    summary="Get one employee",
     dependencies=[Depends(require_resource_permission("{employee_id}", "view"))]
+)
 def get_employee(
     employee_id: str,
     db: Session = Depends(get_db),
@@ -474,8 +486,8 @@ def get_employee(
 
 
 @router.get(
-    dependencies=[Depends(get_current_user)]
     "/{employee_id}/staffing-eligibility", response_model=StaffingEligibilityResponse,
+    dependencies=[Depends(get_current_user)],
     summary="Staffing Eligibility Engine (S-250) -- can this employee appear in ranking for a delivery engine?",
 )
 def staffing_eligibility(
@@ -492,8 +504,8 @@ def staffing_eligibility(
 
 
 @router.get(
-    dependencies=[Depends(get_current_user)]
     "/{employee_id}/engine-history", response_model=EngineHistoryResponse,
+    dependencies=[Depends(get_current_user)],
     summary="S-351/HRMS-0512 -- read-only Speciality/Core engine change audit trail",
 )
 def engine_history(
@@ -526,8 +538,8 @@ def engine_history(
 
 
 @router.post(
-    dependencies=[Depends(get_current_user)]
     "/{employee_id}/record-utilization", response_model=UtilizationHistoryItem,
+    dependencies=[Depends(get_current_user)],
     summary="Calculate + snapshot one employee's utilization for a week (S-223/HRMS-0904) -- billable hours vs available hours",
 )
 def record_utilization(
@@ -547,8 +559,8 @@ def record_utilization(
 
 
 @router.get(
-    dependencies=[Depends(get_current_user)]
     "/{employee_id}/performance", response_model=PerformanceStoreResponse,
+    dependencies=[Depends(get_current_user)],
     summary="HRMS-0515 -- performance event timeline + score averages (BU Head/RM/HR only, never the employee)",
 )
 def get_employee_performance(
@@ -579,8 +591,8 @@ def get_employee_performance(
 
 
 @router.get(
-    dependencies=[Depends(get_current_user)]
     "/{employee_id}/utilization-history", response_model=UtilizationHistoryResponse,
+    dependencies=[Depends(get_current_user)],
     summary="Weekly utilization history for one employee (S-254)",
 )
 def utilization_history(
@@ -603,8 +615,8 @@ def utilization_history(
 
 
 @router.post(
-    dependencies=[Depends(get_current_user)]
     "/{employee_id}/mark-bench", response_model=EmployeeItem,
+    dependencies=[Depends(get_current_user)],
     summary="Mark an employee as on the bench (S-246)",
 )
 def mark_bench(
@@ -621,8 +633,8 @@ def mark_bench(
 
 
 @router.post(
-    dependencies=[Depends(get_current_user)]
     "/{employee_id}/remove-from-bench", response_model=EmployeeItem,
+    dependencies=[Depends(get_current_user)],
     summary="Remove an employee from the bench",
 )
 def remove_from_bench(
@@ -638,8 +650,8 @@ def remove_from_bench(
 
 
 @router.get(
-    dependencies=[Depends(get_current_user)]
     "/{employee_id}/bench-history", response_model=BenchPeriodHistoryResponse,
+    dependencies=[Depends(get_current_user)],
     summary="Full bench episode history for an employee",
 )
 def bench_history(

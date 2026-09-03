@@ -91,7 +91,7 @@ def main():
         print("\nNext step: Run init_resources.py to re-seed all modules")
 
     except Exception as e:
-       logger.error(f"Error: {str(e)}", exc_info=True)
+        logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Error: {str(e)}", exc_info=True)
         print(f"ERROR: {str(e)}")
         db.rollback()

@@ -17,6 +17,7 @@ Linkage: Demand → Candidate → Employee → WorkOrder → Project → Revenue
 - Opportunity-sourced demands already have one (auto-created from Opportunity)
 - WorkOrder drives Project creation when candidate converts to Employee
 """
+import logging
 import uuid
 from datetime import date, datetime
 

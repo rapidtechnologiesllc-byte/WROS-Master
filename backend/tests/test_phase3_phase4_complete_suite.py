@@ -22,6 +22,7 @@ Story Coverage:
 Total: 100+ test cases covering all workflows
 """
 
+import logging
 import pytest
 import json
 from datetime import datetime, date, timedelta

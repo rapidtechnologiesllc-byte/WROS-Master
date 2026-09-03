@@ -14,6 +14,7 @@ Same Microsoft Graph upload mechanics as document_service.upload_to_sharepoint
 (simple PUT under 4MB, resumable session at/above it) -- proven,
 copied rather than awkwardly wrapped through a candidate-specific method.
 """
+import logging
 import hashlib
 import os
 from datetime import datetime
@@ -116,7 +117,7 @@ def upload_file(
     try:
         result = scanner(file_content)
     except Exception as exc:
-       logger.error(f"Error: {str(exc)}", exc_info=True)
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[FileUpload] Scan failed for file_upload {file_upload.id}: {exc}")
         result = "error"
     file_upload.scan_status = "CLEAN" if result == "clean" else "QUARANTINED"

@@ -46,6 +46,7 @@ own worked example (Company A Jan2020-Dec2022 + Company B Jun2021-Jun2023
 prose says "3 years" but TC-002's own numbers say 42mo/3.5yr; the
 executable test case wins over the narrative aside).
 """
+import logging
 import io
 import json
 import os
@@ -201,7 +202,7 @@ def _parse_with_slm(raw_text: str) -> Dict:
         return parsed
 
     except Exception as exc:
-       logger.error(f"Error: {str(exc)}", exc_info=True)
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.error(f"[ResumeSLM] Parse error: {exc}")
         raise ValueError(f"SLM parsing failed: {exc}") from exc
 
@@ -235,7 +236,7 @@ def _notify_recruiter_of_parse_failure(db: Session, tenant_id: str, candidate: C
             message=f"Thunder couldn't auto-parse {candidate.candidateFirstName or candidate.candidateID}'s resume -- please review it manually.",
         )
     except Exception as exc:
-       logger.error(f"Error: {str(exc)}", exc_info=True)
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[ResumeParsing] Failed to notify recruiter for candidate {candidate.candidateID}: {exc}")
 
 
@@ -269,7 +270,7 @@ def parse_resume(
     try:
         parsed_json = _parse_with_slm(raw_text)
     except Exception as exc:
-       logger.error(f"Error: {str(exc)}", exc_info=True)
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         last_error = exc
         logger.warning(f"[ResumeSLM] Parse failed for candidate {candidate.candidateID}: {exc}")
 

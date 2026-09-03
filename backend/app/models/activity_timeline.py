@@ -6,6 +6,7 @@ Polymorphic (entity_type, entity_id) history table -- BR-0118-01's
 sanctioned pattern: any story needing a "what happened" feed writes
 here instead of building its own history table.
 """
+import logging
 from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Text, func
 
 from app.models.base import Base

@@ -18,6 +18,7 @@ Tenant context:
   this organisation — consistent with the rest of the HRMS system.
 """
 
+import logging
 from sqlalchemy import (
     Column, Integer, String, DateTime, ForeignKey,
     Text, Boolean, JSON, func

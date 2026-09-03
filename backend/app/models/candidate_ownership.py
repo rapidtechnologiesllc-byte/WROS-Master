@@ -11,6 +11,7 @@ State machine:
                             or 90-day ownership lock expires)
 """
 
+import logging
 from datetime import datetime
 from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, func
 from sqlalchemy.orm import relationship

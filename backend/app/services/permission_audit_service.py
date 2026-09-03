@@ -15,6 +15,7 @@ Used for:
 - Compliance reporting
 """
 
+import logging
 from datetime import datetime
 from typing import Optional
 from sqlalchemy.orm import Session
@@ -77,7 +78,8 @@ class PermissionAuditService:
             db.refresh(audit_log)
 
             return audit_log
-        except Exception as e:            logger.error(f"Failed to log permission check: {str(e)}")
+        except Exception as e:
+            logger.error(f"Failed to log permission check: {str(e)}")
             raise
 
     @staticmethod

@@ -8,6 +8,7 @@ Tests cover:
 - Invoice model with opportunity_id link
 - Enum validations
 """
+import logging
 import pytest
 from datetime import datetime, date
 from app.models.opportunity import Opportunity, ENGAGEMENT_TYPES

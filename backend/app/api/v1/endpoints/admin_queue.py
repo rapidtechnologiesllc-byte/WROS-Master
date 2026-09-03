@@ -13,6 +13,7 @@ Endpoints:
   POST /admin/queue/tasks/{task_id}/clear - Clear failed task
 """
 
+import logging
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from app.core.database import SessionLocal
@@ -90,8 +91,10 @@ class TaskStatus:
             del cls._tasks[task_id]
 
 
-@router.get("/tasks")
+@router.get(
+    "/tasks",
     dependencies=[Depends(require_resource_permission("task", "view"))]
+)
 async def list_tasks(
     current_user: dict = Depends(get_current_internal_user),
     db: Session = Depends(SessionLocal),
@@ -121,8 +124,10 @@ async def list_tasks(
     }
 
 
-@router.get("/tasks/{task_id}")
+@router.get(
+    "/tasks/{task_id}",
     dependencies=[Depends(require_resource_permission("task", "view"))]
+)
 async def get_task(
     task_id: str,
     current_user: dict = Depends(get_current_internal_user),
@@ -145,8 +150,10 @@ async def get_task(
     }
 
 
-@router.post("/tasks/{task_id}/retry")
+@router.post(
+    "/tasks/{task_id}/retry",
     dependencies=[Depends(require_resource_permission("task", "create"))]
+)
 async def retry_task(
     task_id: str,
     current_user: dict = Depends(get_current_internal_user),
@@ -176,8 +183,10 @@ async def retry_task(
     }
 
 
-@router.post("/tasks/{task_id}/clear")
+@router.post(
+    "/tasks/{task_id}/clear",
     dependencies=[Depends(require_resource_permission("task", "create"))]
+)
 async def clear_task(
     task_id: str,
     current_user: dict = Depends(get_current_internal_user),

@@ -22,6 +22,7 @@ Not built here, and explicitly out of this story's own scope per its
   - No message templating engine -- message content is the caller's
     responsibility, per the story's own "Not In Scope" note.
 """
+import logging
 import uuid
 
 from sqlalchemy import (

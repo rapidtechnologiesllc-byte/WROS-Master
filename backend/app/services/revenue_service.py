@@ -9,6 +9,7 @@ Handles:
 - Gross margin tracking
 - Revenue rollup by service/module/client_type/pricing_model
 """
+import logging
 from datetime import datetime
 from typing import Optional, List, Dict
 from sqlalchemy.orm import Session

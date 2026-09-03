@@ -13,6 +13,7 @@ Core question: "Are we tracking to close this deal on schedule?"
 If not, Flash intervenes immediately.
 """
 
+import logging
 from typing import Dict, Any, List, Optional
 from datetime import datetime, timedelta
 from sqlalchemy.orm import Session

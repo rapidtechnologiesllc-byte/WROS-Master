@@ -13,6 +13,7 @@ Each note records:
   - When it was created / last updated
 """
 
+import logging
 from datetime import datetime
 from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text, func
 from sqlalchemy.orm import relationship

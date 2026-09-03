@@ -5,6 +5,7 @@ Employee as Bench, extended with bench_periods history) + S-247/S-248
 import logging
 """
 
+import logging
 from datetime import date, datetime
 from typing import List, Optional
 

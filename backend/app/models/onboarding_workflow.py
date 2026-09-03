@@ -9,6 +9,7 @@ onboarding_task: tracks assigned onboarding tasks and training.
 This model manages the full onboarding journey after an employee joins,
 including buddy assignment, welcome kit delivery, and training scheduling.
 """
+import logging
 from datetime import datetime
 from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text, Boolean, Enum, UniqueConstraint, func, Date
 from sqlalchemy.orm import relationship

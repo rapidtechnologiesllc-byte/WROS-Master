@@ -47,8 +47,12 @@ def _to_response(t) -> TemplateResponse:
     )
 
 
-@router.post("", response_model=TemplateResponse, status_code=201)
+@router.post(
+    "",
+    response_model=TemplateResponse,
+    status_code=201,
     dependencies=[Depends(require_resource_permission("unknown", "create"))]
+)
 def create_template(
     body: CreateTemplateRequest,
     db: Session = Depends(get_db),
@@ -73,8 +77,11 @@ def create_template(
     return _to_response(template)
 
 
-@router.get("", response_model=TemplateListResponse)
+@router.get(
+    "",
+    response_model=TemplateListResponse,
     dependencies=[Depends(require_resource_permission("unknown", "view"))]
+)
 def list_templates_endpoint(
     channel: str = None,
     template_key: str = None,
@@ -86,8 +93,11 @@ def list_templates_endpoint(
     return TemplateListResponse(templates=[_to_response(t) for t in templates])
 
 
-@router.get("/{template_id}", response_model=TemplateResponse)
+@router.get(
+    "/{template_id}",
+    response_model=TemplateResponse,
     dependencies=[Depends(require_resource_permission("{template_id}", "view"))]
+)
 def get_template_endpoint(
     template_id: int,
     db: Session = Depends(get_db),
@@ -117,8 +127,11 @@ def activate_template_endpoint(
     return _to_response(template)
 
 
-@router.get("/{template_id}/preview", response_model=TemplatePreviewResponse)
+@router.get(
+    "/{template_id}/preview",
+    response_model=TemplatePreviewResponse,
     dependencies=[Depends(require_resource_permission("{template_id}", "view"))]
+)
 def preview_template_endpoint(
     template_id: int,
     candidate_id: str,

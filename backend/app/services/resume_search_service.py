@@ -11,6 +11,7 @@ This enables Thunder to intelligently match candidates to jobs instead of
 contacting all candidates indiscriminately.
 """
 
+import logging
 import json
 import os
 from typing import List, Dict, Optional, Tuple
@@ -64,7 +65,7 @@ class ResumeSearchService:
             logger.info(f"[ResumeIndex] Indexed resume for candidate {candidate.candidateID}")
 
         except Exception as e:
-           logger.error(f"Error: {str(e)}", exc_info=True)
+            logger.error(f"Error: {str(e)}", exc_info=True)
             logger.error(f"[ResumeIndex] Failed to index resume for {candidate.candidateID}: {e}", exc_info=True)
             # CRITICAL FIX: Raise exception instead of silent failure
             raise ValueError(f"Failed to index resume for candidate {candidate.candidateID}: {str(e)}")
@@ -162,7 +163,7 @@ class ResumeSearchService:
             return json.dumps(embedding_metadata)
 
         except Exception as e:
-           logger.error(f"Error: {str(e)}", exc_info=True)
+            logger.error(f"Error: {str(e)}", exc_info=True)
             logger.warning(f"[ResumeIndex] Could not generate embeddings: {e}")
             raise ValueError("Operation failed")
 
@@ -273,7 +274,7 @@ class ResumeSearchService:
                     results.append((candidate_id, score))
 
         except Exception as e:
-           logger.error(f"Error: {str(e)}", exc_info=True)
+            logger.error(f"Error: {str(e)}", exc_info=True)
             logger.warning(f"[ResumeSearch] Skill matching error: {e}")
 
         return results
@@ -315,7 +316,7 @@ class ResumeSearchService:
                         results.append((candidate_id, score))
 
         except Exception as e:
-           logger.error(f"Error: {str(e)}", exc_info=True)
+            logger.error(f"Error: {str(e)}", exc_info=True)
             logger.warning(f"[ResumeSearch] Title matching error: {e}")
 
         return results
@@ -348,7 +349,7 @@ class ResumeSearchService:
                     results.append((candidate_id, score))
 
         except Exception as e:
-           logger.error(f"Error: {str(e)}", exc_info=True)
+            logger.error(f"Error: {str(e)}", exc_info=True)
             logger.warning(f"[ResumeSearch] Experience matching error: {e}")
 
         return results
@@ -391,7 +392,7 @@ class ResumeSearchService:
                     results.append((candidate_id, 0.5))
 
         except Exception as e:
-           logger.error(f"Error: {str(e)}", exc_info=True)
+            logger.error(f"Error: {str(e)}", exc_info=True)
             logger.warning(f"[ResumeSearch] Description matching error: {e}")
 
         return results

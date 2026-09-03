@@ -14,6 +14,7 @@ generation") for real -- see app.services.invoice_service.generate_invoice(),
 which also blocks on any open HRMS-0904 timesheet dispute in the
 period, extending that story's own BR-02.
 """
+import logging
 import uuid
 
 from sqlalchemy import (

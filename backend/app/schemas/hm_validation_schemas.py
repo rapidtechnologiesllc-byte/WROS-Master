@@ -4,6 +4,7 @@ Validation questions before interview scheduling
 import logging
 """
 
+import logging
 from pydantic import BaseModel, Field, validator
 from typing import Optional, List, Dict, Any
 from datetime import datetime

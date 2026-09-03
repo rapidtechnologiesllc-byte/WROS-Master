@@ -18,6 +18,7 @@ Daily workflow:
 Philosophy: "We work FOR partners to enable success, not burden them with reports."
 """
 
+import logging
 from typing import Dict, Any, List, Optional
 from datetime import datetime, timedelta
 from sqlalchemy.orm import Session

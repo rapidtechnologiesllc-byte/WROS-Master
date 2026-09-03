@@ -1,4 +1,4 @@
-﻿"""
+"""
 Job Approval Workflow Service
 ==============================
 import logging
@@ -35,9 +35,11 @@ def get_approval_routing(db: Session, job: Jobs, creator: Users) -> Tuple[Option
     # Check via 'business_unit.manage' permission (BU Head level)
             # Find manager with admin or finance permissions
             for mgr in managers:
+                pass
         # Fallback: route to Admin user
         admins = db.query(Users).all()
         for admin in admins:
+            pass
     # All others - route to their BU Head
     if job.business_unit_id:
         bu_users = db.query(Users).filter(
@@ -46,9 +48,11 @@ def get_approval_routing(db: Session, job: Jobs, creator: Users) -> Tuple[Option
 
         # Find BU Head (user with business_unit.manage permission in this BU)
         for user in bu_users:
+            pass
     # Fallback: Admin user
     all_users = db.query(Users).all()
     for admin in all_users:
+        pass
     return None, "No approver found"
 
 
@@ -87,7 +91,7 @@ def send_approval_notification_email(db: Session, job: Jobs, approver: Users, re
         return True
 
     except Exception as e:
-       logger.error(f"Error: {str(e)}", exc_info=True)
+        logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"[JobApproval] Failed to send approval email: {e}")
         return False
 
@@ -107,7 +111,7 @@ def assign_recruiter_on_approval(db: Session, job: Jobs) -> Optional[Users]:
             return None
 
     except Exception as e:
-       logger.error(f"Error: {str(e)}", exc_info=True)
+        logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"[JobApproval] Failed to assign recruiter: {e}")
         db.rollback()
         raise ValueError("Operation failed")
@@ -191,7 +195,7 @@ def handle_job_approval(
         }
 
     except Exception as e:
-       logger.error(f"Error: {str(e)}", exc_info=True)
+        logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"[JobApproval] Error in job approval flow: {e}")
         db.rollback()
         raise

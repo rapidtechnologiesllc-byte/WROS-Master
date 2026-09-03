@@ -20,6 +20,7 @@ every other Phase 2 entity built this session (Employee/Client/Demand/
 Submission/Interview). Whoever builds the endpoint must add that check;
 these functions trust the caller.
 """
+import logging
 from datetime import date, datetime
 from typing import List, Optional
 
@@ -319,7 +320,7 @@ def create_weekly_draft_batch(db: Session) -> dict:
                 "error": str(exc)
             })
 
-    db.commit()
+            db.commit()
 
     return {
         "created": created,

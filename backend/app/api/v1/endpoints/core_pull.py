@@ -99,8 +99,8 @@ def _get_event_or_404(db: Session, event_id: str) -> CorePullEvent:
 
 
 @router.get(
-    dependencies=[Depends(get_current_user)]
     "/specialty-pool-status",
+    dependencies=[Depends(get_current_user)],
     response_model=SpecialtyPoolStatusResponse,
     summary="Get the current Specialty Core-Certified pool size vs the 40-minimum floor",
 )
@@ -113,8 +113,8 @@ def get_pool_status(
 
 
 @router.get(
-    dependencies=[Depends(get_current_user)]
     "/events",
+    dependencies=[Depends(get_current_user)],
     response_model=CorePullEventQueueResponse,
     summary="Get pending Core-Pull events",
 )
@@ -135,8 +135,8 @@ def get_pending_events(
 
 
 @router.post(
-    dependencies=[Depends(get_current_user)]
     "/events/{event_id}/execute",
+    dependencies=[Depends(get_current_user)],
     response_model=ExecuteCorePullResponse,
     summary="Execute a pending Core-Pull event (same-day forced transfer)",
 )
@@ -169,8 +169,8 @@ def execute_event(
 
 
 @router.post(
-    dependencies=[Depends(get_current_user)]
     "/events/{event_id}/override",
+    dependencies=[Depends(get_current_user)],
     response_model=OverrideCorePullResponse,
     summary="Override a pending Core-Pull event (BU Head only)",
 )
@@ -202,8 +202,8 @@ def override_event(
 
 
 @router.post(
-    dependencies=[Depends(get_current_user)]
     "/replacement-plans",
+    dependencies=[Depends(get_current_user)],
     response_model=ReplacementPlanResponse,
     summary="Log a Specialty Pool replacement plan to unblock a guard-blocked execute",
 )

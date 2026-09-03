@@ -21,6 +21,7 @@ into the highest-value, safest real trigger points as they're built
 (supervisor.cycle_completed from S-066's SupervisorAgent is the first
 real caller) -- flagged here, not silently claimed complete.
 """
+import logging
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 

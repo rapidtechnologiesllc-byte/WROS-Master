@@ -8,6 +8,7 @@ function itself is real" posture as every other scheduled-job story in
 this codebase (e.g. HRMS-0901's weekly draft job, scan_timesheet_
 anomalies()).
 """
+import logging
 from datetime import date
 from typing import List, Optional
 

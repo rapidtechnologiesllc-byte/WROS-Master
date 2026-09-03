@@ -48,8 +48,10 @@ def _current_employee(db: Session, current_user: Users) -> Employee:
     return employee
 
 
-@router.get("/org-health", dependencies=[Depends(get_current_internal_user)])
-    dependencies=[Depends(get_current_user)]
+@router.get(
+    "/org-health",
+    dependencies=[Depends(get_current_internal_user)],
+)
 def org_health(db: Session = Depends(get_db)):
     return get_org_health_snapshot(db)
 
@@ -69,8 +71,10 @@ def close_cycle(cycle_id: str, current_user: Users = Depends(get_current_interna
     return close_cycle_and_summarize(db, cycle, closed_by=current_user.UserID)
 
 
-@router.post("/feedback-cycles/{cycle_id}/responses")
+@router.post(
+    "/feedback-cycles/{cycle_id}/responses",
     dependencies=[Depends(require_resource_permission("feedback-cycle", "create"))]
+)
 def submit_response(
     cycle_id: str, body: FeedbackSubmitRequest,
     current_user: Users = Depends(get_current_internal_user), db: Session = Depends(get_db),
@@ -93,8 +97,11 @@ def birthday_drafts(db: Session = Depends(get_db)):
     return generate_birthday_drafts(db)
 
 
-@router.post("/recognition/{draft_id}/approve", response_model=RecognitionDraftResponse)
+@router.post(
+    "/recognition/{draft_id}/approve",
+    response_model=RecognitionDraftResponse,
     dependencies=[Depends(require_resource_permission("recognition", "create"))]
+)
 def approve_recognition(draft_id: str, current_user: Users = Depends(get_current_internal_user), db: Session = Depends(get_db)):
     draft = db.query(RecognitionMessageDraft).filter(RecognitionMessageDraft.id == draft_id).first()
     if not draft:
@@ -113,8 +120,11 @@ def reject_recognition_endpoint(draft_id: str, db: Session = Depends(get_db)):
     return reject_recognition(db, draft)
 
 
-@router.post("/concerns", response_model=ConcernResponse)
+@router.post(
+    "/concerns",
+    response_model=ConcernResponse,
     dependencies=[Depends(require_resource_permission("concern", "create"))]
+)
 def raise_concern(body: ConcernSubmitRequest, current_user: Users = Depends(get_current_internal_user), db: Session = Depends(get_db)):
     employee = _current_employee(db, current_user)
     return submit_concern(db, employee, body.message_text)
