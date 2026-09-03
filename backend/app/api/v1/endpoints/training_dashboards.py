@@ -1,7 +1,8 @@
-from app.core.logging import logger
 """Training, Certification, and Partner-specific dashboards."""
+import logging
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
+from app.core.logging import logger
 from app.core.database import get_db
 from app.core.dependencies import get_current_internal_user, require_resource_permission
 from app.core.visibility import should_bypass_bu_filter, get_user_bu_id
@@ -12,7 +13,6 @@ from app.services.training_certification_service import (
     get_employee_training_status,
     get_training_pipeline_status,
     get_next_training_steps,
-import logging
 )
 
 router = APIRouter(prefix="/dashboards", tags=["Dashboards"])
