@@ -44,6 +44,18 @@ from app.services.permission_helper import PermissionHelper
 logger = logging.getLogger(__name__)
 
 SERVICE_MAILBOX = "helpdesk_hrms@blitzenx.com"
+AI_AGENT_NAME = "HRMS AI Agent"
+
+# Core field definitions for candidate data
+CANDIDATE_CORE_FIELDS = [
+    "name", "email", "phone", "location", "current_company",
+    "job_title", "years_experience", "notice_period"
+]
+
+INFO_FORM_FIELDS = [
+    "highest_qualification", "languages", "willing_to_relocate",
+    "visa_status", "salary_expectation"
+]
 
 
 class AIConversationService:
