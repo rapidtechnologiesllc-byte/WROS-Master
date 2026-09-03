@@ -20,8 +20,8 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.dependencies import get_current_candidate
 from app.models.candidate import Candidate
-from app.schemas.portal_messages import (
 from app.core.dependencies import get_current_internal_user
+from app.schemas.portal_messages import (
     PortalMessageHistoryResponse,
     PortalMessageRequest,
     PortalMessageResponse,

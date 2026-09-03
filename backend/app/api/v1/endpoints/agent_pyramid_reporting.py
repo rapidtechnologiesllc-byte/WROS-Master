@@ -30,8 +30,8 @@ from pydantic import BaseModel
 
 from app.core.dependencies import get_db, get_current_user, require_resource_permission
 from app.models.user import Users
-from app.services.agent_pyramid_reporting import (
 from app.core.database import get_db
+from app.services.agent_pyramid_reporting import (
     TechLeadWeeklyReportAgent,
     ManagerWeeklyReportAgent,
     PrincipalArchitectWeeklyReportAgent,

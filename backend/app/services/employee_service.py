@@ -16,8 +16,8 @@ from typing import Optional
 from sqlalchemy.orm import Session
 
 from app.models.candidate import Candidate
-from app.models.employee import (
 from app.core.logging import logger
+from app.models.employee import (
     ALLOWED_STATUS_TRANSITIONS,
     Employee,
     EmployeeEmploymentHistory,

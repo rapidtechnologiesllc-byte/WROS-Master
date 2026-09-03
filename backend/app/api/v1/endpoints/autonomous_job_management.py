@@ -11,8 +11,8 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.dependencies import get_current_internal_user
-from app.services.autonomous_job_closure_service import (
 from app.core.logging import logger
+from app.services.autonomous_job_closure_service import (
     check_and_close_job_if_filled,
     get_job_closure_status
 )

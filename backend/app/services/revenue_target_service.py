@@ -21,8 +21,8 @@ from app.models.invoice import Invoice
 from app.models.opportunity import Opportunity
 from app.models.revenue_target import BURevenueTarget, PartnerGoal
 from app.models.user import Users
-from app.services.opportunity_service import (
 from app.core.logging import logger
+from app.services.opportunity_service import (
     aggregate_weighted_forecast, calculate_pipeline_coverage_ratio, calculate_weighted_forecast,
 )
 from app.services.permission_helper import PermissionHelper

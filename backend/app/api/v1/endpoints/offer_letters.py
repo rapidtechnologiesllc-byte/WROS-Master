@@ -8,8 +8,8 @@ from sqlalchemy.orm import Session
 import os as _os
 
 from app.core.database import get_db
-from app.core.dependencies import (
 from fastapi import Request
+from app.core.dependencies import (
     get_current_candidate,
     get_current_internal_user,
     require_permission,

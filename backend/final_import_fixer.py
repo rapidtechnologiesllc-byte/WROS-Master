@@ -88,7 +88,6 @@ def fix_file(filepath):
             lines = content.split('\n')
             if e.lineno and e.lineno <= len(lines):
                 problem_line = lines[e.lineno - 1]
-                if ' import ' in problem_line and problem_line.count(' import ') > 1:
                     # Remove this line
                     lines.pop(e.lineno - 1)
                     content = '\n'.join(lines)

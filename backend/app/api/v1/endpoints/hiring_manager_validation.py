@@ -12,8 +12,8 @@ from typing import Optional, List
 from app.models import HiringManagerValidation, HMValidationStatus, HMValidationResponse, Candidate, Demand
 from app.services.hiring_manager_validation_service import HiringManagerValidationService
 from app.core.database import get_db
-from app.schemas.hm_validation_schemas import (
 from fastapi import Depends
+from app.schemas.hm_validation_schemas import (
     HMValidationListResponse,
     HMValidationDetailResponse,
     HMValidationResponseSubmit,

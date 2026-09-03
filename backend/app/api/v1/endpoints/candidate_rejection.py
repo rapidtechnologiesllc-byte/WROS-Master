@@ -23,8 +23,8 @@ from app.core.database import get_db
 from app.core.dependencies import get_current_internal_user, require_resource_permission
 from app.models.candidate import Candidate
 from app.models.candidate_rejection import CandidateRejection
-from app.schemas.candidate_rejection import (
 from fastapi import Request
+from app.schemas.candidate_rejection import (
     RejectCandidateRequest,
     RejectCandidateResponse,
     SendRejectionEmailRequest,

@@ -366,7 +366,7 @@ class NewsletterService:
         instead of falsely marking 'sent' -- same principle as the
         LinkedIn mock fix: no fake success, ever.
         """
-from app.core.database import to avoid circular deps
+        # to avoid circular deps, import Session locally
 
         db: Session = SessionLocal()
         try:
