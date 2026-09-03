@@ -78,8 +78,8 @@ export default function AuthPage() {
       const user = response;
       return user;
     } catch (error) {
-      console.error("Failed to fetch user details", error);
-      return null;
+      logger.error(`[AuthPage] Failed to fetch user details: ${error.message}`, error);
+      throw new Error(`Failed to fetch user details: ${error.message}`);
     }
   };
 
@@ -260,7 +260,11 @@ export default function AuthPage() {
           setMfaSetupData(setupData);
           setStep("mfa-setup");
         } catch (setupErr) {
-          setError(setupErr.message || "Could not start MFA enrollment.");
+          const errorMsg = setupErr.message || "Could not start MFA enrollment.";
+          console.error(`[AuthPage] MFA setup failed: ${errorMsg}`, setupErr);
+          setError(errorMsg);
+          setLoading(false);
+          throw new Error(errorMsg);
         } finally {
           setLoading(false);
         }
@@ -277,7 +281,9 @@ export default function AuthPage() {
         return;
       }
     } catch (err) {
+      console.error("[AuthPage] Login error:", err);
       setError(err.message || "Login failed.");
+      throw err;
     } finally {
       setLoading(false);
     }
@@ -695,7 +701,7 @@ export default function AuthPage() {
                   <input
                     type={showPassword ? "text" : "password"}
                     required
-                    className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 pr-10 text-sm outline-none focus:border-bx-orange"
+                    className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 pr-10 text-sm text-slate-900 outline-none focus:border-bx-orange focus:ring-1 focus:ring-bx-orange"
                     value={loginForm.UserPassword}
                     onChange={(event) =>
                       setLoginForm((prev) => ({
