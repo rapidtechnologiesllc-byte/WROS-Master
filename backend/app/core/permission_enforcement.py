@@ -75,37 +75,37 @@ def require_permission(permission: str):
             # Call the original function
             return await func(*args, **kwargs) if hasattr(func, '__await__') else func(*args, **kwargs)
 
-    @wraps(func)
-    def sync_wrapper(*args, **kwargs):
-        db = kwargs.get("db")
-        current_user = kwargs.get("current_user")
+        @wraps(func)
+        def sync_wrapper(*args, **kwargs):
+            db = kwargs.get("db")
+            current_user = kwargs.get("current_user")
 
-        if not db or not current_user:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Database or user session not available"
+            if not db or not current_user:
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="Database or user session not available"
+                )
+
+            # Check permission
+            tenant_id = getattr(current_user, 'tenant_id', 1)
+            has_perm = PermissionHelper.has_permission(
+                current_user.UserID, permission, db, tenant_id
             )
 
-        # Check permission
-        tenant_id = getattr(current_user, 'tenant_id', 1)
-        has_perm = PermissionHelper.has_permission(
-            current_user.UserID, permission, db, tenant_id
-        )
-
-        # Log permission check for audit trail
-        _log_permission_check(
-            current_user.UserID, permission, has_perm, "endpoint", func.__name__, db, tenant_id
-        )
-
-        if not has_perm:
-            logger.warning(f"Permission denied for user {current_user.UserID}: {permission} on {func.__name__}")
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"Permission denied: {permission}"
+            # Log permission check for audit trail
+            _log_permission_check(
+                current_user.UserID, permission, has_perm, "endpoint", func.__name__, db, tenant_id
             )
 
-        # Call the original function
-        return func(*args, **kwargs)
+            if not has_perm:
+                logger.warning(f"Permission denied for user {current_user.UserID}: {permission} on {func.__name__}")
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=f"Permission denied: {permission}"
+                )
+
+            # Call the original function
+            return func(*args, **kwargs)
 
         # Use async wrapper if the function is async, otherwise sync wrapper
         if hasattr(func, '__await__'):
@@ -157,40 +157,40 @@ def require_any_permission(permissions: List[str]):
 
             return await func(*args, **kwargs) if hasattr(func, '__await__') else func(*args, **kwargs)
 
-    @wraps(func)
-    def sync_wrapper(*args, **kwargs):
-        db = kwargs.get("db")
-        current_user = kwargs.get("current_user")
+        @wraps(func)
+        def sync_wrapper(*args, **kwargs):
+            db = kwargs.get("db")
+            current_user = kwargs.get("current_user")
 
-        if not db or not current_user:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Database or user session not available"
+            if not db or not current_user:
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="Database or user session not available"
+                )
+
+            tenant_id = getattr(current_user, 'tenant_id', 1)
+            has_perm = PermissionHelper.has_any_permission(
+                current_user.UserID, permissions, db, tenant_id
             )
 
-        tenant_id = getattr(current_user, 'tenant_id', 1)
-        has_perm = PermissionHelper.has_any_permission(
-            current_user.UserID, permissions, db, tenant_id
-        )
-
-        _log_permission_check(
-            current_user.UserID, f"any({permissions})", has_perm, "endpoint", func.__name__, db, tenant_id
-        )
-
-        if not has_perm:
-            logger.warning(f"Permission denied for user {current_user.UserID}: any{permissions} on {func.__name__}")
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"Permission denied: requires one of {permissions}"
+            _log_permission_check(
+                current_user.UserID, f"any({permissions})", has_perm, "endpoint", func.__name__, db, tenant_id
             )
 
-        return func(*args, **kwargs)
+            if not has_perm:
+                logger.warning(f"Permission denied for user {current_user.UserID}: any{permissions} on {func.__name__}")
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=f"Permission denied: requires one of {permissions}"
+                )
 
-    # Use async wrapper if the function is async, otherwise sync wrapper
-    if hasattr(func, '__await__'):
-        return async_wrapper
-    else:
-        return sync_wrapper
+            return func(*args, **kwargs)
+
+        # Use async wrapper if the function is async, otherwise sync wrapper
+        if hasattr(func, '__await__'):
+            return async_wrapper
+        else:
+            return sync_wrapper
 
     return decorator
 
@@ -235,40 +235,40 @@ def require_all_permissions(permissions: List[str]):
 
             return await func(*args, **kwargs) if hasattr(func, '__await__') else func(*args, **kwargs)
 
-    @wraps(func)
-    def sync_wrapper(*args, **kwargs):
-        db = kwargs.get("db")
-        current_user = kwargs.get("current_user")
+        @wraps(func)
+        def sync_wrapper(*args, **kwargs):
+            db = kwargs.get("db")
+            current_user = kwargs.get("current_user")
 
-        if not db or not current_user:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Database or user session not available"
+            if not db or not current_user:
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="Database or user session not available"
+                )
+
+            tenant_id = getattr(current_user, 'tenant_id', 1)
+            has_perm = PermissionHelper.has_all_permissions(
+                current_user.UserID, permissions, db, tenant_id
             )
 
-        tenant_id = getattr(current_user, 'tenant_id', 1)
-        has_perm = PermissionHelper.has_all_permissions(
-            current_user.UserID, permissions, db, tenant_id
-        )
-
-        _log_permission_check(
-            current_user.UserID, f"all({permissions})", has_perm, "endpoint", func.__name__, db, tenant_id
-        )
-
-        if not has_perm:
-            logger.warning(f"Permission denied for user {current_user.UserID}: all{permissions} on {func.__name__}")
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"Permission denied: requires all of {permissions}"
+            _log_permission_check(
+                current_user.UserID, f"all({permissions})", has_perm, "endpoint", func.__name__, db, tenant_id
             )
 
-        return func(*args, **kwargs)
+            if not has_perm:
+                logger.warning(f"Permission denied for user {current_user.UserID}: all{permissions} on {func.__name__}")
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=f"Permission denied: requires all of {permissions}"
+                )
 
-    # Use async wrapper if the function is async, otherwise sync wrapper
-    if hasattr(func, '__await__'):
-        return async_wrapper
-    else:
-        return sync_wrapper
+            return func(*args, **kwargs)
+
+        # Use async wrapper if the function is async, otherwise sync wrapper
+        if hasattr(func, '__await__'):
+            return async_wrapper
+        else:
+            return sync_wrapper
 
     return decorator
 
