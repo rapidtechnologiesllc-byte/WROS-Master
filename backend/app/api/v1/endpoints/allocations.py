@@ -28,7 +28,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_internal_user
+from app.core.dependencies import get_current_internal_user, require_resource_permission
 from app.models.business_unit import BusinessUnit
 from app.models.client import Client
 from app.models.demand import Demand
@@ -104,7 +104,7 @@ def _to_item(db: Session, allocation: EmployeeAllocation) -> AllocationItem:
     "",
     response_model=AllocationItem,
     summary="Allocate an employee to a project (demand)",
-    dependencies=[Depends(require_resource_permission(", response_model=AllocationItem, summary=", "create"))]
+    dependencies=[Depends(require_resource_permission("allocation", "create"))]
 )
 def create_allocation(
     body: CreateAllocationRequest,
@@ -176,7 +176,7 @@ def get_allocation_dropdowns(
     "",
     response_model=AllocationListResponse,
     summary="List allocations",
-    dependencies=[Depends(require_resource_permission(", response_model=AllocationListResponse, summary=", "view"))]
+    dependencies=[Depends(require_resource_permission("allocation", "view"))]
 )
 def list_allocations(
     employee_id: Optional[str] = None,
@@ -197,7 +197,7 @@ def list_allocations(
     "/{allocation_id}/end",
     response_model=AllocationItem,
     summary="End an allocation",
-    dependencies=[Depends(require_resource_permission("{allocation_id}", "create"))]
+    dependencies=[Depends(require_resource_permission("allocation", "create"))]
 )
 def end_allocation_endpoint(
     allocation_id: str,
