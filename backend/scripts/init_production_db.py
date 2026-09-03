@@ -105,6 +105,5 @@ def init_production_db():
         traceback.print_exc()
         sys.exit(1)
 
-
 if __name__ == "__main__":
     init_production_db()

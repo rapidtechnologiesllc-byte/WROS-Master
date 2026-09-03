@@ -27,7 +27,6 @@ from sqlalchemy import (
 
 from app.models.base import Base
 
-
 def _new_uuid() -> str:
     return str(uuid.uuid4())
 

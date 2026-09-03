@@ -19,7 +19,6 @@ class NotificationItem(BaseModel):
     read_at: Optional[datetime] = None
     created_at: Optional[datetime] = None
 
-
 class NotificationListResponse(BaseModel):
     notifications: List[NotificationItem]
     unread_count: int

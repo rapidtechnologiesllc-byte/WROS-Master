@@ -18,10 +18,8 @@ from sqlalchemy import (
 
 from app.models.base import Base
 
-
 def _new_uuid() -> str:
     return str(uuid.uuid4())
-
 
 HTD_PAUSE_LOG_ACTIONS = ("PAUSED", "RESUMED")
 
@@ -41,7 +39,6 @@ class HtdIntakeStatus(Base):
     paused_at = Column(DateTime, nullable=True)
     pause_reason = Column(Text, nullable=True)
 
-
 class HtdMonthlyMetric(Base):
     __tablename__ = "htd_monthly_metrics"
 
@@ -58,7 +55,6 @@ class HtdMonthlyMetric(Base):
     conversion_rate = Column(Numeric(5, 4), nullable=True)
 
     calculated_at = Column(DateTime, server_default=func.now())
-
 
 class HtdPauseLogEntry(Base):
     """AC-6: permanent, never-deleted pause/resume history."""

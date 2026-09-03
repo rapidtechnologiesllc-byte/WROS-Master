@@ -18,7 +18,6 @@ class CreateTemplateRequest(BaseModel):
     subject: Optional[str] = Field(None, max_length=500)
     language: str = "en"
 
-
 class TemplateResponse(BaseModel):
     id: int
     template_key: str
@@ -34,10 +33,8 @@ class TemplateResponse(BaseModel):
     approved_at: Optional[datetime]
     created_at: Optional[datetime]
 
-
 class TemplateListResponse(BaseModel):
     templates: List[TemplateResponse]
-
 
 class TemplatePreviewResponse(BaseModel):
     rendered_body: str

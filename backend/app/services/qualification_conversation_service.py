@@ -75,15 +75,12 @@ NOT_INTERESTED_MESSAGE = (
     "If anything changes, feel free to message me anytime -- we'd love to help whenever the timing works better for you."
 )
 
-
 def _candidate_name(candidate: Candidate) -> str:
     return candidate.candidateFirstName or candidate.candidateEmail or "there"
-
 
 def _looks_not_interested(message_body: str) -> bool:
     lowered = (message_body or "").lower()
     return any(phrase in lowered for phrase in NOT_INTERESTED_PHRASES)
-
 
 def send_channel_aware_message(
     db: Session, conversation: CandidateConversation, candidate: Candidate, message_body: str,
@@ -101,7 +98,6 @@ def send_channel_aware_message(
         send_thunder_message(db, conversation, candidate, message_body, sender_type="ai_agent", channel="whatsapp", whatsapp_client=whatsapp_client, auto_generated=True)
         return
     if channel == "web_chat":
-        from app.services.thunder_service import send_thunder_message
         send_thunder_message(db, conversation, candidate, message_body, sender_type="ai_agent", channel="web_chat", auto_generated=True)
         return
     if channel == "portal":
@@ -116,7 +112,6 @@ def send_channel_aware_message(
         triggered_by="ai_agent",
     ))
     db.flush()
-
 
 def run_qualification_turn(
     db: Session,

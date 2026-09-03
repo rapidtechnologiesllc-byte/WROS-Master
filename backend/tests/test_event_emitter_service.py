@@ -24,7 +24,6 @@ from app.models.user import Users
 
 import app.services.event_emitter_service as svc
 
-
 @pytest.fixture()
 def db_session():
     fd, db_path = tempfile.mkstemp(suffix=".sqlite3")
@@ -41,7 +40,6 @@ def db_session():
         engine.dispose()
         os.remove(db_path)
 
-
 @pytest.fixture()
 def seeded(db_session):
     db_session.add(Users(UserID="U-ORG", UserRole="Super User", UserEmail="org@blitzenx.com", UserPassword="h"))
@@ -49,7 +47,6 @@ def seeded(db_session):
     db_session.add(candidate)
     db_session.commit()
     return candidate
-
 
 def test_emit_candidate_scoped_event_creates_row(db_session, seeded):
     event_id = svc.emit(db_session, "candidate.qualified", {"score": 82}, "U-ORG", "C-1")
@@ -61,27 +58,22 @@ def test_emit_candidate_scoped_event_creates_row(db_session, seeded):
     assert row.candidate_id == "C-1"
     assert row.payload == {"score": 82}
 
-
 def test_emit_non_candidate_scoped_event_allows_no_candidate_id(db_session, seeded):
     event_id = svc.emit(db_session, "supervisor.cycle_completed", {"candidates_evaluated": 3}, "U-ORG")
     row = db_session.query(EventLog).filter(EventLog.id == event_id).first()
     assert row.candidate_id is None
 
-
 def test_emit_unknown_event_type_raises(db_session, seeded):
     with pytest.raises(svc.EventDefinitionNotFoundError):
         svc.emit(db_session, "not.a.real.event", {}, "U-ORG", "C-1")
-
 
 def test_emit_missing_tenant_id_raises(db_session, seeded):
     with pytest.raises(svc.EventValidationError):
         svc.emit(db_session, "candidate.qualified", {}, "", "C-1")
 
-
 def test_emit_candidate_scoped_without_candidate_id_raises_br02(db_session, seeded):
     with pytest.raises(svc.EventValidationError):
         svc.emit(db_session, "candidate.qualified", {}, "U-ORG")
-
 
 def test_get_events_filters_by_type_and_candidate(db_session, seeded):
     svc.emit(db_session, "candidate.qualified", {}, "U-ORG", "C-1")
@@ -96,7 +88,6 @@ def test_get_events_filters_by_type_and_candidate(db_session, seeded):
 
     candidate_only = svc.get_events(db_session, "U-ORG", candidate_id="C-1")
     assert len(candidate_only) == 2
-
 
 def test_get_events_scoped_to_tenant(db_session, seeded):
     db_session.add(Users(UserID="U-OTHER", UserRole="Super User", UserEmail="other@blitzenx.com", UserPassword="h"))

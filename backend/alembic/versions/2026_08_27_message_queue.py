@@ -13,12 +13,10 @@ Implements:
 from alembic import op
 import sqlalchemy as sa
 
-
 revision = '2026_08_27_message_queue'
 down_revision = 'f8a9b0c1d2e3'
 branch_labels = None
 depends_on = None
-
 
 def upgrade() -> None:
     # Create message_queue table
@@ -68,7 +66,6 @@ def upgrade() -> None:
         sa.Column('next_action', sa.String(100), nullable=True),
         sa.Column('created_at', sa.DateTime(timezone=False), server_default=sa.func.now()),
     )
-
 
 def downgrade() -> None:
     # Drop slm_decision table

@@ -22,7 +22,6 @@ class HMValidationStatus(str, PyEnum):
     EXPIRED = "EXPIRED"  # Timeout reached, auto-escalated
     ESCALATED = "ESCALATED"  # Escalated to HM's manager
 
-
 class HiringManagerValidation(Base):
     """
     Hiring Manager validation checkpoint.
@@ -105,7 +104,6 @@ class HiringManagerValidation(Base):
             "decision_comment": self.decision_comment,
             "decision_score": self.decision_score,
         }
-
 
 class HMValidationResponse(Base):
     """

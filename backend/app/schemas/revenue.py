@@ -18,10 +18,8 @@ class ScanLeakageRequest(BaseModel):
     period_start: date
     period_end: date
 
-
 class LogPartialBillingReasonRequest(BaseModel):
     reason: str
-
 
 class LeakageFlagItem(BaseModel):
     id: str
@@ -34,10 +32,8 @@ class LeakageFlagItem(BaseModel):
     partial_billing_reason: Optional[str] = None
     detected_at: Optional[datetime] = None
 
-
 class LeakageFlagsResponse(BaseModel):
     flags: List[LeakageFlagItem]
-
 
 class ReconciliationAlertItem(BaseModel):
     id: str
@@ -47,14 +43,11 @@ class ReconciliationAlertItem(BaseModel):
     status: str
     gap_detected_at: Optional[datetime] = None
 
-
 class ReconciliationScanResponse(BaseModel):
     alerts: List[ReconciliationAlertItem]
 
-
 class ReconciliationAlertsResponse(BaseModel):
     alerts: List[ReconciliationAlertItem]
-
 
 class ClientRevenueDashboardResponse(BaseModel):
     earned_usd_cents: Optional[int] = None

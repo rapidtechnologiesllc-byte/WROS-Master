@@ -23,7 +23,6 @@ from app.services.revenue_recognition_service import (
 
 router = APIRouter(prefix="/api/v1/p-and-l", tags=["p-and-l"])
 
-
 # ============================================================================
 # REQUEST/RESPONSE MODELS
 # ============================================================================
@@ -35,7 +34,6 @@ class PandLLineItem(BaseModel):
 
     class Config:
         from_attributes = True
-
 
 class PandLSummary(BaseModel):
     period: str  # YYYY-MM
@@ -62,7 +60,6 @@ class PandLSummary(BaseModel):
     class Config:
         from_attributes = True
 
-
 class ServiceBreakdownItem(BaseModel):
     service: str
     revenue_usd_cents: int
@@ -73,7 +70,6 @@ class ServiceBreakdownItem(BaseModel):
 
     class Config:
         from_attributes = True
-
 
 class ModuleBreakdownItem(BaseModel):
     module: str
@@ -86,7 +82,6 @@ class ModuleBreakdownItem(BaseModel):
     class Config:
         from_attributes = True
 
-
 class PricingModelBreakdownItem(BaseModel):
     pricing_model: str
     revenue_usd_cents: int
@@ -97,7 +92,6 @@ class PricingModelBreakdownItem(BaseModel):
 
     class Config:
         from_attributes = True
-
 
 class ClientOwnerItem(BaseModel):
     client_owner_id: str
@@ -111,7 +105,6 @@ class ClientOwnerItem(BaseModel):
 
     class Config:
         from_attributes = True
-
 
 class MonthEndClose(BaseModel):
     period: str
@@ -130,7 +123,6 @@ class MonthEndClose(BaseModel):
 
     class Config:
         from_attributes = True
-
 
 # ============================================================================
 # ENDPOINTS
@@ -180,7 +172,6 @@ def get_pnl_summary(
         logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
-
 @router.get(
     "/by-service/{business_unit_id}",
     response_model=List[ServiceBreakdownItem],
@@ -223,7 +214,6 @@ def get_pnl_by_service(
     except Exception as e:
         logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @router.get(
     "/by-module/{business_unit_id}",
@@ -268,7 +258,6 @@ def get_pnl_by_module(
         logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
-
 @router.get(
     "/by-pricing/{business_unit_id}",
     response_model=List[PricingModelBreakdownItem],
@@ -312,7 +301,6 @@ def get_pnl_by_pricing(
         logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
-
 @router.get(
     "/by-client-owner/{business_unit_id}",
     response_model=List[ClientOwnerItem],
@@ -354,7 +342,6 @@ def get_pnl_by_client_owner(
         logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
-
 @router.get(
     "/month-end/{business_unit_id}/{month}",
     response_model=PandLSummary,
@@ -393,7 +380,6 @@ def get_month_end_pnl(
     except Exception as e:
         logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @router.post(
     "/close-month",
@@ -490,7 +476,6 @@ def close_month_end(
         db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
 
-
 @router.get(
     "/trend/{business_unit_id}",
     summary="Revenue Trend",
@@ -528,7 +513,6 @@ def get_revenue_trend(
     except Exception as e:
         logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @router.get(
     "/reconciliation/{business_unit_id}/{month}",

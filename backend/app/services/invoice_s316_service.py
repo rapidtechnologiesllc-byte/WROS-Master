@@ -39,26 +39,21 @@ class InvoiceError(Exception):
     """Base exception for invoice operations."""
     pass
 
-
 class UnapprovedTimesheetBlocksInvoice(InvoiceError):
     """R-10 enforcement: Cannot invoice period with unapproved timesheets."""
     pass
-
 
 class OpenDisputeBlocksInvoice(InvoiceError):
     """BR-02 enforcement: Cannot invoice period with open timesheet disputes."""
     pass
 
-
 class InvalidInvoiceTransition(InvoiceError):
     """Attempted illegal status transition."""
     pass
 
-
 class InvoicePaymentError(InvoiceError):
     """Error during payment tracking."""
     pass
-
 
 class InvoiceS316Service:
     """

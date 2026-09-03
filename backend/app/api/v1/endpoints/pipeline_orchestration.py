@@ -31,7 +31,6 @@ from app.core.logging import logger
 
 router = APIRouter(prefix="/pipeline", tags=["pipeline-orchestration"])
 
-
 @router.post("/start/{candidate_id}", dependencies=[Depends(require_resource_permission("agents", "manage"))])
 async def start_candidate_pipeline(
     candidate_id: str,
@@ -64,7 +63,6 @@ async def start_candidate_pipeline(
         logger.error(f"Error starting pipeline: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
-
 @router.get("/status", dependencies=[Depends(require_resource_permission("agents", "view"))])
 async def get_pipeline_status(
     db: Session = Depends(get_db),
@@ -96,7 +94,6 @@ async def get_pipeline_status(
         logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Error getting pipeline status: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @router.post("/execute-agents", dependencies=[Depends(require_resource_permission("agents", "manage"))])
 async def execute_all_agents(
@@ -175,7 +172,6 @@ async def execute_all_agents(
         logger.error(f"Error executing agents: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
-
 @router.get(
     "/queue/{queue_name}",
     dependencies=[Depends(require_resource_permission("queue", "view"))]
@@ -218,7 +214,6 @@ async def peek_queue(
         logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Error peeking queue {queue_name}: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @router.get(
     "/run-demo",

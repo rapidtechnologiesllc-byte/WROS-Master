@@ -65,7 +65,6 @@ class DemandManagementService:
     ) -> Dict[str, Any]:
         """Adjust resource demand quantity"""
         try:
-            from app.models.resource_demand import ResourceDemand
 
             demand = db.query(ResourceDemand).filter(ResourceDemand.id == demand_id).first()
             if not demand:
@@ -99,7 +98,6 @@ class DemandManagementService:
     ) -> Dict[str, Any]:
         """Close a resource demand"""
         try:
-            from app.models.resource_demand import ResourceDemand
 
             demand = db.query(ResourceDemand).filter(ResourceDemand.id == demand_id).first()
             if not demand:
@@ -131,7 +129,6 @@ class DemandManagementService:
     ) -> Dict[str, Any]:
         """Get fulfillment status for a demand"""
         try:
-            from app.models.resource_demand import ResourceDemand
 
             demand = db.query(ResourceDemand).filter(ResourceDemand.id == demand_id).first()
             if not demand:

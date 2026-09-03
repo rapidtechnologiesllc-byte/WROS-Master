@@ -22,7 +22,6 @@ class OrgPositionResponse(BaseModel):
     class Config:
         from_attributes = True
 
-
 class OrgNodeResponse(BaseModel):
     """An instance of a position in the org tree (e.g., 'CEO', 'Partner - BlitzenX', 'Manager - East Coast')"""
     id: str
@@ -46,7 +45,6 @@ class OrgNodeResponse(BaseModel):
     class Config:
         from_attributes = True
 
-
 class DepartmentResponse(BaseModel):
     """A department/team within a business unit"""
     id: str
@@ -65,7 +63,6 @@ class DepartmentResponse(BaseModel):
     class Config:
         from_attributes = True
 
-
 class ApprovalChainResponse(BaseModel):
     """A workflow approval route from one position to another"""
     id: int
@@ -82,11 +79,9 @@ class ApprovalChainResponse(BaseModel):
     class Config:
         from_attributes = True
 
-
 class OrgInitializeRequest(BaseModel):
     """Request to initialize org hierarchy for a tenant"""
     ceo_name: Optional[str] = Field(None, description="Name of the CEO node (defaults to 'CEO')")
-
 
 class OrgInitializeResponse(BaseModel):
     """Response from org hierarchy initialization"""

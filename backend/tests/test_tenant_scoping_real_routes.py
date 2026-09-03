@@ -27,7 +27,6 @@ from app.models.user import Users
 from app.models.candidate import Candidate
 import app.models  # noqa: F401 -- registers every model on Base.metadata
 
-
 @pytest.fixture()
 def throwaway_jwt_keys(monkeypatch):
     key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
@@ -42,7 +41,6 @@ def throwaway_jwt_keys(monkeypatch):
     ).decode()
     monkeypatch.setattr(security, "PRIVATE_KEY", private_pem)
     monkeypatch.setattr(security, "PUBLIC_KEY", public_pem)
-
 
 @pytest.fixture()
 def client(throwaway_jwt_keys, monkeypatch):
@@ -99,10 +97,8 @@ def client(throwaway_jwt_keys, monkeypatch):
         engine.dispose()
         os.remove(db_path)
 
-
 def _token_for(email, role):
     return security.create_access_token(data={"sub": email, "type": role, "name": email})
-
 
 def test_recruiter_sees_only_their_own_tenants_candidates(client):
     token = _token_for("recruiter@blitzenx.com", "Super User")
@@ -110,7 +106,6 @@ def test_recruiter_sees_only_their_own_tenants_candidates(client):
     assert resp.status_code == 200
     ids = [c["candidate_id"] for c in resp.json()["candidates"]]
     assert ids == ["C-BX-1"]
-
 
 def test_negative_case_other_tenants_candidate_never_appears(client):
     token = _token_for("recruiter@blitzenx.com", "Super User")

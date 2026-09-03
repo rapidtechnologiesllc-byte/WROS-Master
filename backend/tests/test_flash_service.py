@@ -33,7 +33,6 @@ from app.models.resource_management import BenchPoolEntry
 
 import app.services.flash_service as svc
 
-
 @pytest.fixture()
 def db_session():
     fd, db_path = tempfile.mkstemp(suffix=".sqlite3")
@@ -49,7 +48,6 @@ def db_session():
         session.close()
         engine.dispose()
         os.remove(db_path)
-
 
 @pytest.fixture()
 def candidates(db_session):
@@ -71,16 +69,13 @@ def candidates(db_session):
     db_session.commit()
     return java_dev, guidewire_dev
 
-
 def test_find_matching_candidates_ranks_by_keyword_overlap(db_session, candidates):
     results = svc.find_matching_candidates(db_session, "Java developer")
     assert results
     assert results[0]["candidate_id"] == "C-JAVA"
 
-
 def test_find_matching_candidates_no_keywords_returns_empty(db_session, candidates):
     assert svc.find_matching_candidates(db_session, "for with and") == []
-
 
 def test_find_matching_candidates_requires_all_keywords_not_just_one(db_session, candidates):
     """Real bug, 2026-08-05: an 'Agentic AI developer' with zero Guidewire
@@ -102,17 +97,14 @@ def test_find_matching_candidates_requires_all_keywords_not_just_one(db_session,
     assert "C-GW" in ids
     assert "C-UNRELATED" not in ids
 
-
 def test_sourcing_reply_never_includes_raw_candidate_id(db_session, candidates):
     results = svc.find_matching_candidates(db_session, "Java developer")
     reply = svc._format_sourcing_reply("Java developer", results)
     for r in results:
         assert r["candidate_id"] not in reply
 
-
 def test_find_matching_candidates_no_match_returns_empty(db_session, candidates):
     assert svc.find_matching_candidates(db_session, "COBOL mainframe") == []
-
 
 def test_get_candidate_status_summary_single_match(db_session, candidates):
     result = svc.get_candidate_status_summary(db_session, "Priya Sharma")
@@ -120,11 +112,9 @@ def test_get_candidate_status_summary_single_match(db_session, candidates):
     assert result["matches"][0]["candidate_id"] == "C-GW"
     assert result["matches"][0]["pipeline_status"] == "Interviewing"
 
-
 def test_get_candidate_status_summary_no_match(db_session, candidates):
     result = svc.get_candidate_status_summary(db_session, "Nonexistent Person")
     assert result["matches"] == []
-
 
 # ---------------------------------------------------------------------------
 # classify_internal_query() -- pure local classification, no mocking needed.
@@ -135,50 +125,41 @@ def test_classify_sourcing():
     assert result["intent"] == svc.INTENT_SOURCING
     assert "java" in result["query"].lower()
 
-
 def test_classify_candidate_status():
     result = svc.classify_internal_query("How is Priya Sharma doing?")
     assert result["intent"] == svc.INTENT_CANDIDATE_STATUS
     assert result["query"] == "Priya Sharma"
 
-
 def test_classify_bench_availability():
     result = svc.classify_internal_query("Who's free for a Java role right now?")
     assert result["intent"] == svc.INTENT_BENCH_AVAILABILITY
-
 
 def test_classify_bench_availability_no_filter():
     result = svc.classify_internal_query("Who's on the bench?")
     assert result["intent"] == svc.INTENT_BENCH_AVAILABILITY
     assert result["query"] == ""
 
-
 def test_classify_finance_pnl():
     result = svc.classify_internal_query("What's our margin this month")
     assert result["intent"] == svc.INTENT_FINANCE_PNL
-
 
 def test_classify_finance_pnl_extracts_bu_name():
     result = svc.classify_internal_query("How's Axion doing on margin")
     assert result["intent"] == svc.INTENT_FINANCE_PNL
     assert result["query"] == "Axion"
 
-
 def test_classify_ar_aging():
     result = svc.classify_internal_query("What invoices are overdue")
     assert result["intent"] == svc.INTENT_AR_AGING
-
 
 def test_classify_my_tasks():
     result = svc.classify_internal_query("What's on my plate today")
     assert result["intent"] == svc.INTENT_MY_TASKS
 
-
 def test_classify_unknown_falls_through_honestly():
     result = svc.classify_internal_query("What's the weather like?")
     assert result["intent"] == svc.INTENT_UNKNOWN
     assert result["query"] == ""
-
 
 def test_classify_pronoun_resolves_via_history():
     """A follow-up whose own text has no name at all ('what about her
@@ -192,7 +173,6 @@ def test_classify_pronoun_resolves_via_history():
     assert result["intent"] == svc.INTENT_CANDIDATE_STATUS
     assert result["query"] == "Priya Sharma"
 
-
 def test_classify_no_gemini_dependency_exists():
     """Real regression guard for the 2026-08-06 architecture change --
     Avinash's explicit instruction was that Flash's classification must
@@ -201,7 +181,6 @@ def test_classify_no_gemini_dependency_exists():
     deliberately, not silently broken."""
     assert not hasattr(svc, "GEMINI_API_KEY")
     assert not hasattr(svc, "ChatGoogleGenerativeAI")
-
 
 # ---------------------------------------------------------------------------
 # answer_internal_query() -- full turn, real classify + real DB lookup.
@@ -212,18 +191,15 @@ def test_answer_internal_query_sourcing_intent(db_session, candidates):
     assert result["intent"] == "sourcing"
     assert "Raj Kumar" in result["reply"]
 
-
 def test_answer_internal_query_candidate_status_intent(db_session, candidates):
     result = svc.answer_internal_query(db_session, "How is Priya Sharma doing?")
     assert result["intent"] == "candidate_status"
     assert "Interviewing" in result["reply"]
 
-
 def test_answer_internal_query_unknown_intent_returns_honest_fallback(db_session):
     result = svc.answer_internal_query(db_session, "What's the weather like?")
     assert result["intent"] == "unknown"
     assert result["reply"] == svc.UNSUPPORTED_QUERY_MESSAGE
-
 
 def test_answer_internal_query_relationship_question_is_honestly_unsupported(db_session):
     """Real scenario Avinash tested live, 2026-08-06: a client-relationship
@@ -238,7 +214,6 @@ def test_answer_internal_query_relationship_question_is_honestly_unsupported(db_
     )
     assert result["intent"] == "unknown"
     assert result["reply"] == svc.UNSUPPORTED_QUERY_MESSAGE
-
 
 @pytest.fixture()
 def bench_employees(db_session):
@@ -260,11 +235,9 @@ def bench_employees(db_session):
     db_session.commit()
     return {"react_dev": react_dev, "java_dev": java_dev}
 
-
 def test_find_available_bench_employees_no_filter_returns_all(db_session, bench_employees):
     results = svc.find_available_bench_employees(db_session, "")
     assert len(results) == 2
-
 
 def test_find_available_bench_employees_filters_by_skill(db_session, bench_employees):
     # "React" alone -- "developer"/"role" are generic stopwords-adjacent
@@ -275,13 +248,11 @@ def test_find_available_bench_employees_filters_by_skill(db_session, bench_emplo
     assert len(results) == 1
     assert results[0]["name"] == "Ravi Iyer"
 
-
 def test_answer_internal_query_bench_availability_intent(db_session, bench_employees):
     result = svc.answer_internal_query(db_session, "Who's free for a Java role right now?")
     assert result["intent"] == "bench_availability"
     assert "Meena Nair" in result["reply"]
     assert "Ravi Iyer" not in result["reply"]
-
 
 def test_answer_internal_query_bench_availability_empty_query_not_treated_as_unsupported(db_session, bench_employees):
     """Unlike SOURCING/CANDIDATE_STATUS, an empty query is a valid
@@ -291,7 +262,6 @@ def test_answer_internal_query_bench_availability_empty_query_not_treated_as_uns
     assert result["reply"] != svc.UNSUPPORTED_QUERY_MESSAGE
     assert "Meena Nair" in result["reply"]
     assert "Ravi Iyer" in result["reply"]
-
 
 def test_follow_up_resolves_the_referenced_candidate_via_history(db_session, candidates):
     """Real end-to-end proof: a follow-up whose own text has no name at
@@ -304,14 +274,12 @@ def test_follow_up_resolves_the_referenced_candidate_via_history(db_session, can
     assert result["intent"] == "candidate_status"
     assert "Interviewing" in result["reply"]
 
-
 def test_missing_history_is_backward_compatible(db_session, candidates):
     """A caller that never passes history (or passes None/[]) must get
     exactly the same behavior as before this feature existed."""
     result = svc.answer_internal_query(db_session, "Find me a Java developer")
     assert result["intent"] == "sourcing"
     assert "Raj Kumar" in result["reply"]
-
 
 # ---------------------------------------------------------------------------
 # FINANCE_PNL / AR_AGING / MY_TASKS -- basic smoke coverage only. Full
@@ -333,12 +301,10 @@ def test_answer_internal_query_finance_pnl_denied_without_current_user(db_sessio
     assert result["intent"] == "finance_pnl"
     assert result["reply"] == svc.UNSUPPORTED_QUERY_MESSAGE
 
-
 def test_answer_internal_query_ar_aging_denied_without_current_user(db_session):
     result = svc.answer_internal_query(db_session, "What invoices are overdue")
     assert result["intent"] == "ar_aging"
     assert result["reply"] == svc.UNSUPPORTED_QUERY_MESSAGE
-
 
 def test_answer_internal_query_my_tasks_denied_without_current_user(db_session):
     result = svc.answer_internal_query(db_session, "What's on my plate today")

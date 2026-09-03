@@ -152,7 +152,6 @@ class ServiceLayerAnalyzer(ast.NodeVisitor):
             return True
         return False
 
-
 def analyze_file(filepath: Path) -> List[Tuple[int, str]]:
     """Analyze a Python file for silent failures."""
     if not filepath.suffix == '.py':
@@ -171,7 +170,6 @@ def analyze_file(filepath: Path) -> List[Tuple[int, str]]:
         return analyzer.violations
     except SyntaxError:
         raise ValueError("Operation failed")  # Skip files with syntax errors
-
 
 def pytest_collection_modifyitems(config, items):
     """
@@ -208,7 +206,6 @@ def pytest_collection_modifyitems(config, items):
             ViolationCollector(),
             phase='pytest_collection',
         )
-
 
 # Plugin hook for pytest
 pytest_plugins = []

@@ -16,7 +16,6 @@ from app.models.candidate_ai import ConversationEvent
 
 router = APIRouter(prefix="/candidates", tags=["candidates-workflows"])
 
-
 @router.post(
     "/{candidate_id}/convert-to-employee",
     dependencies=[Depends(require_resource_permission("candidates", "edit"))],
@@ -106,7 +105,6 @@ def convert_candidate_to_employee(
         logger.error(f"❌ Conversion failed: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Conversion failed: {str(e)}")
 
-
 def _user_info(user: Users | None) -> dict | None:
     """Return compact user info dict, or None if not found."""
     if not user:
@@ -117,7 +115,6 @@ def _user_info(user: Users | None) -> dict | None:
         "email": user.UserEmail,
         "role": user.UserRole,
     }
-
 
 @router.get(
     "/{candidate_id}/contacts",

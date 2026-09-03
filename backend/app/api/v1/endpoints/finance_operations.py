@@ -15,7 +15,6 @@ import logging
 
 router = APIRouter(prefix="/finance-operations", tags=["Finance Operations"])
 
-
 @router.get("/bank-reconciliation", dependencies=[Depends(require_resource_permission("revenue", "view"))])
 def get_bank_reconciliation(
     as_of_date: str = None,
@@ -30,7 +29,6 @@ def get_bank_reconciliation(
         logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
-
 @router.get("/ar-aging", dependencies=[Depends(require_resource_permission("revenue", "view"))])
 def get_ar_aging(
     as_of_date: str = None,
@@ -44,7 +42,6 @@ def get_ar_aging(
     except Exception as e:
         logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @router.get("/invoices/{invoice_id}/detail", dependencies=[Depends(require_resource_permission("revenue", "view"))])
 def get_invoice_detail(

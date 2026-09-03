@@ -13,7 +13,6 @@ from app.models.employee import Employee
 from app.models.invoice import Invoice
 from app.models.employee_allocation import EmployeeAllocation
 
-
 def get_recruitment_metrics(db: Session, days_back: int = 1, tenant_id: Optional[str] = None) -> Dict[str, Any]:
     """Get recruitment business metrics for standup."""
     try:
@@ -34,7 +33,6 @@ def get_recruitment_metrics(db: Session, days_back: int = 1, tenant_id: Optional
         "conversion_rate": round((hired / max(qualified + screened + interviewed + offer_stage, 1) * 100) if (qualified + screened + interviewed + offer_stage) > 0 else 0, 1)
     }
 
-
 def get_interview_metrics(db: Session, days_back: int = 1, tenant_id: Optional[str] = None) -> Dict[str, Any]:
     """Get interview scheduling and outcome metrics."""
     try:
@@ -43,7 +41,6 @@ def get_interview_metrics(db: Session, days_back: int = 1, tenant_id: Optional[s
         interviews_total = 0
 
     return {"interviews_total": interviews_total, "interviews_scheduled": interviews_total // 2, "completion_rate": 50.0}
-
 
 def get_offer_metrics(db: Session, days_back: int = 1, tenant_id: Optional[str] = None) -> Dict[str, Any]:
     """Get offer creation and acceptance metrics."""
@@ -57,7 +54,6 @@ def get_offer_metrics(db: Session, days_back: int = 1, tenant_id: Optional[str] 
 
     return {"offers_total": offers_total, "offers_accepted": offers_accepted, "acceptance_rate": round((offers_accepted / max(offers_total, 1) * 100) if offers_total > 0 else 0, 1)}
 
-
 def get_onboarding_metrics(db: Session, days_back: int = 1, tenant_id: Optional[str] = None) -> Dict[str, Any]:
     """Get employee onboarding and integration metrics."""
     try:
@@ -69,7 +65,6 @@ def get_onboarding_metrics(db: Session, days_back: int = 1, tenant_id: Optional[
         return {"active_employees": 0, "currently_onboarding": 0, "currently_training": 0, "total_headcount": 0}
 
     return {"active_employees": active, "currently_onboarding": onboarding, "currently_training": training, "total_headcount": active + onboarding + training}
-
 
 def get_resource_allocation_metrics(db: Session, days_back: int = 1, tenant_id: Optional[str] = None) -> Dict[str, Any]:
     """Get employee allocation and project assignment metrics."""
@@ -88,7 +83,6 @@ def get_resource_allocation_metrics(db: Session, days_back: int = 1, tenant_id: 
 
     return {"active_allocations": allocations_active, "avg_utilization_pct": avg_utilization, "employees_allocated": len(set(a.employee_id for a in allocations)) if allocations else 0}
 
-
 def get_revenue_metrics(db: Session, days_back: int = 1, tenant_id: Optional[str] = None) -> Dict[str, Any]:
     """Get revenue and invoicing metrics."""
     try:
@@ -100,7 +94,6 @@ def get_revenue_metrics(db: Session, days_back: int = 1, tenant_id: Optional[str
         return {"revenue_paid_usd": 0, "revenue_outstanding_usd": 0, "invoices_sent": 0}
 
     return {"revenue_paid_usd": round(revenue_paid / 100, 2), "revenue_outstanding_usd": round(revenue_outstanding / 100, 2), "invoices_sent": invoices_sent}
-
 
 def compile_daily_business_standup(db: Session, tenant_id: Optional[str] = None) -> Dict[str, Any]:
     """Compile complete daily business metrics for standup."""

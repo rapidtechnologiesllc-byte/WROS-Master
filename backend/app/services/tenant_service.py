@@ -25,7 +25,6 @@ logger = logging.getLogger(__name__)
 class InvalidTenantLocaleField(Exception):
     pass
 
-
 def update_tenant_locale(
     db: Session, tenant: Tenant, *,
     default_timezone: Optional[str] = None,

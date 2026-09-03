@@ -34,13 +34,11 @@ from app.services.employee_self_service import (
 
 router = APIRouter(prefix="/my", tags=["my-timesheet"])
 
-
 def _current_employee_or_404(db: Session, current_user: Users):
     try:
         return resolve_current_employee(db, current_user)
     except NoLinkedEmployeeRecord as exc:
         raise HTTPException(status_code=404, detail=str(exc))
-
 
 @router.get(
     "/allocations",
@@ -53,7 +51,6 @@ def my_allocations(current_user: Users = Depends(get_current_internal_user), db:
     employee = _current_employee_or_404(db, current_user)
     allocations = get_my_active_allocations(db, employee)
     return AllocationListResponse(allocations=[allocation_to_item(db, a) for a in allocations])
-
 
 @router.get(
     "/timesheet/current",
@@ -72,7 +69,6 @@ def my_current_timesheet(
         raise HTTPException(status_code=403, detail=str(exc))
     return timesheet_to_item(db, timesheet)
 
-
 @router.put(
     "/timesheet/{timesheet_id}/entries",
     response_model=TimesheetItem,
@@ -82,7 +78,6 @@ def log_my_hours(
     timesheet_id: str, body: UpsertEntriesRequest,
     current_user: Users = Depends(get_current_internal_user), db: Session = Depends(get_db),
 ):
-    from app.api.v1.endpoints.timesheets import _to_item as timesheet_to_item
     from app.services.timesheet_service import InvalidTimesheetEntry, TimesheetNotEditable
 
     employee = _current_employee_or_404(db, current_user)
@@ -94,7 +89,6 @@ def log_my_hours(
         raise HTTPException(status_code=422, detail=str(exc))
     return timesheet_to_item(db, timesheet)
 
-
 @router.post(
     "/timesheet/{timesheet_id}/submit",
     response_model=TimesheetItem,
@@ -103,7 +97,6 @@ def log_my_hours(
 def submit_my_own_timesheet(
     timesheet_id: str, current_user: Users = Depends(get_current_internal_user), db: Session = Depends(get_db),
 ):
-    from app.api.v1.endpoints.timesheets import _to_item as timesheet_to_item
 
     employee = _current_employee_or_404(db, current_user)
     try:
@@ -112,14 +105,12 @@ def submit_my_own_timesheet(
         raise HTTPException(status_code=403, detail=str(exc))
     return timesheet_to_item(db, timesheet)
 
-
 @router.get(
     "/timesheet/history",
     response_model=TimesheetListResponse,
     dependencies=[Depends(require_resource_permission("timesheet", "view"))]
 )
 def my_timesheet_history(current_user: Users = Depends(get_current_internal_user), db: Session = Depends(get_db)):
-    from app.api.v1.endpoints.timesheets import _to_item as timesheet_to_item
 
     employee = _current_employee_or_404(db, current_user)
     history = get_my_timesheet_history(db, employee)

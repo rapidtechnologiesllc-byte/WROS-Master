@@ -56,10 +56,8 @@ from sqlalchemy import (
 
 from app.models.base import Base
 
-
 def _new_uuid() -> str:
     return str(uuid.uuid4())
-
 
 INTERVIEW_LEVELS = ("L1", "L2")
 INTERVIEW_OUTCOMES = ("PENDING", "PASS", "FAIL")
@@ -89,7 +87,6 @@ class DemandInterviewPanel(Base):
             name="uq_panel_member_per_demand_level",
         ),
     )
-
 
 class SubmissionInterview(Base):
     """The interview event itself, tied to a submission (not just a

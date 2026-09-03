@@ -28,7 +28,6 @@ logger = logging.getLogger(__name__)
 
 hm_service = HiringManagerValidationService()
 
-
 @router.post(
     "/jobs/{job_id}/create-questions",
     response_model=dict,
@@ -71,7 +70,6 @@ async def create_validation_questions_endpoint(
         logger.error(f"Error creating validation questions for job {job_id}: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to create validation questions")
 
-
 @router.post(
     "/send-to-hiring-manager",
     response_model=SendValidationToHMResponse,
@@ -110,7 +108,6 @@ async def send_to_hiring_manager(
         logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Error sending validation to HM: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to send validation")
-
 
 @router.post(
     "/record-response",
@@ -153,7 +150,6 @@ async def record_hm_response_endpoint(
         logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Error recording HM response: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to record response")
-
 
 @router.get(
     "",
@@ -203,7 +199,6 @@ async def list_validations(
         logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Error listing validations: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to fetch validations")
-
 
 @router.get(
     "/{validation_id}",
@@ -256,7 +251,6 @@ async def get_validation(validation_id: str, db=None):
         logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Error fetching validation {validation_id}: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to fetch validation")
-
 
 @router.post(
     "/{validation_id}/respond",
@@ -359,7 +353,6 @@ async def submit_validation_response(
         logger.error(f"Error submitting validation response {validation_id}: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to submit response")
 
-
 @router.put(
     "/{validation_id}/remind",
     dependencies=[Depends(require_resource_permission("hiring_manager_validation", "update"))]
@@ -407,7 +400,6 @@ async def send_reminder(validation_id: str, db=None):
         logger.error(f"Error sending reminder for validation {validation_id}: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to send reminder")
 
-
 @router.get(
     "/{validation_id}/audit-trail",
     dependencies=[Depends(require_resource_permission("hiring_manager_validation", "view"))]
@@ -431,7 +423,6 @@ async def get_audit_trail(validation_id: str, db=None):
         logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Error fetching audit trail for validation {validation_id}: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to fetch audit trail")
-
 
 @router.post(
     "/jobs/{job_id}/validation-template",
@@ -469,7 +460,6 @@ async def create_validation_template(
         logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Error creating validation template for job {job_id}: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to create template")
-
 
 @router.get(
     "/jobs/{job_id}/validation-template",

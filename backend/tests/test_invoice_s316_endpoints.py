@@ -22,14 +22,12 @@ from app.models.user import Users
 
 client = TestClient(app)
 
-
 @pytest.fixture
 def db():
     """Get database session."""
     db = SessionLocal()
     yield db
     db.close()
-
 
 @pytest.fixture
 def auth_headers(db):
@@ -48,7 +46,6 @@ def auth_headers(db):
 
     # Return auth headers (in real app, would be JWT token)
     return {"X-User-ID": "user-test-001", "X-Tenant-ID": "1"}
-
 
 @pytest.fixture
 def setup_data(db):
@@ -170,7 +167,6 @@ def setup_data(db):
         "timesheet": timesheet,
     }
 
-
 # ============================================================================
 # TEST: POST /invoices/generate
 # ============================================================================
@@ -250,7 +246,6 @@ class TestGenerateInvoiceEndpoint:
 
         assert response.status_code in (400, 404)
 
-
 # ============================================================================
 # TEST: GET /invoices/{id}/calculate
 # ============================================================================
@@ -295,7 +290,6 @@ class TestCalculateBillAmountEndpoint:
         assert calc_data["total_usd_cents"] == 200_000
         assert calc_data["line_item_count"] == 1
         assert calc_data["billable_hours"] == 40.0
-
 
 # ============================================================================
 # TEST: POST /invoices/{id}/send
@@ -343,7 +337,6 @@ class TestSendInvoiceEndpoint:
         assert send_data["status"] == "SENT"
         assert send_data["approved_by"] == "user-finance-001"
         assert send_data["client_email"] == "billing@client.com"
-
 
 # ============================================================================
 # TEST: POST /invoices/{id}/pay
@@ -403,7 +396,6 @@ class TestTrackPaymentEndpoint:
         assert pay_data["is_fully_paid"] is True
         assert pay_data["status"] == "PAID"
 
-
 # ============================================================================
 # TEST: GET /invoices/{id}
 # ============================================================================
@@ -445,7 +437,6 @@ class TestGetInvoiceEndpoint:
         assert inv_data["id"] == invoice_id
         assert inv_data["status"] == "DRAFT"
         assert len(inv_data["line_items"]) == 1
-
 
 # ============================================================================
 # TEST: GET /invoices

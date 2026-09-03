@@ -60,7 +60,6 @@ from app.services.ar_followup_service import scan_overdue_invoices, trigger_ar_f
 
 router = APIRouter(prefix="/invoices", tags=["invoices"])
 
-
 def _to_item(db: Session, invoice: Invoice) -> InvoiceItem:
     line_items = db.query(InvoiceLineItem).filter(InvoiceLineItem.invoice_id == invoice.id).all()
     return InvoiceItem(
@@ -78,13 +77,11 @@ def _to_item(db: Session, invoice: Invoice) -> InvoiceItem:
         ],
     )
 
-
 def _get_invoice_or_404(db: Session, invoice_id: str) -> Invoice:
     invoice = db.query(Invoice).filter(Invoice.id == invoice_id).first()
     if invoice is None:
         raise HTTPException(status_code=404, detail="Invoice not found.")
     return invoice
-
 
 @router.post(
     "/generate",
@@ -114,7 +111,6 @@ def generate_invoice_endpoint(
     db.refresh(invoice)
     return _to_item(db, invoice)
 
-
 @router.post(
     "/{invoice_id}/approve",
     response_model=InvoiceItem,
@@ -134,7 +130,6 @@ def approve_invoice_endpoint(
     db.commit()
     db.refresh(invoice)
     return _to_item(db, invoice)
-
 
 @router.post(
     "/{invoice_id}/send",
@@ -156,7 +151,6 @@ def send_invoice_endpoint(
     db.refresh(invoice)
     return _to_item(db, invoice)
 
-
 @router.post(
     "/{invoice_id}/mark-paid",
     response_model=InvoiceItem,
@@ -176,7 +170,6 @@ def mark_invoice_paid_endpoint(
     db.commit()
     db.refresh(invoice)
     return _to_item(db, invoice)
-
 
 @router.get(
     "",
@@ -201,7 +194,6 @@ def list_invoices(
     invoices = query.order_by(Invoice.created_at.desc()).all()
     return InvoiceListResponse(invoices=[_to_item(db, i) for i in invoices])
 
-
 @router.get(
     "/{invoice_id}",
     response_model=InvoiceItem,
@@ -216,7 +208,6 @@ def get_invoice(
     invoice = _get_invoice_or_404(db, invoice_id)
     return _to_item(db, invoice)
 
-
 @router.get(
     "/ar/aging",
     summary="EPIC-16 AR Follow-Up: overdue SENT invoices",
@@ -228,7 +219,6 @@ def ar_aging(
     current_user: Users = Depends(get_current_internal_user),
 ):
     return {"overdue": scan_overdue_invoices(db, grace_days=grace_days, tenant_id=current_user.tenant_id)}
-
 
 @router.post(
     "/{invoice_id}/ar/follow-up",

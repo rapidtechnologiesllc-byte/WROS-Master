@@ -18,12 +18,10 @@ import sqlalchemy as sa
 from sqlalchemy import Enum, String, Integer, ForeignKey, DateTime, Column, func, Boolean, Text
 from sqlalchemy.dialects import sqlite, mysql
 
-
 revision = 'phase_1_revenue'
 down_revision = None  # Set to previous migration ID
 branch_labels = None
 depends_on = None
-
 
 def upgrade():
     # 1. Add enum columns to opportunities table
@@ -174,7 +172,6 @@ def upgrade():
         nullable=True,
         default=0
     ))
-
 
 def downgrade():
     # Remove columns/tables added in upgrade

@@ -5,7 +5,6 @@ from typing import Optional
 
 logger = logging.getLogger(__name__)
 
-
 def get_secret(secret_name: str, default: Optional[str] = None) -> Optional[str]:
     """Get a secret from configured backend (Azure or AWS or local env)"""
     try:

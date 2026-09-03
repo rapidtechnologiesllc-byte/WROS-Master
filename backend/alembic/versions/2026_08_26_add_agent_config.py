@@ -12,13 +12,11 @@ configuration and pipeline orchestration by the Flash Orchestrator.
 from alembic import op
 import sqlalchemy as sa
 
-
 # revision identifiers, used by Alembic
 revision = '2026_08_26_add_agent_config'
 down_revision = None
 branch_labels = None
 depends_on = None
-
 
 def upgrade():
     """Create agent_configs table with indexes."""
@@ -56,7 +54,6 @@ def upgrade():
         'agent_configs',
         ['name']
     )
-
 
 def downgrade():
     """Drop agent_configs table and indexes."""

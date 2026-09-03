@@ -33,14 +33,11 @@ import pyotp
 MFA_REQUIRED_ROLES = {"Super User", "BU Head"}
 MFA_PENDING_TOKEN_MINUTES = 5
 
-
 def mfa_enforcement_enabled() -> bool:
     return os.getenv("MFA_ENFORCEMENT_ENABLED", "false").lower() == "true"
 
-
 def role_requires_mfa(role_name: str) -> bool:
     return bool(role_name) and role_name in MFA_REQUIRED_ROLES
-
 
 # ---------------------------------------------------------------------------
 # Backlog item, 2026-08-05 -- email-based one-time code, SUPPLEMENTING the
@@ -65,14 +62,11 @@ EMAIL_OTP_REQUIRED_ROLES = {
 }
 EMAIL_OTP_TTL_MINUTES = 10
 
-
 def email_otp_enforcement_enabled() -> bool:
     return os.getenv("EMAIL_OTP_ENFORCEMENT_ENABLED", "false").lower() == "true"
 
-
 def role_requires_email_otp(role_name: str) -> bool:
     return bool(role_name) and role_name in EMAIL_OTP_REQUIRED_ROLES
-
 
 def generate_email_otp_code() -> str:
     """6-digit numeric code, zero-padded -- easy to read aloud/type,
@@ -81,7 +75,6 @@ def generate_email_otp_code() -> str:
     short-lived."""
     return f"{secrets.randbelow(1_000_000):06d}"
 
-
 def hash_email_otp_code(code: str) -> str:
     # Same rationale as hash_backup_code below: a short-lived,
     # high-entropy-enough (1 in a million, single 10-minute window,
@@ -89,12 +82,10 @@ def hash_email_otp_code(code: str) -> str:
     # is appropriate here, not bcrypt.
     return hashlib.sha256(code.encode("utf-8")).hexdigest()
 
-
 def verify_email_otp_code(code: str, hashed: str) -> bool:
     if not code or not hashed:
         return False
     return hashlib.sha256(code.strip().encode("utf-8")).hexdigest() == hashed
-
 
 # ---------------------------------------------------------------------------
 # TOTP secret + verification
@@ -104,12 +95,10 @@ def generate_totp_secret() -> str:
     """Base32 secret, suitable for pyotp and any standard authenticator app."""
     return pyotp.random_base32()
 
-
 def get_provisioning_uri(secret: str, account_email: str, issuer: str = "BlitzenX WROS") -> str:
     """otpauth:// URI -- render as a QR code client-side, or let the user
     enter it manually into their authenticator app."""
     return pyotp.totp.TOTP(secret).provisioning_uri(name=account_email, issuer_name=issuer)
-
 
 def verify_totp_code(secret: str, code: str) -> bool:
     if not secret or not code:
@@ -118,7 +107,6 @@ def verify_totp_code(secret: str, code: str) -> bool:
     # valid_window=1 tolerates one 30s step of clock drift either side,
     # a standard and narrow allowance -- not a wide-open window.
     return totp.verify(code, valid_window=1)
-
 
 # ---------------------------------------------------------------------------
 # Backup codes (account recovery if the TOTP device is lost)
@@ -129,7 +117,6 @@ def generate_backup_codes(count: int = 10) -> List[str]:
     never stored or logged in plain text (see hash_backup_code)."""
     return [secrets.token_hex(4) for _ in range(count)]
 
-
 def hash_backup_code(code: str) -> str:
     # Backup codes are single-use, high-entropy (8 hex chars = 32 bits,
     # generated via secrets not guessed by a user), short-lived-in-
@@ -137,7 +124,6 @@ def hash_backup_code(code: str) -> str:
     # code SHA-256 is an appropriate, simple choice here, distinct from
     # bcrypt's deliberately-slow design for user-chosen passwords.
     return hashlib.sha256(code.encode("utf-8")).hexdigest()
-
 
 def verify_and_consume_backup_code(code: str, hashed_codes: List[str]) -> Tuple[bool, List[str]]:
     """

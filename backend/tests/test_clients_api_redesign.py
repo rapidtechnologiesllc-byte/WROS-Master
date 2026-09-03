@@ -39,7 +39,6 @@ from app.models.user import Users
 from app.services.rbac_service_template import RBACService
 import app.models  # noqa: F401
 
-
 @pytest.fixture()
 def throwaway_jwt_keys(monkeypatch):
     key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
@@ -54,7 +53,6 @@ def throwaway_jwt_keys(monkeypatch):
     ).decode()
     monkeypatch.setattr(security, "PRIVATE_KEY", private_pem)
     monkeypatch.setattr(security, "PUBLIC_KEY", public_pem)
-
 
 @pytest.fixture()
 def client(throwaway_jwt_keys):
@@ -130,11 +128,9 @@ def client(throwaway_jwt_keys):
         engine.dispose()
         os.remove(db_path)
 
-
 def _troy_auth():
     token = security.create_access_token(data={"sub": "troy@blitzenx.com", "type": "internal", "name": "troy@blitzenx.com"})
     return {"Authorization": f"Bearer {token}"}
-
 
 def test_create_client_without_website_succeeds(client):
     # 2026-08-07: website is now optional (prospect clients created on-the-fly)
@@ -146,14 +142,12 @@ def test_create_client_without_website_succeeds(client):
     )
     assert resp.status_code == 201, resp.text
 
-
 def test_create_client_without_contacts_succeeds(client):
     resp = client.post(
         "/clients", headers=_troy_auth(),
         json={"company_name": "Builders Insurance", "line_type": "CORE", "website": "builders.com"},
     )
     assert resp.status_code == 201, resp.text
-
 
 def test_create_client_with_all_required_fields_succeeds(client):
     resp = client.post(
@@ -165,7 +159,6 @@ def test_create_client_with_all_required_fields_succeeds(client):
         },
     )
     assert resp.status_code == 201, resp.text
-
 
 def test_add_contact_to_client_created_without_contacts(client):
     create_resp = client.post(
@@ -188,7 +181,6 @@ def test_add_contact_to_client_created_without_contacts(client):
     list_resp = client.get(f"/clients/{client_id}/contacts", headers=_troy_auth())
     assert len(list_resp.json()["contacts"]) == 1
 
-
 def test_add_contact_duplicate_email_rejected(client):
     create_resp = client.post(
         "/clients", headers=_troy_auth(),
@@ -205,7 +197,6 @@ def test_add_contact_duplicate_email_rejected(client):
     )
     assert dup_resp.status_code == 409
 
-
 def test_add_contact_invalid_role_type_rejected(client):
     create_resp = client.post(
         "/clients", headers=_troy_auth(),
@@ -217,7 +208,6 @@ def test_add_contact_invalid_role_type_rejected(client):
         json={"name": "Jane", "email": "jane@builders.com", "role_type": "NOT_A_REAL_ROLE"},
     )
     assert resp.status_code == 400
-
 
 def test_business_unit_assignments_resolves_bu_head_and_hr(client):
     ids = client.wros_ids

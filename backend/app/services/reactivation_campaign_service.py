@@ -71,7 +71,6 @@ from app.models.outreach_campaign import OutreachCampaign
 RETRY_INTERVAL_DAYS = int(os.getenv("REACTIVATION_RETRY_INTERVAL_DAYS", "21"))  # longer than the initial 14-day wait
 JOB_BATCH_SIZE = 50
 
-
 def run_reactivation_job(db: Session) -> Dict:
     """Step 2. Runs every 30 min. Sends one reactivation message to
     every candidate whose reactivation_scheduled_at is due, then starts
@@ -157,7 +156,6 @@ def run_reactivation_job(db: Session) -> Dict:
             result["skipped"] += 1
 
     return result
-
 
 def run_reactivation_reschedule_job(db: Session) -> Dict:
     """No archive, ever -- see module docstring's override. When a

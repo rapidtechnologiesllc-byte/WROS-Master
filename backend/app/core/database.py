@@ -105,7 +105,6 @@ def get_db():
         except Exception as e:
             logger.warning(f"Error closing database session: {str(e)}")
 
-
 def check_candidate(db: Session, email: str):
     # Import here to avoid circular import
     from app.models import Candidate
@@ -115,18 +114,14 @@ def check_candidate(db: Session, email: str):
 def check_user(db: Session, email: str):
     # Import here to avoid circular import
     from app.models import Users
-    from sqlalchemy import func
     return db.query(Users).filter(func.lower(Users.UserEmail) == email.lower()).first()
 
 def get_user(db: Session, email: str):
     # Import here to avoid circular import
-    from app.models import Users
-    from sqlalchemy import func
     return db.query(Users).filter(func.lower(Users.UserEmail) == email.lower()).first()
 
 def authenticate_user(db: Session, email: str, password: str):
     from app.core.security import verify_password
-    from app.core.logging import logger
     import hashlib
     import bcrypt
 
@@ -167,7 +162,6 @@ def authenticate_user(db: Session, email: str, password: str):
 
 def get_candidate(db: Session, email: str):
     # Import here to avoid circular import
-    from app.models import Candidate
     return db.query(Candidate).filter(Candidate.candidateEmail == email).first()
 
 def hash_candidate_password(password: str) -> str:
@@ -195,7 +189,6 @@ def authenticate_candidate(db: Session, email: str, password: str):
     Returns:
         Candidate object if authentication successful, False otherwise
     """
-    from app.core.security import verify_password
     candidate = get_candidate(db, email)
     if not candidate:
         return False
@@ -215,6 +208,5 @@ def get_candidate_details_by_id(db: Session, candidate_id: str):
         Candidate object if found, None otherwise
     """
     # Import here to avoid circular import
-    from app.models import Candidate
     return db.query(Candidate).filter(Candidate.candidateID == candidate_id).first()
     

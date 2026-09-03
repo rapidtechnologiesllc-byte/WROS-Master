@@ -71,7 +71,6 @@ from app.services.revenue_scanning_service import (
 
 router = APIRouter(prefix="/revenue", tags=["revenue"])
 
-
 def _flag_to_item(flag: RevenueLeakageFlag) -> LeakageFlagItem:
     return LeakageFlagItem(
         id=flag.id, project_id=flag.project_id, period_start=flag.period_start, period_end=flag.period_end,
@@ -80,13 +79,11 @@ def _flag_to_item(flag: RevenueLeakageFlag) -> LeakageFlagItem:
         detected_at=flag.detected_at,
     )
 
-
 def _alert_to_item(alert: ReconciliationAlert) -> ReconciliationAlertItem:
     return ReconciliationAlertItem(
         id=alert.id, timesheet_id=alert.timesheet_id, employee_id=alert.employee_id,
         billable_hours=float(alert.billable_hours), status=alert.status, gap_detected_at=alert.gap_detected_at,
     )
-
 
 @router.post(
     "/leakage/scan", response_model=Optional[LeakageFlagItem],
@@ -109,7 +106,6 @@ def scan_leakage(
     db.refresh(flag)
     return _flag_to_item(flag)
 
-
 @router.post(
     "/leakage/{flag_id}/log-reason", response_model=LeakageFlagItem,
     dependencies=[Depends(get_current_internal_user)],
@@ -129,7 +125,6 @@ def log_leakage_reason(
     db.refresh(flag)
     return _flag_to_item(flag)
 
-
 @router.get(
     "/leakage",
     response_model=LeakageFlagsResponse,
@@ -148,7 +143,6 @@ def list_leakage_flags(
     """
     flags = get_active_leakage_flags(db, tenant_id=current_user.tenant_id)
     return LeakageFlagsResponse(flags=[_flag_to_item(f) for f in flags])
-
 
 @router.get(
     "/leakage/statistics",
@@ -170,7 +164,6 @@ def get_leakage_statistics(
     stats = get_scan_statistics(db, tenant_id=current_user.tenant_id)
     return stats
 
-
 @router.post(
     "/leakage/rescan-all",
     response_model=dict,
@@ -190,7 +183,6 @@ def rescan_all_projects(
     result = run_daily_revenue_scan_job(db)
     return result
 
-
 @router.post(
     "/reconciliation/scan", response_model=ReconciliationScanResponse,
     dependencies=[Depends(get_current_internal_user)],
@@ -207,7 +199,6 @@ def scan_reconciliation(
         db.refresh(alert)
     return ReconciliationScanResponse(alerts=[_alert_to_item(a) for a in alerts])
 
-
 @router.get(
     "/reconciliation/alerts", response_model=ReconciliationAlertsResponse,
     dependencies=[Depends(get_current_internal_user)],
@@ -223,7 +214,6 @@ def list_reconciliation_alerts(
         query = query.filter(ReconciliationAlert.status == status)
     alerts = query.order_by(ReconciliationAlert.gap_detected_at.desc()).all()
     return ReconciliationAlertsResponse(alerts=[_alert_to_item(a) for a in alerts])
-
 
 @router.post(
     "/reconciliation/alerts/{alert_id}/resolve", response_model=ReconciliationAlertItem,
@@ -242,7 +232,6 @@ def resolve_reconciliation_alert_endpoint(
     db.commit()
     db.refresh(alert)
     return _alert_to_item(alert)
-
 
 @router.get(
     "/dashboard/clients/{client_id}", response_model=ClientRevenueDashboardResponse,

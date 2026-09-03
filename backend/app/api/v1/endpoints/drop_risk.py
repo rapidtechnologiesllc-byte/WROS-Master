@@ -30,7 +30,6 @@ from app.services.drop_risk_service import calculate_drop_risk
 
 router = APIRouter(tags=["drop-risk"])
 
-
 @router.get(
     "/candidates/{candidate_id}/drop-risk",
     response_model=DropRiskResponse,

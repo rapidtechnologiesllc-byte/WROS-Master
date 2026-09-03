@@ -14,7 +14,6 @@ from typing import List, Optional
 from pydantic import BaseModel, Field, validator
 from app.core.logging import logger
 
-
 # ============================================================================
 # REQUEST SCHEMAS
 # ============================================================================
@@ -54,7 +53,6 @@ class GenerateInvoiceRequest(BaseModel):
             }
         }
 
-
 class SendInvoiceRequest(BaseModel):
     """Request to approve and send an invoice to client."""
 
@@ -70,7 +68,6 @@ class SendInvoiceRequest(BaseModel):
                 "client_email": "billing@acme.com",
             }
         }
-
 
 class TrackPaymentRequest(BaseModel):
     """Request to record a payment against an invoice."""
@@ -97,7 +94,6 @@ class TrackPaymentRequest(BaseModel):
                 "reference_number": "WIRE-2026-08-15-001",
             }
         }
-
 
 # ============================================================================
 # RESPONSE SCHEMAS
@@ -126,7 +122,6 @@ class InvoiceLineItemResponse(BaseModel):
                 "amount_usd_cents": 200000,  # $2,000.00
             }
         }
-
 
 class GenerateInvoiceResponse(BaseModel):
     """Response after generating an invoice."""
@@ -164,7 +159,6 @@ class GenerateInvoiceResponse(BaseModel):
             }
         }
 
-
 class CalculateBillAmountResponse(BaseModel):
     """Response from bill amount calculation."""
 
@@ -190,7 +184,6 @@ class CalculateBillAmountResponse(BaseModel):
                 "status": "DRAFT",
             }
         }
-
 
 class SendInvoiceResponse(BaseModel):
     """Response after sending an invoice."""
@@ -219,7 +212,6 @@ class SendInvoiceResponse(BaseModel):
                 "tenant_id": 1,
             }
         }
-
 
 class TrackPaymentResponse(BaseModel):
     """Response after recording a payment."""
@@ -250,7 +242,6 @@ class TrackPaymentResponse(BaseModel):
                 "tenant_id": 1,
             }
         }
-
 
 class InvoiceDetailResponse(BaseModel):
     """Full invoice details with all line items."""
@@ -296,7 +287,6 @@ class InvoiceDetailResponse(BaseModel):
             }
         }
 
-
 class InvoiceListResponse(BaseModel):
     """List of invoices."""
 
@@ -312,7 +302,6 @@ class InvoiceListResponse(BaseModel):
                 "filtered_by": {"status": "SENT", "client_id": "client-001"},
             }
         }
-
 
 # ============================================================================
 # ERROR RESPONSE SCHEMAS

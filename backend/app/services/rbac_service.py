@@ -57,8 +57,6 @@ class RBACService:
     @staticmethod
     def is_super_admin(user_id: str, db: Session, tenant_id: str = None) -> bool:
         """Check if user has Super User or Admin role template."""
-        from app.models.user import Users
-        from app.models.role_template import RoleTemplate
 
         user = db.query(Users).filter(Users.UserID == user_id).first()
         if not user or not user.role_template_id:

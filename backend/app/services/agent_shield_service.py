@@ -70,7 +70,6 @@ class ShieldStrengthCalculator:
         else:
             return "BROKEN"
 
-
 class PhalanxFormationService:
     """Service for managing Spartan phalanx formations."""
 

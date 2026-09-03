@@ -16,7 +16,6 @@ class ScanTriggerResponse(BaseModel):
     core_pull_events_triggered: int
     recommendations_created: int
 
-
 class RecommendationItem(BaseModel):
     id: str
     status: str
@@ -37,28 +36,23 @@ class RecommendationItem(BaseModel):
     demand_job_title: str
     client_name: Optional[str] = None
 
-
 class RecommendationQueueResponse(BaseModel):
     recommendations: List[RecommendationItem]
-
 
 class RecommendationActionResponse(BaseModel):
     message: str
     recommendation: RecommendationItem
-
 
 class ApproveRecommendationResponse(BaseModel):
     message: str
     recommendation: RecommendationItem
     allocation_id: str
 
-
 class MatchedBenchCandidate(BaseModel):
     employee_id: str
     employee_name: str
     employee_current_title: Optional[str] = None
     score_pct: float
-
 
 class MatchBenchResourcesResponse(BaseModel):
     demand_id: str

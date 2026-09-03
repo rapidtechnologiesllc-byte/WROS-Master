@@ -353,7 +353,6 @@ import logging
         print(f"2. Update resume_parsing_service.py to use BERT")
         print(f"3. Deploy and monitor performance")
 
-
 def main():
     parser = argparse.ArgumentParser(
         description="Fine-tune BERT for resume field extraction"
@@ -388,7 +387,6 @@ def main():
 
     trainer = ResumeBERTTrainer(model_name=args.model, output_dir=args.output)
     trainer.run(args.training_data, args.synthetic_data)
-
 
 if __name__ == "__main__":
     main()

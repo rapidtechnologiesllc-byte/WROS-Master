@@ -67,7 +67,6 @@ STAGE_BADGE = {
 }
 DEFAULT_STAGE_BADGE = {"label": "In Progress", "color": "blue"}
 
-
 def generate_portal_link_token(candidate_id: str) -> str:
     """The 'magic link' itself -- a real, long-lived candidate JWT."""
     return create_access_token(
@@ -75,11 +74,9 @@ def generate_portal_link_token(candidate_id: str) -> str:
         expires_delta=timedelta(days=PORTAL_LINK_EXPIRY_DAYS),
     )
 
-
 def generate_portal_link_url(candidate_id: str) -> str:
     token = generate_portal_link_token(candidate_id)
     return f"{Settings.FRONTEND_BASE_URL.rstrip('/')}/candidate/{token}"
-
 
 def _active_conversation(db: Session, candidate_id: str) -> Optional[CandidateConversation]:
     return (
@@ -89,10 +86,8 @@ def _active_conversation(db: Session, candidate_id: str) -> Optional[CandidateCo
         .first()
     )
 
-
 def _candidate_display_name(candidate: Candidate) -> str:
     return " ".join(filter(None, [candidate.candidateFirstName, candidate.candidateLastName])).strip() or "there"
-
 
 def _map_thread_message(event: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     if event["event_type"] not in ("candidate_reply", "ai_message_sent", "hr_message_sent"):
@@ -111,7 +106,6 @@ def _map_thread_message(event: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         "sent_at": event["created_at"],
     }
 
-
 def track_portal_page_view(db: Session, candidate: Candidate, page: str, time_on_page_seconds: int, scroll_depth_pct: Optional[int]) -> bool:
     """S-346 Step 4 / S-347 Step 4 -- real behavioral signal, invisible
     to the candidate (BR-01). Silently no-ops (returns False) when the
@@ -126,7 +120,6 @@ def track_portal_page_view(db: Session, candidate: Candidate, page: str, time_on
         db, conversation.tenant_id, candidate.candidateID, page, time_on_page_seconds, scroll_depth_pct,
     )
     return signal is not None
-
 
 def get_portal_home(db: Session, candidate: Candidate) -> Dict[str, Any]:
     conversation = _active_conversation(db, candidate.candidateID)
@@ -158,7 +151,6 @@ def get_portal_home(db: Session, candidate: Candidate) -> Dict[str, Any]:
         "conversation_id": conversation.id if conversation else None,
     }
 
-
 def get_portal_thread(db: Session, candidate: Candidate) -> Dict[str, Any]:
     thread = get_conversation_thread(candidate.candidateID, db)
     if not thread:
@@ -167,11 +159,9 @@ def get_portal_thread(db: Session, candidate: Candidate) -> Dict[str, Any]:
     messages = [m for m in (_map_thread_message(e) for e in events) if m]
     return {"conversation_id": thread[0]["conversation_id"], "messages": messages}
 
-
 def get_portal_profile_fields(db: Session, candidate: Candidate) -> Dict[str, Any]:
     missing = get_missing_fields(candidate, db)
     return {"total_missing": len(missing), "missing_fields": missing}
-
 
 def get_portal_interviews(db: Session, candidate: Candidate) -> List[Dict[str, Any]]:
     rows = (
@@ -201,7 +191,6 @@ logger = logging.getLogger(__name__)
 class PortalInterviewNotFound(Exception):
     pass
 
-
 def _get_owned_interview(db: Session, candidate: Candidate, interview_id: int) -> Interview:
     interview = (
         db.query(Interview)
@@ -211,7 +200,6 @@ def _get_owned_interview(db: Session, candidate: Candidate, interview_id: int) -
     if not interview:
         raise PortalInterviewNotFound(f"Interview {interview_id} not found for this candidate.")
     return interview
-
 
 def build_ics(interview: Interview, candidate: Candidate) -> bytes:
     """Minimal, real VEVENT -- no external calendar library needed for one event."""
@@ -243,11 +231,9 @@ def build_ics(interview: Interview, candidate: Candidate) -> bytes:
     lines += ["END:VEVENT", "END:VCALENDAR"]
     return ("\r\n".join(lines) + "\r\n").encode("utf-8")
 
-
 def get_interview_ics(db: Session, candidate: Candidate, interview_id: int) -> bytes:
     interview = _get_owned_interview(db, candidate, interview_id)
     return build_ics(interview, candidate)
-
 
 def create_reschedule_request(db: Session, candidate: Candidate, interview_id: int, note: str) -> Dict[str, Any]:
     interview = _get_owned_interview(db, candidate, interview_id)

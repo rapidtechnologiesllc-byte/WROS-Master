@@ -15,7 +15,6 @@ from sqlalchemy.orm import Session
 
 from app.models.consent import ConsentRecord
 
-
 def record_consent(
     db: Session,
     *,
@@ -36,7 +35,6 @@ def record_consent(
     )
     db.add(row)
     return row
-
 
 def has_consent(db: Session, *, subject_type: str, subject_id: str, consent_type: str) -> bool:
     """

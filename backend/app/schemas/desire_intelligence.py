@@ -16,7 +16,6 @@ class DesireRankingItem(BaseModel):
     signal_count: int
     direction: str
 
-
 class MotivationHistoryItem(BaseModel):
     id: int
     trigger_type: str
@@ -25,7 +24,6 @@ class MotivationHistoryItem(BaseModel):
     sent_at: Optional[datetime] = None
     response_within_24h: Optional[bool] = None
     offer_accepted: Optional[bool] = None
-
 
 class DesireIntelligenceResponse(BaseModel):
     candidate_id: str

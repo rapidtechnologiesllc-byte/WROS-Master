@@ -27,7 +27,6 @@ def get_db_url():
         )
     return db_url
 
-
 def seed_data():
     """Seed realistic agent state data."""
     engine = create_engine(get_db_url())
@@ -302,7 +301,6 @@ def seed_data():
         raise
     finally:
         db.close()
-
 
 if __name__ == "__main__":
     seed_data()

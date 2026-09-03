@@ -81,7 +81,6 @@ class CandidateRejection(Base):
     rejected_by = relationship("Users", foreign_keys=[rejected_by_user_id], lazy="select")
     archived_by = relationship("Users", foreign_keys=[archived_by_user_id], lazy="select")
 
-
 class CandidateRejectionReason(Base):
     """
     Predefined rejection reasons for standardization.

@@ -23,7 +23,6 @@ from app.models.user import Users
 from app.services.permission_helper import PermissionHelper
 from app.core.logging import logger
 
-
 # ============================================================================
 # PERMISSION CHECK DECORATORS
 # ============================================================================
@@ -113,9 +112,7 @@ def require_permission(permission: str):
         else:
             return sync_wrapper
 
-
     return decorator
-
 
 def require_any_permission(permissions: List[str]):
     """
@@ -194,7 +191,6 @@ def require_any_permission(permissions: List[str]):
 
     return decorator
 
-
 def require_all_permissions(permissions: List[str]):
     """
     Decorator to enforce that user has ALL of the given permissions.
@@ -272,7 +268,6 @@ def require_all_permissions(permissions: List[str]):
 
     return decorator
 
-
 def require_action_permission(resource: str, action: str):
     """
     Decorator for V, C, E, D (View, Create, Edit, Delete) permission enforcement.
@@ -304,7 +299,6 @@ def require_action_permission(resource: str, action: str):
     """
     permission = f"{resource}.{action}"
     return require_permission(permission)
-
 
 # ============================================================================
 # AUDIT LOGGING
@@ -355,7 +349,6 @@ def _log_permission_check(
         logger.error(f"Failed to log permission check: {str(e)}")
         # Don't raise - audit logging failure shouldn't break the app
 
-
 # ============================================================================
 # FRONTEND HELPER - GET PERMISSIONS FOR A USER
 # ============================================================================
@@ -391,7 +384,6 @@ async def get_user_permissions_response(
         "is_super_admin": is_super_admin
     }
 
-
 # ============================================================================
 # INLINE PERMISSION CHECKS FOR ENDPOINTS
 # ============================================================================
@@ -413,7 +405,6 @@ def check_permission(
     _log_permission_check(user_id, permission, has_perm, "inline", "check_permission", db, tenant_id)
     return has_perm
 
-
 def check_any_permission(
     user_id: str,
     permissions: List[str],
@@ -426,7 +417,6 @@ def check_any_permission(
     has_perm = PermissionHelper.has_any_permission(user_id, permissions, db, tenant_id)
     _log_permission_check(user_id, f"any({permissions})", has_perm, "inline", "check_any_permission", db, tenant_id)
     return has_perm
-
 
 def check_all_permissions(
     user_id: str,

@@ -22,7 +22,6 @@ from app.models.tenant import Tenant
 from app.models.user import Users
 import app.models  # noqa: F401 -- registers every model on Base.metadata
 
-
 @pytest.fixture()
 def throwaway_jwt_keys(monkeypatch):
     key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
@@ -37,7 +36,6 @@ def throwaway_jwt_keys(monkeypatch):
     ).decode()
     monkeypatch.setattr(security, "PRIVATE_KEY", private_pem)
     monkeypatch.setattr(security, "PUBLIC_KEY", public_pem)
-
 
 @pytest.fixture()
 def client(throwaway_jwt_keys):
@@ -97,11 +95,9 @@ def client(throwaway_jwt_keys):
         engine.dispose()
         os.remove(db_path)
 
-
 def _auth(email, role):
     token = security.create_access_token(data={"sub": email, "type": role, "name": email})
     return {"Authorization": f"Bearer {token}"}
-
 
 def test_non_admin_write_rejected(client):
     resp = client.put(
@@ -110,7 +106,6 @@ def test_non_admin_write_rejected(client):
         headers=_auth("recruiter@blitzenx.com", "Recruiter"),
     )
     assert resp.status_code == 403
-
 
 def test_admin_write_then_read_reflects_change(client):
     write_resp = client.put(
@@ -124,7 +119,6 @@ def test_admin_write_then_read_reflects_change(client):
     assert read_resp.status_code == 200
     channels = {item["config_key"]: item["value"] for item in read_resp.json()["CHANNELS"]}
     assert channels["business_hours_start"] == 9
-
 
 def test_bu_scoped_write_requires_valid_bu_header(client):
     bu_id = client.wros_ids["bu_id"]
@@ -143,7 +137,6 @@ def test_bu_scoped_write_requires_valid_bu_header(client):
         headers={**_auth("admin@blitzenx.com", "Admin"), "X-Active-BU-Id": "99999"},
     )
     assert forged.status_code == 403
-
 
 def test_settings_response_includes_locale_from_real_tenant_columns(client):
     resp = client.get("/system-config/settings", headers=_auth("admin@blitzenx.com", "Admin"))

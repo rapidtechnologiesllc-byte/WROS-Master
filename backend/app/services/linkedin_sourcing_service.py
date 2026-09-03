@@ -53,7 +53,6 @@ logger = logging.getLogger(__name__)
 class StagedCandidateAlreadyPromoted(Exception):
     """BR-1103-02: a staged_candidates row can only be promoted once."""
 
-
 def claim_alert(db: Session, alert_id: str) -> Optional[SourcingAlert]:
     """
     BR-1103-03: atomic OPEN->PROCESSING claim, preventing two workers
@@ -74,7 +73,6 @@ def claim_alert(db: Session, alert_id: str) -> Optional[SourcingAlert]:
         return None
     db.flush()
     return db.query(SourcingAlert).filter(SourcingAlert.id == alert_id).first()
-
 
 def _generate_query(demand: Demand, *, llm_query_generator):
     """Returns (boolean_query, alt_queries_json, rationale, estimated_volume, generation_failed)."""
@@ -97,7 +95,6 @@ def _generate_query(demand: Demand, *, llm_query_generator):
         )
     except Exception:
         raise ValueError("Operation failed"), None, None, None, True
-
 
 def process_sourcing_alert(
     db: Session,
@@ -221,7 +218,6 @@ def process_sourcing_alert(
     db.add(alert)
 
     return run
-
 
 def promote_staged_candidate(
     db: Session,

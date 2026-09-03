@@ -30,7 +30,6 @@ from app.models.tenant import Tenant
 from app.models.user import Users
 import app.models  # noqa: F401 -- registers every model on Base.metadata
 
-
 @pytest.fixture()
 def throwaway_jwt_keys(monkeypatch):
     key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
@@ -45,7 +44,6 @@ def throwaway_jwt_keys(monkeypatch):
     ).decode()
     monkeypatch.setattr(security, "PRIVATE_KEY", private_pem)
     monkeypatch.setattr(security, "PUBLIC_KEY", public_pem)
-
 
 @pytest.fixture()
 def client(throwaway_jwt_keys):
@@ -112,14 +110,11 @@ def client(throwaway_jwt_keys):
         engine.dispose()
         os.remove(db_path)
 
-
 def _token_for(email, role="Admin"):
     return security.create_access_token(data={"sub": email, "type": role, "name": email})
 
-
 def _auth():
     return {"Authorization": f"Bearer {_token_for('admin@blitzenx.com')}"}
-
 
 def _schedule_call(client):
     ids = client.wros_ids
@@ -130,12 +125,10 @@ def _schedule_call(client):
     assert resp.status_code == 200
     return resp.json()["id"]
 
-
 def test_unauthenticated_request_is_rejected(client):
     ids = client.wros_ids
     resp = client.post(f"/demand-confirmation/demands/{ids['demand_id']}/confirm-sow", json={"sow_reference": "SOW-1"})
     assert resp.status_code in (401, 403)
-
 
 def test_confirm_sow_sets_confirmed_status(client):
     ids = client.wros_ids
@@ -148,7 +141,6 @@ def test_confirm_sow_sets_confirmed_status(client):
     assert body["confirmation_status"] == "CONFIRMED"
     assert body["sow_reference"] == "SOW-2026-001"
 
-
 def test_confirm_sow_rejects_empty_reference(client):
     ids = client.wros_ids
     resp = client.post(
@@ -157,12 +149,10 @@ def test_confirm_sow_rejects_empty_reference(client):
     )
     assert resp.status_code in (422,)
 
-
 def test_schedule_call_is_idempotent(client):
     call_id_1 = _schedule_call(client)
     call_id_2 = _schedule_call(client)
     assert call_id_1 == call_id_2
-
 
 def test_get_calls_for_demand_enriched(client):
     call_id = _schedule_call(client)
@@ -176,7 +166,6 @@ def test_get_calls_for_demand_enriched(client):
     assert calls[0]["employee_name"] == "Sam Lee"
     assert calls[0]["demand_job_title"] == "Sr. Guidewire Developer"
 
-
 def test_confirm_fit_records_employee_confirmation(client):
     call_id = _schedule_call(client)
     resp = client.post(
@@ -188,7 +177,6 @@ def test_confirm_fit_records_employee_confirmation(client):
     body = resp.json()
     assert body["call"]["employee_fit_confirmed"] is True
     assert body["call"]["bu_head_fit_confirmed"] is None
-
 
 def test_confirm_fit_cannot_be_recorded_twice(client):
     call_id = _schedule_call(client)
@@ -202,7 +190,6 @@ def test_confirm_fit_cannot_be_recorded_twice(client):
     )
     assert second.status_code == 409
 
-
 def test_confirm_fit_rejects_invalid_participant(client):
     call_id = _schedule_call(client)
     resp = client.post(
@@ -210,7 +197,6 @@ def test_confirm_fit_rejects_invalid_participant(client):
         json={"participant": "MANAGER", "confirmed": True}, headers=_auth(),
     )
     assert resp.status_code == 422
-
 
 def test_trigger_release_blocked_until_both_fits_and_confirmed(client):
     ids = client.wros_ids
@@ -240,7 +226,6 @@ def test_trigger_release_blocked_until_both_fits_and_confirmed(client):
     assert released.status_code == 200
     assert released.json()["call"]["specialty_client_release_triggered_at"] is not None
 
-
 def test_trigger_release_blocked_when_one_fit_is_false(client):
     ids = client.wros_ids
     call_id = _schedule_call(client)
@@ -260,7 +245,6 @@ def test_trigger_release_blocked_when_one_fit_is_false(client):
 
     resp = client.post(f"/demand-confirmation/calls/{call_id}/trigger-release", headers=_auth())
     assert resp.status_code == 409
-
 
 def test_schedule_call_404_for_unknown_demand(client):
     ids = client.wros_ids

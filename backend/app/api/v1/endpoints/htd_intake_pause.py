@@ -49,7 +49,6 @@ from app.services.htd_intake_pause_service import (
 
 router = APIRouter(prefix="/htd-intake", tags=["htd-intake"])
 
-
 @router.post(
     "/calculate-monthly-metric", response_model=MonthlyMetricItem,
     dependencies=[Depends(get_current_internal_user)],
@@ -68,7 +67,6 @@ def calculate_monthly_metric_endpoint(
         converted=metric.converted, conversion_rate=float(metric.conversion_rate) if metric.conversion_rate is not None else None,
     )
 
-
 @router.post(
     "/check-breach", response_model=HtdIntakeStatusResponse,
     dependencies=[Depends(require_resource_permission("resource", "access"))],
@@ -82,7 +80,6 @@ def check_breach_endpoint(
     db.commit()
     db.refresh(status)
     return HtdIntakeStatusResponse(is_paused=status.is_paused, paused_at=status.paused_at, pause_reason=status.pause_reason)
-
 
 @router.get(
     "/status",
@@ -99,7 +96,6 @@ def get_status_endpoint(
     if status is None:
         return HtdIntakeStatusResponse(is_paused=False)
     return HtdIntakeStatusResponse(is_paused=status.is_paused, paused_at=status.paused_at, pause_reason=status.pause_reason)
-
 
 @router.post(
     "/resume", response_model=HtdIntakeStatusResponse,
@@ -121,7 +117,6 @@ def resume_endpoint(
     db.commit()
     db.refresh(status)
     return HtdIntakeStatusResponse(is_paused=status.is_paused, paused_at=status.paused_at, pause_reason=status.pause_reason)
-
 
 @router.get(
     "/pause-log",

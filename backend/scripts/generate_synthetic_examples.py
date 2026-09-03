@@ -295,7 +295,6 @@ Generate {count} variations now:
 
         return True
 
-
 def main():
     parser = argparse.ArgumentParser(
         description="Generate synthetic training examples using Claude"
@@ -323,7 +322,6 @@ def main():
     success = generator.run()
 
     sys.exit(0 if success else 1)
-
 
 if __name__ == "__main__":
     main()

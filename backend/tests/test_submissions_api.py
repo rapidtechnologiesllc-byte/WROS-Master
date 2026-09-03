@@ -32,7 +32,6 @@ from app.models.tenant import Tenant
 from app.models.user import Users
 import app.models  # noqa: F401 -- registers every model on Base.metadata
 
-
 @pytest.fixture()
 def throwaway_jwt_keys(monkeypatch):
     key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
@@ -47,7 +46,6 @@ def throwaway_jwt_keys(monkeypatch):
     ).decode()
     monkeypatch.setattr(security, "PRIVATE_KEY", private_pem)
     monkeypatch.setattr(security, "PUBLIC_KEY", public_pem)
-
 
 @pytest.fixture()
 def client(throwaway_jwt_keys):
@@ -131,19 +129,15 @@ def client(throwaway_jwt_keys):
         engine.dispose()
         os.remove(db_path)
 
-
 def _token_for(email, role="Admin"):
     return security.create_access_token(data={"sub": email, "type": role, "name": email})
-
 
 def _auth():
     return {"Authorization": f"Bearer {_token_for('admin@blitzenx.com')}"}
 
-
 def test_unauthenticated_request_is_rejected(client):
     resp = client.get("/submissions")
     assert resp.status_code in (401, 403)
-
 
 def test_submit_eligible_candidate_succeeds(client):
     ids = client.wros_ids
@@ -156,7 +150,6 @@ def test_submit_eligible_candidate_succeeds(client):
     assert body["candidate_name"] == "Sam Lee"
     assert body["demand_job_title"] == "Sr. Guidewire Developer"
 
-
 def test_submit_candidate_never_converted_to_employee_is_blocked(client):
     """S-249: no employees record at all -- market profile guard blocks it."""
     ids = client.wros_ids
@@ -168,7 +161,6 @@ def test_submit_candidate_never_converted_to_employee_is_blocked(client):
     errors = [b["error"] for b in blockers]
     assert "MARKET_PROFILE_SUBMISSION_BLOCKED" in errors
 
-
 def test_duplicate_submission_is_rejected(client):
     ids = client.wros_ids
     client.post("/submissions", json={"demand_id": ids["demand_id"], "candidate_id": "CAND-1"}, headers=_auth())
@@ -177,7 +169,6 @@ def test_duplicate_submission_is_rejected(client):
     )
     assert resp.status_code == 409
 
-
 def test_list_submissions_filtered_by_demand(client):
     ids = client.wros_ids
     client.post("/submissions", json={"demand_id": ids["demand_id"], "candidate_id": "CAND-1"}, headers=_auth())
@@ -185,7 +176,6 @@ def test_list_submissions_filtered_by_demand(client):
     resp = client.get(f"/submissions?demand_id={ids['demand_id']}", headers=_auth())
     assert resp.status_code == 200
     assert len(resp.json()["submissions"]) == 1
-
 
 def test_violation_log_records_blocked_attempt(client):
     ids = client.wros_ids
@@ -196,7 +186,6 @@ def test_violation_log_records_blocked_attempt(client):
     violations = resp.json()["violations"]
     assert len(violations) == 1
     assert violations[0]["violation_type"] == "NO_MARKET_PROFILE"
-
 
 def test_client_response_transitions_status(client):
     ids = client.wros_ids
@@ -211,7 +200,6 @@ def test_client_response_transitions_status(client):
     )
     assert resp.status_code == 200
     assert resp.json()["status"] == "SHORTLISTED"
-
 
 def test_client_response_rejects_invalid_transition(client):
     ids = client.wros_ids
@@ -229,7 +217,6 @@ def test_client_response_rejects_invalid_transition(client):
         json={"new_status": "PLACED"}, headers=_auth(),
     )
     assert resp.status_code == 409
-
 
 def test_submit_to_nonexistent_demand_is_404(client):
     resp = client.post(

@@ -32,16 +32,13 @@ class ClientListItem(BaseModel):
     class Config:
         from_attributes = True
 
-
 class ClientListResponse(BaseModel):
     clients: list[ClientListItem]
-
 
 class ClientContactCreateRequest(BaseModel):
     name: str
     email: str
     phone: Optional[str] = None
-
 
 class ClientCreateRequest(BaseModel):
     company_name: str
@@ -62,7 +59,6 @@ class ClientCreateRequest(BaseModel):
     hiring_manager: Optional[ClientContactCreateRequest] = None
     timesheet_approver: Optional[ClientContactCreateRequest] = None
 
-
 class ClientCreateResponse(BaseModel):
     id: str
     company_name: str
@@ -71,13 +67,11 @@ class ClientCreateResponse(BaseModel):
     class Config:
         from_attributes = True
 
-
 class ClientContactAddRequest(BaseModel):
     name: str
     email: str
     phone: Optional[str] = None
     role_type: str
-
 
 class ClientContactResponse(BaseModel):
     id: str
@@ -92,10 +86,8 @@ class ClientContactResponse(BaseModel):
     class Config:
         from_attributes = True
 
-
 class ClientContactsListResponse(BaseModel):
     contacts: list[ClientContactResponse]
-
 
 class ClientDetailResponse(BaseModel):
     id: str
@@ -125,7 +117,6 @@ class ClientDetailResponse(BaseModel):
 
     class Config:
         from_attributes = True
-
 
 class ClientUpdateRequest(BaseModel):
     # Routed separately to client_service.assign_account_manager() (real

@@ -24,11 +24,9 @@ class CreateSubmissionRequest(BaseModel):
     source: str = "INTERNAL"
     subvendor_id: Optional[str] = None
 
-
 class SubmissionBlocker(BaseModel):
     error: str
     message: str
-
 
 class SubmissionItem(BaseModel):
     id: str
@@ -43,15 +41,12 @@ class SubmissionItem(BaseModel):
     submission_rank: Optional[int] = None
     source: str
 
-
 class SubmissionListResponse(BaseModel):
     submissions: List[SubmissionItem]
-
 
 class ClientResponseRequest(BaseModel):
     new_status: str = Field(..., min_length=1)
     client_feedback: Optional[str] = None
-
 
 class SubmissionViolationItem(BaseModel):
     id: str
@@ -60,7 +55,6 @@ class SubmissionViolationItem(BaseModel):
     candidate_status_at_time: Optional[str] = None
     blocked_message: Optional[str] = None
     attempted_at: Optional[datetime] = None
-
 
 class SubmissionViolationListResponse(BaseModel):
     violations: List[SubmissionViolationItem]

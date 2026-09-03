@@ -30,10 +30,8 @@ from sqlalchemy import Column, DateTime, Enum, ForeignKey, Integer, String, Text
 
 from app.models.base import Base
 
-
 def _new_uuid() -> str:
     return str(uuid.uuid4())
-
 
 LEAKAGE_PATTERN_TYPES = (
     "STALLED_OPPORTUNITY", "UNFILLED_DEMAND", "UNBILLED_TIME", "SUBVENDOR_COST_OVERRUN",

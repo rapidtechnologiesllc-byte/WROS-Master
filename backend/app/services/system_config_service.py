@@ -38,10 +38,8 @@ logger = logging.getLogger(__name__)
 class UnknownConfigKey(Exception):
     pass
 
-
 class InvalidConfigValue(Exception):
     pass
-
 
 @dataclass
 class ConfigKeySpec:
@@ -54,7 +52,6 @@ class ConfigKeySpec:
     enum_values: Optional[Tuple[str, ...]] = None
     min_value: Optional[float] = None
     max_value: Optional[float] = None
-
 
 KNOWN_CONFIG_KEYS: Dict[str, ConfigKeySpec] = {
     "low_confidence_threshold": ConfigKeySpec(
@@ -97,7 +94,6 @@ KNOWN_CONFIG_KEYS: Dict[str, ConfigKeySpec] = {
     ),
 }
 
-
 def _validate_value(spec: ConfigKeySpec, value: Any) -> Any:
     if spec.value_type in ("PERCENT", "INT"):
         try:
@@ -113,10 +109,8 @@ def _validate_value(spec: ConfigKeySpec, value: Any) -> Any:
             raise InvalidConfigValue(f"'{spec.key}' must be one of {spec.enum_values}.")
     return value
 
-
 def _cache_key(tenant_id: int, business_unit_id: Optional[int], key: str) -> Tuple[int, Optional[int], str]:
     return (tenant_id, business_unit_id, key)
-
 
 def invalidate_config_cache(tenant_id: int, key: Optional[str] = None) -> None:
     if key is None:
@@ -127,7 +121,6 @@ def invalidate_config_cache(tenant_id: int, key: Optional[str] = None) -> None:
         for cache_key in list(_CONFIG_CACHE):
             if cache_key[0] == tenant_id and cache_key[2] == key:
                 _CONFIG_CACHE.pop(cache_key, None)
-
 
 def get_config_value(
     db: Session, *, tenant_id: int, key: str, business_unit_id: Optional[int] = None, use_cache: bool = True,
@@ -170,7 +163,6 @@ def get_config_value(
         _CONFIG_CACHE[ck] = (time.monotonic() + CACHE_TTL_SECONDS, value)
     return value
 
-
 def set_config_value(
     db: Session, *, tenant_id: int, key: str, value: Any, updated_by: str, business_unit_id: Optional[int] = None,
 ) -> SystemConfig:
@@ -207,7 +199,6 @@ def set_config_value(
     invalidate_config_cache(tenant_id, key)
     return row
 
-
 def get_locale_config(db: Session, tenant_id: int) -> Dict:
     tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
     if tenant is None:
@@ -217,7 +208,6 @@ def get_locale_config(db: Session, tenant_id: int) -> Dict:
         "default_date_format": tenant.default_date_format,
         "default_currency": tenant.default_currency,
     }
-
 
 def update_locale_config(db: Session, tenant_id: int, updates: Dict, *, updated_by: str) -> Dict:
     tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
@@ -244,7 +234,6 @@ def update_locale_config(db: Session, tenant_id: int, updates: Dict, *, updated_
         )
         db.commit()
     return get_locale_config(db, tenant_id)
-
 
 def get_settings_panel(db: Session, *, tenant_id: int, business_unit_id: Optional[int] = None) -> Dict:
     """One unified read for the Admin Settings screen, grouped by

@@ -32,7 +32,6 @@ from app.services.notification_service import send_notification
 
 CRITICAL_ESCALATION_DAYS_OPEN = 5  # BR-1102-03
 
-
 def classify_gap_severity(
     *,
     required_skills: str,
@@ -66,7 +65,6 @@ def classify_gap_severity(
         return severity, rationale, False
     except Exception:
         return "WATCH", None, True
-
 
 def scan_demand_gap(
     db: Session,
@@ -127,7 +125,6 @@ def scan_demand_gap(
 
     return score
 
-
 def _maybe_create_sourcing_alert(
     db: Session, demand: Demand, score: DemandGapScore, *, router_evaluate,
 ) -> Optional[SourcingAlert]:
@@ -151,7 +148,6 @@ def _maybe_create_sourcing_alert(
     )
     db.add(alert)
     return alert
-
 
 def _escalate_to_rm(db: Session, demand: Demand, score: DemandGapScore, *, rm_user: Users) -> None:
     # BR-1102-03: immediate, 24/7, never batched into the morning digest

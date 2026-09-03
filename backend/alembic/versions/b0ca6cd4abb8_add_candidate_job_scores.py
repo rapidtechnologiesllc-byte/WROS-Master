@@ -13,7 +13,6 @@ down_revision = "0040e68b0bea"
 branch_labels = None
 depends_on = None
 
-
 def upgrade():
     op.create_table(
         "candidate_job_scores",
@@ -37,7 +36,6 @@ def upgrade():
     op.add_column("jobs", sa.Column("min_experience_years", sa.Integer(), nullable=True))
     op.add_column("jobs", sa.Column("domain", sa.String(100), nullable=True))
     op.add_column("jobs", sa.Column("certifications_preferred", sa.JSON(), nullable=True))
-
 
 def downgrade():
     op.drop_column("jobs", "certifications_preferred")

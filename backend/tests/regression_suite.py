@@ -73,7 +73,6 @@ def test_candidate(db: Session, test_tenant):
     db.commit()
     return candidate
 
-
 # ============================================================================
 # 1. API INTEGRATION TESTS - Test all endpoints
 # ============================================================================
@@ -119,7 +118,6 @@ class TestAPIEndpoints:
         response = client.get("/api/v1/candidates/bulk-import/list")
         assert response.status_code in [200, 401]
 
-
 # ============================================================================
 # 2. MODEL CRUD TESTS - Test all 113 models
 # ============================================================================
@@ -129,7 +127,6 @@ class TestModelOperations:
 
     def test_candidate_crud(self, db: Session, test_tenant):
         """Test Candidate model CRUD"""
-        from app.models import Candidate
 
         # CREATE
         candidate = Candidate(
@@ -186,7 +183,6 @@ class TestModelOperations:
             pk_columns = [c.name for c in mapper.primary_key]
             assert len(pk_columns) > 0, f"{model_class.__name__} has no primary key"
 
-
 # ============================================================================
 # 3. SERVICE BUSINESS LOGIC TESTS
 # ============================================================================
@@ -228,7 +224,6 @@ class TestServiceLogic:
             logger.error(f"Error: {str(e)}", exc_info=True)
             # Should handle gracefully
             assert True
-
 
 # ============================================================================
 # 4. END-TO-END WORKFLOW TESTS - Complete user journeys
@@ -282,7 +277,6 @@ Test Candidate 2,test2@test.com,8888888888,LA,Java Developer
             # Should handle bulk import gracefully
             assert True
 
-
 # ============================================================================
 # 5. STRESS & LOAD TESTS - Try to break the system
 # ============================================================================
@@ -292,7 +286,6 @@ class TestStressAndLoad:
 
     def test_concurrent_candidate_creation(self, db: Session, test_tenant):
         """Try to create 100 candidates concurrently"""
-        from app.models import Candidate
 
         candidates = []
         for i in range(100):
@@ -313,7 +306,6 @@ class TestStressAndLoad:
 
     def test_large_bulk_import(self, db: Session, test_tenant, test_user):
         """Try to import 10,000 candidates from CSV"""
-        from app.services.bulk_engagement_service import import_candidates_from_csv
 
         # Create large CSV
         csv_lines = ["name,email,phone,location,job_title"]
@@ -353,7 +345,6 @@ class TestStressAndLoad:
             for session in sessions:
                 session.close()
 
-
 # ============================================================================
 # 6. EDGE CASE TESTS - Boundary conditions, invalid inputs
 # ============================================================================
@@ -363,7 +354,6 @@ class TestEdgeCases:
 
     def test_null_values(self, db: Session, test_tenant):
         """Test handling of NULL/None values"""
-        from app.models import Candidate
 
         # Create candidate with minimal fields
         candidate = Candidate(
@@ -400,7 +390,6 @@ class TestEdgeCases:
 
     def test_extremely_long_strings(self, db: Session, test_tenant):
         """Test handling of extremely long string inputs"""
-        from app.models import Candidate
 
         long_string = "a" * 10000  # 10,000 character string
 
@@ -416,7 +405,6 @@ class TestEdgeCases:
 
         # Should handle without crashing
         assert candidate.candidateID is not None
-
 
 # ============================================================================
 # 7. SECURITY TESTS - Injection, auth, permissions
@@ -451,7 +439,6 @@ class TestSecurity:
 
     def test_tenant_isolation(self, db: Session, test_tenant):
         """Test that tenants are properly isolated"""
-        from app.models import Candidate
 
         # Create candidate for tenant 1
         candidate1 = Candidate(
@@ -470,7 +457,6 @@ class TestSecurity:
         ).first()
         assert found is not None
 
-
 # ============================================================================
 # 8. DATA INTEGRITY TESTS - Foreign keys, constraints
 # ============================================================================
@@ -480,7 +466,6 @@ class TestDataIntegrity:
 
     def test_foreign_key_constraints(self, db: Session, test_tenant):
         """Test that foreign key constraints are enforced"""
-        from app.models import Candidate
 
         candidate = Candidate(
             candidateID=f"fk_test_{random.randint(100000, 999999)}",
@@ -496,7 +481,6 @@ class TestDataIntegrity:
 
     def test_unique_constraints(self, db: Session, test_tenant):
         """Test that unique constraints are enforced"""
-        from app.models import Candidate
 
         email = f"unique_{random.randint(10000, 99999)}@test.com"
 
@@ -527,7 +511,6 @@ class TestDataIntegrity:
             # Expected - unique constraint violation
             db.rollback()
             assert True
-
 
 # ============================================================================
 # CONTINUOUS REGRESSION TEST RUNNER

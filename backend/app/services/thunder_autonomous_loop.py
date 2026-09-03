@@ -38,7 +38,6 @@ class ThunderAutonomousLoopError(Exception):
     """Raised when Thunder autonomous loop encounters unrecoverable error."""
     pass
 
-
 def run_thunder_autonomous_cycle(db: Session) -> dict:
     """
     Run one cycle of Thunder's autonomous loop:
@@ -182,7 +181,6 @@ def run_thunder_autonomous_cycle(db: Session) -> dict:
             "timestamp": datetime.utcnow().isoformat(),
         }
 
-
 def initialize_thunder_autonomous_loop():
     """
     Initialize Thunder's autonomous loop to run every 5 minutes.
@@ -216,7 +214,6 @@ def initialize_thunder_autonomous_loop():
         logger.error(f"Error: {str(e)}", exc_info=True)
         print(f"ERROR: Failed to initialize Thunder autonomous loop: {e}")
         return False
-
 
 def _thunder_cycle_wrapper():
     """Wrapper to handle database session for background task."""

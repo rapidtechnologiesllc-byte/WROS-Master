@@ -13,11 +13,9 @@ down_revision = "5e2a8f7c31b6"
 branch_labels = None
 depends_on = None
 
-
 def upgrade():
     with op.batch_alter_table("candidate_conversations") as batch_op:
         batch_op.add_column(sa.Column("offer_faq_active", sa.Boolean(), nullable=False, server_default="0"))
-
 
 def downgrade():
     with op.batch_alter_table("candidate_conversations") as batch_op:

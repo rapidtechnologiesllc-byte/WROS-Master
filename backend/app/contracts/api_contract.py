@@ -22,7 +22,6 @@ from typing import Optional, List, Dict, Any
 from enum import Enum
 from pydantic import BaseModel, Field, EmailStr, validator
 
-
 # ============================================================================
 # AUTHENTICATION CONTRACTS
 # ============================================================================
@@ -42,14 +41,12 @@ class UnifiedLoginRequest(BaseModel):
             }
         }
 
-
 class ValidateEmailRequest(BaseModel):
     """STRICT: Email validation request - Step 1 of login, only email needed"""
     email: EmailStr = Field(..., description="Email to validate")
 
     class Config:
         extra = "forbid"  # STRICT: No extra fields allowed
-
 
 class UserLoginResponse(BaseModel):
     """STRICT: User login response - exact fields only"""
@@ -63,7 +60,6 @@ class UserLoginResponse(BaseModel):
 
     class Config:
         extra = "forbid"  # STRICT: No extra fields allowed
-
 
 class UnifiedLoginResponse(BaseModel):
     """STRICT: Unified login response for both users and candidates"""
@@ -93,7 +89,6 @@ class UnifiedLoginResponse(BaseModel):
     class Config:
         extra = "forbid"  # STRICT: No extra fields allowed
 
-
 # ============================================================================
 # NAVIGATION CONTRACTS
 # ============================================================================
@@ -107,7 +102,6 @@ class NavigationItem(BaseModel):
 
     class Config:
         extra = "forbid"  # STRICT: No extra fields allowed
-
 
 class NavigationGroup(BaseModel):
     """STRICT: Group of navigation items"""
@@ -123,7 +117,6 @@ class NavigationGroup(BaseModel):
 
     class Config:
         extra = "forbid"  # STRICT: No extra fields allowed
-
 
 class NavigationResponse(BaseModel):
     """STRICT: Complete navigation response structure"""
@@ -141,7 +134,6 @@ class NavigationResponse(BaseModel):
 
     class Config:
         extra = "forbid"  # STRICT: No extra fields allowed
-
 
 # ============================================================================
 # RESOURCE CONTRACTS (Used by both frontend and backend)
@@ -171,7 +163,6 @@ MODULES_AND_RESOURCES = {
     "AI & Automation": ["ask-thunder", "ai-coaching", "slm-dashboard"],
 }
 
-
 # ============================================================================
 # ROLE TEMPLATE CONTRACTS
 # ============================================================================
@@ -188,7 +179,6 @@ class RolePermissions(BaseModel):
     class Config:
         extra = "forbid"  # STRICT: No extra fields allowed
 
-
 class RoleTemplate(BaseModel):
     """STRICT: Role template definition"""
     id: str = Field(..., description="Unique role template ID")
@@ -202,7 +192,6 @@ class RoleTemplate(BaseModel):
     class Config:
         extra = "forbid"  # STRICT: No extra fields allowed
 
-
 # ============================================================================
 # VALIDATION FUNCTIONS (Used by both frontend and backend)
 # ============================================================================
@@ -215,7 +204,6 @@ def validate_login_request(data: Dict[str, Any]) -> UnifiedLoginRequest:
         logger.error(f"Error: {str(e)}", exc_info=True)
         raise ValueError(f"Login request validation failed: {str(e)}")
 
-
 def validate_login_response(data: Dict[str, Any]) -> UnifiedLoginResponse:
     """STRICT: Validate login response matches contract exactly"""
     try:
@@ -223,7 +211,6 @@ def validate_login_response(data: Dict[str, Any]) -> UnifiedLoginResponse:
     except Exception as e:
         logger.error(f"Error: {str(e)}", exc_info=True)
         raise ValueError(f"Login response validation failed: {str(e)}")
-
 
 def validate_navigation_response(data: Dict[str, Any]) -> NavigationResponse:
     """STRICT: Validate navigation response matches contract exactly"""
@@ -233,7 +220,6 @@ def validate_navigation_response(data: Dict[str, Any]) -> NavigationResponse:
         logger.error(f"Error: {str(e)}", exc_info=True)
         raise ValueError(f"Navigation response validation failed: {str(e)}")
 
-
 def validate_resource_exists(module: str, resource: str) -> bool:
     """STRICT: Verify resource exists in contract"""
     if module not in MODULES_AND_RESOURCES:
@@ -242,7 +228,6 @@ def validate_resource_exists(module: str, resource: str) -> bool:
         raise ValueError(f"Resource '{resource}' not found in module '{module}'")
     return True
 
-
 def get_all_resources() -> List[str]:
     """Get all resources defined in contract"""
     resources = []
@@ -250,11 +235,9 @@ def get_all_resources() -> List[str]:
         resources.extend(module_resources)
     return resources
 
-
 def get_all_modules() -> List[str]:
     """Get all modules defined in contract"""
     return list(MODULES_AND_RESOURCES.keys())
-
 
 # ============================================================================
 # QUEUE ROUTING CONTRACTS (NEW - Role-Template Driven)
@@ -270,7 +253,6 @@ class QueueType(str, Enum):
     MULTI = "MULTI"
     CHANNEL_QUEUE = "CHANNEL_QUEUE"
 
-
 class MessageType(str, Enum):
     """STRICT: Valid message types - must map to permissions"""
     CANDIDATE_CREATED = "candidate_created"
@@ -280,7 +262,6 @@ class MessageType(str, Enum):
     EMPLOYEE_ONBOARDED = "employee_onboarded"
     EMAIL_SENT = "email_sent"
     THUNDER_ACTION = "thunder_action"
-
 
 class QueueMessage(BaseModel):
     """STRICT: Message in queue - exact fields only"""
@@ -296,7 +277,6 @@ class QueueMessage(BaseModel):
     class Config:
         extra = "forbid"  # STRICT: No extra fields allowed
 
-
 class QueueStats(BaseModel):
     """STRICT: Queue statistics - exact fields only"""
     total: int = Field(..., description="Total messages in queue")
@@ -307,7 +287,6 @@ class QueueStats(BaseModel):
     class Config:
         extra = "forbid"  # STRICT: No extra fields allowed
 
-
 class QueueRoutingConfig(BaseModel):
     """STRICT: Queue routing configuration - role-template based"""
     message_type: MessageType = Field(..., description="Message type")
@@ -316,7 +295,6 @@ class QueueRoutingConfig(BaseModel):
 
     class Config:
         extra = "forbid"  # STRICT: No extra fields allowed
-
 
 # Queue routing mapping - role-template driven
 QUEUE_ROUTING_CONFIG = {
@@ -342,7 +320,6 @@ QUEUE_ROUTING_CONFIG = {
     ),
 }
 
-
 def validate_queue_message(data: Dict[str, Any]) -> QueueMessage:
     """STRICT: Validate queue message matches contract exactly"""
     try:
@@ -350,7 +327,6 @@ def validate_queue_message(data: Dict[str, Any]) -> QueueMessage:
     except Exception as e:
         logger.error(f"Error: {str(e)}", exc_info=True)
         raise ValueError(f"Queue message validation failed: {str(e)}")
-
 
 def validate_queue_routing_config(message_type: str) -> QueueRoutingConfig:
     """STRICT: Validate queue routing config exists for message type"""
@@ -362,12 +338,10 @@ def validate_queue_routing_config(message_type: str) -> QueueRoutingConfig:
     except ValueError as e:
         raise ValueError(f"Invalid message type '{message_type}': {str(e)}")
 
-
 def get_default_queue(message_type: str) -> QueueType:
     """Get default queue for message type per contract"""
     config = validate_queue_routing_config(message_type)
     return config.default_queue
-
 
 # ============================================================================
 # ENFORCEMENT: Backend must use these schemas

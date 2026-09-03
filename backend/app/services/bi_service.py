@@ -6,7 +6,6 @@ from sqlalchemy.sql.schema import Table as SQLTable
 import logging
 from typing import List, Dict, Any
 
-
 # Whitelist of tables that can be queried via BI layer (security gate)
 ALLOWED_TABLES = {
     "candidates": ["candidateID", "candidateEmail", "candidateFirstName", "pipelineStatus", "accountStatus"],
@@ -20,7 +19,6 @@ ALLOWED_TABLES = {
     "projects": ["id", "project_name", "status", "start_date", "end_date"],
 }
 
-
 def get_available_tables(db: Session) -> List[Dict[str, Any]]:
     """Get list of tables available for BI queries."""
     return [
@@ -31,7 +29,6 @@ def get_available_tables(db: Session) -> List[Dict[str, Any]]:
         }
         for table_name, columns in ALLOWED_TABLES.items()
     ]
-
 
 def get_table_schema(table_name: str) -> Dict[str, Any]:
     """Get schema details for a specific table."""
@@ -44,7 +41,6 @@ def get_table_schema(table_name: str) -> Dict[str, Any]:
         "columns": columns,
         "column_count": len(columns),
     }
-
 
 def query_table(
     db: Session,
@@ -120,7 +116,6 @@ def query_table(
     except Exception as e:
         logger.error(f"Error: {str(e)}", exc_info=True)
         raise ValueError(f"Query failed: {str(e)}")
-
 
 def get_table_summary(db: Session, table_name: str) -> Dict[str, Any]:
     """Get summary statistics for a table."""

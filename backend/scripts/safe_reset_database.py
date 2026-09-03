@@ -28,7 +28,6 @@ from app.core.database_safety import (
     ProductionDatabaseError
 )
 
-
 def parse_db_url(db_url: str) -> dict:
     """Parse PostgreSQL connection string."""
     parsed = urlparse(db_url)
@@ -39,7 +38,6 @@ def parse_db_url(db_url: str) -> dict:
         'password': parsed.password,
         'database': parsed.path.lstrip('/'),
     }
-
 
 def reset_database():
     """Reset local development database safely."""
@@ -128,7 +126,6 @@ def reset_database():
             cur.close()
         if conn:
             conn.close()
-
 
 if __name__ == "__main__":
     reset_database()

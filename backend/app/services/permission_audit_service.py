@@ -275,7 +275,6 @@ class PermissionAuditService:
                 ...
             }
         """
-        from datetime import timedelta
 
         cutoff_date = datetime.utcnow() - timedelta(days=days)
 
@@ -321,7 +320,6 @@ class PermissionAuditService:
         Returns:
             True if user has >= threshold denials in the time window
         """
-        from datetime import timedelta
 
         cutoff_time = datetime.utcnow() - timedelta(minutes=minutes)
 

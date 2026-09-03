@@ -32,7 +32,6 @@ from app.models.user import Users
 
 import app.services.culture_agent_service as svc
 
-
 @pytest.fixture()
 def db_session():
     fd, db_path = tempfile.mkstemp(suffix=".sqlite3")
@@ -52,7 +51,6 @@ def db_session():
         engine.dispose()
         os.remove(db_path)
 
-
 def _make_employee(db, *, dob=None, user_id=None):
     user = None
     if user_id:
@@ -66,7 +64,6 @@ def _make_employee(db, *, dob=None, user_id=None):
     db.commit()
     return employee
 
-
 def test_submit_feedback_flags_negative_keyword_response(db_session):
     employee = _make_employee(db_session)
     cycle = svc.start_quarterly_cycle(db_session, "2026-Q3")
@@ -76,7 +73,6 @@ def test_submit_feedback_flags_negative_keyword_response(db_session):
 
     assert calm.is_flagged is False
     assert negative.is_flagged is True
-
 
 def test_close_cycle_creates_review_task_and_summary(db_session):
     employee = _make_employee(db_session)
@@ -97,7 +93,6 @@ def test_close_cycle_creates_review_task_and_summary(db_session):
     assert task is not None
     assert "2026-Q3" in task.title
 
-
 def test_generate_birthday_drafts_only_matches_today(db_session):
     today = date(2026, 8, 4)
     birthday_employee = _make_employee(db_session, dob=date(1990, 8, 4))
@@ -111,7 +106,6 @@ def test_generate_birthday_drafts_only_matches_today(db_session):
     assert drafts[0].employee_id == birthday_employee.id
     assert drafts[0].status == "DRAFT"
 
-
 def test_generate_birthday_drafts_idempotent_same_day(db_session):
     today = date(2026, 8, 4)
     _make_employee(db_session, dob=date(1990, 8, 4))
@@ -121,7 +115,6 @@ def test_generate_birthday_drafts_idempotent_same_day(db_session):
 
     assert len(first) == 1
     assert len(second) == 0  # already drafted today -- no duplicate
-
 
 def test_recognition_never_auto_sent_requires_explicit_approval(db_session):
     employee = _make_employee(db_session, dob=date(1990, 8, 4), user_id="U-EMP")
@@ -137,7 +130,6 @@ def test_recognition_never_auto_sent_requires_explicit_approval(db_session):
     assert sent.approved_by == "U-HR"
     assert db_session.query(Notification).count() == 1
 
-
 def test_recognition_cannot_be_sent_twice(db_session):
     employee = _make_employee(db_session, dob=date(1990, 8, 4), user_id="U-EMP")
     draft = svc.generate_birthday_drafts(db_session, today=date(2026, 8, 4))[0]
@@ -146,14 +138,12 @@ def test_recognition_cannot_be_sent_twice(db_session):
     with pytest.raises(ValueError):
         svc.approve_and_send_recognition(db_session, draft, approved_by="U-HR")
 
-
 def test_reject_recognition_marks_rejected(db_session):
     _make_employee(db_session, dob=date(1990, 8, 4))
     draft = svc.generate_birthday_drafts(db_session, today=date(2026, 8, 4))[0]
 
     rejected = svc.reject_recognition(db_session, draft)
     assert rejected.status == "REJECTED"
-
 
 def test_concern_resolves_real_faq_match(db_session):
     employee = _make_employee(db_session)
@@ -162,7 +152,6 @@ def test_concern_resolves_real_faq_match(db_session):
     assert intake.category == "RESOLVED"
     assert intake.resolution_text is not None
     assert intake.created_task_id is None
-
 
 def test_concern_escalates_to_real_task_when_not_faq_shaped(db_session):
     employee = _make_employee(db_session)

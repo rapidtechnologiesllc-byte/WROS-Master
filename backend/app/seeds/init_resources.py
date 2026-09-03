@@ -108,7 +108,6 @@ RESOURCE_ROUTES = {
     "ai-coaching": "ai/coaching",
 }
 
-
 def init_modules_and_resources(db: Session, tenant_id: int = 1):
     """Create all Module and Resource records."""
 
@@ -169,7 +168,6 @@ def init_modules_and_resources(db: Session, tenant_id: int = 1):
     db.commit()
     print(f"\nCreated {resource_count} resources\n")
     return resource_count
-
 
 def make_personal_resources_mandatory(db: Session, tenant_id: int = 1):
     """Make Personal resources (dashboard, my-tasks, etc.) mandatory for all users."""
@@ -234,7 +232,6 @@ def make_personal_resources_mandatory(db: Session, tenant_id: int = 1):
     print(f"  Granted Personal resource access to all roles ({count} new permissions)\n")
     return count
 
-
 def main():
     """Initialize all modules and resources. Role template permissions are managed separately in the database."""
 
@@ -269,7 +266,6 @@ def main():
         raise
     finally:
         db.close()
-
 
 if __name__ == "__main__":
     main()

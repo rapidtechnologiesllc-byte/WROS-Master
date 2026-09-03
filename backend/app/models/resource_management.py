@@ -39,7 +39,6 @@ from sqlalchemy import (
 
 from app.models.base import Base
 
-
 def _new_uuid() -> str:
     return str(uuid.uuid4())
 
@@ -68,9 +67,7 @@ class BenchPoolEntry(Base):
 
     created_at = Column(DateTime, server_default=func.now())
 
-
 BENCH_PERIOD_REASONS = ("PROJECT_ENDED", "PROJECT_DELAYED", "NEWLY_JOINED", "BETWEEN_PROJECTS", "OTHER")
-
 
 class BenchPeriod(Base):
     """S-246/HRMS-0502 (canonical) -- persistent, append-only history of
@@ -106,7 +103,6 @@ class BenchPeriod(Base):
 
     created_at = Column(DateTime, server_default=func.now())
 
-
 class EmployeeUtilizationMetric(Base):
     """Per-employee-per-week utilization snapshot, computed from real
     Timesheet data. See record_weekly_utilization_metric()."""
@@ -123,7 +119,6 @@ class EmployeeUtilizationMetric(Base):
     bench_hours = Column(Numeric(6, 2), nullable=False)
 
     created_at = Column(DateTime, server_default=func.now())
-
 
 class AllocationConflictLogEntry(Base):
     """Permanent record of a blocked over-capacity allocation attempt --

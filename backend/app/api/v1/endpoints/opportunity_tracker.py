@@ -21,19 +21,16 @@ class LogOpportunityRequest(BaseModel):
     deal_size_usd_cents: int
     expected_close_date: datetime
 
-
 class UpdateOpportunityStageRequest(BaseModel):
     """Update opportunity as it progresses through sales cycle."""
     new_stage: str
     activity_note: str
-
 
 class LogActivityRequest(BaseModel):
     """Log activity (call, email, meeting, etc.) on opportunity."""
     activity: str  # "call", "email", "meeting", "proposal_sent", etc.
     outcome: str   # "positive", "neutral", "negative"
     next_step: str = None
-
 
 @router.post("/log", dependencies=[Depends(require_resource_permission("opportunities", "create"))])
 async def log_new_opportunity(
@@ -65,7 +62,6 @@ async def log_new_opportunity(
         logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
-
 @router.get("/pipeline-health", dependencies=[Depends(require_resource_permission("opportunities", "view"))])
 async def get_pipeline_health(
     db: Session = Depends(get_db),
@@ -93,7 +89,6 @@ async def get_pipeline_health(
     except Exception as e:
         logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @router.patch("/opportunities/{opportunity_id}/stage", dependencies=[Depends(require_resource_permission("opportunities", "edit"))])
 async def update_opportunity_stage(
@@ -126,7 +121,6 @@ async def update_opportunity_stage(
     except Exception as e:
         logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @router.post("/opportunities/{opportunity_id}/activity", dependencies=[Depends(require_resource_permission("opportunities", "edit"))])
 async def log_opportunity_activity(

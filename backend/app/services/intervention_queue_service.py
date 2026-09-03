@@ -55,7 +55,6 @@ from app.services.whatsapp_routing_service import take_over_conversation
 
 RESOLVED_RETENTION_DAYS = 7  # Step 4
 
-
 def add_to_queue(db: Session, candidate_id: str, tenant_id: str, queue_reason: str, reason_detail: str, priority: int, *, commit: bool = True) -> Dict:
     """Step 2. Never raises. BR-02: refreshes an existing OPEN item for
     the same (candidate, reason) instead of creating a duplicate.
@@ -97,7 +96,6 @@ def add_to_queue(db: Session, candidate_id: str, tenant_id: str, queue_reason: s
             db.rollback()
         return {"outcome": "failed"}
 
-
 def resolve_queue_items(db: Session, candidate_id: str, tenant_id: str, reasons: List[str], *, note: str = "Auto-resolved: underlying issue cleared", commit: bool = True) -> int:
     """BR-03. Never raises. Resolves OPEN/IN_PROGRESS items -- resolved_by
     stays None (system, not a recruiter)."""
@@ -126,13 +124,11 @@ def resolve_queue_items(db: Session, candidate_id: str, tenant_id: str, reasons:
             db.rollback()
         return 0
 
-
 def _candidate_name(candidate: Optional[Candidate]) -> str:
     if candidate is None:
         return "Unknown candidate"
     parts = [candidate.candidateFirstName, candidate.candidateLastName]
     return " ".join(p for p in parts if p).strip() or candidate.candidateEmail
-
 
 def get_queue(db: Session, tenant_id: str, *, status: Optional[str] = None, retention_days: int = RESOLVED_RETENTION_DAYS) -> List[Dict]:
     """Step 3. BR-01: CRITICAL (priority=1) always sorts first, then
@@ -161,7 +157,6 @@ def get_queue(db: Session, tenant_id: str, *, status: Optional[str] = None, rete
         for i in items
     ]
 
-
 def get_queue_summary(db: Session, tenant_id: str) -> Dict:
     """Step 3's dashboard widget: OPEN item counts by priority."""
     open_items = db.query(RecruiterInterventionQueue).filter(RecruiterInterventionQueue.tenant_id == tenant_id, RecruiterInterventionQueue.status == "OPEN").all()
@@ -176,7 +171,6 @@ logger = logging.getLogger(__name__)
 
 class QueueItemNotFound(Exception):
     pass
-
 
 def take_over_queue_item(db: Session, queue_item_id: int, tenant_id: str, recruiter_user_id: str) -> Dict:
     """Step 3's 'Take Over' button. Reuses HRMS-0410's real
@@ -194,7 +188,6 @@ def take_over_queue_item(db: Session, queue_item_id: int, tenant_id: str, recrui
     db.add(item)
     db.commit()
     return {"id": item.id, "status": item.status, "assigned_to_user_id": item.assigned_to_user_id}
-
 
 def mark_resolved(db: Session, queue_item_id: int, tenant_id: str, recruiter_user_id: str, resolution_note: Optional[str] = None) -> Dict:
     """Step 4's 'Mark Resolved' button."""

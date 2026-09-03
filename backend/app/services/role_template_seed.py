@@ -12,7 +12,6 @@ from sqlalchemy.orm import Session
 from app.models.role_template import Module, Resource, RoleTemplate, RoleTemplatePermission
 from app.core.logging import logger
 
-
 MODULES_SEED = [
     {"name": "recruitment_management", "display_name": "Recruitment Management"},
     {"name": "finance_revenue", "display_name": "Finance & Revenue"},
@@ -304,7 +303,6 @@ ROLE_TEMPLATE_PERMISSIONS = {
     },
 }
 
-
 def assign_users_to_role_templates(db: Session, tenant_id: int = 1) -> None:
     """
     Assign existing users to role templates based on their UserRole string.
@@ -351,7 +349,6 @@ def assign_users_to_role_templates(db: Session, tenant_id: int = 1) -> None:
         logger.error(f"Failed to assign users to role templates: {exc}")
         db.rollback()
         # Don't raise — if assignment fails, system can still work with legacy fallback
-
 
 def seed_role_templates(db: Session, tenant_id: int = 1) -> None:
     """

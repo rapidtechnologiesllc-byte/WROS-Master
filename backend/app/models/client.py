@@ -38,10 +38,8 @@ from sqlalchemy.orm import relationship
 
 from app.models.base import Base
 
-
 def _new_uuid() -> str:
     return str(uuid.uuid4())
-
 
 CLIENT_TYPES = ("DIRECT", "MSP", "VMS")
 CLIENT_TIERS = ("PLATINUM", "GOLD", "SILVER", "STANDARD")
@@ -134,7 +132,6 @@ class Client(Base):
         UniqueConstraint("tenant_id", "company_name", name="uq_client_company_name_per_tenant"),
     )
 
-
 class ClientContact(Base):
     __tablename__ = "client_contacts"
 
@@ -157,7 +154,6 @@ class ClientContact(Base):
     __table_args__ = (
         UniqueConstraint("client_id", "email", name="uq_client_contact_email_per_client"),
     )
-
 
 class ClientHistory(Base):
     """Insert-only, same immutable pattern as employee_employment_history."""

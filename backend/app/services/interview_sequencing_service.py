@@ -59,7 +59,6 @@ class PriorRoundNotPassed(Exception):
     """R-05: the candidate's most recent prior interview round has not
     been recorded as passed -- a new round cannot be scheduled yet."""
 
-
 def _round_has_passed(db: Session, panel: InterviewPanel) -> bool:
     interviews = db.query(Interview).filter(Interview.panel_id == panel.id).all()
     interview_ids = [interview.id for interview in interviews]
@@ -75,7 +74,6 @@ def _round_has_passed(db: Session, panel: InterviewPanel) -> bool:
     if "Reject" in recommendations:
         return False
     return "Hire" in recommendations
-
 
 def enforce_interview_sequencing_gate(db: Session, candidate_id: str) -> None:
     """
@@ -103,7 +101,6 @@ def enforce_interview_sequencing_gate(db: Session, candidate_id: str) -> None:
             f"until it is."
         )
 
-
 # ---------------------------------------------------------------------------
 # S-102/HRMS-P207 -- Hiring Manager Candidate Review. app.schemas.interview's
 # HMFeedbackDetail/HMInterviewRound/HMCandidateReviewItem/HMCandidateReview
@@ -129,7 +126,6 @@ def _round_overall_recommendation(feedbacks: List[InterviewFeedback]) -> str:
     if recommendations == {"Hire"}:
         return "Hire"
     return "Mixed"
-
 
 def get_hm_candidate_review_list(db: Session, hiring_manager: Users) -> dict:
     """Every candidate assigned to this hiring manager (CandidateAssignment.

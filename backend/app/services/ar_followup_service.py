@@ -22,7 +22,6 @@ from app.services.task_service import create_task
 
 DEFAULT_AR_GRACE_DAYS = 30
 
-
 def scan_overdue_invoices(
     db: Session, *, grace_days: int = DEFAULT_AR_GRACE_DAYS, tenant_id: Optional[int] = None, now: Optional[datetime] = None,
 ) -> List[dict]:
@@ -44,7 +43,6 @@ def scan_overdue_invoices(
             "total_usd_cents": invoice.total_usd_cents, "sent_at": invoice.sent_at, "days_overdue": days_overdue,
         })
     return rows
-
 
 def trigger_ar_follow_up(db: Session, invoice: Invoice) -> Task:
     """Idempotent -- one open (not COMPLETED/CANCELLED) Task per
@@ -93,7 +91,6 @@ def trigger_ar_follow_up(db: Session, invoice: Invoice) -> Task:
                 pass
 
     return task
-
 
 def run_ar_follow_up_job(db: Session) -> dict:
     """Scheduler wrapper, 2026-08-06 -- this logic existed and was fully

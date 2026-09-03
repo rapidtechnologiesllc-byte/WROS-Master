@@ -58,7 +58,6 @@ class ThunderPausedError(Exception):
     Callers catch this the same way they already catch ConsentNotGiven /
     DuplicateMessageSuppressed and skip the candidate."""
 
-
 def is_thunder_paused(db: Session) -> bool:
     """Check if Thunder autonomous loop is paused.
     Single organization - no tenant checks needed."""
@@ -66,7 +65,6 @@ def is_thunder_paused(db: Session) -> bool:
     # For now, always allow autonomous loop to run
     # Kill switch can be implemented later if needed
     return False
-
 
 def is_thunder_paused_for_conversation(db: Session, conversation: CandidateConversation) -> bool:
     """BR-03: global tenant pause takes precedence over -- i.e. is
@@ -76,14 +74,12 @@ def is_thunder_paused_for_conversation(db: Session, conversation: CandidateConve
     tenant_user = db.query(Users).filter(Users.UserID == conversation.tenant_id).first()
     return bool(tenant_user is not None and tenant_user.thunder_enabled is False)
 
-
 def raise_if_thunder_paused(db: Session, conversation: CandidateConversation) -> None:
     if is_thunder_paused_for_conversation(db, conversation):
         raise ThunderPausedError(
             f"Thunder is paused for conversation {conversation.id} "
             f"(candidate {conversation.candidate_id!r}) -- send skipped."
         )
-
 
 def pause_thunder(
     db: Session, conversation: CandidateConversation, *, paused_by: str, resume_at: Optional[datetime] = None,
@@ -97,13 +93,11 @@ def pause_thunder(
     db.add(conversation)
     return conversation
 
-
 def resume_thunder(db: Session, conversation: CandidateConversation) -> CandidateConversation:
     conversation.is_thunder_paused = False
     conversation.thunder_resume_at = None
     db.add(conversation)
     return conversation
-
 
 def run_pause_expiry_job(db: Session) -> Dict:
     """Step 3's PauseExpiryJob -- runs every 15 min (see

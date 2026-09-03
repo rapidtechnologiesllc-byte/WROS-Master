@@ -15,7 +15,6 @@ from app.services.revenue_to_demand_service import get_revenue_to_demand_project
 
 router = APIRouter(tags=["revenue-to-demand"])
 
-
 @router.get(
     "/revenue-to-demand/bu/{business_unit_id}",
     response_model=RevenueToDemandProjectionResponse,

@@ -29,10 +29,8 @@ from app.models.base import Base
 from app.models.client import BILLING_CURRENCIES
 from app.models.employee import DELIVERY_ENGINES
 
-
 def _new_uuid() -> str:
     return str(uuid.uuid4())
-
 
 PROJECT_STATUSES = ("PLANNING", "ACTIVE", "ON_HOLD", "COMPLETED", "CLOSED")
 BILLING_TYPES = ("TIME_AND_MATERIALS", "FIXED_BID")
@@ -122,7 +120,6 @@ class Project(Base):
     created_at = Column(DateTime, server_default=func.now())
     created_by = Column(String(512), nullable=True)
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
-
 
 class ProjectMilestone(Base):
     __tablename__ = "project_milestones"

@@ -32,10 +32,8 @@ from sqlalchemy import (
 
 from app.models.base import Base
 
-
 def _new_uuid() -> str:
     return str(uuid.uuid4())
-
 
 SUBVENDOR_STATUSES = ("PENDING_APPROVAL", "APPROVED", "SUSPENDED", "REJECTED")
 SUBVENDOR_COMPLIANCE_STATUSES = ("GOOD_STANDING", "UNDER_REVIEW", "SUSPENSION_PENDING", "SUSPENDED")
@@ -70,7 +68,6 @@ class SubVendorAccount(Base):
 
     created_at = Column(DateTime, server_default=func.now())
 
-
 class SubVendorRequest(Base):
     """
     HRMS-P804 (Sub-Vendor Demand Visibility) merged with the richer
@@ -100,7 +97,6 @@ class SubVendorRequest(Base):
         nullable=False, default="OPEN",
     )
 
-
 class ClarificationQA(Base):
     """
     HRMS-P814 -- vendor asks a question against a specific request;
@@ -122,7 +118,6 @@ class ClarificationQA(Base):
     answer = Column(String(2000), nullable=True)
     answered_by = Column(String(512), ForeignKey("users.UserID"), nullable=True)
     answered_at = Column(DateTime, nullable=True)
-
 
 class SubVendorUser(Base):
     __tablename__ = "sub_vendor_users"

@@ -43,7 +43,6 @@ from app.services.whatsapp_routing_service import (
 from app.services.ai_conversation_service import AI_AGENT_NAME
 from app.services.notification_service import ChannelNotConfigured
 
-
 @pytest.fixture()
 def db_session():
     fd, db_path = tempfile.mkstemp(suffix=".sqlite3")
@@ -60,7 +59,6 @@ def db_session():
         session.close()
         engine.dispose()
         os.remove(db_path)
-
 
 @pytest.fixture()
 def fixtures(db_session):
@@ -93,11 +91,9 @@ def fixtures(db_session):
 
     return org_owner, recruiter_a, recruiter_b, candidate, conversation
 
-
 @pytest.fixture(autouse=True)
 def _default_number(monkeypatch):
     monkeypatch.setattr(routing, "DEFAULT_WHATSAPP_NUMBER", "+10005550000")
-
 
 # ---------------------------------------------------------------------------
 # is_ai_owner / ownership transitions
@@ -106,7 +102,6 @@ def _default_number(monkeypatch):
 def test_is_ai_owner_true_by_default(db_session, fixtures):
     org_owner, recruiter_a, recruiter_b, candidate, conversation = fixtures
     assert is_ai_owner(conversation) is True
-
 
 def test_take_over_sets_human_owner_no_permission_check(db_session, fixtures):
     org_owner, recruiter_a, recruiter_b, candidate, conversation = fixtures
@@ -118,7 +113,6 @@ def test_take_over_sets_human_owner_no_permission_check(db_session, fixtures):
     assert conversation.owner_id == recruiter_a.UserID
     assert is_ai_owner(conversation) is False
 
-
 def test_any_recruiter_can_take_over_from_another(db_session, fixtures):
     """HRMS-0410 BR-03: no permission check, no lock."""
     org_owner, recruiter_a, recruiter_b, candidate, conversation = fixtures
@@ -129,7 +123,6 @@ def test_any_recruiter_can_take_over_from_another(db_session, fixtures):
     db_session.commit()
 
     assert conversation.owner_id == recruiter_b.UserID
-
 
 def test_hand_back_resets_to_ai(db_session, fixtures):
     org_owner, recruiter_a, recruiter_b, candidate, conversation = fixtures
@@ -143,7 +136,6 @@ def test_hand_back_resets_to_ai(db_session, fixtures):
     assert conversation.owner_id == AI_AGENT_NAME
     assert is_ai_owner(conversation) is True
 
-
 # ---------------------------------------------------------------------------
 # resolve_outbound_whatsapp_number
 # ---------------------------------------------------------------------------
@@ -155,7 +147,6 @@ def test_resolve_number_uses_owner_personal_number(db_session, fixtures):
 
     assert resolve_outbound_whatsapp_number(db_session, conversation) == "+15550001111"
 
-
 def test_resolve_number_falls_back_when_owner_has_none(db_session, fixtures):
     org_owner, recruiter_a, recruiter_b, candidate, conversation = fixtures
     take_over_conversation(db_session, conversation, recruiter_b.UserID)
@@ -163,11 +154,9 @@ def test_resolve_number_falls_back_when_owner_has_none(db_session, fixtures):
 
     assert resolve_outbound_whatsapp_number(db_session, conversation) == "+10005550000"
 
-
 def test_resolve_number_uses_default_when_ai_owns(db_session, fixtures):
     org_owner, recruiter_a, recruiter_b, candidate, conversation = fixtures
     assert resolve_outbound_whatsapp_number(db_session, conversation) == "+10005550000"
-
 
 # ---------------------------------------------------------------------------
 # send_whatsapp_message -- R-08 gate (the actually-missing enforcement)
@@ -184,7 +173,6 @@ def test_ai_send_allowed_when_ai_owns(db_session, fixtures):
     assert event.event_type == "ai_message_sent"
     assert event.event_data["delivered"] is True
 
-
 def test_ai_send_blocked_when_human_owns(db_session, fixtures):
     """The actual R-08 fix: this gate did not exist anywhere in the
     codebase before this module -- Thunder had no way to be blocked."""
@@ -197,7 +185,6 @@ def test_ai_send_blocked_when_human_owns(db_session, fixtures):
             db_session, conversation, candidate, "Automated follow-up",
             sender_type="ai_agent", whatsapp_client=lambda to, frm, body: True,
         )
-
 
 def test_human_send_transfers_ownership_from_ai(db_session, fixtures):
     org_owner, recruiter_a, recruiter_b, candidate, conversation = fixtures
@@ -213,7 +200,6 @@ def test_human_send_transfers_ownership_from_ai(db_session, fixtures):
     assert conversation.owner_type == "hr_user"
     assert conversation.owner_id == recruiter_a.UserID
 
-
 def test_human_send_transfers_ownership_from_another_human(db_session, fixtures):
     org_owner, recruiter_a, recruiter_b, candidate, conversation = fixtures
     take_over_conversation(db_session, conversation, recruiter_a.UserID)
@@ -228,7 +214,6 @@ def test_human_send_transfers_ownership_from_another_human(db_session, fixtures)
 
     assert conversation.owner_id == recruiter_b.UserID
 
-
 def test_human_send_requires_sender_id(db_session, fixtures):
     org_owner, recruiter_a, recruiter_b, candidate, conversation = fixtures
     with pytest.raises(ValueError):
@@ -237,12 +222,10 @@ def test_human_send_requires_sender_id(db_session, fixtures):
             whatsapp_client=lambda to, frm, body: True,
         )
 
-
 def test_invalid_sender_type_rejected(db_session, fixtures):
     org_owner, recruiter_a, recruiter_b, candidate, conversation = fixtures
     with pytest.raises(ValueError):
         send_whatsapp_message(db_session, conversation, candidate, "x", sender_type="bot")
-
 
 # ---------------------------------------------------------------------------
 # send_whatsapp_message -- number resolution + event recording
@@ -261,7 +244,6 @@ def test_send_records_owner_personal_number_as_from_number(db_session, fixtures)
     assert event.event_data["from_number"] == "+15550001111"
     assert event.event_data["to_number"] == candidate.candidateMobile
 
-
 def test_send_falls_back_to_default_number_for_ownerless_number(db_session, fixtures):
     org_owner, recruiter_a, recruiter_b, candidate, conversation = fixtures
 
@@ -273,7 +255,6 @@ def test_send_falls_back_to_default_number_for_ownerless_number(db_session, fixt
     db_session.commit()
 
     assert event.event_data["from_number"] == "+10005550000"
-
 
 def test_send_raises_when_no_number_available_at_all(db_session, fixtures, monkeypatch):
     org_owner, recruiter_a, recruiter_b, candidate, conversation = fixtures
@@ -288,7 +269,6 @@ def test_send_raises_when_no_number_available_at_all(db_session, fixtures, monke
             whatsapp_client=lambda to, frm, body: True,
         )
 
-
 def test_default_client_raises_channel_not_configured_and_is_recorded_as_not_delivered(db_session, fixtures):
     """No whatsapp_client injected -- exercises the real default stub,
     which is honest about WhatsApp not being provisioned rather than
@@ -302,7 +282,6 @@ def test_default_client_raises_channel_not_configured_and_is_recorded_as_not_del
     db_session.commit()
 
     assert event.event_data["delivered"] is False
-
 
 # ---------------------------------------------------------------------------
 # Unification: different numbers/owners, same conversation/candidate

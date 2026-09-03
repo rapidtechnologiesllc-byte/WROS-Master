@@ -27,7 +27,6 @@ from app.models.tenant import Tenant
 from app.models.user import Users
 import app.models  # noqa: F401
 
-
 @pytest.fixture()
 def throwaway_jwt_keys(monkeypatch):
     key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
@@ -40,7 +39,6 @@ def throwaway_jwt_keys(monkeypatch):
     ).decode()
     monkeypatch.setattr(security, "PRIVATE_KEY", private_pem)
     monkeypatch.setattr(security, "PUBLIC_KEY", public_pem)
-
 
 @pytest.fixture()
 def client(throwaway_jwt_keys, monkeypatch):
@@ -91,11 +89,9 @@ def client(throwaway_jwt_keys, monkeypatch):
         engine.dispose()
         os.remove(db_path)
 
-
 def _auth():
     token = security.create_access_token(data={"sub": "rec@blitzenx.com", "type": "Recruiter", "name": "rec@blitzenx.com"})
     return {"Authorization": f"Bearer {token}"}
-
 
 def test_upload_then_access_url_route_resolves_correctly_not_swallowed(client):
     upload_resp = client.post(
@@ -117,7 +113,6 @@ def test_upload_then_access_url_route_resolves_correctly_not_swallowed(client):
     # completely different (list) response shape or an empty list.
     assert "access_url" in access_resp.json()
     assert access_resp.json()["access_url"] is None  # quarantined, not clean
-
 
 def test_timeline_and_file_list_real_routes(client):
     client.post(

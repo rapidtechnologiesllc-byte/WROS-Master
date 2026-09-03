@@ -23,7 +23,6 @@ from app.services.channel_queue_service import ChannelQueueService
 
 logger = logging.getLogger(__name__)
 
-
 class ChannelProcessors:
     """Processors for each channel type"""
 

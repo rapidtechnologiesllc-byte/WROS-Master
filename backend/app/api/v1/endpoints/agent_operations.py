@@ -10,7 +10,6 @@ from app.services import kpi_agent_service, hr_agent_service, employee_mental_he
 
 router = APIRouter(prefix="/agents", tags=["Agent Operations"])
 
-
 # ============================================================================
 # KPI Agent Endpoints
 # ============================================================================
@@ -35,7 +34,6 @@ def get_daily_kpis(
         logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
-
 @router.get("/kpi/alerts", dependencies=[Depends(require_resource_permission("admin-settings", "view"))])
 def get_kpi_alerts(
     db: Session = Depends(get_db),
@@ -48,7 +46,6 @@ def get_kpi_alerts(
     except Exception as e:
         logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
-
 
 # ============================================================================
 # HR Agent Endpoints
@@ -70,7 +67,6 @@ def get_hr_dashboard(
         logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
-
 @router.get("/hr/attrition-risks", dependencies=[Depends(require_resource_permission("hr", "view"))])
 def detect_attrition_risks(
     db: Session = Depends(get_db),
@@ -86,7 +82,6 @@ def detect_attrition_risks(
     except Exception as e:
         logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @router.get("/hr/development-needs", dependencies=[Depends(require_resource_permission("hr", "view"))])
 def get_development_needs(
@@ -104,7 +99,6 @@ def get_development_needs(
         logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
-
 @router.get("/hr/engagement-metrics", dependencies=[Depends(require_resource_permission("hr", "view"))])
 def get_engagement_metrics(
     db: Session = Depends(get_db),
@@ -120,7 +114,6 @@ def get_engagement_metrics(
     except Exception as e:
         logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
-
 
 # ============================================================================
 # Employee Mental Health Agent Endpoints
@@ -142,7 +135,6 @@ def get_wellness_dashboard(
         logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
-
 @router.get("/wellness/team-snapshot", dependencies=[Depends(require_resource_permission("hr", "view"))])
 def get_team_wellbeing(
     db: Session = Depends(get_db),
@@ -159,7 +151,6 @@ def get_team_wellbeing(
         logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
-
 @router.get("/wellness/burnout-risks", dependencies=[Depends(require_resource_permission("hr", "view"))])
 def get_burnout_risks(
     db: Session = Depends(get_db),
@@ -175,7 +166,6 @@ def get_burnout_risks(
     except Exception as e:
         logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @router.get("/wellness/employee/{employee_id}", dependencies=[Depends(require_resource_permission("hr", "view"))])
 def get_employee_wellness(

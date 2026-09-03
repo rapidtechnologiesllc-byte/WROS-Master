@@ -16,7 +16,6 @@ logger = logging.getLogger(__name__)
 class ClarificationValidationError(Exception):
     pass
 
-
 def ask_question(
     db: Session, request: SubVendorRequest, sub_vendor: SubVendorAccount, *, question: str,
     tenant_id: Optional[int] = None,
@@ -31,7 +30,6 @@ def ask_question(
     db.add(qa)
     return qa
 
-
 def answer_question(db: Session, qa: ClarificationQA, *, answered_by: str, answer: str) -> ClarificationQA:
     if len(answer or "") < MIN_ANSWER_LENGTH:
         raise ClarificationValidationError(f"Answer must be at least {MIN_ANSWER_LENGTH} characters.")
@@ -41,7 +39,6 @@ def answer_question(db: Session, qa: ClarificationQA, *, answered_by: str, answe
     qa.answered_at = datetime.utcnow()
     db.add(qa)
     return qa
-
 
 def get_qa_for_request(db: Session, request: SubVendorRequest) -> List[ClarificationQA]:
     """

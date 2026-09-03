@@ -71,7 +71,6 @@ from app.services.demand_confirmation_service import (
 
 router = APIRouter(prefix="/demand-confirmation", tags=["demand-confirmation"])
 
-
 def _to_item(db: Session, call: DemandAlignmentCall) -> AlignmentCallItem:
     demand = db.query(Demand).filter(Demand.id == call.demand_id).first()
     employee = db.query(Employee).filter(Employee.id == call.employee_id).first()
@@ -96,20 +95,17 @@ def _to_item(db: Session, call: DemandAlignmentCall) -> AlignmentCallItem:
         specialty_client_release_triggered_at=call.specialty_client_release_triggered_at,
     )
 
-
 def _get_demand_or_404(db: Session, demand_id: str) -> Demand:
     demand = db.query(Demand).filter(Demand.id == demand_id).first()
     if demand is None:
         raise HTTPException(status_code=404, detail="Demand not found.")
     return demand
 
-
 def _get_call_or_404(db: Session, call_id: str) -> DemandAlignmentCall:
     call = db.query(DemandAlignmentCall).filter(DemandAlignmentCall.id == call_id).first()
     if call is None:
         raise HTTPException(status_code=404, detail="Alignment call not found.")
     return call
-
 
 @router.post(
     "/demands/{demand_id}/confirm-sow",
@@ -139,7 +135,6 @@ def confirm_sow(
         sow_received_date=demand.sow_received_date,
     )
 
-
 @router.post(
     "/demands/{demand_id}/employees/{employee_id}/schedule-call",
     dependencies=[Depends(get_current_internal_user)],
@@ -166,7 +161,6 @@ def schedule_call(
     db.refresh(call)
     return _to_item(db, call)
 
-
 @router.get(
     "/demands/{demand_id}/calls",
     dependencies=[Depends(get_current_internal_user)],
@@ -186,7 +180,6 @@ def get_calls_for_demand(
         .all()
     )
     return AlignmentCallListResponse(calls=[_to_item(db, c) for c in calls])
-
 
 @router.post(
     "/calls/{call_id}/confirm-fit",
@@ -212,7 +205,6 @@ def confirm_call_fit(
     db.commit()
     db.refresh(call)
     return ConfirmFitResponse(message="Fit confirmation recorded.", call=_to_item(db, call))
-
 
 @router.post(
     "/calls/{call_id}/trigger-release",

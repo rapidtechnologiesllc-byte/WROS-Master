@@ -42,14 +42,12 @@ class CorrectionRequest(BaseModel):
     corrected_value: str
     confidence_score: float = 0.5
 
-
 class ValidationRequest(BaseModel):
     """Record when recruiter validates a parsed value (doesn't change)"""
     feedback_session_id: str
     field_name: str
     value: str
     confidence_score: float = 0.8
-
 
 class FeedbackStats(BaseModel):
     """Response format for feedback statistics"""
@@ -60,7 +58,6 @@ class FeedbackStats(BaseModel):
     correction_rate: float
     ready_to_retrain: bool
     recommendation: str
-
 
 @router.post(
     "/feedback/correction",
@@ -134,7 +131,6 @@ def record_correction(
         logger.error(f"[SLM] Failed to record correction: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to record correction: {str(e)}")
 
-
 @router.post(
     "/feedback/validation",
     dependencies=[Depends(require_resource_permission("feedback", "create"))]
@@ -196,7 +192,6 @@ def record_validation(
         db.rollback()
         logger.error(f"[SLM] Failed to record validation: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to record validation: {str(e)}")
-
 
 @router.get(
     "/feedback/stats",
@@ -263,7 +258,6 @@ def get_feedback_stats(
 
     return stats
 
-
 @router.get(
     "/feedback/report",
     dependencies=[Depends(require_resource_permission("feedback", "view"))]
@@ -294,7 +288,6 @@ def get_improvement_report(
         "ready_to_deploy": report["ready_to_deploy"]
     }
 
-
 @router.get(
     "/feedback/trajectory",
     dependencies=[Depends(require_resource_permission("feedback", "view"))]
@@ -321,7 +314,6 @@ def get_improvement_trajectory(
     """
     trajectory = SLMDailyImprovement.simulate_improvement_trajectory(db)
     return trajectory
-
 
 @router.get(
     "/feedback/patterns/{field_name}",
@@ -371,7 +363,6 @@ def get_error_patterns(
         "total_errors_analyzed": sum(p["frequency"] for p in patterns),
         "highest_priority": patterns[0]["pattern"] if patterns else None
     }
-
 
 @router.get(
     "/feedback/training-batch",
@@ -427,7 +418,6 @@ def get_training_batch(
         "claude_prompt": prompt,
         "instruction": "Send this batch to Claude API to generate improved extraction patterns"
     }
-
 
 @router.post(
     "/feedback/bulk-import",

@@ -21,7 +21,6 @@ class OpportunityCreateRequest(BaseModel):
     expected_close_date: Optional[date] = None
     stage: str = "QUALIFICATION"
 
-
 class OpportunityItem(BaseModel):
     id: str
     client_id: str
@@ -43,10 +42,8 @@ class OpportunityItem(BaseModel):
     class Config:
         from_attributes = True
 
-
 class OpportunityListResponse(BaseModel):
     opportunities: list[OpportunityItem]
-
 
 class OpportunityStageTransitionRequest(BaseModel):
     new_stage: str
@@ -54,11 +51,9 @@ class OpportunityStageTransitionRequest(BaseModel):
     billing_type: str = "TIME_AND_MATERIALS"
     continent: Optional[str] = None
 
-
 class OpportunityStageTransitionResponse(BaseModel):
     opportunity: OpportunityItem
     project_id: Optional[str] = None
-
 
 class PipelineColumn(BaseModel):
     stage: str
@@ -66,10 +61,8 @@ class PipelineColumn(BaseModel):
     total_weighted_forecast_usd_cents: int
     opportunities: list[OpportunityItem]
 
-
 class PipelineResponse(BaseModel):
     columns: list[PipelineColumn]
-
 
 class RoleDemandFromOpportunityRequest(BaseModel):
     job_title: str
@@ -79,7 +72,6 @@ class RoleDemandFromOpportunityRequest(BaseModel):
     quantity: int
     duration_hours: int
     billing_rate_usd_cents: int
-
 
 class RoleDemandFromOpportunityResponse(BaseModel):
     id: str

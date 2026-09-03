@@ -53,7 +53,6 @@ from app.models.invoice import Invoice, InvoiceLineItem
 
 router = APIRouter(prefix="/invoices", tags=["invoices"])
 
-
 def _to_line_item_response(li: InvoiceLineItem) -> InvoiceLineItemResponse:
     """Convert database line item to response schema."""
     return InvoiceLineItemResponse(
@@ -65,7 +64,6 @@ def _to_line_item_response(li: InvoiceLineItem) -> InvoiceLineItemResponse:
         rate_usd_cents=li.rate_usd_cents,
         amount_usd_cents=li.amount_usd_cents,
     )
-
 
 def _to_invoice_response(db: Session, invoice: Invoice, tenant_id: int) -> InvoiceDetailResponse:
     """Convert database invoice to response schema."""
@@ -92,7 +90,6 @@ def _to_invoice_response(db: Session, invoice: Invoice, tenant_id: int) -> Invoi
         line_items=[_to_line_item_response(li) for li in line_items],
         tenant_id=tenant_id,
     )
-
 
 # ============================================================================
 # POST /invoices/generate
@@ -190,7 +187,6 @@ def generate_invoice_endpoint(
             detail=f"Internal error: {str(exc)}",
         )
 
-
 # ============================================================================
 # GET /invoices/{id}/calculate
 # ============================================================================
@@ -226,7 +222,6 @@ def calculate_bill_amount_endpoint(
     except Exception as exc:
         logger.error(f"Error: {str(exc)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Internal error: {str(exc)}")
-
 
 # ============================================================================
 # POST /invoices/{id}/send
@@ -306,7 +301,6 @@ def send_invoice_endpoint(
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Internal error: {str(exc)}")
 
-
 # ============================================================================
 # POST /invoices/{id}/pay
 # ============================================================================
@@ -372,7 +366,6 @@ def track_payment_endpoint(
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Internal error: {str(exc)}")
 
-
 # ============================================================================
 # GET /invoices/{id}
 # ============================================================================
@@ -403,7 +396,6 @@ def get_invoice_endpoint(
         raise HTTPException(status_code=404, detail="Invoice not found")
 
     return _to_invoice_response(db, invoice, current_user.tenant_id)
-
 
 # ============================================================================
 # GET /invoices

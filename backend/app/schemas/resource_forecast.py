@@ -23,12 +23,10 @@ class ExpiringAllocationItem(BaseModel):
     end_date: date
     days_out: int
 
-
 class ExpiringAllocationsResponse(BaseModel):
     under_30_days: List[ExpiringAllocationItem]
     thirty_to_60_days: List[ExpiringAllocationItem]
     sixty_to_90_days: List[ExpiringAllocationItem]
-
 
 class SkillGapRow(BaseModel):
     skill: str
@@ -37,7 +35,6 @@ class SkillGapRow(BaseModel):
     total_projected_supply: int
     open_demand_count: int
     gap: int
-
 
 class SkillGapAnalysisResponse(BaseModel):
     rows: List[SkillGapRow]

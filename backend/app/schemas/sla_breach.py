@@ -16,7 +16,6 @@ class SLABreachItem(BaseModel):
     breached_at: datetime
     hours_since_breach: float
 
-
 class SLABreachListResponse(BaseModel):
     total_count: int
     breaches: List[SLABreachItem]

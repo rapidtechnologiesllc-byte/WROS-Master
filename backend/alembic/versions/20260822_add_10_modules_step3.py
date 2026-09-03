@@ -20,13 +20,11 @@ Create Date: 2026-08-22 10:00:00.000000
 from alembic import op
 import sqlalchemy as sa
 
-
 # revision identifiers, used by Alembic.
 revision = "20260822_add_10_modules_step3"
 down_revision = None
 branch_labels = None
 depends_on = None
-
 
 def upgrade() -> None:
     """Add 10 modules and their resources."""
@@ -63,7 +61,6 @@ def upgrade() -> None:
                 "desc": None
             }
         )
-
 
 def downgrade() -> None:
     """Remove 10 modules (keeping data for audit trail)."""

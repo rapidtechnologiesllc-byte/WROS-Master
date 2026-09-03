@@ -12,7 +12,6 @@ from app.services.agent_shield_service import PhalanxFormationService
 
 router = APIRouter(prefix="/phalanx", tags=["phalanx"])
 
-
 @router.get("/formations", dependencies=[Depends(require_resource_permission("agents", "view"))])
 def get_phalanx_formations(
     db: Session = Depends(get_db),
@@ -38,7 +37,6 @@ def get_phalanx_formations(
         logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
-
 @router.get("/formations/{phalanx_name}", dependencies=[Depends(require_resource_permission("agents", "view"))])
 def get_phalanx_status(
     phalanx_name: str,
@@ -60,7 +58,6 @@ def get_phalanx_status(
         raise HTTPException(status_code=404, detail=status.get("message"))
 
     return status
-
 
 @router.post("/formations/{phalanx_name}/initialize", dependencies=[Depends(require_resource_permission("agents", "edit"))])
 def initialize_phalanx(
@@ -88,7 +85,6 @@ def initialize_phalanx(
         }
     else:
         raise HTTPException(status_code=500, detail="Failed to initialize phalanx")
-
 
 @router.put("/agent-shield/{phalanx_name}/{agent_name}", dependencies=[Depends(require_resource_permission("agents", "edit"))])
 def update_agent_shield(
@@ -127,7 +123,6 @@ def update_agent_shield(
 
     return result
 
-
 @router.get("/formation-integrity/{phalanx_name}", dependencies=[Depends(require_resource_permission("agents", "view"))])
 def get_formation_integrity(
     phalanx_name: str,
@@ -151,7 +146,6 @@ def get_formation_integrity(
         raise HTTPException(status_code=404, detail=integrity.get("message"))
 
     return integrity
-
 
 @router.get("/dashboard/phalanx-wall", dependencies=[Depends(require_resource_permission("agents", "view"))])
 def get_phalanx_wall_dashboard(

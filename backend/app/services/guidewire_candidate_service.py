@@ -34,7 +34,6 @@ from app.models.user import Jobs
 
 GUIDEWIRE_CANONICAL_SKILL = "Guidewire"
 
-
 def is_guidewire_candidate(db: Session, candidate: Candidate) -> bool:
     tag = (
         db.query(CandidateSkillTag)

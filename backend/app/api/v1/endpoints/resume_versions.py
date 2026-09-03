@@ -72,7 +72,6 @@ class ResumeVersionResponse:
             "parser_version": self.parser_version,
         }
 
-
 @router.get(
     "/{candidate_id}/resume-versions",
     response_model=List[dict],
@@ -101,7 +100,6 @@ def list_resume_versions(
         return []
 
     return [ResumeVersionResponse(v).dict() for v in versions]
-
 
 @router.get(
     "/{candidate_id}/resume-versions/{version_id}",
@@ -139,7 +137,6 @@ def get_resume_version(
     response["raw_text"] = resume.raw_text  # Include raw text for full transparency
 
     return response
-
 
 @router.get(
     "/{candidate_id}/resume-comparison",
@@ -220,7 +217,6 @@ def compare_resume_versions(
         },
         "analysis": summary,
     }
-
 
 @router.post(
     "/{candidate_id}/resume-search",

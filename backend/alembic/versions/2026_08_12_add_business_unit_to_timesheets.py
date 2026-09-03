@@ -11,18 +11,15 @@ Add BU field to timesheets for easier querying by business unit.
 from alembic import op
 import sqlalchemy as sa
 
-
 revision = '2026_08_12_timesheet_bu'
 down_revision = '2026_08_12_perf_events_bu'
 branch_labels = None
 depends_on = None
 
-
 def upgrade() -> None:
     op.add_column('timesheets', sa.Column('business_unit_id', sa.Integer(), nullable=True))
     op.create_foreign_key('fk_timesheets_business_unit', 'timesheets', 'business_units', ['business_unit_id'], ['id'])
     op.create_index('ix_timesheet_tenant_bu', 'timesheets', ['tenant_id', 'business_unit_id'])
-
 
 def downgrade() -> None:
     op.drop_index('ix_timesheet_tenant_bu', table_name='timesheets')

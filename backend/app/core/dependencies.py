@@ -10,7 +10,6 @@ from app.models.candidate import Candidate
 from app.services.role_template_permission_service import RoleTemplatePermissionService
 from app.services.permission_helper import PermissionHelper
 
-
 def _reject_if_mfa_pending(payload: dict) -> None:
     """
     Phase 1 B3 -- a token issued mid-MFA-challenge (mfa_pending: true)
@@ -28,7 +27,6 @@ def _reject_if_mfa_pending(payload: dict) -> None:
             detail="MFA verification required before this token can be used",
         )
 
-
 def _reject_if_candidate_otp_pending(payload: dict) -> None:
     """Backlog item, 2026-08-05 (wros_email_2fa_backlog, candidate
     half) -- the candidate-side counterpart to _reject_if_mfa_pending
@@ -40,7 +38,6 @@ def _reject_if_candidate_otp_pending(payload: dict) -> None:
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Email verification required before this token can be used",
         )
-
 
 # ---------------------------------------------------------------------------
 # Base user resolution
@@ -98,7 +95,6 @@ async def get_current_user(
         logger.error(f"[AUTH-DEBUG] Exception in get_current_user: {str(e)}", exc_info=True)
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=f"Auth failed: {str(e)}")
 
-
 async def get_current_candidate(
     credentials: HTTPAuthorizationCredentials = Depends(security),
     db: Session = Depends(get_db)
@@ -107,7 +103,6 @@ async def get_current_candidate(
     Get the current authenticated candidate from JWT token.
     """
     try:
-        from app.core.logging import logger
 
         token = credentials.credentials
         payload = decode_access_token(token)
@@ -129,10 +124,8 @@ async def get_current_candidate(
         raise
     except Exception as e:
         logger.error(f"Error: {str(e)}", exc_info=True)
-        from app.core.logging import logger
         logger.error(f"[get_current_candidate] Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Authentication failed: {str(e)}")
-
 
 async def get_current_candidate_otp_pending(
     credentials: HTTPAuthorizationCredentials = Depends(security),
@@ -146,7 +139,6 @@ async def get_current_candidate_otp_pending(
     candidate can't skip straight to "verify" without having actually
     passed the password check first in the current session."""
     try:
-        from app.core.logging import logger
 
         token = credentials.credentials
         payload = decode_access_token(token)
@@ -166,10 +158,8 @@ async def get_current_candidate_otp_pending(
         raise
     except Exception as e:
         logger.error(f"Error: {str(e)}", exc_info=True)
-        from app.core.logging import logger
         logger.error(f"[get_current_candidate_otp_pending] Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Authentication failed: {str(e)}")
-
 
 async def get_current_hr_or_admin(
     credentials: HTTPAuthorizationCredentials = Depends(security),
@@ -204,10 +194,8 @@ async def get_current_hr_or_admin(
         raise
     except Exception as e:
         logger.error(f"Error: {str(e)}", exc_info=True)
-        from app.core.logging import logger
         logger.error(f"[get_current_hr_or_admin] Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=f"Authentication failed: {str(e)}")
-
 
 async def get_current_internal_user(
     credentials: HTTPAuthorizationCredentials = Depends(security),
@@ -218,7 +206,6 @@ async def get_current_internal_user(
     Allows any user found in the Users table (any role). Candidates are excluded.
     """
     try:
-        from app.core.logging import logger
 
         token = credentials.credentials
         payload = decode_access_token(token)
@@ -243,10 +230,8 @@ async def get_current_internal_user(
         raise
     except Exception as e:
         logger.error(f"Error: {str(e)}", exc_info=True)
-        from app.core.logging import logger
         logger.error(f"[get_current_internal_user] Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Authentication failed: {str(e)}")
-
 
 async def get_current_mfa_pending_user(
     credentials: HTTPAuthorizationCredentials = Depends(security),
@@ -272,7 +257,6 @@ async def get_current_mfa_pending_user(
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
     return user
 
-
 # HRMS-0114 — these three establish a real, explicit identity boundary
 # (candidate-self-service-only, or any-authenticated-internal-user)
 # even though they're not fine-grained RBAC permissions. Marked so
@@ -287,7 +271,6 @@ get_current_hr_or_admin.__wros_authn__ = "any_internal_user"
 get_current_internal_user.__wros_authn__ = "any_internal_user"
 get_current_mfa_pending_user.__wros_authn__ = "mfa_pending_session"
 get_current_candidate_otp_pending.__wros_authn__ = "candidate_otp_pending_session"
-
 
 # ---------------------------------------------------------------------------
 # RBAC — permission and attribute guards
@@ -320,7 +303,6 @@ def require_permission(permission: str):
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
 
         # Use new role template permission service
-        from app.services.role_template_permission_service import RoleTemplatePermissionService
 
         # Super User & Admin bypass — always has all permissions
         if RoleTemplatePermissionService.is_super_user(db, user.UserID, user.tenant_id):
@@ -337,7 +319,6 @@ def require_permission(permission: str):
 
     _check.__wros_permission__ = permission
     return _check
-
 
 def require_resource_permission(resource_name: str, action: str = "view"):
     """
@@ -358,7 +339,6 @@ def require_resource_permission(resource_name: str, action: str = "view"):
         credentials: HTTPAuthorizationCredentials = Depends(security),
         db: Session = Depends(get_db),
     ):
-        from app.services.role_template_permission_service import RoleTemplatePermissionService
 
         token = credentials.credentials
         payload = decode_access_token(token)
@@ -383,7 +363,6 @@ def require_resource_permission(resource_name: str, action: str = "view"):
 
     _check.__wros_permission__ = f"{resource_name}.{action}"
     return _check
-
 
 def require_attribute(attribute: str, expected: bool = True):
     """
@@ -414,7 +393,6 @@ def require_attribute(attribute: str, expected: bool = True):
 
         # Super User bypass — check via PermissionHelper
         # Super User role has all permissions; check fundamental admin.manage permission
-        from app.services.permission_helper import PermissionHelper
         if PermissionHelper.is_super_admin(user.UserID, db, user.tenant_id):
             return user
 
@@ -430,7 +408,6 @@ def require_attribute(attribute: str, expected: bool = True):
     # HRMS-0114 — see require_permission's matching comment above.
     _check.__wros_attribute__ = attribute
     return _check
-
 
 async def require_admin_role(
     credentials: HTTPAuthorizationCredentials = Depends(security),
@@ -458,7 +435,6 @@ async def require_admin_role(
 
     # Check admin permission via PermissionHelper (database-driven RBAC)
     # Admin users have admin.edit (or other admin CRUD) permissions
-    from app.services.permission_helper import PermissionHelper
     has_admin_perms = PermissionHelper.has_any_permission(
         user.UserID,
         ["admin.manage", "admin.edit", "admin.create", "rbac.manage"],
@@ -469,7 +445,6 @@ async def require_admin_role(
     if not has_admin_perms:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin role required")
     return user
-
 
 # HRMS-0114 -- same marker convention as get_current_hr_or_admin etc.
 # above; without this, app.core.route_security_audit's startup gate

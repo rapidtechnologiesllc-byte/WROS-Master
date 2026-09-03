@@ -24,7 +24,6 @@ logger = logging.getLogger(__name__)
 class AppendOnlyViolation(Exception):
     """Raised when code tries to UPDATE or DELETE an employee_performance_events row via the ORM."""
 
-
 class EmployeePerformanceEvent(Base):
     __tablename__ = "employee_performance_events"
 
@@ -37,11 +36,9 @@ class EmployeePerformanceEvent(Base):
     event_data = Column(Text, nullable=True)  # JSON-encoded
     occurred_at = Column(DateTime(timezone=False), server_default=func.now())
 
-
 @event.listens_for(EmployeePerformanceEvent, "before_update")
 def _block_update(mapper: Mapper, connection, target: EmployeePerformanceEvent) -> None:
     raise AppendOnlyViolation("employee_performance_events rows cannot be updated -- this table is append-only.")
-
 
 @event.listens_for(EmployeePerformanceEvent, "before_delete")
 def _block_delete(mapper: Mapper, connection, target: EmployeePerformanceEvent) -> None:

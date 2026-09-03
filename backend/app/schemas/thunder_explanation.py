@@ -16,7 +16,6 @@ class MessageExplanationResponse(BaseModel):
     generated_at: Optional[str] = None
     model_used: str
 
-
 class ExplanationLogEntry(BaseModel):
     message_id: int
     explanation_text: str
@@ -24,7 +23,6 @@ class ExplanationLogEntry(BaseModel):
     context_snapshot: Dict[str, Any]
     generated_at: Optional[str] = None
     created_at: datetime
-
 
 class ExplanationLogResponse(BaseModel):
     entries: List[ExplanationLogEntry]

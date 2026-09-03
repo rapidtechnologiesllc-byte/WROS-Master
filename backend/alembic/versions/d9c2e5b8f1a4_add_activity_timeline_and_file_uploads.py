@@ -13,7 +13,6 @@ down_revision = "b3f8d2a7c4e6"
 branch_labels = None
 depends_on = None
 
-
 def upgrade():
     op.create_table(
         "activity_timeline",
@@ -55,7 +54,6 @@ def upgrade():
     op.create_index("ix_file_uploads_tenant_id", "file_uploads", ["tenant_id"])
     op.create_index("ix_file_uploads_entity_type", "file_uploads", ["entity_type"])
     op.create_index("ix_file_uploads_entity_id", "file_uploads", ["entity_id"])
-
 
 def downgrade():
     op.drop_index("ix_file_uploads_entity_id", table_name="file_uploads")

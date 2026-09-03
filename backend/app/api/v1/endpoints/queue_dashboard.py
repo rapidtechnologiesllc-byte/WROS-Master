@@ -14,7 +14,6 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/admin/queue-dashboard", tags=["queue-dashboard"])
 
-
 @router.get("/stats")
 def get_queue_stats(
     db: Session = Depends(get_db),
@@ -39,7 +38,6 @@ def get_queue_stats(
     except Exception as e:
         logger.error(f"Failed to get queue stats: {e}", exc_info=True)
         return {"error": str(e)}
-
 
 @router.get("/messages")
 def list_messages(
@@ -90,7 +88,6 @@ def list_messages(
         logger.error(f"Failed to list messages: {e}", exc_info=True)
         return {"error": str(e)}
 
-
 @router.get("/messages/{message_id}")
 def get_message_details(
     message_id: str,
@@ -99,7 +96,6 @@ def get_message_details(
 ):
     """Get details for a specific message."""
     try:
-        from app.models.message_queue import MessageQueue
 
         message = db.query(MessageQueue).filter(MessageQueue.id == message_id).first()
         if not message:
@@ -117,7 +113,6 @@ def get_message_details(
         logger.error(f"Failed to get message details: {e}", exc_info=True)
         return {"error": str(e)}
 
-
 @router.get("/channels")
 def list_channel_items(
     db: Session = Depends(get_db),
@@ -126,7 +121,6 @@ def list_channel_items(
     """List all channel queue items."""
     try:
         from app.models.channel_queue import ChannelQueueItem
-        from sqlalchemy import desc
 
         items = (
             db.query(ChannelQueueItem)
@@ -150,7 +144,6 @@ def list_channel_items(
         logger.error(f"Failed to list channel items: {e}", exc_info=True)
         return {"error": str(e)}
 
-
 @router.get("/channels/{channel_type}")
 def get_channel_items(
     channel_type: str,
@@ -159,8 +152,6 @@ def get_channel_items(
 ):
     """Get items for specific channel type."""
     try:
-        from app.models.channel_queue import ChannelQueueItem
-        from sqlalchemy import desc
 
         items = (
             db.query(ChannelQueueItem)
@@ -178,7 +169,6 @@ def get_channel_items(
     except Exception as e:
         logger.error(f"Failed to get channel items: {e}", exc_info=True)
         return {"error": str(e)}
-
 
 @router.get("/health")
 def check_health(

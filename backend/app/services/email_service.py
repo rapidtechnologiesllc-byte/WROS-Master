@@ -293,7 +293,6 @@ class EmailService:
         Branded invitation email with Accept / Decline action buttons.
         No calendar event is created — the candidate decides first.
         """
-        from datetime import datetime as _dt
         try:
             _start_dt = _dt.fromisoformat(start_time)
             _end_dt   = _dt.fromisoformat(end_time)
@@ -436,7 +435,6 @@ class EmailService:
         start_time_iso: str,
     ) -> None:
         """Notify HR when a candidate accepts or declines an interview invitation."""
-        from datetime import datetime as _dt
         try:
             _start_dt = _dt.fromisoformat(start_time_iso)
             _date_label   = _start_dt.strftime("%d/%m/%Y")

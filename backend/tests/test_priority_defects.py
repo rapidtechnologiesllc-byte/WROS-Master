@@ -10,7 +10,6 @@ from datetime import date, datetime
 from unittest.mock import patch, MagicMock
 from sqlalchemy.orm import Session
 
-
 # ============================================================================
 # PRIORITY 1: Timesheet Notification Tests
 # ============================================================================
@@ -38,7 +37,6 @@ def _create_mock_timesheet():
 
     return timesheet
 
-
 def _create_mock_employee():
     """Create a mock employee object."""
     employee = MagicMock()
@@ -48,12 +46,10 @@ def _create_mock_employee():
     employee.last_name = "Doe"
     return employee
 
-
 def _create_mock_db():
     """Create a mock database session."""
     db = MagicMock(spec=Session)
     return db
-
 
 def test_priority_1_timesheet_notification_sends_email():
     """PRIORITY 1: Verify EmailService.notify_timesheet_approved() is called."""
@@ -71,10 +67,8 @@ def test_priority_1_timesheet_notification_sends_email():
         assert result.approved_by == "manager@test.com"
         mock_email.assert_called_once()
 
-
 def test_priority_1_timesheet_notification_failure_does_not_block():
     """PRIORITY 1: Notification failure should not block approval."""
-    from app.services.timesheet_service import approve_timesheet
 
     db = _create_mock_db()
     timesheet = _create_mock_timesheet()
@@ -87,7 +81,6 @@ def test_priority_1_timesheet_notification_failure_does_not_block():
 
         assert result.status == "APPROVED"
         assert result.approved_by == "manager@test.com"
-
 
 # ============================================================================
 # PRIORITY 2: Revenue Autonomous Scanning Tests
@@ -107,7 +100,6 @@ def test_priority_2_revenue_scan_job_signature():
     }
     assert callable(run_daily_revenue_scan_job)
 
-
 def test_priority_2_revenue_scan_results_signature():
     """PRIORITY 2: Verify get_recent_scan_results() returns list of dicts."""
     from app.services.revenue_scanning_service import get_recent_scan_results
@@ -117,7 +109,6 @@ def test_priority_2_revenue_scan_results_signature():
     # Signature test - verify function exists and is callable
     assert callable(get_recent_scan_results)
 
-
 def test_priority_2_revenue_scan_statistics_signature():
     """PRIORITY 2: Verify get_scan_statistics() returns dict with stats."""
     from app.services.revenue_scanning_service import get_scan_statistics
@@ -126,7 +117,6 @@ def test_priority_2_revenue_scan_statistics_signature():
 
     # Signature test - verify function exists and is callable
     assert callable(get_scan_statistics)
-
 
 # ============================================================================
 # PRIORITY 3: Expense Approval Chain Tests
@@ -158,10 +148,8 @@ def test_priority_3_expense_requires_receipt():
     except ExpenseValidationError as e:
         assert "receipt_ref" in str(e).lower()
 
-
 def test_priority_3_expense_requires_receipt_not_none():
     """PRIORITY 3: Verify receipt_ref cannot be None."""
-    from app.services.expense_service import log_expense, ExpenseValidationError
 
     db = _create_mock_db()
     logged_by_user = MagicMock()
@@ -177,7 +165,6 @@ def test_priority_3_expense_requires_receipt_not_none():
     # receipt_ref should be a required parameter (not have a default value)
     assert 'receipt_ref' in params
     assert params['receipt_ref'].default == inspect.Parameter.empty
-
 
 def test_priority_3_manager_approval_flow():
     """PRIORITY 3: Verify manager approval workflow."""
@@ -201,7 +188,6 @@ def test_priority_3_manager_approval_flow():
     assert result.manager_approved_by == "manager@test.com"
     assert result.manager_approved_at is not None
 
-
 def test_priority_3_finance_approval_requires_manager_approval():
     """PRIORITY 3: Verify Finance cannot approve until manager approves."""
     from app.services.expense_service import approve_expense, ExpenseValidationError
@@ -218,7 +204,6 @@ def test_priority_3_finance_approval_requires_manager_approval():
         assert False, "Should have raised ExpenseValidationError"
     except ExpenseValidationError as e:
         assert "manager" in str(e).lower()
-
 
 if __name__ == "__main__":
     import pytest

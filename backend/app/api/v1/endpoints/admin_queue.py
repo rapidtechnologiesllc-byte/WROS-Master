@@ -91,7 +91,6 @@ class TaskStatus:
         if task_id in cls._tasks:
             del cls._tasks[task_id]
 
-
 @router.get(
     "/tasks",
     dependencies=[Depends(require_resource_permission("task", "view"))]
@@ -124,7 +123,6 @@ async def list_tasks(
         "stats": stats,
     }
 
-
 @router.get(
     "/tasks/{task_id}",
     dependencies=[Depends(require_resource_permission("task", "view"))]
@@ -149,7 +147,6 @@ async def get_task(
         "status": "success",
         "task": task,
     }
-
 
 @router.post(
     "/tasks/{task_id}/retry",
@@ -183,7 +180,6 @@ async def retry_task(
         "message": f"Task {task_id} queued for retry",
     }
 
-
 @router.post(
     "/tasks/{task_id}/clear",
     dependencies=[Depends(require_resource_permission("task", "create"))]
@@ -211,7 +207,6 @@ async def clear_task(
         "status": "success",
         "message": f"Task {task_id} cleared",
     }
-
 
 # Example usage for backend tasks
 def log_task_message(task_id: str, message: str, level: str = "info"):

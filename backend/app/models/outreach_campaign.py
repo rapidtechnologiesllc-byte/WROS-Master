@@ -67,7 +67,6 @@ class OutreachCampaign(Base):
         Index("ix_outreach_campaigns_active_lookup", "tenant_id", "candidate_id", "status"),
     )
 
-
 class CampaignTouchpoint(Base):
     __tablename__ = "campaign_touchpoints"
 

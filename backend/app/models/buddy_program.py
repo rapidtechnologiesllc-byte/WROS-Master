@@ -19,7 +19,6 @@ from app.models.base import Base
 BUDDY_RECORD_STATUSES = ("IN_PROGRESS", "GRADUATED", "EXTENDED", "EXITED")
 KPI_CATEGORIES = ("HR", "BUDDY", "RM")
 
-
 def _new_uuid() -> str:
     return str(uuid.uuid4())
 
@@ -43,7 +42,6 @@ class BuddyProgramRecord(Base):
     bu_head_decision_notes = Column(Text, nullable=True)
 
     created_at = Column(DateTime(timezone=False), server_default=func.now())
-
 
 class BuddyKPIScore(Base):
     """One row per (buddy_record_id, kpi_number, week_number) -- see

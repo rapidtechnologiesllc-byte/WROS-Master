@@ -26,7 +26,6 @@ from app.models.user import Users
 
 import app.services.conversation_state_service as svc
 
-
 @pytest.fixture()
 def db_session():
     fd, db_path = tempfile.mkstemp(suffix=".sqlite3")
@@ -44,7 +43,6 @@ def db_session():
         engine.dispose()
         os.remove(db_path)
 
-
 @pytest.fixture()
 def seeded(db_session):
     owner = Users(UserID="U-ORG", UserRole="Super User", UserEmail="ceo@blitzenx.com", UserPassword="h")
@@ -56,7 +54,6 @@ def seeded(db_session):
     db_session.add(conv)
     db_session.commit()
     return conv
-
 
 def test_valid_transition_updates_status_and_logs_event(db_session, seeded):
     conv = seeded
@@ -70,7 +67,6 @@ def test_valid_transition_updates_status_and_logs_event(db_session, seeded):
     assert len(events) == 1
     assert events[0].event_data == {"from_state": "open", "to_state": "awaiting_candidate", "reason": "First outreach sent", "triggered_by": "system"}
 
-
 def test_invalid_transition_rejected_status_unchanged(db_session, seeded):
     conv = seeded
     svc.transition_status(db_session, conv, "closed", reason="closing", triggered_by="system")
@@ -83,7 +79,6 @@ def test_invalid_transition_rejected_status_unchanged(db_session, seeded):
 
     db_session.refresh(conv)
     assert conv.status == "closed"  # unchanged -- BR-01, no silent overwrite
-
 
 def test_three_transitions_produce_three_history_events(db_session, seeded):
     conv = seeded
@@ -102,14 +97,12 @@ def test_three_transitions_produce_three_history_events(db_session, seeded):
     assert [e.event_data["to_state"] for e in events] == ["awaiting_candidate", "open", "closed"]
     assert [e.event_data["triggered_by"] for e in events] == ["system", "candidate", "ai_agent"]
 
-
 def test_same_state_call_is_idempotent_not_an_error(db_session, seeded):
     conv = seeded
     svc.transition_status(db_session, conv, "open", reason="no-op", triggered_by="system")
     db_session.commit()
     db_session.refresh(conv)
     assert conv.status == "open"
-
 
 def test_get_conversation_state_returns_all_three_axes(db_session, seeded):
     conv = seeded
@@ -118,7 +111,6 @@ def test_get_conversation_state_returns_all_three_axes(db_session, seeded):
     assert state["escalation_state"] == "none"
     assert state["owner_type"] == "ai_agent"
     assert state["entered_at"] is not None
-
 
 def test_escalate_does_not_change_status(db_session, seeded):
     conv = seeded
@@ -130,7 +122,6 @@ def test_escalate_does_not_change_status(db_session, seeded):
     assert conv.escalation_state == "escalated"
     assert conv.status == "awaiting_candidate"  # BR-02: escalation is reversible because it never touched status
 
-
 def test_resolve_escalation_restores_none_status_untouched(db_session, seeded):
     conv = seeded
     svc.escalate(db_session, conv, reason="needs human", triggered_by="ai_agent")
@@ -140,7 +131,6 @@ def test_resolve_escalation_restores_none_status_untouched(db_session, seeded):
 
     assert conv.escalation_state == "resolved"
     assert conv.status == "open"  # never moved
-
 
 def test_pause_and_resume_round_trip_preserves_status(db_session, seeded):
     conv = seeded
@@ -158,14 +148,12 @@ def test_pause_and_resume_round_trip_preserves_status(db_session, seeded):
     assert conv.owner_type == "ai_agent"
     assert conv.status == "awaiting_candidate"  # restored to the exact state that was active before PAUSED
 
-
 def test_transition_status_by_id_wraps_lookup(db_session, seeded):
     conv = seeded
     svc.transition_status_by_id(db_session, conv.id, "U-ORG", "closed", reason="done", triggered_by="system")
     db_session.commit()
     db_session.refresh(conv)
     assert conv.status == "closed"
-
 
 def test_transition_status_by_id_wrong_tenant_raises(db_session, seeded):
     conv = seeded

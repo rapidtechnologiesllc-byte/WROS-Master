@@ -48,7 +48,6 @@ class AgentStateTarget(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
-
 class AgentActualPerformance(Base):
     """Daily actual performance tracking."""
     __tablename__ = "agent_actual_performance"
@@ -71,7 +70,6 @@ class AgentActualPerformance(Base):
 
     created_at = Column(DateTime, default=datetime.utcnow)
 
-
 class AgentFearScore(Base):
     """Agent stress/anxiety tracking."""
     __tablename__ = "agent_fear_scores"
@@ -91,7 +89,6 @@ class AgentFearScore(Base):
 
     created_at = Column(DateTime, default=datetime.utcnow)
 
-
 class AgentIssue(Base):
     """Current issues blocking agent progress."""
     __tablename__ = "agent_issues"
@@ -108,7 +105,6 @@ class AgentIssue(Base):
 
     created_at = Column(DateTime, default=datetime.utcnow)
 
-
 class AgentImprovement(Base):
     """Recommended improvements for agents."""
     __tablename__ = "agent_improvements"
@@ -124,7 +120,6 @@ class AgentImprovement(Base):
     priority = Column(String)
 
     created_at = Column(DateTime, default=datetime.utcnow)
-
 
 def run_migration():
     """Execute migration to create agent state tables.
@@ -145,7 +140,6 @@ def run_migration():
     engine = create_engine(db_url)
     Base.metadata.create_all(engine)
     print("[OK] Agent State tables created successfully")
-
 
 if __name__ == "__main__":
     run_migration()

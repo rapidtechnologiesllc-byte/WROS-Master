@@ -17,7 +17,6 @@ from app.core.database import get_db
 
 router = APIRouter(prefix="/agents", tags=["agent-accountability"])
 
-
 @router.get("/accountability", dependencies=[Depends(require_resource_permission("agents", "view"))])
 async def get_agent_accountability(
     db: Session = Depends(get_db),
@@ -54,7 +53,6 @@ async def get_agent_accountability(
         logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Error fetching agent accountability: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @router.get("/accountability/hand-offs", dependencies=[Depends(require_resource_permission("agents", "view"))])
 async def get_broken_hand_offs(
@@ -94,7 +92,6 @@ async def get_broken_hand_offs(
         logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Error fetching hand-offs: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @router.get("/accountability/scorecards", dependencies=[Depends(require_resource_permission("agents", "view"))])
 async def get_agent_scorecards(

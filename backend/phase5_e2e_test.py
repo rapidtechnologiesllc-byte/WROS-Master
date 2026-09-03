@@ -313,7 +313,6 @@ class TestRunner:
 
         return len(self.failed) == 0
 
-
 if __name__ == "__main__":
     runner = TestRunner()
     success = runner.run_all_tests()

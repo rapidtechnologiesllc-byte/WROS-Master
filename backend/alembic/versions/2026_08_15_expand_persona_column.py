@@ -9,13 +9,11 @@ Create Date: 2026-08-15 12:00:00.000000
 from alembic import op
 import sqlalchemy as sa
 
-
 # revision identifiers, used by Alembic.
 revision = '20260815_expand_persona'
 down_revision = None
 branch_labels = None
 depends_on = None
-
 
 def upgrade() -> None:
     # Alter the column type from String(100) to Text
@@ -28,7 +26,6 @@ def upgrade() -> None:
         existing_nullable=True,
         nullable=True
     )
-
 
 def downgrade() -> None:
     # Revert to String(100) if needed (will truncate personas >100 chars)

@@ -19,7 +19,6 @@ class SearchResultItem(BaseModel):
     sent_at: Optional[datetime]
     direction: str
 
-
 class SearchResponse(BaseModel):
     results: List[SearchResultItem]
     total_count: int

@@ -48,18 +48,14 @@ class SpecialtyPoolBelowMinimum(Exception):
     pool below SPECIALTY_POOL_MINIMUM is blocked until a replacement
     plan is logged for this employee."""
 
-
 class CorePullOverrideForbidden(Exception):
     """S-353: only a BU Head may override a pending Core-Pull."""
-
 
 class InvalidReplacementPlan(Exception):
     pass
 
-
 class InvalidOverrideJustification(Exception):
     pass
-
 
 # ===========================================================================
 # S-373/HRMS-0529 -- Specialty Pool Minimum 40 Core-Certified Guard
@@ -95,7 +91,6 @@ def check_specialty_pool_guard(db: Session, employee_being_moved: Employee) -> D
         "gap": max(0, SPECIALTY_POOL_MINIMUM - pool_size_after_move),
     }
 
-
 def get_specialty_pool_status(db: Session, *, tenant_id: Optional[int] = None) -> Dict:
     """Read-only current pool size for a dashboard view -- no specific
     employee being moved, so no 'after move' simulation (that's
@@ -117,7 +112,6 @@ def get_specialty_pool_status(db: Session, *, tenant_id: Optional[int] = None) -
         "at_edge": count == SPECIALTY_POOL_MINIMUM + 1,  # one more loss would breach
         "gap": max(0, SPECIALTY_POOL_MINIMUM - count),
     }
-
 
 def log_replacement_plan(
     db: Session,
@@ -157,7 +151,6 @@ def log_replacement_plan(
     db.flush()
     return plan
 
-
 def _has_replacement_plan_since(db: Session, employee_id: str, *, since: datetime) -> bool:
     return (
         db.query(SpecialtyPoolReplacementPlan)
@@ -168,7 +161,6 @@ def _has_replacement_plan_since(db: Session, employee_id: str, *, since: datetim
         .first()
         is not None
     )
-
 
 # ===========================================================================
 # S-353/HRMS-0514 -- CorePullEngine
@@ -240,7 +232,6 @@ def detect_core_pull_conflict(
     db.add(event)
     db.flush()
     return event
-
 
 def execute_core_pull(
     db: Session,
@@ -347,7 +338,6 @@ def execute_core_pull(
             pass
 
     return event
-
 
 def override_core_pull(
     db: Session,

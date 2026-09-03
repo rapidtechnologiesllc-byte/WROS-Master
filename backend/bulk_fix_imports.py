@@ -69,7 +69,6 @@ def add_import_to_file(filepath, import_stmt):
 
     return True
 
-
 def find_and_fix_file(filepath):
     """Try to import the file and identify/fix missing names"""
     try:
@@ -95,7 +94,6 @@ def find_and_fix_file(filepath):
         pass
 
     return False
-
 
 # Scan all Python files in endpoints, services, schemas
 for pattern in ['app/api/v1/endpoints/*.py', 'app/services/*.py', 'app/schemas/*.py']:

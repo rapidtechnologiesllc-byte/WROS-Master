@@ -14,7 +14,6 @@ logger = logging.getLogger(__name__)
 class BankReconciliationError(Exception):
     pass
 
-
 def record_bank_transaction(
     db: Session, *, transaction_date, amount_usd_cents: int, description: str,
     created_by: str, tenant_id: Optional[int] = None,
@@ -29,7 +28,6 @@ def record_bank_transaction(
     db.commit()
     db.refresh(transaction)
     return transaction
-
 
 def match_transaction_to_invoice(db: Session, transaction: BankTransaction, invoice: Invoice) -> BankTransaction:
     """Real validation, not a blind link: the transaction amount must
@@ -47,13 +45,11 @@ def match_transaction_to_invoice(db: Session, transaction: BankTransaction, invo
     db.refresh(transaction)
     return transaction
 
-
 def get_unreconciled_transactions(db: Session, *, tenant_id: Optional[int] = None) -> List[BankTransaction]:
     query = db.query(BankTransaction).filter(BankTransaction.reconciled.is_(False))
     if tenant_id is not None:
         query = query.filter(BankTransaction.tenant_id == tenant_id)
     return query.order_by(BankTransaction.transaction_date.desc()).all()
-
 
 def get_unmatched_paid_invoices(db: Session, *, tenant_id: Optional[int] = None) -> List[Invoice]:
     """PAID invoices with no reconciled bank transaction pointing at

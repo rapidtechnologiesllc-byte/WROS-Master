@@ -29,10 +29,8 @@ from sqlalchemy import (
 
 from app.models.base import Base
 
-
 def _new_uuid() -> str:
     return str(uuid.uuid4())
-
 
 SUBMISSION_STATUSES = (
     "SUBMITTED", "SHORTLISTED", "CLIENT_INTERVIEW_REQUESTED",
@@ -102,7 +100,6 @@ class Submission(Base):
     __table_args__ = (
         UniqueConstraint("tenant_id", "demand_id", "candidate_id", name="uq_submission_per_demand_candidate"),
     )
-
 
 class SubmissionViolation(Base):
     """

@@ -23,7 +23,6 @@ from app.models.business_unit import BusinessUnit
 from app.services.cost_rate_service import calculate_fully_loaded_cost_usd_cents, get_active_cost_rate_config
 from app.services.forecast_variance_service import get_monthly_actual_revenue
 
-
 def get_bu_pnl(db: Session, *, business_unit_id: int, year: int, month: int) -> dict:
     """Revenue (real Invoice actuals for the BU's clients) minus cost
     (fully loaded cost of every employee ACTIVE-allocated to one of
@@ -70,7 +69,6 @@ def get_bu_pnl(db: Session, *, business_unit_id: int, year: int, month: int) -> 
         "margin_pct": margin_pct,
         "cost_data_complete": cost_data_complete,
     }
-
 
 def get_org_pnl_summary(db: Session, *, year: int, month: int, tenant_id: Optional[int] = None) -> dict:
     """EPIC-16 Executive Dashboard -- org-level rollup, real sum of

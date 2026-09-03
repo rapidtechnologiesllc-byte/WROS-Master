@@ -29,10 +29,8 @@ logger = logging.getLogger(__name__)
 class MilestoneValidationError(Exception):
     pass
 
-
 class InvalidMilestoneTransition(Exception):
     pass
-
 
 def create_milestone(
     db: Session, *, milestone_type: str, title: str, target_date: date,
@@ -56,7 +54,6 @@ def create_milestone(
     )
     db.add(milestone)
     return milestone
-
 
 def complete_milestone(
     db: Session, milestone: EmployeeMilestone, *, completion_notes: Optional[str] = None,
@@ -99,7 +96,6 @@ def complete_milestone(
 
     return milestone
 
-
 def scan_overdue_milestones(db: Session, *, tenant_id: Optional[int] = None, now: Optional[date] = None) -> List[EmployeeMilestone]:
     """
     AC-2/AC-4: every open (PENDING/IN_PROGRESS) milestone past its
@@ -130,7 +126,6 @@ def scan_overdue_milestones(db: Session, *, tenant_id: Optional[int] = None, now
                 },
             )
     return overdue
-
 
 def get_employee_milestones(db: Session, employee_id: str) -> List[EmployeeMilestone]:
     return (

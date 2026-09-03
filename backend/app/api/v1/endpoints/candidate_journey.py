@@ -25,7 +25,6 @@ from app.services.candidate_journey_service import CandidateNotFound, get_candid
 
 router = APIRouter(tags=["candidate-journey"])
 
-
 @router.get(
     "/candidates/{candidate_id}/journey",
     response_model=CandidateJourneyResponse,

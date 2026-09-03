@@ -80,7 +80,6 @@ logger = logging.getLogger(__name__)
 class QualificationNotApplicable(Exception):
     """BR-01: conversation is not in a qualifying state."""
 
-
 def _default_llm_call(prompt: str, api_key: str) -> str:
     resp = requests.post(
         f"{GEMINI_MODEL_URL}?key={api_key}",
@@ -92,7 +91,6 @@ def _default_llm_call(prompt: str, api_key: str) -> str:
     text = result.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "")
     return re.sub(r"```(?:json)?", "", text).strip()
 
-
 def _call_llm(prompt: str, llm_call: Optional[Callable[[str], str]]) -> str:
     if llm_call is not None:
         return llm_call(prompt)
@@ -100,7 +98,6 @@ def _call_llm(prompt: str, llm_call: Optional[Callable[[str], str]]) -> str:
     if not api_key:
         raise RuntimeError("GEMINI_API_KEY not set")
     return _default_llm_call(prompt, api_key)
-
 
 def is_qualifying_state(conversation: CandidateConversation) -> bool:
     """BR-01, real-state mapping -- see module docstring."""
@@ -110,7 +107,6 @@ def is_qualifying_state(conversation: CandidateConversation) -> bool:
         return False
     return True
 
-
 def skipped_field_names(db: Session, candidate_id: str, tenant_id: str) -> List[str]:
     rows = (
         db.query(CandidateFieldSkip)
@@ -118,7 +114,6 @@ def skipped_field_names(db: Session, candidate_id: str, tenant_id: str) -> List[
         .all()
     )
     return [r.field_name for r in rows]
-
 
 def skip_field(db: Session, candidate_id: str, tenant_id: str, field_name: str) -> None:
     existing = (
@@ -131,7 +126,6 @@ def skip_field(db: Session, candidate_id: str, tenant_id: str, field_name: str) 
     db.add(CandidateFieldSkip(candidate_id=candidate_id, tenant_id=tenant_id, field_name=field_name))
     db.flush()
 
-
 def get_next_missing_field(db: Session, candidate: Candidate, tenant_id: str) -> Optional[Dict[str, str]]:
     """The real getNextMissingField() -- get_missing_fields() output,
     minus anything explicitly skipped, first item = highest priority."""
@@ -140,7 +134,6 @@ def get_next_missing_field(db: Session, candidate: Candidate, tenant_id: str) ->
     remaining = [m for m in missing if m["field"] not in skipped]
     return remaining[0] if remaining else None
 
-
 def _ask_count(db: Session, conversation_id: int, field_name: str) -> int:
     events = (
         db.query(ConversationEvent)
@@ -148,7 +141,6 @@ def _ask_count(db: Session, conversation_id: int, field_name: str) -> int:
         .all()
     )
     return sum(1 for e in events if (e.event_data or {}).get("field_name") == field_name)
-
 
 def generate_qualification_question(
     db: Session, conversation: CandidateConversation, field_name: str, *, llm_call: Optional[Callable[[str], str]] = None,
@@ -185,7 +177,6 @@ def generate_qualification_question(
     ))
     db.flush()
     return question_text
-
 
 def get_qualification_plan(
     db: Session, conversation: CandidateConversation, candidate: Candidate, tenant_id: str, *, llm_call: Optional[Callable[[str], str]] = None,

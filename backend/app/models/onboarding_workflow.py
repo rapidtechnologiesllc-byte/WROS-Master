@@ -77,7 +77,6 @@ class OnboardingWorkflow(Base):
         UniqueConstraint("tenant_id", "employee_id", name="uq_onboarding_workflow_employee"),
     )
 
-
 class OnboardingBuddy(Base):
     """Buddy assignment for onboarding."""
     __tablename__ = "onboarding_buddies"
@@ -118,7 +117,6 @@ class OnboardingBuddy(Base):
     workflow = relationship("OnboardingWorkflow", back_populates="buddy", foreign_keys=[workflow_id])
     buddy_user = relationship("Users", foreign_keys=[buddy_user_id], lazy="select")
     employee = relationship("Employee", foreign_keys=[employee_id], lazy="select")
-
 
 class WelcomeKit(Base):
     """Welcome kit/materials distribution tracking."""
@@ -162,7 +160,6 @@ class WelcomeKit(Base):
     tenant = relationship("Users", foreign_keys=[tenant_id], lazy="select")
     workflow = relationship("OnboardingWorkflow", back_populates="welcome_kits", foreign_keys=[workflow_id])
     sent_by_user = relationship("Users", foreign_keys=[sent_by_user_id], lazy="select")
-
 
 class TrainingSession(Base):
     """Training session scheduling and tracking."""
@@ -225,7 +222,6 @@ class TrainingSession(Base):
     tenant = relationship("Users", foreign_keys=[tenant_id], lazy="select")
     workflow = relationship("OnboardingWorkflow", back_populates="training_sessions", foreign_keys=[workflow_id])
     trainer_user = relationship("Users", foreign_keys=[trainer_user_id], lazy="select")
-
 
 class OnboardingTask(Base):
     """Individual onboarding tasks to be completed."""

@@ -16,8 +16,6 @@ from datetime import datetime, timedelta
 import uuid
 import random
 
-
-
 def init_database():
     """Initialize database schema and seed data."""
 

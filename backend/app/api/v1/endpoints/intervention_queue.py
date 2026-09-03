@@ -28,18 +28,15 @@ from app.services.intervention_queue_service import QueueItemNotFound, get_queue
 
 router = APIRouter(prefix="/intervention-queue", tags=["intervention-queue"])
 
-
 @router.get("", response_model=QueueResponse, dependencies=[Depends(require_resource_permission("candidates", "view"))])
 def list_queue(status: Optional[str] = Query(default=None), db: Session = Depends(get_db)):
     tenant_id = resolve_default_tenant_id(db)
     return QueueResponse(items=get_queue(db, tenant_id, status=status))
 
-
 @router.get("/summary", response_model=QueueSummaryResponse, dependencies=[Depends(require_resource_permission("candidates", "view"))])
 def queue_summary(db: Session = Depends(get_db)):
     tenant_id = resolve_default_tenant_id(db)
     return get_queue_summary(db, tenant_id)
-
 
 @router.post("/{queue_item_id}/take-over", response_model=TakeOverResponse, dependencies=[Depends(require_resource_permission("candidates", "edit"))])
 def take_over(queue_item_id: int, db: Session = Depends(get_db), current_user: Users = Depends(get_current_internal_user)):
@@ -48,7 +45,6 @@ def take_over(queue_item_id: int, db: Session = Depends(get_db), current_user: U
         return take_over_queue_item(db, queue_item_id, tenant_id, current_user.UserID)
     except QueueItemNotFound:
         raise HTTPException(status_code=404, detail=f"Queue item {queue_item_id} not found.")
-
 
 @router.post("/{queue_item_id}/resolve", response_model=ResolveResponse, dependencies=[Depends(require_resource_permission("candidates", "edit"))])
 def resolve(queue_item_id: int, payload: ResolveRequest, db: Session = Depends(get_db), current_user: Users = Depends(get_current_internal_user)):

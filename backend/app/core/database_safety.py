@@ -16,7 +16,6 @@ class ProductionDatabaseError(Exception):
     """Raised when production database is accessed outside production environment."""
     pass
 
-
 def is_production_database(database_url: str) -> bool:
     """Check if the database URL points to production."""
     if not database_url:
@@ -37,7 +36,6 @@ def is_production_database(database_url: str) -> bool:
 
     return any(indicator in url_lower for indicator in prod_indicators)
 
-
 def is_local_database(database_url: str) -> bool:
     """Check if the database URL is a local development database."""
     if not database_url:
@@ -56,7 +54,6 @@ def is_local_database(database_url: str) -> bool:
 
     return any(indicator in url_lower for indicator in local_indicators)
 
-
 def get_environment() -> str:
     """
     Get current environment.
@@ -74,7 +71,6 @@ def get_environment() -> str:
         return "development"
     else:
         return "local"
-
 
 def validate_database_url(database_url: Optional[str] = None) -> str:
     """
@@ -131,7 +127,6 @@ def validate_database_url(database_url: Optional[str] = None) -> str:
 
     return database_url
 
-
 def get_safe_database_url() -> str:
     """
     Get validated database URL.
@@ -145,7 +140,6 @@ def get_safe_database_url() -> str:
         ProductionDatabaseError: If production DB in wrong environment
     """
     return validate_database_url()
-
 
 # Export for use in database.py
 __all__ = [

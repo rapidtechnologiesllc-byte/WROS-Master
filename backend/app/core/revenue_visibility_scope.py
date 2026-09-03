@@ -34,24 +34,20 @@ from app.services.permission_helper import PermissionHelper
 # sees org-wide, per Avinash's exact spec.
 REVENUE_BU_SCOPED_ROLES = {"Partner", "BU Head"}
 
-
 def get_user_role_name(db: Session, user: Users) -> Optional[str]:
     # Get user's primary role from role_template
     if hasattr(user, 'role_template') and user.role_template:
         return user.role_template.RoleName
     return None
 
-
 def is_revenue_bu_scoped(db: Session, user: Users) -> bool:
     return get_user_role_name(db, user) in REVENUE_BU_SCOPED_ROLES
-
 
 def can_view_pnl(db: Session, user: Users) -> bool:
     """revenue.view_pnl -- Super User, Partner, BU Head, Finance. NOT
     HR Manager, per Avinash's explicit "no actual p&l" instruction."""
     tenant_id = getattr(user, 'TenantID', 1) if user else 1
     return PermissionHelper.has_permission(user.UserID, "revenue.view_pnl", db, tenant_id)
-
 
 def apply_revenue_bu_scope_to_client_query(db: Session, query: Query, current_user: Users) -> Query:
     """Narrows a Client query to clients with no BU assigned yet
@@ -65,7 +61,6 @@ def apply_revenue_bu_scope_to_client_query(db: Session, query: Query, current_us
     return query.filter(
         (Client.business_unit_id.is_(None)) | (Client.business_unit_id == current_user.business_unit_id)
     )
-
 
 def get_revenue_scoped_client_ids(db: Session, current_user: Users) -> Optional[set]:
     """Returns the set of client IDs visible to current_user under

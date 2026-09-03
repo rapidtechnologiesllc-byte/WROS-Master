@@ -27,10 +27,8 @@ logger = logging.getLogger(__name__)
 class DisputeValidationError(Exception):
     pass
 
-
 class InvalidDisputeTransition(Exception):
     pass
-
 
 def raise_dispute(
     db: Session,
@@ -58,7 +56,6 @@ def raise_dispute(
     )
     db.add(dispute)
     return dispute
-
 
 def resolve_dispute(
     db: Session,
@@ -91,7 +88,6 @@ def resolve_dispute(
     dispute.resolution_notes = resolution_notes
     db.add(dispute)
     return dispute
-
 
 def has_open_dispute(db: Session, timesheet: Timesheet) -> bool:
     """BR-02 hook: a future invoice-period-close gate should call this

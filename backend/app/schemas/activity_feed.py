@@ -18,13 +18,11 @@ class ActivityItem(BaseModel):
     is_read: bool
     created_at: datetime
 
-
 class ActivityFeedResponse(BaseModel):
     activities: List[ActivityItem]
     total_count: int
     unread_count: int
     has_more: bool
-
 
 class MarkAllReadResponse(BaseModel):
     marked_count: int

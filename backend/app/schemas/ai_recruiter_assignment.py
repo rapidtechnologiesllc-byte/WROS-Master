@@ -16,21 +16,17 @@ class AIAssignmentResponse(BaseModel):
     assigned_at: Optional[datetime]
     is_active: bool
 
-
 class TenantAIConfigResponse(BaseModel):
     ai_agent_name: str
     ai_agent_persona: str
-
 
 class TenantAIConfigUpdateRequest(BaseModel):
     ai_agent_name: str = Field(..., min_length=1, max_length=100)
     ai_agent_persona: str = Field(..., min_length=1, max_length=2000)
 
-
 # S-075/HRMS-0475 Step 2/6A -- global tenant Thunder kill switch.
 class TenantThunderEnabledResponse(BaseModel):
     thunder_enabled: bool
-
 
 class TenantThunderEnabledUpdateRequest(BaseModel):
     enabled: bool

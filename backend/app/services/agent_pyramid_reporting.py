@@ -168,7 +168,6 @@ class TechLeadWeeklyReportAgent:
 
         return reports
 
-
 class ManagerWeeklyReportAgent:
     """
     Manager Weekly Report Agent - Runs every Friday at 4PM
@@ -273,7 +272,6 @@ class ManagerWeeklyReportAgent:
         if team_size > 1 and len(blockers) >= team_size // 2:
             escalations.append("WIDESPREAD_BLOCKERS")
         return escalations
-
 
 class PrincipalArchitectWeeklyReportAgent:
     """
@@ -389,7 +387,6 @@ class PrincipalArchitectWeeklyReportAgent:
         if len([r for r in risks if "CRITICAL" in r]) > 0:
             escalations.append("MULTIPLE_CRITICAL_RISKS")
         return escalations
-
 
 class BUWeeklyReportAgent:
     """
@@ -578,7 +575,6 @@ class BUWeeklyReportAgent:
             escalations.append("SALES_PIPELINE_DRY: No new opportunities this week")
         return escalations
 
-
 class PartnerWeeklyConsolidationAgent:
     """
     Partner Weekly Consolidation Agent - Runs Friday morning
@@ -757,7 +753,6 @@ class PartnerWeeklyConsolidationAgent:
                 })
 
         return actions
-
 
 class CEOExecutiveDashboardAgent:
     """

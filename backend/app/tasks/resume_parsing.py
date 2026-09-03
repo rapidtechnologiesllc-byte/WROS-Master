@@ -12,7 +12,6 @@ from app.core.celery_app import celery_app
 from app.core.database import SessionLocal
 from app.api.v1.endpoints.admin_queue import TaskStatus, log_task_message
 
-
 @celery_app.task(bind=True, name="tasks.parse_resume")
 def parse_resume_task(self, candidate_id: str, file_path: str):
     """

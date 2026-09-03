@@ -33,10 +33,8 @@ from sqlalchemy.orm import relationship
 from app.models.base import Base
 from app.models.task import TASK_PRIORITIES
 
-
 def _new_uuid() -> str:
     return str(uuid.uuid4())
-
 
 # ServiceNow's own real value sets for Impact/Urgency -- Priority is
 # DERIVED from these two (see ticket_service.derive_priority_from_impact_urgency()),
@@ -88,7 +86,6 @@ class TicketCategoryRoute(Base):
         UniqueConstraint("category", "subcategory", name="uq_ticket_category_route"),
     )
 
-
 class TicketSLAPolicy(Base):
     """Response vs Resolution SLA targets per Priority tier -- code-
     constant defaults seeded by a migration, admin-editable via
@@ -99,7 +96,6 @@ class TicketSLAPolicy(Base):
     response_minutes = Column(Integer, nullable=False)
     resolution_minutes = Column(Integer, nullable=False)
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
-
 
 class TicketDetail(Base):
     """1:1 extension of a Task with task_type='TICKET' -- SLA/Impact/

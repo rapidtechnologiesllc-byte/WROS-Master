@@ -11,7 +11,6 @@ from sqlalchemy.orm import Session
 from app.models.user import Users
 from app.models.role_template import RoleTemplate, RoleTemplateModuleAccess, Module
 
-
 def get_users_with_permission(permission: str, db: Session, tenant_id: int = 1) -> List[Users]:
     """Get all users who have a specific permission via role templates.
 
@@ -39,7 +38,6 @@ def get_users_with_permission(permission: str, db: Session, tenant_id: int = 1) 
         RoleTemplateModuleAccess.access_level == action,
         Users.tenant_id == tenant_id
     ).distinct().all()
-
 
 def get_users_with_any_permission(permissions: List[str], db: Session, tenant_id: int = 1) -> List[Users]:
     """Get all users who have ANY of the given permissions.

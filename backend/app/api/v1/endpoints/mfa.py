@@ -53,18 +53,15 @@ class MfaSetupResponse(BaseModel):
     secret: str
     backup_codes: List[str]  # shown exactly once -- caller must store these
 
-
 class MfaCodeRequest(BaseModel):
     code: Optional[str] = None
     backup_code: Optional[str] = None
-
 
 class MfaVerifiedResponse(BaseModel):
     access_token: str
     user_role: str
     user_name: str
     user_email: str
-
 
 @router.post(
     "/setup",
@@ -100,7 +97,6 @@ def setup_mfa(
         backup_codes=plain_backup_codes,
     )
 
-
 @router.post(
     "/setup/confirm",
     response_model=MfaVerifiedResponse,
@@ -123,7 +119,6 @@ def confirm_mfa_setup(
     db.commit()
 
     return _issue_full_token(user)
-
 
 @router.post(
     "/verify",
@@ -154,10 +149,8 @@ def verify_mfa(
 
     raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid code")
 
-
 class EmailOtpVerifyRequest(BaseModel):
     code: str
-
 
 @router.post(
     "/email/resend",
@@ -193,7 +186,6 @@ def resend_email_otp(
 
     return {"sent": True}
 
-
 @router.post(
     "/email/verify",
     response_model=MfaVerifiedResponse,
@@ -225,7 +217,6 @@ def verify_email_otp(
 
     return _issue_full_token(user)
 
-
 def _issue_full_token(user: Users) -> MfaVerifiedResponse:
     access_token = create_access_token(
         data={
@@ -242,7 +233,6 @@ def _issue_full_token(user: Users) -> MfaVerifiedResponse:
         user_email=user.UserEmail,
     )
 
-
 # ============================================
 # Backlog item, 2026-08-05 (wros_email_2fa_backlog) -- candidate half.
 # Opt-in, not enforced: a candidate chooses via the popup their first
@@ -256,10 +246,8 @@ def _issue_full_token(user: Users) -> MfaVerifiedResponse:
 class CandidateOtpOptInRequest(BaseModel):
     opted_in: bool
 
-
 class CandidateOtpOptInResponse(BaseModel):
     email_2fa_opted_in: bool
-
 
 class CandidateOtpVerifiedResponse(BaseModel):
     access_token: str
@@ -267,11 +255,9 @@ class CandidateOtpVerifiedResponse(BaseModel):
     candidate_role: str
     candidate_email: str
 
-
 def _candidate_name(candidate: Candidate) -> str:
     parts = [candidate.candidateFirstName, candidate.candidateMiddleName, candidate.candidateLastName]
     return " ".join(p for p in parts if p) or candidate.candidateEmail
-
 
 def _issue_full_candidate_token(candidate: Candidate) -> CandidateOtpVerifiedResponse:
     access_token = create_access_token(data={"sub": candidate.candidateID, "type": "candidate"})
@@ -281,7 +267,6 @@ def _issue_full_candidate_token(candidate: Candidate) -> CandidateOtpVerifiedRes
         candidate_role=candidate.candidateRole or "Candidate",
         candidate_email=candidate.candidateEmail,
     )
-
 
 @router.post(
     "/candidate/opt-in",
@@ -300,7 +285,6 @@ def set_candidate_email_2fa_opt_in(
     db.add(candidate)
     db.commit()
     return CandidateOtpOptInResponse(email_2fa_opted_in=candidate.email_2fa_opted_in)
-
 
 @router.post(
     "/candidate/email/resend",
@@ -331,7 +315,6 @@ def resend_candidate_email_otp(
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="Could not send verification email. Please try again.")
 
     return {"sent": True}
-
 
 @router.post(
     "/candidate/email/verify",

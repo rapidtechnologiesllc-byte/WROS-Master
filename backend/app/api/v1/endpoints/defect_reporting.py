@@ -15,13 +15,11 @@ router = APIRouter(tags=["Defect Reporting"])
 
 DEFECT_LOG_FILE = os.path.join(os.path.dirname(__file__), "..", "..", "..", "DEFECTS_LOG.md")
 
-
 def ensure_defect_log_exists():
     """Create DEFECTS_LOG.md if it doesn't exist."""
     if not os.path.exists(DEFECT_LOG_FILE):
         with open(DEFECT_LOG_FILE, "w") as f:
             f.write("# Defect Reports - Production\n\n")
-
 
 @router.post(
     "/defects/report",

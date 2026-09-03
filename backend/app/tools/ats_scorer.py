@@ -46,7 +46,6 @@ except Exception as e:
     import sys
     print(f"[WARNING] ATS Scorer: Google credentials not available: {e}", file=sys.stderr)
 
-
 def _invoke_llm(prompt: str) -> str:
     """Invoke the LLM and normalise the response to a plain string."""
     if _llm is None:
@@ -62,7 +61,6 @@ def _invoke_llm(prompt: str) -> str:
             for part in response.content
         )
     return str(response.content)
-
 
 def _extract_json(text: str) -> dict:
     """
@@ -81,7 +79,6 @@ def _extract_json(text: str) -> dict:
         return json.loads(text)
     except json.JSONDecodeError:
         raise ValueError("Operation failed")
-
 
 # ---------------------------------------------------------------------------
 # State definition
@@ -117,7 +114,6 @@ class ATSState(TypedDict):
     score_rationale: str
     ats_verdict: str           # one-liner verdict for display
 
-
 # ---------------------------------------------------------------------------
 # Node 1 — Profile summariser
 # ---------------------------------------------------------------------------
@@ -143,7 +139,6 @@ Return ONLY the summary paragraph, no extra text.
 """
     state["profile_summary"] = _invoke_llm(prompt).strip()
     return state
-
 
 # ---------------------------------------------------------------------------
 # Node 2 — Skills & Experience scorer
@@ -185,7 +180,6 @@ Return ONLY a JSON object with exactly these keys:
     state["skills_score"] = min(25, max(0, int(data.get("skills_score", 0))))
     state["experience_score"] = min(25, max(0, int(data.get("experience_score", 0))))
     return state
-
 
 # ---------------------------------------------------------------------------
 # Node 3 — Education & Location scorer
@@ -234,7 +228,6 @@ Return ONLY a JSON object with exactly these keys:
     state["education_score"] = min(20, max(0, int(data.get("education_score", 0))))
     state["location_score"] = min(15, max(0, int(data.get("location_score", 0))))
     return state
-
 
 # ---------------------------------------------------------------------------
 # Node 4 — Culture-fit & Final verdict
@@ -299,7 +292,6 @@ Return ONLY a JSON object with exactly these keys:
     state["ats_verdict"] = data.get("ats_verdict", "")
     return state
 
-
 # ---------------------------------------------------------------------------
 # Build & cache the compiled graph
 # ---------------------------------------------------------------------------
@@ -318,9 +310,7 @@ def _build_ats_graph():
     g.add_edge("score_culture_verdict", END)
     return g.compile()
 
-
 _ATS_GRAPH = _build_ats_graph()
-
 
 # ---------------------------------------------------------------------------
 # Public API

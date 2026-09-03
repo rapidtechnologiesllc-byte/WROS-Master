@@ -32,33 +32,27 @@ CYAN = '\033[96m'
 RESET = '\033[0m'
 BOLD = '\033[1m'
 
-
 def print_header(text):
     """Print section header"""
     print(f"\n{BOLD}{BLUE}{'='*70}{RESET}")
     print(f"{BOLD}{BLUE}{text:^70}{RESET}")
     print(f"{BOLD}{BLUE}{'='*70}{RESET}\n")
 
-
 def print_success(text):
     """Print success message"""
     print(f"{GREEN}[SUCCESS] {text}{RESET}")
-
 
 def print_error(text):
     """Print error message"""
     print(f"{RED}[ERROR] {text}{RESET}")
 
-
 def print_warning(text):
     """Print warning message"""
     print(f"{YELLOW}[WARNING] {text}{RESET}")
 
-
 def print_info(text):
     """Print info message"""
     print(f"{CYAN}[INFO] {text}{RESET}")
-
 
 def run_alembic_command(command, description=None):
     """Run an Alembic command and return the result"""
@@ -84,7 +78,6 @@ def run_alembic_command(command, description=None):
         logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Error: {str(e)}", exc_info=True)
         return False, str(e)
-
 
 def check_database_connection():
     """Check if database is accessible"""
@@ -114,7 +107,6 @@ def check_database_connection():
         print_warning("Migrations may not work without database access")
         return False
 
-
 def show_current_status():
     """Show current migration status"""
     print_header("Current Migration Status")
@@ -137,7 +129,6 @@ def show_current_status():
         print_error(f"Failed to get current status:\n{output}")
     
     return success
-
 
 def show_migration_history():
     """Show migration history"""
@@ -176,7 +167,6 @@ def show_migration_history():
     
     return success
 
-
 def upgrade_database():
     """Upgrade database to latest version"""
     print_header("Upgrading Database")
@@ -209,7 +199,6 @@ def upgrade_database():
         print_error(f"Upgrade failed:\n{output}")
         return False
 
-
 def downgrade_database():
     """Downgrade database by one version"""
     print_header("Downgrading Database")
@@ -229,7 +218,6 @@ def downgrade_database():
     else:
         print_error(f"Downgrade failed:\n{output}")
         return False
-
 
 def create_migration(description):
     """Create a new migration"""
@@ -256,7 +244,6 @@ def create_migration(description):
     else:
         print_error(f"Failed to create migration:\n{output}")
         return False
-
 
 def show_database_info():
     """Show database configuration information"""
@@ -300,7 +287,6 @@ def show_database_info():
     else:
         print_warning("No migrations directory found")
 
-
 def run_interactive_mode():
     """Run interactive migration management"""
     print_header("Database Migration Manager")
@@ -341,7 +327,6 @@ def run_interactive_mode():
         print_info("Exiting...")
     else:
         print_error("Invalid choice")
-
 
 def main():
     """Main entry point"""
@@ -390,7 +375,6 @@ Examples:
     
     if args.create:
         create_migration(args.create)
-
 
 if __name__ == "__main__":
     try:

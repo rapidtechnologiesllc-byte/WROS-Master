@@ -46,7 +46,6 @@ SEARCH_RUN_STATUSES = ("QUEUED", "RUNNING", "COMPLETE", "FAILED")
 DEDUP_STATUSES = ("NEW", "POSSIBLE_DUPLICATE", "CONFIRMED_DUPLICATE")
 STAGED_CANDIDATE_STATUSES = ("PENDING_REVIEW", "PROMOTED", "REJECTED")
 
-
 def _new_uuid() -> str:
     return str(uuid.uuid4())
 
@@ -69,7 +68,6 @@ class DemandGapScore(Base):
     days_open = Column(Integer, nullable=False)
 
     scored_at = Column(DateTime(timezone=False), server_default=func.now())
-
 
 class SourcingAlert(Base):
     """HRMS-1102's actual output -- HRMS-1103 (LinkedIn Sourcing Agent
@@ -98,7 +96,6 @@ class SourcingAlert(Base):
 
     demand = relationship("Demand", foreign_keys=[demand_id], lazy="select")
 
-
 class SourcingSearchRun(Base):
     """HRMS-1103 -- one row per attempt to source against a
     sourcing_alerts row (a re-queued alert gets a new run, not an
@@ -120,7 +117,6 @@ class SourcingSearchRun(Base):
 
     created_at = Column(DateTime(timezone=False), server_default=func.now())
     completed_at = Column(DateTime(timezone=False), nullable=True)
-
 
 class StagedCandidate(Base):
     """

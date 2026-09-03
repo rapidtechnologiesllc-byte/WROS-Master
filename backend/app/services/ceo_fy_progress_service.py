@@ -13,7 +13,6 @@ from app.utils.agent_logger import log_agent_execution
 import logging
 from app.core.logging import logger
 
-
 def get_fy_targets(db: Session) -> dict:
     """Get the FY targets (hardcoded baseline, can be made configurable later)."""
     # Based on BlitzenX goals: 75 → 150 → 300 → 500 → 1,000 → 2,000 employees
@@ -28,7 +27,6 @@ def get_fy_targets(db: Session) -> dict:
         "utilization_target_pct": 85,
         "margin_target_pct": 20
     }
-
 
 def get_fy_progress(db: Session, fy_year: int = 2026) -> dict:
     """
@@ -195,7 +193,6 @@ def get_fy_progress(db: Session, fy_year: int = 2026) -> dict:
         success=True,
     )
 
-
 def get_fy_executive_summary(db: Session) -> dict:
     """High-level FY progress summary for CEO presentation."""
     progress = get_fy_progress(db)
@@ -234,7 +231,6 @@ def get_fy_executive_summary(db: Session) -> dict:
         "priorities": _get_ceo_priorities(progress)
     }
 
-
 def _get_headline(progress: dict) -> str:
     """Generate executive summary headline."""
     if progress["fy_progress_pct"] < 25:
@@ -245,7 +241,6 @@ def _get_headline(progress: dict) -> str:
         return "Q3 push — accelerating finish"
     else:
         return "Final sprint — delivering FY targets"
-
 
 def _get_ceo_priorities(progress: dict) -> list:
     """Extract top 3 priorities for CEO focus based on progress."""
@@ -292,7 +287,6 @@ def _get_ceo_priorities(progress: dict) -> list:
 
     return priorities
 
-
 def get_slm_insights(db: Session) -> dict:
     """Get Smart Learning Model insights for CEO dashboard.
 
@@ -335,7 +329,6 @@ def get_slm_insights(db: Session) -> dict:
             "status": "error",
             "message": f"Failed to fetch SLM insights: {str(e)}"
         }
-
 
 def get_fy_executive_dashboard(db: Session) -> dict:
     """Get complete CEO executive dashboard with SLM insights."""

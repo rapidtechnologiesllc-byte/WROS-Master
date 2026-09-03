@@ -77,10 +77,8 @@ STAGE_TO_AGENT_NAME = {
     "Joined": "OnboardingAgent",
 }
 
-
 def _active_tenant_ids(db: Session) -> List[str]:
     return sorted({row[0] for row in db.query(CandidateConversation.tenant_id).distinct().all() if row[0]})
-
 
 def _evaluate_conversation(db: Session, conversation: CandidateConversation) -> Dict:
     """Step 3's priority-ordered skip checks (1-2), then a stage lookup
@@ -104,7 +102,6 @@ def _evaluate_conversation(db: Session, conversation: CandidateConversation) -> 
         stage = "Engaged"
     agent_name = STAGE_TO_AGENT_NAME.get(stage, "QualificationAgent")
     return {"agent_name": agent_name, "action_taken": "EVALUATED", "action_data": {"stage": stage}, "acted": False}
-
 
 def _detect_conflicts(db: Session, tenant_id: str, window_start: datetime) -> int:
     """BR-01/BR-03 real audit, not a preventive lock (see module
@@ -134,7 +131,6 @@ def _detect_conflicts(db: Session, tenant_id: str, window_start: datetime) -> in
                 f"escalation_state={conversation.escalation_state!r}) during cycle window."
             )
     return conflicts
-
 
 def _run_cycle_for_tenant(db: Session, tenant_id: str, window_start: datetime, today_start: datetime) -> Dict:
     from app.services.event_emitter_service import emit
@@ -207,7 +203,6 @@ def _run_cycle_for_tenant(db: Session, tenant_id: str, window_start: datetime, t
         "candidates_evaluated": evaluated + skipped, "actions_dispatched": actions_dispatched,
         "skipped": skipped, "conflicts_detected": conflicts,
     }
-
 
 def run_supervisor_cycle(db: Session, tenant_id: Optional[str] = None) -> Dict:
     """SUPERVISOR_AGENT_JOB body, run every 15 min. Never lets one bad

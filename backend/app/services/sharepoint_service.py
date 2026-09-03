@@ -17,14 +17,12 @@ import requests
 from app.core.graph_auth import get_graph_token
 from app.core.logging import logger
 
-
 # ---------------------------------------------------------------------------
 # Config (read once at import time, same pattern as the rest of the codebase)
 # ---------------------------------------------------------------------------
 SITE_ID = os.getenv("SHAREPOINT_SITE_ID", "")
 DRIVE_ID = os.getenv("SHAREPOINT_DRIVE_ID", "")
 _GRAPH_BASE = "https://graph.microsoft.com/v1.0"
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -36,7 +34,6 @@ def _headers() -> dict:
         "Authorization": f"Bearer {get_graph_token()}",
         "Accept": "application/json",
     }
-
 
 def _drive_path_url(path: str) -> str:
     """
@@ -53,7 +50,6 @@ def _drive_path_url(path: str) -> str:
     encoded = quote(path, safe="/")
     return f"{_GRAPH_BASE}/sites/{SITE_ID}/drives/{DRIVE_ID}/root:/{encoded}"
 
-
 def _get_item_id(path: str) -> Optional[str]:
     """
     Resolve the Graph driveItem ID for a given path.
@@ -65,7 +61,6 @@ def _get_item_id(path: str) -> Optional[str]:
         return None
     resp.raise_for_status()
     return resp.json().get("id")
-
 
 def _create_or_get_sharing_link(item_id: str, scope: str = "organization") -> Optional[str]:
     """
@@ -104,7 +99,6 @@ def _create_or_get_sharing_link(item_id: str, scope: str = "organization") -> Op
             err = resp.text
         logger.warning(f"SharePoint createLink failed (status={resp.status_code}): {err}")
         raise ValueError("Operation failed")
-
 
 # ---------------------------------------------------------------------------
 # Public API
@@ -149,7 +143,6 @@ def download_file(path: str) -> bytes:
     )
     return resp.content
 
-
 def upload_file(path: str, content: bytes, content_type: str = "application/octet-stream") -> str:
     """
     Upload a file to SharePoint (creates or overwrites).
@@ -182,7 +175,6 @@ def upload_file(path: str, content: bytes, content_type: str = "application/octe
     web_url: str = resp.json().get("webUrl", "")
     logger.info(f"SharePoint upload — success: {web_url}")
     return web_url
-
 
 def get_file_download_link(path: str) -> Optional[str]:
     """
@@ -219,7 +211,6 @@ def get_file_download_link(path: str) -> Optional[str]:
         logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"SharePoint get_file_download_link failed for {path}: {exc}")
         raise ValueError("Operation failed")
-
 
 def list_folder(folder_path: str) -> list[dict]:
     """

@@ -20,7 +20,6 @@ from app.api.v1.endpoints.msgraph import _require_account, _graph_client_for
 
 router = APIRouter(prefix="/newsletters", tags=["Newsletter"])
 
-
 # ===========================================================================
 # Subscriber Endpoints
 # ===========================================================================
@@ -55,7 +54,6 @@ def subscribe_newsletter(
             detail="Failed to process subscription",
         )
 
-
 @router.delete(
     "/unsubscribe/{email}",
     response_model=SubscriberResponse,
@@ -83,7 +81,6 @@ def unsubscribe_newsletter(
             detail="Failed to process unsubscription",
         )
 
-
 @router.get(
     "/subscribers",
     response_model=List[SubscriberResponse],
@@ -98,7 +95,6 @@ def get_subscribers(
 ):
     """Retrieve a paginated list of all newsletter subscribers."""
     return NewsletterService.get_all_subscribers(db, skip=skip, limit=limit)
-
 
 # ===========================================================================
 # Newsletter Endpoints
@@ -129,7 +125,6 @@ def create_newsletter(
             detail="Failed to create newsletter",
         )
 
-
 @router.get(
     "/all",
     response_model=List[NewsletterResponse],
@@ -154,7 +149,6 @@ def get_newsletters(
     """
     return NewsletterService.get_all_newsletters(db, skip=skip, limit=limit, status_filter=status)
 
-
 @router.get(
     "/dispatched",
     response_model=List[NewsletterResponse],
@@ -173,7 +167,6 @@ def get_dispatched_newsletters(
     Results are ordered newest-first.
     """
     return NewsletterService.get_dispatched_newsletters(db, skip=skip, limit=limit)
-
 
 @router.put(
     "/update/{newsletter_id}",
@@ -199,7 +192,6 @@ def update_newsletter(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to update newsletter",
         )
-
 
 @router.post(
     "/schedule/{newsletter_id}",
@@ -232,7 +224,6 @@ def schedule_newsletter(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to schedule newsletter",
         )
-
 
 @router.post(
     "/send/{newsletter_id}",
@@ -281,7 +272,6 @@ def send_newsletter_now(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to send newsletter",
         )
-
 
 @router.delete(
     "/delete/{newsletter_id}",

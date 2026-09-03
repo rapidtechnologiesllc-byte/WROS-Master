@@ -45,7 +45,6 @@ class TestEnumDefinitions:
         assert "Fixed Bid" in PRICING_MODEL_TYPES
         assert "Time and Material (T&M)" in PRICING_MODEL_TYPES
 
-
 class TestOpportunityModel:
     """Test Opportunity model with new enum fields."""
 
@@ -139,7 +138,6 @@ class TestOpportunityModel:
         assert opp.client_type is None
         assert opp.pricing_model is None
 
-
 class TestInvoiceModel:
     """Test Invoice model with opportunity_id link."""
 
@@ -186,7 +184,6 @@ class TestInvoiceModel:
         assert invoice.opportunity_id == "opp_123"
         assert invoice.status == "DRAFT"
         assert invoice.total_usd_cents == 50000
-
 
 class TestRevenueModel:
     """Test Revenue model for revenue recognition and P&L attribution."""
@@ -355,7 +352,6 @@ class TestRevenueModel:
         assert revenue.partner_revenue_share_pct == 20
         assert revenue.gross_margin_pct == 40
 
-
 class TestPartnerRevenueShareConfiguration:
     """Test partner revenue share configuration in PartnerBUAssignment."""
 
@@ -374,7 +370,6 @@ class TestPartnerRevenueShareConfiguration:
 
     def test_partner_core_revenue_share_nullable(self):
         """core_revenue_share_pct should be nullable with default 0."""
-        from app.models.org_structure import PartnerBUAssignment
 
         assignment = PartnerBUAssignment(
             id=1,
@@ -384,7 +379,6 @@ class TestPartnerRevenueShareConfiguration:
         )
         # Should default to 0 or None depending on implementation
         assert assignment.core_revenue_share_pct is None or assignment.core_revenue_share_pct == 0
-
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

@@ -13,12 +13,10 @@ down_revision = "eb1544547b90"
 branch_labels = None
 depends_on = None
 
-
 def upgrade():
     op.add_column("candidate_resume_parsed", sa.Column("resume_completeness_score", sa.Integer(), nullable=True))
     op.add_column("candidate_resume_parsed", sa.Column("score_calculated_at", sa.DateTime(), nullable=True))
     op.add_column("candidates", sa.Column("resume_completeness_score", sa.Integer(), nullable=True))
-
 
 def downgrade():
     op.drop_column("candidates", "resume_completeness_score")

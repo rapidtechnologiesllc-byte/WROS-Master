@@ -30,7 +30,6 @@ from sqlalchemy.orm import Session
 from app.core.logging import logger
 from app.models.base import Base
 
-
 @dataclass
 class ResumeParseFeedback:
     """Record when recruiter corrects a parsing error"""
@@ -61,7 +60,6 @@ class SLMFeedback(Base):
     is_useful = Column(Integer, default=1)  # 1=useful, 0=noisy
     feedback_type = Column(String(50), default="correction")  # correction, validation, edge_case
 
-
 class SLMModelVersion(Base):
     """Track SLM model versions and performance"""
     __tablename__ = "slm_model_versions"
@@ -75,7 +73,6 @@ class SLMModelVersion(Base):
     is_active = Column(Integer, default=0)  # 1 = currently in production
     deployment_date = Column(DateTime, nullable=True)
     rollback_available = Column(Integer, default=1)  # Can we roll back?
-
 
 class SLMFeedbackEngine:
     """

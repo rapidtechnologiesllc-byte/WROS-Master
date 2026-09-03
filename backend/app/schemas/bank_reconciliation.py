@@ -12,10 +12,8 @@ class RecordBankTransactionRequest(BaseModel):
     amount_usd_cents: int
     description: str
 
-
 class MatchTransactionRequest(BaseModel):
     invoice_id: str
-
 
 class BankTransactionResponse(BaseModel):
     id: int
@@ -29,7 +27,6 @@ class BankTransactionResponse(BaseModel):
 
     class Config:
         from_attributes = True
-
 
 class UnmatchedPaidInvoiceResponse(BaseModel):
     invoice_id: str

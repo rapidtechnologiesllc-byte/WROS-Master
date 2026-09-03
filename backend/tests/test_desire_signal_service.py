@@ -19,7 +19,6 @@ from app.models.user import Users
 
 import app.services.desire_signal_service as svc
 
-
 @pytest.fixture()
 def db_session():
     fd, db_path = tempfile.mkstemp(suffix=".sqlite3")
@@ -37,7 +36,6 @@ def db_session():
         engine.dispose()
         os.remove(db_path)
 
-
 @pytest.fixture()
 def tenant_and_candidate(db_session):
     owner = Users(UserID="U-ORG", UserRole="Super User", UserEmail="ceo@blitzenx.com", UserPassword="h")
@@ -45,7 +43,6 @@ def tenant_and_candidate(db_session):
     db_session.add_all([owner, candidate])
     db_session.commit()
     return owner, candidate
-
 
 # ---------------------------------------------------------------------------
 # Deterministic scoring -- no LLM involved
@@ -60,7 +57,6 @@ def test_objection_signal_maps_to_desire_category_deterministically(db_session, 
     assert signal.processed is True
     assert signal.signal_data["objection_type"] == "SALARY"
 
-
 def test_objection_signal_with_no_mapping_stays_unprocessed(db_session, tenant_and_candidate):
     """OTHER has no deterministic mapping -- left for the LLM pass."""
     owner, candidate = tenant_and_candidate
@@ -68,7 +64,6 @@ def test_objection_signal_with_no_mapping_stays_unprocessed(db_session, tenant_a
 
     assert signal.desire_category is None
     assert signal.processed is False
-
 
 @pytest.mark.parametrize("minutes,expected_strength", [(10, 0.8), (29, 0.8), (60, 0.4), (2900, 0.1)])
 def test_response_speed_signal_strength_formula(db_session, tenant_and_candidate, minutes, expected_strength):
@@ -78,7 +73,6 @@ def test_response_speed_signal_strength_formula(db_session, tenant_and_candidate
     assert signal.desire_strength == expected_strength
     assert signal.processed is True
     assert signal.desire_category is None  # engagement, not a specific desire category
-
 
 # ---------------------------------------------------------------------------
 # minutes_since_last_outbound
@@ -91,7 +85,6 @@ def test_minutes_since_last_outbound_none_when_no_prior_outbound(db_session, ten
     db_session.commit()
 
     assert svc.minutes_since_last_outbound(db_session, conversation.id) is None
-
 
 def test_minutes_since_last_outbound_computes_real_gap(db_session, tenant_and_candidate):
     from datetime import datetime, timedelta
@@ -109,7 +102,6 @@ def test_minutes_since_last_outbound_computes_real_gap(db_session, tenant_and_ca
     gap = svc.minutes_since_last_outbound(db_session, conversation.id)
     assert 19 <= gap <= 21
 
-
 # ---------------------------------------------------------------------------
 # SignalProcessingJob -- LLM extraction
 # ---------------------------------------------------------------------------
@@ -120,10 +112,8 @@ def _clear_growth_llm(prompt):
         "desire_strength": 0.85, "extracted_insight": "Candidate asked about growth path.",
     })
 
-
 def _broken_llm(prompt):
     raise RuntimeError("simulated LLM outage")
-
 
 def test_process_unprocessed_signals_extracts_real_category(db_session, tenant_and_candidate):
     owner, candidate = tenant_and_candidate
@@ -139,7 +129,6 @@ def test_process_unprocessed_signals_extracts_real_category(db_session, tenant_a
     assert signal.processed is True
     assert signal.processed_at is not None
 
-
 def test_process_unprocessed_signals_leaves_failed_signal_for_retry(db_session, tenant_and_candidate):
     owner, candidate = tenant_and_candidate
     svc.record_message_signal(db_session, owner.UserID, candidate.candidateID, "CHAT_MESSAGE", "hello")
@@ -149,7 +138,6 @@ def test_process_unprocessed_signals_leaves_failed_signal_for_retry(db_session, 
     assert result == {"processed": 0, "failed": 1, "batch_size": 1}
     signal = db_session.query(CandidateDesireSignal).first()
     assert signal.processed is False  # stays unprocessed -- retried next cycle
-
 
 def test_process_unprocessed_signals_skips_already_deterministic_ones(db_session, tenant_and_candidate):
     """OBJECTION/RESPONSE_SPEED signals that already got a deterministic
@@ -163,7 +151,6 @@ def test_process_unprocessed_signals_skips_already_deterministic_ones(db_session
     result = svc.process_unprocessed_signals(db_session, llm_call=_clear_growth_llm)
 
     assert result["batch_size"] == 1  # only the raw CHAT_MESSAGE signal
-
 
 def test_process_unprocessed_signals_ignores_invalid_category_from_llm(db_session, tenant_and_candidate):
     owner, candidate = tenant_and_candidate
@@ -180,7 +167,6 @@ def test_process_unprocessed_signals_ignores_invalid_category_from_llm(db_sessio
     assert signal.desire_direction is None
     assert signal.desire_strength == 1.0  # clamped
     assert signal.processed is True  # still marked processed -- a junk-but-parseable response isn't a failure
-
 
 # ---------------------------------------------------------------------------
 # Fail-soft recording

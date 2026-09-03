@@ -91,7 +91,6 @@ down_revision = "f8a9b0c1d2e3"
 branch_labels = None
 depends_on = None
 
-
 def upgrade():
     """Insert expanded RBAC permissions and re-seed role_permissions"""
     # Get a raw connection for manual SQL since we need to work with existing data
@@ -136,7 +135,6 @@ def upgrade():
         raise
     finally:
         session.close()
-
 
 def downgrade():
     """Remove expanded RBAC permissions (keep old 28 for backward compatibility)"""

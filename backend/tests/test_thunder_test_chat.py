@@ -30,16 +30,13 @@ import app.services.thunder_service as svc
 import app.services.whatsapp_routing_service as routing
 from app.services.whatsapp_routing_service import ConversationOwnedByHuman
 
-
 @pytest.fixture(autouse=True)
 def _default_whatsapp_number(monkeypatch):
     monkeypatch.setattr(routing, "DEFAULT_WHATSAPP_NUMBER", "+10005550000")
 
-
 @pytest.fixture(autouse=True)
 def _fake_api_key(monkeypatch):
     monkeypatch.setattr(svc, "GEMINI_API_KEY", "fake-key-for-test")
-
 
 @pytest.fixture()
 def db_session():
@@ -59,7 +56,6 @@ def db_session():
         engine.dispose()
         os.remove(db_path)
 
-
 @pytest.fixture()
 def tester(db_session):
     user = Users(UserID="U-TESTER", UserRole="Admin", UserName="Mukund A.", UserEmail="ceo@blitzenx.com", UserPassword="h")
@@ -67,14 +63,12 @@ def tester(db_session):
     db_session.commit()
     return user
 
-
 @pytest.fixture()
 def other_tester(db_session):
     user = Users(UserID="U-OTHER", UserRole="Recruiter", UserName="Priya R.", UserEmail="priya@blitzenx.com", UserPassword="h")
     db_session.add(user)
     db_session.commit()
     return user
-
 
 def _mock_gemini(reply_text):
     """Returns a context manager patching svc.ChatGoogleGenerativeAI to
@@ -90,7 +84,6 @@ def _mock_gemini(reply_text):
 
     mock_llm.invoke.side_effect = fake_invoke
     return patch.object(svc, "ChatGoogleGenerativeAI", return_value=mock_llm), captured
-
 
 # ---------------------------------------------------------------------------
 # generate_thunder_reply
@@ -112,7 +105,6 @@ def test_generate_thunder_reply_wraps_untrusted_message_safely(db_session, teste
     assert "CANDIDATE_MESSAGE_DATA_END_" in prompt
     assert "data to analyze" in prompt.lower() or "treat it strictly as data" in prompt.lower()
 
-
 def test_generate_thunder_reply_raises_without_api_key(db_session, tester, monkeypatch):
     candidate = svc.get_or_create_test_candidate(db_session, tester)
     db_session.commit()
@@ -120,7 +112,6 @@ def test_generate_thunder_reply_raises_without_api_key(db_session, tester, monke
 
     with pytest.raises(svc.ThunderReplyGenerationFailed):
         svc.generate_thunder_reply(db_session, candidate, "Hello")
-
 
 def test_generate_thunder_reply_raises_on_empty_llm_output(db_session, tester):
     candidate = svc.get_or_create_test_candidate(db_session, tester)
@@ -131,7 +122,6 @@ def test_generate_thunder_reply_raises_on_empty_llm_output(db_session, tester):
         with pytest.raises(svc.ThunderReplyGenerationFailed):
             svc.generate_thunder_reply(db_session, candidate, "Hello")
 
-
 def test_generate_thunder_reply_never_sends_internal_notes_to_the_llm(db_session, tester):
     """Avinash's explicit instruction, 2026-07-23: external candidates
     must never get internal information. Internal HR notes used to be
@@ -139,7 +129,6 @@ def test_generate_thunder_reply_never_sends_internal_notes_to_the_llm(db_session
     instruction -- proves they're not in the prompt at all now, on
     every channel (a candidate is external regardless of whether
     they're on WhatsApp or the public web chat)."""
-    from app.models.internal_note import InternalNote
 
     candidate = svc.get_or_create_test_candidate(db_session, tester)
     db_session.add(InternalNote(
@@ -158,7 +147,6 @@ def test_generate_thunder_reply_never_sends_internal_notes_to_the_llm(db_session
     assert "lowball" not in prompt
     assert "Internal HR notes" not in prompt
 
-
 # ---------------------------------------------------------------------------
 # Test-candidate / consent bootstrap -- identity follows the LOGGED-IN
 # tester, not one shared hardcoded person (that was a real bug: every
@@ -174,7 +162,6 @@ def test_get_or_create_test_candidate_is_idempotent(db_session, tester):
     assert first.candidateID == second.candidateID == svc.test_candidate_id_for(tester.UserID)
     assert db_session.query(Candidate).count() == 1
 
-
 def test_get_or_create_test_candidate_reflects_the_logged_in_user(db_session, tester):
     candidate = svc.get_or_create_test_candidate(db_session, tester)
     assert candidate.candidateFirstName == "Mukund"
@@ -182,7 +169,6 @@ def test_get_or_create_test_candidate_reflects_the_logged_in_user(db_session, te
     assert candidate.candidateEmail == "ceo@blitzenx.com"
     # ID stays obviously synthetic even though the rest of the identity is real.
     assert candidate.candidateID.startswith("THUNDER-TEST-")
-
 
 def test_different_testers_get_different_candidate_identities(db_session, tester, other_tester):
     mukund_candidate = svc.get_or_create_test_candidate(db_session, tester)
@@ -193,7 +179,6 @@ def test_different_testers_get_different_candidate_identities(db_session, tester
     assert mukund_candidate.candidateEmail == "ceo@blitzenx.com"
     assert priya_candidate.candidateEmail == "priya@blitzenx.com"
     assert priya_candidate.candidateFirstName == "Priya"
-
 
 def test_get_or_create_test_candidate_grants_consent_once(db_session, tester):
     svc.get_or_create_test_candidate(db_session, tester)
@@ -207,14 +192,12 @@ def test_get_or_create_test_candidate_grants_consent_once(db_session, tester):
     ).count() == 1
     assert svc.has_active_consent(db_session, candidate_id) is True
 
-
 def test_get_or_create_test_conversation_scoped_per_tenant(db_session):
     conv_a = svc.get_or_create_test_conversation(db_session, "U-A")
     conv_b = svc.get_or_create_test_conversation(db_session, "U-B")
     assert conv_a.id != conv_b.id
     assert conv_a.tenant_id == "U-A"
     assert conv_b.tenant_id == "U-B"
-
 
 # ---------------------------------------------------------------------------
 # run_test_chat_turn -- full turn through the REAL send_thunder_message() gate
@@ -242,7 +225,6 @@ def test_run_test_chat_turn_logs_candidate_and_thunder_messages(db_session, test
     assert events[1].event_data["body"] == "Hi! Great to hear from you."
     assert events[1].event_data["delivered"] is True
 
-
 def test_run_test_chat_turn_still_enforces_r08_ownership_lock(db_session, tester):
     patcher, _ = _mock_gemini("First reply")
     with patcher:
@@ -259,7 +241,6 @@ def test_run_test_chat_turn_still_enforces_r08_ownership_lock(db_session, tester
         with pytest.raises(ConversationOwnedByHuman):
             svc.run_test_chat_turn(db_session, current_user=tester, message_body="are you there?")
 
-
 def test_run_test_chat_turn_still_enforces_debounce(db_session, tester):
     patcher, _ = _mock_gemini("Same reply text")
     with patcher:
@@ -270,14 +251,12 @@ def test_run_test_chat_turn_still_enforces_debounce(db_session, tester):
         with pytest.raises(svc.DuplicateMessageSuppressed):
             svc.run_test_chat_turn(db_session, current_user=tester, message_body="msg 2")
 
-
 # ---------------------------------------------------------------------------
 # History + reset
 # ---------------------------------------------------------------------------
 
 def test_get_test_chat_history_empty_when_no_conversation_yet(db_session, tester):
     assert svc.get_test_chat_history(db_session, tester.UserID) == []
-
 
 def test_get_test_chat_history_reflects_turns_in_order(db_session, tester):
     patcher, _ = _mock_gemini("Reply one")
@@ -289,7 +268,6 @@ def test_get_test_chat_history_reflects_turns_in_order(db_session, tester):
         ("candidate", "Message one"),
         ("thunder", "Reply one"),
     ]
-
 
 def test_reset_test_chat_starts_a_fresh_conversation(db_session, tester):
     patcher, _ = _mock_gemini("Reply one")

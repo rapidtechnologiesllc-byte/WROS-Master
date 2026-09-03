@@ -62,10 +62,8 @@ OVERNIGHT_CUTOFF_HOUR = 18  # "since 6 PM yesterday"
 TOP_RISKS_COUNT = 3
 QUEUE_ITEMS_MAX = 5
 
-
 def _candidate_link(candidate_id: str) -> str:
     return f"{Settings.FRONTEND_BASE_URL.rstrip('/')}/candidates/{candidate_id}?tab=messages"
-
 
 def _interviewer_name(db: Session, panel_id: Optional[str]) -> str:
     if not panel_id:
@@ -78,7 +76,6 @@ def _interviewer_name(db: Session, panel_id: Optional[str]) -> str:
         return "our interviewer"
     return f"{employee.first_name} {employee.last_name}".strip() or "our interviewer"
 
-
 def _my_candidate_ids(db: Session, recruiter_user_id: str) -> List[str]:
     """Candidates whose most recent real Submission is owned by this
     recruiter -- see module docstring on the recipient-resolution gap."""
@@ -89,7 +86,6 @@ def _my_candidate_ids(db: Session, recruiter_user_id: str) -> List[str]:
         .all()
     )
     return [r[0] for r in rows]
-
 
 def _overnight_activity(db: Session, tenant_id: str, candidate_ids: List[str], since: datetime) -> Dict:
     if not candidate_ids:
@@ -131,7 +127,6 @@ def _overnight_activity(db: Session, tenant_id: str, candidate_ids: List[str], s
     summary = "Thunder " + (", ".join(parts) + " overnight." if parts else "had no notable overnight activity.")
     return {"summary": summary, "count": sum(type_counts.values()), "responded": responded}
 
-
 def _needs_attention(db: Session, tenant_id: str, candidate_ids: List[str]) -> List[Dict]:
     if not candidate_ids:
         return []
@@ -153,7 +148,6 @@ def _needs_attention(db: Session, tenant_id: str, candidate_ids: List[str]) -> L
         }
         for item in items
     ]
-
 
 def _interviews_today(db: Session, candidate_ids: List[str], recruiter_timezone: str, today_local: date) -> List[Dict]:
     if not candidate_ids:
@@ -186,7 +180,6 @@ def _interviews_today(db: Session, candidate_ids: List[str], recruiter_timezone:
         })
     return results
 
-
 def _top_risks(db: Session, tenant_id: str, candidate_ids: List[str]) -> List[Dict]:
     if not candidate_ids:
         return []
@@ -209,7 +202,6 @@ def _top_risks(db: Session, tenant_id: str, candidate_ids: List[str]) -> List[Di
         }
         for row in rows
     ]
-
 
 def generate_daily_digest(db: Session, recruiter_user_id: str, tenant_id: str, *, now: Optional[datetime] = None) -> Dict:
     """Step 2. Never raises internally beyond what callers should catch."""
@@ -240,7 +232,6 @@ def generate_daily_digest(db: Session, recruiter_user_id: str, tenant_id: str, *
         "has_content": has_content,
     }
 
-
 def format_whatsapp_digest(digest: Dict) -> str:
     """Step 3. Plain text, emoji section headers, WhatsApp-appropriate."""
     lines = [f"📊 *THUNDER MORNING DIGEST — {digest['date']}*", ""]
@@ -260,7 +251,6 @@ def format_whatsapp_digest(digest: Dict) -> str:
     lines.append("")
     lines.append(f"View full dashboard: {Settings.FRONTEND_BASE_URL.rstrip('/')}/recruiter/risk-dashboard")
     return "\n".join(lines)
-
 
 def format_email_digest_html(digest: Dict) -> str:
     """Step 4. Simple, real HTML -- BR-03: every candidate name is a link."""
@@ -286,7 +276,6 @@ def format_email_digest_html(digest: Dict) -> str:
     <p>-- Thunder, your AI Recruiting Assistant<br/>BlitzenX</p>
     """
     return html
-
 
 def send_daily_digest(db: Session, recruiter_user_id: str, tenant_id: str) -> Dict:
     """Step 1's per-recruiter body. Never raises."""
@@ -326,12 +315,10 @@ def send_daily_digest(db: Session, recruiter_user_id: str, tenant_id: str) -> Di
         logger.error(f"[DailyDigest] Failed generating/sending digest for recruiter {recruiter_user_id!r}: {exc}")
         return {"outcome": "failed"}
 
-
 def run_daily_digest_job(db: Session) -> Dict:
     """Step 1. Runs on a real periodic cadence (every 30 min); fires for
     each recruiter whose local hour is DIGEST_LOCAL_HOUR right now.
     BR-01: local timezone, per real Users.timezone."""
-    from zoneinfo import ZoneInfo
 
     result = {"processed": 0, "sent": 0, "skipped": 0}
     now_utc = datetime.utcnow().replace(tzinfo=ZoneInfo("UTC"))

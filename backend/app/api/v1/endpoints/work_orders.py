@@ -58,7 +58,6 @@ from app.services.work_order_service import (
 
 router = APIRouter(prefix="/work-orders", tags=["work_orders"])
 
-
 def _to_item(wo: WorkOrder) -> WorkOrderItem:
     """Convert WorkOrder model to API response item."""
     return WorkOrderItem(
@@ -80,7 +79,6 @@ def _to_item(wo: WorkOrder) -> WorkOrderItem:
         created_at=wo.created_at.isoformat() if wo.created_at else None,
         updated_at=wo.updated_at.isoformat() if wo.updated_at else None,
     )
-
 
 @router.post(
     "",
@@ -134,7 +132,6 @@ def create_work_order_endpoint(
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Failed to create work order: {str(e)}")
 
-
 @router.get(
     "",
     response_model=WorkOrderListResponse,
@@ -170,7 +167,6 @@ def list_work_orders(
         logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to list work orders: {str(e)}")
 
-
 @router.get(
     "/{work_order_id}",
     response_model=WorkOrderItem,
@@ -192,7 +188,6 @@ def get_work_order(
     except Exception as e:
         logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to get work order: {str(e)}")
-
 
 @router.put(
     "/{work_order_id}",
@@ -246,7 +241,6 @@ def update_work_order_endpoint(
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Failed to update work order: {str(e)}")
 
-
 @router.get(
     "/by-demand/{demand_id}",
     response_model=WorkOrderListResponse,
@@ -264,7 +258,6 @@ def get_work_orders_by_demand_endpoint(
     except Exception as e:
         logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to get work orders: {str(e)}")
-
 
 @router.get(
     "/by-project/{project_id}",
@@ -284,7 +277,6 @@ def get_work_orders_by_project_endpoint(
         logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to get work orders: {str(e)}")
 
-
 @router.get(
     "/by-employee/{employee_id}",
     response_model=WorkOrderListResponse,
@@ -303,7 +295,6 @@ def get_work_orders_by_employee_endpoint(
         logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to get work orders: {str(e)}")
 
-
 @router.get(
     "/by-client/{client_id}",
     response_model=WorkOrderListResponse,
@@ -321,7 +312,6 @@ def get_work_orders_by_client_endpoint(
     except Exception as e:
         logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to get work orders: {str(e)}")
-
 
 @router.post(
     "/{work_order_id}/end",
@@ -353,7 +343,6 @@ def end_work_order_endpoint(
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Failed to end work order: {str(e)}")
 
-
 @router.post(
     "/{work_order_id}/pause",
     response_model=WorkOrderItem,
@@ -383,7 +372,6 @@ def pause_work_order_endpoint(
         logger.error(f"Error: {str(e)}", exc_info=True)
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Failed to pause work order: {str(e)}")
-
 
 @router.post(
     "/{work_order_id}/resume",

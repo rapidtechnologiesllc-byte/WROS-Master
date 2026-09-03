@@ -54,7 +54,6 @@ from app.services.employee_allocation_service import (
 
 router = APIRouter(prefix="/allocations", tags=["allocations"])
 
-
 def _to_item(db: Session, allocation: EmployeeAllocation) -> AllocationItem:
     employee = db.query(Employee).filter(Employee.id == allocation.employee_id).first()
     demand = db.query(Demand).filter(Demand.id == allocation.demand_id).first()
@@ -99,7 +98,6 @@ def _to_item(db: Session, allocation: EmployeeAllocation) -> AllocationItem:
         created_at=allocation.created_at,
     )
 
-
 @router.post(
     "",
     response_model=AllocationItem,
@@ -140,7 +138,6 @@ def create_allocation(
     db.refresh(allocation)
     return _to_item(db, allocation)
 
-
 @router.get(
     "/dropdowns/for-create",
     response_model=AllocationDropdownsResponse,
@@ -171,7 +168,6 @@ def get_allocation_dropdowns(
 
     return AllocationDropdownsResponse(employees=employee_items, demands=demand_items)
 
-
 @router.get(
     "",
     response_model=AllocationListResponse,
@@ -191,7 +187,6 @@ def list_allocations(
         query = query.filter(EmployeeAllocation.demand_id == demand_id)
     allocations = query.order_by(EmployeeAllocation.created_at.desc()).all()
     return AllocationListResponse(allocations=[_to_item(db, a) for a in allocations])
-
 
 @router.post(
     "/{allocation_id}/end",

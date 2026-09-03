@@ -30,7 +30,6 @@ class BenefitsSchema(BaseModel):
             }
         }
 
-
 class OfferCreateRequest(BaseModel):
     """Request to create a new offer."""
     candidate_id: str = Field(..., description="Unique candidate identifier")
@@ -65,7 +64,6 @@ class OfferCreateRequest(BaseModel):
             }
         }
 
-
 class OfferApproveRequest(BaseModel):
     """Request to approve an offer."""
     approved_by_user_id: str = Field(..., description="User ID of approver")
@@ -79,7 +77,6 @@ class OfferApproveRequest(BaseModel):
             }
         }
 
-
 class OfferRejectRequest(BaseModel):
     """Request to reject an offer."""
     rejection_reason: str = Field(..., min_length=1, description="Reason for rejection")
@@ -90,7 +87,6 @@ class OfferRejectRequest(BaseModel):
                 "rejection_reason": "Candidate overqualified for this position"
             }
         }
-
 
 class OfferSendRequest(BaseModel):
     """Request to send offer to candidate."""
@@ -104,7 +100,6 @@ class OfferSendRequest(BaseModel):
                 "expiration_days": 7
             }
         }
-
 
 class OfferAcceptanceRequest(BaseModel):
     """Request to accept an offer (candidate action)."""
@@ -121,7 +116,6 @@ class OfferAcceptanceRequest(BaseModel):
             }
         }
 
-
 class OfferRetractionRequest(BaseModel):
     """Request to retract an offer."""
     retraction_reason: str = Field(..., min_length=1, description="Reason for retraction")
@@ -132,7 +126,6 @@ class OfferRetractionRequest(BaseModel):
                 "retraction_reason": "Position filled by another candidate"
             }
         }
-
 
 class OfferResponse(BaseModel):
     """Complete offer details response."""
@@ -182,7 +175,6 @@ class OfferResponse(BaseModel):
             }
         }
 
-
 class OfferListResponse(BaseModel):
     """List of offers response."""
     total: int = Field(..., description="Total offers returned")
@@ -201,7 +193,6 @@ class OfferListResponse(BaseModel):
                 ]
             }
         }
-
 
 class OfferStatusResponse(BaseModel):
     """Response after status change."""
@@ -222,7 +213,6 @@ class OfferStatusResponse(BaseModel):
             }
         }
 
-
 class OfferApprovalResponse(OfferStatusResponse):
     """Response after offer approval."""
     approved_at: datetime = Field(..., description="Approval timestamp")
@@ -239,7 +229,6 @@ class OfferApprovalResponse(OfferStatusResponse):
                 "approved_by_user_id": "user_789"
             }
         }
-
 
 class OfferSendResponse(OfferStatusResponse):
     """Response after sending offer."""
@@ -260,7 +249,6 @@ class OfferSendResponse(OfferStatusResponse):
             }
         }
 
-
 class OfferAcceptanceResponse(OfferStatusResponse):
     """Response after offer acceptance."""
     accepted_at: datetime = Field(..., description="Acceptance timestamp")
@@ -279,7 +267,6 @@ class OfferAcceptanceResponse(OfferStatusResponse):
                 "start_date": "2026-09-01"
             }
         }
-
 
 class OfferSummary(BaseModel):
     """Quick summary of offer for list views."""

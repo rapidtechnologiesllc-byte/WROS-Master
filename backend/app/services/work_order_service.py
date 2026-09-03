@@ -33,7 +33,6 @@ class WorkOrderValidationError(Exception):
     """Raised when work order creation/update violates business rules."""
     pass
 
-
 def create_work_order(
     db: Session,
     *,
@@ -130,7 +129,6 @@ def create_work_order(
     db.add(work_order)
     return work_order
 
-
 def update_work_order(
     db: Session,
     work_order: WorkOrder,
@@ -199,14 +197,12 @@ def update_work_order(
     db.add(work_order)
     return work_order
 
-
 def get_work_order_by_id(db: Session, work_order_id: str, tenant_id: int) -> Optional[WorkOrder]:
     """Get a work order by ID (tenant-scoped)."""
     return db.query(WorkOrder).filter(
         WorkOrder.id == work_order_id,
         WorkOrder.tenant_id == tenant_id
     ).first()
-
 
 def get_work_orders_by_demand(db: Session, demand_id: str, tenant_id: int) -> List[WorkOrder]:
     """Get all work orders for a specific demand."""
@@ -215,14 +211,12 @@ def get_work_orders_by_demand(db: Session, demand_id: str, tenant_id: int) -> Li
         WorkOrder.tenant_id == tenant_id
     ).all()
 
-
 def get_work_orders_by_project(db: Session, project_id: str, tenant_id: int) -> List[WorkOrder]:
     """Get all work orders linked to a specific project."""
     return db.query(WorkOrder).filter(
         WorkOrder.project_id == project_id,
         WorkOrder.tenant_id == tenant_id
     ).all()
-
 
 def get_work_orders_by_employee(db: Session, employee_id: str, tenant_id: int) -> List[WorkOrder]:
     """Get all work orders for a specific employee."""
@@ -231,7 +225,6 @@ def get_work_orders_by_employee(db: Session, employee_id: str, tenant_id: int) -
         WorkOrder.tenant_id == tenant_id
     ).all()
 
-
 def get_work_orders_by_client(db: Session, client_id: str, tenant_id: int) -> List[WorkOrder]:
     """Get all work orders for a specific client."""
     return db.query(WorkOrder).filter(
@@ -239,14 +232,12 @@ def get_work_orders_by_client(db: Session, client_id: str, tenant_id: int) -> Li
         WorkOrder.tenant_id == tenant_id
     ).all()
 
-
 def get_all_work_orders(db: Session, tenant_id: int, status: Optional[str] = None) -> List[WorkOrder]:
     """Get all work orders for a tenant, optionally filtered by status."""
     query = db.query(WorkOrder).filter(WorkOrder.tenant_id == tenant_id)
     if status:
         query = query.filter(WorkOrder.status == status)
     return query.all()
-
 
 def end_work_order(db: Session, work_order: WorkOrder, end_date: Optional[date] = None) -> WorkOrder:
     """End a work order (set status to ENDED and optional end date)."""
@@ -259,7 +250,6 @@ def end_work_order(db: Session, work_order: WorkOrder, end_date: Optional[date] 
     db.add(work_order)
     return work_order
 
-
 def pause_work_order(db: Session, work_order: WorkOrder) -> WorkOrder:
     """Pause a work order."""
     if work_order.status == "ENDED":
@@ -268,7 +258,6 @@ def pause_work_order(db: Session, work_order: WorkOrder) -> WorkOrder:
     work_order.updated_at = datetime.utcnow()
     db.add(work_order)
     return work_order
-
 
 def resume_work_order(db: Session, work_order: WorkOrder) -> WorkOrder:
     """Resume a paused work order."""

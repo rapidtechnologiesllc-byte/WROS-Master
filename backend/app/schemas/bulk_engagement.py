@@ -13,16 +13,13 @@ class BulkImportResponse(BaseModel):
     errors: List[Dict]
     candidate_ids: List[str]
 
-
 class BulkEngageRequest(BaseModel):
     candidate_ids: List[str]
-
 
 class BulkEngageResponse(BaseModel):
     bulk_job_id: str
     total_candidates: int
     estimated_completion_minutes: float
-
 
 class BulkJobStatusResponse(BaseModel):
     bulk_job_id: str

@@ -16,7 +16,6 @@ from app.models.user import Users
 from app.core.security_local import get_password_hash
 from app.utils.uniq_id_generator import user_id_generator
 
-
 def create_super_user():
     """Create a new Super User account with interactive prompts."""
 
@@ -104,7 +103,6 @@ def create_super_user():
         except:
             pass
         return False
-
 
 if __name__ == "__main__":
     success = create_super_user()

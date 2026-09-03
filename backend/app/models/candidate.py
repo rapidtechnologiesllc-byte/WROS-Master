@@ -106,7 +106,6 @@ class Candidate(Base):
     submission_bu = relationship("BusinessUnit", foreign_keys=[submission_bu_id], lazy="select")
     associated_bu = relationship("BusinessUnit", foreign_keys=[associated_bu_id], lazy="select")
 
-
 class CandidateInfoForm(Base):
     __tablename__ = "candidate_forms"
     formID = Column(Integer, primary_key=True, index=True, autoincrement=True)
@@ -123,7 +122,6 @@ class CandidateInfoForm(Base):
     formCreatedAt = Column(DateTime(timezone=False), server_default=func.now())
     formUpdatedAt = Column(DateTime(timezone=False), server_default=func.now(), onupdate=func.now())
     # candidate = relationship("Candidate")
-
 
 class CandidateEducationForm(Base):
     __tablename__ = "candidate_education_forms"
@@ -192,7 +190,6 @@ class CandidatePanForm(Base):
     formUpdatedAt = Column(DateTime(timezone=False), server_default=func.now(), onupdate=func.now())
     # candidate = relationship("Candidate")
 
-
 class CandidateStatus(Base):
     __tablename__ = "candidate_status"
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
@@ -202,7 +199,6 @@ class CandidateStatus(Base):
     createdAt = Column(DateTime(timezone=False), server_default=func.now())
     updatedAt = Column(DateTime(timezone=False), server_default=func.now(), onupdate=func.now())
     # candidate = relationship("Candidate")
-
 
 class CandidateJobApplication(Base):
     """

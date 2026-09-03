@@ -30,9 +30,7 @@ from app.schemas.hr_assignment import (
     UserSummary,
 )
 
-
 router = APIRouter(prefix="/hr-assignments", tags=["hr-assignments"])
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -43,7 +41,6 @@ def _candidate_name(c: Candidate) -> Optional[str]:
     parts = [c.candidateFirstName, c.candidateMiddleName, c.candidateLastName]
     return " ".join(p for p in parts if p) or None
 
-
 def _user_summary(u: Optional[Users]) -> Optional[UserSummary]:
     """Build a lightweight UserSummary from a Users ORM object."""
     if u is None:
@@ -53,7 +50,6 @@ def _user_summary(u: Optional[Users]) -> Optional[UserSummary]:
         user_name=u.UserName,
         user_email=u.UserEmail,
     )
-
 
 def _to_response(row: HRAssignment, db: Session) -> HRAssignmentResponse:
     """Convert an HRAssignment ORM row into the full response shape."""
@@ -76,7 +72,6 @@ def _to_response(row: HRAssignment, db: Session) -> HRAssignmentResponse:
         created_at=row.created_at,
         updated_at=row.updated_at,
     )
-
 
 # ---------------------------------------------------------------------------
 # POST /hr-assignments/  â€” Create HR assignment
@@ -148,7 +143,6 @@ def create_hr_assignment(
 
     return _to_response(assignment, db)
 
-
 # ---------------------------------------------------------------------------
 # GET /hr-assignments/candidates  â€” Get all candidates (for dashboard/admin)
 # ---------------------------------------------------------------------------
@@ -178,7 +172,6 @@ def get_all_candidates(
         total=total,
         assignments=[_to_response(r, db) for r in rows],
     )
-
 
 # ---------------------------------------------------------------------------
 # GET /hr-assignments/my-candidates  â€” Get my assigned candidates (as HR)
@@ -216,7 +209,6 @@ def get_my_candidates(
         assignments=[_to_response(r, db) for r in rows],
     )
 
-
 # ---------------------------------------------------------------------------
 # GET /hr-assignments/by-candidate/{candidate_id}  â€” Get HR by candidate ID
 # ---------------------------------------------------------------------------
@@ -253,7 +245,6 @@ def get_hr_by_candidate(
         )
 
     return _to_response(assignment, db)
-
 
 # ---------------------------------------------------------------------------
 # PATCH /hr-assignments/by-candidate/{candidate_id}  â€” Update HR assignment
@@ -312,7 +303,6 @@ def update_hr_assignment(
     db.refresh(assignment)
 
     return _to_response(assignment, db)
-
 
 # ---------------------------------------------------------------------------
 # DELETE /hr-assignments/by-candidate/{candidate_id}  â€” Delete HR assignment

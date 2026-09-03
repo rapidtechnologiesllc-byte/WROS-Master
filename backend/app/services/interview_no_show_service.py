@@ -69,12 +69,10 @@ RESCHEDULE_OFFER_DELAY_HOURS = 2  # Step 4
 RESCHEDULE_OFFER_TIMEOUT_HOURS = 48  # Step 4
 JOB_BATCH_SIZE = 100
 
-
 def _as_utc(dt: datetime) -> datetime:
     if dt.tzinfo is None:
         return dt.replace(tzinfo=dt_timezone.utc)
     return dt.astimezone(dt_timezone.utc)
-
 
 def _active_conversation(db: Session, candidate_id: str) -> Optional[CandidateConversation]:
     return (
@@ -84,7 +82,6 @@ def _active_conversation(db: Session, candidate_id: str) -> Optional[CandidateCo
         .first()
     )
 
-
 def _has_replied_since(db: Session, conversation_id: int, since: datetime) -> bool:
     reply = (
         db.query(ConversationEvent)
@@ -92,7 +89,6 @@ def _has_replied_since(db: Session, conversation_id: int, since: datetime) -> bo
         .first()
     )
     return reply is not None
-
 
 def _resolve_interviewer_user(db: Session, panel_id: Optional[str]) -> Optional[Users]:
     if not panel_id:
@@ -105,7 +101,6 @@ def _resolve_interviewer_user(db: Session, panel_id: Optional[str]) -> Optional[
         return None
     return db.query(Users).filter(Users.UserID == employee.wros_user_id).first()
 
-
 def _interviewer_name(db: Session, panel_id: Optional[str]) -> str:
     if not panel_id:
         return "our interviewer"
@@ -116,7 +111,6 @@ def _interviewer_name(db: Session, panel_id: Optional[str]) -> str:
     if employee is None:
         return "our interviewer"
     return f"{employee.first_name} {employee.last_name}".strip() or "our interviewer"
-
 
 def _notify_recruiter(db: Session, submission: Optional[Submission], message: str) -> None:
     if submission is None or not submission.submitted_by_user_id:
@@ -133,7 +127,6 @@ def _notify_recruiter(db: Session, submission: Optional[Submission], message: st
         logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[InterviewNoShow] Failed to notify recruiter: {exc}")
 
-
 def _send_thunder_message_best_effort(db: Session, conversation: Optional[CandidateConversation], candidate: Candidate, message: str) -> bool:
     if conversation is None:
         return False
@@ -143,7 +136,6 @@ def _send_thunder_message_best_effort(db: Session, conversation: Optional[Candid
     except (ConsentNotGiven, ConversationOwnedByHuman, DuplicateMessageSuppressed, ThunderPausedError) as exc:
         logger.info(f"[InterviewNoShow] WhatsApp message skipped for candidate {candidate.candidateID!r}: {exc}")
         return False
-
 
 def run_no_show_detection_job(db: Session) -> Dict:
     """Steps 1 + 3, combined -- runs every 5 min. Never lets one bad
@@ -283,7 +275,6 @@ def run_no_show_detection_job(db: Session) -> Dict:
             result["skipped"] += 1
 
     return result
-
 
 def run_no_show_followup_job(db: Session) -> Dict:
     """Step 4 -- the reschedule-offer follow-through. Never lets one

@@ -38,7 +38,6 @@ class JobDescriptionTemplate(TypedDict):
     description: str
     skills: List[str]
 
-
 JOB_DESCRIPTION_TEMPLATES: Dict[str, JobDescriptionTemplate] = {
     "guidewire developer": {
         "description": (

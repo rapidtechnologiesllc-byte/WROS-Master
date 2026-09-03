@@ -21,6 +21,5 @@ class ErrorLogItem(BaseModel):
     class Config:
         from_attributes = True
 
-
 class ErrorLogListResponse(BaseModel):
     errors: List[ErrorLogItem]

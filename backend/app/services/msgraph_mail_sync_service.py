@@ -30,14 +30,12 @@ GraphMessagesCall = Callable[[str, str], dict]
 DEFAULT_LOOKBACK = timedelta(hours=24)
 MAX_MESSAGES_PER_FOLDER = 50
 
-
 def _default_graph_messages_call(access_token: str, endpoint: str) -> dict:
     import requests
 
     resp = requests.get(endpoint, headers={"Authorization": f"Bearer {access_token}"}, timeout=15)
     resp.raise_for_status()
     return resp.json()
-
 
 def _fetch_messages(access_token: str, folder: str, since: datetime, *, graph_call: Optional[GraphMessagesCall] = None) -> list:
     call = graph_call or _default_graph_messages_call
@@ -53,7 +51,6 @@ def _fetch_messages(access_token: str, folder: str, since: datetime, *, graph_ca
     data = call(access_token, endpoint)
     return data.get("value", [])
 
-
 def _parse_graph_datetime(raw: Optional[str]) -> datetime:
     if not raw:
         return datetime.utcnow()
@@ -61,7 +58,6 @@ def _parse_graph_datetime(raw: Optional[str]) -> datetime:
         return datetime.fromisoformat(raw.replace("Z", "+00:00")).replace(tzinfo=None)
     except ValueError:
         return datetime.utcnow()
-
 
 def sync_mail_for_user(
     db: Session, user: Users, access_token: str, *,
@@ -107,7 +103,6 @@ def sync_mail_for_user(
     db.add(user)
     db.commit()
     return {"linked": linked_count, "synced": True}
-
 
 def run_msgraph_mail_sync_job(db: Session) -> dict:
     """Runs on a schedule (see app.core.scheduler) -- iterates every

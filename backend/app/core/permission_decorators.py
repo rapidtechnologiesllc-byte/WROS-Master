@@ -56,7 +56,6 @@ def require_permission(permission: str):
 
     return decorator
 
-
 def apply_data_scope(module: str):
     """Decorator to apply data scope filter to endpoint.
 
@@ -89,7 +88,6 @@ def apply_data_scope(module: str):
         return wrapper
 
     return decorator
-
 
 def mask_field(db: Session, user_id: str, table: str, field: str, value: any, tenant_id: int) -> any:
     """Mask a field value based on field-level permissions.

@@ -12,13 +12,11 @@ import enum
 
 from app.core.database import Base
 
-
 class LinkedInPipelineStatus(str, enum.Enum):
     PENDING_CONNECTION = "PENDING_CONNECTION"
     CONNECTED = "CONNECTED"
     PHONE_COLLECTED = "PHONE_COLLECTED"
     IMPORTED_TO_THUNDER = "IMPORTED_TO_THUNDER"
-
 
 class LinkedInCandidatePipeline(Base):
     __tablename__ = "linkedin_candidate_pipeline"

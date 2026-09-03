@@ -21,7 +21,6 @@ from app.services.engagement_metrics_service import calculate_engagement_health
 
 router = APIRouter(tags=["engagement-metrics"])
 
-
 @router.get(
     "/candidates/{candidate_id}/engagement-metrics",
     response_model=EngagementMetricsResponse,

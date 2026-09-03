@@ -20,7 +20,6 @@ from app.models.role_template import RoleTemplate
 from app.services.permission_composition_service import PermissionCompositionService
 from app.core.logging import logger
 
-
 router = APIRouter(prefix="/admin/permissions", tags=["Permission Composition"])
 
 logger = logging.getLogger(__name__)
@@ -30,10 +29,8 @@ class PermissionCheckRequest(BaseModel):
     required_permission: str
     user_attributes: Optional[Dict] = None
 
-
 class PermissionValidationRequest(BaseModel):
     permissions: List[str]
-
 
 @router.post(
     "/expand",
@@ -65,7 +62,6 @@ def expand_permissions(
         "permissions": sorted(list(expanded)),
         "total_permissions": len(expanded)
     }
-
 
 @router.post(
     "/check",
@@ -99,7 +95,6 @@ def check_permission(
         "has_permission": has_perm
     }
 
-
 @router.post(
     "/validate",
     dependencies=[Depends(require_resource_permission("validate", "create"))]
@@ -121,7 +116,6 @@ def validate_permissions(
         "warnings": validation["warnings"],
         "recommendation": "Review warnings and remove redundant permissions"
     }
-
 
 @router.get(
     "/{template_id}/tree",
@@ -151,7 +145,6 @@ def get_permission_tree(
         "role_name": template.name,
         **tree
     }
-
 
 @router.get(
     "/hierarchy/rules",

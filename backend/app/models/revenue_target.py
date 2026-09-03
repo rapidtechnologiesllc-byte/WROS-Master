@@ -48,7 +48,6 @@ class BURevenueTarget(Base):
     created_at = Column(DateTime, server_default=func.now())
     notes = Column(Text, nullable=True)
 
-
 class PartnerGoal(Base):
     __tablename__ = "partner_goals"
 

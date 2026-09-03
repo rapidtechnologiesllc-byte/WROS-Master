@@ -16,7 +16,6 @@ class PortalMessageRequest(BaseModel):
     # schema only guards against a wildly oversized payload.
     message_body: str = Field(..., max_length=20000)
 
-
 class PortalMessageResponse(BaseModel):
     message_id: int
     sent_at: Optional[datetime]
@@ -29,7 +28,6 @@ class PortalMessageResponse(BaseModel):
     escalated: bool = False
     suppressed: bool = False
 
-
 class PortalMessageItem(BaseModel):
     id: int
     direction: str
@@ -38,7 +36,6 @@ class PortalMessageItem(BaseModel):
     message_body: str
     sent_at: Optional[datetime]
     delivery_status: str
-
 
 class PortalMessageHistoryResponse(BaseModel):
     messages: List[PortalMessageItem]

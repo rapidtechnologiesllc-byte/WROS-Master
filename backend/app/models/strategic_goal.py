@@ -55,7 +55,6 @@ class StrategicGoal(Base):
         Index('idx_strategic_goals_created', 'tenant_id', 'created_at'),
     )
 
-
 class CascadedGoal(Base):
     """Department/role-level goal automatically cascaded from strategic goal"""
     __tablename__ = "cascaded_goals"
@@ -97,7 +96,6 @@ class CascadedGoal(Base):
         Index('idx_cascaded_goals_dept', 'tenant_id', 'cascaded_to_department'),
         Index('idx_cascaded_goals_user', 'cascaded_to_user_id'),
     )
-
 
 class PyramidReport(Base):
     """Weekly pyramid reporting records for audit and history"""

@@ -18,12 +18,10 @@ from typing import Sequence, Union
 from alembic import op
 import sqlalchemy as sa
 
-
 revision: str = 'a5c8e2f4b6d9'
 down_revision: Union[str, Sequence[str], None] = 'c7e9a1f3b5d7'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
-
 
 def upgrade() -> None:
     """Upgrade schema."""
@@ -48,7 +46,6 @@ def upgrade() -> None:
             'contact_role_type',
             "role_type IN ('HIRING_MANAGER','TECHNICAL_PANEL','PROCUREMENT','ACCOUNTS','PRIMARY','TIMESHEET_APPROVER')",
         )
-
 
 def downgrade() -> None:
     """Downgrade schema."""

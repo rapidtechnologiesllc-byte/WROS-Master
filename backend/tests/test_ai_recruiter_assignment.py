@@ -27,7 +27,6 @@ from app.models.user import Users
 
 import app.services.ai_conversation_service as svc
 
-
 @pytest.fixture()
 def db_session():
     fd, db_path = tempfile.mkstemp(suffix=".sqlite3")
@@ -46,19 +45,16 @@ def db_session():
         engine.dispose()
         os.remove(db_path)
 
-
 @pytest.fixture(autouse=True)
 def _stub_missing_fields_email(monkeypatch):
     """assign_ai_agent() tries to send a real missing-fields email via
     MS Graph -- stub it out, unrelated to what these tests check."""
     monkeypatch.setattr(svc, "_send_missing_fields_email", lambda *a, **kw: False)
 
-
 def test_resolve_thunder_config_defaults_when_no_tenant_row(db_session):
     config = svc.resolve_thunder_config(db_session, "nonexistent-tenant")
     assert config["name"] == svc.DEFAULT_THUNDER_DISPLAY_NAME
     assert config["persona"] == svc.DEFAULT_THUNDER_PERSONA_TEXT
-
 
 def test_resolve_thunder_config_uses_tenant_override(db_session):
     tenant = Users(UserID="U-ORG", UserRole="Super User", UserEmail="ceo@blitzenx.com", UserPassword="h",
@@ -70,7 +66,6 @@ def test_resolve_thunder_config_uses_tenant_override(db_session):
     assert config["name"] == "Zappy"
     assert config["persona"] == "I am Zappy, your custom recruiter bot."
 
-
 def test_resolve_thunder_config_blank_name_falls_back_to_default(db_session):
     """BR-02: an agent name must never reach a candidate blank."""
     tenant = Users(UserID="U-ORG", UserRole="Super User", UserEmail="ceo@blitzenx.com", UserPassword="h",
@@ -80,7 +75,6 @@ def test_resolve_thunder_config_blank_name_falls_back_to_default(db_session):
 
     config = svc.resolve_thunder_config(db_session, "U-ORG")
     assert config["name"] == svc.DEFAULT_THUNDER_DISPLAY_NAME
-
 
 def test_assign_ai_agent_stores_resolved_config_on_assignment(db_session):
     tenant = Users(UserID="U-ORG", UserRole="Super User", UserEmail="ceo@blitzenx.com", UserPassword="h")
@@ -94,7 +88,6 @@ def test_assign_ai_agent_stores_resolved_config_on_assignment(db_session):
     assert assignment.ai_agent_name == "Thunder"
     assert assignment.is_active is True
 
-
 def test_assign_ai_agent_uses_tenant_custom_name(db_session):
     tenant = Users(UserID="U-ORG", UserRole="Super User", UserEmail="ceo@blitzenx.com", UserPassword="h",
                     ai_agent_name="Nova", ai_agent_persona="I am Nova.")
@@ -106,7 +99,6 @@ def test_assign_ai_agent_uses_tenant_custom_name(db_session):
     assignment = db_session.query(CandidateAIAssignment).filter(CandidateAIAssignment.id == result["assignment_id"]).first()
     assert assignment.ai_agent_name == "Nova"
     assert assignment.ai_agent_persona == "I am Nova."
-
 
 def test_reassign_ai_agent_deactivates_old_creates_new(db_session):
     tenant = Users(UserID="U-ORG", UserRole="Super User", UserEmail="ceo@blitzenx.com", UserPassword="h")
@@ -129,7 +121,6 @@ def test_reassign_ai_agent_deactivates_old_creates_new(db_session):
     assert new_assignment.is_active is True
     assert new_assignment.ai_agent_name == "Blaze"
 
-
 def test_tenant_config_change_does_not_retroactively_update_existing_assignment(db_session):
     """AC: 'Tenant config change after assignment does NOT auto-update
     existing candidate assignments' -- the point-in-time copy stays put
@@ -146,7 +137,6 @@ def test_tenant_config_change_does_not_retroactively_update_existing_assignment(
 
     assignment = db_session.query(CandidateAIAssignment).filter(CandidateAIAssignment.id == result["assignment_id"]).first()
     assert assignment.ai_agent_name == "Thunder"  # unchanged despite the tenant config edit
-
 
 def test_get_active_ai_assignment_returns_only_active(db_session):
     tenant = Users(UserID="U-ORG", UserRole="Super User", UserEmail="ceo@blitzenx.com", UserPassword="h")

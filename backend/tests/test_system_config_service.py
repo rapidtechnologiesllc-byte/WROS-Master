@@ -27,7 +27,6 @@ from app.models.user import Users
 
 import app.services.system_config_service as svc
 
-
 @pytest.fixture()
 def db_session():
     fd, db_path = tempfile.mkstemp(suffix=".sqlite3")
@@ -43,7 +42,6 @@ def db_session():
         session.close()
         engine.dispose()
         os.remove(db_path)
-
 
 @pytest.fixture()
 def seeded(db_session):
@@ -62,11 +60,9 @@ def seeded(db_session):
     svc.invalidate_config_cache(tenant.id)
     return {"tenant_id": tenant.id, "bu_id": bu.id, "admin_id": admin.UserID}
 
-
 def test_unconfigured_key_returns_real_default(db_session, seeded):
     value = svc.get_config_value(db_session, tenant_id=seeded["tenant_id"], key="business_hours_start", use_cache=False)
     assert value == 8  # notification_service.BUSINESS_HOURS_START
-
 
 def test_tenant_default_used_when_no_bu_override(db_session, seeded):
     svc.set_config_value(
@@ -78,7 +74,6 @@ def test_tenant_default_used_when_no_bu_override(db_session, seeded):
         business_unit_id=seeded["bu_id"], use_cache=False,
     )
     assert value == 9
-
 
 def test_bu_override_beats_tenant_default(db_session, seeded):
     svc.set_config_value(
@@ -100,13 +95,11 @@ def test_bu_override_beats_tenant_default(db_session, seeded):
     assert bu_scoped == 7
     assert tenant_scoped == 9
 
-
 def test_unknown_key_rejected(db_session, seeded):
     with pytest.raises(svc.UnknownConfigKey):
         svc.set_config_value(
             db_session, tenant_id=seeded["tenant_id"], key="not_a_real_key", value=1, updated_by=seeded["admin_id"],
         )
-
 
 def test_out_of_range_percent_rejected(db_session, seeded):
     with pytest.raises(svc.InvalidConfigValue):
@@ -114,7 +107,6 @@ def test_out_of_range_percent_rejected(db_session, seeded):
             db_session, tenant_id=seeded["tenant_id"], key="low_confidence_threshold", value=1.5,
             updated_by=seeded["admin_id"],
         )
-
 
 def test_config_write_produces_exactly_one_audit_entry_with_old_and_new(db_session, seeded):
     before_count = db_session.query(AuditLog).count()
@@ -130,7 +122,6 @@ def test_config_write_produces_exactly_one_audit_entry_with_old_and_new(db_sessi
     assert entry.new_value == "0.8"
     assert entry.user_id == seeded["admin_id"]
 
-
 def test_locale_reads_real_tenant_columns_not_a_shadow_copy(db_session, seeded):
     locale = svc.get_locale_config(db_session, seeded["tenant_id"])
     assert locale["default_currency"] == "USD"  # Tenant's own real server_default
@@ -141,13 +132,11 @@ def test_locale_reads_real_tenant_columns_not_a_shadow_copy(db_session, seeded):
     tenant = db_session.query(Tenant).filter(Tenant.id == seeded["tenant_id"]).first()
     assert tenant.default_currency == "INR"  # written straight to Tenant, no shadow row anywhere
 
-
 def test_locale_rejects_invalid_currency(db_session, seeded):
     with pytest.raises(svc.InvalidConfigValue):
         svc.update_locale_config(
             db_session, seeded["tenant_id"], {"default_currency": "NOT_A_CURRENCY"}, updated_by=seeded["admin_id"],
         )
-
 
 def test_settings_panel_groups_by_category(db_session, seeded):
     panel = svc.get_settings_panel(db_session, tenant_id=seeded["tenant_id"])

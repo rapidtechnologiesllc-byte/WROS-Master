@@ -23,7 +23,6 @@ from app.services.thunder_analytics_service import get_thunder_analytics
 
 router = APIRouter(prefix="/analytics", tags=["thunder-analytics"])
 
-
 @router.get("/thunder", response_model=ThunderAnalyticsResponse, dependencies=[Depends(require_resource_permission("candidates", "view"))])
 def thunder_analytics(
     date_from: Optional[date] = Query(default=None),

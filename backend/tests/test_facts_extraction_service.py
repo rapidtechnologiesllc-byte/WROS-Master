@@ -28,7 +28,6 @@ from app.models.user import Jobs, Users
 
 import app.services.facts_extraction_service as svc
 
-
 @pytest.fixture()
 def db_session():
     fd, db_path = tempfile.mkstemp(suffix=".sqlite3")
@@ -47,7 +46,6 @@ def db_session():
         engine.dispose()
         os.remove(db_path)
 
-
 @pytest.fixture()
 def seeded(db_session):
     owner = Users(UserID="U-ORG", UserRole="Super User", UserEmail="ceo@blitzenx.com", UserPassword="h")
@@ -59,7 +57,6 @@ def seeded(db_session):
     db_session.add(conv)
     db_session.commit()
     return candidate, conv
-
 
 def test_extracts_salary_fact_and_upserts_into_memory(db_session, seeded):
     candidate, conv = seeded
@@ -74,7 +71,6 @@ def test_extracts_salary_fact_and_upserts_into_memory(db_session, seeded):
     assert len(stored) == 1
     assert stored[0].fact_value == "24 LPA"
 
-
 def test_extracts_constraint_fact(db_session, seeded):
     candidate, conv = seeded
     llm_response = json.dumps([{"fact_category": "CONSTRAINT", "fact_key": "location_constraint", "fact_value": "Chicago only, no relocation", "confidence": 0.85}])
@@ -84,7 +80,6 @@ def test_extracts_constraint_fact(db_session, seeded):
     assert facts[0]["fact_category"] == "CONSTRAINT"
     assert facts[0]["fact_value"] == "Chicago only, no relocation"
 
-
 def test_high_confidence_fact_updates_profile_field(db_session, seeded):
     candidate, conv = seeded
     llm_response = json.dumps([{"fact_category": "SALARY", "fact_key": "expected_ctc", "fact_value": "28 LPA", "confidence": 0.8}])
@@ -93,7 +88,6 @@ def test_high_confidence_fact_updates_profile_field(db_session, seeded):
     db_session.refresh(candidate)
 
     assert candidate.candidateExpectedSalary == "28 LPA"
-
 
 def test_low_confidence_fact_does_not_update_profile(db_session, seeded):
     candidate, conv = seeded
@@ -107,7 +101,6 @@ def test_low_confidence_fact_does_not_update_profile(db_session, seeded):
     stored = db_session.query(CandidateMemoryFact).filter(CandidateMemoryFact.candidate_id == "C-1").first()
     assert stored is not None  # still stored in memory though
 
-
 def test_unmapped_fact_key_does_not_touch_profile(db_session, seeded):
     candidate, conv = seeded
     llm_response = json.dumps([{"fact_category": "PREFERENCE", "fact_key": "domain_interest", "fact_value": "Healthcare", "confidence": 0.9}])
@@ -116,7 +109,6 @@ def test_unmapped_fact_key_does_not_touch_profile(db_session, seeded):
 
     stored = db_session.query(CandidateMemoryFact).filter(CandidateMemoryFact.candidate_id == "C-1").first()
     assert stored.fact_value == "Healthcare"
-
 
 def test_llm_failure_returns_empty_list_and_logs_failure_no_crash(db_session, seeded):
     candidate, conv = seeded
@@ -130,7 +122,6 @@ def test_llm_failure_returns_empty_list_and_logs_failure_no_crash(db_session, se
     failures = db_session.query(ConversationEvent).filter(ConversationEvent.conversation_id == conv.id, ConversationEvent.event_type == "FACTS_EXTRACTION_FAILED").all()
     assert len(failures) == 1
 
-
 def test_invalid_json_returns_empty_list_and_logs_failure(db_session, seeded):
     candidate, conv = seeded
     facts = svc.extract_facts(db_session, candidate, "U-ORG", conv.id, "msg", llm_call=lambda p: "not valid json{{{")
@@ -139,12 +130,10 @@ def test_invalid_json_returns_empty_list_and_logs_failure(db_session, seeded):
     failures = db_session.query(ConversationEvent).filter(ConversationEvent.conversation_id == conv.id, ConversationEvent.event_type == "FACTS_EXTRACTION_FAILED").all()
     assert len(failures) == 1
 
-
 def test_empty_array_response_is_valid_no_facts(db_session, seeded):
     candidate, conv = seeded
     facts = svc.extract_facts(db_session, candidate, "U-ORG", conv.id, "just saying hi", llm_call=lambda p: "[]")
     assert facts == []
-
 
 def test_facts_extracted_event_logged_with_keys_and_count(db_session, seeded):
     candidate, conv = seeded
@@ -158,7 +147,6 @@ def test_facts_extracted_event_logged_with_keys_and_count(db_session, seeded):
     assert len(events) == 1
     assert events[0].event_data["facts_count"] == 2
     assert set(events[0].event_data["fact_keys_extracted"]) == {"expected_ctc", "notice_period_text"}
-
 
 def test_invalid_category_item_is_skipped_not_crashed(db_session, seeded):
     candidate, conv = seeded

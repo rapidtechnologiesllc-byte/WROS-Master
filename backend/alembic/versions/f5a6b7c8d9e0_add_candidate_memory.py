@@ -13,7 +13,6 @@ down_revision = "e4f5a6b7c8d9"
 branch_labels = None
 depends_on = None
 
-
 def upgrade():
     op.create_table(
         "candidate_memory",
@@ -47,7 +46,6 @@ def upgrade():
         "ix_candidate_memory_facts_lookup", "candidate_memory_facts",
         ["candidate_id", "tenant_id", "fact_category", "is_active"],
     )
-
 
 def downgrade():
     op.drop_index("ix_candidate_memory_facts_lookup", table_name="candidate_memory_facts")

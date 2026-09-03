@@ -33,10 +33,8 @@ from sqlalchemy import (
 
 from app.models.base import Base
 
-
 def _new_uuid() -> str:
     return str(uuid.uuid4())
-
 
 BENCH_RECOMMENDATION_STATUSES = ("PENDING_RM_REVIEW", "IN_PROGRESS", "APPROVED", "REJECTED")
 

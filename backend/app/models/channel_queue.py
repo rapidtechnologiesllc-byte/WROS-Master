@@ -26,7 +26,6 @@ from sqlalchemy.orm import relationship
 
 from app.models.base import Base
 
-
 def _new_uuid() -> str:
     return str(uuid.uuid4())
 
@@ -80,7 +79,6 @@ class ChannelQueueItem(Base):
         Index("ix_channel_queue_item_message", "message_id"),
     )
 
-
 class ChannelQueueLog(Base):
     """Audit trail for channel queue processing"""
 
@@ -92,7 +90,6 @@ class ChannelQueueLog(Base):
     message = Column(Text(), nullable=True)  # Status message or error
     processing_time_ms = Column(Integer, nullable=True)  # How long it took
     timestamp = Column(DateTime(timezone=False), server_default=func.now(), nullable=False)
-
 
 class SLMChannelDecision(Base):
     """SLM's decision on which channels to trigger for a message"""

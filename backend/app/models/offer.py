@@ -26,7 +26,6 @@ class OfferStatus(str, Enum):
     EXPIRED = "EXPIRED"
     SIGNED = "SIGNED"
 
-
 class Offer(Base):
     """
     Complete offer record tracking candidate offers through approval and acceptance.

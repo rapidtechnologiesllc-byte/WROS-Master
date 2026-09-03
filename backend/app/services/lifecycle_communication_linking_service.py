@@ -38,7 +38,6 @@ from app.services.activity_timeline_service import write_timeline_entry
 
 DIRECTIONS = ("SENT", "RECEIVED")
 
-
 def _resolve_entity(db: Session, email: str):
     """Returns (entity_type, entity_id, display_name) for a verified
     email address, or None if it matches neither a known employee nor
@@ -59,7 +58,6 @@ def _resolve_entity(db: Session, email: str):
         return "candidate", candidate.candidateID, name
 
     return None
-
 
 def link_email_to_lifecycle_record(
     db: Session,

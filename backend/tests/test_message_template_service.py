@@ -17,7 +17,6 @@ from app.models.candidate import Candidate
 from app.models.message_template import MessageTemplate
 from app.models.user import Users
 
-
 @pytest.fixture()
 def db_session():
     fd, db_path = tempfile.mkstemp(suffix=".sqlite3")
@@ -32,14 +31,12 @@ def db_session():
         engine.dispose()
         os.remove(db_path)
 
-
 @pytest.fixture()
 def tenant(db_session):
     owner = Users(UserID="U-ORG", UserRole="Super User", UserEmail="ceo@blitzenx.com", UserPassword="h")
     db_session.add(owner)
     db_session.commit()
     return owner
-
 
 def test_create_template_version_starts_at_1_inactive(db_session, tenant):
     t = svc.create_template_version(
@@ -49,17 +46,14 @@ def test_create_template_version_starts_at_1_inactive(db_session, tenant):
     assert t.version == 1
     assert t.is_active is False
 
-
 def test_create_template_version_increments(db_session, tenant):
     svc.create_template_version(db_session, tenant_id="U-ORG", template_key="GREETING_WHATSAPP", template_name="V1", channel="WHATSAPP", body="Hi {{candidate_name}}")
     t2 = svc.create_template_version(db_session, tenant_id="U-ORG", template_key="GREETING_WHATSAPP", template_name="V2", channel="WHATSAPP", body="Hey {{candidate_name}}")
     assert t2.version == 2
 
-
 def test_create_template_unknown_key_rejected(db_session, tenant):
     with pytest.raises(ValueError):
         svc.create_template_version(db_session, tenant_id="U-ORG", template_key="NOT_A_REAL_KEY", template_name="X", channel="WHATSAPP", body="hi")
-
 
 def test_activate_deactivates_previous_version(db_session, tenant):
     t1 = svc.create_template_version(db_session, tenant_id="U-ORG", template_key="GREETING_WHATSAPP", template_name="V1", channel="WHATSAPP", body="Hi {{candidate_name}}")
@@ -72,13 +66,11 @@ def test_activate_deactivates_previous_version(db_session, tenant):
     assert t1.is_active is False
     assert t2.is_active is True
 
-
 def test_activate_records_approved_by(db_session, tenant):
     t1 = svc.create_template_version(db_session, tenant_id="U-ORG", template_key="GREETING_WHATSAPP", template_name="V1", channel="WHATSAPP", body="Hi {{candidate_name}}")
     activated = svc.activate_template(db_session, t1.id, activated_by="U-ADMIN")
     assert activated.approved_by == "U-ADMIN"
     assert activated.approved_at is not None
-
 
 def test_render_template_happy_path(db_session, tenant):
     t = svc.create_template_version(db_session, tenant_id="U-ORG", template_key="GREETING_WHATSAPP", template_name="V1", channel="WHATSAPP", body="Hi {{candidate_name}}, I am {{agent_name}} from {{company_name}}.")
@@ -88,12 +80,10 @@ def test_render_template_happy_path(db_session, tenant):
     assert result["rendered_body"] == "Hi Jordan, I am Thunder from BlitzenX."
     assert "{" not in result["rendered_body"]
 
-
 def test_render_template_no_active_raises_not_found(db_session, tenant):
     svc.create_template_version(db_session, tenant_id="U-ORG", template_key="GREETING_WHATSAPP", template_name="V1", channel="WHATSAPP", body="Hi {{candidate_name}}")
     with pytest.raises(svc.TemplateNotFoundError):
         svc.render_template(db_session, "GREETING_WHATSAPP", "WHATSAPP", "U-ORG", {"candidate_name": "Jordan"})
-
 
 def test_render_template_missing_variable_raises_render_error(db_session, tenant):
     t = svc.create_template_version(db_session, tenant_id="U-ORG", template_key="GREETING_WHATSAPP", template_name="V1", channel="WHATSAPP", body="Hi {{candidate_name}}, from {{company_name}}")
@@ -102,7 +92,6 @@ def test_render_template_missing_variable_raises_render_error(db_session, tenant
     with pytest.raises(svc.TemplateRenderError) as exc_info:
         svc.render_template(db_session, "GREETING_WHATSAPP", "WHATSAPP", "U-ORG", {"candidate_name": "Jordan"})
     assert "company_name" in str(exc_info.value)
-
 
 def test_render_template_ambiguity_multiple_active_raises_not_found(db_session, tenant):
     t1 = svc.create_template_version(db_session, tenant_id="U-ORG", template_key="GREETING_WHATSAPP", template_name="V1", channel="WHATSAPP", body="Hi {{candidate_name}}")
@@ -114,7 +103,6 @@ def test_render_template_ambiguity_multiple_active_raises_not_found(db_session, 
     with pytest.raises(svc.TemplateNotFoundError):
         svc.render_template(db_session, "GREETING_WHATSAPP", "WHATSAPP", "U-ORG", {"candidate_name": "Jordan"})
 
-
 def test_editing_creates_new_version_does_not_mutate_original(db_session, tenant):
     t1 = svc.create_template_version(db_session, tenant_id="U-ORG", template_key="GREETING_WHATSAPP", template_name="V1", channel="WHATSAPP", body="Original body")
     original_body = t1.body
@@ -123,7 +111,6 @@ def test_editing_creates_new_version_does_not_mutate_original(db_session, tenant
 
     db_session.refresh(t1)
     assert t1.body == original_body == "Original body"
-
 
 def test_preview_template_uses_real_candidate_data(db_session, tenant):
     candidate = Candidate(candidateID="C-100", candidateEmail="cand@example.com", candidatePassword="h", candidateFirstName="Priya")
@@ -136,7 +123,6 @@ def test_preview_template_uses_real_candidate_data(db_session, tenant):
     assert result["candidate_name_used"] == "Priya"
     assert "Priya" in result["rendered_body"]
     assert "Thunder" in result["rendered_body"]
-
 
 def test_list_templates_filters_by_channel(db_session, tenant):
     svc.create_template_version(db_session, tenant_id="U-ORG", template_key="GREETING_WHATSAPP", template_name="WA", channel="WHATSAPP", body="Hi {{candidate_name}}")

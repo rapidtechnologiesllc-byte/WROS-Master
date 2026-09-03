@@ -19,12 +19,10 @@ from typing import Sequence, Union
 from alembic import op
 import sqlalchemy as sa
 
-
 revision: str = 'd9e0f1a2b3c4'
 down_revision: Union[str, Sequence[str], None] = 'c8d9e0f1a2b3'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
-
 
 def upgrade() -> None:
     op.create_table(
@@ -50,7 +48,6 @@ def upgrade() -> None:
     op.create_index(op.f('ix_employee_milestones_tenant_id'), 'employee_milestones', ['tenant_id'], unique=False)
     op.create_index(op.f('ix_employee_milestones_project_id'), 'employee_milestones', ['project_id'], unique=False)
     op.create_index(op.f('ix_employee_milestones_employee_id'), 'employee_milestones', ['employee_id'], unique=False)
-
 
 def downgrade() -> None:
     op.drop_index(op.f('ix_employee_milestones_employee_id'), table_name='employee_milestones')

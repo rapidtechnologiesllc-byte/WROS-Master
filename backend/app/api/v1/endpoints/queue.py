@@ -16,7 +16,6 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/queues", tags=["queue"])
 
-
 @router.get(
     "",
     dependencies=[Depends(require_resource_permission("unknown", "view"))]
@@ -95,7 +94,6 @@ def list_queue_messages(
         "limit": limit,
     }
 
-
 @router.get(
     "/stats",
     dependencies=[Depends(require_resource_permission("stat", "view"))]
@@ -141,7 +139,6 @@ def get_queue_stats(db: Session = Depends(get_db)) -> Dict[str, Any]:
         "queues": queue_stats,
         "email_metrics": email_metrics,
     }
-
 
 @router.get("/{message_id}", dependencies=[Depends(require_resource_permission("system", "manage"))])
 def get_message_detail(message_id: str, db: Session = Depends(get_db)) -> Dict[str, Any]:
@@ -196,7 +193,6 @@ def get_message_detail(message_id: str, db: Session = Depends(get_db)) -> Dict[s
         "email_events": email_events,
     }
 
-
 @router.post("/{message_id}/retry", dependencies=[Depends(require_resource_permission("system", "manage"))])
 def retry_message(message_id: str, db: Session = Depends(get_db)) -> Dict[str, Any]:
     """Retry a failed message."""
@@ -223,7 +219,6 @@ def retry_message(message_id: str, db: Session = Depends(get_db)) -> Dict[str, A
         "retry_count": message.retry_count,
     }
 
-
 @router.post("/{message_id}/clear", dependencies=[Depends(require_resource_permission("system", "manage"))])
 def clear_message(message_id: str, db: Session = Depends(get_db)) -> Dict[str, Any]:
     """Clear/delete a message from the queue."""
@@ -243,7 +238,6 @@ def clear_message(message_id: str, db: Session = Depends(get_db)) -> Dict[str, A
         "message_id": message_id,
         "action": "deleted",
     }
-
 
 @router.post(
     "/{queue_type}/start",
@@ -271,7 +265,6 @@ def start_queue(queue_type: str, db: Session = Depends(get_db)) -> Dict[str, Any
         logger.error(f"Failed to start queue {queue_type}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to start queue: {str(e)}")
 
-
 @router.post(
     "/{queue_type}/stop",
     dependencies=[Depends(require_resource_permission("queue", "create"))]
@@ -297,7 +290,6 @@ def stop_queue(queue_type: str, db: Session = Depends(get_db)) -> Dict[str, Any]
     except Exception as e:
         logger.error(f"Failed to stop queue {queue_type}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to stop queue: {str(e)}")
-
 
 @router.post(
     "/{queue_type}/retry",
@@ -335,7 +327,6 @@ def retry_queue(queue_type: str, db: Session = Depends(get_db)) -> Dict[str, Any
         db.rollback()
         logger.error(f"Failed to retry queue {queue_type}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to retry queue: {str(e)}")
-
 
 @router.get("/email/{message_id}/engagement", dependencies=[Depends(require_resource_permission("system", "manage"))])
 def get_email_engagement_metrics(message_id: str, db: Session = Depends(get_db)) -> Dict[str, Any]:

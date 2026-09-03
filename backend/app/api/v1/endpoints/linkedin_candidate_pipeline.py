@@ -20,15 +20,12 @@ from fastapi import Request
 
 router = APIRouter(prefix="/linkedin-candidate-pipeline", tags=["LinkedIn Pipeline"])
 
-
 class LinkedInQueueRequest(BaseModel):
     linkedin_url: str
-
 
 class LinkedInImportRequest(BaseModel):
     linkedin_url: str
     phone_number: Optional[str] = None
-
 
 class LinkedInPipelineItemResponse(BaseModel):
     id: str
@@ -44,7 +41,6 @@ class LinkedInPipelineItemResponse(BaseModel):
     class Config:
         from_attributes = True
 
-
 def parse_linkedin_url(linkedin_url: str) -> str:
     """Extract profile slug from LinkedIn URL."""
     # Match /in/profile-slug pattern
@@ -55,7 +51,6 @@ def parse_linkedin_url(linkedin_url: str) -> str:
             detail="Invalid LinkedIn URL format. Expected: https://linkedin.com/in/profile-slug"
         )
     return match.group(1)
-
 
 @router.post("/queue")
 async def queue_linkedin_candidate(
@@ -131,7 +126,6 @@ async def queue_linkedin_candidate(
         "profile_slug": profile_slug
     }
 
-
 @router.get("/list")
 async def list_pipeline_items(
     status_filter: Optional[str] = None,
@@ -165,7 +159,6 @@ async def list_pipeline_items(
             for item in items
         ]
     }
-
 
 @router.post("/{pipeline_id}/complete-import")
 async def complete_linkedin_import(
@@ -234,7 +227,6 @@ async def complete_linkedin_import(
         "pipeline_id": str(pipeline_item.id)
     }
 
-
 @router.get("/dashboard/activity")
 async def get_linkedin_activity_for_dashboard(
     db: Session = Depends(get_db),
@@ -247,7 +239,6 @@ async def get_linkedin_activity_for_dashboard(
     Includes: candidate name, URL, assigned recruiter, days in pipeline,
     status, and pending actions.
     """
-    from datetime import datetime
 
     query = db.query(LinkedInCandidatePipeline).order_by(
         LinkedInCandidatePipeline.created_at.desc()
@@ -283,7 +274,6 @@ async def get_linkedin_activity_for_dashboard(
         "count": len(items),
         "items": items
     }
-
 
 @router.put("/{pipeline_id}/status")
 async def update_pipeline_status(

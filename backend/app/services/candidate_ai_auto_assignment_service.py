@@ -37,7 +37,6 @@ class CandidateAIAssignmentError(Exception):
     """Raised when automatic AI assignment fails."""
     pass
 
-
 def auto_assign_ai_recruiter(
     db: Session,
     candidate_id: str,
@@ -137,7 +136,6 @@ def auto_assign_ai_recruiter(
         db.rollback()
         logger.error(f"[AI_ASSIGN] Unexpected error: {e}")
         raise CandidateAIAssignmentError(str(e))
-
 
 def ensure_candidate_has_ai_assignment(
     db: Session,

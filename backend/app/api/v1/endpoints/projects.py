@@ -79,7 +79,6 @@ from app.services.project_service import (
 
 router = APIRouter(prefix="/projects", tags=["projects"])
 
-
 def _to_item(project: Project) -> ProjectItem:
     return ProjectItem(
         id=project.id, client_id=project.client_id, opportunity_id=project.opportunity_id,
@@ -92,7 +91,6 @@ def _to_item(project: Project) -> ProjectItem:
         start_date=project.start_date, end_date=project.end_date,
     )
 
-
 def _milestone_to_item(m: ProjectMilestone) -> MilestoneItem:
     return MilestoneItem(
         id=m.id, project_id=m.project_id, title=m.title, description=m.description,
@@ -100,13 +98,11 @@ def _milestone_to_item(m: ProjectMilestone) -> MilestoneItem:
         is_complete=m.is_complete, completion_date=m.completion_date, delay_days=m.delay_days,
     )
 
-
 def _get_project_or_404(db: Session, project_id: str) -> Project:
     project = db.query(Project).filter(Project.id == project_id).first()
     if project is None:
         raise HTTPException(status_code=404, detail="Project not found.")
     return project
-
 
 @router.post("", response_model=ProjectItem, summary="Create a project")
 @require_permission("project.create")
@@ -168,7 +164,6 @@ def create_project_endpoint(
     db.refresh(project)
     return _to_item(project)
 
-
 @router.get("", response_model=ProjectListResponse, summary="List projects")
 @require_permission("project.view")
 def list_projects(
@@ -185,7 +180,6 @@ def list_projects(
     projects = query.order_by(Project.created_at.desc()).all()
     return ProjectListResponse(projects=[_to_item(p) for p in projects])
 
-
 @router.get("/{project_id}", response_model=ProjectItem, summary="Get one project")
 @require_permission("project.view")
 def get_project(
@@ -194,7 +188,6 @@ def get_project(
     current_user: Users = Depends(get_current_internal_user),
 ):
     return _to_item(_get_project_or_404(db, project_id))
-
 
 @router.post("/{project_id}/status", response_model=ProjectItem, summary="Transition project status")
 @require_permission("project.edit")
@@ -212,7 +205,6 @@ def transition_status(
     db.commit()
     db.refresh(project)
     return _to_item(project)
-
 
 @router.post("/{project_id}/milestones", response_model=MilestoneItem, summary="Create a project milestone")
 @require_permission("project.create")
@@ -232,7 +224,6 @@ def create_milestone_endpoint(
     db.refresh(milestone)
     return _milestone_to_item(milestone)
 
-
 @router.get("/{project_id}/milestones", response_model=MilestoneListResponse, summary="List project milestones")
 @require_permission("project.view")
 def list_milestones(
@@ -248,7 +239,6 @@ def list_milestones(
         .all()
     )
     return MilestoneListResponse(milestones=[_milestone_to_item(m) for m in milestones])
-
 
 @router.post(
     "/{project_id}/milestones/{milestone_id}/complete", response_model=MilestoneItem,
@@ -275,7 +265,6 @@ def complete_milestone_endpoint(
     db.refresh(milestone)
     return _milestone_to_item(milestone)
 
-
 @router.get(
     "/{project_id}/unfilled-roles", response_model=UnfilledRolesResponse,
     summary="Open headcount gaps for this project's linked demands",
@@ -289,7 +278,6 @@ def unfilled_roles(
     project = _get_project_or_404(db, project_id)
     gaps = get_unfilled_project_roles(db, project)
     return UnfilledRolesResponse(roles=[UnfilledRoleItem(**g) for g in gaps])
-
 
 @router.get(
     "/{project_id}/expected-revenue", response_model=ExpectedRevenueResponse,

@@ -27,7 +27,6 @@ from sqlalchemy.orm import relationship
 
 from app.models.base import Base
 
-
 # ---------------------------------------------------------------------------
 # 1. candidate_conversations
 # ---------------------------------------------------------------------------
@@ -143,7 +142,6 @@ class CandidateConversation(Base):
         cascade="all, delete-orphan",
     )
 
-
 # ---------------------------------------------------------------------------
 # 2. candidate_ai_assignments
 # ---------------------------------------------------------------------------
@@ -206,7 +204,6 @@ class CandidateAIAssignment(Base):
     tenant    = relationship("Users",     foreign_keys=[tenant_id],    lazy="select")
     candidate = relationship("Candidate", foreign_keys=[candidate_id], lazy="select")
     assigner  = relationship("Users",     foreign_keys=[assigned_by],  lazy="select")
-
 
 # ---------------------------------------------------------------------------
 # 3. conversation_events

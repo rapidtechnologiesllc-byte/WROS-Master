@@ -27,14 +27,12 @@ from app.core.database import get_database_url
 from app.models.org_hierarchy import DecisionPolicy
 from app.core.logging import logger
 
-
 def get_session():
     """Get database session"""
     db_url = get_database_url()
     engine = create_engine(db_url)
     Session = sessionmaker(bind=engine)
     return Session()
-
 
 def create_policy(
     session,
@@ -85,7 +83,6 @@ def create_policy(
     except Exception as e:
         logger.error(f"Failed to create policy {policy_name}: {e}")
         raise
-
 
 def init_policies():
     """Initialize all system policies"""
@@ -317,7 +314,6 @@ def init_policies():
         return False
     finally:
         session.close()
-
 
 if __name__ == "__main__":
     success = init_policies()

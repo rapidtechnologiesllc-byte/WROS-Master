@@ -37,7 +37,6 @@ import app.services.offer_readiness_service as svc
 from app.services.interview_service import assign_panel_member, create_interview
 from app.services.submission_service import create_submission
 
-
 @pytest.fixture()
 def db_session():
     fd, db_path = tempfile.mkstemp(suffix=".sqlite3")
@@ -57,7 +56,6 @@ def db_session():
         session.close()
         engine.dispose()
         os.remove(db_path)
-
 
 @pytest.fixture()
 def seeded(db_session):
@@ -95,7 +93,6 @@ def seeded(db_session):
 
     return tenant, candidate, submission, panel
 
-
 def _make_interview(db, tenant, submission, panel, level, outcome):
     interview = create_interview(db, tenant_id=tenant.id, submission=submission, level=level, panel=panel, scheduled_at=datetime.utcnow() - timedelta(days=1))
     db.commit()
@@ -105,7 +102,6 @@ def _make_interview(db, tenant, submission, panel, level, outcome):
         db.commit()
     return interview
 
-
 # ── TC-001: missing L1 ────────────────────────────────────────────────
 
 def test_missing_l1_interview_blocks(db_session, seeded):
@@ -113,7 +109,6 @@ def test_missing_l1_interview_blocks(db_session, seeded):
     result = svc.check_offer_readiness(db_session, "C-1", "JOB-1", "U-ORG")
     assert result["is_ready"] is False
     assert "L1 interview not completed." in result["blockers"]
-
 
 # ── TC-002: L2 failed ──────────────────────────────────────────────────
 
@@ -126,7 +121,6 @@ def test_l1_pass_l2_fail_blocks(db_session, seeded):
     assert result["is_ready"] is False
     assert "Candidate failed L2 interview." in result["blockers"]
 
-
 def test_l2_not_yet_done_blocks(db_session, seeded):
     tenant, candidate, submission, panel = seeded
     _make_interview(db_session, tenant, submission, panel, "L1", "PASS")
@@ -134,7 +128,6 @@ def test_l2_not_yet_done_blocks(db_session, seeded):
     result = svc.check_offer_readiness(db_session, "C-1", "JOB-1", "U-ORG")
     assert result["is_ready"] is False
     assert "L2 interview not completed." in result["blockers"]
-
 
 # ── TC-003: all clear ──────────────────────────────────────────────────
 
@@ -147,7 +140,6 @@ def test_all_passed_no_flags_is_ready(db_session, seeded):
     assert result["is_ready"] is True
     assert result["blockers"] == []
     assert result["warnings"] == []
-
 
 # ── TC-004: compensation mismatch is a warning, not a blocker (BR-03) ──
 
@@ -163,7 +155,6 @@ def test_compensation_mismatch_is_warning_not_blocker(db_session, seeded):
     assert result["blockers"] == []
     assert "Compensation mismatch flagged -- review before offering." in result["warnings"]
 
-
 def test_resolved_compensation_flag_does_not_warn(db_session, seeded):
     tenant, candidate, submission, panel = seeded
     _make_interview(db_session, tenant, submission, panel, "L1", "PASS")
@@ -173,7 +164,6 @@ def test_resolved_compensation_flag_does_not_warn(db_session, seeded):
 
     result = svc.check_offer_readiness(db_session, "C-1", "JOB-1", "U-ORG")
     assert result["warnings"] == []
-
 
 # ── BR-02: experience re-validation ────────────────────────────────────
 
@@ -188,7 +178,6 @@ def test_below_experience_threshold_blocks(db_session, seeded):
     assert result["is_ready"] is False
     assert "Candidate does not meet 5-year experience requirement." in result["blockers"]
 
-
 # ── Check 1: withdrawn/rejected submission blocks ─────────────────────
 
 def test_withdrawn_submission_blocks(db_session, seeded):
@@ -200,7 +189,6 @@ def test_withdrawn_submission_blocks(db_session, seeded):
     assert result["is_ready"] is False
     assert "Candidate has withdrawn or been rejected." in result["blockers"]
 
-
 def test_rejected_by_client_submission_blocks(db_session, seeded):
     tenant, candidate, submission, panel = seeded
     submission.status = "REJECTED_BY_CLIENT"
@@ -209,7 +197,6 @@ def test_rejected_by_client_submission_blocks(db_session, seeded):
     result = svc.check_offer_readiness(db_session, "C-1", "JOB-1", "U-ORG")
     assert result["is_ready"] is False
     assert "Candidate has withdrawn or been rejected." in result["blockers"]
-
 
 # ── Check 6: compliance block is a hard blocker ───────────────────────
 
@@ -224,7 +211,6 @@ def test_compliance_block_flag_blocks(db_session, seeded):
     assert result["is_ready"] is False
     assert "Outstanding compliance flag(s) must be resolved before offering." in result["blockers"]
 
-
 # ── S-052 bridge: a no-show'd interview is not "completed" ─────────────
 
 def test_no_show_interview_blocks_as_not_completed(db_session, seeded):
@@ -236,7 +222,6 @@ def test_no_show_interview_blocks_as_not_completed(db_session, seeded):
     result = svc.check_offer_readiness(db_session, "C-1", "JOB-1", "U-ORG")
     assert result["is_ready"] is False
     assert "Candidate did not join their L1 interview (no-show)." in result["blockers"]
-
 
 # ── Superseded (rescheduled-away) interviews are ignored ──────────────
 
@@ -251,12 +236,10 @@ def test_superseded_interview_ignored_current_one_used(db_session, seeded):
     result = svc.check_offer_readiness(db_session, "C-1", "JOB-1", "U-ORG")
     assert result["is_ready"] is True  # the superseded FAIL doesn't count
 
-
 def test_candidate_not_found(db_session, seeded):
     result = svc.check_offer_readiness(db_session, "NOPE", "JOB-1", "U-ORG")
     assert result["is_ready"] is False
     assert result["blockers"] == ["Candidate not found."]
-
 
 # ── Step 4: OFFER_READINESS_CHECKED logged ────────────────────────────
 

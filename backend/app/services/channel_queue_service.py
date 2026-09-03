@@ -31,7 +31,6 @@ from app.core.logging import logger
 
 logger = logging.getLogger(__name__)
 
-
 class ChannelQueueService:
     """Service for channel queue operations"""
 
@@ -150,7 +149,6 @@ class ChannelQueueService:
             raise ValueError("Database session required")
 
         try:
-            from app.models.channel_queue import ChannelQueueItem
 
             now = datetime.utcnow()
 
@@ -195,7 +193,6 @@ class ChannelQueueService:
             raise ValueError("Database session required")
 
         try:
-            from app.models.channel_queue import ChannelQueueItem
 
             item = db.query(ChannelQueueItem).filter(ChannelQueueItem.id == item_id).first()
             if not item:
@@ -220,7 +217,6 @@ class ChannelQueueService:
             raise ValueError("Database session required")
 
         try:
-            from app.models.channel_queue import ChannelQueueItem
 
             item = db.query(ChannelQueueItem).filter(ChannelQueueItem.id == item_id).first()
             if not item:
@@ -257,7 +253,6 @@ class ChannelQueueService:
             raise ValueError("Database session required")
 
         try:
-            from app.models.channel_queue import ChannelQueueItem
 
             item = db.query(ChannelQueueItem).filter(ChannelQueueItem.id == item_id).first()
             if not item:
@@ -304,7 +299,6 @@ class ChannelQueueService:
             raise ValueError("Database session required")
 
         try:
-            from app.models.channel_queue import ChannelQueueItem
             from sqlalchemy import func
 
             # Overall stats

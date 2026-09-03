@@ -31,12 +31,10 @@ from app.services.system_config_service import (
 
 router = APIRouter(prefix="/system-config", tags=["system-config"])
 
-
 def _require_tenant(current_user: Users) -> int:
     if current_user.tenant_id is None:
         raise HTTPException(status_code=403, detail="User is not assigned to a tenant")
     return current_user.tenant_id
-
 
 @router.get(
     "/settings",
@@ -51,7 +49,6 @@ def get_settings(
     tenant_id = _require_tenant(current_user)
     panel = get_settings_panel(db, tenant_id=tenant_id, business_unit_id=business_unit_id)
     return SettingsPanelResponse(**panel)
-
 
 @router.put(
     "/settings/{config_key}",
@@ -75,7 +72,6 @@ def update_setting(
     except InvalidConfigValue as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     return {"config_key": config_key, "value": row.config_value, "business_unit_id": row.business_unit_id}
-
 
 @router.put(
     "/locale",

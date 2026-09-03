@@ -27,10 +27,8 @@ from sqlalchemy.orm import relationship
 
 from app.models.base import Base
 
-
 def _new_uuid() -> str:
     return str(uuid.uuid4())
-
 
 INCENTIVE_TYPES = ("NEW_LOGO_BONUS", "REVENUE_SHARE", "DEPLOYMENT_BONUS", "OTHER")
 INCENTIVE_EVENT_STATUSES = ("PENDING", "PAID")
@@ -62,7 +60,6 @@ class PartnerIncentiveRule(Base):
     created_at = Column(DateTime, server_default=func.now())
 
     partner = relationship("Users", foreign_keys=[partner_user_id])
-
 
 class PartnerIncentiveEvent(Base):
     """One row per earned incentive -- idempotent per (rule, client) for

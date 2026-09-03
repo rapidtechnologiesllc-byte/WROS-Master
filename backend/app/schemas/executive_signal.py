@@ -11,7 +11,6 @@ logger = logging.getLogger(__name__)
 class FeedbackCycleCreateRequest(BaseModel):
     quarter_label: str
 
-
 class FeedbackCycleResponse(BaseModel):
     id: str
     quarter_label: str
@@ -22,10 +21,8 @@ class FeedbackCycleResponse(BaseModel):
     class Config:
         from_attributes = True
 
-
 class FeedbackSubmitRequest(BaseModel):
     response_text: str
-
 
 class RecognitionDraftResponse(BaseModel):
     id: str
@@ -39,10 +36,8 @@ class RecognitionDraftResponse(BaseModel):
     class Config:
         from_attributes = True
 
-
 class ConcernSubmitRequest(BaseModel):
     message_text: str
-
 
 class ConcernResponse(BaseModel):
     id: str

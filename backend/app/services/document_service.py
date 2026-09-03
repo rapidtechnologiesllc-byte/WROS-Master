@@ -20,7 +20,6 @@ from app.models.document import CandidateDocument
 from app.core.logging import logger
 from app.core.graph_auth import get_graph_token
 
-
 # SharePoint configuration
 SHAREPOINT_SITE_ID = os.getenv("SHAREPOINT_SITE_ID", "")
 SHAREPOINT_DRIVE_ID = os.getenv("SHAREPOINT_DRIVE_ID", "")

@@ -30,7 +30,6 @@ from app.models.user import Users
 from app.services.rbac_service_template import RBACService
 import app.models  # noqa: F401
 
-
 @pytest.fixture()
 def throwaway_jwt_keys(monkeypatch):
     key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
@@ -45,7 +44,6 @@ def throwaway_jwt_keys(monkeypatch):
     ).decode()
     monkeypatch.setattr(security, "PRIVATE_KEY", private_pem)
     monkeypatch.setattr(security, "PUBLIC_KEY", public_pem)
-
 
 @pytest.fixture()
 def client(throwaway_jwt_keys):
@@ -158,11 +156,9 @@ def client(throwaway_jwt_keys):
         engine.dispose()
         os.remove(db_path)
 
-
 def _avinash_auth():
     token = security.create_access_token(data={"sub": "avinash@blitzenx.com", "type": "internal", "name": "avinash@blitzenx.com"})
     return {"Authorization": f"Bearer {token}"}
-
 
 def test_revenue_to_demand_projection(client):
     ids = client.wros_ids
@@ -179,7 +175,6 @@ def test_revenue_to_demand_projection(client):
     assert body["open_demand_headcount"] == 1
     # gap = needed(4) - current(2) - already-open-demand(1) = 1 more to plan for
     assert body["workforce_gap"] == 1.0
-
 
 def test_zero_headcount_returns_no_ratio(client):
     """A BU with no current headcount can't derive a revenue-per-head

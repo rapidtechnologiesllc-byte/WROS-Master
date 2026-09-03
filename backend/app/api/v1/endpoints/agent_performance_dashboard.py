@@ -10,7 +10,6 @@ from app.services.agent_performance_dashboard_service import AgentPerformanceDas
 
 router = APIRouter(prefix="/dashboard/agents", tags=["agent-dashboard"])
 
-
 @router.get("/all", dependencies=[Depends(require_resource_permission("agents", "view"))])
 def get_all_agents_performance(
     db: Session = Depends(get_db),
@@ -55,7 +54,6 @@ def get_all_agents_performance(
     """
     return AgentPerformanceDashboard.get_all_agents_performance(db)
 
-
 @router.get("/by-tier/{tier}", dependencies=[Depends(require_resource_permission("agents", "view"))])
 def get_agents_by_tier(
     tier: str,
@@ -70,7 +68,6 @@ def get_agents_by_tier(
         "agents": agents,
     }
 
-
 @router.get("/by-domain/{domain}", dependencies=[Depends(require_resource_permission("agents", "view"))])
 def get_agents_by_domain(
     domain: str,
@@ -84,7 +81,6 @@ def get_agents_by_domain(
         "agent_count": len(agents),
         "agents": agents,
     }
-
 
 @router.get("/at-risk", dependencies=[Depends(require_resource_permission("agents", "view"))])
 def get_at_risk_agents(
@@ -106,7 +102,6 @@ def get_at_risk_agents(
         "agents": agents,
     }
 
-
 @router.get("/healthy", dependencies=[Depends(require_resource_permission("agents", "view"))])
 def get_healthy_agents(
     db: Session = Depends(get_db),
@@ -124,7 +119,6 @@ def get_healthy_agents(
         "healthy_count": len(agents),
         "agents": agents,
     }
-
 
 @router.get("/critical", dependencies=[Depends(require_resource_permission("agents", "view"))])
 def get_critical_agents(
@@ -144,7 +138,6 @@ def get_critical_agents(
         "critical_count": len(agents),
         "agents": agents,
     }
-
 
 @router.get("/summary", dependencies=[Depends(require_resource_permission("agents", "view"))])
 def get_progress_summary(
@@ -179,7 +172,6 @@ def get_progress_summary(
     ```
     """
     return AgentPerformanceDashboard.get_progress_summary(db)
-
 
 @router.get("/dashboard/executive", dependencies=[Depends(require_resource_permission("agents", "view"))])
 def get_executive_dashboard(

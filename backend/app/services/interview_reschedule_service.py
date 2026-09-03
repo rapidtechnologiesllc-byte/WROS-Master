@@ -90,7 +90,6 @@ ESCALATION_MESSAGE = "I have reached out to our recruiting team to assist with y
 
 GraphDeleteEventCall = Callable[[str, str], None]
 
-
 def _default_graph_delete_event_call(organizer_email: str, event_id: str) -> None:
     import requests
     from app.core.graph_auth import get_graph_token
@@ -99,7 +98,6 @@ def _default_graph_delete_event_call(organizer_email: str, event_id: str) -> Non
     endpoint = f"https://graph.microsoft.com/v1.0/users/{organizer_email}/events/{event_id}"
     resp = requests.delete(endpoint, headers={"Authorization": f"Bearer {access_token}"}, timeout=10)
     resp.raise_for_status()
-
 
 def _find_current_interview(db: Session, candidate_id: str) -> Optional[SubmissionInterview]:
     """The candidate's current (non-superseded), confirmed interview --
@@ -111,7 +109,6 @@ def _find_current_interview(db: Session, candidate_id: str) -> Optional[Submissi
         .order_by(SubmissionInterview.created_at.desc())
         .first()
     )
-
 
 def _find_active_reschedule_interview_id(db: Session, conversation_id: int) -> Optional[str]:
     """See module docstring: derives 'is a reschedule mid-flight, and
@@ -136,7 +133,6 @@ def _find_active_reschedule_interview_id(db: Session, conversation_id: int) -> O
             return old_interview_id
     return None
 
-
 def _resolve_interviewer_user(db: Session, panel_id: Optional[str]) -> Optional[Users]:
     if not panel_id:
         return None
@@ -147,7 +143,6 @@ def _resolve_interviewer_user(db: Session, panel_id: Optional[str]) -> Optional[
     if employee is None or not employee.wros_user_id:
         return None
     return db.query(Users).filter(Users.UserID == employee.wros_user_id).first()
-
 
 def _notify_recruiter(db: Session, submission: Optional[Submission], message: str) -> None:
     if submission is None or not submission.submitted_by_user_id:
@@ -163,7 +158,6 @@ def _notify_recruiter(db: Session, submission: Optional[Submission], message: st
     except Exception as exc:
         logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[InterviewReschedule] Failed to notify recruiter: {exc}")
-
 
 def _escalate_for_scheduling(db: Session, candidate: Candidate, conversation: CandidateConversation, interview: SubmissionInterview) -> Dict:
     """Step 5/BR-01."""
@@ -184,7 +178,6 @@ def _escalate_for_scheduling(db: Session, candidate: Candidate, conversation: Ca
     _notify_recruiter(db, submission, f"{candidate.candidateFirstName or candidate.candidateID} has requested 3+ reschedules. Please handle scheduling directly.")
 
     return {"outcome": "escalated", "message": ESCALATION_MESSAGE}
-
 
 def start_reschedule(
     db: Session, candidate: Candidate, conversation: CandidateConversation, tenant_id: str, *, graph_delete_event_call: Optional[GraphDeleteEventCall] = None,
@@ -231,7 +224,6 @@ def start_reschedule(
         logger.error(f"[InterviewReschedule] Unexpected failure starting reschedule for candidate {candidate.candidateID!r}: {exc}")
         db.rollback()
         return {"outcome": "reschedule_failed"}
-
 
 def complete_reschedule_match_and_confirm(
     db: Session, candidate: Candidate, conversation: CandidateConversation, tenant_id: str, *, graph_call=None, graph_create_event_call=None,

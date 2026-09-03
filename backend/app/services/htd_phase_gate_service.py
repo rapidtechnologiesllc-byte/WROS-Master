@@ -57,20 +57,16 @@ logger = logging.getLogger(__name__)
 class InvalidPhaseGateDecision(Exception):
     pass
 
-
 class WrongPhaseForGate(Exception):
     """BR: no skipping/backdating -- a gate can only be logged for the
     employee's CURRENT phase."""
 
-
 class WrongGateOwnerForPhase(Exception):
     pass
-
 
 class PhaseExtensionLimitReached(Exception):
     """BR: max 1 extension per phase -- a second EXTEND attempt must be
     PASS or EXIT instead."""
-
 
 def _extension_count(db: Session, employee_id: str, phase: str) -> int:
     return (
@@ -82,7 +78,6 @@ def _extension_count(db: Session, employee_id: str, phase: str) -> int:
         )
         .count()
     )
-
 
 def record_phase_gate_decision(
     db: Session,
@@ -145,7 +140,6 @@ def record_phase_gate_decision(
     # EXTEND itself means "restart this phase," per the doc.
 
     return gate
-
 
 def exit_htd_track(
     db: Session, employee: Employee, *, reason: str, changed_by: str, tenant_id: Optional[int] = None,

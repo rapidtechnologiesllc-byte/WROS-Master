@@ -37,7 +37,6 @@ from app.services.portal_message_service import (
 
 router = APIRouter(prefix="/portal/conversations", tags=["portal-messages"])
 
-
 @router.post(
     "/{conversation_id}/messages",
     dependencies=[Depends(get_current_internal_user)],
@@ -64,7 +63,6 @@ def post_portal_message(
 
     return PortalMessageResponse(**result)
 
-
 @router.get(
     "/{conversation_id}/messages",
     dependencies=[Depends(get_current_internal_user)],
@@ -83,7 +81,6 @@ def list_portal_messages(
         raise HTTPException(status_code=403, detail="You don't have access to this conversation.")
 
     return PortalMessageHistoryResponse(**result)
-
 
 @router.get(
     "/{conversation_id}/messages/poll",

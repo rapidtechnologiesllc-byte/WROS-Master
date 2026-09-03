@@ -260,7 +260,6 @@ class RoleTemplatePermissionService:
             # Get user custom permissions (overrides)
             custom_perms = {}
             try:
-                from app.models.user import UserCustomPermission
                 custom_perm_rows = db.query(UserCustomPermission).filter(
                     UserCustomPermission.user_id == user_id
                 ).all()

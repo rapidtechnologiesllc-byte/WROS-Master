@@ -88,7 +88,6 @@ class AgentFearState(Base):
 
     tenant = relationship("Users", foreign_keys=[tenant_id], lazy="select")
 
-
 class AgentStressTesting(Base):
     """Stress tests designed to deliberately challenge agents."""
     __tablename__ = "agent_stress_tests"
@@ -117,7 +116,6 @@ class AgentStressTesting(Base):
     created_at = Column(DateTime, server_default=func.now())
 
     tenant = relationship("Users", foreign_keys=[tenant_id], lazy="select")
-
 
 class AgentPerformanceCommitment(Base):
     """What each agent commits to achieving (targets they must meet)."""

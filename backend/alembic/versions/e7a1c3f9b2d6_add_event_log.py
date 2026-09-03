@@ -13,7 +13,6 @@ down_revision = None
 branch_labels = None
 depends_on = None
 
-
 def upgrade():
     op.create_table(
         "event_log",
@@ -31,7 +30,6 @@ def upgrade():
     op.create_index("ix_event_log_candidate_id", "event_log", ["candidate_id"])
     op.create_index("ix_event_log_event_type", "event_log", ["event_type"])
     op.create_index("ix_event_log_emitted_at", "event_log", ["emitted_at"])
-
 
 def downgrade():
     op.drop_index("ix_event_log_emitted_at", table_name="event_log")

@@ -26,7 +26,6 @@ from app.models.client import BILLING_CURRENCIES
 def _new_uuid() -> str:
     return str(uuid.uuid4())
 
-
 REVENUE_SOURCES = ("INVOICE", "MANUAL_ADJUSTMENT", "CORRECTION")
 BUSINESS_TYPES = ("CORE", "SPECIALITY")
 

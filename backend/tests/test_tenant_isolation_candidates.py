@@ -19,7 +19,6 @@ from app.models.tenant import Tenant
 from app.models.candidate import Candidate
 from app.core.tenant_context import get_tenant_scoped_query
 
-
 @pytest.fixture()
 def db_session():
     fd, db_path = tempfile.mkstemp(suffix=".sqlite3")
@@ -41,7 +40,6 @@ class _FakeUser:
     def __init__(self, tenant_id):
         self.tenant_id = tenant_id
 
-
 def _seed_two_tenants_of_candidates(db):
     blitzenx = Tenant(name="BlitzenX")
     other = Tenant(name="Other Client Co")
@@ -60,7 +58,6 @@ def _seed_two_tenants_of_candidates(db):
     db.commit()
     return blitzenx, other, aisha, ravi
 
-
 def test_recruiter_only_sees_their_own_tenants_candidates(db_session):
     blitzenx, other, aisha, ravi = _seed_two_tenants_of_candidates(db_session)
 
@@ -72,7 +69,6 @@ def test_recruiter_only_sees_their_own_tenants_candidates(db_session):
 
     assert [c.candidateID for c in blitzenx_results] == ["C-AISHA"]
     assert [c.candidateID for c in other_results] == ["C-RAVI"]
-
 
 def test_negative_case_candidate_pii_never_crosses_tenants(db_session):
     """

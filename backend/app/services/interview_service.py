@@ -32,18 +32,14 @@ logger = logging.getLogger(__name__)
 class InterviewerNotEligible(Exception):
     """BR-01 of HRMS-0706: interviewer must be an ACTIVE employee with WROS access."""
 
-
 class NoEligibleInterviewer(Exception):
     pass
-
 
 class L1NotPassed(Exception):
     """R-05."""
 
-
 class InvalidOutcomeChange(Exception):
     pass
-
 
 def assign_panel_member(
     db: Session,
@@ -79,12 +75,10 @@ def assign_panel_member(
     db.add(panel_member)
     return panel_member
 
-
 def remove_panel_member(db: Session, panel_member: DemandInterviewPanel) -> DemandInterviewPanel:
     panel_member.is_active = False
     db.add(panel_member)
     return panel_member
-
 
 def get_assigned_interviewer(
     db: Session, *, demand_id: str, interview_level: str, tenant_id: Optional[int] = None,
@@ -115,7 +109,6 @@ def get_assigned_interviewer(
         .all()
     }
     return min(candidates, key=lambda c: load.get(c.id, 0))
-
 
 def create_interview(
     db: Session,
@@ -167,7 +160,6 @@ def create_interview(
     )
     db.add(interview)
     return interview
-
 
 def set_outcome(db: Session, interview: SubmissionInterview, outcome: str) -> SubmissionInterview:
     """Outcome is settable exactly once, PENDING -> PASS/FAIL -- no

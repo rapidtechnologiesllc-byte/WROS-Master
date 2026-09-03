@@ -22,7 +22,6 @@ class TechnicalScoreResponse(BaseModel):
     score_breakdown: Optional[Dict]
     calculated_at: Optional[datetime]
 
-
 class RankedCandidateItem(BaseModel):
     rank: int
     candidate_id: str
@@ -33,7 +32,6 @@ class RankedCandidateItem(BaseModel):
     availability_score: Optional[int]
     resume_completeness_score: Optional[int]
     score_breakdown: Optional[Dict]
-
 
 class RankedCandidatesResponse(BaseModel):
     job_id: str

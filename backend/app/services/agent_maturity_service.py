@@ -20,7 +20,6 @@ from sqlalchemy import func
 from app.models.agent_execution_log import AgentExecutionLog
 from app.models.agent_maturity import AgentMaturityLevel, AgentPerformanceMetric
 
-
 def calculate_weekly_metrics(db: Session, week_start: datetime, agent_name: str = None):
     """
     Calculate metrics for a specific week.
@@ -111,7 +110,6 @@ def calculate_weekly_metrics(db: Session, week_start: datetime, agent_name: str 
     db.commit()
     return metrics_created
 
-
 def update_maturity_levels(db: Session, agent_name: str = None):
     """
     Update current maturity levels based on recent metrics.
@@ -195,7 +193,6 @@ def update_maturity_levels(db: Session, agent_name: str = None):
 
         db.commit()
 
-
 def check_agent_health(db: Session, agent_name: str) -> dict:
     """
     Check if an agent should be flagged or retired.
@@ -247,7 +244,6 @@ def check_agent_health(db: Session, agent_name: str) -> dict:
         "declining_weeks": declining_weeks,
         "low_maturity_weeks": low_maturity_weeks
     }
-
 
 def retire_agent(db: Session, agent_name: str, reason: str):
     """Mark an agent as retired."""

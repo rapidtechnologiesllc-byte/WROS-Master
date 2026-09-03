@@ -105,7 +105,6 @@ INFO_FORM_FIELDS: List[Tuple[str, str]] = [
     ("permanent_address","Permanent Address (City, State, Country only â€” no street address needed)"),
 ]
 
-
 # ===========================================================================
 # 1. Missing-field detection
 # ===========================================================================
@@ -135,7 +134,6 @@ def get_missing_fields(candidate: Candidate, db: Session) -> List[Dict[str, str]
             missing.append({"field": field, "label": label, "source": "info_form"})
 
     return missing
-
 
 # ===========================================================================
 # 2. Email templates
@@ -189,7 +187,6 @@ def _build_missing_fields_email(
     """
     return EmailService._base_html("Profile Completion Request", body)
 
-
 def _build_followup_email(
     candidate_name: str,
     still_missing: List[Dict[str, str]],
@@ -229,7 +226,6 @@ def _build_followup_email(
     """
     return EmailService._base_html("Follow-up: Profile Completion", body)
 
-
 # ===========================================================================
 # 3. Conversation & event helpers
 # ===========================================================================
@@ -252,9 +248,7 @@ def _log_event(
     db.flush()  # get event.id without committing yet
     return event
 
-
 DEFAULT_TENANT_ID = "1"  # Single-company deployment -- see resolve_default_tenant_id() below.
-
 
 def resolve_default_tenant_id(db: Session) -> str:
     """
@@ -295,7 +289,6 @@ def resolve_default_tenant_id(db: Session) -> str:
     together correctly on its own and was left alone.
     """
     return DEFAULT_TENANT_ID
-
 
 def resolve_thunder_config(db: Session, tenant_id: Optional[str]) -> Dict[str, str]:
     """
@@ -346,7 +339,6 @@ def resolve_thunder_config(db: Session, tenant_id: Optional[str]) -> Dict[str, s
     persona = (tenant_user.ai_agent_persona if tenant_user else None) or DEFAULT_THUNDER_PERSONA_TEXT
     return {"name": name, "persona": persona}
 
-
 def _is_duplicate_email_reply(db: Session, conversation_id: int, message_id: str) -> bool:
     """S-003/HRMS-0403 BR-01: filtered in Python -- event_data is JSON,
     same tradeoff as thunder_service's _is_duplicate_send /
@@ -359,7 +351,6 @@ def _is_duplicate_email_reply(db: Session, conversation_id: int, message_id: str
     )
     return any((event.event_data or {}).get("message_id") == message_id for event in events)
 
-
 def _candidate_display_name(candidate: Candidate) -> str:
     parts = [
         candidate.candidateFirstName,
@@ -368,7 +359,6 @@ def _candidate_display_name(candidate: Candidate) -> str:
     ]
     name = " ".join(p for p in parts if p).strip()
     return name or candidate.candidateEmail
-
 
 # ===========================================================================
 # 4. Core agent actions
@@ -500,7 +490,6 @@ def assign_ai_agent(
         "conversation_status": conversation.status,
     }
 
-
 def reassign_ai_agent(
     candidate_id: str,
     tenant_id: str,
@@ -522,7 +511,6 @@ def reassign_ai_agent(
     """
     return assign_ai_agent(candidate_id, tenant_id, assigned_by, db)
 
-
 def get_active_ai_assignment(db: Session, candidate_id: str, tenant_id: str) -> Optional[CandidateAIAssignment]:
     """S-011/HRMS-0411 -- backs GET /candidates/{id}/ai-assignment."""
     return (
@@ -535,7 +523,6 @@ def get_active_ai_assignment(db: Session, candidate_id: str, tenant_id: str) -> 
         .order_by(CandidateAIAssignment.assigned_at.desc())
         .first()
     )
-
 
 def auto_assign_ai_agent_on_creation(
     candidate_id: str,
@@ -578,7 +565,6 @@ def auto_assign_ai_agent_on_creation(
         logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.error(f"[AutoAssign] Automatic AI recruiter assignment failed for candidate '{candidate_id}': {exc}")
         return
-
 
 def run_auto_assign_ai_agent_in_background(candidate_id: str) -> None:
     """Real bug fix, 2026-08-05 -- Avinash: "When a candidate is added AI
@@ -674,7 +660,6 @@ def run_auto_assign_ai_agent_in_background(candidate_id: str) -> None:
         logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[AutoAssign] Outreach campaign did not start for candidate '{candidate_id}': {exc}")
 
-
 def _send_missing_fields_email(
     candidate: Candidate,
     missing: List[Dict[str, str]],
@@ -717,7 +702,6 @@ def _send_missing_fields_email(
         )
         return False
 
-
 # ===========================================================================
 # 5. Read inbox via Graph API
 # ===========================================================================
@@ -730,7 +714,6 @@ _MAIL_READ_PERMISSION_HINT = (
     "Go to Azure Portal â†’ App registrations â†’ API permissions â†’ Add "
     "'Mail.Read' (Application) â†’ Grant admin consent."
 )
-
 
 def _graph_inbox_get(
     filter_str: Optional[str] = None,
@@ -801,8 +784,6 @@ def _graph_inbox_get(
 
     return resp.json().get("value", [])
 
-
-
 def _parse_graph_message(msg: Dict[str, Any]) -> Dict[str, Any]:
     """Normalize a raw Graph API message dict into a clean flat dict."""
     import html as _html
@@ -825,7 +806,6 @@ def _parse_graph_message(msg: Dict[str, Any]) -> Dict[str, Any]:
         "received_at":  msg.get("receivedDateTime", ""),
         "is_read":      msg.get("isRead", False),
     }
-
 
 def read_candidate_replies(
     candidate_email: str,
@@ -856,7 +836,6 @@ def read_candidate_replies(
         # CRITICAL FIX: Raise error instead of returning empty list
         raise Exception(f"Graph API failed to read inbox: {str(exc)}")
 
-
 def read_all_inbox(
     top: int = 50,
     skip: int = 0,
@@ -867,7 +846,6 @@ def read_all_inbox(
     """
     raw = _graph_inbox_get(top=top, skip=skip)
     return [_parse_graph_message(m) for m in raw]
-
 
 def read_inbox_by_email(
     email: str,
@@ -883,7 +861,6 @@ def read_inbox_by_email(
     )
     return [_parse_graph_message(m) for m in raw]
 
-
 # ===========================================================================
 # Helper: strip quoted email threads from a reply
 # ===========================================================================
@@ -896,7 +873,6 @@ _QUOTE_PATTERNS = re.compile(
     r"|^>{1,}\s)",
     re.MULTILINE | re.IGNORECASE,
 )
-
 
 def _extract_candidate_reply(full_text: str) -> str:
     """
@@ -920,7 +896,6 @@ def _extract_candidate_reply(full_text: str) -> str:
 
     # If stripping removed everything meaningful, fall back to the full text
     return candidate_part if len(candidate_part) > 20 else text.strip()
-
 
 # ===========================================================================
 # 6. Gemini-powered reply parser
@@ -1030,7 +1005,6 @@ JSON output:"""
         logger.error(f"[AIAgent] Gemini call failed: {exc}")
         raise ValueError("Operation failed")
 
-
 # ===========================================================================
 # 7. LangGraph ReAct Agent â€” field extraction + DB merge + follow-up email
 # ===========================================================================
@@ -1080,7 +1054,6 @@ from datetime import date as _date
 from typing import Any, Dict, List, Optional
 
 from langchain_google_genai import ChatGoogleGenerativeAI
-from sqlalchemy.orm import Session
 
 # NOTE: the following are assumed to already be defined/imported elsewhere in
 # the original module (logger, GEMINI_API_KEY, Candidate, CandidateInfoForm,
@@ -1088,7 +1061,6 @@ from sqlalchemy.orm import Session
 # INFO_FORM_FIELDS, EmailService, get_missing_fields, _extract_candidate_reply,
 # _candidate_display_name, _build_followup_email, _log_event,
 # read_candidate_replies, HTTPException). They are left untouched here.
-
 
 # ===========================================================================
 # Step 1: Extraction (LLM) â€” plain function, not an agent tool
@@ -1177,7 +1149,6 @@ JSON output:"""
         logger.error(f"[ReplyPipeline] extract_fields_from_reply JSON error: {e} | raw={raw!r}")
         raise ValueError("Operation failed")
 
-
 # ===========================================================================
 # Step 2: Merge to DB â€” plain function, returns real result (no swallowing)
 # ===========================================================================
@@ -1254,7 +1225,6 @@ def merge_fields_to_db(candidate_id: str, extracted: Dict[str, Any], db: Session
     logger.info(f"[ReplyPipeline] merge_fields_to_db: {result}")
     return result
 
-
 # ===========================================================================
 # Step 4: Follow-up email â€” plain function, called only when needed
 # ===========================================================================
@@ -1292,7 +1262,6 @@ def send_followup_email(candidate, still_missing: List[Dict[str, str]], conversa
         logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.error(f"[ReplyPipeline] send_followup_email failed: {exc}")
         return {"sent": False, "reason": str(exc)}
-
 
 # ===========================================================================
 # The pipeline itself â€” deterministic, no agent/tool-calling involved
@@ -1367,7 +1336,6 @@ def run_reply_pipeline(
                 result["followup_error"] = followup.get("reason")
 
     return result
-
 
 # ===========================================================================
 # 8. Process a candidate reply (full pipeline) â€” orchestration unchanged,
@@ -1503,7 +1471,6 @@ def process_candidate_reply(
     # â”€â”€ Step 3: Check if anything is still missing before running pipeline â”€
     missing = get_missing_fields(candidate, db)
     if not missing:
-        from app.services.conversation_state_service import transition_status
         transition_status(db, conversation, "closed", reason="All fields complete on inbound reply", triggered_by="candidate")
         conversation.summary = "All fields complete. Conversation closed."
         conversation.next_action = "none"
@@ -1550,7 +1517,6 @@ def process_candidate_reply(
     still_missing_fields = pipeline_result["still_missing"]
 
     if not still_missing_fields:
-        from app.services.conversation_state_service import transition_status
         transition_status(db, conversation, "closed", reason="All fields complete after candidate reply", triggered_by="candidate")
         conversation.summary = "All fields complete after candidate reply. Conversation closed."
         conversation.next_action = "none"
@@ -1579,7 +1545,6 @@ def process_candidate_reply(
                 "message_type": "followup_request",
             },
         )
-        from app.services.conversation_state_service import transition_status
         transition_status(db, conversation, "awaiting_candidate", reason="Follow-up sent, fields still missing", triggered_by="ai_agent")
         conversation.summary = (
             f"Follow-up sent. {len(still_missing_fields)} field(s) still missing: "
@@ -1593,7 +1558,6 @@ def process_candidate_reply(
             db, conversation.id, "followup_email_failed",
             {"reason": pipeline_result.get("followup_error", "unknown")},
         )
-        from app.services.conversation_state_service import transition_status
         transition_status(db, conversation, "awaiting_candidate", reason="Follow-up email failed to send", triggered_by="system")
         conversation.summary = (
             f"{len(still_missing_fields)} field(s) still missing, but follow-up email "
@@ -1603,7 +1567,6 @@ def process_candidate_reply(
 
     # S-019/HRMS-0419 -- every 5th inbound message, replace the hardcoded
     # fallback summary above with a real Thunder-generated summary.
-    from app.services.conversation_summary_service import maybe_generate_summary_after_reply
     maybe_generate_summary_after_reply(db, conversation, candidate)
     db.commit()
 
@@ -1614,7 +1577,6 @@ def process_candidate_reply(
         "still_missing": still_missing_fields,
         "followup_sent": pipeline_result.get("followup_sent", False),
     }
-
 
 # ===========================================================================
 # 8b. Automatic reply polling -- the real fix for a candidate's reply
@@ -1669,7 +1631,6 @@ def poll_all_awaiting_candidates(db: Session) -> Dict[str, Any]:
         "updated": updated,
         "errors": errors,
     }
-
 
 # ===========================================================================
 # 9. Get full conversation thread (for UI display)

@@ -26,7 +26,6 @@ from app.services.candidate_scoring_service import CandidateScoringService
 router = APIRouter(prefix="/candidates/ranking", tags=["candidate-ranking"])
 scoring_service = CandidateScoringService()
 
-
 @router.post(
     "/fit-score",
     dependencies=[Depends(require_resource_permission("candidate", "view"))],
@@ -76,7 +75,6 @@ def calculate_fit_score(
 
     return result
 
-
 @router.post(
     "/rank",
     dependencies=[Depends(require_resource_permission("candidate", "view"))],
@@ -123,7 +121,6 @@ def rank_candidates(
         )
 
     return result
-
 
 @router.post(
     "/best-match",

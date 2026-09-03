@@ -40,17 +40,14 @@ logger = logging.getLogger(__name__)
 class InvalidGraduationDecision(Exception):
     pass
 
-
 class ExtensionLimitReached(Exception):
     """BR: max 2 extensions -- the third review only offers Graduate or Exit."""
-
 
 def can_extend(record: BuddyProgramRecord) -> bool:
     """AC-5/TC-002: whether the [Extend 15 Days] option should even be
     shown -- hidden entirely on the third review, not just rejected
     after the fact."""
     return record.extension_count < MAX_EXTENSIONS
-
 
 def record_graduation_decision(
     db: Session,

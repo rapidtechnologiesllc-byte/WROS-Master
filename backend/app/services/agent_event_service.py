@@ -34,7 +34,6 @@ class AgentEvent(Base):
     status = Column(String(50), default="PENDING")  # PENDING, PROCESSED, ESCALATED
     audit_trail = Column(Text)  # JSON array of who consumed/acted
 
-
 class AgentEventService:
     """Service for publishing and consuming structured agent events."""
 
@@ -237,7 +236,6 @@ class AgentEventService:
             db.rollback()
             return {"status": "error", "message": str(e)}
 
-
 # EXAMPLE AGENT WORKFLOWS (How agents talk to each other)
 
 def example_recruitment_workflow():
@@ -266,7 +264,6 @@ def example_recruitment_workflow():
     """
     pass
 
-
 def example_resource_workflow():
     """
     How Resource Management + HR + KPI agents coordinate:
@@ -287,7 +284,6 @@ def example_resource_workflow():
        └─ May publish: "resource_reallocation_needed" event
     """
     pass
-
 
 def example_financial_workflow():
     """

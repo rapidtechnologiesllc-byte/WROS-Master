@@ -5,7 +5,6 @@ from sqlalchemy.orm import relationship
 import logging
 from app.models.base import Base
 
-
 def _new_uuid() -> str:
     return str(uuid.uuid4())
 
@@ -48,7 +47,6 @@ class EmployeeKPITarget(Base):
 
     def __repr__(self) -> str:
         return f"<EmployeeKPITarget emp={self.employee_id} cert={self.certification_id} status={self.status}>"
-
 
 class EmployeeKPIScore(Base):
     """Aggregated KPI scores for employees."""

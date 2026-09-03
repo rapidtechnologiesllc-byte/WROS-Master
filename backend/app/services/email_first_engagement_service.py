@@ -54,16 +54,13 @@ logger = logging.getLogger(__name__)
 class EmailTemplateRenderFailure(Exception):
     pass
 
-
 class FirstEmailEngagementFailed(Exception):
     def __init__(self, reason: str, detail: str = ""):
         self.reason = reason
         super().__init__(f"{reason}: {detail}" if detail else reason)
 
-
 def _first_name(candidate: Candidate) -> str:
     return candidate.candidateFirstName or candidate.candidateEmail
-
 
 def _render_greeting_email(db: Session, candidate: Candidate, agent_name: str, tenant_id: str) -> Dict[str, str]:
     """S-014/HRMS-0414 -- tries the real, admin-activated GREETING_EMAIL
@@ -93,7 +90,6 @@ def _render_greeting_email(db: Session, candidate: Candidate, agent_name: str, t
 
     return {"subject": subject, "body": body}
 
-
 def _already_sent(db: Session, conversation_id: int) -> bool:
     return (
         db.query(ConversationEvent)
@@ -101,7 +97,6 @@ def _already_sent(db: Session, conversation_id: int) -> bool:
         .first()
         is not None
     )
-
 
 def _send_attempt(candidate: Candidate, subject: str, body: str) -> bool:
     try:
@@ -114,7 +109,6 @@ def _send_attempt(candidate: Candidate, subject: str, body: str) -> bool:
         logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[EmailFirstEngagement] Send attempt raised: {exc}")
         return False
-
 
 def send_first_email_engagement(
     db: Session, candidate_id: str, tenant_id: str, *, _sleep=time.sleep,

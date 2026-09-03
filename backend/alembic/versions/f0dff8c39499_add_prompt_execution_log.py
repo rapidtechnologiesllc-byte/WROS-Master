@@ -13,7 +13,6 @@ down_revision = "0eb7ca2cdb11"
 branch_labels = None
 depends_on = None
 
-
 def upgrade():
     op.create_table(
         "prompt_execution_log",
@@ -34,7 +33,6 @@ def upgrade():
     op.create_index("ix_prompt_execution_log_tenant_id", "prompt_execution_log", ["tenant_id"])
     op.create_index("ix_prompt_execution_log_candidate_id", "prompt_execution_log", ["candidate_id"])
     op.create_index("ix_prompt_execution_log_tenant_candidate_created", "prompt_execution_log", ["tenant_id", "candidate_id", "created_at"])
-
 
 def downgrade():
     op.drop_index("ix_prompt_execution_log_tenant_candidate_created", table_name="prompt_execution_log")

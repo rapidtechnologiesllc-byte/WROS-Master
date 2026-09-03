@@ -19,7 +19,6 @@ class NewsletterSubscriber(Base):
     def __repr__(self) -> str:
         return f"<NewsletterSubscriber id={self.id} email={self.email} active={self.is_active}>"
 
-
 class Newsletter(Base):
     __tablename__ = "newsletters"
 

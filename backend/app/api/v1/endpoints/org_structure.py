@@ -40,9 +40,7 @@ from app.services.org_structure_service import (
 from app.models.org_structure import OrgPosition, OrgNode, Department, ApprovalChain
 from app.models.business_unit import BusinessUnit
 
-
 router = APIRouter(prefix="/org", tags=["Organization Structure"])
-
 
 @router.post(
     "/initialize",
@@ -95,7 +93,6 @@ def initialize_org_structure(
             detail=f"Failed to initialize org structure: {str(e)}"
         )
 
-
 @router.get(
     "/positions",
     dependencies=[Depends(get_current_internal_user)],
@@ -109,7 +106,6 @@ def list_org_positions(
     """Get all organizational positions, ordered by rank."""
     positions = db.query(OrgPosition).order_by(OrgPosition.rank).all()
     return [OrgPositionResponse.from_orm(p) for p in positions]
-
 
 @router.get(
     "/nodes",
@@ -141,7 +137,6 @@ def list_org_nodes(
 
     return result
 
-
 @router.get(
     "/nodes/{org_node_id}",
     response_model=OrgNodeResponse,
@@ -155,7 +150,6 @@ def get_org_node(
     db: Session = Depends(get_db),
 ) -> OrgNodeResponse:
     """Get a specific organizational node by ID."""
-    from app.models.tenant import Tenant
 
     tenant_id = current_user.tenant_id
     if not tenant_id:
@@ -171,7 +165,6 @@ def get_org_node(
     node_dict['tenant_name'] = tenant.name if tenant else f"Tenant {tenant_id}"
 
     return OrgNodeResponse(**node_dict)
-
 
 @router.get(
     "/nodes/{org_node_id}/approvers",
@@ -198,7 +191,6 @@ def get_approvers_for_node(
             nodes.append(OrgNodeResponse.from_orm(node))
     return nodes
 
-
 @router.get(
     "/departments",
     response_model=List[DepartmentResponse],
@@ -211,7 +203,6 @@ def list_departments(
     db: Session = Depends(get_db),
 ) -> List[DepartmentResponse]:
     """Get all departments for the current tenant."""
-    from app.models.tenant import Tenant
 
     tenant_id = current_user.tenant_id
     if not tenant_id:
@@ -229,7 +220,6 @@ def list_departments(
         result.append(DepartmentResponse(**dept_dict))
 
     return result
-
 
 @router.get(
     "/approval-chains",
@@ -261,7 +251,6 @@ class CreateOrgNodeRequest(BaseModel):
     reports_to_id: Optional[str] = None
     business_unit_id: Optional[int] = None
     location: Optional[str] = None
-
 
 @router.post(
     "/nodes",

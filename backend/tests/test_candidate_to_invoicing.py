@@ -235,6 +235,5 @@ class TestCandidateToInvoicingWorkflow:
         print(f"  Invoice ID: {invoice.id}")
         print(f"  Invoice Amount: ${invoice.total_usd_cents / 100:.2f}")
 
-
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "-s"])

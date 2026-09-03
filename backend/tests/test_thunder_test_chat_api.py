@@ -36,11 +36,9 @@ from app.models.base import Base
 from app.models.user import Users
 import app.models  # noqa: F401 -- registers every model on Base.metadata
 
-
 @pytest.fixture(autouse=True)
 def _default_whatsapp_number(monkeypatch):
     monkeypatch.setattr(routing, "DEFAULT_WHATSAPP_NUMBER", "+10005550000")
-
 
 @pytest.fixture()
 def throwaway_jwt_keys(monkeypatch):
@@ -57,11 +55,9 @@ def throwaway_jwt_keys(monkeypatch):
     monkeypatch.setattr(security, "PRIVATE_KEY", private_pem)
     monkeypatch.setattr(security, "PUBLIC_KEY", public_pem)
 
-
 @pytest.fixture(autouse=True)
 def _fake_api_key(monkeypatch):
     monkeypatch.setattr(thunder_svc, "GEMINI_API_KEY", "fake-key-for-test")
-
 
 @pytest.fixture()
 def client(throwaway_jwt_keys, monkeypatch):
@@ -112,10 +108,8 @@ def client(throwaway_jwt_keys, monkeypatch):
         engine.dispose()
         os.remove(db_path)
 
-
 def _token_for(email, role="Admin"):
     return security.create_access_token(data={"sub": email, "type": role, "name": email})
-
 
 def _mock_gemini(reply_text):
     mock_response = MagicMock()
@@ -123,7 +117,6 @@ def _mock_gemini(reply_text):
     mock_llm = MagicMock()
     mock_llm.invoke.return_value = mock_response
     return patch.object(thunder_svc, "ChatGoogleGenerativeAI", return_value=mock_llm)
-
 
 def test_send_test_chat_message_returns_thunder_reply(client):
     token = _token_for("ceo@blitzenx.com")
@@ -141,11 +134,9 @@ def test_send_test_chat_message_returns_thunder_reply(client):
     assert body["mock_send"] is True
     assert body["delivered"] is True
 
-
 def test_unauthenticated_request_is_rejected(client):
     resp = client.post("/thunder/test-chat", json={"message": "Hi"})
     assert resp.status_code in (401, 403)
-
 
 def test_non_super_user_role_is_rejected(client):
     """thunder.test is Super-User-only by default -- a Recruiter (or any
@@ -157,7 +148,6 @@ def test_non_super_user_role_is_rejected(client):
         headers={"Authorization": f"Bearer {token}"},
     )
     assert resp.status_code == 403
-
 
 def test_history_reflects_prior_turn(client):
     token = _token_for("ceo@blitzenx.com")
@@ -175,7 +165,6 @@ def test_history_reflects_prior_turn(client):
         ("thunder", "Reply text"),
     ]
 
-
 def test_reset_clears_history_for_next_message(client):
     token = _token_for("ceo@blitzenx.com")
     with _mock_gemini("Reply text"):
@@ -189,7 +178,6 @@ def test_reset_clears_history_for_next_message(client):
 
     history_resp = client.get("/thunder/test-chat/history", headers={"Authorization": f"Bearer {token}"})
     assert history_resp.json()["messages"] == []
-
 
 def test_testers_do_not_share_a_conversation(client):
     """Two different Super User accounts testing Thunder each get their

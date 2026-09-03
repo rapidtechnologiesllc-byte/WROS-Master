@@ -12,7 +12,6 @@ from app.services.reserve_fund_service import get_reserve_fund_status
 import logging
 from app.utils.agent_logger import log_agent_execution
 
-
 def get_org_financial_snapshot(db: Session, year_month: str = None, tenant_id: str = None) -> dict:
     """
     Get organization-wide financial snapshot for CFO (requires Finance role + CEO access).
@@ -106,7 +105,6 @@ def get_org_financial_snapshot(db: Session, year_month: str = None, tenant_id: s
 
     return result
 
-
 def get_cfo_alerts(db: Session) -> list:
     """Generate critical financial alerts for CFO attention."""
     snapshot = get_org_financial_snapshot(db)
@@ -161,7 +159,6 @@ def get_cfo_alerts(db: Session) -> list:
 
     return sorted(alerts, key=lambda x: ({"CRITICAL": 0, "HIGH": 1, "MEDIUM": 2}.get(x["severity"], 3)))
 
-
 def get_bu_financial_comparison(db: Session, year_month: str = None) -> list:
     """Compare all BU financials side-by-side for CFO analysis."""
     if not year_month:
@@ -193,7 +190,6 @@ def get_bu_financial_comparison(db: Session, year_month: str = None) -> list:
 
     return sorted(comparison, key=lambda x: x["revenue_usd"], reverse=True)
 
-
 def get_expense_breakdown(db: Session, year_month: str = None) -> dict:
     """Break down org expenses by category (salaries, overhead, etc)."""
     if not year_month:
@@ -212,7 +208,6 @@ def get_expense_breakdown(db: Session, year_month: str = None) -> dict:
         "other_cost_pct": 10,  # Estimated
         "note": "Breakdown is estimated â€” detailed expense tracking not yet implemented"
     }
-
 
 def get_financial_forecast(db: Session, months_ahead: int = 3) -> dict:
     """Generate simple revenue forecast based on recent trend."""

@@ -15,7 +15,6 @@ class PerformanceEventItem(BaseModel):
     event_data: Optional[dict] = None
     occurred_at: Optional[datetime] = None
 
-
 class PerformanceStoreResponse(BaseModel):
     employee_id: str
     events: List[PerformanceEventItem]

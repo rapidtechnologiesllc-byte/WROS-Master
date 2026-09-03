@@ -21,10 +21,8 @@ class QueueItem(BaseModel):
     resolved_at: Optional[datetime] = None
     resolution_note: Optional[str] = None
 
-
 class QueueResponse(BaseModel):
     items: List[QueueItem]
-
 
 class QueueSummaryResponse(BaseModel):
     critical: int
@@ -32,16 +30,13 @@ class QueueSummaryResponse(BaseModel):
     medium: int
     total: int
 
-
 class TakeOverResponse(BaseModel):
     id: int
     status: str
     assigned_to_user_id: Optional[str] = None
 
-
 class ResolveRequest(BaseModel):
     resolution_note: Optional[str] = None
-
 
 class ResolveResponse(BaseModel):
     id: int

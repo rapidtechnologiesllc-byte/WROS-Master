@@ -8,7 +8,6 @@ from sqlalchemy.orm import relationship
 
 from app.models.base import Base
 
-
 def _new_uuid() -> str:
     return str(uuid.uuid4())
 
@@ -85,7 +84,6 @@ class MessageQueue(Base):
         Index("ix_message_queue_email_status_tracking", "email_status", "last_tracked_at"),
     )
 
-
 class MessageChannel(Base):
     """
     Junction table: Routes a single message to multiple channel queues.
@@ -112,7 +110,6 @@ class MessageChannel(Base):
     __table_args__ = (
         Index("ix_message_channels_message_queue_type", "message_id", "queue_type"),
     )
-
 
 class EmailTracking(Base):
     """
@@ -166,7 +163,6 @@ class EmailTracking(Base):
         Index("ix_email_tracking_last_checked", "last_checked_at"),
     )
 
-
 class EmailTrackingEvent(Base):
     """
     Detailed event log for each email engagement event.
@@ -189,7 +185,6 @@ class EmailTrackingEvent(Base):
         Index("ix_email_tracking_events_tracking_type", "tracking_id", "event_type"),
     )
 
-
 class QueueProcessingState(Base):
     """
     Tracks processing state per queue type to prevent concurrent processing issues.
@@ -207,7 +202,6 @@ class QueueProcessingState(Base):
     last_error = Column(Text(), nullable=True)
     last_error_at = Column(DateTime(timezone=False), nullable=True)
     updated_at = Column(DateTime(timezone=False), server_default=func.now(), onupdate=func.now(), nullable=False)
-
 
 class MessageLog(Base):
     """

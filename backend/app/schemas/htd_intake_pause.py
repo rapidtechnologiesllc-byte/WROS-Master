@@ -12,7 +12,6 @@ logger = logging.getLogger(__name__)
 class CalculateMonthlyMetricRequest(BaseModel):
     month: date  # any date within the target month; normalized to month_start
 
-
 class MonthlyMetricItem(BaseModel):
     id: str
     month_start: date
@@ -20,17 +19,14 @@ class MonthlyMetricItem(BaseModel):
     converted: int
     conversion_rate: Optional[float] = None
 
-
 class HtdIntakeStatusResponse(BaseModel):
     is_paused: bool
     paused_at: Optional[datetime] = None
     pause_reason: Optional[str] = None
 
-
 class ResumeIntakeRequest(BaseModel):
     audit_findings: str = Field(..., min_length=200)
     corrective_actions: str = Field(..., min_length=200)
-
 
 class PauseLogItem(BaseModel):
     id: str
@@ -40,7 +36,6 @@ class PauseLogItem(BaseModel):
     corrective_actions: Optional[str] = None
     resumed_by: Optional[str] = None
     created_at: Optional[datetime] = None
-
 
 class PauseLogResponse(BaseModel):
     entries: List[PauseLogItem]

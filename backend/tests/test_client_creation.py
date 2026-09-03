@@ -24,7 +24,6 @@ from app.services.client_service import (
     ClientValidationError, DuplicateClientError, create_client, update_client_details,
 )
 
-
 @pytest.fixture()
 def db_session():
     fd, db_path = tempfile.mkstemp(suffix=".sqlite3")
@@ -45,7 +44,6 @@ def db_session():
         engine.dispose()
         os.remove(db_path)
 
-
 def _make_user(db, user_id, *, business_unit_id=None):
     user = Users(
         UserID=user_id, UserRole="Partner", UserEmail=f"{user_id}@blitzenx.com",
@@ -54,7 +52,6 @@ def _make_user(db, user_id, *, business_unit_id=None):
     db.add(user)
     db.commit()
     return user
-
 
 def test_client_bu_locked_to_creators_own_bu(db_session):
     axion = BusinessUnit(name="Axion")
@@ -66,7 +63,6 @@ def test_client_bu_locked_to_creators_own_bu(db_session):
 
     assert client.business_unit_id == axion.id
 
-
 def test_bu_less_creator_falls_back_to_corporate_bu(db_session):
     corporate = BusinessUnit(name="Corporate")
     db_session.add(corporate)
@@ -77,14 +73,12 @@ def test_bu_less_creator_falls_back_to_corporate_bu(db_session):
 
     assert client.business_unit_id == corporate.id
 
-
 def test_bu_less_creator_with_no_corporate_row_leaves_client_unassigned(db_session):
     someone = _make_user(db_session, "someone", business_unit_id=None)
 
     client = create_client(db_session, company_name="Zensar", created_by_user=someone)
 
     assert client.business_unit_id is None
-
 
 def test_duplicate_client_name_rejected(db_session):
     axion = BusinessUnit(name="Axion")
@@ -95,7 +89,6 @@ def test_duplicate_client_name_rejected(db_session):
 
     with pytest.raises(DuplicateClientError):
         create_client(db_session, company_name="Builders Insurance", created_by_user=troy)
-
 
 # ---------------------------------------------------------------------------
 # update_client_details()
@@ -113,7 +106,6 @@ def test_update_client_editable_fields(db_session):
     assert updated.industry == "Insurance"
     assert updated.notes == "Direct relationship"
 
-
 def test_update_client_business_unit_id_rejected(db_session):
     axion = BusinessUnit(name="Axion")
     db_session.add(axion)
@@ -123,7 +115,6 @@ def test_update_client_business_unit_id_rejected(db_session):
 
     with pytest.raises(ClientValidationError):
         update_client_details(db_session, client, {"business_unit_id": 999})
-
 
 def test_update_client_name_to_existing_name_rejected(db_session):
     axion = BusinessUnit(name="Axion")
@@ -135,7 +126,6 @@ def test_update_client_name_to_existing_name_rejected(db_session):
 
     with pytest.raises(DuplicateClientError):
         update_client_details(db_session, other, {"company_name": "Builders Insurance"})
-
 
 # ---------------------------------------------------------------------------
 # 2026-08-06 Client Management redesign: website dedup, line_type,
@@ -152,7 +142,6 @@ def test_website_dedup_rejects_second_client_same_domain(db_session):
     with pytest.raises(DuplicateClientError):
         create_client(db_session, company_name="Builders Insurance Group", created_by_user=troy, website="www.builders.com")
 
-
 def test_website_dedup_ignores_scheme_www_trailing_slash_case(db_session):
     """https://Builders.com/ and builders.com must be recognized as the
     same site -- proves _normalize_website(), not just exact string match."""
@@ -164,7 +153,6 @@ def test_website_dedup_ignores_scheme_www_trailing_slash_case(db_session):
 
     with pytest.raises(DuplicateClientError):
         create_client(db_session, company_name="Different Name", created_by_user=troy, website="builders.com")
-
 
 def test_create_client_hiring_manager_and_timesheet_approver_contacts_created(db_session):
     axion = BusinessUnit(name="Axion")

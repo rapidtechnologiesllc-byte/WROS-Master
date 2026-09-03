@@ -25,7 +25,6 @@ logger = logging.getLogger(__name__)
 class FieldEncryptionNotConfigured(Exception):
     pass
 
-
 def _get_key() -> bytes:
     raw = os.getenv("FIELD_ENCRYPTION_KEY", "")
     if not raw:
@@ -39,7 +38,6 @@ def _get_key() -> bytes:
         raise FieldEncryptionNotConfigured("FIELD_ENCRYPTION_KEY must decode to exactly 32 bytes (AES-256).")
     return key
 
-
 def encrypt_field(plaintext: str) -> str:
     """Returns a single base64 string: nonce (12 bytes) + ciphertext+tag,
     safe to store directly in a Text column."""
@@ -50,7 +48,6 @@ def encrypt_field(plaintext: str) -> str:
     nonce = os.urandom(12)
     ciphertext = aesgcm.encrypt(nonce, plaintext.encode("utf-8"), associated_data=None)
     return base64.b64encode(nonce + ciphertext).decode("ascii")
-
 
 def decrypt_field(encrypted: str) -> str:
     if encrypted is None:

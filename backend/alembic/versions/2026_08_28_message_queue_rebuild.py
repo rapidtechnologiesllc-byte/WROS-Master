@@ -20,7 +20,6 @@ down_revision = '2026_08_27_agent_config'
 branch_labels = None
 depends_on = None
 
-
 def upgrade():
     """Create or enhance message queue tables for channel-based routing and email tracking."""
 
@@ -163,7 +162,6 @@ def upgrade():
         op.create_index('ix_message_queue_created_at_queue_type', 'message_queue', ['created_at', 'queue_type'])
     except:
         pass
-
 
 def downgrade():
     """Rollback message queue schema changes."""

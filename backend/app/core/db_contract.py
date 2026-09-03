@@ -24,7 +24,6 @@ from app.models.user import Users
 from app.core.security import get_password_hash
 from app.core.logging import logger
 
-
 def initialize_database():
     """
     Initialize database contract on backend startup.
@@ -65,7 +64,6 @@ def initialize_database():
         logger.error(f"[FAILED] Database contract violation: {e}", exc_info=True)
         raise
 
-
 def _initialize_tenant():
     """Ensure tenant_id=1 (BlitzenX) exists."""
     db = SessionLocal()
@@ -80,7 +78,6 @@ def _initialize_tenant():
             logger.info("[Contract] Tenant exists: BlitzenX (id=1)")
     finally:
         db.close()
-
 
 def _initialize_rbac():
     """Ensure all modules, resources, and admin role exist.
@@ -196,7 +193,6 @@ def _initialize_rbac():
     finally:
         db.close()
 
-
 def _initialize_admin_user():
     """Ensure admin@blitzenx.com user exists with proper configuration and permissions."""
     db = SessionLocal()
@@ -243,7 +239,6 @@ def _initialize_admin_user():
     finally:
         db.close()
 
-
 def _verify_admin_screen_permissions(db: Session, admin_role: RoleTemplate):
     """Ensure admin role has all required admin screen permissions."""
     if not admin_role:
@@ -286,7 +281,6 @@ def _verify_admin_screen_permissions(db: Session, admin_role: RoleTemplate):
             db.add(perm)
             db.commit()
             logger.info(f"[Contract] Created admin screen permission for: {resource_name}")
-
 
 if __name__ == "__main__":
     # Can be run manually to verify/initialize database

@@ -14,7 +14,6 @@ from app.services.permission_helper import PermissionHelper
 
 router = APIRouter(prefix="/agent-state", tags=["Agent State Dashboard"])
 
-
 @router.get("/all", dependencies=[Depends(require_resource_permission("admin-settings", "view"))])
 def get_all_agents_state(
     db: Session = Depends(get_db),
@@ -139,7 +138,6 @@ def get_all_agents_state(
         logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
-
 @router.get("/{agent_name}", dependencies=[Depends(require_resource_permission("admin-settings", "view"))])
 def get_agent_state(
     agent_name: str,
@@ -174,7 +172,6 @@ def get_agent_state(
         logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
-
 @router.put("/{agent_name}/kill-switch", dependencies=[Depends(require_resource_permission("admin-settings", "edit"))])
 def toggle_kill_switch(
     agent_name: str,
@@ -198,7 +195,6 @@ def toggle_kill_switch(
 
     try:
         # Check admin permission via RBAC (not hardcoded role name)
-        from app.services.permission_helper import PermissionHelper
         has_admin_perms = PermissionHelper.has_any_permission(
             current_user.UserID,
             ["admin.manage", "admin.edit"],

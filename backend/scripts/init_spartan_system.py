@@ -51,7 +51,6 @@ def run_script(script_name: str, description: str) -> bool:
         print(f"\n✗ {description} - ERROR: {e}")
         return False
 
-
 def main():
     """Run all initialization steps"""
     print("\n" + "=" * 70)
@@ -100,7 +99,6 @@ def main():
         print("\nFix the errors above and re-run this script.")
         print("\n")
         return 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

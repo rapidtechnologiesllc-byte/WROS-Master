@@ -63,20 +63,16 @@ class ConversationOwnedByHuman(Exception):
     """HRMS-0410 BR-01 / R-08: Thunder may not send while a recruiter/HR
     user owns the conversation."""
 
-
 class NoWhatsAppNumberAvailable(Exception):
     pass
 
-
 def _send_whatsapp_unconfigured(to_number: str, from_number: str, body: str) -> bool:
     raise ChannelNotConfigured("WhatsApp Business API is not provisioned in this codebase yet.")
-
 
 def is_ai_owner(conversation: CandidateConversation) -> bool:
     """HRMS-0410's isAIOwner() -- the gate that was specified but never
     actually implemented anywhere in this codebase before this module."""
     return conversation.owner_type == "ai_agent"
-
 
 def resolve_outbound_whatsapp_number(db: Session, conversation: CandidateConversation) -> Optional[str]:
     """
@@ -93,7 +89,6 @@ def resolve_outbound_whatsapp_number(db: Session, conversation: CandidateConvers
 
     return DEFAULT_WHATSAPP_NUMBER
 
-
 def take_over_conversation(db: Session, conversation: CandidateConversation, hr_user_id: str) -> CandidateConversation:
     """HRMS-0410 BR-03: any recruiter/HR user can take over from anyone
     else (or from AI), no permission check, no lock."""
@@ -102,14 +97,12 @@ def take_over_conversation(db: Session, conversation: CandidateConversation, hr_
     db.add(conversation)
     return conversation
 
-
 def hand_back_conversation(db: Session, conversation: CandidateConversation) -> CandidateConversation:
     """HRMS-0410 HAND_BACK: returns the conversation to Thunder."""
     conversation.owner_type = "ai_agent"
     conversation.owner_id = AI_AGENT_NAME
     db.add(conversation)
     return conversation
-
 
 def send_whatsapp_message(
     db: Session,

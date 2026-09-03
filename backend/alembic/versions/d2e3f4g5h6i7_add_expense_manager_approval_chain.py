@@ -16,12 +16,10 @@ from typing import Sequence, Union
 from alembic import op
 import sqlalchemy as sa
 
-
 revision: str = 'd2e3f4g5h6i7'
 down_revision: Union[str, Sequence[str], None] = 'a3c5e7f9b1d3'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
-
 
 def upgrade() -> None:
     """Upgrade schema."""
@@ -45,7 +43,6 @@ def upgrade() -> None:
 
     # Add index for querying pending manager approvals
     op.create_index(op.f('ix_expense_records_manager_approval_status'), 'expense_records', ['manager_approval_status'], unique=False)
-
 
 def downgrade() -> None:
     """Downgrade schema."""

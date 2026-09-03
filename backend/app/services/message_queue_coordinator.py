@@ -18,7 +18,6 @@ from app.core.logging import logger
 
 logger = logging.getLogger(__name__)
 
-
 class MessageQueueCoordinator:
     """Coordinates message routing through SLM orchestration to channel processors."""
 
@@ -246,7 +245,6 @@ class MessageQueueCoordinator:
             raise ValueError("Database session required")
 
         try:
-            from app.models.message_queue import MessageQueue, MessageChannel
 
             stats = {
                 "messages_completed": 0,

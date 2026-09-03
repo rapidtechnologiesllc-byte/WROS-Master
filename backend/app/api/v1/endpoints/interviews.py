@@ -62,7 +62,6 @@ from app.schemas.interview import (
 
 router = APIRouter(prefix="/interviews", tags=["interviews"])
 
-
 # ============================================
 # Internal Helpers
 # ============================================
@@ -75,7 +74,6 @@ def _candidate_display_name(candidate: Candidate) -> str:
         candidate.candidateLastName or "",
     ]
     return " ".join(filter(None, parts)).strip() or "N/A"
-
 
 def _check_and_auto_submit_for_hire(interview: Interview, db: Session) -> None:
     """
@@ -212,7 +210,6 @@ def _check_and_auto_submit_for_hire(interview: Interview, db: Session) -> None:
     else:
         logger.warning(f"[AutoHire] No hiring manager email found for candidate '{candidate_id}'.")
 
-
 # ---------------------------------------------------------------------------
 # Feedback submitted --" email notification
 # ---------------------------------------------------------------------------
@@ -254,7 +251,6 @@ def _notify_feedback_submitted(
     except Exception as exc:
         logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[FeedbackNotify-DEFECT13] Non-critical notification error: {exc}")
-
 
 # ---------------------------------------------------------------------------
 # Feedback reminder scheduler --" fires after interview ends
@@ -442,7 +438,6 @@ def _schedule_feedback_reminders(interview: Interview, db: Session) -> None:
                     f"for member {member_id}: {exc}"
                 )
 
-
 def _cancel_feedback_reminders(interview_id: int, member_id: str) -> None:
     """
     Cancel any pending APScheduler feedback-reminder jobs for a specific
@@ -468,7 +463,6 @@ def _cancel_feedback_reminders(interview_id: int, member_id: str) -> None:
                 f"for member {member_id} on interview {interview_id}: {exc}"
             )
 
-
 def _cancel_all_feedback_reminders(interview_id: int, db: Session) -> None:
     """
     Cancel ALL pending feedback-reminder jobs (both 1 h and 24 h) for every
@@ -483,7 +477,6 @@ def _cancel_all_feedback_reminders(interview_id: int, db: Session) -> None:
     ).all()
     for member in members:
         _cancel_feedback_reminders(interview_id, member.interviewer_id)
-
 
 def _cancel_interview_reminders(interview_id: int) -> None:
     """
@@ -506,7 +499,6 @@ def _cancel_interview_reminders(interview_id: int) -> None:
                 f"[InterviewReminder] Could not cancel {suffix} reminder "
                 f"for interview {interview_id}: {exc}"
             )
-
 
 def _schedule_interview_reminder(interview: Interview, db: Session) -> None:
     """
@@ -564,7 +556,6 @@ def _schedule_interview_reminder(interview: Interview, db: Session) -> None:
             _reminder_label=_label,
         ):
             """Async job executed by APScheduler."""
-            from app.core.database import SessionLocal
             _db = SessionLocal()
             try:
                 iv = _db.query(Interview).filter(Interview.id == _interview_id).first()
@@ -670,7 +661,6 @@ def _schedule_interview_reminder(interview: Interview, db: Session) -> None:
                 f"for interview {interview_id}: {exc}"
             )
 
-
 def _resolve_hiring_manager_id_for_interview(db: Session, interview: Interview) -> str | None:
     """Backlog item, 2026-08-05: same 3-priority HM resolution
     _check_and_auto_submit_for_hire() already uses, kept as its own
@@ -694,7 +684,6 @@ def _resolve_hiring_manager_id_for_interview(db: Session, interview: Interview) 
             return job.hiringManagerID
 
     return None
-
 
 def _create_hm_review_task(db: Session, interview: Interview) -> None:
     """Backlog item, 2026-08-05 (wros_hm_candidate_review_task_link_backlog):
@@ -740,14 +729,12 @@ def _create_hm_review_task(db: Session, interview: Interview) -> None:
         logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[HMReviewTask] Failed to create review task for interview {interview.id}: {exc}")
 
-
 # ============================================
 # NOTE: Hiring Manager review endpoint moved
 # ============================================
 # GET /hiring-manager/review has been moved to:
 #   app/api/v1/endpoints/preonboarding.py
 #   GET /preonboarding/hiring-manager/review
-
 
 # ============================================
 # Interview Panel Endpoints
@@ -868,7 +855,6 @@ def create_interview_panel(
         rehire_cleared_by=rehire_cleared_by,
     )
 
-
 @router.get(
     "/panels/{panel_id}",
     response_model=InterviewPanelWithDetails,
@@ -932,7 +918,6 @@ def get_interview_panel(
         member_count=member_count,
         interview_count=interview_count
     )
-
 
 @router.get(
     "/panels",
@@ -1007,7 +992,6 @@ def get_all_interview_panels(
 
     return results
 
-
 @router.delete(
     "/panels/{panel_id}",
     dependencies=[Depends(get_current_internal_user)],
@@ -1060,7 +1044,6 @@ def delete_interview_panel(
         message=f"Interview panel {panel_id} and all associated data deleted successfully"
     )
 
-
 # ============================================
 # Rehire Guard Endpoints (2026-08-05)
 # ============================================
@@ -1092,7 +1075,6 @@ def _rehire_review_to_response(db: Session, review: InterviewRehireReview) -> Re
         created_at=review.created_at,
     )
 
-
 @router.get(
     "/rehire-reviews",
     dependencies=[Depends(get_current_internal_user)],
@@ -1114,7 +1096,6 @@ def list_rehire_reviews(
         total=len(reviews),
         reviews=[_rehire_review_to_response(db, r) for r in reviews],
     )
-
 
 @router.post(
     "/rehire-reviews/{review_id}/decide",
@@ -1145,7 +1126,6 @@ def decide_rehire_review_endpoint(
         raise HTTPException(status_code=409, detail=str(exc))
 
     return _rehire_review_to_response(db, review)
-
 
 def _panel_diversity_warning(db: Session, panel: InterviewPanel, interviewer_id: str) -> str | None:
     """Backlog item, 2026-08-05 (wros_interview_regrouping_and_rehire_guard_priority):
@@ -1182,7 +1162,6 @@ def _panel_diversity_warning(db: Session, panel: InterviewPanel, interviewer_id:
         f"on {len(past_panels)} other job(s) -- consider a different interviewer for "
         f"a fresh perspective."
     )
-
 
 # ============================================
 # Panel Member Endpoints
@@ -1286,7 +1265,6 @@ def assign_panel_member(
         diversity_warning=diversity_warning,
     )
 
-
 @router.get(
     "/panel-members/{panel_id}",
     response_model=List[PanelMemberWithDetails],
@@ -1339,7 +1317,6 @@ def get_panel_members(
 
     return results
 
-
 @router.delete(
     "/panel-members/{member_id}",
     dependencies=[Depends(get_current_internal_user)],
@@ -1379,7 +1356,6 @@ def remove_panel_member(
         status="Success",
         message=f"Panel member {member_id} removed successfully"
     )
-
 
 # ============================================
 # Interview Endpoints
@@ -1495,7 +1471,6 @@ def create_interview(
         outlook_event_id=interview.outlook_event_id,
         status=interview.status
     )
-
 
 # ============================================
 # My Interviews Endpoint
@@ -1641,7 +1616,6 @@ def get_my_interviews(
         interviews=results
     )
 
-
 @router.get(
     "/{interview_id}",
     response_model=InterviewDetailedResponse,
@@ -1710,7 +1684,6 @@ def get_interview(
         feedback_count=feedback_count,
         feedback_status=interview.feedback_status,
     )
-
 
 @router.get(
     "",
@@ -1789,7 +1762,6 @@ def get_all_interviews(
         ))
     
     return results
-
 
 @router.put(
     "/{interview_id}",
@@ -1889,7 +1861,6 @@ def update_interview(
         status=interview.status
     )
 
-
 @router.delete(
     "/{interview_id}",
     dependencies=[Depends(get_current_internal_user)],
@@ -1946,7 +1917,6 @@ def delete_interview(
         status="Success",
         message=f"Interview {interview_id} and all associated feedback deleted successfully"
     )
-
 
 # ============================================
 # Interview Feedback Endpoints
@@ -2117,7 +2087,6 @@ def submit_interview_feedback(
         submitted_at=feedback.submitted_at
     )
 
-
 @router.get(
     "/feedback/interview/{interview_id}",
     response_model=List[InterviewFeedbackWithDetails],
@@ -2183,7 +2152,6 @@ def get_feedback_by_interview(
     
     return results
 
-
 @router.get(
     "/feedback/{feedback_id}",
     response_model=InterviewFeedbackWithDetails,
@@ -2240,7 +2208,6 @@ def get_feedback_by_id(
         recommendation=feedback.recommendation,
         submitted_at=feedback.submitted_at
     )
-
 
 @router.put(
     "/feedback/{feedback_id}",
@@ -2312,7 +2279,6 @@ def update_interview_feedback(
         submitted_at=feedback.submitted_at
     )
 
-
 @router.delete(
     "/feedback/{feedback_id}",
     response_model=DeleteResponse,
@@ -2351,7 +2317,6 @@ def delete_interview_feedback(
         status="Success",
         message=f"Feedback {feedback_id} deleted successfully"
     )
-
 
 # ============================================
 # Statistics and Analytics Endpoints
@@ -2403,7 +2368,6 @@ def get_interview_statistics(
         total_feedback=total_feedback,
         average_feedback_score=avg_score
     )
-
 
 @router.get("/candidate-history/{candidate_id}", response_model=CandidateInterviewHistory, dependencies=[Depends(require_resource_permission("candidates", "view"))],
  )
@@ -2494,7 +2458,6 @@ def get_candidate_interview_history(
         cancelled_interviews=cancelled_interviews,
         interviews=interview_details
     )
-
 
 @router.get(
     "/interviewer-workload/{interviewer_id}",
@@ -2598,7 +2561,6 @@ def get_interviewer_workload(
         feedback_submitted=feedback_submitted,
         upcoming_interviews=upcoming_details
     )
-
 
 @router.get(
     "/hm-review/my-candidates", response_model=HMCandidateReviewListResponse,

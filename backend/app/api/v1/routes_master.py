@@ -163,7 +163,6 @@ from app.core.database import get_db
 from app.core.dependencies import get_current_user
 from app.middleware.auth_middleware import AuthenticationMiddleware
 
-
 # ============================================================================
 # MASTER ROUTER CONFIGURATION
 # ============================================================================
@@ -214,7 +213,6 @@ class MasterRouterConfig:
         "/public/thunder-chat/history",
         "/webhooks/whatsapp",
     ]
-
 
 # ============================================================================
 # ROUTER GROUPING BY DOMAIN (15 Core Story Endpoints)
@@ -486,7 +484,6 @@ def create_master_router() -> APIRouter:
 
     return router
 
-
 # ============================================================================
 # ERROR RESPONSE SCHEMAS (for documentation)
 # ============================================================================
@@ -555,7 +552,6 @@ class ErrorResponse:
             "timestamp": datetime.utcnow().isoformat() + "Z"
         }
 
-
 # ============================================================================
 # TENANT ISOLATION UTILITIES
 # ============================================================================
@@ -595,7 +591,6 @@ class TenantValidator:
                 detail=f"{resource_type} not found"
             )
 
-
 # ============================================================================
 # REQUEST VALIDATION DECORATORS
 # ============================================================================
@@ -619,7 +614,6 @@ def require_permission(permission: str):
         return current_user
     return Depends(check_permission)
 
-
 # ============================================================================
 # SETUP FUNCTION
 # ============================================================================
@@ -638,7 +632,6 @@ def setup_master_routes(app) -> None:
 
     Example:
         from fastapi import FastAPI
-        from app.api.v1.routes_master import setup_master_routes
 
         app = FastAPI()
         setup_master_routes(app)
@@ -663,7 +656,6 @@ def setup_master_routes(app) -> None:
                 f"Master routes registered but {required} not found in middleware stack. "
                 f"Authentication and rate limiting may not work correctly."
             )
-
 
 if __name__ == "__main__":
     # Display route information when run directly

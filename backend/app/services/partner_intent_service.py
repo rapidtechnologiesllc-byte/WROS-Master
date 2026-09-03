@@ -39,7 +39,6 @@ EXPERIENCE_STD_DEV_THRESHOLD_YEARS = 1.0
 # on file." Flagged, not a confirmed product decision.
 BILLING_RANGE_RELATIVE_TOLERANCE = 0.20
 
-
 def compute_partner_intent_profile(
     partner_user_id: str, historical_demands: List[dict], *, tenant_id=None,
 ) -> dict:
@@ -88,7 +87,6 @@ def compute_partner_intent_profile(
         "typical_skills": typical_skills,
     }
 
-
 def save_partner_intent_profile(db: Session, profile_data: dict) -> PartnerIntentProfile:
     """Upserts by partner_user_id (unique) -- the nightly batch job's
     write step, once real historical demand data can be sourced (see
@@ -113,7 +111,6 @@ def save_partner_intent_profile(db: Session, profile_data: dict) -> PartnerInten
 
     db.add(target)
     return target
-
 
 def infer_intent(profile: Optional[PartnerIntentProfile]) -> dict:
     """
@@ -175,7 +172,6 @@ def infer_intent(profile: Optional[PartnerIntentProfile]) -> dict:
         "questions_to_skip": questions_to_skip, "questions_to_ask": questions_to_ask,
     }
 
-
 def detect_new_client(db: Session, client_name: str) -> Tuple[Optional[Client], bool]:
     """Returns (existing_client_or_None, is_new). Case-insensitive exact
     match only -- see module docstring on why this isn't fuzzy matching."""
@@ -187,7 +183,6 @@ def detect_new_client(db: Session, client_name: str) -> Tuple[Optional[Client], 
     if existing:
         return existing, False
     return None, True
-
 
 def create_pending_verification_client(db: Session, client_name: str, *, tenant_id=None) -> Client:
     """BR: new client always triggers PENDING_VERIFICATION, never silent

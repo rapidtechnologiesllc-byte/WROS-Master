@@ -45,7 +45,6 @@ class MotivationContentLibrary(Base):
         UniqueConstraint("tenant_id", "desire_category", name="uq_motivation_content_per_tenant_category"),
     )
 
-
 class MotivationOutcome(Base):
     __tablename__ = "motivation_outcomes"
 

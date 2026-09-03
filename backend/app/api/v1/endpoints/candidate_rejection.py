@@ -50,7 +50,6 @@ from app.core.logging import logger
 
 router = APIRouter(prefix="/rejection", tags=["candidate-rejection"])
 
-
 # ---------------------------------------------------------------------------
 # POST /rejection/reject — Reject a candidate
 # ---------------------------------------------------------------------------
@@ -130,7 +129,6 @@ def api_reject_candidate(
         logger.error(f"Unexpected error during rejection: {str(e)}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
-
 # ---------------------------------------------------------------------------
 # POST /rejection/{id}/send-email — Send rejection email
 # ---------------------------------------------------------------------------
@@ -198,7 +196,6 @@ def api_send_rejection_email(
         logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Unexpected error sending email: {str(e)}")
         raise HTTPException(status_code=500, detail="Internal server error")
-
 
 # ---------------------------------------------------------------------------
 # POST /rejection/{id}/archive — Archive rejected candidate
@@ -274,7 +271,6 @@ def api_archive_candidate(
         logger.error(f"Unexpected error archiving candidate: {str(e)}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
-
 # ---------------------------------------------------------------------------
 # GET /rejection/reasons — Get available rejection reasons
 # ---------------------------------------------------------------------------
@@ -320,7 +316,6 @@ def api_get_rejection_reasons(
         logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Error fetching rejection reasons: {str(e)}")
         raise HTTPException(status_code=500, detail="Internal server error")
-
 
 # ---------------------------------------------------------------------------
 # GET /rejection/candidate/{candidate_id} — Get candidate rejection status
@@ -372,7 +367,6 @@ def api_get_candidate_rejection_status(
         logger.error(f"Error fetching rejection status: {str(e)}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
-
 # ---------------------------------------------------------------------------
 # GET /rejection/{id} — Get specific rejection record
 # ---------------------------------------------------------------------------
@@ -418,7 +412,6 @@ def api_get_rejection(
         logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Error fetching rejection record: {str(e)}")
         raise HTTPException(status_code=500, detail="Internal server error")
-
 
 # ---------------------------------------------------------------------------
 # GET /rejection/list — List all rejections (paginated)

@@ -16,7 +16,6 @@ class EventLogEntry(BaseModel):
     payload: Optional[Dict[str, Any]]
     emitted_at: Optional[str]
 
-
 class EventLogResponse(BaseModel):
     total: int
     events: List[EventLogEntry]

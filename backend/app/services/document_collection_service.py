@@ -90,7 +90,6 @@ JOB_BATCH_SIZE = 100
 
 GEMINI_MODEL_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
 
-
 def _infer_country_code(candidate: Candidate) -> str:
     """BR-02 -- see module docstring on the real fallback chain."""
     mobile = (candidate.candidateMobile or "").strip()
@@ -100,11 +99,9 @@ def _infer_country_code(candidate: Candidate) -> str:
         return "IN"
     return "OTHER"
 
-
 def _required_documents_for(candidate: Candidate) -> List[Tuple[str, str]]:
     country = _infer_country_code(candidate)
     return [(doc_type, label) for doc_type, label, india_only in REQUIRED_DOCUMENTS if not india_only or country == "IN"]
-
 
 def _send_channel_aware(db: Session, conversation: CandidateConversation, candidate: Candidate, message: str) -> bool:
     channel = conversation.channel_preference if conversation.channel_preference in ("whatsapp", "web_chat") else "whatsapp"
@@ -114,7 +111,6 @@ def _send_channel_aware(db: Session, conversation: CandidateConversation, candid
     except (ConsentNotGiven, ConversationOwnedByHuman, DuplicateMessageSuppressed, ThunderPausedError) as exc:
         logger.info(f"[DocumentCollection] Message skipped for candidate {candidate.candidateID!r}: {exc}")
         return False
-
 
 def _notify_recruiter(db: Session, submission: Optional[Submission], message: str) -> None:
     if submission is None or not submission.submitted_by_user_id:
@@ -128,7 +124,6 @@ def _notify_recruiter(db: Session, submission: Optional[Submission], message: st
         logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[DocumentCollection] Failed to notify recruiter: {exc}")
 
-
 def _relevant_submission(db: Session, candidate_id: str) -> Optional[Submission]:
     return (
         db.query(Submission)
@@ -136,7 +131,6 @@ def _relevant_submission(db: Session, candidate_id: str) -> Optional[Submission]
         .order_by(Submission.submitted_at.desc())
         .first()
     )
-
 
 def start_document_collection(db: Session, candidate: Candidate, conversation: CandidateConversation, offer: OfferLetter, tenant_id: str) -> Dict:
     """Steps 1-2. Idempotent -- re-running for the same offer never
@@ -167,7 +161,6 @@ def start_document_collection(db: Session, candidate: Candidate, conversation: C
         db.rollback()
         return {"outcome": "start_failed"}
 
-
 def _default_llm_call(prompt: str, api_key: str) -> str:
     import requests
     resp = requests.post(
@@ -179,7 +172,6 @@ def _default_llm_call(prompt: str, api_key: str) -> str:
     result = resp.json()
     return result.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "").strip()
 
-
 def _call_llm(prompt: str, llm_call: Optional[Callable[[str], str]]) -> str:
     if llm_call is not None:
         return llm_call(prompt)
@@ -188,9 +180,7 @@ def _call_llm(prompt: str, llm_call: Optional[Callable[[str], str]]) -> str:
         raise RuntimeError("GEMINI_API_KEY not set")
     return _default_llm_call(prompt, api_key)
 
-
 VALID_DOCUMENT_CLASSIFICATIONS = tuple(doc_type for doc_type, _, _ in REQUIRED_DOCUMENTS) + ("OTHER",)
-
 
 def classify_document_type(context_text: str, *, llm_call: Optional[Callable[[str], str]] = None) -> str:
     """Step 3's LLM classification. Never raises to the caller --
@@ -207,7 +197,6 @@ def classify_document_type(context_text: str, *, llm_call: Optional[Callable[[st
         logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[DocumentCollection] Document classification failed: {exc}")
         return "OTHER"
-
 
 def mark_document_received(db: Session, candidate: Candidate, conversation: CandidateConversation, tenant_id: str, document_type: str, document_url: str) -> Dict:
     """Step 3. Never raises. Returns:
@@ -257,7 +246,6 @@ def mark_document_received(db: Session, candidate: Candidate, conversation: Cand
         db.rollback()
         return {"outcome": "receive_failed"}
 
-
 def cancel_pending_documents_for_candidate(db: Session, candidate_id: str) -> int:
     """BR-01. Real, callable -- wired into offer_decision_service's
     _handle_decline() (see module docstring)."""
@@ -268,7 +256,6 @@ def cancel_pending_documents_for_candidate(db: Session, candidate_id: str) -> in
     if rows:
         db.commit()
     return len(rows)
-
 
 def run_document_reminder_job(db: Session) -> Dict:
     """Step 4. Runs every 6 hours. Never lets one bad row abort the batch."""

@@ -38,7 +38,6 @@ logger = logging.getLogger(__name__)
 class ResumeValidationError(Exception):
     pass
 
-
 def _month_bounds(month_start: date) -> tuple:
     first = month_start.replace(day=1)
     if first.month == 12:
@@ -46,7 +45,6 @@ def _month_bounds(month_start: date) -> tuple:
     else:
         next_month = first.replace(month=first.month + 1)
     return first, next_month
-
 
 def calculate_monthly_conversion_rate(
     db: Session, *, tenant_id: Optional[int], month_start: date,
@@ -90,14 +88,12 @@ def calculate_monthly_conversion_rate(
     db.add(metric)
     return metric
 
-
 def _get_or_create_status(db: Session, tenant_id: Optional[int]) -> HtdIntakeStatus:
     status = db.query(HtdIntakeStatus).filter(HtdIntakeStatus.tenant_id == tenant_id).first()
     if status is None:
         status = HtdIntakeStatus(tenant_id=tenant_id, is_paused=False)
         db.add(status)
     return status
-
 
 def check_and_apply_breach(db: Session, *, tenant_id: Optional[int], as_of: Optional[date] = None) -> HtdIntakeStatus:
     """
@@ -138,11 +134,9 @@ def check_and_apply_breach(db: Session, *, tenant_id: Optional[int], as_of: Opti
 
     return status
 
-
 def is_htd_intake_paused(db: Session, tenant_id: Optional[int]) -> bool:
     status = db.query(HtdIntakeStatus).filter(HtdIntakeStatus.tenant_id == tenant_id).first()
     return bool(status and status.is_paused)
-
 
 def resume_htd_intake(
     db: Session, *, tenant_id: Optional[int], audit_findings: str, corrective_actions: str, resumed_by: str,

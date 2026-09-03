@@ -47,7 +47,6 @@ class SalarySensitiveData(Base):
     created_by = Column(String(50), nullable=True)  # User ID who created band
     last_updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
 
-
 class DecryptionAccessLog(Base):
     """
     Audit log for all decryption operations.
@@ -77,7 +76,6 @@ class DecryptionAccessLog(Base):
     ip_address = Column(String(45), nullable=True)  # IPv4 or IPv6 for tracking
     user_agent = Column(String(255), nullable=True)  # Browser/client info
 
-
 class EncryptionKeyMetadata(Base):
     """
     Metadata for encryption key management.
@@ -104,7 +102,6 @@ class EncryptionKeyMetadata(Base):
     created_at = Column(DateTime, default=func.now())
     expires_at = Column(DateTime, nullable=True)  # When does this key expire?
     parent_key_id = Column(String(36), nullable=True)  # If re-keyed, link to old key
-
 
 class EncryptedSLMJobMetadata(Base):
     """
@@ -156,7 +153,6 @@ class EncryptedSLMJobMetadata(Base):
     created_by = Column(String(50), nullable=True)
     last_accessed_by = Column(String(50), nullable=True)
     last_accessed_at = Column(DateTime, nullable=True)
-
 
 class EncryptedSLMFeedback(Base):
     """

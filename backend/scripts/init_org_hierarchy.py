@@ -72,14 +72,12 @@ ROLE_DECISION_DOMAINS = {
     "Recruiter": [],
 }
 
-
 def get_session():
     """Get database session"""
     db_url = get_database_url()
     engine = create_engine(db_url)
     Session = sessionmaker(bind=engine)
     return Session()
-
 
 def find_user_by_role(session, role_name: str):
     """Find first user with given role"""
@@ -98,7 +96,6 @@ def find_user_by_role(session, role_name: str):
         logger.error(f"Error: {str(e)}", exc_info=True)
         logger.warning(f"Could not find user with role '{role_name}': {e}")
         raise ValueError("Operation failed")
-
 
 def get_user_roles(session, user_id: str) -> list:
     """Get all roles for a user"""
@@ -123,7 +120,6 @@ def get_user_roles(session, user_id: str) -> list:
         logger.error(f"Error: {str(e)}", exc_info=True)
         logger.warning(f"Could not get roles for user {user_id}: {e}")
         raise ValueError("Operation failed")
-
 
 def create_org_node(
     session,
@@ -167,7 +163,6 @@ def create_org_node(
     except Exception as e:
         logger.error(f"Failed to create OrgNode for {name}: {e}")
         raise
-
 
 def init_org_hierarchy():
     """Initialize entire organization hierarchy"""
@@ -402,7 +397,6 @@ def init_org_hierarchy():
         return False
     finally:
         session.close()
-
 
 if __name__ == "__main__":
     success = init_org_hierarchy()

@@ -56,7 +56,6 @@ class AgentMaturityLevel(Base):
 
     tenant = relationship("Users", foreign_keys=[tenant_id], lazy="select")
 
-
 class AgentPerformanceMetric(Base):
     """
     Weekly performance snapshots for trend analysis and historical tracking.

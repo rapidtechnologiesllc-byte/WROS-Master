@@ -244,7 +244,6 @@ def improved_extract_[field](text):
 
         return trajectory
 
-
 class SLMImprovementScheduler:
     """
     Schedule improvement tasks and report progress.

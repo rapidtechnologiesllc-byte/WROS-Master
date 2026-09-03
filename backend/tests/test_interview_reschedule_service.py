@@ -45,12 +45,10 @@ from app.services.interview_availability_service import parse_availability_respo
 from app.services.interview_service import assign_panel_member, create_interview
 from app.services.submission_service import create_submission
 
-
 @pytest.fixture(autouse=True)
 def _fake_whatsapp_number(monkeypatch):
     import app.services.whatsapp_routing_service as wr_svc
     monkeypatch.setattr(wr_svc, "DEFAULT_WHATSAPP_NUMBER", "+15550009999")
-
 
 @pytest.fixture()
 def db_session():
@@ -72,7 +70,6 @@ def db_session():
         session.close()
         engine.dispose()
         os.remove(db_path)
-
 
 @pytest.fixture()
 def seeded(db_session):
@@ -123,7 +120,6 @@ def seeded(db_session):
 
     return tenant, candidate, submission, conv, panel
 
-
 def _make_confirmed_interview(db, tenant, submission, panel, *, reschedule_count=0, graph_event_id="evt-original"):
     scheduled_at = datetime.now(dt_timezone.utc).replace(microsecond=0) + timedelta(days=3)
     interview = create_interview(db, tenant_id=tenant.id, submission=submission, level="L1", panel=panel, scheduled_at=scheduled_at, reschedule_count=reschedule_count)
@@ -134,12 +130,10 @@ def _make_confirmed_interview(db, tenant, submission, panel, *, reschedule_count
     db.commit()
     return interview
 
-
 def _next_weekday(base, target_weekday):
     from datetime import date as date_cls
     days_ahead = (target_weekday - base.weekday()) % 7
     return base + timedelta(days=days_ahead)
-
 
 # ── AC-1/TC-001: reschedule detected and acknowledged ─────────────────
 
@@ -168,7 +162,6 @@ def test_start_reschedule_cancels_outlook_event_and_reminders(db_session, seeded
     assert event is not None
     assert event.event_data["old_interview_id"] == interview.id
 
-
 def test_start_reschedule_clears_existing_availability_slots(db_session, seeded):
     tenant, candidate, submission, conv, panel = seeded
     interview = _make_confirmed_interview(db_session, tenant, submission, panel)
@@ -179,12 +172,10 @@ def test_start_reschedule_clears_existing_availability_slots(db_session, seeded)
     svc.start_reschedule(db_session, candidate, conv, "U-ORG", graph_delete_event_call=lambda e, i: None)
     assert db_session.query(CandidateAvailabilitySlot).filter(CandidateAvailabilitySlot.candidate_id == "C-1").count() == 0
 
-
 def test_start_reschedule_no_current_interview(db_session, seeded):
     tenant, candidate, submission, conv, panel = seeded
     result = svc.start_reschedule(db_session, candidate, conv, "U-ORG")
     assert result["outcome"] == "no_current_interview"
-
 
 def test_outlook_delete_failure_does_not_block_flow(db_session, seeded):
     tenant, candidate, submission, conv, panel = seeded
@@ -198,7 +189,6 @@ def test_outlook_delete_failure_does_not_block_flow(db_session, seeded):
 
     notifications = db_session.query(Notification).all()
     assert len(notifications) == 1
-
 
 # ── AC-8/TC-003: escalates at the reschedule cap ──────────────────────
 
@@ -216,7 +206,6 @@ def test_start_reschedule_escalates_at_cap(db_session, seeded):
 
     notifications = db_session.query(Notification).all()
     assert len(notifications) == 1
-
 
 # ── Full reschedule flow: new availability -> match -> confirm -> reminders ─
 
@@ -263,12 +252,10 @@ def test_full_reschedule_flow_creates_new_interview_and_supersedes_old(db_sessio
     new_reminders = db_session.query(InterviewReminder).filter(InterviewReminder.interview_id == new_interview_id).all()
     assert len(new_reminders) == 2
 
-
 def test_complete_reschedule_no_active_reschedule_returns_honest_outcome(db_session, seeded):
     tenant, candidate, submission, conv, panel = seeded
     result = svc.complete_reschedule_match_and_confirm(db_session, candidate, conv, "U-ORG")
     assert result["outcome"] == "no_active_reschedule"
-
 
 def test_no_match_leaves_old_interview_untouched(db_session, seeded):
     tenant, candidate, submission, conv, panel = seeded

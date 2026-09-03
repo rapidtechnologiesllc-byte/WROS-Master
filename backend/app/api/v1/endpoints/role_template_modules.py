@@ -10,7 +10,6 @@ from app.models.role_template import Module, Resource
 
 router = APIRouter(prefix="/admin/modules", tags=["Modules & Resources"])
 
-
 @router.get(
     "",
     dependencies=[Depends(require_resource_permission("unknown", "view"))]
@@ -53,7 +52,6 @@ def list_modules_and_resources(
         })
 
     return {"modules": result}
-
 
 @router.get(
     "/{module_id}/resources",

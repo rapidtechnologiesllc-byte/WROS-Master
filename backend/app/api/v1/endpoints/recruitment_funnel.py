@@ -18,7 +18,6 @@ from app.core.database import get_db
 
 router = APIRouter(prefix="/recruiting", tags=["recruitment-funnel"])
 
-
 @router.get("/funnel", dependencies=[Depends(require_resource_permission("agents", "view"))])
 async def get_full_recruitment_funnel(
     db: Session = Depends(get_db),
@@ -67,7 +66,6 @@ async def get_full_recruitment_funnel(
         logger.error(f"Error fetching recruitment funnel: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
 
-
 @router.get("/funnel/recruitment", dependencies=[Depends(require_resource_permission("agents", "view"))])
 async def get_recruitment_only(
     db: Session = Depends(get_db),
@@ -87,7 +85,6 @@ async def get_recruitment_only(
         logger.error(f"Error fetching recruitment metrics: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
-
 @router.get("/funnel/resources", dependencies=[Depends(require_resource_permission("agents", "view"))])
 async def get_resources_only(
     db: Session = Depends(get_db),
@@ -106,7 +103,6 @@ async def get_resources_only(
         logger.error(f"Error fetching resource metrics: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
-
 @router.get("/funnel/happiness", dependencies=[Depends(require_resource_permission("agents", "view"))])
 async def get_happiness_only(
     db: Session = Depends(get_db),
@@ -124,7 +120,6 @@ async def get_happiness_only(
         logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Error fetching happiness metrics: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @router.get("/funnel/2030-trajectory", dependencies=[Depends(require_resource_permission("agents", "view"))])
 async def get_2030_trajectory(

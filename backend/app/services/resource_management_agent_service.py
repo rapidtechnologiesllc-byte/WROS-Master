@@ -84,13 +84,11 @@ logger = logging.getLogger(__name__)
 class RecommendationNotPending(Exception):
     pass
 
-
 class EmployeeAlreadyActivelyEngaged(Exception):
     """Avinash's explicit business call (2026-07-22): an employee already
     IN_PROGRESS on one client engagement must never be simultaneously
     pursued for a second. Hard block, not a warning -- see
     start_pursuing_recommendation()."""
-
 
 # ---------------------------------------------------------------------------
 # Skill matching
@@ -107,7 +105,6 @@ def _parse_skills(raw: Optional[str]) -> List[str]:
         raise ValueError("Operation failed")
     return [str(s).strip().lower() for s in parsed if str(s).strip()]
 
-
 def skill_match_score(employee_skills_raw: Optional[str], demand_required_skills_raw: Optional[str]) -> float:
     """Fraction of the demand's required skills the employee has. 0.0 if
     the demand lists no required skills (nothing to match against)."""
@@ -116,7 +113,6 @@ def skill_match_score(employee_skills_raw: Optional[str], demand_required_skills
     if not required_skills:
         return 0.0
     return len(employee_skills & required_skills) / len(required_skills)
-
 
 def find_open_demand_matches(
     db: Session, employee: Employee, *, min_score: float = SKILL_MATCH_THRESHOLD,
@@ -143,7 +139,6 @@ def find_open_demand_matches(
             matches.append((demand, score))
     matches.sort(key=lambda pair: pair[1], reverse=True)
     return matches
-
 
 # ---------------------------------------------------------------------------
 # S-253/HRMS-0509 (canonical) -- Match Bench Resources to Opportunity.
@@ -180,7 +175,6 @@ def match_bench_resources_to_demand(
     ranked.sort(key=lambda pair: pair[1], reverse=True)
     return [{"employee": employee, "score": score} for employee, score in ranked[:top_n]]
 
-
 # ---------------------------------------------------------------------------
 # Step 3/BR-1105-01/AC-1/AC-3 -- Core-vs-Speciality detection, delegated
 # ---------------------------------------------------------------------------
@@ -199,7 +193,6 @@ def _speciality_deployed_core_certified_employees(db: Session, tenant_id: Option
         .distinct()
         .all()
     )
-
 
 def detect_core_pull_triggers(
     db: Session, *, tenant_id: Optional[int] = None, bu_head: Optional[Users] = None,
@@ -247,7 +240,6 @@ def detect_core_pull_triggers(
                 triggered.append(event)
                 break  # one active Speciality allocation can only be pulled once per scan
     return triggered
-
 
 # ---------------------------------------------------------------------------
 # Step 4 -- LLM ranking for non-conflicting (bench) matches, advisory only
@@ -318,7 +310,6 @@ No markdown, no code fences, no explanation outside the JSON array."""
             for d, score in matches
         ]
 
-
 def is_employee_actively_engaged(
     db: Session, employee_id: str, *, exclude_recommendation_id: Optional[str] = None,
 ) -> bool:
@@ -339,7 +330,6 @@ def is_employee_actively_engaged(
     if exclude_recommendation_id is not None:
         query = query.filter(BenchAllocationRecommendation.id != exclude_recommendation_id)
     return query.first() is not None
-
 
 def run_bench_scan(
     db: Session, *, tenant_id: Optional[int] = None, bu_head: Optional[Users] = None,
@@ -407,7 +397,6 @@ def run_bench_scan(
 
     return result
 
-
 # ---------------------------------------------------------------------------
 # Step 5 -- RM review queue, the only path to an actual allocation
 # ---------------------------------------------------------------------------
@@ -419,7 +408,6 @@ def get_recommendation_queue(db: Session, *, tenant_id: Optional[int] = None) ->
     if tenant_id is not None:
         query = query.filter(BenchAllocationRecommendation.tenant_id == tenant_id)
     return query.order_by(BenchAllocationRecommendation.confidence_pct.desc()).all()
-
 
 def start_pursuing_recommendation(
     db: Session, recommendation: BenchAllocationRecommendation, *, actor_user_id: str,
@@ -463,7 +451,6 @@ def start_pursuing_recommendation(
     )
 
     return recommendation
-
 
 def approve_bench_recommendation(
     db: Session, recommendation: BenchAllocationRecommendation, *, actor_user_id: str,
@@ -510,7 +497,6 @@ def approve_bench_recommendation(
     )
 
     return allocation
-
 
 def reject_bench_recommendation(
     db: Session, recommendation: BenchAllocationRecommendation, *, actor_user_id: str,

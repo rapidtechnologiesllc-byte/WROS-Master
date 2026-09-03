@@ -21,9 +21,7 @@ from app.services.document_service import DocumentService, SHAREPOINT_SITE_ID, S
 from app.services.virus_scan_service import document_is_accessible, scan_document_content
 from app.core.logging import logger
 
-
 router = APIRouter(prefix="/documents", tags=["Documents uploads"])
-
 
 async def _upload_document_helper(
     file: UploadFile,
@@ -127,7 +125,6 @@ async def _upload_document_helper(
         logger.error(f"Failed to save document metadata: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to save document metadata")
 
-
 @router.post(
     "/upload/resume",
     response_model=DocumentUploadResponse,
@@ -158,7 +155,6 @@ async def upload_resume(
     # Use candidate object for upload (not the HR user)
     return await _upload_document_helper(file, "resume", candidate, db)
 
-
 @router.post("/upload/pan", response_model=DocumentUploadResponse, dependencies=[Depends(require_resource_permission("upload", "create"))])
 async def upload_pan(
     file: UploadFile = File(..., description="PAN card file (PDF, JPG, PNG)"),
@@ -167,7 +163,6 @@ async def upload_pan(
 ):
     """Upload PAN card document to SharePoint with database tracking."""
     return await _upload_document_helper(file, "pan", user, db)
-
 
 @router.post("/upload/aadhar", response_model=DocumentUploadResponse, dependencies=[Depends(require_resource_permission("upload", "create"))])
 async def upload_aadhar(
@@ -178,7 +173,6 @@ async def upload_aadhar(
     """Upload Aadhar card document to SharePoint with database tracking."""
     return await _upload_document_helper(file, "aadhar", user, db)
 
-
 @router.post("/upload/education", response_model=DocumentUploadResponse, dependencies=[Depends(require_resource_permission("upload", "create"))])
 async def upload_education_certificate(
     file: UploadFile = File(..., description="Education certificate file (PDF, JPG, PNG)"),
@@ -187,7 +181,6 @@ async def upload_education_certificate(
 ):
     """Upload education certificate to SharePoint with database tracking."""
     return await _upload_document_helper(file, "education", user, db)
-
 
 @router.post("/upload/experience", response_model=DocumentUploadResponse, dependencies=[Depends(require_resource_permission("upload", "create"))])
 async def upload_experience_letter(
@@ -198,7 +191,6 @@ async def upload_experience_letter(
     """Upload experience letter to SharePoint with database tracking."""
     return await _upload_document_helper(file, "experience", user, db)
 
-
 @router.post("/upload/salary-slip", response_model=DocumentUploadResponse, dependencies=[Depends(require_resource_permission("upload", "create"))])
 async def upload_salary_slip(
     file: UploadFile = File(..., description="Salary slip file (PDF, JPG, PNG)"),
@@ -207,7 +199,6 @@ async def upload_salary_slip(
 ):
     """Upload salary slip to SharePoint with database tracking."""
     return await _upload_document_helper(file, "salary_slip", user, db)
-
 
 @router.post("/upload/bank-statement", response_model=DocumentUploadResponse, dependencies=[Depends(require_resource_permission("upload", "create"))])
 async def upload_bank_statement(
@@ -226,7 +217,6 @@ async def upload_uan_pf(
 ):
     """Upload UAN-PF to SharePoint with database tracking."""
     return await _upload_document_helper(file, "uan_pf", user, db)
-
 
 # ============================================
 # Candidate Self-Service Document Endpoint
@@ -249,7 +239,6 @@ async def get_my_documents(
         List of all documents for the authenticated candidate with verification status.
     """
     from app.models.document import CandidateDocument
-    from app.models.candidate import Candidate
 
     candidate_id = current_user.candidateID
 
@@ -319,7 +308,6 @@ async def get_my_documents(
         "documents": list(grouped.values()),
     }
 
-
 # ============================================
 # HR/Admin Document Management Endpoints
 # ============================================
@@ -350,8 +338,6 @@ async def get_candidate_documents(
     Returns:
         List of all documents for the candidate with verification status
     """
-    from app.models.document import CandidateDocument
-    from app.models.candidate import Candidate
 
     VALID_STATUSES = {"Pending", "Verified", "Rejected"}
     if verification_status and verification_status not in VALID_STATUSES:
@@ -439,11 +425,6 @@ async def get_candidate_documents(
         "documents": list(grouped.values()),
     }
 
-
-
-
-
-
 @router.get(
     "/{document_id}",
     summary="Get a single document's metadata by its ID",
@@ -463,7 +444,6 @@ async def get_document_by_id(
 
     Only accessible by HR/Admin users.
     """
-    from app.models.document import CandidateDocument
 
     doc = db.query(CandidateDocument).filter(
         CandidateDocument.id == document_id,
@@ -503,7 +483,6 @@ async def get_document_by_id(
         "tags": doc.tags,
     }
 
-
 @router.get(
     "/{document_id}/view",
     dependencies=[Depends(require_resource_permission("documents", "view"))],
@@ -520,7 +499,6 @@ async def view_document(
     The response includes Content-Disposition: inline so browsers open
     the file in a tab/iframe instead of downloading it.
     """
-    from app.models.document import CandidateDocument
     from fastapi.responses import StreamingResponse
     import requests as req
     import io
@@ -593,7 +571,6 @@ async def view_document(
         },
     )
 
-
 @router.patch(
     "/verify/{document_id}",
     dependencies=[Depends(require_resource_permission("documents", "edit"))],
@@ -617,7 +594,6 @@ async def update_document_verification(
         verification_status: Verification status — must be one of: Pending, Verified, Rejected
         notes: Optional HR notes about the verification decision
     """
-    from app.models.document import CandidateDocument
     from datetime import datetime
 
     VALID_STATUSES = {"Pending", "Verified", "Rejected"}
@@ -681,7 +657,6 @@ async def update_document_verification(
         }
     }
 
-
 # ============================================
 # Delete All Candidate Documents
 # ============================================
@@ -711,8 +686,6 @@ async def delete_all_candidate_documents(
     Only accessible by HR/Admin users with the `document.manage` permission.
     """
     import requests as req
-    from app.models.document import CandidateDocument
-    from app.models.candidate import Candidate
 
     # Verify candidate exists
     candidate = db.query(Candidate).filter(Candidate.candidateID == candidate_id).first()

@@ -15,7 +15,6 @@ down_revision = None
 branch_labels = None
 depends_on = None
 
-
 def upgrade():
     """Change module name unique constraint to composite (name, tenant_id)"""
     # Drop the old unique constraint on name
@@ -23,7 +22,6 @@ def upgrade():
 
     # Add new composite unique constraint
     op.create_unique_constraint('uq_module_name_tenant', 'modules', ['name', 'tenant_id'])
-
 
 def downgrade():
     """Revert to old unique constraint on name only"""

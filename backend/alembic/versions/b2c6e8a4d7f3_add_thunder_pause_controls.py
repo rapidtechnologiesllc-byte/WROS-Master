@@ -14,7 +14,6 @@ down_revision = "9c3e5f7a1b4d"
 branch_labels = None
 depends_on = None
 
-
 def upgrade():
     # Named FK attached via batch mode -- same convention
     # 3a7c5e91d0f4 established (an inline FK on add_column() during a
@@ -32,7 +31,6 @@ def upgrade():
 
     with op.batch_alter_table("users") as batch_op:
         batch_op.add_column(sa.Column("thunder_enabled", sa.Boolean(), nullable=False, server_default="1"))
-
 
 def downgrade():
     with op.batch_alter_table("users") as batch_op:

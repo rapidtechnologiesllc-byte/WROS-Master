@@ -54,7 +54,6 @@ from app.services.candidate_portal_service import (
 
 router = APIRouter(prefix="/portal", tags=["candidate-portal"])
 
-
 @router.get(
     "/home",
     response_model=PortalHomeResponse,
@@ -65,7 +64,6 @@ def portal_home(
     candidate: Candidate = Depends(get_current_candidate),
 ):
     return PortalHomeResponse(**get_portal_home(db, candidate))
-
 
 @router.get(
     "/messages",
@@ -78,7 +76,6 @@ def portal_messages(
 ):
     return PortalThreadResponse(**get_portal_thread(db, candidate))
 
-
 @router.get(
     "/profile-fields",
     response_model=PortalProfileFieldsResponse,
@@ -89,7 +86,6 @@ def portal_profile_fields(
     candidate: Candidate = Depends(get_current_candidate),
 ):
     return PortalProfileFieldsResponse(**get_portal_profile_fields(db, candidate))
-
 
 @router.patch(
     "/profile",
@@ -112,7 +108,6 @@ def portal_profile_update(
         missing_fields=missing,
     )
 
-
 @router.get(
     "/interviews",
     response_model=PortalInterviewsResponse,
@@ -123,7 +118,6 @@ def portal_interviews(
     candidate: Candidate = Depends(get_current_candidate),
 ):
     return PortalInterviewsResponse(interviews=get_portal_interviews(db, candidate))
-
 
 @router.get(
     "/interviews/{interview_id}/ics",
@@ -144,7 +138,6 @@ def portal_interview_ics(
         headers={"Content-Disposition": f"attachment; filename=interview-{interview_id}.ics"},
     )
 
-
 @router.post(
     "/interviews/{interview_id}/reschedule-request",
     response_model=PortalRescheduleResponse,
@@ -161,7 +154,6 @@ def portal_reschedule_request(
     except PortalInterviewNotFound as exc:
         raise HTTPException(status_code=404, detail=str(exc))
     return PortalRescheduleResponse(**result)
-
 
 @router.post(
     "/track",

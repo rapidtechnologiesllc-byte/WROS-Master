@@ -27,7 +27,6 @@ from app.models.notification import Notification
 from app.services.client_service import assign_account_manager, get_client_activity_timeline
 from app.services.submission_service import create_submission, update_client_response
 
-
 @pytest.fixture()
 def db_session():
     fd, db_path = tempfile.mkstemp(suffix=".sqlite3")
@@ -47,7 +46,6 @@ def db_session():
         session.close()
         engine.dispose()
         os.remove(db_path)
-
 
 @pytest.fixture()
 def base_fixtures(db_session):
@@ -69,7 +67,6 @@ def base_fixtures(db_session):
 
     return tenant, client, demand
 
-
 def _make_am(db, tenant, email="am@blitzenx.com", with_wros_login=True):
     wros_user_id = None
     if with_wros_login:
@@ -85,7 +82,6 @@ def _make_am(db, tenant, email="am@blitzenx.com", with_wros_login=True):
     db.add(emp)
     db.commit()
     return emp
-
 
 # ---------------------------------------------------------------------------
 # assign_account_manager (BR-01)
@@ -107,7 +103,6 @@ def test_assign_account_manager_updates_field_and_logs_history(db_session, base_
     ).all()
     assert len(history) == 1
 
-
 def test_assign_account_manager_notification_includes_counts(db_session, base_fixtures):
     tenant, client, demand = base_fixtures
     am = _make_am(db_session, tenant)
@@ -119,7 +114,6 @@ def test_assign_account_manager_notification_includes_counts(db_session, base_fi
     _, kwargs = mock_send.call_args
     assert "1 active demand(s)" in kwargs["message"]
     assert "0 open submission(s)" in kwargs["message"]
-
 
 def test_assign_same_am_is_a_noop(db_session, base_fixtures):
     tenant, client, demand = base_fixtures
@@ -138,7 +132,6 @@ def test_assign_same_am_is_a_noop(db_session, base_fixtures):
     ).count()
     assert history_count == 1
 
-
 def test_notification_failure_does_not_block_assignment(db_session, base_fixtures):
     tenant, client, demand = base_fixtures
     am = _make_am(db_session, tenant)
@@ -148,7 +141,6 @@ def test_notification_failure_does_not_block_assignment(db_session, base_fixture
         db_session.commit()
 
     assert client.account_manager_employee_id == am.id
-
 
 def test_am_with_no_wros_login_is_skipped_not_emailed(db_session, base_fixtures):
     tenant, client, demand = base_fixtures
@@ -160,7 +152,6 @@ def test_am_with_no_wros_login_is_skipped_not_emailed(db_session, base_fixtures)
 
     mock_send.assert_not_called()
     assert client.account_manager_employee_id == am.id
-
 
 def test_assign_account_manager_creates_real_notification_row(db_session, base_fixtures):
     """
@@ -188,7 +179,6 @@ def test_assign_account_manager_creates_real_notification_row(db_session, base_f
     assert notification.priority_tier == "P1"
     assert notification.delivery_status in ("SENT", "PENDING")  # PENDING if outside business hours
 
-
 # ---------------------------------------------------------------------------
 # get_client_activity_timeline
 # ---------------------------------------------------------------------------
@@ -199,7 +189,6 @@ def test_activity_timeline_includes_demand_created(db_session, base_fixtures):
     events = get_client_activity_timeline(db_session, client.id)
     types = [e["event_type"] for e in events]
     assert "DEMAND_CREATED" in types
-
 
 def test_activity_timeline_includes_submission_and_placement_in_order(db_session, base_fixtures):
     tenant, client, demand = base_fixtures
@@ -230,7 +219,6 @@ def test_activity_timeline_includes_submission_and_placement_in_order(db_session
     assert "PLACEMENT_CONFIRMED" in types_in_order
     # chronological: submission event must come before its own placement event
     assert types_in_order.index("CANDIDATE_SUBMITTED") < types_in_order.index("PLACEMENT_CONFIRMED")
-
 
 def test_activity_timeline_empty_for_client_with_no_demands(db_session, base_fixtures):
     tenant, client, demand = base_fixtures

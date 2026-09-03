@@ -56,7 +56,6 @@ def start_scheduler():
         # see app.services.ai_conversation_service.poll_all_awaiting_candidates()
         # for the full explanation.
         try:
-            from app.core.database import SessionLocal
             from app.services.ai_conversation_service import poll_all_awaiting_candidates
 
             async def _run_reply_poll():
@@ -85,7 +84,6 @@ def start_scheduler():
 
         # ── Every 30 min: SLA_MONITORING_JOB (S-020/HRMS-0420) ──────────────
         try:
-            from app.core.database import SessionLocal
             from app.services.sla_monitoring_service import detect_and_resolve_no_contact_breaches
 
             async def _run_sla_monitoring():
@@ -114,7 +112,6 @@ def start_scheduler():
 
         # ── Every 15 min: FOLLOW_UP_EXECUTION_JOB (S-041/HRMS-0441) ─────────
         try:
-            from app.core.database import SessionLocal
             from app.services.follow_up_scheduler_service import run_follow_up_execution_job
 
             async def _run_followup_execution():
@@ -143,7 +140,6 @@ def start_scheduler():
 
         # ── Every 30 min: NO_RESPONSE_DETECTION_JOB (S-042/HRMS-0442) ───────
         try:
-            from app.core.database import SessionLocal
             from app.services.no_response_detection_service import run_no_response_detection_job
 
             async def _run_no_response_detection():
@@ -172,7 +168,6 @@ def start_scheduler():
 
         # ── Every 30 min: GHOSTING_DETECTION_JOB (S-043/HRMS-0443) ──────────
         try:
-            from app.core.database import SessionLocal
             from app.services.ghosting_detection_service import run_ghosting_detection_job
 
             async def _run_ghosting_detection():
@@ -201,7 +196,6 @@ def start_scheduler():
 
         # ── Every 15 min: CAMPAIGN_EXECUTION_JOB (S-044/HRMS-0444) ──────────
         try:
-            from app.core.database import SessionLocal
             from app.services.outreach_campaign_service import run_campaign_execution_job
 
             async def _run_campaign_execution():
@@ -230,7 +224,6 @@ def start_scheduler():
 
         # ── Every 30 min: REACTIVATION_JOB (S-045/HRMS-0445) ────────────────
         try:
-            from app.core.database import SessionLocal
             from app.services.reactivation_campaign_service import run_reactivation_job
 
             async def _run_reactivation():
@@ -263,7 +256,6 @@ def start_scheduler():
         # trying till I succeed" mechanism: a completed reactivation
         # campaign with no reply gets queued for another attempt, forever.
         try:
-            from app.core.database import SessionLocal
             from app.services.reactivation_campaign_service import run_reactivation_reschedule_job
 
             async def _run_reactivation_reschedule():
@@ -293,7 +285,6 @@ def start_scheduler():
 
         # ── Every 6 hours: ABANDONMENT_SCORING_JOB (S-046/HRMS-0446) ────────
         try:
-            from app.core.database import SessionLocal
             from app.services.abandonment_scoring_service import run_abandonment_scoring_job
 
             async def _run_abandonment_scoring():
@@ -322,7 +313,6 @@ def start_scheduler():
 
         # ── Every 10 min: REMINDER_EXECUTION_JOB (S-050/HRMS-0450) ──────────
         try:
-            from app.core.database import SessionLocal
             from app.services.interview_reminder_service import run_reminder_execution_job
 
             async def _run_reminder_execution():
@@ -351,7 +341,6 @@ def start_scheduler():
 
         # ── Every 5 min: NO_SHOW_DETECTION_JOB (S-052/HRMS-0452) ────────────
         try:
-            from app.core.database import SessionLocal
             from app.services.interview_no_show_service import run_no_show_detection_job
 
             async def _run_no_show_detection():
@@ -380,7 +369,6 @@ def start_scheduler():
 
         # ── Every 6 hours: DOCUMENT_REMINDER_JOB (S-057/HRMS-0457) ──────────
         try:
-            from app.core.database import SessionLocal
             from app.services.document_collection_service import run_document_reminder_job
 
             async def _run_document_reminder():
@@ -409,7 +397,6 @@ def start_scheduler():
 
         # ── Every 6 hours: JOINING_READINESS_JOB (S-058/HRMS-0458) ──────────
         try:
-            from app.core.database import SessionLocal
             from app.services.joining_readiness_service import run_joining_readiness_job
 
             async def _run_joining_readiness():
@@ -438,7 +425,6 @@ def start_scheduler():
 
         # ── Every 30 min: DAILY_DIGEST_JOB (S-065/HRMS-0465) ────────────────
         try:
-            from app.core.database import SessionLocal
             from app.services.daily_digest_service import run_daily_digest_job
 
             async def _run_daily_digest():
@@ -467,7 +453,6 @@ def start_scheduler():
 
         # ── Every 4 hours: ENGAGEMENT_METRICS_JOB (S-070/HRMS-0470) ─────────
         try:
-            from app.core.database import SessionLocal
             from app.services.engagement_metrics_service import run_engagement_metrics_job
 
             async def _run_engagement_metrics():
@@ -496,7 +481,6 @@ def start_scheduler():
 
         # ── Every 4 hours: DROP_RISK_SCORING_JOB (S-060/HRMS-0460) ──────────
         try:
-            from app.core.database import SessionLocal
             from app.services.drop_risk_service import run_drop_risk_scoring_job
 
             async def _run_drop_risk_scoring():
@@ -525,7 +509,6 @@ def start_scheduler():
 
         # ── Every 15 min: NO_SHOW_FOLLOWUP_JOB (S-052/HRMS-0452) ────────────
         try:
-            from app.core.database import SessionLocal
             from app.services.interview_no_show_service import run_no_show_followup_job
 
             async def _run_no_show_followup():
@@ -554,7 +537,6 @@ def start_scheduler():
 
         # ── Every 15 min: PAUSE_EXPIRY_JOB (S-075/HRMS-0475) ────────────────
         try:
-            from app.core.database import SessionLocal
             from app.services.thunder_pause_service import run_pause_expiry_job
 
             async def _run_pause_expiry():
@@ -583,7 +565,6 @@ def start_scheduler():
 
         # ── Every 15 min: SUPERVISOR_AGENT_JOB (S-066/HRMS-0466) ────────────
         try:
-            from app.core.database import SessionLocal
             from app.services.supervisor_agent_service import run_supervisor_cycle
 
             async def _run_supervisor_cycle():
@@ -612,7 +593,6 @@ def start_scheduler():
 
         # ── Every 6 hours: ONBOARDING_TOUCHPOINT_JOB (S-067/HRMS-0467) ──────
         try:
-            from app.core.database import SessionLocal
             from app.services.onboarding_agent_service import run_onboarding_touchpoint_job
 
             async def _run_onboarding_touchpoint():
@@ -641,7 +621,6 @@ def start_scheduler():
 
         # ── Every hour: TASK_ESCALATION_JOB (S-434) ─────────────────────────
         try:
-            from app.core.database import SessionLocal
             from app.services.task_escalation_service import escalate_overdue_tasks
 
             async def _run_task_escalation():
@@ -670,7 +649,6 @@ def start_scheduler():
 
         # ── Daily: BIRTHDAY_DRAFTS_JOB (Executive Signal & Culture Agent) ───
         try:
-            from app.core.database import SessionLocal
             from app.services.culture_agent_service import generate_birthday_drafts
 
             async def _run_birthday_drafts():
@@ -699,7 +677,6 @@ def start_scheduler():
 
         # ── Daily: MELLOW_KEEPWARM_JOB (outreach cadence-by-stage) ──────────
         try:
-            from app.core.database import SessionLocal
             from app.services.mellow_keepwarm_service import run_mellow_keepwarm_job
 
             async def _run_mellow_keepwarm():
@@ -728,7 +705,6 @@ def start_scheduler():
 
         # ── Every 30 min: S-347 Desire Signal Processing Job ────────────────
         try:
-            from app.core.database import SessionLocal
             from app.services.desire_signal_service import process_unprocessed_signals
 
             async def _run_desire_signal_processing():
@@ -757,7 +733,6 @@ def start_scheduler():
 
         # ── Every 4 hours: S-348 Desire Profile Update Job ──────────────────
         try:
-            from app.core.database import SessionLocal
             from app.services.desire_profile_service import run_desire_profile_update_job
 
             async def _run_desire_profile_update():
@@ -786,7 +761,6 @@ def start_scheduler():
 
         # ── Every 30 min: S-349 ScheduledMotivationJob ──────────────────────
         try:
-            from app.core.database import SessionLocal
             from app.services.motivation_engine_service import run_motivation_job
 
             async def _run_motivation_job():
@@ -815,7 +789,6 @@ def start_scheduler():
 
         # ── Every 30 min: EPIC-14/S-435 M365 mail sync (lifecycle linking) ──
         try:
-            from app.core.database import SessionLocal
             from app.services.msgraph_mail_sync_service import run_msgraph_mail_sync_job
 
             async def _run_msgraph_mail_sync():
@@ -851,7 +824,6 @@ def start_scheduler():
         # the reporting manager depends on days-since-last-nag, so this needs
         # to check in more than once a week to fire on time.
         try:
-            from app.core.database import SessionLocal
             from app.services.timesheet_nag_service import run_timesheet_nag_job
 
             async def _run_timesheet_nag():
@@ -882,7 +854,6 @@ def start_scheduler():
         # ── Daily: AR_FOLLOW_UP_JOB (EPIC-16) ────────────────────────────────
         # 2026-08-06 -- same gap as timesheet nag above, same fix.
         try:
-            from app.core.database import SessionLocal
             from app.services.ar_followup_service import run_ar_follow_up_job
 
             async def _run_ar_follow_up():
@@ -915,7 +886,6 @@ def start_scheduler():
         # Monday at midnight UTC. Employees can also trigger on-demand via
         # GET /my/timesheet/current which creates if not found for current week.
         try:
-            from app.core.database import SessionLocal
             from app.services.timesheet_service import create_weekly_draft_batch
 
             async def _run_weekly_draft_creation():
@@ -948,7 +918,6 @@ def start_scheduler():
         # yesterday's metrics in priority order. System validates each update.
         # 8:00 AM EST = 13:00 UTC (EST is UTC-5)
         try:
-            from app.core.database import SessionLocal
             from app.services.agent_daily_standup_service import AgentDailyStandup
 
             async def _run_agent_standup():
@@ -983,8 +952,6 @@ def start_scheduler():
         # Flash + CEO + Feedback + Partners (Troy, Curtis) sync.
         # 8:30 AM EST = 13:30 UTC
         try:
-            from app.core.database import SessionLocal
-            from app.services.agent_daily_standup_service import AgentDailyStandup
 
             async def _run_scrum_of_scrums():
                 db = SessionLocal()
@@ -1021,7 +988,6 @@ def start_scheduler():
         # Triggers HTD hiring recommendations if internal development too slow.
         # 8:05 AM EST = 13:05 UTC
         try:
-            from app.core.database import SessionLocal
             from app.services.htd_pipeline_accountability_agent import HTDPipelineAccountabilityAgent
             from app.models.business_unit import BusinessUnit
 
@@ -1062,7 +1028,6 @@ def start_scheduler():
         # Escalates to CEO if critical issues found.
         # 8:15 AM EST = 13:15 UTC
         try:
-            from app.core.database import SessionLocal
             from app.services.flash_orchestration_engine import FlashOrchestrationEngine
 
             async def _run_flash_coordination():
@@ -1100,7 +1065,6 @@ def start_scheduler():
         # "Here's your week. Here's what you'll tell the CEO."
         # Not daily nagging - just once-per-week reality check with action items
         try:
-            from app.core.database import SessionLocal
             from app.services.partner_success_agent_service import PartnerSuccessAgent
 
             async def _run_partner_success_check():
@@ -1140,7 +1104,6 @@ def start_scheduler():
         # Stores results in cache (RevenueLeakageFlag table).
         # API endpoint returns cached results by default (no manual UUID needed).
         try:
-            from app.core.database import SessionLocal
             from app.services.revenue_scanning_service import run_daily_revenue_scan_job
 
             async def _run_revenue_scan():
@@ -1171,7 +1134,6 @@ def start_scheduler():
         # ── Every 2 min: MESSAGE_QUEUE_PROCESSING_JOB ───────────────────────
         # CRITICAL: Process pending messages BEFORE Thunder runs so queue is ready
         try:
-            from app.core.database import SessionLocal
             from app.services.message_queue_coordinator import MessageQueueCoordinator
 
             def _run_message_queue_processing():
@@ -1214,7 +1176,6 @@ def start_scheduler():
 
         # ── Every 5 min: THUNDER_AUTONOMOUS_LOOP (Candidate Outreach) ────────
         try:
-            from app.core.database import SessionLocal
             from app.services.thunder_autonomous_loop import run_thunder_autonomous_cycle
 
             def _run_thunder_autonomous():
@@ -1248,7 +1209,6 @@ def start_scheduler():
 
         # ── Every 30 min: SLM_IMPROVEMENT_CYCLE (Self-Learning Model) ───────
         try:
-            from app.core.database import SessionLocal
             from app.services.slm_daily_improvement import SLMImprovementScheduler
 
             def _run_slm_improvement():
@@ -1275,18 +1235,15 @@ def start_scheduler():
             logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.warning(f"Could not register SLM improvement scheduler: {exc}")
 
-
 def shutdown_scheduler():
     """Shutdown the APScheduler instance."""
     if scheduler.running:
         scheduler.shutdown()
         logger.info("APScheduler shutdown completed")
 
-
 def add_job(func, trigger, **kwargs):
     """Add a scheduled job."""
     return scheduler.add_job(func, trigger, **kwargs)
-
 
 def remove_job(job_id: str):
     """Remove a scheduled job by its ID."""

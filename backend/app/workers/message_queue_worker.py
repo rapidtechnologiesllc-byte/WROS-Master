@@ -31,7 +31,6 @@ logger = logging.getLogger(__name__)
 engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
-
 def process_message_queue() -> None:
     """
     Main worker function - orchestrates message processing through SLM to channels.
@@ -137,7 +136,6 @@ def process_message_queue() -> None:
     finally:
         db.close()
 
-
 def process_channel_queues() -> None:
     """
     Channel processor worker - processes channel queue items.
@@ -242,7 +240,6 @@ def process_channel_queues() -> None:
         logger.error(f"Channel processor worker failed: {e}", exc_info=True)
     finally:
         db.close()
-
 
 # ==================== ENTRY POINTS ====================
 

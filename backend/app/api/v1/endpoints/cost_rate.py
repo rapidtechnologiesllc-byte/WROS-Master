@@ -47,7 +47,6 @@ from app.services.reserve_fund_service import (
 
 router = APIRouter(tags=["cost-rate"])
 
-
 @router.post(
     "/cost-rate-configs",
     response_model=CostRateConfigResponse,
@@ -67,7 +66,6 @@ def create_cost_rate_config(
         )
     except CostRateConfigError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
-
 
 @router.get(
     "/employees/{employee_id}/fully-loaded-cost",
@@ -91,7 +89,6 @@ def fully_loaded_cost(
         fully_loaded_cost_usd_cents=cost,
     )
 
-
 @router.get(
     "/blended-delivery-rate/bu/{business_unit_id}",
     response_model=BlendedDeliveryRateResponse,
@@ -108,7 +105,6 @@ def blended_delivery_rate(
         blended_delivery_rate_usd_cents_per_hour=rate,
     )
 
-
 @router.get(
     "/pnl/bu/{business_unit_id}",
     response_model=BuPnlResponse,
@@ -120,7 +116,6 @@ def bu_pnl(
     current_user: Users = Depends(require_resource_permission("revenue", "view")),
 ):
     return get_bu_pnl(db, business_unit_id=business_unit_id, year=year, month=month)
-
 
 @router.get(
     "/pnl/org-summary",
@@ -134,7 +129,6 @@ def org_pnl_summary(
     current_user: Users = Depends(require_resource_permission("revenue", "view")),
 ):
     return get_org_pnl_summary(db, year=year, month=month, tenant_id=current_user.tenant_id)
-
 
 @router.post(
     "/reserve-fund/entries",
@@ -157,7 +151,6 @@ def create_reserve_fund_entry(
     except ReserveFundError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
 
-
 @router.get(
     "/reserve-fund/bu/{business_unit_id}/status",
     response_model=ReserveFundStatusResponse,
@@ -169,7 +162,6 @@ def reserve_fund_status(
     current_user: Users = Depends(require_resource_permission("revenue", "view")),
 ):
     return get_reserve_fund_status(db, business_unit_id=business_unit_id, as_of_year=year, as_of_month=month)
-
 
 @router.get(
     "/hiring-affordability/bu/{business_unit_id}",
@@ -185,7 +177,6 @@ def hiring_affordability(
         db, business_unit_id=business_unit_id,
         proposed_annual_salary_usd_cents=proposed_annual_salary_usd_cents, year=year, month=month,
     )
-
 
 @router.post(
     "/intercompany-settlements",
@@ -207,7 +198,6 @@ def create_intercompany_settlement(
     except IntercompanySettlementError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
 
-
 @router.get(
     "/intercompany-settlements",
     response_model=list[IntercompanySettlementResponse],
@@ -218,7 +208,6 @@ def list_intercompany_settlements(
     current_user: Users = Depends(require_resource_permission("revenue", "view")),
 ):
     return list_settlements(db, tenant_id=current_user.tenant_id)
-
 
 @router.get(
     "/intercompany-settlements/entity/{entity}/net-position",
@@ -233,7 +222,6 @@ def entity_net_position(
     return EntityNetPositionResponse(
         entity=entity, net_position_usd_cents=get_entity_net_position(db, entity=entity, tenant_id=current_user.tenant_id),
     )
-
 
 @router.post(
     "/bank-transactions",
@@ -253,7 +241,6 @@ def create_bank_transaction(
         )
     except BankReconciliationError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
-
 
 @router.post(
     "/bank-transactions/{transaction_id}/match",
@@ -278,7 +265,6 @@ def match_bank_transaction(
     except BankReconciliationError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
 
-
 @router.get(
     "/bank-transactions/unreconciled",
     response_model=list[BankTransactionResponse],
@@ -289,7 +275,6 @@ def unreconciled_bank_transactions(
     current_user: Users = Depends(require_resource_permission("revenue", "view")),
 ):
     return get_unreconciled_transactions(db, tenant_id=current_user.tenant_id)
-
 
 @router.get(
     "/invoices/unmatched-paid",

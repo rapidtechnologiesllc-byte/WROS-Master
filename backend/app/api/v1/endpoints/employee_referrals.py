@@ -27,7 +27,6 @@ class CreateJobReferralRequest(BaseModel):
     enable_referrals: bool = True
     referral_bonus_amount_usd_cents: int = 50000  # $500 default
 
-
 class RecordReferralRequest(BaseModel):
     """Request to record an employee referral."""
 
@@ -35,13 +34,11 @@ class RecordReferralRequest(BaseModel):
     referred_candidate_email: str
     referred_candidate_name: str
 
-
 class MarkBonusPaidRequest(BaseModel):
     """Request to mark a referral bonus as paid."""
 
     bonus_id: str
     paid_via: str = "PAYROLL"
-
 
 @router.post("/setup-job-referrals", dependencies=[Depends(require_resource_permission("hr", "edit"))])
 def setup_job_referrals(
@@ -110,7 +107,6 @@ def setup_job_referrals(
         "referral_bonus_display": f"${request.referral_bonus_amount_usd_cents / 100:.2f}",
     }
 
-
 @router.post("/record-referral", dependencies=[Depends(require_resource_permission("hr", "create"))])
 def record_referral(
     request: RecordReferralRequest,
@@ -176,7 +172,6 @@ def record_referral(
         "message": f"Thank you for referring {result['candidate']}! If hired, you'll receive ${result['bonus_potential']:.2f}",
     }
 
-
 @router.put("/update-referral-status/{referral_id}", dependencies=[Depends(require_resource_permission("hr", "edit"))])
 def update_referral_status(
     referral_id: str,
@@ -219,7 +214,6 @@ def update_referral_status(
 
     return result
 
-
 @router.get("/pending-bonuses", dependencies=[Depends(require_resource_permission("finance", "view"))])
 def get_pending_bonuses(
     db: Session = Depends(get_db),
@@ -248,7 +242,6 @@ def get_pending_bonuses(
         "bonuses": bonuses,
         "action_required": f"Review and approve {len(bonuses)} pending bonuses totaling ${total_amount:.2f}",
     }
-
 
 @router.post("/mark-bonus-paid/{bonus_id}", dependencies=[Depends(require_resource_permission("finance", "edit"))])
 def mark_bonus_paid(
@@ -309,7 +302,6 @@ def mark_bonus_paid(
         },
     }
 
-
 @router.get("/job-referral-stats/{job_id}", dependencies=[Depends(require_resource_permission("hr", "view"))])
 def get_job_referral_stats(
     job_id: str,
@@ -342,7 +334,6 @@ def get_job_referral_stats(
         "job_id": job_id,
         **stats,
     }
-
 
 @router.get("/dashboard/referrals", dependencies=[Depends(require_resource_permission("hr", "view"))])
 def get_referral_dashboard(
@@ -406,7 +397,6 @@ def get_referral_dashboard(
         "dashboard": dashboard,
     }
 
-
 @router.get("/referrals/all", dependencies=[Depends(require_resource_permission("hr", "view"))])
 def get_all_referrals(
     db: Session = Depends(get_db),
@@ -442,7 +432,6 @@ def get_all_referrals(
         "total_referrals": len(referrals),
         "referrals": referrals,
     }
-
 
 @router.get("/bonuses/all", dependencies=[Depends(require_resource_permission("finance", "view"))])
 def get_all_bonuses(

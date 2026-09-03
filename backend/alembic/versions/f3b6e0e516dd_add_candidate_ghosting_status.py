@@ -15,7 +15,6 @@ depends_on = None
 
 _DEFAULT_REASON = "No response after 3 follow-up messages"
 
-
 def upgrade():
     op.create_table(
         "candidate_ghosting_status",
@@ -34,7 +33,6 @@ def upgrade():
     op.create_index("ix_candidate_ghosting_status_tenant_id", "candidate_ghosting_status", ["tenant_id"])
     op.create_index("ix_candidate_ghosting_status_candidate_id", "candidate_ghosting_status", ["candidate_id"])
     op.create_index("ix_candidate_ghosting_status_conversation_id", "candidate_ghosting_status", ["conversation_id"])
-
 
 def downgrade():
     op.drop_index("ix_candidate_ghosting_status_conversation_id", table_name="candidate_ghosting_status")

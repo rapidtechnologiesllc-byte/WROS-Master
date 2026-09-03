@@ -18,7 +18,6 @@ from app.core.logging import logger
 
 router = APIRouter(prefix="/hr/me", tags=["navigation"])
 
-
 def get_icon_for_resource(resource_name: str) -> str:
     """Simple icon mapping for resource names."""
     icon_map = {
@@ -48,7 +47,6 @@ def get_icon_for_resource(resource_name: str) -> str:
         "slm_dashboard": "Zap", "slm_training_data": "Database",
     }
     return icon_map.get(resource_name, "Briefcase")
-
 
 @router.get(
     "/navigation",

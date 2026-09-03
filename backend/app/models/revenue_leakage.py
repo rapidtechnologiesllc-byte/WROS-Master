@@ -20,7 +20,6 @@ from sqlalchemy import (
 
 from app.models.base import Base
 
-
 def _new_uuid() -> str:
     return str(uuid.uuid4())
 
@@ -46,7 +45,6 @@ class RevenueLeakageFlag(Base):
     partial_billing_reason = Column(Text, nullable=True)
 
     detected_at = Column(DateTime, server_default=func.now())
-
 
 class ReconciliationAlert(Base):
     """HRMS-0903 -- an approved timesheet with no corresponding invoice

@@ -52,7 +52,6 @@ from app.schemas.checklist import (
 
 router = APIRouter(prefix="/checklist", tags=["checklist"])
 
-
 # ===========================================================================
 # HELPERS
 # ===========================================================================
@@ -105,7 +104,6 @@ def _build_checklist_response(checklist: CandidateChecklist) -> CandidateCheckli
         active_queue_item=active_queue,
     )
 
-
 def _activate_first_queue_item(db: Session, checklist_id: int) -> None:
     """Set the lowest-order-index queue item to 'active' on a fresh checklist."""
     first_queue = (
@@ -121,7 +119,6 @@ def _activate_first_queue_item(db: Session, checklist_id: int) -> None:
     if first_queue:
         first_queue.status = "active"
         first_queue.activated_at = datetime.now()
-
 
 def _complete_item_logic(
     db: Session, item: CandidateChecklistItem
@@ -188,7 +185,6 @@ def _complete_item_logic(
 
     return next_item
 
-
 # ===========================================================================
 # HR — TEMPLATE CRUD
 # ===========================================================================
@@ -228,7 +224,6 @@ def create_template(
     db.refresh(template)
     return template
 
-
 @router.get(
     "/hr/templates",
     response_model=ChecklistTemplateListResponse,
@@ -253,7 +248,6 @@ def list_templates(
     ]
     return ChecklistTemplateListResponse(total=len(summaries), templates=summaries)
 
-
 @router.get(
     "/hr/templates/{template_id}",
     response_model=ChecklistTemplateResponse,
@@ -269,7 +263,6 @@ def get_template(
     if not template:
         raise HTTPException(status_code=404, detail=f"Template {template_id} not found.")
     return template
-
 
 @router.put(
     "/hr/templates/{template_id}",
@@ -296,7 +289,6 @@ def update_template(
     db.refresh(template)
     return template
 
-
 @router.delete(
     "/hr/templates/{template_id}",
     response_model=ChecklistActionResponse,
@@ -318,7 +310,6 @@ def delete_template(
         status="success",
         message=f"Template '{template.name}' (ID {template_id}) deleted.",
     )
-
 
 # ===========================================================================
 # HR — TEMPLATE ITEM CRUD
@@ -352,7 +343,6 @@ def add_template_item(
     db.commit()
     db.refresh(item)
     return item
-
 
 @router.put(
     "/hr/templates/{template_id}/items/{item_id}",
@@ -393,7 +383,6 @@ def update_template_item(
     db.refresh(item)
     return item
 
-
 @router.delete(
     "/hr/templates/{template_id}/items/{item_id}",
     response_model=ChecklistActionResponse,
@@ -420,7 +409,6 @@ def delete_template_item(
     db.delete(item)
     db.commit()
     return ChecklistActionResponse(status="success", message=f"Item {item_id} deleted.")
-
 
 # ===========================================================================
 # HR — ASSIGN CHECKLIST TO CANDIDATE
@@ -510,7 +498,6 @@ def assign_checklist(
     db.refresh(checklist)
     return _build_checklist_response(checklist)
 
-
 # ===========================================================================
 # HR — VIEW & MANAGE CANDIDATE CHECKLISTS
 # ===========================================================================
@@ -541,7 +528,6 @@ def get_candidate_checklists(
         total_checklists=len(checklists),
         checklists=[_build_checklist_response(c) for c in checklists],
     )
-
 
 @router.put(
     "/hr/candidate-item/{item_id}/complete",
@@ -609,7 +595,6 @@ def hr_complete_item(
         checklist_completed=(checklist.status == "completed") if checklist else False,
     )
 
-
 # ===========================================================================
 # CANDIDATE — VIEW OWN CHECKLISTS
 # ===========================================================================
@@ -635,7 +620,6 @@ def get_my_checklists(
         total_checklists=len(checklists),
         checklists=[_build_checklist_response(c) for c in checklists],
     )
-
 
 # ===========================================================================
 # CANDIDATE — SUBMIT AN ITEM (marks done from candidate side)

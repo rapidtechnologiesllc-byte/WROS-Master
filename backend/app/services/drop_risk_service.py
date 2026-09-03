@@ -91,7 +91,6 @@ CRITICAL_THRESHOLD = 80  # BR-01
 
 SCORABLE_STAGES = {"ENGAGED", "QUALIFYING", "SCREENED", "INTERVIEW", "OFFER", "PREBOARDING"}
 
-
 def _risk_level(score: int) -> str:
     if score >= 80:
         return "CRITICAL"
@@ -100,7 +99,6 @@ def _risk_level(score: int) -> str:
     if score >= 40:
         return "MEDIUM"
     return "LOW"
-
 
 def _qualifying_component(db: Session, candidate_id: str, tenant_id: str, conversation: Optional[CandidateConversation], entered_at: Optional[datetime]) -> Dict:
     if conversation is None:
@@ -134,7 +132,6 @@ def _qualifying_component(db: Session, candidate_id: str, tenant_id: str, conver
         "total": abandonment_pts + sentiment_pts + stage_pts,
         "signals": {"abandonment_score": abandonment_score, "abandonment_points": abandonment_pts, "sentiment_points": sentiment_pts, "days_in_stage_points": stage_pts},
     }
-
 
 def _interview_component(db: Session, submission: Optional[Submission], candidate_id: str, conversation: Optional[CandidateConversation]) -> Dict:
     from app.models.interview_pipeline import SubmissionInterview
@@ -181,7 +178,6 @@ def _interview_component(db: Session, submission: Optional[Submission], candidat
         "signals": {"response_rate_points": response_rate_pts, "days_until_interview_points": days_until_pts, "reschedule_points": reschedule_pts},
     }
 
-
 def _offer_component(db: Session, offer: Optional[OfferLetter], candidate_id: str) -> Dict:
     if offer is None:
         return {"total": 0, "signals": {}}
@@ -218,7 +214,6 @@ def _offer_component(db: Session, offer: Optional[OfferLetter], candidate_id: st
         "signals": {"days_since_release_points": days_pts, "last_sentiment_points": sentiment_pts, "faq_engagement_points": engagement_pts},
     }
 
-
 def _preboarding_component(db: Session, offer: Optional[OfferLetter], candidate_id: str, conversation: Optional[CandidateConversation]) -> Dict:
     if offer is None:
         return {"total": 0, "signals": {}}
@@ -241,11 +236,9 @@ def _preboarding_component(db: Session, offer: Optional[OfferLetter], candidate_
         "signals": {"readiness_points": readiness_pts, "readiness_score": joining_score.readiness_score if joining_score else None, "days_silent_points": silence_pts},
     }
 
-
 def _ghosting_multiplier_applies(db: Session, candidate_id: str) -> bool:
     ghosting = db.query(CandidateGhostingStatus).filter(CandidateGhostingStatus.candidate_id == candidate_id).first()
     return ghosting is not None and not ghosting.is_reactivated  # BR-03: permanent, never resets
-
 
 def _notify_recruiter_critical(db: Session, candidate: Candidate, score: int) -> None:
     submission = db.query(Submission).filter(Submission.candidate_id == candidate.candidateID).order_by(Submission.submitted_at.desc()).first()
@@ -262,7 +255,6 @@ def _notify_recruiter_critical(db: Session, candidate: Candidate, score: int) ->
     except Exception as exc:
         logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[DropRisk] Failed to notify recruiter of critical risk: {exc}")
-
 
 def calculate_drop_risk(db: Session, candidate_id: str, tenant_id: str) -> Dict:
     """Step 2. Never raises. Returns {"outcome": "not_applicable"} for
@@ -348,7 +340,6 @@ def calculate_drop_risk(db: Session, candidate_id: str, tenant_id: str) -> Dict:
         logger.error(f"[DropRisk] Failed calculating drop risk for candidate {candidate_id!r}: {exc}")
         db.rollback()
         return {"outcome": "calculation_failed"}
-
 
 def run_drop_risk_scoring_job(db: Session) -> Dict:
     """Step 3. Runs every 4 hours. Never lets one bad row abort the batch."""

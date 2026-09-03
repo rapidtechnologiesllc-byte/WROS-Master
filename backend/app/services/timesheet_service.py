@@ -43,22 +43,17 @@ logger = logging.getLogger(__name__)
 class AllocationNotActive(Exception):
     """BR-04: bench employees (no active allocation) don't get timesheets."""
 
-
 class InvalidTimesheetEntry(Exception):
     pass
-
 
 class TimesheetNotEditable(Exception):
     """BR-03 of HRMS-0902: an APPROVED timesheet's entries are immutable."""
 
-
 class InvalidTimesheetTransition(Exception):
     pass
 
-
 class StaleTimesheetSubmission(Exception):
     """BR-02: no submissions for weeks more than 4 calendar weeks past."""
-
 
 def create_weekly_draft(
     db: Session, allocation: EmployeeAllocation, week_starting_date: date,
@@ -92,7 +87,6 @@ def create_weekly_draft(
     db.add(timesheet)
     return timesheet
 
-
 def create_weekly_draft_for_task(
     db: Session, task: Task, employee_id: str, week_starting_date: date,
     *, tenant_id: Optional[int] = None,
@@ -123,7 +117,6 @@ def create_weekly_draft_for_task(
     )
     db.add(timesheet)
     return timesheet
-
 
 def upsert_entries(db: Session, timesheet: Timesheet, entries: List[dict]) -> Timesheet:
     """
@@ -176,7 +169,6 @@ def upsert_entries(db: Session, timesheet: Timesheet, entries: List[dict]) -> Ti
     db.add(timesheet)
     return timesheet
 
-
 def submit_timesheet(db: Session, timesheet: Timesheet) -> Timesheet:
     if timesheet.status != "DRAFT":
         raise InvalidTimesheetTransition(f"Cannot submit a timesheet in status '{timesheet.status}'.")
@@ -196,7 +188,6 @@ def submit_timesheet(db: Session, timesheet: Timesheet) -> Timesheet:
     timesheet.submitted_at = datetime.utcnow()
     db.add(timesheet)
     return timesheet
-
 
 def approve_timesheet(db: Session, timesheet: Timesheet, approved_by: Optional[str] = None) -> Timesheet:
     if timesheet.status != "SUBMITTED":
@@ -240,7 +231,6 @@ def approve_timesheet(db: Session, timesheet: Timesheet, approved_by: Optional[s
 
     return timesheet
 
-
 def reject_timesheet(db: Session, timesheet: Timesheet, reason: str) -> Timesheet:
     if timesheet.status != "SUBMITTED":
         raise InvalidTimesheetTransition(f"Cannot reject a timesheet in status '{timesheet.status}'.")
@@ -251,7 +241,6 @@ def reject_timesheet(db: Session, timesheet: Timesheet, reason: str) -> Timeshee
     timesheet.rejection_reason = reason
     db.add(timesheet)
     return timesheet
-
 
 def reopen_for_editing(db: Session, timesheet: Timesheet) -> Timesheet:
     """HRMS-0902 BR-02: a REJECTED timesheet returns to DRAFT so the
@@ -264,7 +253,6 @@ def reopen_for_editing(db: Session, timesheet: Timesheet) -> Timesheet:
     db.add(timesheet)
     return timesheet
 
-
 def bulk_approve(db: Session, timesheets: List[Timesheet], approved_by: Optional[str] = None) -> dict:
     approved = 0
     failed = []
@@ -276,7 +264,6 @@ def bulk_approve(db: Session, timesheets: List[Timesheet], approved_by: Optional
             failed.append({"id": ts.id, "reason": str(exc)})
     return {"approved": approved, "failed": failed}
 
-
 def create_weekly_draft_batch(db: Session) -> dict:
     """
     Auto-creates weekly timesheet drafts for all active employees.
@@ -286,7 +273,6 @@ def create_weekly_draft_batch(db: Session) -> dict:
     Returns: dict with counts (created, skipped, errors)
     """
     from datetime import datetime, timedelta
-    from app.models.employee import Employee
     from app.models.resource_management import EmployeeAllocation
 
     today = date.today()

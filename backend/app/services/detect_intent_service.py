@@ -87,12 +87,10 @@ INTENT_ROUTING = {
     "offer_counter": {"status": "NOT_WIRED", "target": "offer_decision_service.handle_offer_decision (HRMS-0456, real and tested, no live trigger yet)"},
 }
 
-
 def get_intent_routing_decision(intent: str) -> Dict:
     """Step 3. Honest routing lookup -- never silently invokes a
     handler that doesn't exist yet."""
     return INTENT_ROUTING.get(intent, INTENT_ROUTING["unclear"])
-
 
 def _log_intent(db: Session, conversation_id: Optional[int], intent: str, confidence: float, message_event_id: Optional[int]) -> None:
     if conversation_id is None:
@@ -103,7 +101,6 @@ def _log_intent(db: Session, conversation_id: Optional[int], intent: str, confid
         triggered_by="ai_agent",
     ))
     db.commit()
-
 
 def detect_intent(
     db: Session, tenant_id: str, candidate_id: str, message_body: str, *,

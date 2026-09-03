@@ -36,10 +36,8 @@ from sqlalchemy.orm import relationship
 
 from app.models.base import Base
 
-
 def _new_uuid() -> str:
     return str(uuid.uuid4())
-
 
 # INTERN added 2026-07-23: Employment Type collection moved from candidate
 # intake to employee conversion (Avinash's direct instruction -- it's a
@@ -182,7 +180,6 @@ class Employee(Base):
         ),
     )
 
-
 class EmployeeEmploymentHistory(Base):
     """BR-03: insert-only. No UPDATE or DELETE ever permitted -- see the
     append-only guard below, same pattern as AuditLog."""
@@ -202,7 +199,6 @@ class EmployeeEmploymentHistory(Base):
     changed_by = Column(String(512), nullable=True)
     changed_at = Column(DateTime, server_default=func.now())
 
-
 class EmployeeDocuments(Base):
     __tablename__ = "employee_documents"
 
@@ -218,7 +214,6 @@ class EmployeeDocuments(Base):
     uploaded_at = Column(DateTime, server_default=func.now())
     verified_by = Column(String(512), nullable=True)
     verified_at = Column(DateTime, nullable=True)
-
 
 class EmployeeEngineHistory(Base):
     """HRMS-0101-REV step 4 -- insert-only history of SPECIALITY/CORE

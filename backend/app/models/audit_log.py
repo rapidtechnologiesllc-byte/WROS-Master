@@ -11,7 +11,6 @@ logger = logging.getLogger(__name__)
 class AppendOnlyViolation(Exception):
     """Raised when code tries to UPDATE or DELETE an audit_log row via the ORM."""
 
-
 class AuditLog(Base):
     """
     HRMS-0110 — append-only audit trail.
@@ -36,11 +35,9 @@ class AuditLog(Base):
     timestamp = Column(DateTime(timezone=False), server_default=func.now())
     ip_address = Column(String(64), nullable=True)
 
-
 @event.listens_for(AuditLog, "before_update")
 def _block_update(mapper: Mapper, connection, target: AuditLog) -> None:
     raise AppendOnlyViolation("audit_log rows cannot be updated -- this table is append-only.")
-
 
 @event.listens_for(AuditLog, "before_delete")
 def _block_delete(mapper: Mapper, connection, target: AuditLog) -> None:

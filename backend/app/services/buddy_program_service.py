@@ -84,10 +84,8 @@ logger = logging.getLogger(__name__)
 class SelfBuddyNotAllowed(Exception):
     """A buddy engineer cannot be assigned to their own buddy program record."""
 
-
 class InvalidKPISubmission(Exception):
     pass
-
 
 def create_buddy_program_record(
     db: Session,
@@ -110,7 +108,6 @@ def create_buddy_program_record(
     db.add(record)
     db.flush()
     return record
-
 
 def submit_weekly_scores(
     db: Session,
@@ -180,7 +177,6 @@ def submit_weekly_scores(
 
     return rows
 
-
 def is_week_complete(db: Session, record: BuddyProgramRecord, week_number: int) -> bool:
     """BR: all 35 KPIs must be scored for a week to count -- a partial
     submission stays a draft, per the story's own wording."""
@@ -191,7 +187,6 @@ def is_week_complete(db: Session, record: BuddyProgramRecord, week_number: int) 
         .all()
     }
     return scored_numbers == ALL_KPI_NUMBERS
-
 
 def check_low_kpi_alert(db: Session, record: BuddyProgramRecord, kpi_number: int, *, through_week: int) -> bool:
     """
@@ -217,7 +212,6 @@ def check_low_kpi_alert(db: Session, record: BuddyProgramRecord, kpi_number: int
     if len(scores) < LOW_SCORE_CONSECUTIVE_WEEKS:
         return False  # not yet scored for both weeks -- nothing to alert on
     return all(row.score < LOW_SCORE_THRESHOLD for row in scores)
-
 
 def compute_day30_scorecard(db: Session, record: BuddyProgramRecord) -> dict:
     """

@@ -26,7 +26,6 @@ from app.services.revenue_leakage_service import (
     DEFAULT_LEAKAGE_GRACE_DAYS,
 )
 
-
 def _get_current_billing_period(date_within_period: date) -> tuple:
     """
     Returns the billing period (period_start, period_end) for the month
@@ -41,7 +40,6 @@ def _get_current_billing_period(date_within_period: date) -> tuple:
         period_end = date(period_start.year, period_start.month + 1, 1) - timedelta(days=1)
 
     return period_start, period_end
-
 
 def run_daily_revenue_scan_job(db: Session) -> Dict:
     """
@@ -162,7 +160,6 @@ def run_daily_revenue_scan_job(db: Session) -> Dict:
             "timestamp": datetime.utcnow(),
         }
 
-
 def get_recent_scan_results(db: Session, *, tenant_id: Optional[int] = None, limit: int = 50) -> List[Dict]:
     """
     Get recent revenue leakage scan results (cached from background job).
@@ -191,7 +188,6 @@ def get_recent_scan_results(db: Session, *, tenant_id: Optional[int] = None, lim
         }
         for f in flags
     ]
-
 
 def get_scan_statistics(db: Session, *, tenant_id: Optional[int] = None) -> Dict:
     """

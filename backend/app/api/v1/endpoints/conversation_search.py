@@ -28,7 +28,6 @@ from app.services.conversation_search_service import SearchTermTooShort, search_
 
 router = APIRouter(prefix="/conversations", tags=["conversation-search"])
 
-
 @router.get(
     "/search",
     response_model=SearchResponse,

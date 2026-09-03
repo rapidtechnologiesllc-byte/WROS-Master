@@ -28,10 +28,8 @@ from sqlalchemy import (
 
 from app.models.base import Base
 
-
 def _new_uuid() -> str:
     return str(uuid.uuid4())
-
 
 TIMESHEET_STATUSES = ("DRAFT", "SUBMITTED", "APPROVED", "REJECTED", "DISPUTED")
 TIMESHEET_ENTRY_TYPES = ("BILLABLE", "NON_BILLABLE", "LEAVE", "HOLIDAY")
@@ -93,7 +91,6 @@ class Timesheet(Base):
             name="ck_timesheet_allocation_or_task",
         ),
     )
-
 
 class TimesheetEntry(Base):
     __tablename__ = "timesheet_entries"

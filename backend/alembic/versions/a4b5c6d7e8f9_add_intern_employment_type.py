@@ -26,7 +26,6 @@ from typing import Sequence, Union
 
 from alembic import op
 
-
 # revision identifiers, used by Alembic.
 revision: str = 'a4b5c6d7e8f9'
 down_revision: Union[str, Sequence[str], None] = 'f1a2b3c4d5e6'
@@ -36,13 +35,11 @@ depends_on: Union[str, Sequence[str], None] = None
 _OLD_TYPES = "'PERMANENT','CONTRACT','FIXED_TERM'"
 _NEW_TYPES = _OLD_TYPES + ",'INTERN'"
 
-
 def upgrade() -> None:
     """Upgrade schema."""
     with op.batch_alter_table('employees') as batch_op:
         batch_op.drop_constraint('ck_employees_employment_type', type_='check')
         batch_op.create_check_constraint('ck_employees_employment_type', f"employment_type IN ({_NEW_TYPES})")
-
 
 def downgrade() -> None:
     """Downgrade schema."""

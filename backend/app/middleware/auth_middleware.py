@@ -289,7 +289,6 @@ class AuthenticationMiddleware(BaseHTTPMiddleware):
                 return False
         return True
 
-
 class RequestLoggingMiddleware(BaseHTTPMiddleware):
     """
     Middleware to log all incoming requests and responses.
@@ -328,7 +327,6 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
         )
         
         return response
-
 
 class RateLimitMiddleware(BaseHTTPMiddleware):
     """

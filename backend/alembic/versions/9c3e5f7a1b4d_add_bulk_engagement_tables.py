@@ -14,7 +14,6 @@ down_revision = "7a4d29b6c5e1"
 branch_labels = None
 depends_on = None
 
-
 def upgrade():
     op.create_table(
         "bulk_engagement_jobs",
@@ -43,7 +42,6 @@ def upgrade():
         sa.Column("created_at", sa.DateTime(), server_default=sa.func.now()),
     )
     op.create_index("ix_bulk_engagement_errors_job_id", "bulk_engagement_errors", ["job_id"])
-
 
 def downgrade():
     op.drop_index("ix_bulk_engagement_errors_job_id", table_name="bulk_engagement_errors")

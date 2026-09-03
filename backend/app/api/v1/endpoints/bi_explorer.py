@@ -17,7 +17,6 @@ import logging
 
 router = APIRouter(prefix="/bi", tags=["Business Intelligence"])
 
-
 @router.get(
     "/tables",
     dependencies=[Depends(require_resource_permission("table", "view"))]
@@ -39,7 +38,6 @@ def list_available_tables(
     except Exception as e:
         logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @router.get(
     "/tables/{table_name}/schema",
@@ -63,7 +61,6 @@ def get_table_schema_endpoint(
         logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
-
 @router.get(
     "/tables/{table_name}/summary",
     dependencies=[Depends(require_resource_permission("table", "view"))]
@@ -85,7 +82,6 @@ def get_table_summary_endpoint(
     except Exception as e:
         logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @router.post(
     "/query",
@@ -130,7 +126,6 @@ def execute_bi_query(
     except Exception as e:
         logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @router.get(
     "/query/{table_name}",

@@ -68,6 +68,5 @@ def assign_users_to_templates():
     finally:
         db.close()
 
-
 if __name__ == "__main__":
     assign_users_to_templates()

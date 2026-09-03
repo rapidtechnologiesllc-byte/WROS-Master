@@ -86,7 +86,6 @@ class ObjectionEscalatedError(Exception):
         self.count = count
         super().__init__(f"Objection type {objection_type!r} raised {count} times -- escalating per BR-01.")
 
-
 def classify_objection(db: Session, tenant_id: str, candidate_id: str, message_body: str, *, llm_call: Optional[Callable] = None) -> Dict:
     """Step 2. Never raises -- LLM failure or invalid JSON collapses to
     {objection_type: 'OTHER', key_concern: '', confidence: 0.0}, same
@@ -112,11 +111,9 @@ def classify_objection(db: Session, tenant_id: str, candidate_id: str, message_b
     except Exception:
         return {"objection_type": "OTHER", "key_concern": "", "confidence": 0.0}
 
-
 def _count_prior_occurrences(db: Session, conversation_id: int, objection_type: str) -> int:
     events = db.query(ConversationEvent).filter(ConversationEvent.conversation_id == conversation_id, ConversationEvent.event_type == "OBJECTION_RAISED").all()
     return sum(1 for e in events if (e.event_data or {}).get("objection_type") == objection_type)
-
 
 def _generate_objection_response(db: Session, conversation: CandidateConversation, candidate: Candidate, objection_type: str, key_concern: str, *, llm_call: Optional[Callable] = None) -> str:
     if objection_type == "SALARY":  # BR-02: never reaches the LLM at all -- see module docstring
@@ -145,7 +142,6 @@ def _generate_objection_response(db: Session, conversation: CandidateConversatio
         logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[ObjectionHandling] Response generation failed for candidate {candidate.candidateID!r}: {exc}")
         return SAFE_FALLBACK_MESSAGE
-
 
 def handle_objection(db: Session, conversation: CandidateConversation, candidate: Candidate, message_body: str, *, llm_call: Optional[Callable] = None) -> Dict:
     """Step 3. Raises ObjectionEscalatedError on the 3rd+ occurrence of

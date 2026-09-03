@@ -18,17 +18,14 @@ class CreateWeeklyDraftRequest(BaseModel):
     allocation_id: str
     week_starting_date: date
 
-
 class TimesheetEntryInput(BaseModel):
     entry_date: date
     hours: float = Field(..., ge=0, le=24)
     entry_type: str = "BILLABLE"  # BILLABLE | NON_BILLABLE | LEAVE | HOLIDAY
     notes: Optional[str] = None
 
-
 class UpsertEntriesRequest(BaseModel):
     entries: List[TimesheetEntryInput]
-
 
 class TimesheetEntryItem(BaseModel):
     id: str
@@ -36,7 +33,6 @@ class TimesheetEntryItem(BaseModel):
     hours: float
     entry_type: str
     notes: Optional[str] = None
-
 
 class TimesheetItem(BaseModel):
     id: str
@@ -54,28 +50,22 @@ class TimesheetItem(BaseModel):
     rejection_reason: Optional[str] = None
     entries: List[TimesheetEntryItem] = []
 
-
 class TimesheetListResponse(BaseModel):
     timesheets: List[TimesheetItem]
-
 
 class RejectTimesheetRequest(BaseModel):
     reason: str = Field(..., min_length=20)
 
-
 class BulkApproveRequest(BaseModel):
     timesheet_ids: List[str]
-
 
 class BulkApproveFailure(BaseModel):
     id: str
     reason: str
 
-
 class BulkApproveResponse(BaseModel):
     approved: int
     failed: List[BulkApproveFailure]
-
 
 # ---------------------------------------------------------------------------
 # S-229/HRMS-0910 -- AI Time Entry Anomaly Detection
@@ -87,10 +77,8 @@ class AnomalyFlagItem(BaseModel):
     anomaly_type: str  # WEEKEND | OVER_12H | COMPLETED_PROJECT | DUPLICATE
     detected_at: Optional[datetime] = None
 
-
 class AnomalyFlagsResponse(BaseModel):
     flags: List[AnomalyFlagItem]
-
 
 # ---------------------------------------------------------------------------
 # Timesheet Dispute Resolution
@@ -102,12 +90,10 @@ class RaiseDisputeRequest(BaseModel):
     disputed_date: Optional[date] = None
     disputed_hours: Optional[float] = None
 
-
 class ResolveDisputeRequest(BaseModel):
     resolution: str  # ADJUSTED | CONFIRMED
     resolution_notes: str
     adjusted_hours: Optional[float] = None
-
 
 class DisputeItem(BaseModel):
     id: str
@@ -123,7 +109,6 @@ class DisputeItem(BaseModel):
     resolved_at: Optional[datetime] = None
     resolution_notes: Optional[str] = None
     adjusted_hours: Optional[float] = None
-
 
 class DisputeListResponse(BaseModel):
     disputes: List[DisputeItem]

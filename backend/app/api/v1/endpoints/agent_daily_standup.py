@@ -10,7 +10,6 @@ from app.services.agent_daily_standup_service import AgentDailyStandup
 
 router = APIRouter(prefix="/standups", tags=["Daily Standup"])
 
-
 @router.get("/daily", dependencies=[Depends(require_resource_permission("admin-settings", "view"))])
 async def get_daily_standup(
     db: Session = Depends(get_db),
@@ -45,7 +44,6 @@ async def get_daily_standup(
     except Exception as e:
         logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @router.get("/scrum-8-30", dependencies=[Depends(require_resource_permission("admin-settings", "view"))])
 async def get_scrum_of_scrums(

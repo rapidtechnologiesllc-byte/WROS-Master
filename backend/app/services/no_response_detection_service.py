@@ -51,7 +51,6 @@ from app.models.follow_up_schedule import FollowUpSchedule, MAX_FOLLOWUPS
 from app.services.follow_up_scheduler_service import followup_hours_for_channel, max_followup_count_for_tenant, schedule_follow_up
 from app.services.whatsapp_routing_service import is_ai_owner
 
-
 def _log_detection(db: Session, tenant_id: str, candidate_id: str, conversation_id: int, last_outbound_id, detection_type: str, follow_up_scheduled_at=None) -> None:
     db.add(CandidateNoResponseLog(
         tenant_id=tenant_id, candidate_id=candidate_id, conversation_id=conversation_id,
@@ -59,11 +58,9 @@ def _log_detection(db: Session, tenant_id: str, candidate_id: str, conversation_
         follow_up_scheduled_at=follow_up_scheduled_at,
     ))
 
-
 def _eligible_conversation(conversation: CandidateConversation) -> bool:
     """BR-02 -- see module docstring for the real state mapping."""
     return is_ai_owner(conversation) and conversation.status != "closed" and conversation.escalation_state != "escalated"
-
 
 def run_no_response_detection_job(db: Session) -> Dict:
     """Step 1. Runs every 30 min. Never raises -- a failure on one

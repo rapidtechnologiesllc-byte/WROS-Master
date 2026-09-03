@@ -24,7 +24,6 @@ from app.services.error_log_service import query_error_log
 
 router = APIRouter(prefix="/error-log", tags=["error-log"])
 
-
 @router.get(
     "",
     response_model=ErrorLogListResponse,

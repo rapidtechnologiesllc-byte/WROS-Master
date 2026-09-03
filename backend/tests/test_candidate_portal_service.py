@@ -34,7 +34,6 @@ from app.models.user import Interview, Users
 
 import app.services.candidate_portal_service as svc
 
-
 @pytest.fixture()
 def db_session():
     fd, db_path = tempfile.mkstemp(suffix=".sqlite3")
@@ -52,7 +51,6 @@ def db_session():
         session.close()
         engine.dispose()
         os.remove(db_path)
-
 
 @pytest.fixture()
 def seeded(db_session):
@@ -81,20 +79,17 @@ def seeded(db_session):
 
     return candidate, conv, interview
 
-
 def test_generate_portal_link_token_decodes_as_real_candidate_jwt():
     token = svc.generate_portal_link_token("C-1")
     payload = decode_access_token(token)
     assert payload["sub"] == "C-1"
     assert payload["type"] == "candidate"
 
-
 def test_generate_portal_link_url_points_at_frontend():
     url = svc.generate_portal_link_url("C-1")
     assert "/candidate/" in url
     token = url.split("/candidate/")[1]
     assert decode_access_token(token)["sub"] == "C-1"
-
 
 def test_portal_home_stage_badge_and_pending_actions(db_session, seeded):
     candidate, conv, interview = seeded
@@ -104,7 +99,6 @@ def test_portal_home_stage_badge_and_pending_actions(db_session, seeded):
     assert "Confirm your interview time" in home["pending_actions"]
     assert any("Mobile Number" in a for a in home["pending_actions"])
 
-
 def test_portal_home_recent_messages_cross_channel(db_session, seeded):
     candidate, conv, interview = seeded
     home = svc.get_portal_home(db_session, candidate)
@@ -112,13 +106,11 @@ def test_portal_home_recent_messages_cross_channel(db_session, seeded):
     assert "WHATSAPP" in channels
     assert "PORTAL" in channels
 
-
 def test_portal_thread_returns_full_conversation(db_session, seeded):
     candidate, conv, interview = seeded
     thread = svc.get_portal_thread(db_session, candidate)
     assert thread["conversation_id"] == conv.id
     assert len(thread["messages"]) == 2
-
 
 def test_portal_interviews_only_future_scheduled(db_session, seeded):
     candidate, conv, interview = seeded
@@ -131,7 +123,6 @@ def test_portal_interviews_only_future_scheduled(db_session, seeded):
     assert interviews[0]["id"] == interview.id
     assert interviews[0]["format"] == "video"
 
-
 def test_build_ics_contains_vevent(db_session, seeded):
     candidate, conv, interview = seeded
     ics = svc.build_ics(interview, candidate)
@@ -139,7 +130,6 @@ def test_build_ics_contains_vevent(db_session, seeded):
     assert "BEGIN:VEVENT" in text
     assert "END:VEVENT" in text
     assert interview.meeting_link in text
-
 
 def test_reschedule_request_escalates_conversation(db_session, seeded):
     candidate, conv, interview = seeded
@@ -151,7 +141,6 @@ def test_reschedule_request_escalates_conversation(db_session, seeded):
     events = db_session.query(ConversationEvent).filter(ConversationEvent.conversation_id == conv.id, ConversationEvent.event_type == "reschedule_requested").all()
     assert len(events) == 1
     assert events[0].event_data["interview_id"] == interview.id
-
 
 def test_reschedule_request_rejects_interview_not_owned_by_candidate(db_session, seeded):
     candidate, conv, interview = seeded

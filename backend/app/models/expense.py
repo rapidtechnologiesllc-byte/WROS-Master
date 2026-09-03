@@ -26,10 +26,8 @@ from sqlalchemy.orm import relationship
 
 from app.models.base import Base
 
-
 def _new_uuid() -> str:
     return str(uuid.uuid4())
-
 
 EXPENSE_PURPOSES = ("CLIENT_CURRENT", "CLIENT_PROSPECT", "CONFERENCE", "INVESTMENT", "OTHER")
 EXPENSE_CATEGORIES = ("TRAVEL", "MEALS", "LODGING", "ENTERTAINMENT", "OTHER")

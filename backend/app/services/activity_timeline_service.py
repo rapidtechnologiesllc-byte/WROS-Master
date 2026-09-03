@@ -14,7 +14,6 @@ from app.models.activity_timeline import ActivityTimeline
 
 DEFAULT_PAGE_SIZE = 25
 
-
 def write_timeline_entry(
     db: Session,
     *,
@@ -34,7 +33,6 @@ def write_timeline_entry(
     )
     db.add(entry)
     return entry
-
 
 def get_timeline_for_entity(
     db: Session, entity_type: str, entity_id: str, *,

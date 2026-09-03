@@ -50,7 +50,6 @@ class InterviewPanelWithDetails(BaseModel):
     member_count: int
     interview_count: int
 
-
 # ============================================
 # Panel Member Schemas
 # ============================================
@@ -81,7 +80,6 @@ class PanelMemberWithDetails(BaseModel):
     interviewer_email: str
     interviewer_role: Optional[str] = None
     business_unit_name: Optional[str] = None
-
 
 # ============================================
 # Interview Schemas
@@ -142,7 +140,6 @@ class InterviewDetailedResponse(BaseModel):
     feedback_count: int
     feedback_status: Optional[str] = None # pending, completed, cancelled
 
-
 # ============================================
 # Interview Feedback Schemas
 # ============================================
@@ -196,7 +193,6 @@ class InterviewFeedbackWithDetails(BaseModel):
     recommendation: str
     submitted_at: datetime
 
-
 # ============================================
 # Filter and Query Schemas
 # ============================================
@@ -220,7 +216,6 @@ class InterviewStatistics(BaseModel):
     total_feedback: int
     average_feedback_score: Optional[float] = None
 
-
 # ============================================
 # Candidate Interview History
 # ============================================
@@ -235,7 +230,6 @@ class CandidateInterviewHistory(BaseModel):
     completed_interviews: int
     cancelled_interviews: int
     interviews: List[InterviewDetailedResponse]
-
 
 # ============================================
 # Interviewer Workload
@@ -252,7 +246,6 @@ class InterviewerWorkload(BaseModel):
     completed_interviews: int
     feedback_submitted: int
     upcoming_interviews: List[InterviewDetailedResponse]
-
 
 # ============================================
 # My Interviews (Panel Member view)
@@ -293,7 +286,6 @@ class MyInterviewsResponse(BaseModel):
     pending_feedback: int
     interviews: List[MyInterviewItem]
 
-
 # ============================================
 # Common Response Schemas
 # ============================================
@@ -308,7 +300,6 @@ class BulkDeleteResponse(BaseModel):
     status: str = "Success"
     message: str
     deleted_count: int
-
 
 # ============================================
 # Hiring Manager Candidate Review
@@ -328,7 +319,6 @@ class HMFeedbackDetail(BaseModel):
     recommendation: str
     submitted_at: datetime
 
-
 class HMInterviewRound(BaseModel):
     """One completed interview round with all its feedback entries."""
     interview_id: int
@@ -339,7 +329,6 @@ class HMInterviewRound(BaseModel):
     panel_id: int
     feedbacks: List[HMFeedbackDetail]
     overall_recommendation: str  # "Hire" | "Must Hire" | "Mixed" | "No Feedback"
-
 
 class HMCandidateReviewItem(BaseModel):
     """Full interview summary for one candidate — used by Hiring Manager review list."""
@@ -355,13 +344,11 @@ class HMCandidateReviewItem(BaseModel):
     approval_endpoint: str   # convenience: the POST path to approve/reject
     interviews: List[HMInterviewRound]
 
-
 class HMCandidateReviewListResponse(BaseModel):
     """Response for the Hiring Manager candidate review list endpoint."""
     hiring_manager_id: str
     hiring_manager_name: str
     total_candidates: int
-
 
 # ============================================
 # Rehire Guard Schemas (2026-08-05)
@@ -389,11 +376,9 @@ class RehireReviewResponse(BaseModel):
     resulting_panel_id: Optional[int] = None
     created_at: datetime
 
-
 class RehireReviewListResponse(BaseModel):
     total: int
     reviews: List[RehireReviewResponse]
-
 
 class RehireReviewDecideRequest(BaseModel):
     decision: str = Field(..., description="'approve' or 'reject'")

@@ -30,10 +30,8 @@ from sqlalchemy import (
 from app.models.base import Base
 from app.models.client import BILLING_CURRENCIES
 
-
 def _new_uuid() -> str:
     return str(uuid.uuid4())
-
 
 # Shared pipeline statuses used for both Opportunity.stage and Client.status
 # Single source of truth: if either changes, both must change

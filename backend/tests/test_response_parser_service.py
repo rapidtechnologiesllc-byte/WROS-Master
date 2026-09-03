@@ -28,7 +28,6 @@ from app.models.user import Users
 
 import app.services.response_parser_service as svc
 
-
 @pytest.fixture()
 def db_session():
     fd, db_path = tempfile.mkstemp(suffix=".sqlite3")
@@ -46,7 +45,6 @@ def db_session():
         engine.dispose()
         os.remove(db_path)
 
-
 @pytest.fixture()
 def seeded(db_session):
     owner = Users(UserID="U-ORG", UserRole="Super User", UserEmail="ceo@blitzenx.com", UserPassword="h")
@@ -58,7 +56,6 @@ def seeded(db_session):
     db_session.commit()
     return candidate, conv
 
-
 # ── Normalization unit tests ────────────────────────────────────────
 
 @pytest.mark.parametrize("raw,expected", [
@@ -67,17 +64,14 @@ def seeded(db_session):
 def test_normalize_notice_period_days(raw, expected):
     assert svc.normalize_notice_period_days(raw) == expected
 
-
 @pytest.mark.parametrize("raw,expected", [
     ("18 LPA", 1800000 * 100), ("18 lakhs", 1800000 * 100), ("18,00,000", 1800000 * 100),
 ])
 def test_normalize_salary_inr(raw, expected):
     assert svc.normalize_salary(raw) == expected
 
-
 def test_normalize_salary_usd():
     assert svc.normalize_salary("$120k") == 120000 * 100
-
 
 @pytest.mark.parametrize("raw,expected", [
     ("5 years", 5.0), ("3 years 6 months", 3.5), ("5+", 5.0), ("5+ years", 5.0),
@@ -85,10 +79,8 @@ def test_normalize_salary_usd():
 def test_normalize_experience_years(raw, expected):
     assert svc.normalize_experience_years(raw) == expected
 
-
 def test_normalize_value_passthrough_for_unmapped_field():
     assert svc.normalize_value("location", "Chicago") == "Chicago"
-
 
 # ── parse_field_response() integration tests ────────────────────────
 
@@ -104,7 +96,6 @@ def test_parse_notice_period_success(db_session, seeded):
     fact = db_session.query(CandidateMemoryFact).filter(CandidateMemoryFact.candidate_id == "C-1", CandidateMemoryFact.fact_key == "notice_period_days").first()
     assert fact.fact_value == "30"
 
-
 def test_parse_salary_lpa_success(db_session, seeded):
     candidate, conv = seeded
     llm_response = json.dumps({"value": "18 LPA", "confidence": 0.9})
@@ -113,7 +104,6 @@ def test_parse_salary_lpa_success(db_session, seeded):
     assert result["outcome"] == "parsed"
     assert result["normalized_value"] == 1800000 * 100
     assert result["confidence"] >= 0.8
-
 
 def test_low_confidence_does_not_write_normalized_value_requests_clarification(db_session, seeded):
     candidate, conv = seeded
@@ -127,7 +117,6 @@ def test_low_confidence_does_not_write_normalized_value_requests_clarification(d
     assert len(low_conf_events) == 1
     clarification_events = db_session.query(ConversationEvent).filter(ConversationEvent.conversation_id == conv.id, ConversationEvent.event_type == "CLARIFICATION_REQUESTED").all()
     assert len(clarification_events) == 1
-
 
 def test_second_low_confidence_answer_accepted_no_second_clarification(db_session, seeded):
     candidate, conv = seeded
@@ -146,7 +135,6 @@ def test_second_low_confidence_answer_accepted_no_second_clarification(db_sessio
     assert fact.fact_value == "decent amount"
     assert fact.confidence == 0.3
 
-
 def test_llm_failure_logs_parse_api_failed_no_crash(db_session, seeded):
     candidate, conv = seeded
 
@@ -161,7 +149,6 @@ def test_llm_failure_logs_parse_api_failed_no_crash(db_session, seeded):
 
     fact = db_session.query(CandidateMemoryFact).filter(CandidateMemoryFact.candidate_id == "C-1").first()
     assert fact is None  # profile/memory untouched
-
 
 def test_null_value_response_treated_as_low_confidence(db_session, seeded):
     candidate, conv = seeded

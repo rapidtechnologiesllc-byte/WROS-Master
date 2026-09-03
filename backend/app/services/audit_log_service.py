@@ -14,7 +14,6 @@ from sqlalchemy.orm import Session
 
 from app.models.conversation_audit_log import ConversationAuditLog
 
-
 def log_audit_event(
     db: Session,
     *,

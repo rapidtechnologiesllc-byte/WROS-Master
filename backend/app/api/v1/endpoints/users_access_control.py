@@ -832,7 +832,6 @@ def get_role_template(
         "permissions": perm_list,
     }
 
-
 @router.post(
     "/role-templates",
     dependencies=[Depends(require_resource_permission("role-template", "create"))]

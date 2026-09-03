@@ -55,7 +55,6 @@ class OutreachDebounced(Exception):
     """Step 2: an active sequence already exists for this candidate+demand
     within the debounce window -- do not start a second one."""
 
-
 def _get_or_create_conversation(db: Session, candidate: Candidate, *, conversation_tenant_id: str) -> CandidateConversation:
     conversation = (
         db.query(CandidateConversation)
@@ -75,7 +74,6 @@ def _get_or_create_conversation(db: Session, candidate: Candidate, *, conversati
     db.flush()
     return conversation
 
-
 def _has_active_sequence_within_debounce(db: Session, candidate_id: str, demand_id: str) -> bool:
     # Compared against real wall-clock time, not a caller-supplied `now`
     # -- OutreachSequence.created_at is a real DB-server timestamp
@@ -91,7 +89,6 @@ def _has_active_sequence_within_debounce(db: Session, candidate_id: str, demand_
         .first()
         is not None
     )
-
 
 def _candidate_has_replied(db: Session, candidate_id: str, *, since: Optional[datetime]) -> bool:
     if since is None:
@@ -114,7 +111,6 @@ def _candidate_has_replied(db: Session, candidate_id: str, *, since: Optional[da
         .first()
         is not None
     )
-
 
 def start_outreach_sequence(
     db: Session,
@@ -183,7 +179,6 @@ def start_outreach_sequence(
         conversation_tenant_id=conversation_tenant_id,
         router_evaluate=router_evaluate, whatsapp_client=whatsapp_client, now=now,
     )
-
 
 def _attempt_send(
     db: Session, sequence: OutreachSequence, candidate: Candidate, demand: Demand,
@@ -262,7 +257,6 @@ def _attempt_send(
     sequence.last_touch_sent_at = now
     db.add(sequence)
     return sequence
-
 
 def advance_outreach_sequence(
     db: Session,

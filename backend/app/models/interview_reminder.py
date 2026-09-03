@@ -22,10 +22,8 @@ from sqlalchemy.orm import relationship
 
 from app.models.base import Base
 
-
 def _new_uuid() -> str:
     return str(uuid.uuid4())
-
 
 REMINDER_TYPES = ("24H_BEFORE", "1H_BEFORE")
 REMINDER_STATUSES = ("PENDING", "SENT", "CANCELLED")

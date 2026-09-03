@@ -28,7 +28,6 @@ from app.services.partner_incentive_service import (
 
 router = APIRouter(prefix="/partner-incentives", tags=["partner-incentives"])
 
-
 @router.post(
     "/rules",
     response_model=IncentiveRuleItem,
@@ -46,7 +45,6 @@ def create_rule(
         trigger_description=body.trigger_description, tenant_id=current_user.tenant_id,
     )
 
-
 @router.get(
     "/partners/{partner_user_id}/events",
     response_model=IncentiveEventListResponse,
@@ -58,7 +56,6 @@ def get_partner_events(
     current_user: Users = Depends(require_resource_permission("revenue", "view")),
 ):
     return IncentiveEventListResponse(events=list_incentive_events_for_partner(db, partner_user_id))
-
 
 @router.post(
     "/clients/{client_id}/check-new-logo",
@@ -77,7 +74,6 @@ def check_new_logo(
     if event is None:
         raise HTTPException(status_code=409, detail="Not yet eligible -- MSA not signed, no invoice, or no rule configured for this client's Partner.")
     return event
-
 
 @router.post(
     "/partners/{partner_user_id}/calculate-revenue-share",
@@ -98,7 +94,6 @@ def calculate_revenue_share(
     ]
     event = calculate_revenue_share_payout(db, partner_user_id=partner_user_id, year=year, month=month, tenant_id=current_user.tenant_id)
     return RevenueShareCalculationResponse(event=event, already_calculated=bool(existing_before))
-
 
 @router.post(
     "/events/{event_id}/mark-paid",

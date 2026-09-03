@@ -14,7 +14,6 @@ class RecordIntercompanySettlementRequest(BaseModel):
     settlement_date: date
     reason: str
 
-
 class IntercompanySettlementResponse(BaseModel):
     id: int
     from_entity: str
@@ -27,7 +26,6 @@ class IntercompanySettlementResponse(BaseModel):
 
     class Config:
         from_attributes = True
-
 
 class EntityNetPositionResponse(BaseModel):
     entity: str

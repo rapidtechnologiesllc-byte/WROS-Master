@@ -251,7 +251,6 @@ class TrainingDataCollector:
         for step in summary.get("next_steps", []):
             print(f"   {step}")
 
-
 def main():
     parser = argparse.ArgumentParser(
         description="Collect resume training data from directory"
@@ -279,7 +278,6 @@ def main():
 
     print(f"\n" + "=" * 70)
     print(json.dumps(summary, indent=2))
-
 
 if __name__ == "__main__":
     main()

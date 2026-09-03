@@ -40,7 +40,6 @@ from app.services.core_pull_service import (
 )
 from app.services.orchestration_router_service import seed_default_conflict_rules
 
-
 @pytest.fixture()
 def db_session():
     """Create throwaway SQLite database for testing."""
@@ -72,7 +71,6 @@ def db_session():
         session.close()
         engine.dispose()
         os.remove(db_path)
-
 
 @pytest.fixture()
 def fixtures(db_session):
@@ -138,7 +136,6 @@ def fixtures(db_session):
     db_session.commit()
 
     return tenant, client, employee, spec_demand, core_demand, spec_alloc
-
 
 # ============================================================================
 # evaluate_core_vs_specialty Tests
@@ -210,11 +207,9 @@ class TestEvaluateCorePullVsSpecialty:
         assert result["status"] == "error"
         assert result["confidence"] == 0
 
-
 # ============================================================================
 # apply_core_pull_rule Tests
 # ============================================================================
-
 
 class TestApplyCorePullRule:
     """Test apply_core_pull_rule() method."""
@@ -272,11 +267,9 @@ class TestApplyCorePullRule:
 
         assert first_count == second_count == 1
 
-
 # ============================================================================
 # resolve_conflict Tests
 # ============================================================================
-
 
 class TestResolveConflict:
     """Test resolve_conflict() method."""
@@ -409,11 +402,9 @@ class TestResolveConflict:
 
         assert result["status"] == "error"
 
-
 # ============================================================================
 # Integration Tests
 # ============================================================================
-
 
 class TestCorePullWorkflow:
     """Test complete Core-Pull workflow using all three methods."""

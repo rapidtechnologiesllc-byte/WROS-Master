@@ -24,7 +24,6 @@ from app.core.logging import logger
 from app.models.user import Jobs, Users
 from app.models.candidate import Candidate, CandidateStatus
 
-
 def check_and_close_job_if_filled(db: Session, job_id: str) -> Optional[Dict]:
     """
     Check if a job is filled (all positions hired) and close it if so.
@@ -79,7 +78,6 @@ def check_and_close_job_if_filled(db: Session, job_id: str) -> Optional[Dict]:
         db.rollback()
         raise ValueError("Operation failed")
 
-
 def _notify_remaining_candidates(db: Session, job_id: str) -> None:
     """Send rejection notifications to candidates not hired for this job."""
     try:
@@ -130,7 +128,6 @@ def _notify_remaining_candidates(db: Session, job_id: str) -> None:
         logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"[Autonomous] Error notifying candidates for job {job_id}: {e}")
         db.rollback()
-
 
 def get_job_closure_status(db: Session, job_id: str) -> Dict:
     """

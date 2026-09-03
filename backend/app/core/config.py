@@ -141,6 +141,5 @@ class Settings:
 
         return True
 
-
 # Create a global settings instance
 settings = Settings()

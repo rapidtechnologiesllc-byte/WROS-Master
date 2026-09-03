@@ -11,7 +11,6 @@ from app.services.permission_helper import PermissionHelper
 
 router = APIRouter(prefix="/admin/agent-standups", tags=["Agent Standups Dashboard"])
 
-
 @router.get("/dashboard", dependencies=[Depends(require_resource_permission("admin-settings", "view"))])
 def get_standups_dashboard(
     db: Session = Depends(get_db),
@@ -66,7 +65,6 @@ def get_standups_dashboard(
         logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
-
 @router.post("/provide-feedback/{agent_name}", dependencies=[Depends(require_resource_permission("admin-settings", "edit"))])
 async def ceo_provide_feedback(
     agent_name: str,
@@ -89,7 +87,6 @@ async def ceo_provide_feedback(
     """
     try:
         # Check admin permission via RBAC (not hardcoded role name)
-        from app.services.permission_helper import PermissionHelper
         has_admin_perms = PermissionHelper.has_any_permission(
             current_user.UserID,
             ["admin.manage", "admin.edit"],
@@ -137,7 +134,6 @@ async def ceo_provide_feedback(
         logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
-
 @router.get("/agent/{agent_name}/details", dependencies=[Depends(require_resource_permission("admin-settings", "view"))])
 async def get_agent_details(
     agent_name: str,
@@ -152,7 +148,6 @@ async def get_agent_details(
     - Recent feedback
     """
     try:
-        from app.models.agent_execution_log import AgentExecutionLog
         from datetime import datetime, timedelta
 
         # Get last 7 days of logs

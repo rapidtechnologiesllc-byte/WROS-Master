@@ -13,7 +13,6 @@ down_revision = "e2f7b4d1a9c3"
 branch_labels = None
 depends_on = None
 
-
 def upgrade():
     op.create_table(
         "error_log",
@@ -33,7 +32,6 @@ def upgrade():
     op.create_index("ix_error_log_severity", "error_log", ["severity"])
     op.create_index("ix_error_log_integration_name", "error_log", ["integration_name"])
     op.create_index("ix_error_log_created_at", "error_log", ["created_at"])
-
 
 def downgrade():
     op.drop_index("ix_error_log_created_at", table_name="error_log")

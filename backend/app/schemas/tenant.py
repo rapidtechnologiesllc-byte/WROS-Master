@@ -14,7 +14,6 @@ class TenantLocaleResponse(BaseModel):
     default_date_format: str
     default_currency: str
 
-
 class UpdateTenantLocaleRequest(BaseModel):
     default_timezone: Optional[str] = None
     default_date_format: Optional[str] = None

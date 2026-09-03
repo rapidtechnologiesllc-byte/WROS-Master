@@ -28,7 +28,6 @@ from app.core.dependencies import get_current_internal_user
 
 router = APIRouter(prefix="/onboarding", tags=["onboarding-orchestrator"])
 
-
 # WORKFLOW: Complete Hiring Pipeline
 @router.post(
     "/workflows/hire-complete",
@@ -99,7 +98,6 @@ def hire_complete_workflow(
         logger.error(f"[Orchestrator] ❌ Workflow failed: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Workflow failed: {str(e)}")
 
-
 # WORKFLOW: Rehire Employee
 @router.post(
     "/workflows/rehire",
@@ -127,7 +125,6 @@ def rehire_workflow(
 
     try:
         from app.models.employee import Employee
-        from app.models.user import Jobs
 
         employee = db.query(Employee).filter(Employee.id == employee_id).first()
         if not employee:
@@ -150,7 +147,6 @@ def rehire_workflow(
         logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"[Orchestrator] ❌ Rehire failed: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Rehire failed: {str(e)}")
-
 
 # WORKFLOW: Hiring Pipeline Status
 @router.get(
@@ -203,7 +199,6 @@ def hiring_pipeline_status(
         logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"[Orchestrator] ❌ Status check failed: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Status check failed: {str(e)}")
-
 
 def _trigger_onboarding(candidate_id: str):
     """Background task: trigger employee onboarding after hire."""

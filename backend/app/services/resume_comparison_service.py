@@ -234,7 +234,6 @@ class ResumeChangeAnalysis:
         else:
             return "OK: Resume unchanged, no concerns"
 
-
 class ResumeComparisonService:
     """Service for comparing candidate resume versions"""
 

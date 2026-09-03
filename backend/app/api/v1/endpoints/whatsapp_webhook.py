@@ -35,7 +35,6 @@ from app.core.database import get_db
 
 router = APIRouter(prefix="/webhooks", tags=["whatsapp-webhook"])
 
-
 @router.get(
     "/whatsapp",
     dependencies=[Depends(get_current_internal_user)],
@@ -50,7 +49,6 @@ def whatsapp_webhook_verify(request: Request):
     if result is None:
         raise HTTPException(status_code=403, detail="Verification failed")
     return PlainTextResponse(result)
-
 
 def _process_webhook_payload(payload: dict) -> None:
     """Runs after the HTTP response is already sent (BR-03). Uses its
@@ -71,7 +69,6 @@ def _process_webhook_payload(payload: dict) -> None:
         logger.error(f"[WhatsAppWebhook] Failed processing payload: {exc}", exc_info=True)
     finally:
         db.close()
-
 
 @router.post(
     "/whatsapp",

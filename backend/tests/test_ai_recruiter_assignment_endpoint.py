@@ -33,7 +33,6 @@ from app.models.candidate_ai import CandidateAIAssignment
 from app.models.user import Users
 import app.models  # noqa: F401
 
-
 @pytest.fixture()
 def throwaway_jwt_keys(monkeypatch):
     key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
@@ -46,7 +45,6 @@ def throwaway_jwt_keys(monkeypatch):
     ).decode()
     monkeypatch.setattr(security, "PRIVATE_KEY", private_pem)
     monkeypatch.setattr(security, "PUBLIC_KEY", public_pem)
-
 
 @pytest.fixture()
 def client(throwaway_jwt_keys):
@@ -93,10 +91,8 @@ def client(throwaway_jwt_keys):
         engine.dispose()
         os.remove(db_path)
 
-
 def _token_for(email, role):
     return security.create_access_token(data={"sub": email, "type": role, "name": email})
-
 
 def test_get_candidate_assignment_returns_active_record(client):
     resp = client.get(
@@ -106,12 +102,10 @@ def test_get_candidate_assignment_returns_active_record(client):
     assert resp.status_code == 200
     assert resp.json()["ai_agent_name"] == "Thunder"
 
-
 def test_get_candidate_assignment_404_for_unknown_candidate(client):
     resp = client.get(
         "/candidates/C-DOES-NOT-EXIST/ai-assignment",
         headers={"Authorization": f"Bearer {_token_for('recruiter@blitzenx.com', 'Recruiter')}"},
     )
     assert resp.status_code == 404
-
 

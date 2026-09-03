@@ -52,8 +52,6 @@ from app.utils.uniq_id_generator import generate_password
 
 router = APIRouter(prefix="/onboarding", tags=["onboarding"])
 
-
-
 @router.post(
     "/hr/create_candidate",
     response_model=CandidateCreateResponse,
@@ -378,7 +376,6 @@ def get_all_candidates(db: Session = Depends(get_db), user = Depends(get_current
         candidates=candidates_data
     )
 
-
 @router.get(
     "/hr/candidate/{candidate_id}",
     response_model=CandidateCompleteResponse,
@@ -533,7 +530,6 @@ def get_candidate_by_id(
         status=candidate_status.status if candidate_status else None,
         pipline_status=candidate_status.piplineStatus if candidate_status else None
     )
-
 
 @router.get(
     "/hr/my-bu/candidates",
@@ -733,7 +729,6 @@ def get_candidates_by_my_bu(
         candidates=candidates_data,
     )
 
-
 @router.put(
     "/hr/update_candidate/{candidate_id}",
     response_model=CandidateCompleteResponse,
@@ -895,11 +890,9 @@ def update_candidate(candidate_id: str, request: CandidateUpdateRequest, db: Ses
                     corrected_value=str(corrected_value) if corrected_value is not None else "",
                     confidence_score=0.5  # Recruiter correction
                 )
-            from app.core.logging import logger
             logger.info(f"[SLM] Recorded {len(corrections)} corrections for candidate: {candidate_id}")
         except Exception as e:
             logger.error(f"Error: {str(e)}", exc_info=True)
-            from app.core.logging import logger
             logger.error(f"[SLM] Failed to record candidate corrections: {e}", exc_info=True)
             # Continue - SLM failure shouldn't block updates
 
@@ -930,7 +923,6 @@ def update_candidate(candidate_id: str, request: CandidateUpdateRequest, db: Ses
         candidate_current_salary_type=getattr(candidate, 'candidateCurrentSalaryType', None),
         candidate_source=candidate.candidateSource,
     )
-
 
 @router.delete(
     "/hr/delete_candidate/{candidate_id}",
@@ -1173,7 +1165,6 @@ def convert_candidate_to_employee(
         logger.error(f"âŒ Conversion failed: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Conversion failed: {str(e)}")
 
-
 # ============================================
 # Candidate Contacts Endpoint
 # ============================================
@@ -1188,7 +1179,6 @@ def _user_info(user: Users | None) -> dict | None:
         "email":      user.UserEmail,
         "role":       user.UserRole,
     }
-
 
 @router.get(
     "/hr/candidate/{candidate_id}/contacts",

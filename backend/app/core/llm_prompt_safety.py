@@ -29,7 +29,6 @@ import re
 import secrets
 from typing import List
 
-
 _SUSPICIOUS_PATTERNS = [
     re.compile(r"(?i)ignore (all |any )?(previous|prior|above) instructions"),
     re.compile(r"(?i)disregard (all |any )?(previous|prior|above)"),
@@ -40,7 +39,6 @@ _SUSPICIOUS_PATTERNS = [
     re.compile(r"(?i)mark (this|the) candidate as (highly qualified|approved|hired)"),
 ]
 
-
 def flag_suspicious_patterns(content: str) -> List[str]:
     """Non-blocking detector -- returns matched phrases for logging/alerting."""
     hits = []
@@ -49,7 +47,6 @@ def flag_suspicious_patterns(content: str) -> List[str]:
         if m:
             hits.append(m.group(0))
     return hits
-
 
 def build_safe_prompt(instruction: str, untrusted_label: str, untrusted_content: str) -> str:
     """

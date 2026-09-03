@@ -32,7 +32,6 @@ from app.models.user import Users
 
 import app.services.reactivation_campaign_service as svc
 
-
 @pytest.fixture(autouse=True)
 def _fake_whatsapp_number(monkeypatch):
     """See test_follow_up_scheduler_service.py's identical fixture for
@@ -40,7 +39,6 @@ def _fake_whatsapp_number(monkeypatch):
     import time from env state that's unreliable across a combined run."""
     import app.services.whatsapp_routing_service as wr_svc
     monkeypatch.setattr(wr_svc, "DEFAULT_WHATSAPP_NUMBER", "+15550009999")
-
 
 @pytest.fixture()
 def db_session():
@@ -58,7 +56,6 @@ def db_session():
         session.close()
         engine.dispose()
         os.remove(db_path)
-
 
 @pytest.fixture()
 def seeded(db_session):
@@ -81,10 +78,8 @@ def seeded(db_session):
     db_session.commit()
     return candidate, conv, ghosting_status
 
-
 def _fake_generate(msg="It's been a while -- still interested?"):
     return lambda db, cand, days, **kw: (msg, False)
-
 
 # ── Step 2 / AC: due reactivation is sent ────────────────────────────
 
@@ -107,7 +102,6 @@ def test_job_sends_due_reactivation_and_starts_campaign(db_session, seeded, monk
     sent_event = db_session.query(ConversationEvent).filter(ConversationEvent.conversation_id == conv.id, ConversationEvent.event_type == "REACTIVATION_SENT").first()
     assert sent_event is not None
 
-
 def test_job_ignores_not_yet_due_reactivations(db_session, seeded):
     candidate, conv, status_row = seeded
     status_row.reactivation_scheduled_at = datetime.utcnow() + timedelta(days=1)
@@ -115,7 +109,6 @@ def test_job_ignores_not_yet_due_reactivations(db_session, seeded):
 
     result = svc.run_reactivation_job(db_session)
     assert result["processed"] == 0
-
 
 def test_job_ignores_rows_with_no_scheduled_reactivation(db_session, seeded):
     candidate, conv, status_row = seeded
@@ -125,7 +118,6 @@ def test_job_ignores_rows_with_no_scheduled_reactivation(db_session, seeded):
     result = svc.run_reactivation_job(db_session)
     assert result["processed"] == 0
 
-
 def test_job_skips_already_reactivated_candidate(db_session, seeded):
     candidate, conv, status_row = seeded
     status_row.is_reactivated = True
@@ -133,7 +125,6 @@ def test_job_skips_already_reactivated_candidate(db_session, seeded):
 
     result = svc.run_reactivation_job(db_session)
     assert result["processed"] == 0
-
 
 # ── Reply mid-cycle self-reactivates, does not archive ───────────────
 
@@ -155,7 +146,6 @@ def test_job_reactivates_instead_of_sending_if_candidate_already_replied(db_sess
     db_session.refresh(status_row)
     assert status_row.is_reactivated is True
 
-
 # ── Consistency guards (ownership/closed/escalated) ──────────────────
 
 def test_job_skips_when_recruiter_owns(db_session, seeded):
@@ -167,7 +157,6 @@ def test_job_skips_when_recruiter_owns(db_session, seeded):
     result = svc.run_reactivation_job(db_session)
     assert result["skipped"] == 1
 
-
 def test_job_skips_when_conversation_closed(db_session, seeded):
     candidate, conv, status_row = seeded
     conv.status = "closed"
@@ -175,7 +164,6 @@ def test_job_skips_when_conversation_closed(db_session, seeded):
 
     result = svc.run_reactivation_job(db_session)
     assert result["skipped"] == 1
-
 
 def test_job_logs_generation_failed_on_fallback(db_session, seeded, monkeypatch):
     candidate, conv, status_row = seeded
@@ -186,7 +174,6 @@ def test_job_logs_generation_failed_on_fallback(db_session, seeded, monkeypatch)
     events = db_session.query(ConversationEvent).filter(ConversationEvent.conversation_id == conv.id, ConversationEvent.event_type == "REACTIVATION_GENERATION_FAILED").all()
     assert len(events) == 1
 
-
 def test_job_never_raises_on_bad_row(db_session, seeded, monkeypatch):
     candidate, conv, status_row = seeded
 
@@ -196,7 +183,6 @@ def test_job_never_raises_on_bad_row(db_session, seeded, monkeypatch):
 
     result = svc.run_reactivation_job(db_session)  # should not raise
     assert result["skipped"] == 1
-
 
 # ── "No archive, ever" -- the explicit S-045 override ────────────────
 
@@ -223,7 +209,6 @@ def test_no_response_after_campaign_reschedules_instead_of_archiving(db_session,
     archive_events = db_session.query(ConversationEvent).filter(ConversationEvent.event_type.like("%ARCHIV%")).all()
     assert archive_events == []
 
-
 def test_reschedule_job_does_not_double_schedule_already_pending(db_session, seeded):
     candidate, conv, status_row = seeded
     status_row.reactivation_scheduled_at = datetime.utcnow() + timedelta(days=5)  # already has a next attempt queued
@@ -242,7 +227,6 @@ def test_reschedule_job_does_not_double_schedule_already_pending(db_session, see
     db_session.refresh(status_row)
     assert status_row.reactivation_scheduled_at == original_scheduled_at
 
-
 def test_reschedule_job_skips_already_reactivated_candidate(db_session, seeded):
     candidate, conv, status_row = seeded
     status_row.is_reactivated = True
@@ -257,7 +241,6 @@ def test_reschedule_job_skips_already_reactivated_candidate(db_session, seeded):
 
     result = svc.run_reactivation_reschedule_job(db_session)
     assert result["rescheduled"] == 0
-
 
 def test_repeated_cycles_keep_retrying_indefinitely(db_session, seeded, monkeypatch):
     """Simulate 3 full send -> campaign-exhaustion -> reschedule cycles.

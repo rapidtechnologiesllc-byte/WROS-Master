@@ -17,12 +17,10 @@ This migration:
 from alembic import op
 import sqlalchemy as sa
 
-
 revision = '2026_08_24_001'
 down_revision = 'e7a1c3f9b2d6'
 branch_labels = None
 depends_on = None
-
 
 def upgrade():
     """Apply migrations to fix role template constraints."""
@@ -65,7 +63,6 @@ def upgrade():
     print("  - enabled column: NOT NULL DEFAULT TRUE")
     print("  - tenant_id column: NOT NULL DEFAULT 1")
     print("  - All existing role templates updated to be enabled")
-
 
 def downgrade():
     """Revert the constraints (not recommended in production)."""

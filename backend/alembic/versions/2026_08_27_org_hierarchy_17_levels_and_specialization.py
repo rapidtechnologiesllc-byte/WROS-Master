@@ -13,13 +13,11 @@ This migration adds:
 from alembic import op
 import sqlalchemy as sa
 
-
 # revision identifiers, used by Alembic.
 revision = '2026_08_27_org_hierarchy_levels'
 down_revision = '2026_08_27_message_queue'
 branch_labels = None
 depends_on = None
-
 
 def upgrade():
     """Add hierarchy_level and specialization fields for 17-level org structure"""
@@ -59,7 +57,6 @@ def upgrade():
         server_default='General',
         comment='Specialization domain: Recruitment, Development, HR, Finance, Project Management, QA, Business Analysis'
     ))
-
 
 def downgrade():
     """Remove hierarchy_level and specialization fields"""

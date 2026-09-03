@@ -11,7 +11,6 @@ from app.services.flash_orchestration_engine import FlashOrchestrationEngine
 
 router = APIRouter(prefix="/flash", tags=["Flash Orchestration"])
 
-
 @router.get(
     "/daily-coordination",
     dependencies=[Depends(require_resource_permission("admin-settings", "view"))]

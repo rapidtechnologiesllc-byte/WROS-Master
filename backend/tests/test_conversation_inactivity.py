@@ -41,11 +41,9 @@ from app.services.conversation_inactivity_service import (
     INACTIVITY_THRESHOLD_HOURS,
 )
 
-
 @pytest.fixture(autouse=True)
 def _default_whatsapp_number(monkeypatch):
     monkeypatch.setattr(routing, "DEFAULT_WHATSAPP_NUMBER", "+10005550000")
-
 
 @pytest.fixture()
 def db_session():
@@ -65,7 +63,6 @@ def db_session():
         engine.dispose()
         os.remove(db_path)
 
-
 # ---------------------------------------------------------------------------
 # business_hours_elapsed -- the timer model itself
 # ---------------------------------------------------------------------------
@@ -75,26 +72,22 @@ def test_elapsed_matches_raw_hours_when_no_weekend_crossed():
     end = datetime(2026, 2, 3, 21, 0)     # Tuesday 9pm -- 30 raw hours later
     assert business_hours_elapsed(start, end) == 30.0
 
-
 def test_elapsed_pauses_across_the_weekend():
     friday_6pm = datetime(2026, 2, 6, 18, 0)
     monday_9am = datetime(2026, 2, 9, 9, 0)
     # 3 counted hours (Fri 18:00-21:00), then paused through the weekend.
     assert business_hours_elapsed(friday_6pm, monday_9am) == 3.0
 
-
 def test_elapsed_zero_when_end_before_start():
     start = datetime(2026, 2, 2, 15, 0)
     end = datetime(2026, 2, 2, 10, 0)
     assert business_hours_elapsed(start, end) == 0.0
-
 
 def test_friday_evening_message_reaches_threshold_tuesday_noon():
     friday_6pm = datetime(2026, 2, 6, 18, 0)
     # 3h Friday + 27h resuming Monday 9am = 30h at Tuesday 12:00.
     tuesday_noon = datetime(2026, 2, 10, 12, 0)
     assert business_hours_elapsed(friday_6pm, tuesday_noon) == INACTIVITY_THRESHOLD_HOURS
-
 
 # ---------------------------------------------------------------------------
 # Fixtures for the full evaluate_conversation_inactivity() flow
@@ -133,7 +126,6 @@ def fixtures(db_session):
 
     return org_owner, recruiter, candidate, conversation
 
-
 def _add_message_event(db, conversation, *, event_type, triggered_by, created_at):
     event = ConversationEvent(
         conversation_id=conversation.id, event_type=event_type,
@@ -144,10 +136,8 @@ def _add_message_event(db, conversation, *, event_type, triggered_by, created_at
     db.commit()
     return event
 
-
 # Monday 2026-02-02 06:30 UTC == 12:00 IST -- a safely mid-window timestamp.
 LAST_MESSAGE_UTC = datetime(2026, 2, 2, 6, 30)
-
 
 # ---------------------------------------------------------------------------
 # get_last_message_event
@@ -156,7 +146,6 @@ LAST_MESSAGE_UTC = datetime(2026, 2, 2, 6, 30)
 def test_no_messages_returns_none(db_session, fixtures):
     org_owner, recruiter, candidate, conversation = fixtures
     assert get_last_message_event(db_session, conversation) is None
-
 
 def test_ignores_non_message_event_types(db_session, fixtures):
     org_owner, recruiter, candidate, conversation = fixtures
@@ -170,7 +159,6 @@ def test_ignores_non_message_event_types(db_session, fixtures):
     last = get_last_message_event(db_session, conversation)
     assert last.event_type == "candidate_reply"
 
-
 # ---------------------------------------------------------------------------
 # evaluate_conversation_inactivity -- too early / held / reclaim / nudge
 # ---------------------------------------------------------------------------
@@ -179,7 +167,6 @@ def test_no_action_when_no_messages_yet(db_session, fixtures):
     org_owner, recruiter, candidate, conversation = fixtures
     result = evaluate_conversation_inactivity(db_session, conversation, candidate, now=LAST_MESSAGE_UTC)
     assert result["action"] == "none"
-
 
 def test_no_action_when_under_threshold(db_session, fixtures):
     org_owner, recruiter, candidate, conversation = fixtures
@@ -190,7 +177,6 @@ def test_no_action_when_under_threshold(db_session, fixtures):
     assert result["action"] == "none"
     assert result["elapsed_hours"] < INACTIVITY_THRESHOLD_HOURS
 
-
 def test_held_when_threshold_met_but_outside_send_window(db_session, fixtures):
     org_owner, recruiter, candidate, conversation = fixtures
     _add_message_event(db_session, conversation, event_type="candidate_reply", triggered_by="candidate", created_at=LAST_MESSAGE_UTC)
@@ -200,7 +186,6 @@ def test_held_when_threshold_met_but_outside_send_window(db_session, fixtures):
     result = evaluate_conversation_inactivity(db_session, conversation, candidate, now=now)
     assert result["action"] == "held"
     assert result["next_eligible_at"] is not None
-
 
 def test_reclaim_when_candidate_silent_on_human_owner(db_session, fixtures):
     org_owner, recruiter, candidate, conversation = fixtures
@@ -242,7 +227,6 @@ def test_reclaim_when_candidate_silent_on_human_owner(db_session, fixtures):
     assert len(notifications) == 1
     assert notifications[0].priority_tier == "P1"
 
-
 def test_nudge_when_staff_silent_on_candidate_with_human_owner(db_session, fixtures):
     org_owner, recruiter, candidate, conversation = fixtures
     conversation.owner_type = "hr_user"
@@ -272,7 +256,6 @@ def test_nudge_when_staff_silent_on_candidate_with_human_owner(db_session, fixtu
     assert len(nudge_events) == 2
     assert nudge_events[0].event_data["auto_generated"] is True
     assert nudge_events[0].triggered_by == "hr_user"  # attributed as the recruiter's own message
-
 
 def test_nudge_sent_as_thunder_when_ai_owns(db_session, fixtures):
     org_owner, recruiter, candidate, conversation = fixtures

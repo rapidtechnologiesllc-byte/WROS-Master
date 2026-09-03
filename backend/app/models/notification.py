@@ -31,10 +31,8 @@ from sqlalchemy import (
 
 from app.models.base import Base
 
-
 def _new_uuid() -> str:
     return str(uuid.uuid4())
-
 
 NOTIFICATION_CHANNELS = ("IN_APP", "EMAIL", "WHATSAPP", "SMS")
 PRIORITY_TIERS = ("P0", "P1", "P2")

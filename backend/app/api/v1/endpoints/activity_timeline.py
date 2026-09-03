@@ -33,7 +33,6 @@ from app.services.file_upload_service import get_file_access_url, list_files_for
 
 router = APIRouter(tags=["activity-timeline"])
 
-
 @router.get(
     "/activity-timeline/{entity_type}/{entity_id}",
     response_model=TimelineResponse,
@@ -47,7 +46,6 @@ def get_timeline(
     return get_timeline_for_entity(
         db, entity_type, entity_id, tenant_id=current_user.tenant_id, page=page, per_page=per_page,
     )
-
 
 @router.post(
     "/activity-timeline/{entity_type}/{entity_id}",
@@ -65,7 +63,6 @@ def post_timeline_entry(
     )
     db.commit()
     return get_timeline_for_entity(db, entity_type, entity_id, tenant_id=current_user.tenant_id)
-
 
 @router.post(
     "/file-uploads/{entity_type}/{entity_id}",
@@ -94,7 +91,6 @@ def post_file_upload(
         uploaded_by=row.uploaded_by, created_at=row.created_at.isoformat() if row.created_at else None,
     )
 
-
 @router.get(
     "/file-uploads/{file_id}/access-url",
     response_model=FileAccessUrlResponse,
@@ -111,7 +107,6 @@ def get_access_url(
     # declared first or it gets silently swallowed as an entity_id by
     # the more generic route.
     return FileAccessUrlResponse(access_url=get_file_access_url(db, file_id))
-
 
 @router.get(
     "/file-uploads/{entity_type}/{entity_id}",

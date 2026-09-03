@@ -32,10 +32,8 @@ from sqlalchemy import (
 from app.models.base import Base
 from app.models.candidate import CANDIDATE_EMPLOYMENT_TYPES
 
-
 def _new_uuid() -> str:
     return str(uuid.uuid4())
-
 
 SUBMISSION_REVIEW_STATUSES = ("PENDING_REVIEW", "ACCEPTED", "REJECTED", "MORE_INFO_REQUESTED")
 SUBVENDOR_VIOLATION_TYPES = ("C2C_NOT_ACCEPTED",)
@@ -79,7 +77,6 @@ class SubVendorSubmission(Base):
 
     created_at = Column(DateTime, server_default=func.now())
 
-
 class SubVendorViolation(Base):
     """HRMS-P806 BR-0806-03: every FT-only rejection is logged, never
     silently dropped. Separate from dedup rejections (BR-0807-03)."""
@@ -95,7 +92,6 @@ class SubVendorViolation(Base):
     employment_type = Column(String(20), nullable=True)
     occurred_at = Column(DateTime, server_default=func.now())
     is_cleared = Column(Boolean, nullable=False, default=False)
-
 
 class SubVendorDedupRejection(Base):
     """HRMS-P807 BR-0807-02/03: tracked separately from FT-only

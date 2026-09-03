@@ -51,7 +51,6 @@ from app.services.orchestration_router_service import (
     seed_default_conflict_rules,
 )
 
-
 @pytest.fixture()
 def db_session():
     fd, db_path = tempfile.mkstemp(suffix=".sqlite3")
@@ -70,7 +69,6 @@ def db_session():
         engine.dispose()
         os.remove(db_path)
 
-
 @pytest.fixture()
 def director(db_session):
     tenant = Tenant(name="BlitzenX")
@@ -83,7 +81,6 @@ def director(db_session):
     db_session.add(d)
     db_session.commit()
     return d, tenant
-
 
 # ---------------------------------------------------------------------------
 # AC-7 -- Admin-only rule writes
@@ -98,7 +95,6 @@ def test_create_rule_rejected_for_non_admin(db_session):
             collision_window_minutes=10, resolution_action="BLOCK",
         )
 
-
 def test_create_rule_succeeds_for_admin(db_session):
     rule = create_conflict_rule(
         db_session, actor_role="Admin", rule_name="x",
@@ -109,7 +105,6 @@ def test_create_rule_succeeds_for_admin(db_session):
     assert rule.id is not None
     assert rule.is_active is True
 
-
 def test_create_rule_rejects_invalid_resolution_action(db_session):
     with pytest.raises(InvalidConflictRule):
         create_conflict_rule(
@@ -118,7 +113,6 @@ def test_create_rule_rejects_invalid_resolution_action(db_session):
             entity_type_b="candidate", action_type_b="b",
             collision_window_minutes=10, resolution_action="MAYBE",
         )
-
 
 def test_create_rule_rejects_delay_without_delay_minutes(db_session):
     with pytest.raises(InvalidConflictRule):
@@ -129,7 +123,6 @@ def test_create_rule_rejects_delay_without_delay_minutes(db_session):
             collision_window_minutes=10, resolution_action="DELAY",
         )
 
-
 def test_create_rule_rejects_out_of_range_window(db_session):
     with pytest.raises(InvalidConflictRule):
         create_conflict_rule(
@@ -138,7 +131,6 @@ def test_create_rule_rejects_out_of_range_window(db_session):
             entity_type_b="candidate", action_type_b="b",
             collision_window_minutes=0, resolution_action="BLOCK",
         )
-
 
 def test_deactivate_rule_rejected_for_non_admin(db_session):
     rule = create_conflict_rule(
@@ -149,7 +141,6 @@ def test_deactivate_rule_rejected_for_non_admin(db_session):
     )
     with pytest.raises(RuleEditForbidden):
         deactivate_conflict_rule(db_session, rule, actor_role="Recruiter")
-
 
 def test_deactivate_rule_preserves_row_for_audit_history(db_session):
     rule = create_conflict_rule(
@@ -164,7 +155,6 @@ def test_deactivate_rule_preserves_row_for_audit_history(db_session):
     assert still_there is not None
     assert still_there.is_active is False
 
-
 def test_seed_default_rules_is_idempotent(db_session):
     first = seed_default_conflict_rules(db_session)
     db_session.commit()
@@ -173,7 +163,6 @@ def test_seed_default_rules_is_idempotent(db_session):
     db_session.commit()
     assert len(second) == 0
     assert db_session.query(ConflictRule).count() == 2
-
 
 # ---------------------------------------------------------------------------
 # AC-1 -- BR-1101-01 Outreach vs Core-Pull collision
@@ -198,7 +187,6 @@ def test_outreach_blocked_by_prior_corepull_flag_same_entity(db_session):
             action_type="outreach_send", proposed_at=t0 + timedelta(minutes=30),
         )
 
-
 def test_outreach_allowed_when_corepull_flag_is_for_a_different_candidate(db_session):
     seed_default_conflict_rules(db_session)
     db_session.commit()
@@ -216,7 +204,6 @@ def test_outreach_allowed_when_corepull_flag_is_for_a_different_candidate(db_ses
     )
     assert event.resolution_action is None
 
-
 def test_outreach_allowed_when_corepull_flag_is_outside_collision_window(db_session):
     seed_default_conflict_rules(db_session)
     db_session.commit()
@@ -233,7 +220,6 @@ def test_outreach_allowed_when_corepull_flag_is_outside_collision_window(db_sess
         action_type="outreach_send", proposed_at=t0 + timedelta(minutes=90),
     )
     assert event.resolution_action is None
-
 
 def test_outreach_then_corepull_flag_also_blocks_the_later_action(db_session):
     """The doc doesn't specify which side must happen first -- proves the
@@ -253,7 +239,6 @@ def test_outreach_then_corepull_flag_also_blocks_the_later_action(db_session):
             db_session, agent_id="HRMS-1105", entity_type="candidate", entity_id="C-1",
             action_type="core_pull_flag", proposed_at=t0 + timedelta(minutes=10),
         )
-
 
 def test_matched_rule_id_is_snapshotted_on_the_blocked_event(db_session):
     seed_default_conflict_rules(db_session)
@@ -276,7 +261,6 @@ def test_matched_rule_id_is_snapshotted_on_the_blocked_event(db_session):
         assert exc.event.matched_rule_id == rule.id
     else:
         pytest.fail("expected ActionBlocked")
-
 
 # ---------------------------------------------------------------------------
 # BR-1101-02 -- Thunder ownership lock, as a second gate
@@ -302,7 +286,6 @@ def _make_conversation(db, *, owner_type):
     db.commit()
     return conversation
 
-
 def test_send_blocked_when_conversation_owned_by_human(db_session):
     seed_default_conflict_rules(db_session)
     db_session.commit()
@@ -314,7 +297,6 @@ def test_send_blocked_when_conversation_owned_by_human(db_session):
             entity_id=str(conversation.id), action_type=ANY_SEND_ACTION_TYPE,
         )
 
-
 def test_send_allowed_when_conversation_owned_by_ai(db_session):
     seed_default_conflict_rules(db_session)
     db_session.commit()
@@ -325,7 +307,6 @@ def test_send_allowed_when_conversation_owned_by_ai(db_session):
         entity_id=str(conversation.id), action_type=ANY_SEND_ACTION_TYPE,
     )
     assert event.resolution_action is None
-
 
 def test_ownership_lock_matched_rule_id_snapshotted(db_session):
     seed_default_conflict_rules(db_session)
@@ -342,7 +323,6 @@ def test_ownership_lock_matched_rule_id_snapshotted(db_session):
         assert exc.event.matched_rule_id == rule.id
     else:
         pytest.fail("expected ActionBlocked")
-
 
 # ---------------------------------------------------------------------------
 # AC-2 -- DELAY resolution
@@ -371,7 +351,6 @@ def test_delay_resolution_raises_action_delayed_with_correct_minutes(db_session)
         )
     assert exc_info.value.delay_minutes == 15
 
-
 # ---------------------------------------------------------------------------
 # AC-3 / AC-5 -- novel-pattern classification, ESCALATE_ONLY only
 # ---------------------------------------------------------------------------
@@ -391,7 +370,6 @@ def test_novel_pattern_never_blocks_only_escalates(db_session):
     assert event.resolution_action == "ESCALATE_ONLY"
     assert event.llm_classified is True
 
-
 def test_novel_pattern_uses_llm_classifier_result(db_session):
     t0 = datetime(2026, 4, 1, 9, 0, 0)
     evaluate_action_intent(
@@ -407,7 +385,6 @@ def test_novel_pattern_uses_llm_classifier_result(db_session):
     )
     assert event.severity == "HIGH"
     assert event.llm_call_failed is False
-
 
 def test_novel_pattern_defaults_to_medium_when_classifier_raises(db_session):
     t0 = datetime(2026, 4, 1, 9, 0, 0)
@@ -428,7 +405,6 @@ def test_novel_pattern_defaults_to_medium_when_classifier_raises(db_session):
     assert event.severity == "MEDIUM"
     assert event.llm_call_failed is True
 
-
 def test_novel_pattern_defaults_to_medium_when_no_classifier_wired(db_session):
     t0 = datetime(2026, 4, 1, 9, 0, 0)
     evaluate_action_intent(
@@ -443,7 +419,6 @@ def test_novel_pattern_defaults_to_medium_when_no_classifier_wired(db_session):
     )
     assert event.severity == "MEDIUM"
     assert event.llm_call_failed is True
-
 
 def test_two_actions_from_the_same_agent_are_not_a_conflict(db_session):
     """Only DIFFERENT agent_id values count as a collision -- one agent
@@ -461,7 +436,6 @@ def test_two_actions_from_the_same_agent_are_not_a_conflict(db_session):
     )
     assert event.resolution_action is None
     assert event.llm_classified is False
-
 
 # ---------------------------------------------------------------------------
 # AC-4 -- HIGH severity escalation delivery
@@ -486,7 +460,6 @@ def test_high_severity_novel_pattern_escalates_to_director(db_session, director)
     assert len(notifications) == 1
     assert notifications[0].priority_tier == "P0"
 
-
 def test_medium_severity_does_not_page_the_director(db_session, director):
     director_user, tenant = director
     t0 = datetime(2026, 4, 1, 9, 0, 0)
@@ -504,7 +477,6 @@ def test_medium_severity_does_not_page_the_director(db_session, director):
     assert event.escalated_at is None
     assert db_session.query(Notification).count() == 0
 
-
 def test_escalation_without_a_director_does_not_raise(db_session):
     t0 = datetime(2026, 4, 1, 9, 0, 0)
     evaluate_action_intent(
@@ -519,7 +491,6 @@ def test_escalation_without_a_director_does_not_raise(db_session):
         llm_classifier=lambda a, b: "HIGH",
     )
     assert event.escalated_at is None  # no director supplied -- logged, not paged
-
 
 # ---------------------------------------------------------------------------
 # AC-6 -- fail-open
@@ -543,7 +514,6 @@ def test_router_internal_failure_fails_open_not_closed(db_session, monkeypatch, 
     assert event.severity == "HIGH"
     # CRITICAL alert fired.
     assert db_session.query(Notification).count() == 1
-
 
 # ---------------------------------------------------------------------------
 # No match at all -- still logged (audit view)

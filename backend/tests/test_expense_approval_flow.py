@@ -25,7 +25,6 @@ from app.services.expense_service import (
     ExpenseValidationError, approve_expense, log_expense, mark_expense_paid,
 )
 
-
 @pytest.fixture()
 def db_session():
     fd, db_path = tempfile.mkstemp(suffix=".sqlite3")
@@ -40,13 +39,11 @@ def db_session():
         engine.dispose()
         os.remove(db_path)
 
-
 def _make_user(db, user_id, role, *, tenant_id=None):
     user = Users(UserID=user_id, UserRole=role, UserEmail=f"{user_id}@blitzenx.com", UserPassword="h", tenant_id=tenant_id)
     db.add(user)
     db.commit()
     return user
-
 
 def test_approve_creates_finance_task(db_session, monkeypatch):
     from app.services import email_service
@@ -80,9 +77,7 @@ def test_approve_creates_finance_task(db_session, monkeypatch):
     assert task.assigned_to_user_id == "fin1"
     assert task.status == "NEW"
 
-
 def test_mark_paid_completes_task_and_flips_status(db_session, monkeypatch):
-    from app.services import email_service
     monkeypatch.setattr(
         email_service.EmailService, "send_event_notification",
         classmethod(lambda cls, **kwargs: {"sent": True}),
@@ -104,7 +99,6 @@ def test_mark_paid_completes_task_and_flips_status(db_session, monkeypatch):
     assert paid.payment_status == "REIMBURSED"
     task = db_session.query(Task).filter(Task.expense_id == expense.id).first()
     assert task.status == "COMPLETED"
-
 
 def test_cannot_mark_paid_before_approval(db_session):
     tenant = Tenant(name="BlitzenX")

@@ -31,7 +31,6 @@ from app.api.v1.endpoints.interviews import (
     _resolve_hiring_manager_id_for_interview,
 )
 
-
 @pytest.fixture()
 def db_session():
     fd, db_path = tempfile.mkstemp(suffix=".sqlite3")
@@ -51,7 +50,6 @@ def db_session():
         engine.dispose()
         os.remove(db_path)
 
-
 def _make_job(db, job_id="J-1", hiring_manager_id=None):
     job = Jobs(
         jobID=job_id, jobTitle="Backend Engineer", jobDescription="desc",
@@ -61,7 +59,6 @@ def _make_job(db, job_id="J-1", hiring_manager_id=None):
     db.add(job)
     db.commit()
     return job
-
 
 def _make_candidate(db, candidate_id="C-1", job_id=None):
     candidate = Candidate(
@@ -73,7 +70,6 @@ def _make_candidate(db, candidate_id="C-1", job_id=None):
     db.commit()
     return candidate
 
-
 def _make_interview(db, candidate_id="C-1", panel_job_id=None):
     panel = InterviewPanel(candidate_id=candidate_id, job_id=panel_job_id, round_name="Tech")
     db.add(panel)
@@ -84,13 +80,11 @@ def _make_interview(db, candidate_id="C-1", panel_job_id=None):
     db.commit()
     return panel, interview
 
-
 def _make_hm_user(db, user_id="U-HM"):
     hm = Users(UserID=user_id, UserRole="employee", UserEmail=f"{user_id}@blitzenx.com", UserPassword="h")
     db.add(hm)
     db.commit()
     return hm
-
 
 # ---- _resolve_hiring_manager_id_for_interview ----
 
@@ -102,7 +96,6 @@ def test_resolves_hm_via_panel_job(db_session):
 
     assert _resolve_hiring_manager_id_for_interview(db_session, interview) == "U-HM"
 
-
 def test_falls_back_to_candidate_assignment_when_panel_has_no_job(db_session):
     _make_hm_user(db_session, "U-HM2")
     _make_candidate(db_session, "C-2")
@@ -112,7 +105,6 @@ def test_falls_back_to_candidate_assignment_when_panel_has_no_job(db_session):
 
     assert _resolve_hiring_manager_id_for_interview(db_session, interview) == "U-HM2"
 
-
 def test_falls_back_to_candidate_job_when_no_panel_job_or_assignment(db_session):
     _make_hm_user(db_session, "U-HM3")
     _make_job(db_session, "J-3", hiring_manager_id="U-HM3")
@@ -121,13 +113,11 @@ def test_falls_back_to_candidate_job_when_no_panel_job_or_assignment(db_session)
 
     assert _resolve_hiring_manager_id_for_interview(db_session, interview) == "U-HM3"
 
-
 def test_returns_none_when_no_hm_resolvable(db_session):
     _make_candidate(db_session, "C-4")
     _, interview = _make_interview(db_session, "C-4", panel_job_id=None)
 
     assert _resolve_hiring_manager_id_for_interview(db_session, interview) is None
-
 
 # ---- _create_hm_review_task ----
 
@@ -146,7 +136,6 @@ def test_creates_task_assigned_to_resolved_hm(db_session):
     assert "Priya Rao" in task.title
     assert "/hiring-manager-review" in task.description
 
-
 def test_creates_org_wide_unassigned_task_when_no_hm_resolvable(db_session):
     _make_candidate(db_session, "C-4")
     _, interview = _make_interview(db_session, "C-4", panel_job_id=None)
@@ -158,7 +147,6 @@ def test_creates_org_wide_unassigned_task_when_no_hm_resolvable(db_session):
     assert task.assigned_to_user_id is None
     assert task.visibility_scope == "ORG_WIDE"
 
-
 def test_never_raises_when_candidate_missing(db_session):
     """Fire-and-forget: interview.status has already committed to
     Completed by the time this runs, so a Task-creation bug must never
@@ -168,7 +156,6 @@ def test_never_raises_when_candidate_missing(db_session):
     _create_hm_review_task(db_session, interview)  # must not raise
 
     assert db_session.query(Task).filter(Task.category == "INTERVIEW_REVIEW").count() == 1
-
 
 # ---- end-to-end: submitting the last panel member's feedback ----
 
@@ -202,7 +189,6 @@ def test_all_panel_feedback_submitted_triggers_task_creation(db_session):
     task = db_session.query(Task).filter(Task.category == "INTERVIEW_REVIEW").first()
     assert task is not None
     assert task.assigned_to_user_id == "U-HM"
-
 
 @pytest.mark.parametrize("previous_status,new_status,should_fire", [
     ("Scheduled", "Completed", True),

@@ -38,7 +38,6 @@ from app.services.thunder_service import (
     validate_thunder_reply,
 )
 
-
 # ---------------------------------------------------------------------------
 # validate_thunder_reply
 # ---------------------------------------------------------------------------
@@ -47,26 +46,20 @@ def test_validate_rejects_none_or_empty():
     assert validate_thunder_reply(None) is False
     assert validate_thunder_reply("") is False
 
-
 def test_validate_rejects_too_short():
     assert validate_thunder_reply("Hi!") is False  # 3 chars < 10
-
 
 def test_validate_rejects_too_long():
     assert validate_thunder_reply("x" * 4097) is False
 
-
 def test_validate_rejects_unreplaced_template_vars():
     assert validate_thunder_reply("Hi {{candidate_name}}, thanks for your reply!") is False
-
 
 def test_validate_accepts_normal_reply():
     assert validate_thunder_reply("Thanks for the update, we'll review and get back to you soon!") is True
 
-
 def test_validate_accepts_reply_at_min_length_boundary():
     assert validate_thunder_reply("x" * 10) is True
-
 
 # ---------------------------------------------------------------------------
 # generate_thunder_reply_with_fallback
@@ -81,7 +74,6 @@ def test_first_attempt_valid_returns_immediately(monkeypatch):
     assert text == "This is a perfectly valid Thunder reply."
     assert used_fallback is False
 
-
 def test_invalid_first_attempt_regenerates_once(monkeypatch):
     calls = iter([
         "Hi {{candidate_name}}",  # invalid: unreplaced var
@@ -95,7 +87,6 @@ def test_invalid_first_attempt_regenerates_once(monkeypatch):
     assert text == "This second attempt is a valid, properly formed reply."
     assert used_fallback is False
 
-
 def test_both_attempts_fail_returns_safe_fallback(monkeypatch):
     def _raise(db, candidate, msg, **kwargs):
         raise ThunderReplyGenerationFailed("Gemini down")
@@ -104,7 +95,6 @@ def test_both_attempts_fail_returns_safe_fallback(monkeypatch):
     text, used_fallback = generate_thunder_reply_with_fallback(None, None, "hi")
     assert text == SAFE_FALLBACK_MESSAGE
     assert used_fallback is True
-
 
 def test_both_attempts_invalid_returns_safe_fallback(monkeypatch):
     monkeypatch.setattr(
@@ -115,10 +105,8 @@ def test_both_attempts_invalid_returns_safe_fallback(monkeypatch):
     assert text == SAFE_FALLBACK_MESSAGE
     assert used_fallback is True
 
-
 def test_safe_fallback_message_is_never_empty_or_too_long():
     assert validate_thunder_reply(SAFE_FALLBACK_MESSAGE) is True
-
 
 # ---------------------------------------------------------------------------
 # BR-01 (S-034 revised): ownership checked before any context build/LLM call
@@ -131,7 +119,6 @@ class _FakeConversation:
         self.owner_type = owner_type
         self.owner_id = "some-recruiter"
 
-
 def test_human_owned_conversation_raises_before_any_llm_call(monkeypatch):
     calls = []
     monkeypatch.setattr(
@@ -142,7 +129,6 @@ def test_human_owned_conversation_raises_before_any_llm_call(monkeypatch):
         generate_thunder_reply_with_fallback(None, None, "hi", conversation=_FakeConversation("hr_user"))
     assert calls == []  # the LLM path was never touched
 
-
 def test_ai_owned_conversation_generates_normally(monkeypatch):
     monkeypatch.setattr(
         thunder_service, "generate_thunder_reply",
@@ -151,7 +137,6 @@ def test_ai_owned_conversation_generates_normally(monkeypatch):
     text, used_fallback = generate_thunder_reply_with_fallback(None, None, "hi", conversation=_FakeConversation("ai_agent"))
     assert text == "This is a perfectly valid Thunder reply."
     assert used_fallback is False
-
 
 def test_no_conversation_supplied_skips_ownership_check(monkeypatch):
     """Backward compatible: existing callers without a conversation object
@@ -162,7 +147,6 @@ def test_no_conversation_supplied_skips_ownership_check(monkeypatch):
     )
     text, used_fallback = generate_thunder_reply_with_fallback(None, None, "hi")
     assert used_fallback is False
-
 
 # ---------------------------------------------------------------------------
 # "Thunder never responds cold" (S-034 revised): context-build failure
@@ -183,7 +167,6 @@ def db_session():
         engine.dispose()
         os.remove(db_path)
 
-
 @pytest.fixture()
 def seeded_conversation(db_session):
     owner = Users(UserID="U-ORG", UserRole="Super User", UserEmail="ceo@blitzenx.com", UserPassword="h")
@@ -194,7 +177,6 @@ def seeded_conversation(db_session):
     db_session.add(conv)
     db_session.commit()
     return conv
-
 
 def test_context_build_failure_escalates_and_falls_back_without_retry(monkeypatch, db_session, seeded_conversation):
     calls = []
@@ -217,7 +199,6 @@ def test_context_build_failure_escalates_and_falls_back_without_retry(monkeypatc
     events = db_session.query(ConversationEvent).filter(ConversationEvent.conversation_id == seeded_conversation.id, ConversationEvent.event_type == "escalation_triggered").all()
     assert len(events) == 1
     assert events[0].event_data["reason"] == "context_build_failed"
-
 
 def test_generation_failed_error_still_retries_once_and_does_not_escalate(monkeypatch, db_session, seeded_conversation):
     """ThunderReplyGenerationFailed (a known, handled failure mode) keeps

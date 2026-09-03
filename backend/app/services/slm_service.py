@@ -19,7 +19,6 @@ from app.core.logging import logger
 
 logger = logging.getLogger(__name__)
 
-
 class SLMService:
     """Service for SLM analysis and decision making with fail-fast error handling."""
 

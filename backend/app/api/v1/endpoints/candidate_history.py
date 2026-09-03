@@ -30,9 +30,7 @@ from app.schemas.candidate_history import (
     CandidateHistoryResponse,
 )
 
-
 router = APIRouter(prefix="/history", tags=["candidate-history"])
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -53,7 +51,6 @@ def _to_response(h: CandidateHistory) -> CandidateHistoryResponse:
         created_at=h.createdAt,
     )
 
-
 def _get_candidate_or_404(candidate_id: str, db: Session) -> Candidate:
     candidate = db.query(Candidate).filter(Candidate.candidateID == candidate_id).first()
     if not candidate:
@@ -62,7 +59,6 @@ def _get_candidate_or_404(candidate_id: str, db: Session) -> Candidate:
             detail=f"Candidate '{candidate_id}' not found.",
         )
     return candidate
-
 
 # ---------------------------------------------------------------------------
 # POST  /history/{candidate_id}  — create a new history event
@@ -164,7 +160,6 @@ def create_candidate_history(
         event=_to_response(history_row),
     )
 
-
 # ---------------------------------------------------------------------------
 # GET  /history/{candidate_id}  — full timeline (paginated)
 # ---------------------------------------------------------------------------
@@ -216,7 +211,6 @@ def get_candidate_history(
         total=total,
         events=[_to_response(e) for e in events],
     )
-
 
 # ---------------------------------------------------------------------------
 # GET  /history/{candidate_id}/latest  — last N events (convenience endpoint)

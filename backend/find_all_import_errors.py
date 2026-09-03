@@ -64,7 +64,6 @@ class ImportAnalyzer(ast.NodeVisitor):
         undefined.discard('__all__')
         return sorted(undefined)
 
-
 def analyze_file(filepath):
     """Analyze a single Python file for undefined names"""
     try:
@@ -83,7 +82,6 @@ def analyze_file(filepath):
         return undefined if undefined else None
     except Exception:
         return None
-
 
 # Scan all Python files
 print("🔍 Scanning for undefined names...\n")

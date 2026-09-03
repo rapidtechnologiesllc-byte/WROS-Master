@@ -47,9 +47,7 @@ from app.services.salary_structure_generator import (
 )
 from app.services.email_service import EmailService
 
-
 router = APIRouter(prefix="/offer-letter", tags=["offer-letter"])
-
 
 # "" Pipeline-status helper (fire-and-forget, never blocks offer flow) """""""""
 
@@ -75,7 +73,6 @@ def _update_pipeline_status(candidate_id: str, new_status: str, db: Session) -> 
     except Exception:
         pass  # Status update must never block offer operations
 
-
 # "" helpers """"""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
 
 def _candidate_name(c) -> str | None:
@@ -87,7 +84,6 @@ def _candidate_name(c) -> str | None:
         c.candidateLastName,
     ]
     return " ".join(p for p in parts if p) or None
-
 
 def _build_offer_response(offer: OfferLetter, candidate: Candidate | None) -> OfferLetterResponse:
     """Build an OfferLetterResponse from ORM objects, including all workflow fields."""
@@ -123,7 +119,6 @@ def _build_offer_response(offer: OfferLetter, candidate: Candidate | None) -> Of
         candidate_signature_path=offer.candidate_signature_path,
         signed_offer_path=offer.signed_offer_path,
     )
-
 
 # ============================================
 # TEMPLATE LISTING
@@ -180,7 +175,6 @@ def list_offer_templates(
         "files":         files,
         "sub_folders":   folders,
     }
-
 
 # ============================================
 # CANDIDATE ENDPOINTS
@@ -267,7 +261,6 @@ def respond_to_offer(
         responded_at=offer.responded_at,
     )
 
-
 @router.get(
     "/my-offers",
     response_model=AllOffersResponse,
@@ -299,8 +292,6 @@ def get_my_offers(
         offer_responses.append(resp)
 
     return AllOffersResponse(total_offers=len(offer_responses), offers=offer_responses)
-
-
 
 # ============================================
 # RECRUITER / HR ENDPOINTS
@@ -401,7 +392,6 @@ def create_offer_letter(
         cancelled_by=new_offer.cancelled_by,
     )
 
-
 @router.post(
     "/cancel/{offer_id}",
     response_model=DeleteResponse,
@@ -432,7 +422,6 @@ def cancel_offer_letter(
     db.commit()
 
     return DeleteResponse(status="Success", message=f"Offer letter {offer_id} cancelled successfully")
-
 
 @router.put(
     "/update/{offer_id}",
@@ -504,7 +493,6 @@ def update_offer_letter(
         cancelled_by=offer.cancelled_by,
     )
 
-
 @router.get(
     "/all",
     response_model=AllOffersResponse,
@@ -530,7 +518,6 @@ def get_all_offers(
         offer_responses.append(_build_offer_response(offer, c))
 
     return AllOffersResponse(total_offers=len(offer_responses), offers=offer_responses)
-
 
 # "" Hiring Manager: list offers pending approval """""""""""""""""""""""""""""
 @router.get(
@@ -558,7 +545,6 @@ def get_pending_approval_offers(
         offer_responses.append(_build_offer_response(offer, c))
 
     return AllOffersResponse(total_offers=len(offer_responses), offers=offer_responses)
-
 
 # "" Hiring Manager: list awaiting-approval candidates for a specific job """"""
 @router.get(
@@ -595,7 +581,6 @@ def get_pending_approval_offers_by_job(
 
     return AllOffersResponse(total_offers=len(offer_responses), offers=offer_responses)
 
-
 @router.get(
     "/{offer_id}",
     response_model=OfferLetterResponse,
@@ -627,7 +612,6 @@ def get_offer_by_id(
     response.download_url   = dl_url
     response.sharepoint_path = sp_path
     return response
-
 
 # ============================================
 # OFFER LETTER DOCUMENT GENERATION
@@ -760,7 +744,6 @@ def generate_offer_letter_document(
         "sharepoint_url":   web_url,
         "download_url":     download_link,
     }
-
 
 # ============================================
 # HIRING MANAGER APPROVAL WORKFLOW
@@ -906,7 +889,6 @@ async def approve_offer_letter(
         approved_at=offer.approved_at,
     )
 
-
 # ============================================
 # HR RELEASES OFFER TO CANDIDATE
 # ============================================
@@ -983,7 +965,6 @@ def release_offer_letter(
         offer_status=offer.offer_status,
         released_at=offer.released_at,
     )
-
 
 # ============================================
 # CANDIDATE SIGNATURE + ACCEPTANCE
@@ -1120,7 +1101,6 @@ async def candidate_sign_offer(
         signed_offer_path=signed_path,
     )
 
-
 # ============================================
 # SALARY STRUCTURE DOCUMENT
 # ============================================
@@ -1133,12 +1113,10 @@ class SalaryComponentDetail(_BM):
     per_month: float
     per_annum: float
 
-
 class SalaryStructureRequest(_BM):
     """Request body for salary-structure endpoints."""
     employee_name: str
     annual_ctc: float
-
 
 class SalaryStructureDetailResponse(_BM):
     """Full salary breakdown returned alongside the downloadable .docx."""
@@ -1188,12 +1166,10 @@ class SalaryStructureDetailResponse(_BM):
     filename: str
     docx_base64: str  # base64-encoded .docx bytes - decode on frontend to download
 
-
 class SalaryStructureWithDetailsResponse(_BM):
     status: str = "success"
     message: str
     salary_structure: SalaryStructureDetailResponse
-
 
 # "" existing file-download endpoint (unchanged) """""""""""""""""""""""""""""""
 
@@ -1243,7 +1219,6 @@ def generate_salary_structure(
             "Content-Length": str(len(docx_bytes)),
         },
     )
-
 
 # "" NEW: JSON response with salary breakdown + base64-encoded .docx """""""""""
 
@@ -1350,8 +1325,6 @@ def generate_salary_structure_with_details(
         message=f"Salary structure generated for '{request.employee_name}' (CTC: {request.annual_ctc:,.2f})",
         salary_structure=detail,
     )
-
-
 
 @router.get(
     "/salary-structure/preview/{offer_id}",

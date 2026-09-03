@@ -26,7 +26,6 @@ from app.core.logging import logger
 
 logger = logging.getLogger(__name__)
 
-
 class CandidateScoringService:
     """Score and rank candidates against job requirements (HRMS-1105 / S-320)."""
 

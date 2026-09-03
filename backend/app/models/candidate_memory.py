@@ -51,7 +51,6 @@ class CandidateMemory(Base):
     tenant = relationship("Users", foreign_keys=[tenant_id], lazy="select")
     candidate = relationship("Candidate", foreign_keys=[candidate_id], lazy="select")
 
-
 class CandidateMemoryFact(Base):
     __tablename__ = "candidate_memory_facts"
 

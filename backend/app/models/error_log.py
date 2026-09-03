@@ -22,7 +22,6 @@ from app.models.base import Base
 
 ERROR_SEVERITIES = ("INFO", "WARN", "ERROR", "CRITICAL")
 
-
 def _new_uuid() -> str:
     return str(uuid.uuid4())
 

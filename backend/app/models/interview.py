@@ -11,7 +11,6 @@ from sqlalchemy.orm import relationship
 import logging
 from app.models.base import Base
 
-
 FEEDBACK_RECOMMENDATIONS = ("STRONG_YES", "YES", "NO", "STRONG_NO", "ABSTAIN")
 INTERVIEW_STATUSES = ("SCHEDULED", "COMPLETED", "CANCELLED", "NO_SHOW", "RESCHEDULED")
 DECISION_OUTCOMES = ("PENDING", "APPROVED", "REJECTED", "APPROVED_WITH_CONDITIONS", "PENDING_REVIEW")
@@ -54,7 +53,6 @@ class InterviewFeedback(Base):
 
     # Relationships
     interviewer = relationship("Users", foreign_keys=[interviewer_id])
-
 
 class InterviewDecisionLog(Base):
     """Log of the panel decision made after all feedback is collected."""
@@ -102,7 +100,6 @@ class InterviewDecisionLog(Base):
 
     # Relationships
     decided_by = relationship("Users", foreign_keys=[decided_by_user_id])
-
 
 class InterviewPanelDecision(Base):
     """Represents the collective decision from the interview panel."""

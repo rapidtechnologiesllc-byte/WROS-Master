@@ -313,7 +313,6 @@ Respond with exactly this JSON shape:
             "client_name": client_name
         }
 
-
 def get_recruitment_job_agent() -> RecruitmentJobCreationAgent:
     """Factory function to get the Recruitment Job Creation Agent."""
     return RecruitmentJobCreationAgent()

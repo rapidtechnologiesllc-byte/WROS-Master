@@ -42,17 +42,14 @@ DOCUMENT_LABELS = {
     "resume": "Resume",
 }
 
-
 def _document_label(document_type: str) -> str:
     return DOCUMENT_LABELS.get(document_type, (document_type or "Document").replace("_", " ").title())
-
 
 def _candidate_display_name(candidate: Optional[Candidate]) -> str:
     if not candidate:
         return "Unknown Candidate"
     parts = [candidate.candidateFirstName or "", candidate.candidateLastName or ""]
     return " ".join(p for p in parts if p).strip() or candidate.candidateID
-
 
 def _existing_document_task(db: Session, candidate_id: str, document_id: int) -> Optional[Task]:
     return (
@@ -61,7 +58,6 @@ def _existing_document_task(db: Session, candidate_id: str, document_id: int) ->
         .order_by(Task.id.desc())
         .first()
     )
-
 
 def sync_task_for_document_decision(
     db: Session,

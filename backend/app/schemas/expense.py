@@ -21,7 +21,6 @@ class ExpenseCreateRequest(BaseModel):
     description: Optional[str] = None
     receipt_ref: Optional[str] = None
 
-
 class ExpenseItem(BaseModel):
     id: str
     logged_by_user_id: str
@@ -45,10 +44,8 @@ class ExpenseItem(BaseModel):
     class Config:
         from_attributes = True
 
-
 class ExpenseListResponse(BaseModel):
     expenses: list[ExpenseItem]
-
 
 class ClientInvestmentPositionResponse(BaseModel):
     client_id: str

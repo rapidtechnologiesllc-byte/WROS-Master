@@ -25,7 +25,6 @@ from app.core.logging import logger
 
 logger = logging.getLogger(__name__)
 
-
 class ModuleIntegration:
     """Easy integration methods for all modules to create queue messages."""
 
@@ -539,7 +538,6 @@ class ModuleIntegration:
             resource_id=commission_id,
             db=db,
         )
-
 
 # Import datetime at top level
 from datetime import datetime

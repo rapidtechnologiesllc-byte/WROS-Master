@@ -78,7 +78,6 @@ GEMINI_MODEL_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemi
 
 _NUMBER_RE = re.compile(r"[\d,]+(?:\.\d+)?")
 
-
 def _first_number(text: str) -> Optional[float]:
     match = _NUMBER_RE.search(text.replace(",", ""))
     if not match:
@@ -87,7 +86,6 @@ def _first_number(text: str) -> Optional[float]:
         return float(match.group(0).replace(",", ""))
     except ValueError:
         raise ValueError("Operation failed")
-
 
 def normalize_notice_period_days(raw_value: str) -> Optional[int]:
     text = (raw_value or "").lower().strip()
@@ -103,7 +101,6 @@ def normalize_notice_period_days(raw_value: str) -> Optional[int]:
     if "month" in text:
         return int(round(number * 30))
     return int(round(number))  # default: already days
-
 
 def normalize_salary(raw_value: str) -> Optional[int]:
     """Returns the value in the smallest local currency unit (paise
@@ -131,7 +128,6 @@ def normalize_salary(raw_value: str) -> Optional[int]:
     # (rupees/dollars) and convert to the smallest unit.
     return int(round(number * 100))
 
-
 def normalize_experience_years(raw_value: str) -> Optional[float]:
     text = (raw_value or "").lower().strip()
     if not text:
@@ -146,7 +142,6 @@ def normalize_experience_years(raw_value: str) -> Optional[float]:
     number = _first_number(text)
     return round(number, 1) if number is not None else None
 
-
 NORMALIZERS: Dict[str, Callable[[str], Optional[Union[int, float]]]] = {
     "notice_period_days": normalize_notice_period_days,
     "current_ctc": normalize_salary,
@@ -154,13 +149,11 @@ NORMALIZERS: Dict[str, Callable[[str], Optional[Union[int, float]]]] = {
     "total_experience_years": normalize_experience_years,
 }
 
-
 def normalize_value(field_name: str, raw_value: str) -> Optional[Union[int, float, str]]:
     normalizer = NORMALIZERS.get(field_name)
     if normalizer is None:
         return raw_value  # location/skills/etc. -- stored as-is per spec section 9
     return normalizer(raw_value)
-
 
 def _default_llm_call(prompt: str, api_key: str) -> str:
     import requests
@@ -174,7 +167,6 @@ def _default_llm_call(prompt: str, api_key: str) -> str:
     text = result.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "")
     return re.sub(r"```(?:json)?", "", text).strip()
 
-
 def _call_llm(prompt: str, llm_call: Optional[Callable[[str], str]]) -> str:
     if llm_call is not None:
         return llm_call(prompt)
@@ -182,7 +174,6 @@ def _call_llm(prompt: str, llm_call: Optional[Callable[[str], str]]) -> str:
     if not api_key:
         raise RuntimeError("GEMINI_API_KEY not set")
     return _default_llm_call(prompt, api_key)
-
 
 def _extract_raw_value(field_name: str, message_body: str, llm_call: Optional[Callable[[str], str]]) -> Dict:
     field_label = field_name.replace("_", " ")
@@ -200,7 +191,6 @@ def _extract_raw_value(field_name: str, message_body: str, llm_call: Optional[Ca
     confidence = float(parsed["confidence"])
     return {"value": parsed["value"], "confidence": max(0.0, min(1.0, confidence))}
 
-
 def _clarification_count(db: Session, conversation_id: int, field_name: str) -> int:
     events = (
         db.query(ConversationEvent)
@@ -208,7 +198,6 @@ def _clarification_count(db: Session, conversation_id: int, field_name: str) -> 
         .all()
     )
     return sum(1 for e in events if (e.event_data or {}).get("field_name") == field_name)
-
 
 def parse_field_response(
     db: Session,

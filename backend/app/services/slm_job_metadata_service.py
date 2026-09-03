@@ -76,7 +76,6 @@ class SLMJobMetadata(Base):
     total_candidates_matched = Column(Integer, default=0)  # By Thunder AI
     total_candidates_hired = Column(Integer, default=0)  # From matches, final outcome
 
-
 class SLMJobMetadataService:
     """Service for storing and retrieving job metadata."""
 

@@ -77,7 +77,6 @@ from app.services.resource_management_agent_service import (
 
 router = APIRouter(prefix="/resource-management", tags=["resource-management"])
 
-
 def _to_item(db: Session, rec: BenchAllocationRecommendation) -> RecommendationItem:
     employee = db.query(Employee).filter(Employee.id == rec.employee_id).first()
     demand = db.query(Demand).filter(Demand.id == rec.demand_id).first()
@@ -108,7 +107,6 @@ def _to_item(db: Session, rec: BenchAllocationRecommendation) -> RecommendationI
         client_name=client.company_name if client else None,
     )
 
-
 def _get_recommendation_or_404(db: Session, recommendation_id: str) -> BenchAllocationRecommendation:
     rec = (
         db.query(BenchAllocationRecommendation)
@@ -118,7 +116,6 @@ def _get_recommendation_or_404(db: Session, recommendation_id: str) -> BenchAllo
     if rec is None:
         raise HTTPException(status_code=404, detail="Recommendation not found.")
     return rec
-
 
 @router.post(
     "/scan",
@@ -134,7 +131,6 @@ def trigger_scan(
     db.commit()
     return ScanTriggerResponse(**result)
 
-
 @router.get(
     "/recommendations",
     dependencies=[Depends(get_current_internal_user)],
@@ -147,7 +143,6 @@ def get_queue(
 ):
     recs = get_recommendation_queue(db, tenant_id=current_user.tenant_id)
     return RecommendationQueueResponse(recommendations=[_to_item(db, r) for r in recs])
-
 
 @router.post(
     "/recommendations/{recommendation_id}/pursue",
@@ -179,7 +174,6 @@ def pursue_recommendation(
         message="Now pursuing this recommendation.", recommendation=_to_item(db, rec),
     )
 
-
 @router.post(
     "/recommendations/{recommendation_id}/approve",
     dependencies=[Depends(get_current_internal_user)],
@@ -206,7 +200,6 @@ def approve_recommendation(
         allocation_id=allocation.id,
     )
 
-
 @router.post(
     "/recommendations/{recommendation_id}/reject",
     dependencies=[Depends(get_current_internal_user)],
@@ -229,7 +222,6 @@ def reject_recommendation(
         message="Recommendation rejected.", recommendation=_to_item(db, rec),
     )
 
-
 @router.get(
     "/employees/{employee_id}/actively-engaged",
     dependencies=[Depends(get_current_internal_user)],
@@ -241,7 +233,6 @@ def check_actively_engaged(
     current_user: Users = Depends(get_current_internal_user),
 ):
     return {"employee_id": employee_id, "actively_engaged": is_employee_actively_engaged(db, employee_id)}
-
 
 @router.get(
     "/demands/{demand_id}/matching-bench-resources",

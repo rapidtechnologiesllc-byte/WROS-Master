@@ -55,13 +55,11 @@ SIGNAL_LABELS = {
     "days_silent_points": lambda s: "No recent contact",
 }
 
-
 def _candidate_name(candidate) -> str:
     if candidate is None:
         return "Unknown candidate"
     parts = [candidate.candidateFirstName, candidate.candidateLastName]
     return " ".join(p for p in parts if p).strip() or candidate.candidateEmail
-
 
 def _top_risk_signal(risk_signals: Dict) -> str:
     if not risk_signals:
@@ -71,7 +69,6 @@ def _top_risk_signal(risk_signals: Dict) -> str:
         return "Unknown"
     top_key, _ = max(candidates, key=lambda kv: kv[1])
     return SIGNAL_LABELS[top_key](risk_signals)
-
 
 def _active_drop_risk_rows(db: Session, tenant_id: str) -> List:
     """BR-01: excludes candidates whose conversation has closed
@@ -90,7 +87,6 @@ def _active_drop_risk_rows(db: Session, tenant_id: str) -> List:
         if existing is None or conv.id > existing[1].id:
             latest_by_candidate[risk.candidate_id] = (risk, conv)
     return list(latest_by_candidate.values())
-
 
 def get_risk_dashboard(db: Session, tenant_id: str) -> Dict:
     """Step 1. Never raises internally is not guaranteed here (a genuine

@@ -31,7 +31,6 @@ RECOGNITION_STATUSES = ("DRAFT", "APPROVED", "SENT", "REJECTED")
 RECOGNITION_OCCASIONS = ("BIRTHDAY", "WORK_ANNIVERSARY", "RECOGNITION")
 CONCERN_CATEGORIES = ("RESOLVED", "ESCALATED")
 
-
 def _new_uuid() -> str:
     return str(uuid.uuid4())
 
@@ -47,7 +46,6 @@ class EmployeeFeedbackCycle(Base):
     started_at = Column(DateTime, server_default=func.now())
     closed_at = Column(DateTime, nullable=True)
 
-
 class EmployeeFeedbackResponse(Base):
     __tablename__ = "employee_feedback_responses"
 
@@ -59,7 +57,6 @@ class EmployeeFeedbackResponse(Base):
     # culture_agent_service._flag_response() for the real, honest logic.
     is_flagged = Column(Boolean, nullable=False, default=False)
     submitted_at = Column(DateTime, server_default=func.now())
-
 
 class RecognitionMessageDraft(Base):
     """Draft-and-approve, never auto-sent -- see [[wros_ceo_agent_backlog]]'s
@@ -79,7 +76,6 @@ class RecognitionMessageDraft(Base):
     sent_at = Column(DateTime, nullable=True)
 
     employee = relationship("Employee", foreign_keys=[employee_id])
-
 
 class EmployeeConcernIntake(Base):
     """Dissatisfaction triage: resolve genuinely simple stuff (FAQ-

@@ -42,12 +42,10 @@ import app.services.interview_confirmation_service as svc
 from app.services.interview_service import assign_panel_member, create_interview
 from app.services.submission_service import create_submission
 
-
 @pytest.fixture(autouse=True)
 def _fake_whatsapp_number(monkeypatch):
     import app.services.whatsapp_routing_service as wr_svc
     monkeypatch.setattr(wr_svc, "DEFAULT_WHATSAPP_NUMBER", "+15550009999")
-
 
 @pytest.fixture()
 def db_session():
@@ -69,7 +67,6 @@ def db_session():
         session.close()
         engine.dispose()
         os.remove(db_path)
-
 
 @pytest.fixture()
 def seeded(db_session):
@@ -122,12 +119,10 @@ def seeded(db_session):
 
     return tenant, candidate, submission, conv, interview, interviewer_user
 
-
 def _fake_graph_event_call(event_id="evt-123"):
     def _call(organizer_email, subject, start_iso, end_iso, timezone, body, attendees):
         return event_id
     return _call
-
 
 # ── AC-1/AC-2/BR-01: both channels sent ──────────────────────────────
 
@@ -145,7 +140,6 @@ def test_confirms_and_sends_both_whatsapp_and_email(db_session, seeded):
     assert kwargs["attachments"][0]["name"] == "interview_confirmation.ics"
     assert kwargs["attachments"][0]["content_type"] == "text/calendar"
 
-
 def test_whatsapp_confirmation_stored_in_candidate_local_timezone(db_session, seeded):
     tenant, candidate, submission, conv, interview, interviewer_user = seeded
 
@@ -159,7 +153,6 @@ def test_whatsapp_confirmation_stored_in_candidate_local_timezone(db_session, se
     bodies = [e.event_data.get("body", "") for e in events if e.event_data and "body" in e.event_data]
     assert any(candidate_local.strftime("%I:%M %p") in b for b in bodies)
 
-
 # ── AC-3: ICS file has correct UTC DTSTART ────────────────────────────
 
 def test_ics_file_has_correct_utc_dtstart():
@@ -170,7 +163,6 @@ def test_ics_file_has_correct_utc_dtstart():
     assert "DTSTART:20260811T193000Z" in text
     assert "DTEND:20260811T203000Z" in text
     assert "BEGIN:VCALENDAR" in text and "END:VCALENDAR" in text
-
 
 # ── AC-4/BR-03: Outlook invite created with correct details ───────────
 
@@ -198,7 +190,6 @@ def test_outlook_event_created_with_candidate_and_job_title(db_session, seeded):
     db_session.refresh(interview)
     assert interview.scheduled_via_graph_event_id == "evt-999"
 
-
 # ── AC-5/AC-6: interview status + conversation event ──────────────────
 
 def test_interview_marked_confirmed_and_event_logged(db_session, seeded):
@@ -214,7 +205,6 @@ def test_interview_marked_confirmed_and_event_logged(db_session, seeded):
     event = db_session.query(ConversationEvent).filter(ConversationEvent.conversation_id == conv.id, ConversationEvent.event_type == "INTERVIEW_CONFIRMED").first()
     assert event is not None
     assert event.event_data["interview_id"] == interview.id
-
 
 # ── AC-8/TC-004: Outlook failure fallback ─────────────────────────────
 
@@ -241,12 +231,10 @@ def test_outlook_failure_falls_back_to_email_and_notifies_recruiter(db_session, 
     notifications = db_session.query(Notification).all()
     assert len(notifications) == 1
 
-
 def test_interview_not_found_returns_honest_outcome(db_session, seeded):
     tenant, candidate, submission, conv, interview, interviewer_user = seeded
     result = svc.confirm_interview(db_session, "nonexistent-id", candidate, conv)
     assert result["outcome"] == "interview_not_found"
-
 
 def test_never_raises_when_email_service_throws(db_session, seeded):
     tenant, candidate, submission, conv, interview, interviewer_user = seeded

@@ -29,7 +29,6 @@ from app.models.base import Base
 RESOLUTION_ACTIONS = ("BLOCK", "DELAY", "ESCALATE_ONLY")
 SEVERITIES = ("LOW", "MEDIUM", "HIGH")
 
-
 def _new_uuid() -> str:
     return str(uuid.uuid4())
 
@@ -59,7 +58,6 @@ class ConflictRule(Base):
 
     created_at = Column(DateTime(timezone=False), server_default=func.now())
     updated_at = Column(DateTime(timezone=False), server_default=func.now(), onupdate=func.now())
-
 
 class OrchestrationEvent(Base):
     __tablename__ = "orchestration_events"

@@ -15,7 +15,6 @@ from app.core.logging import logger
 
 router = APIRouter(prefix="/admin", tags=["health"])
 
-
 @router.get(
     "/health",
     dependencies=[Depends(require_resource_permission("health", "view"))]
@@ -224,7 +223,6 @@ def get_system_health(
     except Exception as e:
         logger.error(f"Failed to get system health: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to get system health: {str(e)}")
-
 
 @router.get(
     "/phalanx/{phalanx_name}/integrity",

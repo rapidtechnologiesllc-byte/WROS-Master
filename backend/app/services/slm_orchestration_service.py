@@ -24,7 +24,6 @@ from app.core.logging import logger
 
 logger = logging.getLogger(__name__)
 
-
 class SLMOrchestrationService:
     """Orchestrates channel creation based on message type and context"""
 

@@ -18,13 +18,11 @@ load_dotenv()
 
 logger = logging.getLogger(__name__)
 
-
 class LLMProvider(Enum):
     CLAUDE = "claude"
     GEMINI = "gemini"
     GROK = "grok"
     OPENAI = "openai"
-
 
 class RoundRobinLLMProvider:
     def __init__(self):
@@ -150,10 +148,8 @@ class RoundRobinLLMProvider:
             raise RuntimeError("No LLM providers available")
         return llm, provider
 
-
 # Global instance
 _llm_provider = RoundRobinLLMProvider()
-
 
 def get_llm():
     """Get working LLM with automatic fallback"""
@@ -161,7 +157,6 @@ def get_llm():
     if llm is None:
         raise RuntimeError("No LLM providers available")
     return llm, provider
-
 
 def invoke_llm(prompt: str, provider_hint: Optional[LLMProvider] = None):
     """Invoke LLM with automatic fallback"""

@@ -30,7 +30,6 @@ class SystemModule(Base):
     def __repr__(self):
         return f"<SystemModule(id={self.id}, name='{self.name}', category='{self.category}')>"
 
-
 class SystemModulePermission(Base):
     """Represents a verb (action) available for a module: candidates.view, jobs.create, etc.
 
@@ -59,7 +58,6 @@ class SystemModulePermission(Base):
 
     def __repr__(self):
         return f"<SystemModulePermission(module='{self.module.name}', verb='{self.verb}')>"
-
 
 # For backwards compatibility, export with simpler names
 Module = SystemModule

@@ -59,7 +59,6 @@ PROFILE_FIELD_MAP = {
 
 GEMINI_MODEL_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
 
-
 def _default_llm_call(prompt: str, api_key: str) -> str:
     resp = requests.post(
         f"{GEMINI_MODEL_URL}?key={api_key}",
@@ -71,7 +70,6 @@ def _default_llm_call(prompt: str, api_key: str) -> str:
     text = result.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "")
     return re.sub(r"```(?:json)?", "", text).strip()
 
-
 def _call_llm(prompt: str, llm_call: Optional[Callable[[str], str]]) -> str:
     if llm_call is not None:
         return llm_call(prompt)
@@ -79,7 +77,6 @@ def _call_llm(prompt: str, llm_call: Optional[Callable[[str], str]]) -> str:
     if not api_key:
         raise RuntimeError("GEMINI_API_KEY not set")
     return _default_llm_call(prompt, api_key)
-
 
 def _build_extraction_prompt(message_body: str, memory: Dict) -> str:
     facts_summary = memory.get("summary") or "(no summary yet)"
@@ -98,11 +95,9 @@ If no facts can be extracted, return an empty array: []
 Candidate message:"""
     return build_safe_prompt(instruction=instruction, untrusted_label="CANDIDATE_MESSAGE", untrusted_content=message_body)
 
-
 def _log_extraction_event(db: Session, conversation_id: int, event_type: str, event_data: Dict) -> None:
     db.add(ConversationEvent(conversation_id=conversation_id, event_type=event_type, event_data=event_data, triggered_by="system"))
     db.flush()
-
 
 def _validate_extracted_items(raw_items: Any) -> List[Dict]:
     if not isinstance(raw_items, list):
@@ -126,7 +121,6 @@ def _validate_extracted_items(raw_items: Any) -> List[Dict]:
         validated.append({"fact_category": category, "fact_key": str(key), "fact_value": str(value), "confidence": confidence})
     return validated
 
-
 def _resolve_confidence_threshold(db: Session, candidate: Candidate) -> float:
     """S-213/HRMS-0115 -- this threshold now lives in system_config
     (key: profile_update_confidence_threshold), Admin-editable without a
@@ -147,7 +141,6 @@ def _resolve_confidence_threshold(db: Session, candidate: Candidate) -> float:
         logger.warning(f"[FactsExtraction] Config read failed, using default threshold: {exc}")
         return PROFILE_UPDATE_CONFIDENCE_THRESHOLD
 
-
 def _apply_profile_field_updates(db: Session, candidate: Candidate, facts: List[Dict]) -> List[str]:
     """BR-03: confidence >= threshold only. Returns the list of profile
     fields actually updated."""
@@ -163,7 +156,6 @@ def _apply_profile_field_updates(db: Session, candidate: Candidate, facts: List[
         db.add(candidate)
         db.flush()
     return updated
-
 
 def extract_facts(
     db: Session,

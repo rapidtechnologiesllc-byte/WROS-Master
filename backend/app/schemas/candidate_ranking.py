@@ -20,7 +20,6 @@ class FitScoreComponentsResponse(BaseModel):
     location_match: int = Field(..., ge=0, le=100, description="Location match score 0-100")
     resume_completeness: int = Field(..., ge=0, le=100, description="Resume quality score 0-100")
 
-
 class ScoringWeightsResponse(BaseModel):
     """Weights used in fit score calculation."""
     skills: int = Field(default=40, description="Skills component weight")
@@ -28,12 +27,10 @@ class ScoringWeightsResponse(BaseModel):
     location: int = Field(default=15, description="Location component weight")
     resume: int = Field(default=10, description="Resume component weight")
 
-
 class CalculateFitScoreRequest(BaseModel):
     """Request to calculate fit score for a candidate against a job."""
     candidate_id: str = Field(..., description="Candidate ID")
     demand_id: str = Field(..., description="Demand (job) ID")
-
 
 class CalculateFitScoreResponse(BaseModel):
     """Response with calculated fit score and components."""
@@ -50,7 +47,6 @@ class CalculateFitScoreResponse(BaseModel):
     calculated_at: Optional[str] = None
     error: Optional[str] = None
 
-
 class RankedCandidateResponse(BaseModel):
     """A single candidate in the ranking."""
     rank: int = Field(..., description="Rank position (1 = best match)")
@@ -62,12 +58,10 @@ class RankedCandidateResponse(BaseModel):
     recommendation: str
     components: FitScoreComponentsResponse
 
-
 class RankCandidatesRequest(BaseModel):
     """Request to rank candidates for a job."""
     demand_id: str = Field(..., description="Demand (job) ID")
     limit: Optional[int] = Field(50, ge=1, le=1000, description="Max candidates to evaluate")
-
 
 class RankCandidatesResponse(BaseModel):
     """Response with ranked candidates."""
@@ -78,11 +72,9 @@ class RankCandidatesResponse(BaseModel):
     ranked_at: Optional[str] = None
     error: Optional[str] = None
 
-
 class IdentifyBestMatchRequest(BaseModel):
     """Request to identify best candidate for a job."""
     demand_id: str = Field(..., description="Demand (job) ID")
-
 
 class BestMatchComponentsResponse(BaseModel):
     """Score breakdown for best match."""
@@ -90,7 +82,6 @@ class BestMatchComponentsResponse(BaseModel):
     experience_level: int = Field(..., ge=0, le=100)
     location_match: int = Field(..., ge=0, le=100)
     resume_completeness: int = Field(..., ge=0, le=100)
-
 
 class IdentifyBestMatchResponse(BaseModel):
     """Response with best matching candidate."""

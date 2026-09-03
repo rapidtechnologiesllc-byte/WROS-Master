@@ -29,7 +29,6 @@ from app.models.user import Jobs, Users
 
 import app.services.overall_scoring_service as svc
 
-
 @pytest.fixture()
 def db_session():
     fd, db_path = tempfile.mkstemp(suffix=".sqlite3")
@@ -48,7 +47,6 @@ def db_session():
         engine.dispose()
         os.remove(db_path)
 
-
 @pytest.fixture()
 def seeded(db_session):
     owner = Users(UserID="U-ORG", UserRole="Super User", UserEmail="ceo@blitzenx.com", UserPassword="h")
@@ -58,13 +56,11 @@ def seeded(db_session):
     db_session.commit()
     return candidate, job
 
-
 def _seed_scores(db_session, *, technical=80, compensation=100, availability=90):
     row = CandidateJobScore(tenant_id="U-ORG", candidate_id="C-1", job_id="J-1", technical_score=technical, compensation_score=compensation, availability_score=availability, score_breakdown={})
     db_session.add(row)
     db_session.commit()
     return row
-
 
 # ── TC-001: weighted formula ─────────────────────────────────────────
 
@@ -77,20 +73,17 @@ def test_weighted_formula_matches_worked_example(db_session, seeded):
     result = svc.calculate_overall_score(db_session, "C-1", "J-1", "U-ORG")
     assert result["overall_score"] == 87
 
-
 def test_weights_are_40_30_20_10(db_session, seeded):
     candidate, job = seeded
     _seed_scores(db_session, technical=80, compensation=100, availability=90)
     result = svc.calculate_overall_score(db_session, "C-1", "J-1", "U-ORG")
     assert result["score_breakdown"]["weights"] == {"technical": 0.40, "compensation": 0.30, "availability": 0.20, "resume_completeness": 0.10}
 
-
 def test_resume_completeness_score_read_from_candidate(db_session, seeded):
     candidate, job = seeded
     _seed_scores(db_session)
     result = svc.calculate_overall_score(db_session, "C-1", "J-1", "U-ORG")
     assert result["score_breakdown"]["resume_completeness_score"] == 70
-
 
 def test_null_resume_completeness_treated_as_zero(db_session, seeded):
     candidate, job = seeded
@@ -100,7 +93,6 @@ def test_null_resume_completeness_treated_as_zero(db_session, seeded):
 
     result = svc.calculate_overall_score(db_session, "C-1", "J-1", "U-ORG")
     assert result["overall_score"] == 90  # 40+30+20+0
-
 
 # ── missing components calculated first ─────────────────────────────
 
@@ -112,7 +104,6 @@ def test_missing_components_are_calculated_before_combining(db_session, seeded):
     assert result["compensation_score"] is not None
     assert result["availability_score"] is not None
     assert result["overall_score"] is not None
-
 
 def test_partially_missing_component_is_calculated(db_session, seeded):
     candidate, job = seeded
@@ -126,7 +117,6 @@ def test_partially_missing_component_is_calculated(db_session, seeded):
     assert result["compensation_score"] is not None  # calculated
     assert result["availability_score"] is not None  # calculated
     assert result["score_breakdown"]["skill_match_pct"] == 100  # preserved through the merge
-
 
 # ── score_breakdown merge (not overwrite) with the other 3 scoring services ─
 
@@ -147,7 +137,6 @@ def test_score_breakdown_merges_all_four_services_keys(db_session, seeded):
     assert "resume_completeness_score" in result["score_breakdown"]
     assert "weights" in result["score_breakdown"]
 
-
 # ── TC-003: auto-recalc reflects a component update ─────────────────
 
 def test_overall_score_reflects_updated_technical_score(db_session, seeded):
@@ -164,7 +153,6 @@ def test_overall_score_reflects_updated_technical_score(db_session, seeded):
     assert second["overall_score"] != first["overall_score"]
     assert second["overall_score"] == round(40 * 0.40 + 100 * 0.30 + 90 * 0.20 + 70 * 0.10)
 
-
 def test_skill_extraction_wiring_triggers_overall_recalc(db_session, seeded):
     import app.services.skill_extraction_service as skill_svc
     candidate, job = seeded
@@ -176,7 +164,6 @@ def test_skill_extraction_wiring_triggers_overall_recalc(db_session, seeded):
     row = db_session.query(CandidateJobScore).filter(CandidateJobScore.candidate_id == "C-1", CandidateJobScore.job_id == "J-1").first()
     assert row is not None
     assert row.overall_score is not None
-
 
 # ── TC-002 / Step 2: ranking ─────────────────────────────────────────
 
@@ -199,7 +186,6 @@ def test_get_ranked_candidates_sorts_highest_first(db_session, seeded):
     assert [r["overall_score"] for r in ranked] == [87, 63, 41]
     assert [r["candidate_id"] for r in ranked] == ["C-1", "C-2", "C-3"]
 
-
 def test_get_ranked_candidates_includes_candidate_name(db_session, seeded):
     candidate, job = seeded
     db_session.add(CandidateJobScore(tenant_id="U-ORG", candidate_id="C-1", job_id="J-1", overall_score=87))
@@ -207,7 +193,6 @@ def test_get_ranked_candidates_includes_candidate_name(db_session, seeded):
 
     ranked = svc.get_ranked_candidates(db_session, "J-1", "U-ORG")
     assert ranked[0]["candidate_name"] == "Priya Sharma"
-
 
 def test_get_ranked_candidates_scoped_to_job_and_tenant(db_session, seeded):
     candidate, job = seeded
@@ -224,12 +209,10 @@ def test_get_ranked_candidates_scoped_to_job_and_tenant(db_session, seeded):
     assert ranked[0]["candidate_id"] == "C-1"
     assert ranked[0]["overall_score"] == 87
 
-
 def test_get_ranked_candidates_empty_for_job_with_no_scores(db_session, seeded):
     candidate, job = seeded
     ranked = svc.get_ranked_candidates(db_session, "J-1", "U-ORG")
     assert ranked == []
-
 
 # ── recalculate_for_candidate() ─────────────────────────────────────
 
@@ -244,7 +227,6 @@ def test_recalculate_for_candidate_never_raises(db_session, seeded, monkeypatch)
     monkeypatch.setattr(svc, "calculate_overall_score", _boom)
     results = svc.recalculate_for_candidate(db_session, candidate, "U-ORG")
     assert results == []
-
 
 def test_unknown_candidate_raises(db_session, seeded):
     with pytest.raises(svc.CandidateNotFound):

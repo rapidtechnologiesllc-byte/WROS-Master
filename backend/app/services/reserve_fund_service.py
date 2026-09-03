@@ -21,7 +21,6 @@ logger = logging.getLogger(__name__)
 class ReserveFundError(Exception):
     pass
 
-
 def record_reserve_fund_entry(
     db: Session, *, entry_type: str, amount_usd_cents: int, period_year: int, period_month: int,
     created_by: str, business_unit_id: Optional[int] = None, tenant_id: Optional[int] = None,
@@ -39,7 +38,6 @@ def record_reserve_fund_entry(
     db.refresh(entry)
     return entry
 
-
 def get_reserve_fund_balance(db: Session, *, business_unit_id: Optional[int] = None) -> int:
     query = db.query(ReserveFundEntry)
     if business_unit_id is not None:
@@ -50,7 +48,6 @@ def get_reserve_fund_balance(db: Session, *, business_unit_id: Optional[int] = N
     for entry in query.all():
         balance += entry.amount_usd_cents if entry.entry_type == "CONTRIBUTION" else -entry.amount_usd_cents
     return balance
-
 
 def get_reserve_fund_target_usd_cents(
     db: Session, *, business_unit_id: int, as_of_year: int, as_of_month: int, trailing_months: int = 3,
@@ -73,7 +70,6 @@ def get_reserve_fund_target_usd_cents(
         return None
     avg_monthly_cost = total_cost / months_with_data
     return round(avg_monthly_cost * 12)
-
 
 def get_reserve_fund_status(
     db: Session, *, business_unit_id: int, as_of_year: int, as_of_month: int,

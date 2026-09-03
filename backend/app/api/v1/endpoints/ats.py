@@ -39,7 +39,6 @@ router = APIRouter(prefix="/ats", tags=["ats"])
 # Thread pool for running the synchronous LLM pipeline from async endpoints
 _executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="ats_scorer")
 
-
 # ---------------------------------------------------------------------------
 # Internal helper — build full ATSScoreResponse from an ATSScore ORM row
 # ---------------------------------------------------------------------------
@@ -65,7 +64,6 @@ def _build_response(score: ATSScore, db: Session) -> ATSScoreResponse:
         ats_verdict=score.ats_verdict,
         scored_at=score.scored_at,
     )
-
 
 # ---------------------------------------------------------------------------
 # GET /ats/scores/all  — list every ATS score
@@ -115,7 +113,6 @@ def list_all_ats_scores(
         )
 
     return AllATSScoresResponse(total=len(items), scores=items)
-
 
 # ---------------------------------------------------------------------------
 # GET /ats/scores/job/{job_id}  — all scores for one job
@@ -176,7 +173,6 @@ def list_scores_for_job(
 
     return AllATSScoresResponse(total=len(items), scores=items)
 
-
 # ---------------------------------------------------------------------------
 # GET /ats/scores/candidate/{candidate_id}  — all scores for one candidate
 # ---------------------------------------------------------------------------
@@ -232,7 +228,6 @@ def list_scores_for_candidate(
 
     return AllATSScoresResponse(total=len(items), scores=items)
 
-
 # ---------------------------------------------------------------------------
 # GET /ats/scores/{score_id}  — single full-detail score
 # ---------------------------------------------------------------------------
@@ -252,7 +247,6 @@ def get_ats_score(
     if not score:
         raise HTTPException(status_code=404, detail=f"ATS score record {score_id} not found")
     return _build_response(score, db)
-
 
 # ---------------------------------------------------------------------------
 # POST /ats/rescore  — manually re-trigger scoring
@@ -285,7 +279,6 @@ async def rescore_candidate(
 
     score_record = await _run_and_persist_ats(candidate, job, db)
     return _build_response(score_record, db)
-
 
 # ---------------------------------------------------------------------------
 # Internal — run ATS in thread + persist result  (used by this router AND
@@ -382,7 +375,6 @@ async def _run_and_persist_ats(
     db.commit()
     db.refresh(score_row)
     return score_row
-
 
 async def run_ats_scoring_in_background(candidate_id: str, job_id: str) -> None:
     """BackgroundTask entry point for the public job-application endpoint

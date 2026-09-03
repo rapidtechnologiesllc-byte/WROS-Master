@@ -46,20 +46,17 @@ from app.services.tenant_service import InvalidTenantLocaleField, update_tenant_
 
 router = APIRouter(prefix="/tenants", tags=["tenants"])
 
-
 def _to_response(tenant: Tenant) -> TenantLocaleResponse:
     return TenantLocaleResponse(
         tenant_id=tenant.id, default_timezone=tenant.default_timezone,
         default_date_format=tenant.default_date_format, default_currency=tenant.default_currency,
     )
 
-
 def _get_current_tenant_or_404(db: Session, current_user: Users) -> Tenant:
     tenant = db.query(Tenant).filter(Tenant.id == current_user.tenant_id).first()
     if tenant is None:
         raise HTTPException(status_code=404, detail="Tenant not found.")
     return tenant
-
 
 @router.get(
     "/me/locale",
@@ -73,7 +70,6 @@ def get_tenant_locale(
 ):
     tenant = _get_current_tenant_or_404(db, current_user)
     return _to_response(tenant)
-
 
 @router.patch(
     "/me/locale",

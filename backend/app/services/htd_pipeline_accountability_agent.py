@@ -379,7 +379,6 @@ class HTDPipelineAccountabilityAgent:
             logger.error(f"Error: {str(e)}", exc_info=True)
             raise
 
-
 def generate_htd_coaching(bu_name: str, core_count: int, total: int, developing: int, forecast: int) -> str:
     """
     Generate coaching message for BU head.

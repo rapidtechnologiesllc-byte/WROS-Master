@@ -81,7 +81,6 @@ DEFAULT_CONTENT_LIBRARY = {
     ],
 }
 
-
 def get_content_items(db: Session, tenant_id: str, desire_category: str) -> List[str]:
     row = (
         db.query(MotivationContentLibrary)
@@ -92,7 +91,6 @@ def get_content_items(db: Session, tenant_id: str, desire_category: str) -> List
         return list(row.content_items)
     return list(DEFAULT_CONTENT_LIBRARY.get(desire_category, []))
 
-
 def _last_motivation(db: Session, candidate_id: str) -> Optional[MotivationOutcome]:
     return (
         db.query(MotivationOutcome)
@@ -101,13 +99,11 @@ def _last_motivation(db: Session, candidate_id: str) -> Optional[MotivationOutco
         .first()
     )
 
-
 def _last_event_after(db: Session, candidate_id: str, event_type: str, after: Optional[datetime]) -> bool:
     query = db.query(EventLog).filter(EventLog.candidate_id == candidate_id, EventLog.event_type == event_type)
     if after is not None:
         query = query.filter(EventLog.emitted_at > after)
     return db.query(query.exists()).scalar()
-
 
 def _active_offer(db: Session, candidate_id: str) -> Optional[OfferLetter]:
     return (
@@ -116,7 +112,6 @@ def _active_offer(db: Session, candidate_id: str) -> Optional[OfferLetter]:
         .order_by(OfferLetter.released_at.desc())
         .first()
     )
-
 
 def detect_trigger(db: Session, tenant_id: str, candidate_id: str, *, now: Optional[datetime] = None) -> Optional[str]:
     """Step 2, BR-02's priority order. Returns the highest-priority
@@ -159,13 +154,11 @@ def detect_trigger(db: Session, tenant_id: str, candidate_id: str, *, now: Optio
 
     raise ValueError("Operation failed")
 
-
 # ---------------------------------------------------------------------------
 # Message generation
 # ---------------------------------------------------------------------------
 
 GENERIC_NURTURE_MESSAGE = "Hi there -- just wanted to check in and see how things are going on your end. Happy to answer any questions about the role or BlitzenX whenever it's convenient for you!"
-
 
 def _default_llm_call(prompt: str, api_key: str) -> str:
     import requests
@@ -178,7 +171,6 @@ def _default_llm_call(prompt: str, api_key: str) -> str:
     result = resp.json()
     return result.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "").strip()
 
-
 def _call_llm(prompt: str, llm_call: Optional[Callable[[str], str]]) -> str:
     if llm_call is not None:
         return llm_call(prompt)
@@ -186,7 +178,6 @@ def _call_llm(prompt: str, llm_call: Optional[Callable[[str], str]]) -> str:
     if not api_key:
         raise RuntimeError("GEMINI_API_KEY not set")
     return _default_llm_call(prompt, api_key)
-
 
 def generate_motivation_message(
     db: Session, tenant_id: str, candidate: Candidate, profile: Optional[CandidateDesireProfile], trigger_type: str,
@@ -233,7 +224,6 @@ def generate_motivation_message(
     fallback = f"Hi {name} -- {library_items[0]} I think that could really matter for you. Would that kind of thing be important in your decision?"
     return fallback, category
 
-
 # ---------------------------------------------------------------------------
 # Send + outcome tracking
 # ---------------------------------------------------------------------------
@@ -245,7 +235,6 @@ def _resolve_conversation(db: Session, candidate_id: str) -> Optional[CandidateC
         .order_by(CandidateConversation.id.desc())
         .first()
     )
-
 
 def send_motivation_message(db: Session, candidate: Candidate, trigger_type: str, *, llm_call: Optional[Callable[[str], str]] = None) -> Optional[MotivationOutcome]:
     conversation = _resolve_conversation(db, candidate.candidateID)
@@ -275,7 +264,6 @@ def send_motivation_message(db: Session, candidate: Candidate, trigger_type: str
     db.commit()
     db.refresh(outcome)
     return outcome
-
 
 def run_motivation_job(db: Session, *, llm_call: Optional[Callable[[str], str]] = None, now: Optional[datetime] = None) -> Dict:
     """ScheduledMotivationJob, every 30 min. Driven off

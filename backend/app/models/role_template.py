@@ -27,7 +27,6 @@ class Module(Base):
     # Relationships
     resources = relationship("Resource", back_populates="module", cascade="all, delete-orphan")
 
-
 class Resource(Base):
     """Resources/Features under each module (Candidates, Jobs, Invoices, etc.)"""
     __tablename__ = "resources"
@@ -46,7 +45,6 @@ class Resource(Base):
     # Relationships
     module = relationship("Module", back_populates="resources")
     role_permissions = relationship("RoleTemplatePermission", back_populates="resource", cascade="all, delete-orphan")
-
 
 class RoleTemplate(Base):
     """Predefined or custom role templates (Recruiter, HR Manager, Admin, CEO, etc.)"""
@@ -73,7 +71,6 @@ class RoleTemplate(Base):
 
     # Relationships
     permissions = relationship("RoleTemplatePermission", back_populates="role_template", cascade="all, delete-orphan")
-
 
 class RoleTemplatePermission(Base):
     """Permissions matrix: Role Template × Resource × Actions (View/Create/Edit/Delete)"""

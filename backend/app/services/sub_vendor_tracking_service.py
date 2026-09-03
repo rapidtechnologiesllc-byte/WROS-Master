@@ -27,7 +27,6 @@ from app.models.sub_vendor_submission import (
 
 VIOLATION_WINDOW_DAYS = 90
 
-
 def get_submissions_for_vendor(db: Session, sub_vendor: SubVendorAccount) -> List[dict]:
     """
     HRMS-P803 BR-01 / HRMS-P810: a vendor sees only their own
@@ -56,7 +55,6 @@ def get_submissions_for_vendor(db: Session, sub_vendor: SubVendorAccount) -> Lis
             "feedback_note": s.feedback_note,
         })
     return results
-
 
 def get_sub_vendor_scorecard(db: Session, sub_vendor: SubVendorAccount, *, now: Optional[datetime] = None) -> dict:
     """
@@ -94,7 +92,6 @@ def get_sub_vendor_scorecard(db: Session, sub_vendor: SubVendorAccount, *, now: 
         "dedup_rejection_count": dedup_rejection_count,
         "compliance_status": sub_vendor.compliance_status,
     }
-
 
 def get_sub_vendor_portfolio_analytics(db: Session, *, tenant_id: Optional[int] = None) -> dict:
     """

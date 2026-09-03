@@ -20,10 +20,8 @@ from sqlalchemy import (
 
 from app.models.base import Base
 
-
 def _new_uuid() -> str:
     return str(uuid.uuid4())
-
 
 CORE_PULL_EVENT_STATUSES = ("PENDING", "EXECUTED", "OVERRIDDEN")
 
@@ -56,7 +54,6 @@ class CorePullEvent(Base):
     override_justification = Column(Text, nullable=True)
     overridden_by = Column(String(512), ForeignKey("users.UserID"), nullable=True)
     overridden_at = Column(DateTime, nullable=True)
-
 
 class SpecialtyPoolReplacementPlan(Base):
     """S-373/HRMS-0529 -- logged by a BU Head before a Core move that

@@ -9,13 +9,11 @@ from app.models.business_unit import BusinessUnit
 import logging
 from app.utils.agent_logger import log_agent_execution
 
-
 def get_buddy_program_overview(db: Session, business_unit_id: int = None) -> dict:
     """Get Buddy Program enrollment and status overview."""
     try:
         # Query buddy program assignments (from allocations or assignments table)
         # For now, return structure - actual implementation depends on Buddy Program model
-        from app.models.employee import Employee
 
         buddy_count = db.query(func.count(Employee.id)).filter(
             Employee.status == "ACTIVE"
@@ -31,7 +29,6 @@ def get_buddy_program_overview(db: Session, business_unit_id: int = None) -> dic
     except Exception as e:
         logger.error(f"Error: {str(e)}", exc_info=True)
         return {"error": str(e)}
-
 
 def get_certification_summary(db: Session, business_unit_id: int = None) -> dict:
     """Get certification level distribution and expiry tracking."""
@@ -71,7 +68,6 @@ def get_certification_summary(db: Session, business_unit_id: int = None) -> dict
         logger.error(f"Error: {str(e)}", exc_info=True)
         return {"error": str(e)}
 
-
 def get_employee_training_status(db: Session, employee_id: str = None, business_unit_id: int = None) -> list:
     """Get training status for specific employee or all employees in BU."""
     try:
@@ -103,7 +99,6 @@ def get_employee_training_status(db: Session, employee_id: str = None, business_
         logger.error(f"Error: {str(e)}", exc_info=True)
         return [{"error": str(e)}]
 
-
 def get_training_pipeline_status(db: Session, business_unit_id: int = None) -> dict:
     """Get pre-onboarding and training pipeline status."""
     try:
@@ -126,7 +121,6 @@ def get_training_pipeline_status(db: Session, business_unit_id: int = None) -> d
     except Exception as e:
         logger.error(f"Error: {str(e)}", exc_info=True)
         return {"error": str(e)}
-
 
 def get_next_training_steps(db: Session, employee_id: str = None) -> list:
     """Get recommended next training/certification steps."""

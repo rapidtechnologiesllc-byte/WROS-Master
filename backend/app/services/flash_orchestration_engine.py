@@ -351,7 +351,6 @@ class FlashOrchestrationEngine:
                       f"Career mix: {career_dist}. Top risks: {list(risk_dist.keys())[:3]}",
         }
 
-
 def generate_flash_summary(directives: List[Dict], critical: int, high: int) -> str:
     """
     Generate Flash's daily summary message.

@@ -32,7 +32,6 @@ from app.models.user import Users, Jobs
 
 import app.services.detect_intent_service as svc
 
-
 @pytest.fixture()
 def db_session():
     fd, db_path = tempfile.mkstemp(suffix=".sqlite3")
@@ -52,7 +51,6 @@ def db_session():
         engine.dispose()
         os.remove(db_path)
 
-
 @pytest.fixture()
 def seeded(db_session):
     owner = Users(UserID="U-ORG", UserRole="Super User", UserEmail="ceo@blitzenx.com", UserPassword="h", ai_agent_name="Thunder")
@@ -65,16 +63,13 @@ def seeded(db_session):
     db_session.commit()
     return candidate, conv
 
-
 def _llm_returning(payload_dict):
     return lambda sp, up, mt, t: json.dumps(payload_dict)
-
 
 def _llm_raising(exc):
     def _raise(sp, up, mt, t):
         raise exc
     return _raise
-
 
 # ── TC-001..TC-003: correct intent+confidence for real examples ──────
 
@@ -87,7 +82,6 @@ def test_detects_answering_question(db_session, seeded):
     assert result["intent"] == "answering_question"
     assert result["confidence"] >= 0.8
 
-
 def test_detects_asking_question(db_session, seeded):
     candidate, conv = seeded
     result = svc.detect_intent(
@@ -96,7 +90,6 @@ def test_detects_asking_question(db_session, seeded):
     )
     assert result["intent"] == "asking_question"
     assert result["confidence"] >= 0.7
-
 
 def test_detects_not_interested(db_session, seeded):
     candidate, conv = seeded
@@ -107,7 +100,6 @@ def test_detects_not_interested(db_session, seeded):
     assert result["intent"] == "not_interested"
     assert result["confidence"] >= 0.9
 
-
 def test_detects_scheduling_request(db_session, seeded):
     candidate, conv = seeded
     result = svc.detect_intent(
@@ -115,7 +107,6 @@ def test_detects_scheduling_request(db_session, seeded):
         conversation_id=conv.id, llm_call=_llm_returning({"intent": "scheduling_request", "confidence": 0.85}),
     )
     assert result["intent"] == "scheduling_request"
-
 
 # ── TC-004: LLM failure returns unclear/0.0, never crashes ───────────
 
@@ -127,7 +118,6 @@ def test_llm_failure_returns_unclear_never_raises(db_session, seeded):
     )
     assert result == {"intent": "unclear", "confidence": 0.0, "raw_response": None, "secondary_intent": None}
 
-
 def test_invalid_json_returns_unclear_never_raises(db_session, seeded):
     candidate, conv = seeded
     result = svc.detect_intent(
@@ -137,7 +127,6 @@ def test_invalid_json_returns_unclear_never_raises(db_session, seeded):
     assert result["intent"] == "unclear"
     assert result["confidence"] == 0.0
 
-
 def test_unknown_intent_value_mapped_to_unclear(db_session, seeded):
     candidate, conv = seeded
     result = svc.detect_intent(
@@ -145,7 +134,6 @@ def test_unknown_intent_value_mapped_to_unclear(db_session, seeded):
         conversation_id=conv.id, llm_call=_llm_returning({"intent": "totally_made_up", "confidence": 0.9}),
     )
     assert result["intent"] == "unclear"
-
 
 def test_unknown_candidate_returns_unclear_never_raises(db_session, seeded):
     """BR-01 applies even when context assembly itself fails (candidate not found)."""
@@ -155,7 +143,6 @@ def test_unknown_candidate_returns_unclear_never_raises(db_session, seeded):
     )
     assert result["intent"] == "unclear"
     assert result["confidence"] == 0.0
-
 
 # ── BR-03: every message logged, success or failure ──────────────────
 
@@ -171,7 +158,6 @@ def test_intent_logged_on_success(db_session, seeded):
     assert events[0].event_data["confidence"] == 0.9
     assert events[0].event_data["message_id"] == 42
 
-
 def test_intent_logged_on_llm_failure(db_session, seeded):
     candidate, conv = seeded
     svc.detect_intent(
@@ -182,7 +168,6 @@ def test_intent_logged_on_llm_failure(db_session, seeded):
     assert len(events) == 1
     assert events[0].event_data["intent"] == "unclear"
 
-
 def test_no_conversation_id_skips_logging_without_raising(db_session, seeded):
     candidate, conv = seeded
     result = svc.detect_intent(
@@ -190,7 +175,6 @@ def test_no_conversation_id_skips_logging_without_raising(db_session, seeded):
         llm_call=_llm_returning({"intent": "unclear", "confidence": 0.1}),
     )
     assert result["intent"] == "unclear"
-
 
 # ── Step 4: compound-message secondary indicator ──────────────────────
 
@@ -203,7 +187,6 @@ def test_compound_message_detects_secondary_asking_question(db_session, seeded):
     assert result["intent"] == "answering_question"
     assert result["secondary_intent"] == "asking_question"
 
-
 def test_no_question_mark_no_secondary_intent(db_session, seeded):
     candidate, conv = seeded
     result = svc.detect_intent(
@@ -212,18 +195,15 @@ def test_no_question_mark_no_secondary_intent(db_session, seeded):
     )
     assert result["secondary_intent"] is None
 
-
 # ── get_intent_routing_decision(): honest routing, no fake handlers ───
 
 def test_routing_not_interested_is_live_graceful_exit(db_session):
     decision = svc.get_intent_routing_decision("not_interested")
     assert decision["status"] == "LIVE"
 
-
 def test_routing_objecting_reports_not_built():
     decision = svc.get_intent_routing_decision("objecting")
     assert decision["status"] == "NOT_BUILT"
-
 
 def test_routing_scheduling_request_reports_not_wired():
     # S-047-051 are all built now (availability collection, calendar
@@ -232,16 +212,13 @@ def test_routing_scheduling_request_reports_not_wired():
     decision = svc.get_intent_routing_decision("scheduling_request")
     assert decision["status"] == "NOT_WIRED"
 
-
 def test_routing_document_sharing_reports_not_wired():
     decision = svc.get_intent_routing_decision("document_sharing")
     assert decision["status"] == "NOT_WIRED"
 
-
 def test_routing_unknown_intent_falls_back_to_unclear_routing():
     decision = svc.get_intent_routing_decision("bogus")
     assert decision == svc.INTENT_ROUTING["unclear"]
-
 
 # ── Confidence clamping ────────────────────────────────────────────────
 

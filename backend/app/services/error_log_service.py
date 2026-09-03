@@ -27,7 +27,6 @@ logger = logging.getLogger(__name__)
 class UnknownSeverity(Exception):
     pass
 
-
 def _page_on_call(db: Session, error: ErrorLog) -> None:
     from app.core.logging import logger
     from app.models.user import Users
@@ -51,7 +50,6 @@ def _page_on_call(db: Session, error: ErrorLog) -> None:
         priority_tier="P0",
         message=f"CRITICAL error: {error.error_type} -- {error.message[:200]}",
     )
-
 
 def log_error(
     db: Session,
@@ -85,7 +83,6 @@ def log_error(
         _page_on_call(db, row)
 
     return row
-
 
 def query_error_log(
     db: Session, *, integration_name: Optional[str] = None, severity: Optional[str] = None,

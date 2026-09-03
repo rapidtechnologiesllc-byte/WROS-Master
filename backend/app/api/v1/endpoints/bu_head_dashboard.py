@@ -12,14 +12,12 @@ from app.models.user import Users
 
 router = APIRouter(prefix="/dashboards/bu-head", tags=["BU Head Dashboard"])
 
-
 def get_db():
     db = SessionLocal()
     try:
         yield db
     finally:
         db.close()
-
 
 @router.get(
     "/summary",
@@ -50,7 +48,6 @@ async def get_bu_dashboard_summary(
         "status": "success",
         "data": data
     }
-
 
 @router.get(
     "/team",

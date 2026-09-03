@@ -30,7 +30,6 @@ from app.services.revenue_recognition_service import recognize_revenue_from_paid
 
 router = APIRouter(prefix="/api/v1/invoices", tags=["invoices"])
 
-
 # ============================================================================
 # REQUEST/RESPONSE MODELS
 # ============================================================================
@@ -53,7 +52,6 @@ class LineItemCreate(BaseModel):
             }
         }
 
-
 class LineItemResponse(BaseModel):
     id: str
     employee_id: str
@@ -64,7 +62,6 @@ class LineItemResponse(BaseModel):
 
     class Config:
         from_attributes = True
-
 
 class InvoiceCreate(BaseModel):
     project_id: str
@@ -88,7 +85,6 @@ class InvoiceCreate(BaseModel):
             }
         }
 
-
 class InvoiceResponse(BaseModel):
     id: str
     opportunity_id: Optional[str]
@@ -106,7 +102,6 @@ class InvoiceResponse(BaseModel):
     class Config:
         from_attributes = True
 
-
 class InvoiceDetailResponse(InvoiceResponse):
     line_items: List[LineItemResponse] = []
     approved_by: Optional[str] = None
@@ -117,13 +112,11 @@ class InvoiceDetailResponse(InvoiceResponse):
     class Config:
         from_attributes = True
 
-
 class InvoiceApproveRequest(BaseModel):
     approved_by: str = Field(description="User ID or email of approver")
 
     class Config:
         schema_extra = {"example": {"approved_by": "user@example.com"}}
-
 
 class InvoiceStatusResponse(BaseModel):
     DRAFT: int
@@ -135,7 +128,6 @@ class InvoiceStatusResponse(BaseModel):
     class Config:
         schema_extra = {"example": {"DRAFT": 0, "APPROVED": 5, "SENT": 10, "PAID": 100}}
 
-
 class OutstandingInvoiceResponse(BaseModel):
     invoice_id: str
     client_id: str
@@ -146,7 +138,6 @@ class OutstandingInvoiceResponse(BaseModel):
 
     class Config:
         from_attributes = True
-
 
 # ============================================================================
 # ENDPOINTS
@@ -202,7 +193,6 @@ def create_new_invoice(
         db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
 
-
 @router.get(
     "/{invoice_id}",
     response_model=InvoiceDetailResponse,
@@ -229,7 +219,6 @@ def get_invoice(
     except Exception as e:
         logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @router.get(
     "",
@@ -270,7 +259,6 @@ def list_invoices(
     except Exception as e:
         logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @router.post(
     "/{invoice_id}/add-line-item",
@@ -318,7 +306,6 @@ def add_invoice_line_item(
         db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
 
-
 @router.delete(
     "/{invoice_id}/line-items/{line_item_id}",
     status_code=204,
@@ -352,7 +339,6 @@ def remove_invoice_line_item(
         logger.error(f"Error: {str(e)}", exc_info=True)
         db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @router.post(
     "/{invoice_id}/approve",
@@ -394,7 +380,6 @@ def approve_new_invoice(
         db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
 
-
 @router.post(
     "/{invoice_id}/send",
     response_model=InvoiceResponse,
@@ -430,7 +415,6 @@ def send_new_invoice(
         logger.error(f"Error: {str(e)}", exc_info=True)
         db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @router.post(
     "/{invoice_id}/mark-paid",
@@ -480,7 +464,6 @@ def mark_paid(
         db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
 
-
 @router.post(
     "/{invoice_id}/cancel",
     response_model=InvoiceResponse,
@@ -520,7 +503,6 @@ def cancel_new_invoice(
         db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
 
-
 @router.get(
     "/opportunity/{opportunity_id}/invoices",
     response_model=List[InvoiceResponse],
@@ -556,7 +538,6 @@ def get_opportunity_invoices(
     except Exception as e:
         logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @router.get(
     "/business-unit/{business_unit_id}/status-summary",
@@ -594,7 +575,6 @@ def get_status_summary(
     except Exception as e:
         logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @router.get(
     "/business-unit/{business_unit_id}/outstanding",

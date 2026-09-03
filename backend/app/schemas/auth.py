@@ -12,10 +12,8 @@ class SignupRequest(BaseModel):
     user_password: str
     user_role: str
 
-
 class SignupResponse(BaseModel):
     response: str = "User created successfully"
-
 
 # ── CONSOLIDATED LOGIN FLOW - Step 1: Validate Email, Step 2: Login with Password ────
 # All legacy login models (LoginRequest, LoginResponse, CandidateLoginRequest, CandidateLoginResponse)
@@ -24,7 +22,6 @@ class UnifiedLoginRequest(BaseModel):
     """Single login payload for both users and candidates."""
     email: EmailStr
     password: str
-
 
 class UnifiedLoginResponse(BaseModel):
     """Single login response – entity_type is either 'user' or 'candidate'."""

@@ -13,7 +13,6 @@ down_revision = "f6a3c9e1b7d2"
 branch_labels = None
 depends_on = None
 
-
 def upgrade():
     # S-205's own Data Mapping/UI Fields ask for continent/region/is_active
     # on BusinessUnit -- extending the existing table (same "extend, don't
@@ -36,7 +35,6 @@ def upgrade():
     )
     op.create_index("ix_bu_access_user_id", "bu_access", ["user_id"])
     op.create_index("ix_bu_access_business_unit_id", "bu_access", ["business_unit_id"])
-
 
 def downgrade():
     op.drop_index("ix_bu_access_business_unit_id", table_name="bu_access")

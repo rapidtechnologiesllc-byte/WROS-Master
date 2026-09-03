@@ -40,7 +40,6 @@ from app.services.onboarding_workflow_service import (
 
 router = APIRouter(prefix="/onboarding-workflow", tags=["onboarding-workflow"])
 
-
 # ============================================================================
 # SCHEMAS
 # ============================================================================
@@ -52,13 +51,11 @@ class StartOnboardingRequest(schema.BaseModel):
     reporting_manager_id: Optional[str] = None
     expected_completion_days: int = 30
 
-
 class AssignBuddyRequest(schema.BaseModel):
     workflow_id: int
     buddy_user_id: str
     activation_date: Optional[date] = None
     notes: Optional[str] = None
-
 
 class SendWelcomeKitRequest(schema.BaseModel):
     workflow_id: int
@@ -67,7 +64,6 @@ class SendWelcomeKitRequest(schema.BaseModel):
     kit_contents: Optional[List[str]] = None
     sent_by_user_id: Optional[str] = None
     delivery_channel: str = "EMAIL"  # EMAIL, PHYSICAL_MAIL, SMS, IN_PERSON
-
 
 class ScheduleTrainingRequest(schema.BaseModel):
     workflow_id: int
@@ -80,7 +76,6 @@ class ScheduleTrainingRequest(schema.BaseModel):
     duration_minutes: int = 60
     training_description: Optional[str] = None
     is_mandatory: bool = True
-
 
 class OnboardingWorkflowResponse(schema.BaseModel):
     workflow_id: int
@@ -95,7 +90,6 @@ class OnboardingWorkflowResponse(schema.BaseModel):
     class Config:
         from_attributes = True
 
-
 class OnboardingBuddyResponse(schema.BaseModel):
     buddy_id: int
     buddy_user_id: str
@@ -106,7 +100,6 @@ class OnboardingBuddyResponse(schema.BaseModel):
     class Config:
         from_attributes = True
 
-
 class WelcomeKitResponse(schema.BaseModel):
     kit_id: int
     kit_type: str
@@ -116,7 +109,6 @@ class WelcomeKitResponse(schema.BaseModel):
 
     class Config:
         from_attributes = True
-
 
 class TrainingSessionResponse(schema.BaseModel):
     session_id: int
@@ -129,7 +121,6 @@ class TrainingSessionResponse(schema.BaseModel):
 
     class Config:
         from_attributes = True
-
 
 # ============================================================================
 # ENDPOINTS
@@ -177,7 +168,6 @@ def start_onboarding_endpoint(
         logger.error(f"[OnboardingWorkflow API] start failed: {exc}")
         raise HTTPException(status_code=500, detail=f"Failed to start onboarding: {str(exc)}")
 
-
 @router.post(
     "/assign-buddy",
     dependencies=[Depends(require_resource_permission("onboarding", "edit"))],
@@ -216,7 +206,6 @@ def assign_buddy_endpoint(
         logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.error(f"[OnboardingWorkflow API] assign_buddy failed: {exc}")
         raise HTTPException(status_code=500, detail=f"Failed to assign buddy: {str(exc)}")
-
 
 @router.post(
     "/send-welcome-kit",
@@ -263,7 +252,6 @@ def send_welcome_kit_endpoint(
         logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.error(f"[OnboardingWorkflow API] send_welcome_kit failed: {exc}")
         raise HTTPException(status_code=500, detail=f"Failed to send welcome kit: {str(exc)}")
-
 
 @router.post(
     "/schedule-training",
@@ -315,7 +303,6 @@ def schedule_training_endpoint(
         logger.error(f"[OnboardingWorkflow API] schedule_training failed: {exc}")
         raise HTTPException(status_code=500, detail=f"Failed to schedule training: {str(exc)}")
 
-
 @router.get(
     "/{workflow_id}",
     response_model=OnboardingWorkflowResponse,
@@ -351,7 +338,6 @@ def get_workflow(
         logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.error(f"[OnboardingWorkflow API] get_workflow failed: {exc}")
         raise HTTPException(status_code=500, detail=f"Failed to retrieve workflow: {str(exc)}")
-
 
 @router.get(
     "/employee/{employee_id}",
@@ -447,7 +433,6 @@ def get_workflow_by_employee(
         logger.error(f"[OnboardingWorkflow API] get_workflow_by_employee failed: {exc}")
         raise HTTPException(status_code=500, detail=f"Failed to retrieve workflow: {str(exc)}")
 
-
 @router.get(
     "/{workflow_id}/tasks",
     dependencies=[Depends(require_resource_permission("onboarding", "view"))],
@@ -491,7 +476,6 @@ def get_workflow_tasks(
         logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.error(f"[OnboardingWorkflow API] get_workflow_tasks failed: {exc}")
         raise HTTPException(status_code=500, detail=f"Failed to retrieve tasks: {str(exc)}")
-
 
 @router.get(
     "/{workflow_id}/training",

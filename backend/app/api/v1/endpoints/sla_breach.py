@@ -19,7 +19,6 @@ from app.services.sla_monitoring_service import get_active_breaches
 
 router = APIRouter(prefix="/sla", tags=["sla-monitoring"])
 
-
 @router.get(
     "/breaches",
     response_model=SLABreachListResponse,

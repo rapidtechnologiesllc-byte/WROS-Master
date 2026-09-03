@@ -12,7 +12,6 @@ from app.core.logging import logger
 
 logger = logging.getLogger(__name__)
 
-
 async def search_apollo_by_linkedin_url(
     linkedin_url: str,
     apollo_mcp_client: Optional[Any] = None
@@ -82,7 +81,6 @@ async def search_apollo_by_linkedin_url(
         logger.error(f"[Apollo] API error: {str(e)}", exc_info=True)
         raise ValueError(f"Apollo API call failed: {str(e)}")
 
-
 def create_mock_apollo_search(
     email: str = "mock@example.com",
     phone: str = "+1-555-0123456",
@@ -125,7 +123,6 @@ def create_mock_apollo_search(
 
     return mock_search
 
-
 def create_mock_apollo_not_open_to_work(
     email: str = "passive@example.com",
     phone: str = "+1-555-9999999",
@@ -164,7 +161,6 @@ def create_mock_apollo_not_open_to_work(
         }
 
     return mock_search
-
 
 def create_mock_apollo_empty_result():
     """

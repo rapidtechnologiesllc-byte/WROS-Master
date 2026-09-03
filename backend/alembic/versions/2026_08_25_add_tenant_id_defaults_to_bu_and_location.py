@@ -18,12 +18,10 @@ This migration:
 from alembic import op
 import sqlalchemy as sa
 
-
 revision = '2026_08_25_001'
 down_revision = '2026_08_24_002'
 branch_labels = None
 depends_on = None
-
 
 def upgrade():
     """Apply migrations to fix business_units and locations tenant_id."""
@@ -66,7 +64,6 @@ def upgrade():
     print("  - tenant_id column: NOT NULL DEFAULT 1")
     print("  - FK constraint to tenants.id")
     print("  - All existing records without tenant_id set to 1")
-
 
 def downgrade():
     """Revert the constraints (not recommended in production)."""

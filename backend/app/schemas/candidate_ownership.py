@@ -13,7 +13,6 @@ from pydantic import BaseModel, Field
 from app.models.candidate_ownership import POOL_BU, POOL_ORG
 from app.core.logging import logger
 
-
 # ---------------------------------------------------------------------------
 # Response schemas
 # ---------------------------------------------------------------------------
@@ -33,7 +32,6 @@ class CandidateOwnershipResponse(BaseModel):
     class Config:
         from_attributes = True
 
-
 class CandidateOwnershipListItem(BaseModel):
     """Summary row for the all-candidates list."""
     candidate_id: str
@@ -47,11 +45,9 @@ class CandidateOwnershipListItem(BaseModel):
     class Config:
         from_attributes = True
 
-
 class CandidateOwnershipListResponse(BaseModel):
     total: int
     candidates: List[CandidateOwnershipListItem]
-
 
 # ---------------------------------------------------------------------------
 # Request schemas

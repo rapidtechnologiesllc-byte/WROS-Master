@@ -26,7 +26,6 @@ from app.models.user import Jobs, Users
 
 import app.services.skill_extraction_service as svc
 
-
 @pytest.fixture()
 def db_session():
     fd, db_path = tempfile.mkstemp(suffix=".sqlite3")
@@ -45,7 +44,6 @@ def db_session():
         engine.dispose()
         os.remove(db_path)
 
-
 @pytest.fixture()
 def seeded(db_session):
     owner = Users(UserID="U-ORG", UserRole="Super User", UserEmail="ceo@blitzenx.com", UserPassword="h")
@@ -57,7 +55,6 @@ def seeded(db_session):
     db_session.commit()
     return candidate, conv
 
-
 # ── normalize_skills() ───────────────────────────────────────────────
 
 def test_normalize_skills_maps_synonyms_to_canonical():
@@ -66,33 +63,27 @@ def test_normalize_skills_maps_synonyms_to_canonical():
     assert "Guidewire" in canonicals
     assert "Java" in canonicals
 
-
 def test_normalize_skills_deduplicates_same_canonical():
     result = svc.normalize_skills(["GWCC", "GWPC"])  # both -> Guidewire
     assert len(result) == 1
     assert result[0]["canonical"] == "Guidewire"
 
-
 def test_normalize_skills_case_insensitive():
     result = svc.normalize_skills(["gwcc"])
     assert result[0]["canonical"] == "Guidewire"
-
 
 def test_normalize_skills_unknown_skill_preserved_with_lower_confidence():
     result = svc.normalize_skills(["Acme Framework 3.0"])
     assert result[0]["canonical"] == "Acme Framework 3.0"  # BR-03: not discarded
     assert result[0]["confidence"] == 0.8
 
-
 def test_normalize_skills_known_skill_full_confidence():
     result = svc.normalize_skills(["Guidewire"])
     assert result[0]["confidence"] == 1.0
 
-
 def test_normalize_skills_empty_input():
     assert svc.normalize_skills([]) == []
     assert svc.normalize_skills(None) == []
-
 
 # ── extract_and_tag_skills() ─────────────────────────────────────────
 
@@ -109,14 +100,12 @@ def test_extract_and_tag_skills_populates_tags_and_candidate_skills(db_session, 
     assert "Java" in candidate.candidateSkills
     assert "SQL" in candidate.candidateSkills
 
-
 def test_extract_and_tag_skills_duplicate_canonical_only_one_row(db_session, seeded):
     candidate, conv = seeded
     svc.extract_and_tag_skills(db_session, candidate, "U-ORG", ["GWCC", "GWPC", "Guidewire PolicyCenter"], conversation=conv)
 
     tags = db_session.query(CandidateSkillTag).filter(CandidateSkillTag.candidate_id == "C-1", CandidateSkillTag.skill_canonical == "Guidewire").all()
     assert len(tags) == 1  # AC-6/TC-004
-
 
 def test_extract_and_tag_skills_does_not_overwrite_existing_tag(db_session, seeded):
     candidate, conv = seeded
@@ -130,7 +119,6 @@ def test_extract_and_tag_skills_does_not_overwrite_existing_tag(db_session, seed
     assert len(tags) == 1
     assert tags[0].skill_raw == original_raw  # untouched, "DO NOTHING"
 
-
 def test_extract_and_tag_skills_unknown_skill_logs_event(db_session, seeded):
     candidate, conv = seeded
     svc.extract_and_tag_skills(db_session, candidate, "U-ORG", ["Acme Framework 3.0"], conversation=conv)
@@ -138,7 +126,6 @@ def test_extract_and_tag_skills_unknown_skill_logs_event(db_session, seeded):
     events = db_session.query(ConversationEvent).filter(ConversationEvent.conversation_id == conv.id, ConversationEvent.event_type == "SKILL_NOT_IN_SYNONYM_LIBRARY").all()
     assert len(events) == 1
     assert events[0].event_data["raw"] == "Acme Framework 3.0"
-
 
 def test_extract_and_tag_skills_publishes_skills_extracted_event(db_session, seeded):
     candidate, conv = seeded
@@ -148,12 +135,10 @@ def test_extract_and_tag_skills_publishes_skills_extracted_event(db_session, see
     assert len(events) == 1
     assert events[0].event_data["skills_count"] == 2
 
-
 def test_extract_and_tag_skills_empty_raw_skills_no_crash(db_session, seeded):
     candidate, conv = seeded
     result = svc.extract_and_tag_skills(db_session, candidate, "U-ORG", [], conversation=conv)
     assert result["skills_count"] == 0
-
 
 # ── get_unknown_skill_suggestions() ──────────────────────────────────
 

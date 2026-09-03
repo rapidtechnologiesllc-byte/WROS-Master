@@ -43,7 +43,6 @@ FAQ_RESOLUTIONS = {
     "payroll": "Payroll runs on the standard BlitzenX cycle. If a specific payment looks wrong, this needs a real look -- not something to guess an answer to.",
 }
 
-
 # ── Quarterly feedback cycle ──────────────────────────────────────────
 
 def start_quarterly_cycle(db: Session, quarter_label: str, *, tenant_id=None) -> EmployeeFeedbackCycle:
@@ -52,7 +51,6 @@ def start_quarterly_cycle(db: Session, quarter_label: str, *, tenant_id=None) ->
     db.commit()
     db.refresh(cycle)
     return cycle
-
 
 def _flag_response(response_text: str) -> bool:
     """Real, honest v1: a small negative-keyword heuristic, not an LLM
@@ -63,7 +61,6 @@ def _flag_response(response_text: str) -> bool:
     text = (response_text or "").lower()
     return any(kw in text for kw in NEGATIVE_KEYWORDS)
 
-
 def submit_feedback(db: Session, cycle: EmployeeFeedbackCycle, employee: Employee, response_text: str) -> EmployeeFeedbackResponse:
     response = EmployeeFeedbackResponse(
         cycle_id=cycle.id, employee_id=employee.id, response_text=response_text,
@@ -73,7 +70,6 @@ def submit_feedback(db: Session, cycle: EmployeeFeedbackCycle, employee: Employe
     db.commit()
     db.refresh(response)
     return response
-
 
 def close_cycle_and_summarize(db: Session, cycle: EmployeeFeedbackCycle, *, closed_by: Optional[str] = None) -> Dict:
     """Closes the cycle and routes the summary + any flagged concerns to
@@ -108,7 +104,6 @@ def close_cycle_and_summarize(db: Session, cycle: EmployeeFeedbackCycle, *, clos
     db.commit()
     return summary
 
-
 # ── Recognition draft-and-approve ─────────────────────────────────────
 
 def generate_birthday_drafts(db: Session, *, today: Optional[date] = None) -> List[RecognitionMessageDraft]:
@@ -140,7 +135,6 @@ def generate_birthday_drafts(db: Session, *, today: Optional[date] = None) -> Li
     db.commit()
     return drafts
 
-
 def approve_and_send_recognition(db: Session, draft: RecognitionMessageDraft, *, approved_by: str) -> RecognitionMessageDraft:
     """The one function that ever actually sends a recognition message
     -- requires an explicit human approver every time, sent genuinely
@@ -170,14 +164,12 @@ def approve_and_send_recognition(db: Session, draft: RecognitionMessageDraft, *,
     db.refresh(draft)
     return draft
 
-
 def reject_recognition(db: Session, draft: RecognitionMessageDraft) -> RecognitionMessageDraft:
     draft.status = "REJECTED"
     db.add(draft)
     db.commit()
     db.refresh(draft)
     return draft
-
 
 # ── Dissatisfaction triage ────────────────────────────────────────────
 
@@ -188,7 +180,6 @@ def _match_faq(message_text: str) -> Optional[str]:
             return resolution
     return None
 
-
 def submit_concern(db: Session, employee: Employee, message_text: str) -> EmployeeConcernIntake:
     intake = EmployeeConcernIntake(employee_id=employee.id, message_text=message_text)
     db.add(intake)
@@ -198,14 +189,12 @@ def submit_concern(db: Session, employee: Employee, message_text: str) -> Employ
     db.refresh(intake)
     return intake
 
-
 def _triage(db: Session, intake: EmployeeConcernIntake) -> EmployeeConcernIntake:
     resolution = _match_faq(intake.message_text)
     if resolution:
         intake.category = "RESOLVED"
         intake.resolution_text = resolution
     else:
-        from app.services.task_service import create_task
 
         employee = db.query(Employee).filter(Employee.id == intake.employee_id).first()
         task = create_task(

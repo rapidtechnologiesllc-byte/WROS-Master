@@ -18,7 +18,6 @@ from app.core.database import get_db
 
 router = APIRouter(prefix="/relation-building", tags=["relation-building"])
 
-
 @router.post("/extract-persona/{candidate_id}", dependencies=[Depends(require_resource_permission("agents", "manage"))])
 async def extract_candidate_persona(
     candidate_id: str,
@@ -85,7 +84,6 @@ async def extract_candidate_persona(
         logger.error(f"Relation building persona extraction error: {str(e)}")
         raise HTTPException(status_code=500, detail="Internal server error during persona extraction")
 
-
 @router.get("/candidate-relationship/{candidate_id}", dependencies=[Depends(require_resource_permission("agents", "view"))])
 async def get_candidate_relationship_status(
     candidate_id: str,
@@ -115,7 +113,6 @@ async def get_candidate_relationship_status(
         logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Relationship status retrieval error: {str(e)}")
         raise HTTPException(status_code=500, detail="Internal server error")
-
 
 @router.post("/flash-report", dependencies=[Depends(require_resource_permission("agents", "view"))])
 async def get_flash_candidate_intelligence(
@@ -151,7 +148,6 @@ async def get_flash_candidate_intelligence(
             "store_in_memory",
         ],
     }
-
 
 @router.get("/dashboard/standup", dependencies=[Depends(require_resource_permission("agents", "view"))])
 async def get_daily_standup(
@@ -201,7 +197,6 @@ async def get_daily_standup(
         logger.error(f"Standup report generation error: {str(e)}")
         raise HTTPException(status_code=500, detail="Internal server error generating standup report")
 
-
 @router.get("/dashboard/metrics", dependencies=[Depends(require_resource_permission("agents", "view"))])
 async def get_agent_metrics(
     db: Session = Depends(get_db),
@@ -234,7 +229,6 @@ async def get_agent_metrics(
             "accuracy_improvement_trend": "N/A",
         },
     }
-
 
 # ============== INTERACTION TRACKING ENDPOINTS ==============
 # These are called by other systems to update persona continuously
@@ -269,7 +263,6 @@ async def capture_email_interaction(
         logger.error(f"Email interaction capture error: {str(e)}")
         raise HTTPException(status_code=500, detail="Error capturing email interaction")
 
-
 @router.post("/interactions/whatsapp/{candidate_id}", dependencies=[Depends(require_resource_permission("agents", "manage"))])
 async def capture_whatsapp_interaction(
     candidate_id: str,
@@ -300,7 +293,6 @@ async def capture_whatsapp_interaction(
         logger.error(f"WhatsApp interaction capture error: {str(e)}")
         raise HTTPException(status_code=500, detail="Error capturing WhatsApp interaction")
 
-
 @router.post("/interactions/ai-recruiter/{candidate_id}", dependencies=[Depends(require_resource_permission("agents", "manage"))])
 async def capture_ai_recruiter_conversation(
     candidate_id: str,
@@ -329,7 +321,6 @@ async def capture_ai_recruiter_conversation(
         logger.error(f"AI Recruiter conversation capture error: {str(e)}")
         raise HTTPException(status_code=500, detail="Error capturing AI Recruiter conversation")
 
-
 @router.post("/interactions/interview/{candidate_id}", dependencies=[Depends(require_resource_permission("agents", "manage"))])
 async def capture_interview_feedback(
     candidate_id: str,
@@ -356,7 +347,6 @@ async def capture_interview_feedback(
         logger.error(f"Interview feedback capture error: {str(e)}")
         raise HTTPException(status_code=500, detail="Error capturing interview feedback")
 
-
 @router.post("/interactions/offer/{candidate_id}", dependencies=[Depends(require_resource_permission("agents", "manage"))])
 async def capture_offer_response(
     candidate_id: str,
@@ -382,7 +372,6 @@ async def capture_offer_response(
         logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Offer response capture error: {str(e)}")
         raise HTTPException(status_code=500, detail="Error capturing offer response")
-
 
 # ============== PERSONAL INTELLIGENCE ENDPOINTS ==============
 # These extract and use 200+ personal data points for authentic relationship building
@@ -437,7 +426,6 @@ async def extract_personal_intelligence(
         logger.error(f"Personal intelligence extraction error: {str(e)}")
         raise HTTPException(status_code=500, detail="Error extracting personal intelligence")
 
-
 @router.get(
     "/personalization/{candidate_id}",
     dependencies=[Depends(require_resource_permission("personalization", "view"))]
@@ -488,7 +476,6 @@ async def get_personalization_strategy(
         logger.error(f"Personalization strategy error: {str(e)}")
         raise HTTPException(status_code=500, detail="Error generating personalization strategy")
 
-
 @router.post(
     "/customize-offer/{candidate_id}",
     dependencies=[Depends(require_resource_permission("customize-offer", "create"))]
@@ -510,7 +497,6 @@ async def customize_offer(
     - Impact opportunities: If they're impact-driven
     """
     try:
-        from app.services.candidate_memory_service import get_memory
 
         memory = get_memory(db, candidate_id, current_user.UserID)
 
@@ -533,7 +519,6 @@ async def customize_offer(
         logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Offer customization error: {str(e)}")
         raise HTTPException(status_code=500, detail="Error customizing offer")
-
 
 @router.post(
     "/interactions/joining/{candidate_id}",

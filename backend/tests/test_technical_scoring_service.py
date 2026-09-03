@@ -31,7 +31,6 @@ from app.models.user import Jobs, Users
 
 import app.services.technical_scoring_service as svc
 
-
 @pytest.fixture()
 def db_session():
     fd, db_path = tempfile.mkstemp(suffix=".sqlite3")
@@ -49,7 +48,6 @@ def db_session():
         engine.dispose()
         os.remove(db_path)
 
-
 @pytest.fixture()
 def seeded(db_session):
     owner = Users(UserID="U-ORG", UserRole="Super User", UserEmail="ceo@blitzenx.com", UserPassword="h")
@@ -59,16 +57,13 @@ def seeded(db_session):
     db_session.commit()
     return candidate, job
 
-
 def _tag(db_session, canonical, confidence=1.0):
     db_session.add(CandidateSkillTag(tenant_id="U-ORG", candidate_id="C-1", skill_canonical=canonical, skill_raw=canonical, confidence=confidence))
     db_session.commit()
 
-
 def _resume(db_session, *, years=None, certs=None):
     db_session.add(CandidateResumeParsed(tenant_id="U-ORG", candidate_id="C-1", total_experience_years=years, certifications=certs or []))
     db_session.commit()
-
 
 # ── TC-001: full match ─────────────────────────────────────────────────
 
@@ -84,7 +79,6 @@ def test_full_skill_and_experience_match_scores_at_least_80(db_session, seeded):
     assert result["score_breakdown"]["skill_match_pct"] == 100
     assert result["score_breakdown"]["experience_score"] == 100
 
-
 # ── TC-002: partial skill match contributes proportionally ─────────────
 
 def test_partial_skill_match_scores_proportionally(db_session, seeded):
@@ -99,7 +93,6 @@ def test_partial_skill_match_scores_proportionally(db_session, seeded):
     assert set(result["score_breakdown"]["matched_skills"]) == {"Guidewire", "Java"}
     assert result["score_breakdown"]["missing_skills"] == ["SQL"]
 
-
 def test_no_matching_skills_scores_zero_skill_match(db_session, seeded):
     candidate, job = seeded
     _tag(db_session, "Python")
@@ -107,7 +100,6 @@ def test_no_matching_skills_scores_zero_skill_match(db_session, seeded):
 
     result = svc.calculate_technical_score(db_session, "C-1", "J-1", "U-ORG")
     assert result["score_breakdown"]["skill_match_pct"] == 0
-
 
 def test_no_required_skills_gives_full_skill_credit(db_session, seeded):
     candidate, job = seeded
@@ -118,7 +110,6 @@ def test_no_required_skills_gives_full_skill_credit(db_session, seeded):
     result = svc.calculate_technical_score(db_session, "C-1", "J-1", "U-ORG")
     assert result["score_breakdown"]["skill_match_pct"] == 100
 
-
 # ── TC-003: experience tiers, BR-02 cap ─────────────────────────────────
 
 def test_experience_exactly_at_minimum_scores_100(db_session, seeded):
@@ -127,20 +118,17 @@ def test_experience_exactly_at_minimum_scores_100(db_session, seeded):
     result = svc.calculate_technical_score(db_session, "C-1", "J-1", "U-ORG")
     assert result["score_breakdown"]["experience_score"] == 100
 
-
 def test_experience_one_year_below_minimum_scores_70(db_session, seeded):
     candidate, job = seeded
     _resume(db_session, years=4.5)
     result = svc.calculate_technical_score(db_session, "C-1", "J-1", "U-ORG")
     assert result["score_breakdown"]["experience_score"] == 70
 
-
 def test_experience_two_years_below_minimum_scores_40(db_session, seeded):
     candidate, job = seeded
     _resume(db_session, years=3.5)
     result = svc.calculate_technical_score(db_session, "C-1", "J-1", "U-ORG")
     assert result["score_breakdown"]["experience_score"] == 40
-
 
 def test_experience_three_years_below_minimum_capped_at_20(db_session, seeded):
     """BR-02: more than 2 years below minimum -> capped at 20."""
@@ -149,7 +137,6 @@ def test_experience_three_years_below_minimum_capped_at_20(db_session, seeded):
     result = svc.calculate_technical_score(db_session, "C-1", "J-1", "U-ORG")
     assert result["score_breakdown"]["experience_score"] == 20
 
-
 def test_experience_falls_back_to_candidate_total_experience_months(db_session, seeded):
     """No CandidateResumeParsed row -- falls back to candidates.total_experience_months."""
     candidate, job = seeded
@@ -157,7 +144,6 @@ def test_experience_falls_back_to_candidate_total_experience_months(db_session, 
     db_session.commit()
     result = svc.calculate_technical_score(db_session, "C-1", "J-1", "U-ORG")
     assert result["score_breakdown"]["experience_score"] == 100
-
 
 # ── Certification scoring ───────────────────────────────────────────────
 
@@ -169,7 +155,6 @@ def test_no_certifications_preferred_scores_100(db_session, seeded):
     _resume(db_session, years=8.0)
     result = svc.calculate_technical_score(db_session, "C-1", "J-1", "U-ORG")
     assert result["score_breakdown"]["certification_score"] == 100
-
 
 def test_missing_preferred_certifications_penalized(db_session, seeded):
     candidate, job = seeded
@@ -188,7 +173,6 @@ def test_missing_preferred_certifications_penalized(db_session, seeded):
     result = svc.calculate_technical_score(db_session, "C-1", "J-1", "U-ORG")
     assert result["score_breakdown"]["certification_score"] == 75  # 1 of 2 missing -> 100 - 25
 
-
 # ── BR-01: canonical-only matching (no raw-string collisions) ──────────
 
 def test_raw_abbreviation_does_not_match_without_normalization(db_session, seeded):
@@ -205,7 +189,6 @@ def test_raw_abbreviation_does_not_match_without_normalization(db_session, seede
     # not match it -- proves matching is canonical-to-canonical, not substring.
     assert "Guidewire" not in result["score_breakdown"]["matched_skills"]
 
-
 # ── TC-004: stored with full breakdown ──────────────────────────────────
 
 def test_score_persisted_with_full_breakdown(db_session, seeded):
@@ -221,7 +204,6 @@ def test_score_persisted_with_full_breakdown(db_session, seeded):
     assert row.technical_score is not None
     assert set(row.score_breakdown.keys()) == {"skill_match_pct", "experience_score", "certification_score", "matched_skills", "missing_skills"}
 
-
 def test_recalculating_updates_existing_row_not_duplicate(db_session, seeded):
     candidate, job = seeded
     _resume(db_session, years=8.0)
@@ -235,18 +217,15 @@ def test_recalculating_updates_existing_row_not_duplicate(db_session, seeded):
     rows = db_session.query(CandidateJobScore).filter(CandidateJobScore.candidate_id == "C-1", CandidateJobScore.job_id == "J-1").all()
     assert len(rows) == 1
 
-
 def test_unknown_candidate_raises(db_session, seeded):
     candidate, job = seeded
     with pytest.raises(svc.CandidateNotFound):
         svc.calculate_technical_score(db_session, "NOPE", "J-1", "U-ORG")
 
-
 def test_unknown_job_raises(db_session, seeded):
     candidate, job = seeded
     with pytest.raises(svc.JobNotFound):
         svc.calculate_technical_score(db_session, "C-1", "NOPE", "U-ORG")
-
 
 # ── BR-03: recalculate_for_candidate() ──────────────────────────────────
 
@@ -260,7 +239,6 @@ def test_recalculate_for_candidate_scores_primary_linked_job(db_session, seeded)
     assert len(results) == 1
     assert results[0]["job_id"] == "J-1"
 
-
 def test_recalculate_for_candidate_scores_application_linked_jobs(db_session, seeded):
     candidate, job = seeded
     job2 = Jobs(jobID="J-2", jobTitle="Java Developer", jobDescription="d", jobSkills="Java", jobExperience="3+ years", jobLocation="Pune")
@@ -272,12 +250,10 @@ def test_recalculate_for_candidate_scores_application_linked_jobs(db_session, se
     job_ids = {r["job_id"] for r in results}
     assert job_ids == {"J-2"}
 
-
 def test_recalculate_for_candidate_no_linked_jobs_returns_empty(db_session, seeded):
     candidate, job = seeded
     results = svc.recalculate_for_candidate(db_session, candidate, "U-ORG")
     assert results == []
-
 
 def test_recalculate_for_candidate_never_raises_on_bad_job(db_session, seeded, monkeypatch):
     """A failure scoring one linked job must not propagate -- BR-03's own
@@ -292,7 +268,6 @@ def test_recalculate_for_candidate_never_raises_on_bad_job(db_session, seeded, m
     monkeypatch.setattr(svc, "calculate_technical_score", _boom)
     results = svc.recalculate_for_candidate(db_session, candidate, "U-ORG")
     assert results == []  # failed silently, logged -- did not raise
-
 
 # ── Wired into skill_extraction_service.extract_and_tag_skills() ───────
 

@@ -14,7 +14,6 @@ from app.core.database import SessionLocal
 from app.api.v1.endpoints.admin_queue import TaskStatus, log_task_message
 import uuid
 
-
 @celery_app.task(bind=True, name="tasks.send_email")
 def send_email_task(self, to_email: str, subject: str, body: str, html_body: str = None):
     """
@@ -38,7 +37,6 @@ def send_email_task(self, to_email: str, subject: str, body: str, html_body: str
         log_task_message(task_id, f"Failed to send email: {str(e)}", "error")
         TaskStatus.update_task(task_id, status="failed")
         return {"status": "error", "error": str(e)}
-
 
 @celery_app.task(bind=True, name="tasks.send_bulk_emails")
 def send_bulk_emails_task(self, recipient_list: list, subject: str, body: str):

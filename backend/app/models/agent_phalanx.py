@@ -26,7 +26,6 @@ class AgentPhalanxFormation(Base):
     alerts = Column(JSON)  # List of active alerts
     last_alert_at = Column(DateTime)
 
-
 class AgentInFormation(Base):
     """Tracks each agent's position in a phalanx."""
 
@@ -66,7 +65,6 @@ class AgentInFormation(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
-
 class ShieldWatch(Base):
     """Tracks shield monitoring and neighbor health checks."""
 
@@ -101,7 +99,6 @@ class ShieldWatch(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
-
 class PhalanxAlert(Base):
     """Alerts when shield fails or phalanx integrity compromised."""
 
@@ -135,7 +132,6 @@ class PhalanxAlert(Base):
     resolved_at = Column(DateTime)
 
     created_at = Column(DateTime, default=datetime.utcnow)
-
 
 class FormationIntegrity(Base):
     """Overall phalanx formation health and integrity."""

@@ -15,12 +15,10 @@ Changes:
 from alembic import op
 import sqlalchemy as sa
 
-
 revision = '2026_08_28_queue_system_rebuild'
 down_revision = '2026_08_27_message_queue'
 branch_labels = None
 depends_on = None
-
 
 def upgrade() -> None:
     # Add queue_type to message_queue (PRIMARY queue type, e.g., THUNDER, TIMESHEET)
@@ -80,7 +78,6 @@ def upgrade() -> None:
         sa.Column('confidence_score', sa.Float(), nullable=True),
         sa.Column('created_at', sa.DateTime(timezone=False), server_default=sa.func.now()),
     )
-
 
 def downgrade() -> None:
     # Drop in reverse order

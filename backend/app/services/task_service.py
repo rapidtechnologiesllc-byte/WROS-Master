@@ -40,13 +40,11 @@ TASK_URGENCY_VALIDATION_SYSTEM_PROMPT = (
     "(e.g. 'Is this blocking something today, or can it wait?')."
 )
 
-
 def _default_urgency_llm_call(system_prompt: str, user_prompt: str, max_tokens: int, temperature: float) -> str:
     from app.services.prompt_framework_service import _default_llm_call
     import os
     api_key = os.getenv("GEMINI_API_KEY", "")
     return _default_llm_call(system_prompt, user_prompt, max_tokens, temperature, api_key)
-
 
 def validate_urgent_priority(
     db: Session, *, tenant_id: str, title: str, description: Optional[str], llm_call=None,
@@ -74,7 +72,6 @@ def validate_urgent_priority(
     is_plausible = "PLAUSIBLE: YES" in response.upper()
     note = response.split("NOTE:", 1)[1].strip() if "NOTE:" in response.upper() else response.strip()
     return is_plausible, note
-
 
 def create_task(
     db: Session,
@@ -134,7 +131,6 @@ def create_task(
     db.refresh(task)
     return task
 
-
 def confirm_urgent_task(db: Session, task: Task) -> Task:
     """Creator/manager explicitly confirms Urgent stands despite
     Thunder's challenge -- never a silent auto-downgrade."""
@@ -144,10 +140,8 @@ def confirm_urgent_task(db: Session, task: Task) -> Task:
     db.refresh(task)
     return task
 
-
 def _start_of_today(now: datetime) -> datetime:
     return now.replace(hour=0, minute=0, second=0, microsecond=0)
-
 
 def get_daily_task_list(db: Session, *, assigned_to_user_id: str, now: Optional[datetime] = None) -> List[Task]:
     """Layer 1 (hard filter): every open/in-progress task assigned to
@@ -171,7 +165,6 @@ def get_daily_task_list(db: Session, *, assigned_to_user_id: str, now: Optional[
         key=lambda t: (-PRIORITY_ORDER.get(t.priority, 0), t.due_date or now),
     )
 
-
 def get_upcoming_urgent_tasks(db: Session, *, assigned_to_user_id: str, now: Optional[datetime] = None) -> List[Task]:
     """Not-due-today Urgent tasks, surfaced separately as a heads-up --
     per the 2026-08-04 note, this stays a distinct 'upcoming' view
@@ -185,7 +178,6 @@ def get_upcoming_urgent_tasks(db: Session, *, assigned_to_user_id: str, now: Opt
         Task.priority == "URGENT",
         (Task.due_date.is_(None)) | (Task.due_date >= tomorrow_start),
     ).order_by(Task.due_date.asc().nullslast()).all()
-
 
 def complete_task(db: Session, task: Task) -> Task:
     task.status = "COMPLETED"

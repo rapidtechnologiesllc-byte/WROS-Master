@@ -13,7 +13,6 @@ down_revision = "c8d5f3a9b2e7"
 branch_labels = None
 depends_on = None
 
-
 def upgrade():
     op.create_table(
         "candidate_opportunity_watches",
@@ -33,7 +32,6 @@ def upgrade():
     op.create_index("ix_cow_candidate_id", "candidate_opportunity_watches", ["candidate_id"])
     op.create_index("ix_cow_is_active", "candidate_opportunity_watches", ["is_active"])
     op.create_index("ix_cow_tenant_id", "candidate_opportunity_watches", ["tenant_id"])
-
 
 def downgrade():
     op.drop_index("ix_cow_tenant_id", table_name="candidate_opportunity_watches")

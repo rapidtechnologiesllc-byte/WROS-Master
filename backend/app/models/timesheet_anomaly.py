@@ -19,10 +19,8 @@ from sqlalchemy import Column, DateTime, Enum, ForeignKey, Integer, String, func
 
 from app.models.base import Base
 
-
 def _new_uuid() -> str:
     return str(uuid.uuid4())
-
 
 ANOMALY_TYPES = ("WEEKEND", "OVER_12H", "COMPLETED_PROJECT", "DUPLICATE", "UNLINKED_TASK")
 # UNLINKED_TASK -- backlog item, 2026-08-05 (Task<->Timesheet tie):

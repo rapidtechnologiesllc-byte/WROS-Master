@@ -23,7 +23,6 @@ from sqlalchemy.orm import Session
 
 from app.models.agent_execution_log import AgentExecutionLog
 
-
 @asynccontextmanager
 async def agent_execution_log(
     db: Session,
@@ -67,7 +66,6 @@ async def agent_execution_log(
         )
         db.add(log_entry)
         db.commit()
-
 
 def log_agent_execution(agent_name: str, action_taken: str):
     """

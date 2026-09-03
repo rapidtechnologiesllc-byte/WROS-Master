@@ -19,7 +19,6 @@ from app.contracts.api_contract import (
     get_default_queue
 )
 
-
 class QueueRouter:
     """Routes messages to queues based on STRICT API CONTRACT and role templates."""
 

@@ -28,7 +28,6 @@ from typing import Dict
 
 from sqlalchemy.orm import Session
 
-
 def get_org_health_snapshot(db: Session) -> Dict:
     from app.services.ai_conversation_service import resolve_default_tenant_id
     from app.services.intervention_queue_service import get_queue_summary

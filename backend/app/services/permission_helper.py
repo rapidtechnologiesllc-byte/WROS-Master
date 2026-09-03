@@ -21,7 +21,6 @@ from app.models.role_template import RoleTemplate, RoleTemplatePermission, Modul
 from app.services.organization_service import OrganizationService
 from app.core.logging import logger
 
-
 @dataclass
 class DataScope:
     """User's data access scope - what data they can see."""

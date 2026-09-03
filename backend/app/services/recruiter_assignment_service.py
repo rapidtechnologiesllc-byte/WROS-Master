@@ -7,7 +7,6 @@ from app.models.job import Job
 import logging
 from app.core.logging import logger
 
-
 def assign_to_recruiter_roundrobin(db: Session) -> Users:
     """
     Assign a job to the next available recruiter using round-robin.

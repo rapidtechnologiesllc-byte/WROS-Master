@@ -13,7 +13,6 @@ down_revision = "a9c4e7f1d3b5"
 branch_labels = None
 depends_on = None
 
-
 def upgrade():
     op.create_table(
         "tasks",
@@ -90,7 +89,6 @@ def upgrade():
         sa.ForeignKeyConstraint(["department_id"], ["departments.id"], name="fk_task_capacity_alert_department_id", ondelete="NO ACTION"),
     )
     op.create_index("ix_task_capacity_alerts_user_id", "task_capacity_alerts", ["user_id"])
-
 
 def downgrade():
     op.drop_index("ix_task_capacity_alerts_user_id", table_name="task_capacity_alerts")

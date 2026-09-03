@@ -303,7 +303,6 @@ class PartnerSuccessAgent:
             logger.error(f"Error: {str(e)}", exc_info=True)
             raise
 
-
 def next_stage(current_stage: str) -> str:
     """Get next stage in sales cycle."""
     stages = ["prospect", "qualified", "proposal", "negotiation", "commitment", "closed_won"]
@@ -312,7 +311,6 @@ def next_stage(current_stage: str) -> str:
         return stages[idx + 1] if idx < len(stages) - 1 else current_stage
     except:
         return "qualified"
-
 
 def should_flag_stalled(opp: Opportunities) -> bool:
     """Check if deal is stalled."""
@@ -331,13 +329,11 @@ def should_flag_stalled(opp: Opportunities) -> bool:
     days_without_activity = (datetime.utcnow() - opp.last_activity_at).days
     return days_without_activity > threshold
 
-
 def days_since_activity(opp: Opportunities) -> int:
     """Days since last activity."""
     if not opp.last_activity_at:
         return 999
     return (datetime.utcnow() - opp.last_activity_at).days
-
 
 def generate_coaching_message(partner_key: str, pace_pct: float, action_count: int) -> str:
     """Generate daily coaching message."""
@@ -349,7 +345,6 @@ def generate_coaching_message(partner_key: str, pace_pct: float, action_count: i
         return f"⚠️ {partner_key.upper()}: Slightly behind. {pace_pct:.0f}% of pace. {action_count} critical actions TODAY."
     else:
         return f"🚨 {partner_key.upper()}: BEHIND PACE. {pace_pct:.0f}% of target. URGENT: {action_count} actions to restart deals."
-
 
 def generate_weekly_coaching(partner_key: str, weekly_revenue: int, stalled_count: int) -> str:
     """Generate weekly coaching message."""

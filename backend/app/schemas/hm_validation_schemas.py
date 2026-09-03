@@ -21,7 +21,6 @@ class ValidationQuestionType(str, Enum):
     MULTIPLE_CHOICE = "multiple_choice"
     RATING = "rating"
 
-
 class ValidationQuestion(BaseModel):
     """Single validation question definition"""
     question_id: str = Field(..., description="Unique question ID (q_001, q_002, etc.)")
@@ -36,7 +35,6 @@ class ValidationQuestion(BaseModel):
     class Config:
         use_enum_values = True
 
-
 class CreateValidationQuestionsRequest(BaseModel):
     """Request to create validation questions for a job"""
     job_id: str = Field(..., description="Job ID to attach questions to")
@@ -44,7 +42,6 @@ class CreateValidationQuestionsRequest(BaseModel):
     timeout_hours: int = Field(default=24, ge=1, le=72)
     auto_schedule_after_approval: bool = Field(default=True)
     description: Optional[str] = Field(None)
-
 
 class CreateValidationQuestionsResponse(BaseModel):
     """Response after creating validation questions"""
@@ -54,7 +51,6 @@ class CreateValidationQuestionsResponse(BaseModel):
     template_version: str
     created_at: datetime
     timeout_hours: int
-
 
 class HMValidationListResponse(BaseModel):
     """Minimal validation info for list endpoints"""
@@ -71,7 +67,6 @@ class HMValidationListResponse(BaseModel):
     class Config:
         from_attributes = True
 
-
 class CandidateDataResponse(BaseModel):
     """Candidate data for validation display"""
     name: str
@@ -81,7 +76,6 @@ class CandidateDataResponse(BaseModel):
     experience_years: int = 0
     education: Optional[str] = None
     resume_url: Optional[str] = None
-
 
 class HMValidationDetailResponse(BaseModel):
     """Full validation with questions and candidate details"""
@@ -96,7 +90,6 @@ class HMValidationDetailResponse(BaseModel):
     resume_url: Optional[str] = None
     match_score: float = 0.0
 
-
 class HMValidationResponseSubmit(BaseModel):
     """HM's submission of validation responses"""
     responses: Dict[str, Any] = Field(..., description="Map of question_id -> response value")
@@ -109,7 +102,6 @@ class HMValidationResponseSubmit(BaseModel):
             raise ValueError('At least one response required')
         return v
 
-
 class HMValidationDecisionResponse(BaseModel):
     """Response after HM submits validation"""
     status: str = Field(..., description="APPROVED, REJECTED, MAYBE, EXPIRED, ESCALATED")
@@ -118,14 +110,12 @@ class HMValidationDecisionResponse(BaseModel):
     candidate_notification: Optional[str] = None
     timestamp: datetime = Field(default_factory=datetime.utcnow)
 
-
 class SendValidationToHMRequest(BaseModel):
     """Request to send validation form to hiring manager"""
     job_id: str
     candidate_id: str
     hiring_manager_id: str
     hiring_manager_email: str
-
 
 class SendValidationToHMResponse(BaseModel):
     """Response after sending validation form"""
@@ -138,14 +128,12 @@ class SendValidationToHMResponse(BaseModel):
     expires_in_hours: int
     dashboard_link: str
 
-
 class RecordHMResponseRequest(BaseModel):
     """Request to record HM response (internal API)"""
     validation_id: str
     responses: Dict[str, Any]
     decision_comment: Optional[str] = None
     decision_score: Optional[int] = None
-
 
 class RecordHMResponseResponse(BaseModel):
     """Response after recording HM response"""
@@ -154,7 +142,6 @@ class RecordHMResponseResponse(BaseModel):
     decision: str
     decision_time: datetime
     next_step: str
-
 
 class ValidationAuditTrailResponse(BaseModel):
     """Single audit trail entry"""
@@ -165,7 +152,6 @@ class ValidationAuditTrailResponse(BaseModel):
     response_at: datetime
     time_to_respond_seconds: Optional[int] = None
 
-
 class ValidationAuditTrailListResponse(BaseModel):
     """Full audit trail for a validation"""
     validation_id: str
@@ -173,12 +159,10 @@ class ValidationAuditTrailListResponse(BaseModel):
     total_responses: int
     completed_at: Optional[datetime] = None
 
-
 class SendReminderRequest(BaseModel):
     """Request to send reminder email"""
     validation_id: str
     custom_message: Optional[str] = None
-
 
 class SendReminderResponse(BaseModel):
     """Response after sending reminder"""
@@ -186,7 +170,6 @@ class SendReminderResponse(BaseModel):
     reminder_sent_at: datetime
     new_due_at: datetime
     attempts: int
-
 
 class ValidationTemplateResponse(BaseModel):
     """Job's validation question template"""
@@ -198,13 +181,11 @@ class ValidationTemplateResponse(BaseModel):
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 
-
 class EscalateValidationRequest(BaseModel):
     """Request to escalate validation for manual review"""
     validation_id: str
     escalation_reason: str = Field(..., max_length=500)
     escalate_to_user_id: Optional[str] = None
-
 
 class EscalateValidationResponse(BaseModel):
     """Response after escalation"""
@@ -213,7 +194,6 @@ class EscalateValidationResponse(BaseModel):
     escalated_at: datetime
     escalated_to: Optional[str] = None
     escalation_reason: str
-
 
 class ValidationStatsResponse(BaseModel):
     """Statistics for validation performance"""
@@ -227,14 +207,12 @@ class ValidationStatsResponse(BaseModel):
     approval_rate: float  # percent
     rejection_rate: float  # percent
 
-
 class BulkCreateValidationsRequest(BaseModel):
     """Request to create validations for multiple candidates"""
     job_id: str
     candidate_ids: List[str] = Field(..., min_items=1, max_items=50)
     hiring_manager_id: str
     hiring_manager_email: str
-
 
 class BulkCreateValidationsResponse(BaseModel):
     """Response after bulk validation creation"""

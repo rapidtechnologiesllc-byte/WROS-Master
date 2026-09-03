@@ -14,7 +14,6 @@ from app.services.bulk_engagement_service import import_candidates_from_csv
 from app.api.v1.endpoints.admin_queue import TaskStatus, log_task_message
 import uuid
 
-
 @celery_app.task(bind=True, name="tasks.bulk_import_candidates")
 def import_candidates_task(self, file_path: str, tenant_id: str = "default"):
     """
@@ -84,7 +83,6 @@ def import_candidates_task(self, file_path: str, tenant_id: str = "default"):
         }
     finally:
         db.close()
-
 
 @celery_app.task(name="tasks.import_candidates_from_csv_batch")
 def import_candidates_batch_task(csv_content: str, batch_id: str = None):

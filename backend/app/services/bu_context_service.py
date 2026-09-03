@@ -37,14 +37,11 @@ logger = logging.getLogger(__name__)
 class NotYourBusinessUnit(Exception):
     pass
 
-
 class NotAuthorizedForAllBUs(Exception):
     pass
 
-
 def get_user_bu_access(db: Session, user_id: str) -> List[BUAccess]:
     return db.query(BUAccess).filter(BUAccess.user_id == user_id).all()
-
 
 def validate_active_bu(db: Session, user_id: str, business_unit_id: int) -> BUAccess:
     """BR-0107-01/AC-3 -- the real per-request check. Raises if this
@@ -56,16 +53,13 @@ def validate_active_bu(db: Session, user_id: str, business_unit_id: int) -> BUAc
         raise NotYourBusinessUnit(f"User {user_id!r} has no access to business unit {business_unit_id}.")
     return access
 
-
 def switch_active_bu(db: Session, user: Users, business_unit_id: int) -> BUAccess:
     return validate_active_bu(db, user.UserID, business_unit_id)
-
 
 def get_default_bu(db: Session, user_id: str) -> Optional[BUAccess]:
     access_rows = get_user_bu_access(db, user_id)
     default = next((a for a in access_rows if a.is_default), None)
     return default or (access_rows[0] if access_rows else None)
-
 
 def activate_all_bus_view(db: Session, user: Users) -> AuditLog:
     """BR-0107-02/AC-4: privileged, tracked action -- exactly one real
@@ -90,7 +84,6 @@ def activate_all_bus_view(db: Session, user: Users) -> AuditLog:
     db.commit()
     db.refresh(entry)
     return entry
-
 
 def ensure_default_bu_access(db: Session, user: Users) -> Optional[BUAccess]:
     """Seeds the one real default row a user should always have --

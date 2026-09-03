@@ -21,11 +21,6 @@ from app.core.msgraph_session_store import (
     user_tokens,
 )
 
-
-
-
-
-
 load_dotenv()
 TENANT_ID = os.getenv("TENANT_ID")
 CLIENT_ID = os.getenv("CLIENT_ID")
@@ -69,7 +64,6 @@ def _auth_url(state: str = "xyz"):
 def signin():
     return RedirectResponse(_auth_url())
 
-
 # ============================================
 # EPIC-14/S-379 (HRMS-1401) -- M365 Launchpad account linking
 # ============================================
@@ -91,7 +85,6 @@ def signin():
 # byte-for-byte-unchanged login behavior.
 LINK_STATE_TTL_MINUTES = 10
 
-
 @router.get(
     "/link/start",
     dependencies=[Depends(require_resource_permission("link", "view"))]
@@ -108,7 +101,6 @@ def start_link(current_user: Users = Depends(get_current_internal_user)):
     )
     return {"auth_url": _auth_url(state=link_state)}
 
-
 @router.get(
     "/link-status",
     dependencies=[Depends(require_resource_permission("link-statu", "view"))]
@@ -117,7 +109,6 @@ def link_status(current_user: Users = Depends(get_current_internal_user)):
     account_id = _account_id_by_user_id.get(current_user.UserID)
     linked = bool(account_id and account_id in user_tokens)
     return {"linked": linked}
-
 
 @router.post(
     "/unlink",
@@ -128,7 +119,6 @@ def unlink(current_user: Users = Depends(get_current_internal_user)):
     if account_id:
         user_tokens.pop(account_id, None)
     return {"linked": False}
-
 
 def _decode_link_state(state: str):
     """Returns the Users row this state token names, or None if `state`
@@ -144,7 +134,6 @@ def _decode_link_state(state: str):
     if not payload.get("msgraph_link"):
         raise ValueError("Operation failed")
     return payload.get("sub")
-
 
 @router.get(
     "/auth/callback",
@@ -402,7 +391,6 @@ def schedule_meeting(
     join_url = (created_json.get("onlineMeeting") or {}).get("joinUrl")
     return {"eventId": created_json.get("id"), "joinUrl": join_url}
 
-
 @router.get(
     "/calendar/meetings",
     dependencies=[Depends(require_resource_permission("calendar", "view"))]
@@ -476,14 +464,12 @@ def get_my_meetings(
         }
     }
 
-
 # ============================================
 # Service Account Calendar Endpoints
 # Uses Application-level permissions (no user sign-in required)
 # ============================================
 
 from app.core.graph_auth import get_graph_token, GraphServiceAuth
-
 
 @router.get(
     "/service/calendar/events/{user_email}",
@@ -607,7 +593,6 @@ def get_user_calendar_events(
     except Exception as e:
         logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to fetch calendar events: {str(e)}")
-
 
 @router.post(
     "/service/calendar/schedule",
@@ -735,7 +720,6 @@ def schedule_meeting_for_user(
     except Exception as e:
         logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to schedule meeting: {str(e)}")
-
 
 # ============================================
 # SharePoint Connection Test
@@ -893,7 +877,6 @@ def test_sharepoint_connection(
             "details": str(e),
             "configured": False
         }
-
 
 @router.get(
     "/sharepoint/list-drives",

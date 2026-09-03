@@ -11,7 +11,6 @@ from app.services.htd_pipeline_accountability_agent import HTDPipelineAccountabi
 
 router = APIRouter(prefix="/htd", tags=["HTD Pipeline Accountability"])
 
-
 @router.get(
     "/bu/{bu_id}/pipeline",
     dependencies=[Depends(require_resource_permission("hr-pipeline", "view"))]
@@ -45,7 +44,6 @@ async def get_bu_pipeline(
     except Exception as e:
         logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @router.get(
     "/partners/conversion-health",

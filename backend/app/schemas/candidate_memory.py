@@ -17,13 +17,11 @@ class MemoryFactItem(BaseModel):
     is_low_confidence: bool
     extracted_at: Optional[datetime]
 
-
 class CandidateMemoryResponse(BaseModel):
     candidate_id: str
     summary: Optional[str]
     last_updated: Optional[datetime]
     facts: List[MemoryFactItem]
-
 
 class MemoryFactCorrectionRequest(BaseModel):
     fact_value: str

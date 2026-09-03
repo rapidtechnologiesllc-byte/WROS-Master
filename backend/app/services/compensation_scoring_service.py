@@ -105,7 +105,6 @@ NEUTRAL_SCORE = 50  # BR-01: null expected_ctc or no budget set
 
 MISMATCH_FLAG_THRESHOLD_PCT = 20
 
-
 def _ensure_job_budget_parsed(db: Session, job: Jobs) -> None:
     """Lazily populates budget_min/budget_max the first time this job's
     compensation is scored. See module docstring on the LPA/paise
@@ -124,7 +123,6 @@ def _ensure_job_budget_parsed(db: Session, job: Jobs) -> None:
     db.add(job)
     db.flush()
 
-
 def _get_expected_ctc_paise(db: Session, candidate_id: str, tenant_id: str) -> Optional[int]:
     fact = (
         db.query(CandidateMemoryFact)
@@ -139,7 +137,6 @@ def _get_expected_ctc_paise(db: Session, candidate_id: str, tenant_id: str) -> O
     if fact is None:
         return None
     return normalize_salary(fact.fact_value)  # BR-01: parse failure -> None -> neutral, same as "null"
-
 
 def _compensation_score(expected_ctc: Optional[int], budget_max: Optional[int]) -> Dict:
     """Step 1. Returns {score, pct_over_budget}. First-match-wins order
@@ -156,7 +153,6 @@ def _compensation_score(expected_ctc: Optional[int], budget_max: Optional[int]) 
     if pct_over <= 20:
         return {"score": OVER_BUDGET_TIER_20_PCT, "pct_over_budget": round(pct_over, 1)}
     return {"score": OVER_BUDGET_TIER_ABOVE, "pct_over_budget": round(pct_over, 1)}
-
 
 def _upsert_mismatch_flag(db: Session, tenant_id: str, candidate_id: str, job_id: str, pct_over: float) -> None:
     """Step 2. BR-02: advisory only, never auto-rejects."""
@@ -179,7 +175,6 @@ def _upsert_mismatch_flag(db: Session, tenant_id: str, candidate_id: str, job_id
             flag_type="COMPENSATION_MISMATCH", message=message, severity="HIGH",
         ))
     db.flush()
-
 
 def calculate_compensation_score(db: Session, candidate_id: str, job_id: str, tenant_id: str) -> Dict:
     """Reuses candidate_job_scores (S-037) -- upserts compensation_score
@@ -231,7 +226,6 @@ def calculate_compensation_score(db: Session, candidate_id: str, job_id: str, te
         "availability_score": record.availability_score, "overall_score": record.overall_score,
         "score_breakdown": record.score_breakdown, "calculated_at": record.calculated_at,
     }
-
 
 def recalculate_for_candidate(db: Session, candidate: Candidate, tenant_id: str) -> List[Dict]:
     """Recalculates compensation fit for every job this candidate is

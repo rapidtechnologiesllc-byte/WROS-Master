@@ -38,14 +38,12 @@ from app.services.message_template_service import (
 
 router = APIRouter(prefix="/templates", tags=["message-templates"])
 
-
 def _to_response(t) -> TemplateResponse:
     return TemplateResponse(
         id=t.id, template_key=t.template_key, template_name=t.template_name, channel=t.channel,
         language=t.language, subject=t.subject, body=t.body, version=t.version, is_active=t.is_active,
         created_by=t.created_by, approved_by=t.approved_by, approved_at=t.approved_at, created_at=t.created_at,
     )
-
 
 @router.post(
     "",
@@ -76,7 +74,6 @@ def create_template(
         raise HTTPException(status_code=400, detail=str(exc))
     return _to_response(template)
 
-
 @router.get(
     "",
     response_model=TemplateListResponse,
@@ -92,7 +89,6 @@ def list_templates_endpoint(
     templates = list_templates(db, tenant_id, channel=channel, template_key=template_key) if tenant_id else []
     return TemplateListResponse(templates=[_to_response(t) for t in templates])
 
-
 @router.get(
     "/{template_id}",
     response_model=TemplateResponse,
@@ -107,7 +103,6 @@ def get_template_endpoint(
     if not template:
         raise HTTPException(status_code=404, detail=f"Template {template_id} not found.")
     return _to_response(template)
-
 
 @router.post(
     "/{template_id}/activate",
@@ -125,7 +120,6 @@ def activate_template_endpoint(
     except TemplateActivationConflict as exc:
         raise HTTPException(status_code=404, detail=str(exc))
     return _to_response(template)
-
 
 @router.get(
     "/{template_id}/preview",

@@ -18,7 +18,6 @@ from app.services import revenue_leakage_service
 DEFAULT_STALLED_OPPORTUNITY_DAYS = 30
 DEFAULT_UNFILLED_DEMAND_GRACE_DAYS = 0  # flags the moment required_start_date has passed
 
-
 def _get_or_create(db: Session, *, pattern_type: str, match_filters: dict, **fields) -> PipelineLeakageFlag:
     """One open (unresolved) flag per pattern_type+source entity --
     re-scanning refreshes the existing row's detail/impact rather than
@@ -36,7 +35,6 @@ def _get_or_create(db: Session, *, pattern_type: str, match_filters: dict, **fie
     flag = PipelineLeakageFlag(pattern_type=pattern_type, **match_filters, **fields)
     db.add(flag)
     return flag
-
 
 def scan_stalled_opportunities(
     db: Session, *, stale_days: int = DEFAULT_STALLED_OPPORTUNITY_DAYS, now: Optional[datetime] = None,
@@ -62,7 +60,6 @@ def scan_stalled_opportunities(
         )
         flags.append(flag)
     return flags
-
 
 def scan_unfilled_demand(
     db: Session, *, grace_days: int = DEFAULT_UNFILLED_DEMAND_GRACE_DAYS, now: Optional[datetime] = None,
@@ -97,7 +94,6 @@ def scan_unfilled_demand(
         flags.append(flag)
     return flags
 
-
 def scan_unbilled_time(db: Session, *, tenant_id: Optional[int] = None) -> List[PipelineLeakageFlag]:
     """Reuses revenue_leakage_service's already-shipped HRMS-0906 check
     (BR-0906-01: one shared detection source) rather than reimplementing
@@ -122,7 +118,6 @@ def scan_unbilled_time(db: Session, *, tenant_id: Optional[int] = None) -> List[
         flags.append(flag)
     return flags
 
-
 def scan_subvendor_cost_overruns(db: Session) -> List[PipelineLeakageFlag]:
     """NOT BUILT -- see app.models.pipeline_leakage's module docstring.
     No cost/budget/rate field exists anywhere in the Sub-Vendor Portal
@@ -132,7 +127,6 @@ def scan_subvendor_cost_overruns(db: Session) -> List[PipelineLeakageFlag]:
     omitted from the pattern list."""
     return []
 
-
 def scan_all_leakage(db: Session, *, tenant_id: Optional[int] = None) -> List[PipelineLeakageFlag]:
     flags: List[PipelineLeakageFlag] = []
     flags += scan_stalled_opportunities(db)
@@ -140,7 +134,6 @@ def scan_all_leakage(db: Session, *, tenant_id: Optional[int] = None) -> List[Pi
     flags += scan_unbilled_time(db, tenant_id=tenant_id)
     flags += scan_subvendor_cost_overruns(db)
     return flags
-
 
 def get_active_leakage_flags(
     db: Session, *, business_unit_ids: Optional[List[int]] = None, tenant_id: Optional[int] = None,
@@ -151,7 +144,6 @@ def get_active_leakage_flags(
     if business_unit_ids is not None:
         query = query.filter(PipelineLeakageFlag.business_unit_id.in_(business_unit_ids))
     return query.order_by(PipelineLeakageFlag.detected_at.desc()).all()
-
 
 def resolve_leakage_flag(db: Session, flag: PipelineLeakageFlag, *, resolution_note: Optional[str] = None) -> PipelineLeakageFlag:
     flag.resolved_at = datetime.utcnow()

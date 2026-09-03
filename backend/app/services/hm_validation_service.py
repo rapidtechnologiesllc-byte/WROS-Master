@@ -22,7 +22,6 @@ from app.core.notification_service import send_dashboard_notification
 
 logger = logging.getLogger(__name__)
 
-
 class HMValidationService:
     """Service for managing HM validation checkpoint"""
 

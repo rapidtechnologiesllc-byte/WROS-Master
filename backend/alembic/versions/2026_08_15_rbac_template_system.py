@@ -9,13 +9,11 @@ Create Date: 2026-08-15 10:00:00.000000
 from alembic import op
 import sqlalchemy as sa
 
-
 # revision identifiers, used by Alembic.
 revision = '2026_08_15_001'
 down_revision = None
 branch_labels = None
 depends_on = None
-
 
 def upgrade() -> None:
     # Create modules table
@@ -96,7 +94,6 @@ def upgrade() -> None:
     op.create_index('ix_users_job_title', 'users', ['job_title'])
     op.create_index('ix_users_role_template_id', 'users', ['role_template_id'])
     op.create_foreign_key('fk_users_role_template_id', 'users', 'role_templates', ['role_template_id'], ['id'])
-
 
 def downgrade() -> None:
     op.drop_constraint('fk_users_role_template_id', 'users', type_='foreignkey')

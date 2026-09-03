@@ -23,10 +23,8 @@ from sqlalchemy.orm import relationship
 
 from app.models.base import Base
 
-
 def _new_uuid() -> str:
     return str(uuid.uuid4())
-
 
 BULK_JOB_STATUSES = ("QUEUED", "PROCESSING", "COMPLETED")
 
@@ -52,7 +50,6 @@ class BulkEngagementJob(Base):
 
     tenant = relationship("Users", foreign_keys=[tenant_id], lazy="select")
     recruiter = relationship("Users", foreign_keys=[recruiter_id], lazy="select")
-
 
 class BulkEngagementError(Base):
     __tablename__ = "bulk_engagement_errors"

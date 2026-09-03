@@ -110,7 +110,6 @@ def initialize_database_schema():
     log_step(3, "Initializing Database Schema")
 
     try:
-        from app.core.database import engine
         from app.models.base import Base
 
         # Create all tables defined in models
@@ -208,7 +207,6 @@ def verify_database_performance():
     log_step(6, "Verifying Database Performance Configuration")
 
     try:
-        from app.core.database import engine
 
         pool = engine.pool
         log_success(f"Connection pool size: {pool.size()}")

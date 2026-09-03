@@ -39,7 +39,6 @@ from app.services.flash_service import answer_internal_query
 
 router = APIRouter(prefix="/flash", tags=["flash"])
 
-
 @router.post(
     "/",
     dependencies=[Depends(get_current_internal_user)],

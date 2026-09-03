@@ -54,7 +54,6 @@ from app.services.whatsapp_routing_service import ConversationOwnedByHuman
 
 router = APIRouter(prefix="/public/thunder-chat", tags=["public-thunder-chat"])
 
-
 @router.post(
     "/start",
     response_model=PublicChatStartResponse,
@@ -89,7 +88,6 @@ def start_chat(body: PublicChatStartRequest, db: Session = Depends(get_db)):
 
     return PublicChatStartResponse(**result)
 
-
 @router.post(
     "/message",
     response_model=PublicChatMessageResponse,
@@ -116,7 +114,6 @@ def send_message(body: PublicChatMessageRequest, background_tasks: BackgroundTas
         raise HTTPException(status_code=424, detail="Thunder can't reply right now. Please start a new chat.")
 
     return PublicChatMessageResponse(**result)
-
 
 @router.get(
     "/history",

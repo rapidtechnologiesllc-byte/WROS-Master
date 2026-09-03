@@ -16,7 +16,6 @@ class JourneyStage(BaseModel):
     exited_at: Optional[datetime] = None
     metrics: Dict[str, Any] = {}
 
-
 class CandidateJourneyResponse(BaseModel):
     candidate_id: str
     current_stage: str

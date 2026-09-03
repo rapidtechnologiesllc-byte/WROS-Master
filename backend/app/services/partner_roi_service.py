@@ -14,7 +14,6 @@ from app.services.client_revenue_dashboard_service import get_client_revenue_das
 import logging
 from app.utils.agent_logger import log_agent_execution
 
-
 def get_partner_kpis(db: Session, partner_id: str, year_month: str = None) -> dict:
     """
     Compute Partner KPIs per BlitzenX Operating Model.
@@ -166,7 +165,6 @@ def get_partner_kpis(db: Session, partner_id: str, year_month: str = None) -> di
 
     return result
 
-
 def get_partner_trend(db: Session, partner_id: str, months_back: int = 6) -> list:
     """Get Partner's KPI trend over last N months."""
     partner = db.query(Users).filter(Users.UserID == partner_id).first()
@@ -184,7 +182,6 @@ def get_partner_trend(db: Session, partner_id: str, months_back: int = 6) -> lis
             trend.append(kpis)
 
     return sorted(trend, key=lambda x: x["period"])
-
 
 def get_partner_actions(db: Session, partner_id: str) -> list:
     """Generate prioritized action items for Partner based on KPIs."""

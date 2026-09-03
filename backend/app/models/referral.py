@@ -50,7 +50,6 @@ class EmployeeReferral(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     notes = Column(Text)
 
-
 class JobReferralSettings(Base):
     """Job-level referral settings."""
 
@@ -72,7 +71,6 @@ class JobReferralSettings(Base):
 
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-
 
 class ReferralBonus(Base):
     """Finance tracking for referral bonuses paid."""

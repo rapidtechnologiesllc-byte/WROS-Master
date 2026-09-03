@@ -41,7 +41,6 @@ from app.services.bu_context_service import (
 
 router = APIRouter(prefix="/bu-context", tags=["bu-context"])
 
-
 def _user_can_view_all_bus(db: Session, current_user: Users) -> bool:
     """Check if user has permission to view all business units (not scoped to their BU)."""
     from app.services.permission_helper import PermissionHelper
@@ -51,7 +50,6 @@ def _user_can_view_all_bus(db: Session, current_user: Users) -> bool:
         db,
         current_user.tenant_id
     )
-
 
 async def get_active_business_unit_id(
     x_active_bu_id: Optional[int] = Header(None),
@@ -70,7 +68,6 @@ async def get_active_business_unit_id(
     except NotYourBusinessUnit as exc:
         raise HTTPException(status_code=403, detail=str(exc))
     return x_active_bu_id
-
 
 @router.get(
     "/my-access",
@@ -118,7 +115,6 @@ def my_bu_access(current_user: Users = Depends(get_current_internal_user), db: S
         can_view_all_bus=_user_can_view_all_bus(db, current_user),
     )
 
-
 @router.post(
     "/switch",
     dependencies=[Depends(require_resource_permission("switch", "create"))]
@@ -129,7 +125,6 @@ def switch_bu(body: SwitchBURequest, current_user: Users = Depends(get_current_i
     except NotYourBusinessUnit as exc:
         raise HTTPException(status_code=403, detail=str(exc))
     return {"active_business_unit_id": body.business_unit_id}
-
 
 @router.post(
     "/all-bus",

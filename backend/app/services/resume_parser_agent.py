@@ -8,7 +8,6 @@ from app.core.logging import logger
 
 logger = logging.getLogger(__name__)
 
-
 class ResumeParsedAgent:
     """
     Agent for parsing resume content using LLM.

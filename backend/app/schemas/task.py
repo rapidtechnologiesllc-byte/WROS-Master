@@ -21,7 +21,6 @@ class TaskCreateRequest(BaseModel):
     subcategory: Optional[str] = None
     parent_task_id: Optional[int] = None
 
-
 class TaskResponse(BaseModel):
     id: int
     title: str
@@ -48,10 +47,8 @@ class TaskResponse(BaseModel):
     class Config:
         from_attributes = True
 
-
 class ReassignmentApproveRequest(BaseModel):
     final_to_user_id: str
-
 
 class MarkUnavailableRequest(BaseModel):
     user_id: str

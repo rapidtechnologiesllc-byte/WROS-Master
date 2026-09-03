@@ -28,7 +28,6 @@ from app.models.user import Users
 from app.services.rbac_service_template import RBACService
 import app.models  # noqa: F401 -- registers every model on Base.metadata
 
-
 @pytest.fixture()
 def throwaway_jwt_keys(monkeypatch):
     key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
@@ -43,7 +42,6 @@ def throwaway_jwt_keys(monkeypatch):
     ).decode()
     monkeypatch.setattr(security, "PRIVATE_KEY", private_pem)
     monkeypatch.setattr(security, "PUBLIC_KEY", public_pem)
-
 
 @pytest.fixture()
 def client(throwaway_jwt_keys):
@@ -109,23 +107,18 @@ def client(throwaway_jwt_keys):
         engine.dispose()
         os.remove(db_path)
 
-
 def _token_for(email):
     return security.create_access_token(data={"sub": email, "type": "internal", "name": email})
-
 
 def _troy_auth():
     return {"Authorization": f"Bearer {_token_for('troy@blitzenx.com')}"}
 
-
 def _finance_auth():
     return {"Authorization": f"Bearer {_token_for('finance@blitzenx.com')}"}
-
 
 def test_unauthenticated_request_rejected(client):
     resp = client.get("/opportunities")
     assert resp.status_code in (401, 403)
-
 
 def test_create_opportunity(client):
     ids = client.wros_ids
@@ -143,7 +136,6 @@ def test_create_opportunity(client):
     assert body["weighted_forecast_usd_cents"] == 60000000
     assert body["client_name"] == "Builders Insurance"
 
-
 def test_create_opportunity_rejects_invalid_probability(client):
     ids = client.wros_ids
     resp = client.post(
@@ -152,7 +144,6 @@ def test_create_opportunity_rejects_invalid_probability(client):
         json={"client_id": ids["axion_client_id"], "revenue_value_usd_cents": 1000, "probability_pct": 150},
     )
     assert resp.status_code == 400
-
 
 def test_partner_only_sees_own_bu_opportunities(client):
     ids = client.wros_ids
@@ -170,7 +161,6 @@ def test_partner_only_sees_own_bu_opportunities(client):
     names = [o["client_name"] for o in resp.json()["opportunities"]]
     assert names == ["Builders Insurance"]
 
-
 def test_finance_sees_org_wide(client):
     ids = client.wros_ids
     client.post(
@@ -185,7 +175,6 @@ def test_finance_sees_org_wide(client):
     resp = client.get("/opportunities", headers=_finance_auth())
     assert resp.status_code == 200
     assert len(resp.json()["opportunities"]) == 2
-
 
 def test_pipeline_kanban_totals(client):
     ids = client.wros_ids
@@ -204,7 +193,6 @@ def test_pipeline_kanban_totals(client):
     assert qualification["total_revenue_usd_cents"] == 3000000
     assert qualification["total_weighted_forecast_usd_cents"] == 500000 + 500000
 
-
 def test_stage_transition_to_won_creates_project(client):
     ids = client.wros_ids
     create_resp = client.post(
@@ -222,7 +210,6 @@ def test_stage_transition_to_won_creates_project(client):
     assert body["opportunity"]["stage"] == "WON"
     assert body["project_id"] is not None
 
-
 def test_cannot_transition_a_closed_opportunity(client):
     ids = client.wros_ids
     create_resp = client.post(
@@ -236,7 +223,6 @@ def test_cannot_transition_a_closed_opportunity(client):
         json={"new_stage": "PROPOSAL"},
     )
     assert resp.status_code == 400
-
 
 def test_role_demand_from_opportunity(client):
     ids = client.wros_ids
@@ -261,7 +247,6 @@ def test_role_demand_from_opportunity(client):
 
     rollup_resp = client.get(f"/opportunities/{opp_id}/revenue-rollup", headers=_troy_auth())
     assert rollup_resp.json()["role_demand_revenue_usd_cents"] == 12000 * 2000 * 3
-
 
 def test_get_nonexistent_opportunity_404s(client):
     resp = client.get("/opportunities/does-not-exist", headers=_troy_auth())

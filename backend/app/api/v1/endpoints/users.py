@@ -41,7 +41,6 @@ from app.models.org_structure import OrgNode
 
 router = APIRouter(prefix="/hr", tags=["hr"])
 
-
 @router.get(
     "/me",
     dependencies=[Depends(get_current_internal_user)],
@@ -127,7 +126,6 @@ def get_me(
 
     return response_dict
 
-
 @router.patch(
     "/me/digest-preference",
     dependencies=[Depends(get_current_internal_user)],
@@ -143,7 +141,6 @@ def update_digest_preference(
     db.add(current_user)
     db.commit()
     return DigestPreferenceResponse(digest_enabled=current_user.digest_enabled)
-
 
 @router.get(
     "/me/permissions",
@@ -189,7 +186,6 @@ def get_current_user_permissions(
         "modules": [{"id": m.id, "name": m.name} for m in modules],
         "is_super_admin": is_super_admin
     }
-
 
 @router.get(
     "/users/all",
@@ -237,7 +233,6 @@ def get_all_users(
         total_users=len(users_data),
         users=users_data
     )
-
 
 @router.get(
     "/users/search",
@@ -353,7 +348,6 @@ def search_users(
         users=users_data,
     )
 
-
 @router.get(
     "/users/details/{user_id}",
     dependencies=[Depends(get_current_internal_user)],
@@ -390,8 +384,6 @@ def get_user_details_by_id(
         business_unit_id=u.business_unit_id,
         business_unit_name=u.business_unit.name if u.business_unit else None,
     )
-
-
 
 @router.post(
     "/assignments/create",
@@ -463,7 +455,6 @@ def create_candidate_assignment(
         created_at=assignment.created_at
     )
 
-
 @router.get(
     "/assignments/candidates",
     response_model=list[AssignedCandidateResponse],
@@ -523,7 +514,6 @@ def get_assigned_candidates(
             ))
     
     return results
-
 
 @router.get(
     "/interviews/assigned",
@@ -593,8 +583,6 @@ def get_assigned_interviews(
     
     return results
 
-
-
 # ============================================
 # HR User Management Endpoints
 # ============================================
@@ -643,7 +631,6 @@ def create_user(
         created_at=new_user.CreatedAt
     )
 
-
 @router.post(
     "/users/create-with-roles",
     response_model=UserResponse,
@@ -686,7 +673,6 @@ def create_user_with_roles(
     if not role_template_id:
         raise HTTPException(status_code=400, detail="Role template is required")
 
-    from app.core.database import check_user
     existing = check_user(db, user_email)
     if existing:
         raise HTTPException(status_code=400, detail=f"User with email {user_email} already exists")
@@ -787,7 +773,6 @@ def create_user_with_roles(
         created_at=new_user.CreatedAt
     )
 
-
 @router.put(
     "/users/{user_id}/update-with-roles",
     response_model=UserResponse,
@@ -835,7 +820,6 @@ def update_user_with_roles(
         role_template_id=target.role_template_id,
         created_at=target.CreatedAt
     )
-
 
 @router.put(
     "/users/{user_id}",
@@ -891,7 +875,6 @@ def update_user(
         business_unit_name=target.business_unit.name if target.business_unit else None,
         created_at=target.CreatedAt
     )
-
 
 @router.delete(
     "/users/{user_id}",
@@ -982,7 +965,6 @@ def delete_user(
         message=f"User {user_id} deleted successfully"
     )
 
-
 @router.put(
     "/users/me/change-password",
     response_model=DeleteResponse,
@@ -1026,7 +1008,6 @@ def change_password(
         message="Password changed successfully"
     )
 
-
 @router.put(
     "/admin/users/{user_id}/reset-password",
     response_model=DeleteResponse,
@@ -1054,7 +1035,6 @@ def admin_reset_password(
         404 if user not found
         400 if new password is invalid
     """
-    from app.core.security import verify_password
 
     # Find target user
     target_user = db.query(Users).filter(Users.UserID == user_id).first()
@@ -1079,7 +1059,6 @@ def admin_reset_password(
         status="Success",
         message=f"Password reset successfully for user {user_id}"
     )
-
 
 # ============================================================
 # User Section
@@ -1131,7 +1110,6 @@ def get_user_by_id(
         business_unit_id=target.business_unit_id,
         created_at=target.CreatedAt,
     )
-
 
 # ============================================================
 # Hiring Manager Section
@@ -1216,7 +1194,6 @@ def get_hiring_manager_assigned_candidates(
         )
 
     return results
-
 
 @router.get(
     "/job-titles",

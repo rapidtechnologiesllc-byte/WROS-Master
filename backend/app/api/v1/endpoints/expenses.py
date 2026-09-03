@@ -34,7 +34,6 @@ from app.services.expense_service import (
 
 router = APIRouter(tags=["expenses"])
 
-
 @router.post(
     "/expenses",
     response_model=ExpenseItem,
@@ -59,7 +58,6 @@ def create_expense(
         raise HTTPException(status_code=400, detail=str(exc))
     return expense
 
-
 @router.get(
     "/expenses/mine",
     response_model=ExpenseListResponse,
@@ -76,7 +74,6 @@ def list_my_expenses(
         .all()
     )
     return ExpenseListResponse(expenses=expenses)
-
 
 @router.get(
     "/expenses",
@@ -97,7 +94,6 @@ def list_all_expenses(
     expenses = query.order_by(ExpenseRecord.expense_date.desc()).all()
     return ExpenseListResponse(expenses=expenses)
 
-
 @router.post(
     "/expenses/{expense_id}/approve",
     response_model=ExpenseItem,
@@ -112,7 +108,6 @@ def approve_expense_endpoint(
     if not expense:
         raise HTTPException(status_code=404, detail=f"Expense {expense_id!r} not found.")
     return approve_expense(db, expense, approved_by=current_user.UserID)
-
 
 @router.post(
     "/expenses/{expense_id}/mark-paid",
@@ -131,7 +126,6 @@ def mark_expense_paid_endpoint(
         return mark_expense_paid(db, expense)
     except ExpenseValidationError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
-
 
 @router.get(
     "/clients/{client_id}/investment-position",

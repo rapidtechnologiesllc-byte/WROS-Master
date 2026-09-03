@@ -16,10 +16,8 @@ class BuPnlResponse(BaseModel):
     margin_pct: Optional[float]
     cost_data_complete: bool
 
-
 class BuPnlSummaryItem(BuPnlResponse):
     business_unit_name: str
-
 
 class OrgPnlSummaryResponse(BaseModel):
     year: int

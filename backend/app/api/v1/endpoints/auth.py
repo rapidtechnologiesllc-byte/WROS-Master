@@ -58,7 +58,6 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 # callers, it's just never trusted.
 SELF_SIGNUP_DEFAULT_ROLE = "Employee"
 
-
 @router.post("/v1/signup", response_model=SignupResponse)
 def signup(request: SignupRequest, db: Session = Depends(get_db)):
     """
@@ -113,7 +112,6 @@ def validate_email(request: ValidateEmailRequest, db: Session = Depends(get_db))
     email = request.email.strip().lower()
     user = check_user(db, email)
     return {"exists": bool(user)}
-
 
 @router.post("/login", response_model=UnifiedLoginResponse)
 def unified_login(request: UnifiedLoginRequest, db: Session = Depends(get_db)):
@@ -362,7 +360,6 @@ def unified_login(request: UnifiedLoginRequest, db: Session = Depends(get_db)):
         detail="Invalid email or password",
     )
 
-
 @router.post("/v1/refresh", response_model=UnifiedLoginResponse)
 def refresh_token_endpoint(credentials: HTTPAuthorizationCredentials = Depends(security), db: Session = Depends(get_db)):
     """
@@ -375,7 +372,6 @@ def refresh_token_endpoint(credentials: HTTPAuthorizationCredentials = Depends(s
         HTTPException 401: If refresh token is invalid or expired
     """
     from app.core.security_local import verify_token
-    from app.core.logging import logger
 
     if not credentials:
         raise HTTPException(status_code=401, detail="Missing refresh token")
@@ -427,7 +423,6 @@ def refresh_token_endpoint(credentials: HTTPAuthorizationCredentials = Depends(s
         # Get user role
         user_role = user.UserRole or "User"
         if user.role_template_id:
-            from app.models.role_template import RoleTemplate
             rt = db.query(RoleTemplate).filter(RoleTemplate.id == user.role_template_id).first()
             if rt:
                 user_role = rt.name

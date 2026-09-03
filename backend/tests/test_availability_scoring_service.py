@@ -34,7 +34,6 @@ from app.models.user import Jobs, Users
 
 import app.services.availability_scoring_service as svc
 
-
 @pytest.fixture()
 def db_session():
     fd, db_path = tempfile.mkstemp(suffix=".sqlite3")
@@ -53,7 +52,6 @@ def db_session():
         engine.dispose()
         os.remove(db_path)
 
-
 @pytest.fixture()
 def seeded(db_session):
     owner = Users(UserID="U-ORG", UserRole="Super User", UserEmail="ceo@blitzenx.com", UserPassword="h")
@@ -63,7 +61,6 @@ def seeded(db_session):
     db_session.commit()
     return candidate, job
 
-
 def _kolkata_today():
     """Matches the service's own _local_today("Asia/Kolkata") exactly --
     candidate.timezone defaults to Asia/Kolkata, and using plain
@@ -72,11 +69,9 @@ def _kolkata_today():
     date differ near a day boundary."""
     return datetime.now(dt_timezone.utc).astimezone(ZoneInfo("Asia/Kolkata")).date()
 
-
 def _set_notice(db_session, raw_value):
     db_session.add(CandidateMemoryFact(tenant_id="U-ORG", candidate_id="C-1", fact_category="AVAILABILITY", fact_key="notice_period_days", fact_value=raw_value, confidence=0.9))
     db_session.commit()
-
 
 # ── TC-001/TC-002: IMMEDIATE urgency ────────────────────────────────
 
@@ -89,7 +84,6 @@ def test_immediate_zero_notice_scores_100(db_session, seeded):
     result = svc.calculate_availability_score(db_session, "C-1", "J-1", "U-ORG")
     assert result["availability_score"] == 100
 
-
 def test_immediate_sixty_days_notice_scores_30(db_session, seeded):
     """TC-002: resolves the 31-60/60+ boundary ambiguity -- 60 itself
     falls in the inclusive 31-60 bucket (30), not the '60+' bucket."""
@@ -101,7 +95,6 @@ def test_immediate_sixty_days_notice_scores_30(db_session, seeded):
     result = svc.calculate_availability_score(db_session, "C-1", "J-1", "U-ORG")
     assert result["availability_score"] == 30
 
-
 def test_immediate_sixty_one_days_notice_scores_10(db_session, seeded):
     candidate, job = seeded
     job.urgency = "IMMEDIATE"
@@ -109,7 +102,6 @@ def test_immediate_sixty_one_days_notice_scores_10(db_session, seeded):
     _set_notice(db_session, "61 days")
     result = svc.calculate_availability_score(db_session, "C-1", "J-1", "U-ORG")
     assert result["availability_score"] == 10
-
 
 def test_immediate_boundary_tiers(db_session, seeded):
     candidate, job = seeded
@@ -122,7 +114,6 @@ def test_immediate_boundary_tiers(db_session, seeded):
         result = svc.calculate_availability_score(db_session, "C-1", "J-1", "U-ORG")
         assert result["availability_score"] == expected, f"notice={notice}"
 
-
 # ── TC-003: NORMAL urgency ───────────────────────────────────────────
 
 def test_normal_thirty_days_notice_scores_100(db_session, seeded):
@@ -134,7 +125,6 @@ def test_normal_thirty_days_notice_scores_100(db_session, seeded):
     result = svc.calculate_availability_score(db_session, "C-1", "J-1", "U-ORG")
     assert result["availability_score"] == 100
 
-
 def test_normal_boundary_tiers(db_session, seeded):
     candidate, job = seeded
     job.urgency = "NORMAL"
@@ -145,7 +135,6 @@ def test_normal_boundary_tiers(db_session, seeded):
         _set_notice(db_session, f"{notice} days")
         result = svc.calculate_availability_score(db_session, "C-1", "J-1", "U-ORG")
         assert result["availability_score"] == expected, f"notice={notice}"
-
 
 # ── HIGH urgency (narrated, no direct AC/TC, still built per formula) ──
 
@@ -160,7 +149,6 @@ def test_high_boundary_tiers(db_session, seeded):
         result = svc.calculate_availability_score(db_session, "C-1", "J-1", "U-ORG")
         assert result["availability_score"] == expected, f"notice={notice}"
 
-
 # ── BR-02: FLEXIBLE never reaches 100, even at 0 notice ──────────────
 
 def test_flexible_zero_notice_scores_90_not_100(db_session, seeded):
@@ -172,7 +160,6 @@ def test_flexible_zero_notice_scores_90_not_100(db_session, seeded):
     result = svc.calculate_availability_score(db_session, "C-1", "J-1", "U-ORG")
     assert result["availability_score"] == 90
 
-
 def test_flexible_long_notice_still_scores_90(db_session, seeded):
     candidate, job = seeded
     job.urgency = "FLEXIBLE"
@@ -181,7 +168,6 @@ def test_flexible_long_notice_still_scores_90(db_session, seeded):
 
     result = svc.calculate_availability_score(db_session, "C-1", "J-1", "U-ORG")
     assert result["availability_score"] == 90
-
 
 # ── start_date branch (narrated, no direct AC/TC, still built per formula) ──
 
@@ -195,7 +181,6 @@ def test_start_date_within_notice_scores_100(db_session, seeded):
     assert result["availability_score"] == 100
     assert result["score_breakdown"]["branch"] == "start_date"
 
-
 def test_start_date_over_by_boundary_tiers(db_session, seeded):
     candidate, job = seeded
     job.startDate = _kolkata_today() + timedelta(days=10)  # days_until_start = 10
@@ -207,7 +192,6 @@ def test_start_date_over_by_boundary_tiers(db_session, seeded):
         _set_notice(db_session, f"{notice} days")
         result = svc.calculate_availability_score(db_session, "C-1", "J-1", "U-ORG")
         assert result["availability_score"] == expected, f"notice={notice}"
-
 
 def test_start_date_takes_priority_over_urgency(db_session, seeded):
     """Step 1: required_start_date branch is used when set, urgency is
@@ -222,7 +206,6 @@ def test_start_date_takes_priority_over_urgency(db_session, seeded):
     assert result["availability_score"] == 100
     assert result["score_breakdown"]["branch"] == "start_date"
 
-
 # ── TC-004 / BR-01: null notice period -> neutral 50 ────────────────
 
 def test_null_notice_period_scores_50_neutral(db_session, seeded):
@@ -231,7 +214,6 @@ def test_null_notice_period_scores_50_neutral(db_session, seeded):
     db_session.commit()
     result = svc.calculate_availability_score(db_session, "C-1", "J-1", "U-ORG")
     assert result["availability_score"] == 50
-
 
 def test_unparseable_notice_period_scores_50_neutral(db_session, seeded):
     candidate, job = seeded
@@ -242,7 +224,6 @@ def test_unparseable_notice_period_scores_50_neutral(db_session, seeded):
     result = svc.calculate_availability_score(db_session, "C-1", "J-1", "U-ORG")
     assert result["availability_score"] == 50
 
-
 def test_no_start_date_and_no_urgency_scores_50_neutral(db_session, seeded):
     """No documented AC/TC for this case -- implemented as 'no
     comparison point available', same posture as S-038's no-budget-set case."""
@@ -251,7 +232,6 @@ def test_no_start_date_and_no_urgency_scores_50_neutral(db_session, seeded):
     result = svc.calculate_availability_score(db_session, "C-1", "J-1", "U-ORG")
     assert result["availability_score"] == 50
     assert result["score_breakdown"]["branch"] == "no_comparison_point"
-
 
 # ── score stored with breakdown ─────────────────────────────────────
 
@@ -268,7 +248,6 @@ def test_score_stored_with_breakdown(db_session, seeded):
     assert row.availability_score == 100
     assert row.score_breakdown["notice_period_days"] == 30
     assert row.score_breakdown["urgency_used"] == "NORMAL"
-
 
 # ── score_breakdown merge (not overwrite) with the other 2 scoring services ─
 
@@ -291,7 +270,6 @@ def test_score_breakdown_merges_with_existing_technical_and_compensation_data(db
     assert result["score_breakdown"]["expected_ctc_paise"] == 1800000  # preserved
     assert result["score_breakdown"]["notice_period_days"] == 30  # this service's own key added
 
-
 def test_availability_rescore_does_not_erase_other_scores_data(db_session, seeded):
     """The reverse direction -- an availability rescore must not wipe
     out technical/compensation keys either."""
@@ -309,7 +287,6 @@ def test_availability_rescore_does_not_erase_other_scores_data(db_session, seede
     assert "skill_match_pct" in row.score_breakdown
     assert "notice_period_days" in row.score_breakdown
 
-
 # ── recalculate_for_candidate() ─────────────────────────────────────
 
 def test_recalculate_for_candidate_scores_linked_job(db_session, seeded):
@@ -323,7 +300,6 @@ def test_recalculate_for_candidate_scores_linked_job(db_session, seeded):
     assert len(results) == 1
     assert results[0]["availability_score"] == 100
 
-
 def test_recalculate_for_candidate_never_raises(db_session, seeded, monkeypatch):
     candidate, job = seeded
     candidate.job_id = "J-1"
@@ -336,11 +312,9 @@ def test_recalculate_for_candidate_never_raises(db_session, seeded, monkeypatch)
     results = svc.recalculate_for_candidate(db_session, candidate, "U-ORG")
     assert results == []
 
-
 def test_unknown_candidate_raises(db_session, seeded):
     with pytest.raises(svc.CandidateNotFound):
         svc.calculate_availability_score(db_session, "NOPE", "J-1", "U-ORG")
-
 
 def test_unknown_job_raises(db_session, seeded):
     with pytest.raises(svc.JobNotFound):

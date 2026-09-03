@@ -23,7 +23,6 @@ class ThunderSessionStatus(str, PyEnum):
     ABANDONED = "ABANDONED"  # Left without submitting
     ERROR = "ERROR"  # Session hit critical error
 
-
 class ThunderSession(Base):
     """
     Manages candidate intake sessions via Questia chatbot.

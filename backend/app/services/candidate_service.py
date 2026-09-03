@@ -46,7 +46,6 @@ class DuplicateCandidateError(Exception):
         self.matched_on = matched_on
         super().__init__(f"Candidate matched existing record (on {matched_on}): {existing.candidateID}")
 
-
 def find_duplicate_candidate(
     db: Session, *, email: Optional[str] = None, mobile: Optional[str] = None,
     linkedin_url: Optional[str] = None,
@@ -73,7 +72,6 @@ def find_duplicate_candidate(
             return hit, "linkedin"
 
     return None, None
-
 
 def create_candidate_safe(
     db: Session,
@@ -137,7 +135,6 @@ def create_candidate_safe(
 
     return candidate, True  # Return (candidate, is_new=True) for new candidates
 
-
 # ---------------------------------------------------------------------------
 # R-01 (HRMS-P601) -- 5-year experience floor.
 #
@@ -155,7 +152,6 @@ def create_candidate_safe(
 # ---------------------------------------------------------------------------
 
 _EXPERIENCE_YEARS_PATTERN = re.compile(r"(\d+(?:\.\d+)?)")
-
 
 def parse_experience_to_months(raw: Optional[str]) -> Optional[int]:
     """

@@ -14,7 +14,6 @@ class IncentiveRuleCreateRequest(BaseModel):
     revenue_share_pct: Optional[float] = None
     trigger_description: Optional[str] = None
 
-
 class IncentiveRuleItem(BaseModel):
     id: str
     partner_user_id: str
@@ -26,7 +25,6 @@ class IncentiveRuleItem(BaseModel):
 
     class Config:
         from_attributes = True
-
 
 class IncentiveEventItem(BaseModel):
     id: str
@@ -43,10 +41,8 @@ class IncentiveEventItem(BaseModel):
     class Config:
         from_attributes = True
 
-
 class IncentiveEventListResponse(BaseModel):
     events: list[IncentiveEventItem]
-
 
 class RevenueShareCalculationResponse(BaseModel):
     event: Optional[IncentiveEventItem]

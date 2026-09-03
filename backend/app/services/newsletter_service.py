@@ -17,7 +17,6 @@ from app.core.logging import logger
 from app.core.scheduler import add_job, remove_job
 from app.utils.uniq_id_generator import newsletter_id_generator
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -25,7 +24,6 @@ from app.utils.uniq_id_generator import newsletter_id_generator
 def _now_utc() -> datetime:
     """Return current UTC time as a naive datetime (compatible with SQL Server DATETIME)."""
     return datetime.utcnow()
-
 
 def _send_via_graph(access_token: str, to_email: str, subject: str, body_html: str) -> None:
     """
@@ -54,7 +52,6 @@ def _send_via_graph(access_token: str, to_email: str, subject: str, body_html: s
         timeout=15,
     )
     response.raise_for_status()
-
 
 # ---------------------------------------------------------------------------
 # NewsletterService
@@ -369,7 +366,7 @@ class NewsletterService:
         instead of falsely marking 'sent' -- same principle as the
         LinkedIn mock fix: no fake success, ever.
         """
-        from app.core.database import SessionLocal  # late import to avoid circular deps
+from app.core.database import to avoid circular deps
 
         db: Session = SessionLocal()
         try:

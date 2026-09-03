@@ -39,9 +39,7 @@ from app.schemas.interview import (
     HMCandidateReviewListResponse,
 )
 
-
 router = APIRouter(prefix="/preonboarding", tags=["pre-onboarding"])
-
 
 # ---------------------------------------------------------------------------
 # Internal Helpers (copied from candidate_status.py / interviews.py)
@@ -55,7 +53,6 @@ def _candidate_display_name(candidate: Candidate) -> str:
         candidate.candidateLastName or "",
     ]
     return " ".join(filter(None, parts)).strip() or "N/A"
-
 
 def _build_status_response(candidate: Candidate, cs: Optional[CandidateStatus]) -> CandidateStatusResponse:
     name_parts = [
@@ -73,7 +70,6 @@ def _build_status_response(candidate: Candidate, cs: Optional[CandidateStatus]) 
         pipeline_status=cs.piplineStatus if cs else None,
         updated_at=cs.updatedAt if cs else None,
     )
-
 
 def _assign_preboarding_checklist(
     candidate: Candidate,
@@ -206,7 +202,6 @@ def _assign_preboarding_checklist(
         f"to candidate '{candidate.candidateID}'."
     )
 
-
 def _send_approval_notifications(
     candidate: Candidate,
     cs: CandidateStatus,
@@ -306,7 +301,6 @@ def _send_approval_notifications(
         except Exception as exc:
             logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.warning(f"[Approval] Could not email recruiter: {exc}")
-
 
 # ---------------------------------------------------------------------------
 # Routes
@@ -521,8 +515,6 @@ def get_hm_candidate_review(
         total_candidates=len(results),
         candidates=results,
     )
-
-
 
 @router.post(
     "/{candidate_id}/hiring-manager-approval",

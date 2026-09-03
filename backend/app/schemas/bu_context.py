@@ -14,11 +14,9 @@ class BUAccessItem(BaseModel):
     region: Optional[str] = None
     is_default: bool
 
-
 class MyBUAccessResponse(BaseModel):
     access: List[BUAccessItem]
     can_view_all_bus: bool
-
 
 class SwitchBURequest(BaseModel):
     business_unit_id: int

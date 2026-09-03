@@ -29,7 +29,6 @@ router = APIRouter(
 
 decision_service = InterviewDecisionService()
 
-
 @router.post(
     "/status",
     dependencies=[Depends(require_resource_permission("interview", "manage"))],
@@ -74,7 +73,6 @@ async def get_interview_status(
             detail=f"Failed to get interview status: {str(e)}"
         )
 
-
 @router.post(
     "/calculate-decision",
     dependencies=[Depends(require_resource_permission("interview", "manage"))],
@@ -110,7 +108,6 @@ async def calculate_panel_decision(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to calculate panel decision: {str(e)}"
         )
-
 
 @router.post(
     "/move-to-offer",
@@ -167,7 +164,6 @@ async def move_to_offer(
             detail=f"Failed to create offer: {str(e)}"
         )
 
-
 @router.post(
     "/reject-candidate",
     dependencies=[Depends(require_resource_permission("interview", "manage"))],
@@ -215,7 +211,6 @@ async def reject_candidate(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to reject candidate: {str(e)}"
         )
-
 
 # ────────────────────────────────────────────────────────────────────────────
 # Health Check Endpoint

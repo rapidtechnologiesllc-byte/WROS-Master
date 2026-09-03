@@ -283,7 +283,6 @@ class CodeGateValidator:
         print("This code will NOT be merged until these are addressed.")
         print("Fix the issues, stage the file again, and try committing.\n")
 
-
 def get_staged_files():
     """Get list of staged files from git."""
     import subprocess
@@ -296,7 +295,6 @@ def get_staged_files():
         return [f for f in result.stdout.strip().split('\n') if f]
     except:
         return []
-
 
 def main():
     """Validate all staged files."""
@@ -332,7 +330,6 @@ def main():
     else:
         print("REJECT COMMIT BLOCKED - Fix issues and stage again\n")
         return 1
-
 
 if __name__ == '__main__':
     sys.exit(main())

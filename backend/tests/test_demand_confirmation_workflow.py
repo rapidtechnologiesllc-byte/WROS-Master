@@ -33,7 +33,6 @@ from app.services.demand_confirmation_service import (
     trigger_specialty_client_release,
 )
 
-
 @pytest.fixture()
 def db_session():
     fd, db_path = tempfile.mkstemp(suffix=".sqlite3")
@@ -52,7 +51,6 @@ def db_session():
         session.close()
         engine.dispose()
         os.remove(db_path)
-
 
 @pytest.fixture()
 def fixtures(db_session):
@@ -81,7 +79,6 @@ def fixtures(db_session):
 
     return tenant, client, demand, employee
 
-
 # ---------------------------------------------------------------------------
 # confirm_demand_with_sow -- AC-6
 # ---------------------------------------------------------------------------
@@ -91,12 +88,10 @@ def test_confirm_demand_requires_sow_reference(db_session, fixtures):
     with pytest.raises(SOWReferenceRequired):
         confirm_demand_with_sow(db_session, demand, sow_reference="")
 
-
 def test_confirm_demand_requires_non_whitespace_sow_reference(db_session, fixtures):
     tenant, client, demand, employee = fixtures
     with pytest.raises(SOWReferenceRequired):
         confirm_demand_with_sow(db_session, demand, sow_reference="   ")
-
 
 def test_confirm_demand_sets_confirmed_status(db_session, fixtures):
     tenant, client, demand, employee = fixtures
@@ -109,12 +104,10 @@ def test_confirm_demand_sets_confirmed_status(db_session, fixtures):
     assert demand.sow_reference == "SOW-2026-001"
     assert demand.sow_received_date == date(2026, 7, 1)
 
-
 def test_confirm_demand_defaults_sow_date_to_today(db_session, fixtures):
     tenant, client, demand, employee = fixtures
     confirm_demand_with_sow(db_session, demand, sow_reference="SOW-2026-002")
     assert demand.sow_received_date == date.today()
-
 
 # ---------------------------------------------------------------------------
 # schedule_alignment_call -- AC-3
@@ -133,7 +126,6 @@ def test_schedule_alignment_call_uses_injected_scheduler(db_session, fixtures):
     assert call.curtis_user_id == "U-CURTIS"
     assert call.bu_head_user_id == "U-BUHEAD"
 
-
 def test_schedule_alignment_call_defaults_to_same_day_without_scheduler(db_session, fixtures):
     tenant, client, demand, employee = fixtures
     before = datetime.utcnow()
@@ -141,7 +133,6 @@ def test_schedule_alignment_call_defaults_to_same_day_without_scheduler(db_sessi
     after = datetime.utcnow()
 
     assert before <= call.scheduled_at <= after
-
 
 def test_schedule_alignment_call_is_idempotent(db_session, fixtures):
     tenant, client, demand, employee = fixtures
@@ -151,7 +142,6 @@ def test_schedule_alignment_call_is_idempotent(db_session, fixtures):
 
     assert first.id == second.id
     assert db_session.query(DemandAlignmentCall).count() == 1
-
 
 # ---------------------------------------------------------------------------
 # confirm_fit -- AC-4/AC-5 + employee decision is final
@@ -163,7 +153,6 @@ def test_confirm_fit_rejects_invalid_participant(db_session, fixtures):
     with pytest.raises(InvalidParticipant):
         confirm_fit(db_session, call, participant="RECRUITER", confirmed=True)
 
-
 def test_confirm_fit_records_employee_confirmation(db_session, fixtures):
     tenant, client, demand, employee = fixtures
     call = schedule_alignment_call(db_session, demand, employee)
@@ -174,7 +163,6 @@ def test_confirm_fit_records_employee_confirmation(db_session, fixtures):
     assert call.employee_fit_confirmed_at is not None
     assert call.employee_fit_notes == "Excited about this"
 
-
 def test_confirm_fit_records_employee_decline_without_penalty(db_session, fixtures):
     """An employee saying no is a legitimate, recorded outcome -- not an error."""
     tenant, client, demand, employee = fixtures
@@ -182,7 +170,6 @@ def test_confirm_fit_records_employee_decline_without_penalty(db_session, fixtur
 
     result = confirm_fit(db_session, call, participant="EMPLOYEE", confirmed=False, notes="Not interested right now")
     assert result.employee_fit_confirmed is False
-
 
 def test_confirm_fit_cannot_be_overridden_once_recorded(db_session, fixtures):
     tenant, client, demand, employee = fixtures
@@ -192,7 +179,6 @@ def test_confirm_fit_cannot_be_overridden_once_recorded(db_session, fixtures):
 
     with pytest.raises(FitConfirmationAlreadyRecorded):
         confirm_fit(db_session, call, participant="EMPLOYEE", confirmed=True)
-
 
 def test_bu_head_and_employee_confirmations_are_independent(db_session, fixtures):
     tenant, client, demand, employee = fixtures
@@ -204,7 +190,6 @@ def test_bu_head_and_employee_confirmations_are_independent(db_session, fixtures
     confirm_fit(db_session, call, participant="EMPLOYEE", confirmed=True)
     assert call.bu_head_fit_confirmed is True
     assert call.employee_fit_confirmed is True
-
 
 # ---------------------------------------------------------------------------
 # trigger_specialty_client_release -- the hard sequence gate
@@ -219,7 +204,6 @@ def test_release_blocked_when_demand_not_confirmed(db_session, fixtures):
     with pytest.raises(SpecialtyClientReleaseNotAllowed):
         trigger_specialty_client_release(db_session, call, demand)
 
-
 def test_release_blocked_without_both_fit_confirmations(db_session, fixtures):
     tenant, client, demand, employee = fixtures
     confirm_demand_with_sow(db_session, demand, sow_reference="SOW-2026-003")
@@ -230,7 +214,6 @@ def test_release_blocked_without_both_fit_confirmations(db_session, fixtures):
     with pytest.raises(SpecialtyClientReleaseNotAllowed):
         trigger_specialty_client_release(db_session, call, demand)
 
-
 def test_release_blocked_when_employee_declined(db_session, fixtures):
     tenant, client, demand, employee = fixtures
     confirm_demand_with_sow(db_session, demand, sow_reference="SOW-2026-004")
@@ -240,7 +223,6 @@ def test_release_blocked_when_employee_declined(db_session, fixtures):
 
     with pytest.raises(SpecialtyClientReleaseNotAllowed):
         trigger_specialty_client_release(db_session, call, demand)
-
 
 def test_release_succeeds_once_full_sequence_complete(db_session, fixtures):
     tenant, client, demand, employee = fixtures
@@ -253,7 +235,6 @@ def test_release_succeeds_once_full_sequence_complete(db_session, fixtures):
     result = trigger_specialty_client_release(db_session, call, demand)
 
     assert result.specialty_client_release_triggered_at is not None
-
 
 def test_release_notifies_speciality_rm_not_client_directly(db_session, fixtures):
     tenant, client, demand, employee = fixtures

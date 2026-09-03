@@ -23,7 +23,6 @@ from fastapi import Request
 
 router = APIRouter(prefix="/admin/agents/config", tags=["agent-config"])
 
-
 # === Pydantic Models ===
 logger = logging.getLogger(__name__)
 
@@ -50,7 +49,6 @@ class AgentConfigRequest(BaseModel):
             }
         }
 
-
 class AgentConfigResponse(BaseModel):
     """Response schema for agent configs."""
     id: str
@@ -64,7 +62,6 @@ class AgentConfigResponse(BaseModel):
 
     class Config:
         from_attributes = True
-
 
 # === Endpoints ===
 
@@ -92,7 +89,6 @@ async def list_agents(
         logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Error listing agents: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
-
 
 @router.post(
     "",
@@ -140,7 +136,6 @@ async def create_agent(
         logger.error(f"Error creating agent: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
 
-
 @router.put(
     "/{agent_id}",
     dependencies=[Depends(require_resource_permission("agents", "manage"))],
@@ -187,7 +182,6 @@ async def update_agent(
         logger.error(f"Error updating agent: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
 
-
 @router.delete(
     "/{agent_id}",
     dependencies=[Depends(require_resource_permission("agents", "manage"))],
@@ -217,7 +211,6 @@ async def delete_agent(
         logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Error deleting agent: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
-
 
 @router.get(
     "/pipeline/order",

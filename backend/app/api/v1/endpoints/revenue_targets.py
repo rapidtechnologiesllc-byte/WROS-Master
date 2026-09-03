@@ -31,7 +31,6 @@ from app.services.revenue_target_service import (
 
 router = APIRouter(tags=["revenue-targets"])
 
-
 @router.post(
     "/revenue-targets/bu",
     response_model=BUTargetVsActualResponse,
@@ -53,7 +52,6 @@ def create_bu_target(
         raise HTTPException(status_code=400, detail=str(exc))
     return get_bu_target_vs_actual(db, body.business_unit_id, body.target_period, body.fiscal_year)
 
-
 @router.get(
     "/revenue-targets/bu/{business_unit_id}",
     response_model=BUTargetVsActualResponse,
@@ -67,7 +65,6 @@ def get_bu_target(
     current_user: Users = Depends(require_resource_permission("revenue", "view")),
 ):
     return get_bu_target_vs_actual(db, business_unit_id, target_period, fiscal_year)
-
 
 @router.post(
     "/revenue-targets/partner-goals",
@@ -89,7 +86,6 @@ def create_partner_goal(
     except RevenueTargetValidationError as exc:
         raise HTTPException(status_code=403, detail=str(exc))
 
-
 @router.get(
     "/revenue-targets/partners/{partner_user_id}/position",
     response_model=PartnerMultiYearPositionResponse,
@@ -102,7 +98,6 @@ def get_partner_position(
 ):
     return get_partner_multi_year_position(db, partner_user_id)
 
-
 @router.get(
     "/revenue-targets/dashboard",
     response_model=ExecutiveRevenueDashboardResponse,
@@ -114,7 +109,6 @@ def executive_dashboard(
 ):
     client_ids = get_revenue_scoped_client_ids(db, current_user)
     return get_executive_revenue_dashboard(db, client_ids=list(client_ids) if client_ids is not None else None)
-
 
 @router.get(
     "/revenue-targets/pipeline-coverage",

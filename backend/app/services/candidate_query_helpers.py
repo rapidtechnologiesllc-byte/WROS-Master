@@ -21,7 +21,6 @@ from app.services.candidate_isolation_service import CandidateIsolationService
 from app.services.permission_helper import PermissionHelper
 from app.core.logging import logger
 
-
 def get_candidates_for_user(
     db: Session,
     user_id: str,
@@ -81,7 +80,6 @@ def get_candidates_for_user(
 
     return base_query.all()
 
-
 def get_candidate_by_id(
     db: Session,
     candidate_id: str,
@@ -115,7 +113,6 @@ def get_candidate_by_id(
 
     return None
 
-
 def count_candidates_for_user(
     db: Session,
     user_id: str,
@@ -135,7 +132,6 @@ def count_candidates_for_user(
     """
     candidates = get_candidates_for_user(db, user_id, tenant_id, status=status)
     return len(candidates)
-
 
 def get_candidates_by_bu(
     db: Session,
@@ -170,7 +166,6 @@ def get_candidates_by_bu(
         Candidate.associated_bu_id == bu_id,
         Candidate.tenant_id == tenant_id
     ).all()
-
 
 def submit_candidates_to_bu(
     db: Session,

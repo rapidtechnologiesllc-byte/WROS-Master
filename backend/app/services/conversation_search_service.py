@@ -43,7 +43,6 @@ logger = logging.getLogger(__name__)
 class SearchTermTooShort(Exception):
     pass
 
-
 def _snippet(body: str, query: str) -> str:
     if not body:
         return ""
@@ -54,7 +53,6 @@ def _snippet(body: str, query: str) -> str:
         return body[:SNIPPET_LENGTH]
     start = max(0, idx - 40)
     return body[start:start + SNIPPET_LENGTH]
-
 
 def search_conversations(
     db: Session, tenant_id: str, q: str, *,

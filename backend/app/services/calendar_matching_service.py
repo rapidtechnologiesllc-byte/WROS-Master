@@ -145,7 +145,6 @@ NO_MATCH_MESSAGE = (
 
 GraphCall = Callable[[str, datetime, datetime], List[Tuple[datetime, datetime]]]
 
-
 def _resolve_active_submission(db: Session, candidate_id: str) -> Optional[Submission]:
     """See module docstring's submission-resolution note -- a real,
     flagged simplification, not a guaranteed-correct answer for a
@@ -161,7 +160,6 @@ def _resolve_active_submission(db: Session, candidate_id: str) -> Optional[Submi
             return submission
     return None
 
-
 def _unconfirmed_slots(db: Session, candidate_id: str, tenant_id: str) -> List[CandidateAvailabilitySlot]:
     return (
         db.query(CandidateAvailabilitySlot)
@@ -170,13 +168,11 @@ def _unconfirmed_slots(db: Session, candidate_id: str, tenant_id: str) -> List[C
         .all()
     )
 
-
 def _slot_to_utc_range(slot: CandidateAvailabilitySlot) -> Tuple[datetime, datetime]:
     tz = ZoneInfo(slot.timezone)
     start_local = datetime.combine(slot.slot_date, slot.slot_start_time, tzinfo=tz)
     end_local = datetime.combine(slot.slot_date, slot.slot_end_time, tzinfo=tz)
     return start_local.astimezone(dt_timezone.utc), end_local.astimezone(dt_timezone.utc)
-
 
 def _business_hour_windows_utc(start_date: date_cls, end_date: date_cls, tz_name: str) -> List[Tuple[datetime, datetime]]:
     """Step 1 -- one window per non-weekend interviewer-local day.
@@ -193,7 +189,6 @@ def _business_hour_windows_utc(start_date: date_cls, end_date: date_cls, tz_name
             windows.append((start_local.astimezone(dt_timezone.utc), end_local.astimezone(dt_timezone.utc)))
         d += timedelta(days=1)
     return windows
-
 
 def invert_busy_to_free(
     busy_events_utc: List[Tuple[datetime, datetime]], window_start_utc: datetime, window_end_utc: datetime,
@@ -215,7 +210,6 @@ def invert_busy_to_free(
         free.append((cursor, window_end_utc))
     return [period for period in free if period[0] < period[1]]
 
-
 def find_matching_slot(
     candidate_slots: List[CandidateAvailabilitySlot], free_periods_utc: List[Tuple[datetime, datetime]], duration_minutes: int,
 ) -> Tuple[Optional[datetime], Optional[CandidateAvailabilitySlot]]:
@@ -230,7 +224,6 @@ def find_matching_slot(
             if match_end <= min(slot_end_utc, free_end):
                 return match_start, slot
     return None, None
-
 
 def _default_graph_call(interviewer_email: str, window_start_utc: datetime, window_end_utc: datetime) -> List[Tuple[datetime, datetime]]:
     import requests
@@ -252,7 +245,6 @@ def _default_graph_call(interviewer_email: str, window_start_utc: datetime, wind
         busy.append((start, end))
     return busy
 
-
 def get_interviewer_busy_events(
     interviewer_email: str, window_start_utc: datetime, window_end_utc: datetime, *, graph_call: Optional[GraphCall] = None,
 ) -> List[Tuple[datetime, datetime]]:
@@ -261,13 +253,11 @@ def get_interviewer_busy_events(
     call = graph_call or _default_graph_call
     return call(interviewer_email, window_start_utc, window_end_utc)
 
-
 def _resolve_interviewer_user(db: Session, panel) -> Optional[Users]:
     employee = db.query(Employee).filter(Employee.id == panel.employee_id).first()
     if employee is None or not employee.wros_user_id:
         return None
     return db.query(Users).filter(Users.UserID == employee.wros_user_id).first()
-
 
 def _notify_recruiter(db: Session, submission: Submission, message: str) -> None:
     if not submission.submitted_by_user_id:
@@ -283,7 +273,6 @@ def _notify_recruiter(db: Session, submission: Submission, message: str) -> None
     except Exception as exc:
         logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[CalendarMatching] Failed to notify recruiter for submission {submission.id!r}: {exc}")
-
 
 def attempt_calendar_match(
     db: Session, candidate: Candidate, conversation: CandidateConversation, tenant_id: str,

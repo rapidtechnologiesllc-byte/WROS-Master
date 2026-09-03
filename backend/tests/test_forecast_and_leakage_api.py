@@ -29,7 +29,6 @@ from app.models.user import Users
 from app.services.rbac_service_template import RBACService
 import app.models  # noqa: F401
 
-
 @pytest.fixture()
 def throwaway_jwt_keys(monkeypatch):
     key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
@@ -44,7 +43,6 @@ def throwaway_jwt_keys(monkeypatch):
     ).decode()
     monkeypatch.setattr(security, "PRIVATE_KEY", private_pem)
     monkeypatch.setattr(security, "PUBLIC_KEY", public_pem)
-
 
 @pytest.fixture()
 def client(throwaway_jwt_keys):
@@ -111,22 +109,17 @@ def client(throwaway_jwt_keys):
         engine.dispose()
         os.remove(db_path)
 
-
 def _token_for(email):
     return security.create_access_token(data={"sub": email, "type": "internal", "name": email})
-
 
 def _troy_auth():
     return {"Authorization": f"Bearer {_token_for('troy@blitzenx.com')}"}
 
-
 def _avinash_auth():
     return {"Authorization": f"Bearer {_token_for('avinash@blitzenx.com')}"}
 
-
 def _hr_auth():
     return {"Authorization": f"Bearer {_token_for('hr@blitzenx.com')}"}
-
 
 def test_forecast_vs_actual_combines_won_opportunity_and_invoice(client):
     ids = client.wros_ids
@@ -159,7 +152,6 @@ def test_forecast_vs_actual_combines_won_opportunity_and_invoice(client):
     assert body["forecast_usd_cents"] == 500_000
     assert body["variance_usd_cents"] == -200_000
 
-
 def test_stalled_opportunity_scan_flags_stale_pipeline(client):
     ids = client.wros_ids
     db = client.SessionLocal()
@@ -178,7 +170,6 @@ def test_stalled_opportunity_scan_flags_stale_pipeline(client):
     stalled_flags = [f for f in body["flags"] if f["pattern_type"] == "STALLED_OPPORTUNITY"]
     assert len(stalled_flags) == 1
     assert stalled_flags[0]["estimated_impact_usd_cents"] == 200_000
-
 
 def test_unfilled_demand_scan_flags_past_due_demand(client):
     ids = client.wros_ids
@@ -202,7 +193,6 @@ def test_unfilled_demand_scan_flags_past_due_demand(client):
     # 2 of 3 positions open -> 2/3 of the revenue potential
     assert unfilled_flags[0]["estimated_impact_usd_cents"] == round(900_000 * 2 / 3)
 
-
 def test_rescan_does_not_duplicate_flags(client):
     ids = client.wros_ids
     db = client.SessionLocal()
@@ -219,14 +209,12 @@ def test_rescan_does_not_duplicate_flags(client):
     stalled_flags = [f for f in resp.json()["flags"] if f["pattern_type"] == "STALLED_OPPORTUNITY"]
     assert len(stalled_flags) == 1
 
-
 def test_hr_manager_cannot_scan_leakage_no_pnl_access(client):
     """Avinash's explicit access spec: 'finance & HR manager (no actual
     p&l)' -- HR Manager has revenue.view but not revenue.view_pnl, and
     leakage detail is gated at the P&L tier."""
     resp = client.post("/revenue-leakage/scan", headers=_hr_auth())
     assert resp.status_code == 403
-
 
 def test_resolve_leakage_flag(client):
     ids = client.wros_ids

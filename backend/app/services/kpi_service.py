@@ -144,7 +144,6 @@ class KPIService:
     def _get_offer_acceptance_rate(db: Session, period: str) -> Dict[str, Any]:
         """Get recruitment KPI: offer acceptance rate"""
         try:
-            from app.models.candidate import Candidate
 
             start_date = KPIService._get_period_start(period)
             total_offers = db.query(Candidate).filter(
@@ -311,7 +310,6 @@ class KPIService:
     def _get_revenue_recognition_rate(db: Session, period: str) -> Dict[str, Any]:
         """Get finance KPI: revenue recognition rate"""
         try:
-            from app.models.invoice import Invoice
             from app.models.revenue_recognition import RevenueRecognition
 
             start_date = KPIService._get_period_start(period)

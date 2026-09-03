@@ -40,13 +40,11 @@ from app.services.client_service import (
 
 router = APIRouter(prefix="/clients", tags=["clients"])
 
-
 def _bu_name_map(db: Session, bu_ids) -> dict:
     ids = {i for i in bu_ids if i is not None}
     if not ids:
         return {}
     return {b.id: b.name for b in db.query(BusinessUnit).filter(BusinessUnit.id.in_(ids)).all()}
-
 
 def _employee_name_map(db: Session, employee_ids) -> dict:
     ids = {i for i in employee_ids if i is not None}
@@ -56,7 +54,6 @@ def _employee_name_map(db: Session, employee_ids) -> dict:
         e.id: f"{e.first_name} {e.last_name}".strip()
         for e in db.query(Employee).filter(Employee.id.in_(ids)).all()
     }
-
 
 @router.get(
     "",
@@ -92,7 +89,6 @@ def list_clients(
         ]
     )
 
-
 @router.get(
     "/business-units/{business_unit_id}/assignments",
     dependencies=[Depends(require_resource_permission("business-unit", "view"))]
@@ -110,8 +106,6 @@ def get_business_unit_assignments(
     user_id is None if no matching Users row exists for that email, so
     the caller can fall back to manual assignment rather than silently
     failing."""
-    from app.models.employee import Employee
-    from app.models.business_unit import BusinessUnit
 
     bu = db.query(BusinessUnit).filter(BusinessUnit.id == business_unit_id).first()
     if bu is None:
@@ -134,7 +128,6 @@ def get_business_unit_assignments(
         "bu_head": _resolve(bu.bu_head_employee_id),
         "hr_manager": _resolve(bu.hr_manager_employee_id),
     }
-
 
 @router.post(
     "",
@@ -165,7 +158,6 @@ def create_client_endpoint(
         raise HTTPException(status_code=400, detail=str(exc))
     return client
 
-
 def _to_detail_response(db: Session, client: Client) -> ClientDetailResponse:
     bu_name = None
     if client.business_unit_id is not None:
@@ -179,7 +171,6 @@ def _to_detail_response(db: Session, client: Client) -> ClientDetailResponse:
         **{c: getattr(client, c) for c in ClientDetailResponse.__fields__ if hasattr(client, c)},
         business_unit_name=bu_name, account_manager_name=am_name,
     )
-
 
 @router.get(
     "/{client_id}",
@@ -196,7 +187,6 @@ def get_client_endpoint(
         raise HTTPException(status_code=404, detail=f"Client {client_id!r} not found.")
     return _to_detail_response(db, client)
 
-
 @router.get(
     "/{client_id}/contacts",
     response_model=ClientContactsListResponse,
@@ -212,7 +202,6 @@ def list_client_contacts_endpoint(
         raise HTTPException(status_code=404, detail=f"Client {client_id!r} not found.")
     contacts = db.query(ClientContact).filter(ClientContact.client_id == client_id).all()
     return ClientContactsListResponse(contacts=contacts)
-
 
 @router.post(
     "/{client_id}/contacts",
@@ -238,7 +227,6 @@ def add_client_contact_endpoint(
     except ClientValidationError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     return contact
-
 
 @router.patch(
     "/{client_id}",

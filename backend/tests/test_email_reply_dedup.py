@@ -34,7 +34,6 @@ from app.models.follow_up_schedule import FollowUpSchedule
 from app.models.outreach_campaign import CampaignTouchpoint, OutreachCampaign
 from app.models.user import Users
 
-
 @pytest.fixture(autouse=True)
 def _stub_pipeline(monkeypatch):
     """Keeps the conversation open across multiple calls (so dedup can
@@ -50,7 +49,6 @@ def _stub_pipeline(monkeypatch):
         svc, "run_reply_pipeline",
         lambda **kwargs: {"updated_fields": [], "skipped_fields": [], "still_missing": [{"field": "candidateGender", "label": "Gender"}]},
     )
-
 
 @pytest.fixture()
 def db_session():
@@ -71,7 +69,6 @@ def db_session():
         engine.dispose()
         os.remove(db_path)
 
-
 @pytest.fixture()
 def candidate_with_conversation(db_session):
     owner = Users(UserID="U-ORG", UserRole="Admin", UserEmail="admin@blitzenx.com", UserPassword="h")
@@ -90,7 +87,6 @@ def candidate_with_conversation(db_session):
     db_session.commit()
     return candidate, conversation
 
-
 def test_first_reply_is_logged(db_session, candidate_with_conversation):
     result = svc.process_candidate_reply(
         "C-100", db_session, raw_reply_text="I'm interested, please share more details.",
@@ -102,7 +98,6 @@ def test_first_reply_is_logged(db_session, candidate_with_conversation):
     assert len(events) == 1
     assert events[0].event_data["message_id"] == "graph-msg-001"
 
-
 def test_duplicate_message_id_is_not_logged_twice(db_session, candidate_with_conversation):
     svc.process_candidate_reply("C-100", db_session, raw_reply_text="First reply", message_id="graph-msg-DUP")
     result = svc.process_candidate_reply("C-100", db_session, raw_reply_text="First reply", message_id="graph-msg-DUP")
@@ -111,7 +106,6 @@ def test_duplicate_message_id_is_not_logged_twice(db_session, candidate_with_con
     events = db_session.query(ConversationEvent).filter(ConversationEvent.event_type == "candidate_reply").all()
     assert len(events) == 1
 
-
 def test_different_message_ids_both_logged(db_session, candidate_with_conversation):
     svc.process_candidate_reply("C-100", db_session, raw_reply_text="First", message_id="graph-msg-A")
     svc.process_candidate_reply("C-100", db_session, raw_reply_text="Second", message_id="graph-msg-B")
@@ -119,13 +113,11 @@ def test_different_message_ids_both_logged(db_session, candidate_with_conversati
     events = db_session.query(ConversationEvent).filter(ConversationEvent.event_type == "candidate_reply").all()
     assert len(events) == 2
 
-
 def test_empty_body_stores_placeholder_not_null(db_session, candidate_with_conversation):
     svc.process_candidate_reply("C-100", db_session, raw_reply_text="", message_id="graph-msg-EMPTY")
 
     event = db_session.query(ConversationEvent).filter(ConversationEvent.event_type == "candidate_reply").first()
     assert event.event_data["reply_preview"] == "[Non-text email received]"
-
 
 def test_whitespace_only_body_stores_placeholder(db_session, candidate_with_conversation):
     svc.process_candidate_reply("C-100", db_session, raw_reply_text="   \n  ", message_id="graph-msg-WS")

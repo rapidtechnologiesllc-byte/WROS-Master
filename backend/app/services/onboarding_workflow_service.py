@@ -38,7 +38,6 @@ from app.models.onboarding_workflow import (
 from app.services.notification_service import send_notification
 from app.services.email_service import EmailService
 
-
 def start_onboarding(
     db: Session,
     calling_context_tenant_id: str,
@@ -145,7 +144,6 @@ def start_onboarding(
             "workflow_id": None,
         }
 
-
 def assign_buddy(
     db: Session,
     calling_context_tenant_id: str,
@@ -245,7 +243,6 @@ def assign_buddy(
             "buddy_id": None,
         }
 
-
 def send_welcome_kit(
     db: Session,
     calling_context_tenant_id: str,
@@ -342,7 +339,6 @@ def send_welcome_kit(
             "message": f"Failed to send welcome kit: {str(exc)}",
             "kit_id": None,
         }
-
 
 def schedule_training(
     db: Session,
@@ -469,7 +465,6 @@ def schedule_training(
             "session_id": None,
         }
 
-
 # ============================================================================
 # HELPER FUNCTIONS
 # ============================================================================
@@ -542,7 +537,6 @@ def _create_default_onboarding_tasks(
     db.flush()
     return tasks
 
-
 def _notify_buddy_assignment(
     db: Session,
     buddy_user: Users,
@@ -569,7 +563,6 @@ def _notify_buddy_assignment(
         logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[OnboardingWorkflow] Failed to notify buddy: {exc}")
 
-
 def _create_buddy_introduction_task(
     db: Session,
     tenant_id: str,
@@ -595,7 +588,6 @@ def _create_buddy_introduction_task(
     except Exception as exc:
         logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[OnboardingWorkflow] Failed to create buddy task: {exc}")
-
 
 def _send_welcome_kit_by_channel(
     db: Session,
@@ -642,7 +634,6 @@ def _send_welcome_kit_by_channel(
         logger.error(f"[OnboardingWorkflow] Failed to send welcome kit: {exc}")
         return False
 
-
 def _send_training_calendar_invite(
     db: Session,
     training_session: TrainingSession,
@@ -672,7 +663,6 @@ def _send_training_calendar_invite(
     except Exception as exc:
         logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[OnboardingWorkflow] Failed to send calendar invite: {exc}")
-
 
 def _create_training_task(
     db: Session,

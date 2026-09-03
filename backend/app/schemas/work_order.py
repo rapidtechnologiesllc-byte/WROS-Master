@@ -27,7 +27,6 @@ class CreateWorkOrderRequest(BaseModel):
     invoicing_contact_email: Optional[str] = None
     invoicing_contact_name: Optional[str] = None
 
-
 class UpdateWorkOrderRequest(BaseModel):
     """Update an existing Work Order (only mutable fields)."""
     pay_rate_usd_cents: Optional[int] = Field(None, ge=0, description="Pay rate to employee in USD cents")
@@ -37,7 +36,6 @@ class UpdateWorkOrderRequest(BaseModel):
     invoicing_contact_email: Optional[str] = None
     invoicing_contact_name: Optional[str] = None
     status: Optional[str] = Field(None, pattern="^(ACTIVE|ENDED|PAUSED)$")
-
 
 class WorkOrderItem(BaseModel):
     """Work Order response item."""
@@ -59,21 +57,17 @@ class WorkOrderItem(BaseModel):
     created_at: Optional[str] = None
     updated_at: Optional[str] = None
 
-
 class WorkOrderListResponse(BaseModel):
     """List of work orders."""
     work_orders: List[WorkOrderItem]
-
 
 class EndWorkOrderRequest(BaseModel):
     """End a work order."""
     end_date: Optional[date] = None
 
-
 class PauseWorkOrderRequest(BaseModel):
     """Pause a work order."""
     pass
-
 
 class ResumeWorkOrderRequest(BaseModel):
     """Resume a paused work order."""

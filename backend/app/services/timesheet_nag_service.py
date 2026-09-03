@@ -19,7 +19,6 @@ from app.services.notification_service import ChannelNotConfigured, send_notific
 
 DEFAULT_ESCALATION_DAYS = 3
 
-
 def scan_missing_timesheets(db: Session, *, week_starting_date: date, tenant_id: Optional[int] = None) -> List[Employee]:
     """Employees with an ACTIVE allocation covering this week who have
     no SUBMITTED or APPROVED timesheet for it -- a DRAFT never
@@ -38,7 +37,6 @@ def scan_missing_timesheets(db: Session, *, week_starting_date: date, tenant_id:
     if not missing_ids:
         return []
     return db.query(Employee).filter(Employee.id.in_(missing_ids)).all()
-
 
 def trigger_timesheet_nag(
     db: Session, employee: Employee, *, week_starting_date: date,
@@ -117,7 +115,6 @@ def trigger_timesheet_nag(
         return log
 
     return log
-
 
 def run_timesheet_nag_job(db: Session) -> dict:
     """Scheduler wrapper, 2026-08-06 -- this logic existed and was fully

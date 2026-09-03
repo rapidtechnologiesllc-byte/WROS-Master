@@ -21,13 +21,11 @@ from typing import Sequence, Union
 from alembic import op
 import sqlalchemy as sa
 
-
 # revision identifiers, used by Alembic.
 revision: str = '35fbb8ebd5c8'
 down_revision: Union[str, Sequence[str], None] = 'ec029402efc6'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
-
 
 def upgrade() -> None:
     """Upgrade schema."""
@@ -88,7 +86,6 @@ def upgrade() -> None:
     )
     op.create_index(op.f('ix_specialty_pool_replacement_plans_tenant_id'), 'specialty_pool_replacement_plans', ['tenant_id'], unique=False)
     op.create_index(op.f('ix_specialty_pool_replacement_plans_employee_id_moving'), 'specialty_pool_replacement_plans', ['employee_id_moving'], unique=False)
-
 
 def downgrade() -> None:
     """Downgrade schema."""

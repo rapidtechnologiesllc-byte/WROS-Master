@@ -17,7 +17,6 @@ from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, func
 from sqlalchemy.orm import relationship
 from app.models.base import Base
 
-
 # Pool status constants — use these everywhere, never raw strings
 POOL_ORG   = "Org Pool"
 POOL_BU    = "BU Owned"

@@ -29,7 +29,6 @@ class JobTitle(Base):
         Index("ix_job_titles_tenant_id", "tenant_id"),
     )
 
-
 class JobTitleRole(Base):
     """Junction table: maps job titles to roles"""
     __tablename__ = "job_title_roles"

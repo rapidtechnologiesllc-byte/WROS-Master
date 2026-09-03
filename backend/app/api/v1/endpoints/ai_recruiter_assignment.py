@@ -41,7 +41,6 @@ from app.services.ai_conversation_service import (
 
 router = APIRouter(tags=["ai-recruiter-assignment"])
 
-
 @router.get(
     "/candidates/{candidate_id}/ai-assignment",
     response_model=AIAssignmentResponse,
@@ -73,7 +72,6 @@ def get_candidate_ai_assignment(
         is_active=assignment.is_active,
     )
 
-
 @router.get(
     "/admin/tenant/thunder-enabled",
     response_model=TenantThunderEnabledResponse,
@@ -90,7 +88,6 @@ def get_tenant_thunder_enabled(
     current_user: Users = Depends(get_current_internal_user),
 ):
     return TenantThunderEnabledResponse(thunder_enabled=current_user.thunder_enabled)
-
 
 @router.patch(
     "/admin/tenant/thunder-enabled",

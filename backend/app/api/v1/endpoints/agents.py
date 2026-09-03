@@ -17,7 +17,6 @@ from app.services.permission_helper import PermissionHelper
 
 router = APIRouter(prefix="/agents", tags=["Agents"])
 
-
 # ============================================================================
 # Partner ROI Agent Endpoints
 # ============================================================================
@@ -49,7 +48,6 @@ def get_partner_roi_kpis(
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
-
 @router.get("/partner-roi/{partner_id}/trend", dependencies=[Depends(require_resource_permission("revenue", "view"))])
 def get_partner_roi_trend(
     partner_id: str,
@@ -73,7 +71,6 @@ def get_partner_roi_trend(
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
-
 @router.get("/partner-roi/{partner_id}/actions", dependencies=[Depends(require_resource_permission("revenue", "view"))])
 def get_partner_roi_actions(
     partner_id: str,
@@ -94,7 +91,6 @@ def get_partner_roi_actions(
         return {"status": "success", "data": actions}
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
-
 
 # ============================================================================
 # CFO Agent Endpoints
@@ -118,7 +114,6 @@ def get_cfo_snapshot(
         logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
-
 @router.get("/cfo/alerts", dependencies=[Depends(require_resource_permission("revenue", "view"))])
 def get_cfo_critical_alerts(
     db: Session = Depends(get_db),
@@ -131,7 +126,6 @@ def get_cfo_critical_alerts(
     except Exception as e:
         logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @router.get("/cfo/bu-comparison", dependencies=[Depends(require_resource_permission("revenue", "view"))])
 def get_cfo_bu_comparison(
@@ -147,7 +141,6 @@ def get_cfo_bu_comparison(
         logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
-
 @router.get("/cfo/expense-breakdown", dependencies=[Depends(require_resource_permission("revenue", "view"))])
 def get_cfo_expenses(
     year_month: str = None,
@@ -162,7 +155,6 @@ def get_cfo_expenses(
         logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
-
 @router.get("/cfo/forecast", dependencies=[Depends(require_resource_permission("revenue", "view"))])
 def get_cfo_forecast(
     months_ahead: int = 3,
@@ -176,7 +168,6 @@ def get_cfo_forecast(
     except Exception as e:
         logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
-
 
 # ============================================================================
 # CEO FY Progress Dashboard Endpoints
@@ -200,7 +191,6 @@ def get_ceo_fy_progress(
         logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
-
 @router.get("/ceo/fy-summary", dependencies=[Depends(require_resource_permission("revenue", "view"))])
 def get_ceo_fy_summary(
     db: Session = Depends(get_db),
@@ -213,7 +203,6 @@ def get_ceo_fy_summary(
     except Exception as e:
         logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @router.get("/ceo/executive-dashboard", dependencies=[Depends(require_resource_permission("revenue", "view"))])
 def get_ceo_executive_dashboard(
@@ -235,7 +224,6 @@ def get_ceo_executive_dashboard(
     except Exception as e:
         logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
-
 
 # ============================================================================
 # Agent Registry & Discovery Endpoints

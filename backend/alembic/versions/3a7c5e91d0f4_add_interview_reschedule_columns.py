@@ -13,7 +13,6 @@ down_revision = "8d4f2c6b1a90"
 branch_labels = None
 depends_on = None
 
-
 def upgrade():
     # A self-referential FK added inline via add_column() during SQLite
     # batch recreate hits a real alembic/SQLAlchemy bug ("Constraint
@@ -30,7 +29,6 @@ def upgrade():
         "ix_one_current_interview_per_level", "submission_interviews", ["submission_id", "level"],
         unique=True, sqlite_where=sa.text("superseded_at IS NULL"), mssql_where=sa.text("superseded_at IS NULL"),
     )
-
 
 def downgrade():
     op.drop_index("ix_one_current_interview_per_level", table_name="submission_interviews")

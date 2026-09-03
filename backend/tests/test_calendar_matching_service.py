@@ -43,7 +43,6 @@ import app.services.calendar_matching_service as svc
 from app.services.interview_service import assign_panel_member
 from app.services.submission_service import create_submission
 
-
 @pytest.fixture()
 def db_session():
     fd, db_path = tempfile.mkstemp(suffix=".sqlite3")
@@ -64,7 +63,6 @@ def db_session():
         session.close()
         engine.dispose()
         os.remove(db_path)
-
 
 @pytest.fixture()
 def seeded(db_session):
@@ -109,7 +107,6 @@ def seeded(db_session):
 
     return tenant, client, demand, candidate, submission, conv
 
-
 def _make_interviewer(db, tenant, wros_user_id="U-INT-1", tz="America/Chicago"):
     user = Users(UserID=wros_user_id, UserRole="Employee", UserEmail=f"{wros_user_id.lower()}@blitzenx.com", UserPassword="h", tenant_id=tenant.id, timezone=tz)
     db.add(user)
@@ -119,12 +116,10 @@ def _make_interviewer(db, tenant, wros_user_id="U-INT-1", tz="America/Chicago"):
     db.commit()
     return emp, user
 
-
 def _assign_interviewer(db, tenant, demand, employee, level="L1"):
     panel = assign_panel_member(db, tenant_id=tenant.id, demand_id=demand.id, employee=employee, interview_level=level)
     db.commit()
     return panel
-
 
 def _add_slot(db, candidate_id, conversation_id, tz_tenant_id, slot_date, start_h, end_h, tz="America/Chicago"):
     from datetime import time as time_cls
@@ -136,18 +131,15 @@ def _add_slot(db, candidate_id, conversation_id, tz_tenant_id, slot_date, start_
     db.commit()
     return slot
 
-
 def _next_weekday(base, target_weekday):
     days_ahead = (target_weekday - base.weekday()) % 7
     return base + timedelta(days=days_ahead)
-
 
 def _chicago_busy(day, start_h, start_m, end_h, end_m):
     tz = ZoneInfo("America/Chicago")
     start = datetime(day.year, day.month, day.day, start_h, start_m, tzinfo=tz).astimezone(dt_timezone.utc)
     end = datetime(day.year, day.month, day.day, end_h, end_m, tzinfo=tz).astimezone(dt_timezone.utc)
     return (start, end)
-
 
 # ── Pure-function unit tests: TC-001/TC-002 from the spec itself ────
 
@@ -171,7 +163,6 @@ def test_tc001_buffer_already_reflected_in_free_period_matches_at_boundary():
 
     assert match_start == datetime(2026, 8, 11, 14, 30, tzinfo=tz).astimezone(dt_timezone.utc)
 
-
 def test_tc002_buffer_pushes_match_past_naive_busy_end():
     tz = ZoneInfo("America/Chicago")
     day = date(2026, 8, 11)
@@ -194,7 +185,6 @@ def test_tc002_buffer_pushes_match_past_naive_busy_end():
     expected_215pm = datetime(2026, 8, 11, 14, 15, tzinfo=tz).astimezone(dt_timezone.utc)
     assert match_start != expected_2pm  # AC-3/TC-002: NOT matched at 2:00, no buffer
     assert match_start == expected_215pm
-
 
 # ── attempt_calendar_match: full integration ──────────────────────────
 
@@ -226,7 +216,6 @@ def test_matches_and_creates_scheduled_interview(db_session, seeded):
     event = db_session.query(ConversationEvent).filter(ConversationEvent.conversation_id == conv.id, ConversationEvent.event_type == "calendar_match_succeeded").first()
     assert event is not None
 
-
 def test_returns_both_local_times_cross_timezone(db_session, seeded):
     tenant, client, demand, candidate, submission, conv = seeded
     # America/Los_Angeles (not Asia/Kolkata) so the two parties' 9-5
@@ -249,7 +238,6 @@ def test_returns_both_local_times_cross_timezone(db_session, seeded):
     assert result["candidate_local_time"].tzinfo is not None
     assert result["interviewer_local_time"].tzinfo is not None
     assert result["candidate_local_time"].utcoffset() != result["interviewer_local_time"].utcoffset()
-
 
 # ── No-match handling ──────────────────────────────────────────────
 
@@ -276,7 +264,6 @@ def test_no_overlap_deletes_slots_and_notifies_recruiter(db_session, seeded):
     event = db_session.query(ConversationEvent).filter(ConversationEvent.conversation_id == conv.id, ConversationEvent.event_type == "calendar_match_failed").first()
     assert event is not None
 
-
 def test_insufficient_slots_short_circuits(db_session, seeded):
     tenant, client, demand, candidate, submission, conv = seeded
     day = _next_weekday(date.today() + timedelta(days=1), 1)
@@ -284,7 +271,6 @@ def test_insufficient_slots_short_circuits(db_session, seeded):
 
     result = svc.attempt_calendar_match(db_session, candidate, conv, "U-ORG")
     assert result["outcome"] == "insufficient_slots"
-
 
 def test_no_open_submission(db_session, seeded):
     tenant, client, demand, candidate, submission, conv = seeded
@@ -298,7 +284,6 @@ def test_no_open_submission(db_session, seeded):
     result = svc.attempt_calendar_match(db_session, candidate, conv, "U-ORG")
     assert result["outcome"] == "no_open_submission"
 
-
 def test_no_interviewer_assigned_notifies_recruiter(db_session, seeded):
     tenant, client, demand, candidate, submission, conv = seeded
     day = _next_weekday(date.today() + timedelta(days=1), 1)
@@ -310,7 +295,6 @@ def test_no_interviewer_assigned_notifies_recruiter(db_session, seeded):
 
     notifications = db_session.query(Notification).all()
     assert len(notifications) == 1
-
 
 def test_calendar_check_failed_never_raises(db_session, seeded):
     tenant, client, demand, candidate, submission, conv = seeded
@@ -329,7 +313,6 @@ def test_calendar_check_failed_never_raises(db_session, seeded):
 
     # Slots are NOT deleted -- this isn't a real no-match, we just couldn't check.
     assert db_session.query(CandidateAvailabilitySlot).filter(CandidateAvailabilitySlot.candidate_id == "C-1").count() == 2
-
 
 # ── BR-03: weekend enforcement by construction ────────────────────────
 
@@ -350,7 +333,6 @@ def test_weekend_slot_never_matched_even_if_interviewer_fully_free(db_session, s
 
     result = svc.attempt_calendar_match(db_session, candidate, conv, "U-ORG", graph_call=graph_call)
     assert result["outcome"] == "no_match"
-
 
 # ── Submission resolution priority ──────────────────────────────────
 

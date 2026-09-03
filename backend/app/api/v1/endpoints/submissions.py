@@ -62,7 +62,6 @@ from app.services.submission_service import (
 
 router = APIRouter(prefix="/submissions", tags=["submissions"])
 
-
 def _to_item(db: Session, submission: Submission) -> SubmissionItem:
     demand = db.query(Demand).filter(Demand.id == submission.demand_id).first()
     candidate = db.query(Candidate).filter(Candidate.candidateID == submission.candidate_id).first()
@@ -83,7 +82,6 @@ def _to_item(db: Session, submission: Submission) -> SubmissionItem:
         submission_rank=submission.submission_rank,
         source=submission.source,
     )
-
 
 @router.post(
     "",
@@ -145,7 +143,6 @@ def submit_candidate(
     db.refresh(submission)
     return _to_item(db, submission)
 
-
 @router.get(
     "",
     response_model=SubmissionListResponse,
@@ -162,7 +159,6 @@ def list_submissions(
         query = query.filter(Submission.demand_id == demand_id)
     submissions = query.order_by(Submission.submitted_at.desc()).all()
     return SubmissionListResponse(submissions=[_to_item(db, s) for s in submissions])
-
 
 @router.get(
     "/violations",
@@ -190,7 +186,6 @@ def list_violations(
             for v in violations
         ]
     )
-
 
 @router.patch(
     "/{submission_id}/client-response", response_model=SubmissionItem,

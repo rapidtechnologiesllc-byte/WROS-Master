@@ -39,10 +39,8 @@ logger = logging.getLogger(__name__)
 class InvalidSubmissionReviewTransition(Exception):
     pass
 
-
 class SubmissionValidationError(Exception):
     pass
-
 
 def submit_candidate(
     db: Session,
@@ -106,11 +104,9 @@ def submit_candidate(
 
     return submission
 
-
 def _split_name(full_name: str):
     parts = (full_name or "").strip().split(" ", 1)
     return parts[0], (parts[1] if len(parts) > 1 else None)
-
 
 def accept_submission(db: Session, submission: SubVendorSubmission) -> Candidate:
     """HRMS-P808 BR-0808-01: always through create_candidate_safe(),
@@ -139,7 +135,6 @@ def accept_submission(db: Session, submission: SubVendorSubmission) -> Candidate
     db.add(submission)
     return candidate
 
-
 def reject_submission(db: Session, submission: SubVendorSubmission, *, feedback_note: str) -> SubVendorSubmission:
     """BR-0808-02: rejection always requires feedback, no silent rejects."""
     if submission.status != "PENDING_REVIEW":
@@ -152,7 +147,6 @@ def reject_submission(db: Session, submission: SubVendorSubmission, *, feedback_
     db.add(submission)
     return submission
 
-
 def request_more_info(db: Session, submission: SubVendorSubmission, *, note: str) -> SubVendorSubmission:
     if submission.status != "PENDING_REVIEW":
         raise InvalidSubmissionReviewTransition(f"Cannot request more info on a submission in status '{submission.status}'.")
@@ -161,7 +155,6 @@ def request_more_info(db: Session, submission: SubVendorSubmission, *, note: str
     submission.feedback_note = note
     db.add(submission)
     return submission
-
 
 def evaluate_compliance_escalation(
     db: Session, sub_vendor: SubVendorAccount, *, now: Optional[datetime] = None,
@@ -193,7 +186,6 @@ def evaluate_compliance_escalation(
 
     db.add(sub_vendor)
     return sub_vendor.compliance_status
-
 
 def confirm_suspension(db: Session, sub_vendor: SubVendorAccount) -> SubVendorAccount:
     """BR-0811-02's deliberate exception to full automation -- an Admin

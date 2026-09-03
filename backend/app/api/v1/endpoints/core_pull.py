@@ -69,7 +69,6 @@ from app.services.orchestration_router_service import ActionBlocked, ActionDelay
 
 router = APIRouter(prefix="/core-pull", tags=["core-pull"])
 
-
 def _to_item(db: Session, event: CorePullEvent) -> CorePullEventItem:
     employee = db.query(Employee).filter(Employee.id == event.employee_id).first()
     demand = db.query(Demand).filter(Demand.id == event.core_demand_id).first()
@@ -90,13 +89,11 @@ def _to_item(db: Session, event: CorePullEvent) -> CorePullEventItem:
         core_demand_job_title=demand.job_title if demand else "(unknown demand)",
     )
 
-
 def _get_event_or_404(db: Session, event_id: str) -> CorePullEvent:
     event = db.query(CorePullEvent).filter(CorePullEvent.id == event_id).first()
     if event is None:
         raise HTTPException(status_code=404, detail="Core-Pull event not found.")
     return event
-
 
 @router.get(
     "/specialty-pool-status",
@@ -110,7 +107,6 @@ def get_pool_status(
 ):
     status = get_specialty_pool_status(db, tenant_id=current_user.tenant_id)
     return SpecialtyPoolStatusResponse(**status)
-
 
 @router.get(
     "/events",
@@ -132,7 +128,6 @@ def get_pending_events(
         .all()
     )
     return CorePullEventQueueResponse(events=[_to_item(db, e) for e in events])
-
 
 @router.post(
     "/events/{event_id}/execute",
@@ -167,7 +162,6 @@ def execute_event(
         specialty_pool_size_after=guard["pool_size_after_move"],
     )
 
-
 @router.post(
     "/events/{event_id}/override",
     dependencies=[Depends(get_current_internal_user)],
@@ -199,7 +193,6 @@ def override_event(
     db.commit()
     db.refresh(event)
     return OverrideCorePullResponse(message="Core-Pull event overridden.", event=_to_item(db, event))
-
 
 @router.post(
     "/replacement-plans",

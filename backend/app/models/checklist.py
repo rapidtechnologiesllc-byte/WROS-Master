@@ -43,7 +43,6 @@ class ChecklistTemplate(Base):
     def __repr__(self) -> str:
         return f"<ChecklistTemplate id={self.id} name={self.name!r}>"
 
-
 class ChecklistTemplateItem(Base):
     """One item definition inside a ChecklistTemplate."""
     __tablename__ = "checklist_template_items"
@@ -67,7 +66,6 @@ class ChecklistTemplateItem(Base):
 
     def __repr__(self) -> str:
         return f"<ChecklistTemplateItem id={self.id} type={self.item_type!r} title={self.title!r}>"
-
 
 class CandidateChecklist(Base):
     """
@@ -105,7 +103,6 @@ class CandidateChecklist(Base):
 
     def __repr__(self) -> str:
         return f"<CandidateChecklist id={self.id} candidate={self.candidate_id} status={self.status!r}>"
-
 
 class CandidateChecklistItem(Base):
     """

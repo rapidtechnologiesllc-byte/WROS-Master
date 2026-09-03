@@ -112,7 +112,6 @@ from app.services.timesheet_service import (
 
 router = APIRouter(prefix="/timesheets", tags=["timesheets"])
 
-
 def _to_item(db: Session, timesheet: Timesheet) -> TimesheetItem:
     employee = db.query(Employee).filter(Employee.id == timesheet.employee_id).first()
     employee_name = (
@@ -147,13 +146,11 @@ def _to_item(db: Session, timesheet: Timesheet) -> TimesheetItem:
         ],
     )
 
-
 def _get_timesheet_or_404(db: Session, timesheet_id: str) -> Timesheet:
     timesheet = db.query(Timesheet).filter(Timesheet.id == timesheet_id).first()
     if timesheet is None:
         raise HTTPException(status_code=404, detail="Timesheet not found.")
     return timesheet
-
 
 @router.post("/weekly-draft", response_model=TimesheetItem, summary="Create (or return existing) a weekly timesheet draft")
 @require_permission("employee.create")
@@ -178,7 +175,6 @@ def create_draft(
     db.refresh(timesheet)
     return _to_item(db, timesheet)
 
-
 @router.put("/{timesheet_id}/entries", response_model=TimesheetItem, summary="Upsert daily entries for a timesheet")
 @require_permission("employee.edit")
 def upsert_timesheet_entries(
@@ -198,7 +194,6 @@ def upsert_timesheet_entries(
     db.commit()
     db.refresh(timesheet)
     return _to_item(db, timesheet)
-
 
 @router.post("/{timesheet_id}/submit", response_model=TimesheetItem, summary="Submit a draft timesheet")
 @require_permission("employee.view")
@@ -237,7 +232,6 @@ def submit(
     db.refresh(timesheet)
     return _to_item(db, timesheet)
 
-
 @router.post("/{timesheet_id}/approve", response_model=TimesheetItem, summary="Approve a submitted timesheet")
 @require_permission("employee.edit")
 def approve(
@@ -253,7 +247,6 @@ def approve(
     db.commit()
     db.refresh(timesheet)
     return _to_item(db, timesheet)
-
 
 @router.post("/{timesheet_id}/reject", response_model=TimesheetItem, summary="Reject a submitted timesheet")
 @require_permission("employee.edit")
@@ -274,7 +267,6 @@ def reject(
     db.refresh(timesheet)
     return _to_item(db, timesheet)
 
-
 @router.post("/{timesheet_id}/reopen", response_model=TimesheetItem, summary="Reopen a rejected timesheet for editing")
 @require_permission("employee.edit")
 def reopen(
@@ -291,7 +283,6 @@ def reopen(
     db.refresh(timesheet)
     return _to_item(db, timesheet)
 
-
 @router.post("/bulk-approve", response_model=BulkApproveResponse, summary="Approve multiple submitted timesheets at once")
 @require_permission("employee.edit")
 def bulk_approve_endpoint(
@@ -306,7 +297,6 @@ def bulk_approve_endpoint(
         approved=result["approved"],
         failed=[BulkApproveFailure(**f) for f in result["failed"]],
     )
-
 
 @router.get("", response_model=TimesheetListResponse, summary="List timesheets")
 @require_permission("employee.view")
@@ -324,7 +314,6 @@ def list_timesheets(
     timesheets = query.order_by(Timesheet.week_starting_date.desc()).all()
     return TimesheetListResponse(timesheets=[_to_item(db, t) for t in timesheets])
 
-
 @router.get("/{timesheet_id}", response_model=TimesheetItem, summary="Get one timesheet with entries")
 @require_permission("employee.view")
 def get_timesheet(
@@ -335,7 +324,6 @@ def get_timesheet(
     timesheet = _get_timesheet_or_404(db, timesheet_id)
     return _to_item(db, timesheet)
 
-
 # ---------------------------------------------------------------------------
 # S-229/HRMS-0910 -- Anomaly Detection (advisory only, never blocks anything)
 # ---------------------------------------------------------------------------
@@ -345,7 +333,6 @@ def _flag_to_item(flag: TimesheetAnomalyFlag) -> AnomalyFlagItem:
         id=flag.id, timesheet_entry_id=flag.timesheet_entry_id,
         anomaly_type=flag.anomaly_type, detected_at=flag.detected_at,
     )
-
 
 @router.post(
     "/{timesheet_id}/scan-anomalies", response_model=AnomalyFlagsResponse,
@@ -362,7 +349,6 @@ def scan_anomalies(
     db.commit()
     return AnomalyFlagsResponse(flags=[_flag_to_item(f) for f in flags])
 
-
 @router.get(
     "/{timesheet_id}/anomalies", response_model=AnomalyFlagsResponse,
     dependencies=[Depends(get_current_internal_user)],
@@ -376,7 +362,6 @@ def get_anomalies(
     timesheet = _get_timesheet_or_404(db, timesheet_id)
     flags = get_anomaly_flags_for_timesheet(db, timesheet)
     return AnomalyFlagsResponse(flags=[_flag_to_item(f) for f in flags])
-
 
 # ---------------------------------------------------------------------------
 # Timesheet Dispute Resolution (canonical ID collision -- see module docstring)
@@ -392,7 +377,6 @@ def _dispute_to_item(dispute: TimesheetDispute) -> DisputeItem:
         resolution_notes=dispute.resolution_notes,
         adjusted_hours=float(dispute.adjusted_hours) if dispute.adjusted_hours is not None else None,
     )
-
 
 @router.post(
     "/{timesheet_id}/disputes", response_model=DisputeItem,
@@ -418,7 +402,6 @@ def create_dispute(
     db.refresh(dispute)
     return _dispute_to_item(dispute)
 
-
 @router.get(
     "/{timesheet_id}/disputes", response_model=DisputeListResponse,
     dependencies=[Depends(get_current_internal_user)],
@@ -437,7 +420,6 @@ def list_disputes(
         .all()
     )
     return DisputeListResponse(disputes=[_dispute_to_item(d) for d in disputes])
-
 
 @router.post(
     "/disputes/{dispute_id}/resolve", response_model=DisputeItem,
@@ -467,7 +449,6 @@ def resolve_dispute_endpoint(
     db.commit()
     db.refresh(dispute)
     return _dispute_to_item(dispute)
-
 
 @router.post(
     "/nag-cascade/run",

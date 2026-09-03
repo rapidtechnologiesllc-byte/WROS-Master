@@ -19,7 +19,6 @@ from app.models import (
 
 logger = logging.getLogger(__name__)
 
-
 class HiringManagerValidationService:
     """Pre-interview validation from hiring manager (HRMS-1104).
 

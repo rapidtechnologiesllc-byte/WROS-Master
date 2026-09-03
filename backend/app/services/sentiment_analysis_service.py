@@ -50,7 +50,6 @@ NEUTRAL_RESULT = {"sentiment": "NEUTRAL", "confidence": 0.0}
 # BR-02: 3 consecutive NEGATIVE rows -> escalation trigger (HRMS-0435 Rule #3).
 NEGATIVE_TREND_THRESHOLD = 3
 
-
 def analyze_sentiment(
     db: Session, tenant_id: str, candidate_id: str, message_body: str, *,
     conversation_id: Optional[int] = None, message_event_id: Optional[int] = None,
@@ -100,7 +99,6 @@ def analyze_sentiment(
 
     return {"sentiment": sentiment, "confidence": confidence, "raw_response": response}
 
-
 def get_recent_sentiment_trend(db: Session, candidate_id: str, *, limit: int = 5) -> List[str]:
     """Step 3's trend-check input -- last `limit` sentiments for this
     candidate, most recent first."""
@@ -112,7 +110,6 @@ def get_recent_sentiment_trend(db: Session, candidate_id: str, *, limit: int = 5
         .all()
     )
     return [row.sentiment for row in rows]
-
 
 def has_negative_sentiment_trend(db: Session, candidate_id: str) -> bool:
     """BR-02: the last NEGATIVE_TREND_THRESHOLD sentiments are all

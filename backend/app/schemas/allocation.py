@@ -26,7 +26,6 @@ class CreateAllocationRequest(BaseModel):
     role: Optional[str] = None
     allow_concurrent: bool = False
 
-
 class AllocationItem(BaseModel):
     id: str
     employee_id: str
@@ -48,19 +47,15 @@ class AllocationItem(BaseModel):
     business_unit_name: Optional[str] = None
     created_at: datetime
 
-
 class AllocationListResponse(BaseModel):
     allocations: List[AllocationItem]
-
 
 class EndAllocationRequest(BaseModel):
     end_date: Optional[date] = None
 
-
 class DropdownItem(BaseModel):
     id: str
     name: str
-
 
 class AllocationDropdownsResponse(BaseModel):
     employees: List[DropdownItem]

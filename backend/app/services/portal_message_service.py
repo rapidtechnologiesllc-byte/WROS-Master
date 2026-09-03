@@ -57,20 +57,16 @@ logger = logging.getLogger(__name__)
 class PortalMessageEmpty(Exception):
     pass
 
-
 class PortalMessageTooLong(Exception):
     pass
-
 
 class PortalConversationNotFound(Exception):
     """BR-01: doesn't exist, or doesn't belong to this candidate -- same
     403 either way, no information leak about other candidates'
     conversation IDs."""
 
-
 class PortalRateLimitExceeded(Exception):
     pass
-
 
 def _get_owned_conversation(db: Session, candidate: Candidate, conversation_id: int) -> CandidateConversation:
     conversation = (
@@ -81,7 +77,6 @@ def _get_owned_conversation(db: Session, candidate: Candidate, conversation_id: 
     if not conversation:
         raise PortalConversationNotFound(f"Conversation {conversation_id} not found for this candidate.")
     return conversation
-
 
 def _portal_messages_sent_since(db: Session, candidate_id: str, since: datetime) -> int:
     """BR-02: DB-based rolling-hour rate limit -- no Redis in this stack.
@@ -103,7 +98,6 @@ def _portal_messages_sent_since(db: Session, candidate_id: str, since: datetime)
         .all()
     )
     return sum(1 for e in events if (e.event_data or {}).get("channel") == "portal")
-
 
 def send_portal_message(db: Session, candidate: Candidate, conversation_id: int, message_body: str) -> Dict:
     conversation = _get_owned_conversation(db, candidate, conversation_id)
@@ -159,7 +153,6 @@ def send_portal_message(db: Session, candidate: Candidate, conversation_id: int,
         "escalated": escalated,
         "suppressed": suppressed,
     }
-
 
 def _maybe_reply_to_portal_message(db: Session, conversation: CandidateConversation, candidate: Candidate, message_body: str):
     """S-346 Step 4: same real generation pipeline every other live
@@ -217,7 +210,6 @@ def _maybe_reply_to_portal_message(db: Session, conversation: CandidateConversat
         db.rollback()
         return None, None, False, True
 
-
 def store_outbound_portal_message(db: Session, conversation: CandidateConversation, *, sender_type: str, sender_id: str = None, message_body: str) -> ConversationEvent:
     """storeOutboundPortalMessage() -- portal sends are immediately
     'delivered' on insert, no external transport to wait for (unlike
@@ -232,7 +224,6 @@ def store_outbound_portal_message(db: Session, conversation: CandidateConversati
     conversation.updated_at = datetime.utcnow()
     db.add(conversation)
     return event
-
 
 def get_portal_message_history(db: Session, candidate: Candidate, conversation_id: int, *, page: int = 0, per_page: int = PAGE_SIZE, after_id: Optional[int] = None) -> Dict:
     """S-346 Step 2 (long-polling fallback): passing after_id switches

@@ -20,7 +20,6 @@ from app.models.business_unit import BusinessUnit
 from app.services.recruiter_assignment_service import assign_to_recruiter_roundrobin
 from app.services.email_service import EmailService
 
-
 def get_approval_routing(db: Session, job: Jobs, creator: Users) -> Tuple[Optional[Users], str]:
     """
     Determine who should approve this job based on creator permissions and hierarchy.
@@ -54,7 +53,6 @@ def get_approval_routing(db: Session, job: Jobs, creator: Users) -> Tuple[Option
     for admin in all_users:
         pass
     return None, "No approver found"
-
 
 def send_approval_notification_email(db: Session, job: Jobs, approver: Users, reason: str) -> bool:
     """Send email to approver notifying them of job pending approval."""
@@ -95,7 +93,6 @@ def send_approval_notification_email(db: Session, job: Jobs, approver: Users, re
         logger.error(f"[JobApproval] Failed to send approval email: {e}")
         return False
 
-
 def assign_recruiter_on_approval(db: Session, job: Jobs) -> Optional[Users]:
     """Assign recruiter to job on approval using round-robin."""
     try:
@@ -116,7 +113,6 @@ def assign_recruiter_on_approval(db: Session, job: Jobs) -> Optional[Users]:
         db.rollback()
         raise ValueError("Operation failed")
 
-
 def parse_skills_from_job_description(job_description: str) -> str:
     """
     Extract skills from job description and format as: Skill:Years:Mandatory
@@ -132,7 +128,6 @@ def parse_skills_from_job_description(job_description: str) -> str:
     # This would call Claude or another LLM to intelligently extract skills
     # with years and mandatory/optional flags
     return ""
-
 
 def handle_job_creation_approval_flow(
     db: Session,
@@ -162,7 +157,6 @@ def handle_job_creation_approval_flow(
         "routing_reason": routing_reason,
         "email_sent": email_sent
     }
-
 
 def handle_job_approval(
     db: Session,

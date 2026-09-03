@@ -23,7 +23,6 @@ from app.models.base import Base
 
 WATCH_REASONS = ("OFFER_DECLINED", "NO_CURRENT_MATCH")
 
-
 def _new_uuid() -> str:
     return str(uuid.uuid4())
 

@@ -26,7 +26,6 @@ from app.services.event_emitter_service import get_events
 
 router = APIRouter(prefix="/admin/events", tags=["event-log"])
 
-
 @router.get(
     "",
     response_model=EventLogResponse,

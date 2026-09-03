@@ -56,16 +56,13 @@ logger = logging.getLogger(__name__)
 class UnknownPromptType(Exception):
     pass
 
-
 class LLMCallFailedError(Exception):
     pass
-
 
 def _format_known_facts(facts: List[Dict]) -> str:
     if not facts:
         return "(none yet)"
     return ", ".join(f"{f.get('key')}={f.get('value')}" for f in facts)
-
 
 def _format_conversation_history(messages: List[Dict], limit: int = 10) -> str:
     if not messages:
@@ -78,12 +75,10 @@ def _format_conversation_history(messages: List[Dict], limit: int = 10) -> str:
         lines.append(f"[{sender}]: {body}")
     return "\n".join(lines)
 
-
 def _format_missing_fields(missing_fields: List[Dict]) -> str:
     if not missing_fields:
         return "(none -- profile complete)"
     return ", ".join(m.get("label", m.get("field", "")) for m in missing_fields)
-
 
 def _placeholder_values(candidate_context: Dict, additional_params: Optional[Dict]) -> Dict[str, str]:
     additional_params = additional_params or {}
@@ -97,7 +92,6 @@ def _placeholder_values(candidate_context: Dict, additional_params: Optional[Dic
         "next_question": additional_params.get("question", ""),
         "missing_fields": _format_missing_fields(candidate_context.get("missing_fields") or []),
     }
-
 
 def build_prompt(prompt_type: str, candidate_context: Dict, additional_params: Optional[Dict] = None) -> Dict:
     """
@@ -137,7 +131,6 @@ def build_prompt(prompt_type: str, candidate_context: Dict, additional_params: O
         "built_at": datetime.utcnow(),
     }
 
-
 def _default_llm_call(system_prompt: str, user_prompt: str, max_tokens: int, temperature: float, api_key: str) -> str:
     import requests
     resp = requests.post(
@@ -152,7 +145,6 @@ def _default_llm_call(system_prompt: str, user_prompt: str, max_tokens: int, tem
     result = resp.json()
     text = result.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "")
     return re.sub(r"```(?:json)?", "", text).strip()
-
 
 def call_llm(
     db: Session,
@@ -210,7 +202,6 @@ def call_llm(
                 sleep_fn(RETRY_DELAY_SECONDS)
 
     raise LLMCallFailedError(f"LLM call failed twice for prompt_type={prompt_type!r}: {last_error}")
-
 
 def get_prompt_templates() -> List[Dict]:
     """Step 5's real GET /api/admin/prompt-templates data source."""

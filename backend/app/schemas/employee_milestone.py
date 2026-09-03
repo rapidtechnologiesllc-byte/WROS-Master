@@ -17,7 +17,6 @@ class CreateEmployeeMilestoneRequest(BaseModel):
     employee_id: Optional[str] = None
     description: Optional[str] = None
 
-
 class EmployeeMilestoneItem(BaseModel):
     id: str
     project_id: Optional[str] = None
@@ -31,14 +30,11 @@ class EmployeeMilestoneItem(BaseModel):
     completion_notes: Optional[str] = None
     set_by: Optional[str] = None
 
-
 class EmployeeMilestoneListResponse(BaseModel):
     milestones: List[EmployeeMilestoneItem]
 
-
 class CompleteEmployeeMilestoneRequest(BaseModel):
     completion_notes: Optional[str] = None
-
 
 class ScanOverdueMilestonesResponse(BaseModel):
     overdue: List[EmployeeMilestoneItem]

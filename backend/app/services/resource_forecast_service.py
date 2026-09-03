@@ -31,7 +31,6 @@ from app.models.resource_management import BenchPoolEntry
 
 EXPIRY_HORIZON_DAYS = 90  # source doc's own default
 
-
 def _parse_skills(raw: Optional[str]) -> List[str]:
     if not raw:
         return []
@@ -42,7 +41,6 @@ def _parse_skills(raw: Optional[str]) -> List[str]:
     if not isinstance(parsed, list):
         raise ValueError("Operation failed")
     return [str(s).strip() for s in parsed if str(s).strip()]
-
 
 def get_expiring_allocations(
     db: Session, *, tenant_id: Optional[int] = None, horizon_days: int = EXPIRY_HORIZON_DAYS,
@@ -88,7 +86,6 @@ def get_expiring_allocations(
             buckets["60_to_90_days"].append(entry)
 
     return buckets
-
 
 def get_skill_gap_analysis(
     db: Session, *, tenant_id: Optional[int] = None, business_unit_id: Optional[int] = None,

@@ -29,7 +29,6 @@ from app.models.candidate_ai import CandidateAIAssignment, CandidateConversation
 from app.models.user import Users
 from app.services.ai_conversation_service import AI_AGENT_NAME, poll_all_awaiting_candidates
 
-
 @pytest.fixture()
 def db_session():
     fd, db_path = tempfile.mkstemp(suffix=".sqlite3")
@@ -46,7 +45,6 @@ def db_session():
         session.close()
         engine.dispose()
         os.remove(db_path)
-
 
 def _make_conversation(db, candidate_id, status):
     org_owner = db.query(Users).filter(Users.UserID == "U-ORG").first()
@@ -67,7 +65,6 @@ def _make_conversation(db, candidate_id, status):
     db.commit()
     return conversation
 
-
 def test_only_awaiting_candidates_are_polled(db_session, monkeypatch):
     _make_conversation(db_session, "C-AWAIT-1", "awaiting_candidate")
     _make_conversation(db_session, "C-OPEN-1", "open")
@@ -87,7 +84,6 @@ def test_only_awaiting_candidates_are_polled(db_session, monkeypatch):
     assert result["checked"] == 1
     assert result["processed"] == 1
 
-
 def test_counts_updated_fields_correctly(db_session, monkeypatch):
     _make_conversation(db_session, "C-AWAIT-1", "awaiting_candidate")
     _make_conversation(db_session, "C-AWAIT-2", "awaiting_candidate")
@@ -104,7 +100,6 @@ def test_counts_updated_fields_correctly(db_session, monkeypatch):
     assert result["checked"] == 2
     assert result["processed"] == 2
     assert result["updated"] == 1
-
 
 def test_one_candidate_error_does_not_block_others(db_session, monkeypatch):
     _make_conversation(db_session, "C-FAIL", "awaiting_candidate")
@@ -123,7 +118,6 @@ def test_one_candidate_error_does_not_block_others(db_session, monkeypatch):
     assert result["processed"] == 1  # only C-OK succeeded
     assert len(result["errors"]) == 1
     assert "C-FAIL" in result["errors"][0]
-
 
 def test_no_awaiting_candidates_returns_zero_counts(db_session):
     result = poll_all_awaiting_candidates(db_session)

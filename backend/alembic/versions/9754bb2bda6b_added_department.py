@@ -12,13 +12,11 @@ from alembic import op
 import sqlalchemy as sa
 from sqlalchemy import text
 
-
 # revision identifiers, used by Alembic.
 revision: str = '9754bb2bda6b'
 down_revision: Union[str, Sequence[str], None] = '0f65c25a6e4b'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
-
 
 def _table_exists(conn, table_name: str) -> bool:
     result = conn.execute(
@@ -26,7 +24,6 @@ def _table_exists(conn, table_name: str) -> bool:
         {"t": table_name},
     )
     return result.scalar() > 0
-
 
 def _column_exists(conn, table_name: str, column_name: str) -> bool:
     result = conn.execute(
@@ -37,7 +34,6 @@ def _column_exists(conn, table_name: str, column_name: str) -> bool:
         {"t": table_name, "c": column_name},
     )
     return result.scalar() > 0
-
 
 def _fk_exists(conn, table_name: str, column_name: str, ref_table: str) -> bool:
     """Check whether any FK from table_name.column_name → ref_table already exists."""
@@ -55,14 +51,12 @@ def _fk_exists(conn, table_name: str, column_name: str, ref_table: str) -> bool:
     )
     return result.scalar() > 0
 
-
 def _index_exists(conn, index_name: str) -> bool:
     result = conn.execute(
         text("SELECT COUNT(*) FROM sys.indexes WHERE name = :n"),
         {"n": index_name},
     )
     return result.scalar() > 0
-
 
 def upgrade() -> None:
     """Upgrade schema — idempotent (safe to re-run)."""
@@ -110,7 +104,6 @@ def upgrade() -> None:
         op.create_index('ix_users_department_id', 'users', ['department_id'], unique=False)
     if not _fk_exists(bind, 'users', 'department_id', 'departments'):
         op.create_foreign_key(None, 'users', 'departments', ['department_id'], ['id'])
-
 
 def downgrade() -> None:
     """Downgrade schema."""

@@ -25,7 +25,6 @@ down_revision = '2026_08_12_org_hierarchy'
 branch_labels = None
 depends_on = None
 
-
 def upgrade() -> None:
     """
     Upgrade: Configure PostgreSQL optimizations after data import.
@@ -96,7 +95,6 @@ def upgrade() -> None:
 
     # For text search:
     # op.execute('CREATE EXTENSION IF NOT EXISTS "pg_trgm"')
-
 
 def downgrade() -> None:
     """

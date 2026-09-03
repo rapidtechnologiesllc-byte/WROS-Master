@@ -71,14 +71,11 @@ D3_CHECKLIST_MESSAGE = (
 D1_MESSAGE = "Hi {name}! Your first day at BlitzenX is tomorrow! We are so excited to have you join! See you tomorrow!"
 D_PLUS_1_MESSAGE = "Hi {name}! Welcome to BlitzenX -- hope your first day went great! Our HR team is here if you need anything."
 
-
 def _candidate_display_name(candidate: Candidate) -> str:
     return candidate.candidateFirstName or candidate.candidateEmail
 
-
 def _relevant_submission(db: Session, candidate_id: str) -> Optional[Submission]:
     return db.query(Submission).filter(Submission.candidate_id == candidate_id).order_by(Submission.id.desc()).first()
-
 
 def _notify_recruiter(db: Session, submission: Optional[Submission], message: str) -> None:
     if submission is None or not submission.submitted_by_user_id:
@@ -91,7 +88,6 @@ def _notify_recruiter(db: Session, submission: Optional[Submission], message: st
     except Exception as exc:
         logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[OnboardingAgent] Failed to notify recruiter: {exc}")
-
 
 def schedule_onboarding_touchpoints(db: Session, candidate: Candidate, offer: OfferLetter, tenant_id: str) -> List[PreboardingTouchpoint]:
     """BR-01: only ever called when entering PREBOARDING (offer
@@ -117,7 +113,6 @@ def schedule_onboarding_touchpoints(db: Session, candidate: Candidate, offer: Of
     db.commit()
     return created
 
-
 def cancel_pending_touchpoints_for_candidate(db: Session, candidate_id: str) -> int:
     """BR-01: withdrawal during PREBOARDING cancels all pending
     touchpoints -- wired into offer_decision_service._handle_decline()."""
@@ -129,10 +124,8 @@ def cancel_pending_touchpoints_for_candidate(db: Session, candidate_id: str) -> 
         db.commit()
     return len(rows)
 
-
 def _active_conversation(db: Session, candidate_id: str) -> Optional[CandidateConversation]:
     return db.query(CandidateConversation).filter(CandidateConversation.candidate_id == candidate_id).order_by(CandidateConversation.id.desc()).first()
-
 
 def _send_touchpoint_message(db: Session, conversation: CandidateConversation, candidate: Candidate, message: str, email_subject: str) -> bool:
     """Sends via BOTH whatsapp and email independently, same pattern
@@ -161,7 +154,6 @@ def _send_touchpoint_message(db: Session, conversation: CandidateConversation, c
 
     return whatsapp_sent or email_sent
 
-
 def _build_message(touchpoint_type: str, candidate: Candidate, offer: OfferLetter, db: Session) -> str:
     name = _candidate_display_name(candidate)
     joining_date = offer.joining_date.strftime("%B %d, %Y") if offer.joining_date else "your start date"
@@ -175,7 +167,6 @@ def _build_message(touchpoint_type: str, candidate: Candidate, offer: OfferLette
     if touchpoint_type == "D1":
         return D1_MESSAGE.format(name=name)
     return D_PLUS_1_MESSAGE.format(name=name)  # D_PLUS_1
-
 
 def check_onboarding_completion(db: Session, candidate_id: str, offer_id: int, tenant_id: str) -> bool:
     """Step 4. Idempotent -- see preboarding_touchpoint.py's own module
@@ -236,7 +227,6 @@ def check_onboarding_completion(db: Session, candidate_id: str, offer_id: int, t
         logger.warning(f"[OnboardingAgent] Failed to emit onboarding.complete for candidate {candidate_id!r}: {exc}")
 
     return True
-
 
 def run_onboarding_touchpoint_job(db: Session) -> Dict:
     """Standalone scheduled job (every 6h, matching document_reminder_

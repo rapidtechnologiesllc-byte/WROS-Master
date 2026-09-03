@@ -16,7 +16,6 @@ from typing import List, Optional, Dict, Any
 from pydantic import BaseModel, Field
 from app.core.logging import logger
 
-
 # ============================================================================
 # REQUEST SCHEMAS
 # ============================================================================
@@ -34,7 +33,6 @@ class RecognizeRevenueRequest(BaseModel):
                 "tenant_id": 1,
             }
         }
-
 
 class CreateRevenueEntriesRequest(BaseModel):
     """Request to create revenue entries for an invoice."""
@@ -54,7 +52,6 @@ class CreateRevenueEntriesRequest(BaseModel):
             }
         }
 
-
 class CalculateASRRequest(BaseModel):
     """Request to calculate Annual Subscription Revenue (ASR/ARR)."""
     client_id: str = Field(..., description="Client ID")
@@ -71,7 +68,6 @@ class CalculateASRRequest(BaseModel):
                 "period_end": "2024-12-31",
             }
         }
-
 
 class RevenueReportRequest(BaseModel):
     """Request for revenue reporting."""
@@ -90,7 +86,6 @@ class RevenueReportRequest(BaseModel):
                 "period_end": "2024-12-31",
             }
         }
-
 
 # ============================================================================
 # RESPONSE SCHEMAS
@@ -125,7 +120,6 @@ class RevenueRecognitionResponse(BaseModel):
             }
         }
 
-
 class RevenueEntriesResponse(BaseModel):
     """Response after creating revenue entries."""
     status: str = Field(..., description="Status: success, already_recognized, error")
@@ -152,7 +146,6 @@ class RevenueEntriesResponse(BaseModel):
                 "gross_margin_pct": 37,
             }
         }
-
 
 class ASRResponse(BaseModel):
     """Response for Annual Subscription Revenue (ASR/ARR) calculation."""
@@ -183,14 +176,12 @@ class ASRResponse(BaseModel):
             }
         }
 
-
 class RevenueByMonthItem(BaseModel):
     """Single month's revenue data."""
     month: Optional[str]
     revenue: int = Field(..., description="USD cents")
     invoice_count: int
     avg_margin_pct: float
-
 
 class RevenueByMonthResponse(BaseModel):
     """Revenue aggregated by month."""
@@ -216,14 +207,12 @@ class RevenueByMonthResponse(BaseModel):
             }
         }
 
-
 class RevenueByServiceItem(BaseModel):
     """Revenue data by service."""
     service: str
     revenue: int = Field(..., description="USD cents")
     invoice_count: int
     avg_margin_pct: float
-
 
 class RevenueByServiceResponse(BaseModel):
     """Revenue aggregated by service type."""
@@ -247,7 +236,6 @@ class RevenueByServiceResponse(BaseModel):
             }
         }
 
-
 class RevenueByModuleItem(BaseModel):
     """Revenue data by Guidewire module."""
     module: str
@@ -255,13 +243,11 @@ class RevenueByModuleItem(BaseModel):
     invoice_count: int
     avg_margin_pct: float
 
-
 class RevenueByModuleResponse(BaseModel):
     """Revenue aggregated by Guidewire module."""
     status: str = "success"
     data: List[RevenueByModuleItem]
     total_revenue: int = Field(default=0)
-
 
 class RevenueByPricingModelItem(BaseModel):
     """Revenue data by pricing model."""
@@ -270,13 +256,11 @@ class RevenueByPricingModelItem(BaseModel):
     invoice_count: int
     avg_margin_pct: float
 
-
 class RevenueByPricingModelResponse(BaseModel):
     """Revenue aggregated by pricing model."""
     status: str = "success"
     data: List[RevenueByPricingModelItem]
     total_revenue: int = Field(default=0)
-
 
 class RevenueByClientOwnerItem(BaseModel):
     """Revenue data by client owner."""
@@ -285,13 +269,11 @@ class RevenueByClientOwnerItem(BaseModel):
     invoice_count: int
     avg_margin_pct: float
 
-
 class RevenueByClientOwnerResponse(BaseModel):
     """Revenue aggregated by client owner (account manager)."""
     status: str = "success"
     data: List[RevenueByClientOwnerItem]
     total_revenue: int = Field(default=0)
-
 
 class PartnerRevenueShareItem(BaseModel):
     """Partner revenue share data."""
@@ -301,13 +283,11 @@ class PartnerRevenueShareItem(BaseModel):
     avg_share_pct: float
     invoice_count: int
 
-
 class PartnerRevenueShareResponse(BaseModel):
     """Partner revenue share analysis."""
     status: str = "success"
     data: List[PartnerRevenueShareItem]
     total_partner_share: int = Field(default=0, description="Total USD cents paid to partners")
-
 
 class ForecastVsActualItem(BaseModel):
     """Forecast vs actual data for an opportunity."""
@@ -318,7 +298,6 @@ class ForecastVsActualItem(BaseModel):
     variance_usd_cents: int = Field(..., description="Difference (actual - forecast)")
     variance_pct: float = Field(..., description="Variance percentage")
 
-
 class ForecastVsActualResponse(BaseModel):
     """Forecast vs actual revenue analysis."""
     status: str = "success"
@@ -326,7 +305,6 @@ class ForecastVsActualResponse(BaseModel):
     total_forecast: int = Field(default=0)
     total_actual: int = Field(default=0)
     total_variance: int = Field(default=0)
-
 
 class NegativeMarginAlertItem(BaseModel):
     """Negative margin (loss-making) project alert."""
@@ -340,14 +318,12 @@ class NegativeMarginAlertItem(BaseModel):
     gross_margin_pct: int
     recognized_at: str
 
-
 class NegativeMarginAlertsResponse(BaseModel):
     """List of projects with negative margin."""
     status: str = "success"
     data: List[NegativeMarginAlertItem]
     alert_count: int = Field(default=0)
     total_loss_usd_cents: int = Field(default=0)
-
 
 class PandLSummaryResponse(BaseModel):
     """Profit & Loss summary."""
@@ -373,7 +349,6 @@ class PandLSummaryResponse(BaseModel):
                 "period": "2024-08",
             }
         }
-
 
 class ErrorResponse(BaseModel):
     """Error response."""

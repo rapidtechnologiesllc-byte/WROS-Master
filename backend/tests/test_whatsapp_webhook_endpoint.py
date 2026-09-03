@@ -27,12 +27,10 @@ from app.models.candidate_ai import CandidateAIAssignment, CandidateConversation
 from app.models.user import Users
 import app.models  # noqa: F401 -- registers every model on Base.metadata
 
-
 @pytest.fixture(autouse=True)
 def _webhook_secrets(monkeypatch):
     monkeypatch.setattr(settings, "WHATSAPP_VERIFY_TOKEN", "test-verify-token")
     monkeypatch.setattr(settings, "WHATSAPP_APP_SECRET", "test-app-secret")
-
 
 @pytest.fixture()
 def client(monkeypatch):
@@ -68,10 +66,8 @@ def client(monkeypatch):
         engine.dispose()
         os.remove(db_path)
 
-
 def _sign(body: bytes) -> str:
     return "sha256=" + hmac.new(b"test-app-secret", body, hashlib.sha256).hexdigest()
-
 
 def test_get_verification_correct_token_returns_challenge(client):
     test_client, _ = client
@@ -81,14 +77,12 @@ def test_get_verification_correct_token_returns_challenge(client):
     assert resp.status_code == 200
     assert resp.text == "abc123"
 
-
 def test_get_verification_wrong_token_returns_403(client):
     test_client, _ = client
     resp = test_client.get("/webhooks/whatsapp", params={
         "hub.mode": "subscribe", "hub.verify_token": "wrong", "hub.challenge": "abc123",
     })
     assert resp.status_code == 403
-
 
 def test_post_valid_signature_returns_200_and_stores_message(client):
     test_client, SessionLocal = client
@@ -112,7 +106,6 @@ def test_post_valid_signature_returns_200_and_stores_message(client):
     finally:
         db.close()
 
-
 def test_post_invalid_signature_returns_200_but_discards(client):
     """BR-03: Meta retries on non-200, so a bad signature must never
     make this endpoint return anything other than 200 -- it just
@@ -130,7 +123,6 @@ def test_post_invalid_signature_returns_200_but_discards(client):
         assert db.query(ConversationEvent).filter(ConversationEvent.event_type == "candidate_reply").count() == 0
     finally:
         db.close()
-
 
 def test_post_missing_signature_header_returns_200_but_discards(client):
     test_client, _ = client

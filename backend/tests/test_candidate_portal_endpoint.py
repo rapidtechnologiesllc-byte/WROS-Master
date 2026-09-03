@@ -26,7 +26,6 @@ from app.models.candidate_ai import CandidateConversation, ConversationEvent
 from app.models.user import Interview, Users
 import app.models  # noqa: F401
 
-
 @pytest.fixture()
 def throwaway_jwt_keys(monkeypatch):
     key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
@@ -39,7 +38,6 @@ def throwaway_jwt_keys(monkeypatch):
     ).decode()
     monkeypatch.setattr(security, "PRIVATE_KEY", private_pem)
     monkeypatch.setattr(security, "PUBLIC_KEY", public_pem)
-
 
 @pytest.fixture()
 def client(throwaway_jwt_keys):
@@ -86,10 +84,8 @@ def client(throwaway_jwt_keys):
         engine.dispose()
         os.remove(db_path)
 
-
 def _token_for(candidate_id):
     return security.create_access_token(data={"sub": candidate_id, "type": "candidate"})
-
 
 def test_home_returns_stage_and_pending_actions(client):
     test_client, _ = client
@@ -100,19 +96,16 @@ def test_home_returns_stage_and_pending_actions(client):
     assert body["stage"]["label"]
     assert isinstance(body["pending_actions"], list)
 
-
 def test_home_requires_auth(client):
     test_client, _ = client
     resp = test_client.get("/portal/home")
     assert resp.status_code in (401, 403)
-
 
 def test_messages_returns_cross_channel_thread(client):
     test_client, _ = client
     resp = test_client.get("/portal/messages", headers={"Authorization": f"Bearer {_token_for('C-A')}"})
     assert resp.status_code == 200
     assert resp.json()["messages"][0]["channel"] == "EMAIL"
-
 
 def test_profile_patch_updates_missing_field(client):
     test_client, _ = client
@@ -130,7 +123,6 @@ def test_profile_patch_updates_missing_field(client):
     assert "candidateMobile" in body["updated"]
     assert body["total_missing"] == before["total_missing"] - 1
 
-
 def test_interviews_lists_upcoming(client):
     test_client, interview_id = client
     resp = test_client.get("/portal/interviews", headers={"Authorization": f"Bearer {_token_for('C-A')}"})
@@ -139,7 +131,6 @@ def test_interviews_lists_upcoming(client):
     assert len(interviews) == 1
     assert interviews[0]["id"] == interview_id
 
-
 def test_interview_ics_download(client):
     test_client, interview_id = client
     resp = test_client.get(f"/portal/interviews/{interview_id}/ics", headers={"Authorization": f"Bearer {_token_for('C-A')}"})
@@ -147,12 +138,10 @@ def test_interview_ics_download(client):
     assert resp.headers["content-type"].startswith("text/calendar")
     assert b"BEGIN:VEVENT" in resp.content
 
-
 def test_interview_ics_cross_candidate_returns_404(client):
     test_client, interview_id = client
     resp = test_client.get(f"/portal/interviews/{interview_id}/ics", headers={"Authorization": f"Bearer {_token_for('C-B')}"})
     assert resp.status_code == 404
-
 
 def test_reschedule_request_happy_path(client):
     test_client, interview_id = client
@@ -164,7 +153,6 @@ def test_reschedule_request_happy_path(client):
     assert resp.status_code == 200
     assert resp.json()["request_id"]
 
-
 def test_track_page_view_recorded_when_conversation_exists(client):
     """S-346 Step 4 / S-347 Step 4."""
     test_client, _ = client
@@ -175,7 +163,6 @@ def test_track_page_view_recorded_when_conversation_exists(client):
     )
     assert resp.status_code == 200
     assert resp.json()["recorded"] is True
-
 
 def test_track_page_view_no_conversation_still_returns_200(client):
     """C-B has no conversation in this fixture -- a behavioral-telemetry
@@ -189,12 +176,10 @@ def test_track_page_view_no_conversation_still_returns_200(client):
     assert resp.status_code == 200
     assert resp.json()["recorded"] is False
 
-
 def test_track_page_view_requires_auth(client):
     test_client, _ = client
     resp = test_client.post("/portal/track", json={"page": "home", "time_on_page_seconds": 10})
     assert resp.status_code in (401, 403)
-
 
 # S-089 (HRMS-P109): Candidate Portal — Offer Viewer
 def test_portal_offers_returns_empty_list_when_no_offers(client):
@@ -204,13 +189,11 @@ def test_portal_offers_returns_empty_list_when_no_offers(client):
     assert resp.status_code == 200
     assert resp.json()["offers"] == []
 
-
 def test_portal_offers_requires_auth(client):
     """S-089: Offers endpoint requires valid token."""
     test_client, _ = client
     resp = test_client.get("/portal/offers")
     assert resp.status_code in (401, 403)
-
 
 def test_portal_offers_cross_candidate_isolation(client):
     """S-089: Candidate C-A cannot access C-B's offers."""
@@ -221,7 +204,6 @@ def test_portal_offers_cross_candidate_isolation(client):
     assert resp_a.status_code == 200
     assert resp_b.status_code == 200
 
-
 # S-090 (HRMS-P110): Candidate Portal — Document Upload
 def test_portal_documents_returns_empty_list_when_no_documents(client):
     """S-090: Documents tab returns empty list when candidate has no documents."""
@@ -230,13 +212,11 @@ def test_portal_documents_returns_empty_list_when_no_documents(client):
     assert resp.status_code == 200
     assert resp.json()["documents"] == []
 
-
 def test_portal_documents_requires_auth(client):
     """S-090: Documents endpoint requires valid token."""
     test_client, _ = client
     resp = test_client.get("/portal/documents")
     assert resp.status_code in (401, 403)
-
 
 def test_portal_documents_cross_candidate_isolation(client):
     """S-090: Candidate C-A cannot access C-B's documents."""

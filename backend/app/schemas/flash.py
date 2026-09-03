@@ -24,12 +24,10 @@ class FlashHistoryTurn(BaseModel):
     question: str = Field(..., max_length=1000)
     reply: str = Field(default="", max_length=4000)
 
-
 class FlashRequest(BaseModel):
     message: str = Field(..., min_length=1, max_length=1000)
     history: List[FlashHistoryTurn] = Field(default_factory=list, max_length=10)
     conversation_state: Optional[Dict[str, Any]] = Field(default=None, description="State tracking for multi-turn conversations like job creation")
-
 
 class FlashResponse(BaseModel):
     intent: str

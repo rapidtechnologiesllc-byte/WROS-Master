@@ -19,7 +19,6 @@ class SpecialtyPoolStatusResponse(BaseModel):
     at_edge: bool
     gap: int
 
-
 class CorePullEventItem(BaseModel):
     id: str
     status: str
@@ -35,31 +34,25 @@ class CorePullEventItem(BaseModel):
     core_demand_id: str
     core_demand_job_title: str
 
-
 class CorePullEventQueueResponse(BaseModel):
     events: List[CorePullEventItem]
-
 
 class ExecuteCorePullResponse(BaseModel):
     message: str
     event: CorePullEventItem
     specialty_pool_size_after: int
 
-
 class OverrideCorePullRequest(BaseModel):
     justification: str = Field(..., min_length=1)
-
 
 class OverrideCorePullResponse(BaseModel):
     message: str
     event: CorePullEventItem
 
-
 class ReplacementPlanRequest(BaseModel):
     employee_id: str
     replacement_strategy: str = Field(..., min_length=1)
     expected_replacement_date: date
-
 
 class ReplacementPlanResponse(BaseModel):
     id: str

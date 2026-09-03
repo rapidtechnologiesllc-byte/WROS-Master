@@ -29,7 +29,6 @@ from app.core.dependencies import require_resource_permission, get_current_hr_or
 
 router = APIRouter(prefix="/onboarding", tags=["onboarding"])
 
-
 # Legacy backward-compatibility routes - delegate to new microservices
 @router.post(
     "/hr/create_candidate",
@@ -56,7 +55,6 @@ def create_candidate_legacy(
     request = CandidateCreateRequest(**request_body)
     return create_candidate(request=request, background_tasks=background_tasks, db=db, user=user)
 
-
 @router.get(
     "/hr/get_all_candidates",
     summary="DEPRECATED: Use GET /candidates/all instead",
@@ -76,7 +74,6 @@ def get_all_candidates_legacy(
     """
     from app.api.v1.endpoints.candidates.crud import get_all_candidates
     return get_all_candidates(db=db, user=user)
-
 
 @router.get(
     "/hr/candidate/{candidate_id}",
@@ -98,7 +95,6 @@ def get_candidate_by_id_legacy(
     """
     from app.api.v1.endpoints.candidates.crud import get_candidate_by_id
     return get_candidate_by_id(candidate_id=candidate_id, db=db, user=user)
-
 
 @router.put(
     "/hr/update_candidate/{candidate_id}",
@@ -125,7 +121,6 @@ def update_candidate_legacy(
     request = CandidateUpdateRequest(**request_body)
     return update_candidate(candidate_id=candidate_id, request=request, db=db, user=user)
 
-
 @router.delete(
     "/hr/delete_candidate/{candidate_id}",
     summary="DEPRECATED: Use DELETE /candidates/{candidate_id} instead",
@@ -146,7 +141,6 @@ def delete_candidate_legacy(
     """
     from app.api.v1.endpoints.candidates.crud import delete_candidate
     return delete_candidate(candidate_id=candidate_id, db=db, user=user)
-
 
 @router.post(
     "/candidates/{candidate_id}/convert-to-employee",
@@ -173,7 +167,6 @@ def convert_candidate_legacy(
     request = ConvertToEmployeeRequest(**request_body)
     return convert_candidate_to_employee(candidate_id=candidate_id, request=request, db=db, user=user)
 
-
 @router.get(
     "/hr/candidate/{candidate_id}/contacts",
     summary="DEPRECATED: Use GET /candidates/{candidate_id}/contacts instead",
@@ -194,7 +187,6 @@ def get_candidate_contacts_legacy(
     """
     from app.api.v1.endpoints.candidates.conversions import get_candidate_contacts
     return get_candidate_contacts(candidate_id=candidate_id, db=db, user=user)
-
 
 # Orchestration workflows (to be implemented)
 # These will coordinate multi-step processes across microservices:

@@ -33,7 +33,6 @@ from app.services.pipeline_leakage_service import (
 
 router = APIRouter(tags=["forecast-and-leakage"])
 
-
 def _caller_business_unit_ids(db: Session, current_user: Users) -> Optional[List[int]]:
     """None = org-wide (Super User/Finance/HR Manager). A real list =
     scoped to whichever BU(s) the caller's own client-visibility
@@ -43,7 +42,6 @@ def _caller_business_unit_ids(db: Session, current_user: Users) -> Optional[List
         return None
     query = apply_revenue_bu_scope_to_client_query(db, db.query(Client.business_unit_id).distinct(), current_user)
     return [row[0] for row in query.all() if row[0] is not None]
-
 
 @router.get(
     "/forecast-vs-actual",
@@ -60,7 +58,6 @@ def forecast_vs_actual(
         db, client_ids=list(client_ids) if client_ids is not None else None, year=year, month=month,
     )
 
-
 @router.get(
     "/forecast-vs-actual/bu/{business_unit_id}",
     response_model=ForecastVsActualResponse,
@@ -75,7 +72,6 @@ def forecast_vs_actual_by_bu(
     if scoped_bu_ids is not None and business_unit_id not in scoped_bu_ids:
         raise HTTPException(status_code=403, detail="Not authorized to view this Business Unit's revenue.")
     return get_forecast_vs_actual_by_bu(db, business_unit_id=business_unit_id, year=year, month=month)
-
 
 @router.get(
     "/forecast-vs-actual/trend",
@@ -92,7 +88,6 @@ def forecast_vs_actual_trend(
         db, client_ids=list(client_ids) if client_ids is not None else None, year=year,
     )
     return ForecastVsActualTrendResponse(business_unit_id=None, year=year, months=months)
-
 
 @router.post(
     "/revenue-leakage/scan",
@@ -113,7 +108,6 @@ def scan_leakage(
     total_impact = sum(f.estimated_impact_usd_cents or 0 for f in flags)
     return PipelineLeakageScanResponse(flags=flags, total_estimated_impact_usd_cents=total_impact)
 
-
 @router.get(
     "/revenue-leakage/active",
     response_model=PipelineLeakageScanResponse,
@@ -127,7 +121,6 @@ def active_leakage(
     flags = get_active_leakage_flags(db, business_unit_ids=scoped_bu_ids, tenant_id=current_user.tenant_id)
     total_impact = sum(f.estimated_impact_usd_cents or 0 for f in flags)
     return PipelineLeakageScanResponse(flags=flags, total_estimated_impact_usd_cents=total_impact)
-
 
 @router.post(
     "/revenue-leakage/{flag_id}/resolve",

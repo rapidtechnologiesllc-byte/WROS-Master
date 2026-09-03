@@ -18,7 +18,6 @@ from sqlalchemy.orm import Session
 # TEST FIXTURES
 # ============================================================================
 
-
 @pytest.fixture
 def mock_db():
     """Create a mock database session."""
@@ -29,17 +28,14 @@ def mock_db():
     db.flush = Mock()
     return db
 
-
 @pytest.fixture
 def mock_logger():
     """Create a mock logger."""
     return Mock()
 
-
 # ============================================================================
 # TEST SUITE 1: Flash Service (JSON Parsing)
 # ============================================================================
-
 
 class TestFlashServiceSkillParsing:
     """Verify flash_service._skill_tags raises on JSON parse failure."""
@@ -67,17 +63,14 @@ class TestFlashServiceSkillParsing:
 
     def test_skill_tags_success_case(self):
         """Test that valid JSON parsing works."""
-        from app.services.flash_service import find_available_bench_employees
 
         # This is a positive test - valid JSON should work
         valid_json = json.dumps(['python', 'javascript'])
         assert json.loads(valid_json) == ['python', 'javascript']
 
-
 # ============================================================================
 # TEST SUITE 2: Resume Search Service (Indexing)
 # ============================================================================
-
 
 class TestResumeSearchServiceIndexing:
     """Verify resume_search_service raises on index failures."""
@@ -104,7 +97,6 @@ class TestResumeSearchServiceIndexing:
 
     def test_index_resume_success_case(self, mock_db):
         """Test that successful indexing works without raising."""
-        from app.services.resume_search_service import ResumeSearchService
 
         mock_candidate = Mock()
         mock_candidate.candidateID = 'cand-1'
@@ -127,11 +119,9 @@ class TestResumeSearchServiceIndexing:
                 ResumeSearchService.index_resume_on_parse(mock_db, mock_candidate, mock_resume)
                 assert mock_db.add.called
 
-
 # ============================================================================
 # TEST SUITE 3: Role Template Permission Service
 # ============================================================================
-
 
 class TestRoleTemplatePermissionService:
     """Verify role template permission service raises on validation failures."""
@@ -146,7 +136,6 @@ class TestRoleTemplatePermissionService:
 
     def test_get_user_permissions_raises_on_no_role(self, mock_db):
         """Test that user without role raises exception."""
-        from app.services.role_template_permission_service import RoleTemplatePermissionService
 
         # Mock user without role
         mock_user = Mock()
@@ -159,11 +148,9 @@ class TestRoleTemplatePermissionService:
         with pytest.raises(Exception, match='no role template found'):
             RoleTemplatePermissionService.get_user_permissions(mock_db, 'user-1', tenant_id=1)
 
-
 # ============================================================================
 # TEST SUITE 4: Candidate Scoring Service
 # ============================================================================
-
 
 class TestCandidateScoringServiceSkillParsing:
     """Verify candidate scoring service raises on skill parse failures."""
@@ -180,7 +167,6 @@ class TestCandidateScoringServiceSkillParsing:
 
     def test_parse_skills_valid_json(self):
         """Test that valid JSON parsing works."""
-        from app.services.candidate_scoring_service import CandidateScoringService
 
         service = CandidateScoringService()
 
@@ -189,11 +175,9 @@ class TestCandidateScoringServiceSkillParsing:
         assert 'python' in result
         assert 'javascript' in result
 
-
 # ============================================================================
 # INTEGRATION TESTS: Error Propagation
 # ============================================================================
-
 
 class TestErrorPropagation:
     """Verify errors propagate through the call stack correctly."""
@@ -201,7 +185,6 @@ class TestErrorPropagation:
     def test_skill_parsing_error_propagates_to_caller(self):
         """Test that skill parsing errors don't get swallowed."""
         # This is a real integration test that should fail if silent failures exist
-        from app.services.candidate_scoring_service import CandidateScoringService
 
         service = CandidateScoringService()
 
@@ -236,11 +219,9 @@ class TestErrorPropagation:
         with pytest.raises(ValueError):
             good_service_function()
 
-
 # ============================================================================
 # REGRESSION TESTS: Known Issues Fixed (2026-08-24)
 # ============================================================================
-
 
 class TestRegressionPrevention:
     """Regression tests for issues fixed on 2026-08-24."""
@@ -278,11 +259,9 @@ class TestRegressionPrevention:
                     pass
             resume_indexing(None)
 
-
 # ============================================================================
 # BEST PRACTICES TESTS
 # ============================================================================
-
 
 class TestErrorHandlingBestPractices:
     """Enforce error handling best practices."""
@@ -318,18 +297,15 @@ class TestErrorHandlingBestPractices:
                     pass
             operation_with_context('user-123', 'fetch_data')
 
-
 # ============================================================================
 # CONFIGURATION
 # ============================================================================
-
 
 def pytest_configure(config):
     """Register custom markers."""
     config.addinivalue_line(
         "markers", "fail_fast: Test the fail-fast error handling principle"
     )
-
 
 if __name__ == '__main__':
     pytest.main([__file__, '-v', '--tb=short'])

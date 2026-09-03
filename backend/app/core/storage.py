@@ -8,7 +8,6 @@ from typing import Optional, BinaryIO
 
 logger = logging.getLogger(__name__)
 
-
 def upload_to_s3(file_obj: BinaryIO, bucket: str, key: str, content_type: str = "application/octet-stream") -> Optional[str]:
     """
     Upload a file to S3.
@@ -35,7 +34,6 @@ def upload_to_s3(file_obj: BinaryIO, bucket: str, key: str, content_type: str = 
         logger.error(f"Failed to upload to S3: {e}")
         raise ValueError("Operation failed")
 
-
 def download_from_s3(bucket: str, key: str) -> Optional[bytes]:
     """
     Download a file from S3.
@@ -56,7 +54,6 @@ def download_from_s3(bucket: str, key: str) -> Optional[bytes]:
     except Exception as e:
         logger.error(f"Failed to download from S3: {e}")
         raise ValueError("Operation failed")
-
 
 def delete_from_s3(bucket: str, key: str) -> bool:
     """

@@ -26,9 +26,7 @@ from app.schemas.internal_note import (
     InternalNoteListResponse,
 )
 
-
 router = APIRouter(prefix="/internal", tags=["internal"])
-
 
 # ---------------------------------------------------------------------------
 # GET  /internal/notes/{candidate_id}
@@ -85,7 +83,6 @@ def get_notes_by_candidate(
         total=len(notes),
         notes=[InternalNoteResponse.model_validate(n) for n in notes],
     )
-
 
 # ---------------------------------------------------------------------------
 # POST /internal/notes/{candidate_id}

@@ -121,7 +121,6 @@ from app.services.whatsapp_routing_service import (
 
 router = APIRouter(prefix="/ai-agent", tags=["ai-agent"])
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -137,7 +136,6 @@ def _get_candidate_or_404(candidate_id: str, db: Session) -> Candidate:
         )
     return candidate
 
-
 def _get_conversation_or_404(conversation_id: int, db: Session) -> CandidateConversation:
     conversation = db.query(CandidateConversation).filter(
         CandidateConversation.id == conversation_id
@@ -148,7 +146,6 @@ def _get_conversation_or_404(conversation_id: int, db: Session) -> CandidateConv
             detail=f"Conversation '{conversation_id}' not found.",
         )
     return conversation
-
 
 # ===========================================================================
 # POST /ai-agent/assign
@@ -197,7 +194,6 @@ def assign_agent(
     )
     return AIAgentAssignResponse(**result)
 
-
 # ===========================================================================
 # GET /ai-agent/missing-fields/{candidate_id}
 # ===========================================================================
@@ -226,7 +222,6 @@ def preview_missing_fields(
         missing_fields=[MissingFieldItem(**m) for m in missing],
     )
 
-
 # ===========================================================================
 # GET /ai-agent/portal-link/{candidate_id}
 # ===========================================================================
@@ -251,7 +246,6 @@ def get_candidate_portal_link(
 
     _get_candidate_or_404(candidate_id, db)
     return {"candidate_id": candidate_id, "portal_url": generate_portal_link_url(candidate_id)}
-
 
 # ===========================================================================
 # GET /ai-agent/memory/{candidate_id}
@@ -283,7 +277,6 @@ def get_candidate_memory(
     memory = get_memory(db, candidate_id, tenant_id)
     return CandidateMemoryResponse(candidate_id=candidate_id, **memory)
 
-
 # ===========================================================================
 # PATCH /ai-agent/memory/{candidate_id}/facts/{fact_id}
 # ===========================================================================
@@ -307,7 +300,6 @@ def correct_candidate_memory_fact(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user),
 ):
-    from app.services.ai_conversation_service import resolve_default_tenant_id
     from app.services.candidate_memory_service import FactNotFound, correct_fact
 
     _get_candidate_or_404(candidate_id, db)
@@ -321,7 +313,6 @@ def correct_candidate_memory_fact(
         id=fact.id, category=fact.fact_category, key=fact.fact_key, value=fact.fact_value,
         confidence=fact.confidence, is_low_confidence=fact.confidence < 0.7, extracted_at=fact.extracted_at,
     )
-
 
 # ===========================================================================
 # GET /ai-agent/skill-suggestions
@@ -344,14 +335,12 @@ def get_skill_suggestions(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user),
 ):
-    from app.services.ai_conversation_service import resolve_default_tenant_id
     from app.services.skill_extraction_service import get_unknown_skill_suggestions
 
     tenant_id = resolve_default_tenant_id(db)
     if not tenant_id:
         raise HTTPException(status_code=500, detail="No tenant available.")
     return {"suggestions": get_unknown_skill_suggestions(db, tenant_id, since_days=since_days)}
-
 
 # ===========================================================================
 # GET /ai-agent/resume-completeness/{candidate_id}
@@ -374,7 +363,6 @@ def get_resume_completeness(
     candidate = _get_candidate_or_404(candidate_id, db)
     return {"candidate_id": candidate_id, "resume_completeness_score": candidate.resume_completeness_score}
 
-
 # ===========================================================================
 # GET /ai-agent/prompt-templates
 # ===========================================================================
@@ -396,7 +384,6 @@ def get_prompt_templates_endpoint(
     from app.services.prompt_framework_service import get_prompt_templates
 
     return {"templates": get_prompt_templates()}
-
 
 # ===========================================================================
 # POST /ai-agent/webhook/email-reply
@@ -434,7 +421,6 @@ def webhook_email_reply(
     )
     return ProcessReplyResponse(**result)
 
-
 # ===========================================================================
 # POST /ai-agent/poll/{candidate_id}
 # ===========================================================================
@@ -463,7 +449,6 @@ def poll_and_process(
         message_id=None,
     )
     return ProcessReplyResponse(**result)
-
 
 # ===========================================================================
 # GET /ai-agent/conversations/{candidate_id}
@@ -501,7 +486,6 @@ def get_conversations(
         total_conversations=len(thread),
         conversations=[ConversationThreadItem(**c) for c in thread],
     )
-
 
 # ===========================================================================
 # GET /ai-agent/conversations/{candidate_id}/active
@@ -578,7 +562,6 @@ def get_active_conversation(
         ],
     )
 
-
 # ===========================================================================
 # POST /ai-agent/conversations/{conversation_id}/send
 # ===========================================================================
@@ -641,7 +624,6 @@ def send_manual_message(
         owner_id=conversation.owner_id,
     )
 
-
 # ===========================================================================
 # POST /ai-agent/conversations/{conversation_id}/take-over
 # ===========================================================================
@@ -692,7 +674,6 @@ def take_over(
         owner_type=conversation.owner_type,
         owner_id=conversation.owner_id,
     )
-
 
 # ===========================================================================
 # POST /ai-agent/conversations/{conversation_id}/hand-back
@@ -751,7 +732,6 @@ def hand_back(
         owner_id=conversation.owner_id,
     )
 
-
 # ===========================================================================
 # POST /ai-agent/conversations/{conversation_id}/thunder-pause
 # ===========================================================================
@@ -774,7 +754,6 @@ def thunder_pause(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user),
 ):
-    from datetime import datetime as _datetime
 
     conversation = _get_conversation_or_404(conversation_id, db)
     resume_at = None
@@ -804,7 +783,6 @@ def thunder_pause(
         thunder_resume_at=conversation.thunder_resume_at.isoformat() if conversation.thunder_resume_at else None,
         thunder_paused_by=conversation.thunder_paused_by,
     )
-
 
 # ===========================================================================
 # POST /ai-agent/conversations/{conversation_id}/thunder-resume
@@ -843,7 +821,6 @@ def thunder_resume(
         thunder_paused_by=conversation.thunder_paused_by,
     )
 
-
 # ===========================================================================
 # GET /ai-agent/assignments/{candidate_id}
 # ===========================================================================
@@ -872,7 +849,6 @@ def get_assignments(
         .all()
     )
     return [AIAssignmentOut.model_validate(a) for a in assignments]
-
 
 # ===========================================================================
 # DELETE /ai-agent/assign/{candidate_id}
@@ -937,7 +913,6 @@ def deactivate_agent(
         "conversations_closed": len(open_convs),
     }
 
-
 # ===========================================================================
 # GET /ai-agent/inbox
 # ===========================================================================
@@ -972,7 +947,6 @@ def list_inbox(
         messages=[InboxMessageItem(**m) for m in messages],
     )
 
-
 # ===========================================================================
 # GET /ai-agent/inbox/by-email
 # ===========================================================================
@@ -1004,7 +978,6 @@ def list_inbox_by_email(
         total_returned=len(messages),
         messages=[InboxMessageItem(**m) for m in messages],
     )
-
 
 # ===========================================================================
 # GET /ai-agent/candidates/{candidate_id}/audit-log
@@ -1055,7 +1028,6 @@ def get_audit_log(
         ],
     )
 
-
 # ===========================================================================
 # GET /ai-agent/messages/{event_id}/explanation
 # GET /ai-agent/candidates/{candidate_id}/thunder-explanation-log
@@ -1063,7 +1035,6 @@ def get_audit_log(
 
 from app.schemas.thunder_explanation import ExplanationLogResponse, MessageExplanationResponse
 from app.services.thunder_explanation_service import get_explanation_log, get_message_explanation
-
 
 @router.get(
     "/messages/{event_id}/explanation",
@@ -1076,7 +1047,6 @@ def get_thunder_message_explanation(event_id: int, db: Session = Depends(get_db)
     if explanation is None:
         raise HTTPException(status_code=404, detail="Explanation not available for this message.")
     return explanation
-
 
 @router.get(
     "/candidates/{candidate_id}/thunder-explanation-log",

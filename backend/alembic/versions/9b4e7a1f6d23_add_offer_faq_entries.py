@@ -13,7 +13,6 @@ down_revision = "7f3d9a2c48e1"
 branch_labels = None
 depends_on = None
 
-
 def upgrade():
     op.create_table(
         "offer_faq_entries",
@@ -25,7 +24,6 @@ def upgrade():
         sa.UniqueConstraint("tenant_id", "topic", name="uq_offer_faq_entry"),
     )
     op.create_index("ix_offer_faq_entries_tenant_id", "offer_faq_entries", ["tenant_id"])
-
 
 def downgrade():
     op.drop_index("ix_offer_faq_entries_tenant_id", table_name="offer_faq_entries")

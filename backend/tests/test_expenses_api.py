@@ -28,7 +28,6 @@ from app.models.user import Users
 from app.services.rbac_service_template import RBACService
 import app.models  # noqa: F401 -- registers every model on Base.metadata
 
-
 @pytest.fixture()
 def throwaway_jwt_keys(monkeypatch):
     key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
@@ -43,7 +42,6 @@ def throwaway_jwt_keys(monkeypatch):
     ).decode()
     monkeypatch.setattr(security, "PRIVATE_KEY", private_pem)
     monkeypatch.setattr(security, "PUBLIC_KEY", public_pem)
-
 
 @pytest.fixture()
 def client(throwaway_jwt_keys):
@@ -106,18 +104,14 @@ def client(throwaway_jwt_keys):
         engine.dispose()
         os.remove(db_path)
 
-
 def _token_for(email):
     return security.create_access_token(data={"sub": email, "type": "internal", "name": email})
-
 
 def _troy_auth():
     return {"Authorization": f"Bearer {_token_for('troy@blitzenx.com')}"}
 
-
 def _hemant_auth():
     return {"Authorization": f"Bearer {_token_for('hemant@blitzenx.com')}"}
-
 
 def test_unauthenticated_request_rejected(client):
     resp = client.post("/expenses", json={
@@ -125,7 +119,6 @@ def test_unauthenticated_request_rejected(client):
         "amount_usd_cents": 45000, "expense_date": "2026-08-01",
     })
     assert resp.status_code in (401, 403)
-
 
 def test_self_service_create_ignores_any_impersonation_attempt(client):
     """Even if a caller tried to smuggle a different logged_by_user_id
@@ -142,7 +135,6 @@ def test_self_service_create_ignores_any_impersonation_attempt(client):
     assert resp.status_code == 201, resp.text
     assert resp.json()["logged_by_user_id"] == "U-TROY"
 
-
 def test_my_expenses_only_shows_own(client):
     client.post(
         "/expenses", headers=_troy_auth(),
@@ -157,7 +149,6 @@ def test_my_expenses_only_shows_own(client):
     assert resp.status_code == 200
     names = [e["conference_name"] for e in resp.json()["expenses"]]
     assert names == ["NAMIC 2026"]
-
 
 def test_client_prospect_expense_end_to_end(client):
     ids = client.wros_ids
@@ -178,11 +169,9 @@ def test_client_prospect_expense_end_to_end(client):
     assert body["total_expense_usd_cents"] == 120000
     assert body["total_revenue_usd_cents"] == 0
 
-
 def test_list_all_requires_revenue_view(client):
     resp = client.get("/expenses", headers=_troy_auth())
     assert resp.status_code == 200  # Partner has revenue.view
-
 
 def test_approve_requires_revenue_view_pnl(client):
     create_resp = client.post(

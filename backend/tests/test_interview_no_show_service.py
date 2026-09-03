@@ -41,12 +41,10 @@ import app.services.interview_no_show_service as svc
 from app.services.interview_service import assign_panel_member, create_interview
 from app.services.submission_service import create_submission
 
-
 @pytest.fixture(autouse=True)
 def _fake_whatsapp_number(monkeypatch):
     import app.services.whatsapp_routing_service as wr_svc
     monkeypatch.setattr(wr_svc, "DEFAULT_WHATSAPP_NUMBER", "+15550009999")
-
 
 @pytest.fixture()
 def db_session():
@@ -68,7 +66,6 @@ def db_session():
         session.close()
         engine.dispose()
         os.remove(db_path)
-
 
 @pytest.fixture()
 def seeded(db_session):
@@ -119,7 +116,6 @@ def seeded(db_session):
 
     return tenant, candidate, submission, conv, panel
 
-
 def _make_confirmed_interview(db, tenant, submission, panel, minutes_ago):
     scheduled_at = datetime.now(dt_timezone.utc).replace(microsecond=0, tzinfo=None) - timedelta(minutes=minutes_ago)
     interview = create_interview(db, tenant_id=tenant.id, submission=submission, level="L1", panel=panel, scheduled_at=scheduled_at)
@@ -128,7 +124,6 @@ def _make_confirmed_interview(db, tenant, submission, panel, minutes_ago):
     db.add(interview)
     db.commit()
     return interview
-
 
 # ── AC-1/TC-001: check-in sent at 15 min ──────────────────────────────
 
@@ -146,7 +141,6 @@ def test_check_in_sent_at_15_minutes(db_session, seeded):
     assert interview.no_show_check_in_at is not None
     assert interview.no_show_confirmed_at is None
 
-
 def test_check_in_not_sent_before_15_minutes(db_session, seeded):
     tenant, candidate, submission, conv, panel = seeded
     interview = _make_confirmed_interview(db_session, tenant, submission, panel, minutes_ago=5)
@@ -156,7 +150,6 @@ def test_check_in_not_sent_before_15_minutes(db_session, seeded):
 
     db_session.refresh(interview)
     assert interview.no_show_check_in_at is None
-
 
 # ── AC-3/TC-002: candidate reply prevents no-show ─────────────────────
 
@@ -172,7 +165,6 @@ def test_candidate_reply_after_scheduled_time_prevents_check_in(db_session, seed
     db_session.refresh(interview)
     assert interview.no_show_check_in_at is None
 
-
 def test_candidate_reply_after_check_in_prevents_no_show_confirmation(db_session, seeded):
     tenant, candidate, submission, conv, panel = seeded
     interview = _make_confirmed_interview(db_session, tenant, submission, panel, minutes_ago=31)
@@ -186,7 +178,6 @@ def test_candidate_reply_after_check_in_prevents_no_show_confirmation(db_session
 
     db_session.refresh(interview)
     assert interview.no_show_confirmed_at is None
-
 
 # ── AC-4/TC-003: no-show confirmed at 30 min, both parties notified ───
 
@@ -211,7 +202,6 @@ def test_no_show_confirmed_after_30_minutes_notifies_both_parties(db_session, se
     notifications = db_session.query(Notification).all()
     assert len(notifications) == 1
 
-
 def test_no_show_not_confirmed_before_30_minutes(db_session, seeded):
     tenant, candidate, submission, conv, panel = seeded
     interview = _make_confirmed_interview(db_session, tenant, submission, panel, minutes_ago=20)
@@ -221,7 +211,6 @@ def test_no_show_not_confirmed_before_30_minutes(db_session, seeded):
     result = svc.run_no_show_detection_job(db_session)
     assert result["no_show_confirmed"] == 0
 
-
 def test_never_raises_on_missing_candidate(db_session, seeded):
     tenant, candidate, submission, conv, panel = seeded
     interview = _make_confirmed_interview(db_session, tenant, submission, panel, minutes_ago=16)
@@ -230,7 +219,6 @@ def test_never_raises_on_missing_candidate(db_session, seeded):
 
     result = svc.run_no_show_detection_job(db_session)  # should not raise
     assert result["check_in_sent"] == 0
-
 
 # ── AC-7: reschedule offer 2h after no-show ────────────────────────────
 
@@ -246,7 +234,6 @@ def test_reschedule_offer_sent_2_hours_after_no_show(db_session, seeded):
     db_session.refresh(interview)
     assert interview.no_show_reschedule_offer_sent_at is not None
 
-
 def test_reschedule_offer_not_sent_before_2_hours(db_session, seeded):
     tenant, candidate, submission, conv, panel = seeded
     interview = _make_confirmed_interview(db_session, tenant, submission, panel, minutes_ago=200)
@@ -255,7 +242,6 @@ def test_reschedule_offer_not_sent_before_2_hours(db_session, seeded):
 
     result = svc.run_no_show_followup_job(db_session)
     assert result["offer_sent"] == 0
-
 
 # ── Step 4(b): reply to offer routes to reschedule ────────────────────
 
@@ -276,7 +262,6 @@ def test_reply_to_reschedule_offer_routes_to_reschedule_flow(db_session, seeded)
     assert reschedule_event is not None
     assert reschedule_event.event_data["old_interview_id"] == interview.id
 
-
 # ── Step 4(c)/BR-02: 48h no reply -> observability marker only ────────
 
 def test_no_reply_after_48h_marks_no_response_without_disqualifying(db_session, seeded):
@@ -295,7 +280,6 @@ def test_no_reply_after_48h_marks_no_response_without_disqualifying(db_session, 
     # BR-02: never auto-disqualifies -- submission status untouched.
     db_session.refresh(submission)
     assert submission.status == "SUBMITTED"
-
 
 def test_no_response_not_marked_before_48h(db_session, seeded):
     tenant, candidate, submission, conv, panel = seeded

@@ -14,7 +14,6 @@ class GenerateInvoiceRequest(BaseModel):
     period_start: date
     period_end: date
 
-
 class InvoiceLineItemItem(BaseModel):
     id: str
     employee_id: str
@@ -22,7 +21,6 @@ class InvoiceLineItemItem(BaseModel):
     hours: float
     rate_usd_cents: int
     amount_usd_cents: int
-
 
 class InvoiceItem(BaseModel):
     id: str
@@ -38,7 +36,6 @@ class InvoiceItem(BaseModel):
     sent_at: Optional[datetime] = None
     paid_at: Optional[datetime] = None
     line_items: List[InvoiceLineItemItem] = []
-
 
 class InvoiceListResponse(BaseModel):
     invoices: List[InvoiceItem]

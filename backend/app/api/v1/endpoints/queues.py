@@ -18,7 +18,6 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/queues", tags=["queues"])
 
-
 @router.get(
     "",
     dependencies=[Depends(require_resource_permission("unknown", "view"))]
@@ -102,7 +101,6 @@ def get_queue_messages(
         raise
     finally:
         db.close()
-
 
 @router.get(
     "/stats",

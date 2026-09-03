@@ -44,7 +44,6 @@ from app.services.opportunity_service import (
 
 router = APIRouter(prefix="/opportunities", tags=["opportunities"])
 
-
 def _to_item(db: Session, opportunity: Opportunity) -> OpportunityItem:
     client = db.query(Client).filter(Client.id == opportunity.client_id).first()
     owner = (
@@ -70,14 +69,12 @@ def _to_item(db: Session, opportunity: Opportunity) -> OpportunityItem:
         created_at=opportunity.created_at, updated_at=opportunity.updated_at,
     )
 
-
 def _scoped_query(db: Session, current_user: Users):
     query = db.query(Opportunity)
     client_ids = get_revenue_scoped_client_ids(db, current_user)
     if client_ids is not None:
         query = query.filter(Opportunity.client_id.in_(client_ids))
     return query
-
 
 @router.post(
     "",
@@ -106,7 +103,6 @@ def create_opportunity_endpoint(
         raise HTTPException(status_code=400, detail=str(exc))
     return _to_item(db, opportunity)
 
-
 @router.get(
     "",
     response_model=OpportunityListResponse,
@@ -125,7 +121,6 @@ def list_opportunities(
         query = query.filter(Opportunity.client_id == client_id)
     opportunities = query.order_by(Opportunity.created_at.desc()).all()
     return OpportunityListResponse(opportunities=[_to_item(db, o) for o in opportunities])
-
 
 @router.get(
     "/eligible-owners",
@@ -152,7 +147,6 @@ def list_eligible_owners(
     )
     return {"employees": [{"id": e.id, "first_name": e.first_name, "last_name": e.last_name} for e in rows]}
 
-
 @router.get(
     "/pipeline",
     response_model=PipelineResponse,
@@ -177,7 +171,6 @@ def get_pipeline(
         ))
     return PipelineResponse(columns=columns)
 
-
 @router.get(
     "/{opportunity_id}",
     response_model=OpportunityItem,
@@ -192,7 +185,6 @@ def get_opportunity(
     if not opportunity:
         raise HTTPException(status_code=404, detail=f"Opportunity {opportunity_id!r} not found.")
     return _to_item(db, opportunity)
-
 
 @router.post(
     "/{opportunity_id}/transition",
@@ -226,7 +218,6 @@ def transition_opportunity_stage(
     db.refresh(opportunity)
     return OpportunityStageTransitionResponse(opportunity=_to_item(db, opportunity), project_id=project_id)
 
-
 @router.get(
     "/{opportunity_id}/revenue-rollup",
     dependencies=[Depends(require_resource_permission("opportunities", "view"))]
@@ -240,7 +231,6 @@ def get_revenue_rollup(
     if not opportunity:
         raise HTTPException(status_code=404, detail=f"Opportunity {opportunity_id!r} not found.")
     return {"opportunity_id": opportunity_id, "role_demand_revenue_usd_cents": get_opportunity_revenue_rollup(db, opportunity)}
-
 
 @router.post(
     "/{opportunity_id}/role-demand",

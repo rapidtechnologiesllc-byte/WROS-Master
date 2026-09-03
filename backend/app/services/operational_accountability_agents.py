@@ -186,7 +186,6 @@ class PartnerROIAgent:
             "action": "Partners behind target need immediate support or coaching"
         }
 
-
 class BUHeadAgent:
     """
     BU Head Agent - Daily business unit accountability.
@@ -359,7 +358,6 @@ class BUHeadAgent:
                 "bus_at_risk": sum(1 for s in summaries if "WARNING" in s["delivery_cadence"]["status"] or "WARNING" in s["utilization"]["status"])
             }
         }
-
 
 class EmployeeHealthAgent:
     """

@@ -16,7 +16,6 @@ from app.models.interview import InterviewFeedback, InterviewDecisionLog, Interv
 from app.models.offer import Offer, OfferStatus
 from app.models.candidate import Candidate
 
-
 class InterviewDecisionService:
     """Manages the workflow from interview completion to offer decision."""
 

@@ -83,10 +83,8 @@ logger = logging.getLogger(__name__)
 class CandidateNotFound(Exception):
     pass
 
-
 class JobNotFound(Exception):
     pass
-
 
 def _ensure_job_requirements_parsed(db: Session, job: Jobs) -> None:
     """Lazily populates the structured requirement columns the first
@@ -106,14 +104,12 @@ def _ensure_job_requirements_parsed(db: Session, job: Jobs) -> None:
     db.add(job)
     db.flush()
 
-
 def _skill_match_score(required_skills: List[str], candidate_skills: set) -> Dict:
     if not required_skills:
         return {"score": 100, "matched": [], "missing": []}
     matched = [s for s in required_skills if s in candidate_skills]
     missing = [s for s in required_skills if s not in candidate_skills]
     return {"score": round(len(matched) / len(required_skills) * 100), "matched": matched, "missing": missing}
-
 
 def _experience_score(candidate_years: float, min_years: int) -> int:
     """BR-02: more than 2 years below the requirement is capped at 20,
@@ -128,13 +124,11 @@ def _experience_score(candidate_years: float, min_years: int) -> int:
         return 40
     return 20
 
-
 def _certification_score(preferred_certs: List[str], candidate_cert_names: set) -> int:
     if not preferred_certs:
         return 100
     missing_count = sum(1 for c in preferred_certs if c.lower() not in candidate_cert_names)
     return max(0, 100 - missing_count * MISSING_CERT_PENALTY)
-
 
 def calculate_technical_score(db: Session, candidate_id: str, job_id: str, tenant_id: str) -> Dict:
     """Step 2. Returns the full CandidateJobScore payload, including
@@ -218,7 +212,6 @@ def calculate_technical_score(db: Session, candidate_id: str, job_id: str, tenan
         "score_breakdown": record.score_breakdown, "calculated_at": record.calculated_at,
     }
 
-
 def linked_job_ids(db: Session, candidate: Candidate) -> List[str]:
     """Public (not underscore-prefixed) -- shared with
     compensation_scoring_service (S-038), which scores the same real
@@ -229,7 +222,6 @@ def linked_job_ids(db: Session, candidate: Candidate) -> List[str]:
     applications = db.query(CandidateJobApplication).filter(CandidateJobApplication.candidate_id == candidate.candidateID).all()
     job_ids.update(a.job_id for a in applications)
     return list(job_ids)
-
 
 def recalculate_for_candidate(db: Session, candidate: Candidate, tenant_id: str) -> List[Dict]:
     """BR-03. Recalculates technical_score for every job this candidate

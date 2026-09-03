@@ -16,12 +16,10 @@ class ConfigItem(BaseModel):
     max_value: Optional[float] = None
     enum_values: Optional[List[str]] = None
 
-
 class LocaleConfig(BaseModel):
     default_timezone: str
     default_date_format: str
     default_currency: str
-
 
 class SettingsPanelResponse(BaseModel):
     AI_THRESHOLDS: List[ConfigItem]
@@ -29,10 +27,8 @@ class SettingsPanelResponse(BaseModel):
     CHANNELS: List[ConfigItem]
     LOCALE: LocaleConfig
 
-
 class UpdateConfigValueRequest(BaseModel):
     value: Any
-
 
 class UpdateLocaleRequest(BaseModel):
     default_timezone: Optional[str] = None

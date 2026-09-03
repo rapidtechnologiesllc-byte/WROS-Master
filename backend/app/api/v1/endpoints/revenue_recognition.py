@@ -73,7 +73,6 @@ from app.models.invoice import Invoice
 
 router = APIRouter(prefix="/revenue", tags=["revenue-recognition"])
 
-
 # ============================================================================
 # REVENUE RECOGNITION ENDPOINTS
 # ============================================================================
@@ -143,7 +142,6 @@ def recognize_revenue(
         logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
-
 @router.post(
     "/entries",
     dependencies=[Depends(get_current_internal_user)],
@@ -199,7 +197,6 @@ def create_entries(
         logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
-
 @router.post(
     "/asr",
     dependencies=[Depends(get_current_internal_user)],
@@ -252,7 +249,6 @@ def calculate_annual_recurring_revenue(
         logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
-
 # ============================================================================
 # REVENUE REPORTING ENDPOINTS
 # ============================================================================
@@ -287,7 +283,6 @@ def get_revenue_monthly(
         logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
-
 @router.get(
     "/by-service",
     dependencies=[Depends(get_current_internal_user)],
@@ -315,7 +310,6 @@ def get_revenue_service(
     except Exception as e:
         logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @router.get(
     "/by-module",
@@ -345,7 +339,6 @@ def get_revenue_module(
         logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
-
 @router.get(
     "/by-pricing-model",
     dependencies=[Depends(get_current_internal_user)],
@@ -373,7 +366,6 @@ def get_revenue_pricing_model(
     except Exception as e:
         logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @router.get(
     "/by-client-owner",
@@ -403,7 +395,6 @@ def get_revenue_client_owner(
         logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
-
 @router.get(
     "/partner-shares",
     dependencies=[Depends(get_current_internal_user)],
@@ -431,7 +422,6 @@ def get_partner_shares(
     except Exception as e:
         logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @router.get(
     "/forecast-vs-actual",
@@ -465,7 +455,6 @@ def get_forecast_actual(
         logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
-
 @router.get(
     "/negative-margins",
     dependencies=[Depends(get_current_internal_user)],
@@ -494,7 +483,6 @@ def get_negative_margins(
     except Exception as e:
         logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @router.get(
     "/pnl-summary",

@@ -13,7 +13,6 @@ from app.models.candidate import Candidate
 from app.models.employee import Employee
 from app.models.invoice import Invoice
 
-
 # All 50+ agents mapped to their strategic role
 AGENT_REGISTRY = {
     # RECRUITMENT (Tier 1 - Core)
@@ -129,7 +128,6 @@ AGENT_REGISTRY = {
         "target_fy": {"value": 90, "unit": "%_buddy_assignment", "year": 2026},
     },
 }
-
 
 def get_agent_state_target(db: Session, agent_name: str) -> Optional[Dict[str, Any]]:
     """Get complete agent state including targets, actual performance, fear score, and improvements."""
@@ -249,7 +247,6 @@ def get_agent_state_target(db: Session, agent_name: str) -> Optional[Dict[str, A
         },
     }
 
-
 def calculate_agent_fear_score(
     agent_name: str,
     target_fy_value: float,
@@ -313,7 +310,6 @@ def calculate_agent_fear_score(
         "is_kill_switch_candidate": is_kill_switch_candidate,
     }
 
-
 def get_all_agent_states(db: Session, tenant_id: Optional[str] = None) -> List[Dict[str, Any]]:
     """Get state for all agents in registry."""
 
@@ -334,7 +330,6 @@ def get_all_agent_states(db: Session, tenant_id: Optional[str] = None) -> List[D
     )
 
     return all_agents
-
 
 def get_agent_recommendations(agent_state: Dict[str, Any]) -> List[str]:
     """Generate improvement recommendations based on agent state."""

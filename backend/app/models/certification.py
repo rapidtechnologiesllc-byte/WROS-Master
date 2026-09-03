@@ -5,10 +5,8 @@ from sqlalchemy.orm import relationship
 import logging
 from app.models.base import Base
 
-
 def _new_uuid() -> str:
     return str(uuid.uuid4())
-
 
 CERTIFICATION_LEVELS = ("Foundation", "Intermediate", "Advanced", "Expert")
 CERT_STATUS = ("Active", "Expired", "Pending", "Revoked")
@@ -41,7 +39,6 @@ class Certification(Base):
 
     def __repr__(self) -> str:
         return f"<Certification {self.cert_code}: {self.cert_name}>"
-
 
 class EmployeeCertification(Base):
     """Track certifications earned by employees."""

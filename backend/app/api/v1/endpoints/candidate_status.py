@@ -29,9 +29,7 @@ from app.services.email_service import EmailService
 from app.core.logging import logger
 from app.schemas.candidate import CandidateStatusUpdateRequest, CandidateStatusResponse, AllCandidateStatusResponse, StatusActionResponse, ManagerApprovalRequest
 
-
 router = APIRouter(prefix="/status", tags=["candidate-status"])
-
 
 # ---------------------------------------------------------------------------
 # Valid choices (kept as constants so the Swagger docs show the options)
@@ -50,8 +48,6 @@ VALID_PIPELINE_STATUSES = {
     "Rejected",
 }
 
-
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -64,7 +60,6 @@ def _candidate_display_name(candidate: Candidate) -> str:
         candidate.candidateLastName or "",
     ]
     return " ".join(filter(None, parts)).strip() or "N/A"
-
 
 def _assign_preboarding_checklist(candidate: Candidate, db: Session, performed_by_id: Optional[str] = None) -> None:
     """
@@ -156,7 +151,6 @@ def _assign_preboarding_checklist(candidate: Candidate, db: Session, performed_b
 
     db.commit()
     logger.info(f"[Approval] Successfully auto-assigned checklist '{template_name}' to candidate '{candidate.candidateID}'.")
-
 
 def _send_approval_notifications(candidate: Candidate, cs: CandidateStatus, assignment: Optional[CandidateAssignment], db: Session) -> None:
     """
@@ -271,7 +265,6 @@ def _build_status_response(candidate: Candidate, cs: Optional[CandidateStatus]) 
         updated_at=cs.updatedAt if cs else None,
     )
 
-
 # ---------------------------------------------------------------------------
 # Routes
 # ---------------------------------------------------------------------------
@@ -383,7 +376,6 @@ def update_candidate_status(
         data=_build_status_response(candidate, cs),
     )
 
-
 @router.get(
     "/all",
     response_model=AllCandidateStatusResponse,
@@ -444,7 +436,6 @@ def get_all_candidate_statuses(
 
     return AllCandidateStatusResponse(total=len(results), candidates=results)
 
-
 @router.get(
     "/{candidate_id}",
     response_model=CandidateStatusResponse,
@@ -469,7 +460,6 @@ def get_candidate_status(
     ).first()
 
     return _build_status_response(candidate, cs)
-
 
 # NOTE: The hiring-manager-approval endpoint has been moved to:
 #   app/api/v1/endpoints/preonboarding.py

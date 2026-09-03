@@ -13,7 +13,6 @@ down_revision = "9b4e7a1f6d23"
 branch_labels = None
 depends_on = None
 
-
 def upgrade():
     op.create_table(
         "preboarding_documents",
@@ -36,7 +35,6 @@ def upgrade():
     op.create_index("ix_preboarding_documents_candidate_id", "preboarding_documents", ["candidate_id"])
     op.create_index("ix_preboarding_documents_offer_id", "preboarding_documents", ["offer_id"])
     op.create_index("ix_preboarding_documents_job_queue", "preboarding_documents", ["status", "last_reminded_at"])
-
 
 def downgrade():
     op.drop_index("ix_preboarding_documents_job_queue", table_name="preboarding_documents")

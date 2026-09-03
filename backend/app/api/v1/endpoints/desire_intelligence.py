@@ -39,7 +39,6 @@ from app.services.desire_profile_service import build_and_narrate
 
 router = APIRouter(tags=["desire-intelligence"])
 
-
 def _build_response(db: Session, candidate_id: str) -> DesireIntelligenceResponse:
     profile = db.query(CandidateDesireProfile).filter(CandidateDesireProfile.candidate_id == candidate_id).first()
 
@@ -80,7 +79,6 @@ def _build_response(db: Session, candidate_id: str) -> DesireIntelligenceRespons
         motivation_history=motivation_history,
     )
 
-
 @router.get(
     "/candidates/{candidate_id}/desire-intelligence",
     response_model=DesireIntelligenceResponse,
@@ -92,7 +90,6 @@ def get_desire_intelligence(candidate_id: str, db: Session = Depends(get_db)):
     if not candidate:
         raise HTTPException(status_code=404, detail=f"Candidate '{candidate_id}' not found.")
     return _build_response(db, candidate_id)
-
 
 @router.post(
     "/candidates/{candidate_id}/desire-intelligence/refresh",

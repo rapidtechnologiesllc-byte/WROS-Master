@@ -35,7 +35,6 @@ from app.services.expense_service import (
     mark_expense_paid, track_reimbursement,
 )
 
-
 @pytest.fixture()
 def db_session():
     fd, db_path = tempfile.mkstemp(suffix=".sqlite3")
@@ -50,7 +49,6 @@ def db_session():
         engine.dispose()
         os.remove(db_path)
 
-
 def _make_user(db, user_id, role, *, tenant_id=None, business_unit_id=None):
     user = Users(
         UserID=user_id, UserRole=role, UserEmail=f"{user_id}@blitzenx.com",
@@ -59,7 +57,6 @@ def _make_user(db, user_id, role, *, tenant_id=None, business_unit_id=None):
     db.add(user)
     db.commit()
     return user
-
 
 def _make_client(db, name, *, status="PROSPECT", tenant_id=None):
     client = Client(company_name=name, status=status, tenant_id=tenant_id)
@@ -160,7 +157,6 @@ class TestSubmitExpense:
                 receipt_ref="REC-001",
             )
 
-
 class TestApproveExpense:
     """S-325: approve_expense - Manager and Finance approval workflow."""
 
@@ -214,7 +210,6 @@ class TestApproveExpense:
 
     def test_finance_approval_after_manager_approval(self, db_session, monkeypatch):
         """Finance can approve after manager has approved."""
-        from app.services import email_service
 
         sent = {}
         monkeypatch.setattr(
@@ -250,7 +245,6 @@ class TestApproveExpense:
 
     def test_finance_approval_creates_mark_paid_task(self, db_session, monkeypatch):
         """Finance approval creates a Task to mark the expense as paid."""
-        from app.services import email_service
         monkeypatch.setattr(
             email_service.EmailService, "send_event_notification",
             classmethod(lambda cls, **kwargs: {"sent": True}),
@@ -280,13 +274,11 @@ class TestApproveExpense:
         assert task is not None
         assert "Mark expense as paid" in task.title
 
-
 class TestReimburseExpense:
     """S-325: reimburse_expense - Mark expense as reimbursed."""
 
     def test_reimburse_expense_after_finance_approval(self, db_session, monkeypatch):
         """Can mark as reimbursed after finance approval."""
-        from app.services import email_service
         monkeypatch.setattr(
             email_service.EmailService, "send_event_notification",
             classmethod(lambda cls, **kwargs: {"sent": True}),
@@ -316,7 +308,6 @@ class TestReimburseExpense:
 
     def test_reimburse_expense_closes_task(self, db_session, monkeypatch):
         """Marking as reimbursed closes the associated Task."""
-        from app.services import email_service
         monkeypatch.setattr(
             email_service.EmailService, "send_event_notification",
             classmethod(lambda cls, **kwargs: {"sent": True}),
@@ -363,13 +354,11 @@ class TestReimburseExpense:
         with pytest.raises(ExpenseValidationError, match="must be APPROVED"):
             mark_expense_paid(db_session, expense)
 
-
 class TestTrackReimbursement:
     """S-325: track_reimbursement - Monitor expense status through workflow."""
 
     def test_track_single_user_reimbursement(self, db_session, monkeypatch):
         """Can track reimbursement status for a single user."""
-        from app.services import email_service
         monkeypatch.setattr(
             email_service.EmailService, "send_event_notification",
             classmethod(lambda cls, **kwargs: {"sent": True}),
@@ -417,7 +406,6 @@ class TestTrackReimbursement:
 
     def test_track_all_reimbursement(self, db_session, monkeypatch):
         """Can track reimbursement status for all users."""
-        from app.services import email_service
         monkeypatch.setattr(
             email_service.EmailService, "send_event_notification",
             classmethod(lambda cls, **kwargs: {"sent": True}),
@@ -460,7 +448,6 @@ class TestTrackReimbursement:
 
     def test_reimbursement_tracking_shows_timeline(self, db_session, monkeypatch):
         """Reimbursement tracking includes days in each workflow stage."""
-        from app.services import email_service
         monkeypatch.setattr(
             email_service.EmailService, "send_event_notification",
             classmethod(lambda cls, **kwargs: {"sent": True}),
@@ -492,13 +479,11 @@ class TestTrackReimbursement:
         assert "days_awaiting_finance" in reimbursement
         assert reimbursement["is_fully_processed"] is False  # Not yet reimbursed
 
-
 class TestCompleteExpenseWorkflow:
     """S-325: Complete end-to-end workflow from submission to reimbursement."""
 
     def test_complete_workflow(self, db_session, monkeypatch):
         """Complete workflow: submit → manager approval → finance approval → reimburse."""
-        from app.services import email_service
         monkeypatch.setattr(
             email_service.EmailService, "send_event_notification",
             classmethod(lambda cls, **kwargs: {"sent": True}),

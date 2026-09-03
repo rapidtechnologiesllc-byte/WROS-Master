@@ -73,14 +73,12 @@ STORAGE_FAILED_RECRUITER_ALERT = (
     "Thunder received a resume from {name} but could not store it after two attempts. Please follow up manually."
 )
 
-
 def _confirmation_message(candidate: Candidate) -> str:
     name = candidate.candidateFirstName or candidate.candidateEmail or "there"
     return (
         f"Thank you {name}! I have received your resume and will review it shortly. "
         "I'll be in touch with the next steps."
     )
-
 
 def has_active_resume(db: Session, candidate_id: str) -> bool:
     return (
@@ -90,14 +88,12 @@ def has_active_resume(db: Session, candidate_id: str) -> bool:
         is not None
     )
 
-
 def _extension_from(filename: str, mime_type: Optional[str]) -> str:
     ext = os.path.splitext(filename or "")[1].lower()
     if ext:
         return ext
     guessed = mimetypes.guess_extension(mime_type or "") or ""
     return guessed.lower()
-
 
 def _notify_recruiter_of_storage_failure(db: Session, tenant_id: str, candidate: Candidate) -> None:
     from app.models.candidate_ai import CandidateAIAssignment
@@ -123,7 +119,6 @@ def _notify_recruiter_of_storage_failure(db: Session, tenant_id: str, candidate:
     except Exception as exc:
         logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[ResumeUpload] Failed to notify recruiter of storage failure for candidate {candidate.candidateID}: {exc}")
-
 
 def handle_resume_document(
     db: Session,

@@ -22,7 +22,6 @@ from fastapi import HTTPException
 
 import app.core.security as security
 
-
 @pytest.fixture()
 def throwaway_keys(monkeypatch):
     key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
@@ -38,12 +37,10 @@ def throwaway_keys(monkeypatch):
     monkeypatch.setattr(security, "PRIVATE_KEY", private_pem)
     monkeypatch.setattr(security, "PUBLIC_KEY", public_pem)
 
-
 def test_positive_case_fresh_token_decodes(throwaway_keys):
     token = security.create_access_token({"sub": "aisha@blitzenx.com", "type": "user"})
     payload = security.decode_access_token(token)
     assert payload["sub"] == "aisha@blitzenx.com"
-
 
 def test_negative_case_expired_token_is_rejected(throwaway_keys):
     token = security.create_access_token(
@@ -53,7 +50,6 @@ def test_negative_case_expired_token_is_rejected(throwaway_keys):
     with pytest.raises(HTTPException) as exc_info:
         security.decode_access_token(token)
     assert exc_info.value.status_code == 401
-
 
 def test_negative_case_token_signed_by_a_different_key_is_rejected(monkeypatch):
     """

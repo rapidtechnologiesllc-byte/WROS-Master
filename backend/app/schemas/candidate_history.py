@@ -13,7 +13,6 @@ from typing import List, Optional
 from pydantic import BaseModel, Field
 from app.core.logging import logger
 
-
 # ---------------------------------------------------------------------------
 # Allowed event types — validated on creation
 # ---------------------------------------------------------------------------
@@ -44,7 +43,6 @@ VALID_EVENT_TYPES = {
     "Rejected",
     "Custom",
 }
-
 
 # ---------------------------------------------------------------------------
 # Request schemas
@@ -95,7 +93,6 @@ class CandidateHistoryCreateRequest(BaseModel):
         ),
     )
 
-
 # ---------------------------------------------------------------------------
 # Response schemas
 # ---------------------------------------------------------------------------
@@ -118,14 +115,12 @@ class CandidateHistoryResponse(BaseModel):
     class Config:
         from_attributes = True
 
-
 class CandidateHistoryListResponse(BaseModel):
     """Paginated list of history events for one candidate."""
 
     candidate_id: str
     total: int
     events: List[CandidateHistoryResponse]
-
 
 class CandidateHistoryCreateResponse(BaseModel):
     """Returned after successfully creating a history event."""

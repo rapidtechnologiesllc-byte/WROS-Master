@@ -19,8 +19,6 @@ from fastapi import Request
 
 router = APIRouter(prefix="/email", tags=["Email Service"])
 
-
-
 # â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 # Request / Response schemas
 # â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -33,13 +31,11 @@ class SendMailRequest(BaseModel):
     is_html: bool = True
     cc_emails: Optional[List[EmailStr]] = None
 
-
 class SendNotificationRequest(BaseModel):
     to_email: EmailStr
     heading: str
     message: str
     cc_emails: Optional[List[EmailStr]] = None
-
 
 # Allowed event type values for the event notification endpoint
 EventType = Literal[
@@ -50,7 +46,6 @@ EventType = Literal[
     "action_required",
     "general",
 ]
-
 
 class SendEventNotificationRequest(BaseModel):
     """
@@ -84,7 +79,6 @@ class SendInterviewInviteRequest(BaseModel):
     timezone: Optional[str] = "Asia/Kolkata"
     create_teams_event: Optional[bool] = True
 
-
 class SendCustomInterviewInviteRequest(BaseModel):
     """
     Ad-hoc invite when you don't have an interview_id yet (free-form).
@@ -99,14 +93,12 @@ class SendCustomInterviewInviteRequest(BaseModel):
     timezone: Optional[str] = "Asia/Kolkata"
     create_teams_event: Optional[bool] = True
 
-
 class SendLoginCredentialsRequest(BaseModel):
     """
     Optional override for the portal link.
     The candidate's email and password are read directly from the database.
     """
     portal_link: Optional[str] = "https://hrms.blitzenx.com/"
-
 
 # â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 # Endpoints
@@ -136,7 +128,6 @@ def send_mail(
         is_html=request.is_html,
         cc_emails=request.cc_emails,
     )
-
 
 @router.post(
     "/send-with-attachments",
@@ -204,7 +195,6 @@ async def send_mail_with_attachments(
         attachments=attachments if attachments else None,
     )
 
-
 @router.post(
     "/notify",
     dependencies=[Depends(get_current_internal_user)],
@@ -228,7 +218,6 @@ def send_notification(
         message=request.message,
         cc_emails=request.cc_emails,
     )
-
 
 @router.post(
     "/notify/event",
@@ -400,7 +389,6 @@ def send_interview_invite_by_id(
 
     return result
 
-
 @router.delete(
     "/interview/cancel/{interview_id}",
     dependencies=[Depends(get_current_internal_user)],
@@ -496,7 +484,6 @@ def cancel_interview_by_id(
 
     return result
 
-
 @router.post(
     "/interview/invite/custom",
     dependencies=[Depends(get_current_internal_user)],
@@ -526,7 +513,6 @@ def send_custom_interview_invite(
         timezone=request.timezone or "Asia/Kolkata",
         create_teams_event=request.create_teams_event,
     )
-
 
 @router.post(
     "/login-credentials/{candidate_id}",

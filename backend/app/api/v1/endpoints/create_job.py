@@ -103,7 +103,6 @@ def generate_job_description(
         job_location=result['location']
     )
 
-
 @router.post(
     "/generate-with-agent",
     response_model=GenerateJobWithAgentResponse,
@@ -161,7 +160,6 @@ def generate_job_with_agent(
         db.add(log_entry)
         db.commit()
         raise
-
 
 @router.post(
     "/generate-complete",
@@ -224,7 +222,6 @@ def generate_job_complete(
         db.commit()
         raise
 
-
 @router.get(
     "/all",
     response_model=AllJobsResponse,
@@ -277,7 +274,6 @@ def get_all_jobs(
         jobs=jobs_data
     )
 
-
 @router.get(
     "/active-jobs",
     response_model=AllJobsResponse,
@@ -329,7 +325,6 @@ def get_active_jobs(
         total_jobs=len(jobs_data),
         jobs=jobs_data
     )
-
 
 @router.get(
     "/filter",
@@ -407,7 +402,6 @@ def filter_jobs(
 
     return AllJobsResponse(total_jobs=len(jobs_data), jobs=jobs_data)
 
-
 @router.get(
     "/my-jobs",
     response_model=AllJobsResponse,
@@ -481,7 +475,6 @@ def get_my_jobs(
 
     return AllJobsResponse(total_jobs=len(jobs_data), jobs=jobs_data)
 
-
 @router.get(
     "/job-details/{job_id}",
     response_model=JobResponse,
@@ -506,7 +499,6 @@ def get_job_by_id(
     Raises:
         HTTPException: If job not found
     """
-    from app.models.user import Users
 
     job = db.query(Jobs).filter(Jobs.jobID == job_id).first()
     if not job:
@@ -552,7 +544,6 @@ def get_job_by_id(
         required_skills_canonical=job.required_skills_canonical,
         job_skills_boolean_mode=job.job_skills_boolean_mode
     )
-
 
 @router.post(
     "/create_job",
@@ -742,7 +733,6 @@ def create_job(request: JobCreateRequest, background_tasks: BackgroundTasks, db:
 
     return JobCreateResponse(job_id=job_id, response=response_message)
 
-
 @router.post(
     "/{job_id}/approve",
     response_model=JobApproveResponse,
@@ -804,7 +794,6 @@ def approve_job(
         message=f"Job '{job.jobTitle}' approved and is now live.{recruiter_msg}",
         approved_by=approver_name
     )
-
 
 @router.put(
     "/update_job/{job_id}",
@@ -896,7 +885,6 @@ def update_job(job_id: str, request: JobUpdateRequest, db: Session = Depends(get
         salary_range=job.salaryRange
     )
 
-
 @router.delete(
     "/delete_job/{job_id}",
     response_model=DeleteResponse,
@@ -932,7 +920,6 @@ def delete_job(job_id: str, db: Session = Depends(get_db), user = Depends(get_cu
         status="Success",
         message=f"Job with ID {job_id} deleted successfully"
     )
-
 
 @router.post(
     "/post-on-linkedin",
@@ -1013,7 +1000,6 @@ def post_job_on_linkedin(
         posted_at=posted_at,
         job_details=job_details
     )
-
 
 @router.post(
     "/{job_id}/apply",
@@ -1343,17 +1329,14 @@ def get_candidates_by_job(
         ],
     )
 
-
 # ==============================================================================
 # Multi-Job Assignment Endpoints  (uses candidate_job_applications junction table)
 # ==============================================================================
 
 from app.models.candidate import CandidateJobApplication
-from app.schemas.user import (
     JobApplicationCreate, JobApplicationStatusUpdate,
     JobApplicationEntry, CandidateJobsResponse, JobCandidatesMultiResponse,
 )
-
 
 @router.post(
     "/{job_id}/applications/{candidate_id}",
@@ -1413,7 +1396,6 @@ def create_job_application(
         applied_at=application.applied_at,
     )
 
-
 @router.delete(
     "/{job_id}/applications/{candidate_id}",
     dependencies=[Depends(require_resource_permission("jobs", "edit"))],
@@ -1442,7 +1424,6 @@ def remove_job_application(
     db.delete(application)
     db.commit()
     return {"status": "Success", "message": f"Candidate '{candidate_id}' removed from job '{job_id}'"}
-
 
 @router.put(
     "/{job_id}/applications/{candidate_id}/status",
@@ -1484,7 +1465,6 @@ def update_job_application_status(
         application_status=application.application_status,
         applied_at=application.applied_at,
     )
-
 
 @router.get(
     "/{job_id}/applications",
@@ -1532,7 +1512,6 @@ def get_job_applications(
         total_candidates=len(entries),
         applications=entries,
     )
-
 
 @router.get(
     "/candidate-applications/{candidate_id}",
@@ -1586,14 +1565,12 @@ def get_candidate_applications(
         applications=entries,
     )
 
-
 # ==============================================================================
 # Job Statistics Endpoint
 # ==============================================================================
 
 from sqlalchemy import func as sql_func
 from app.schemas.user import JobStatisticsResponse, ApplicationStatusCount
-
 
 @router.get(
     "/{job_id}/statistics",

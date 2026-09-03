@@ -33,31 +33,25 @@ from app.core.logging import logger
 
 logger = logging.getLogger(__name__)
 
-
 class LinkedInImportError(Exception):
     """Base exception for LinkedIn import errors."""
     pass
-
 
 class InvalidLinkedInURL(LinkedInImportError):
     """LinkedIn URL format invalid."""
     pass
 
-
 class ApolloCandidateNotFound(LinkedInImportError):
     """Apollo enrichment found no profile data."""
     pass
-
 
 class CandidateNotOpenToWork(LinkedInImportError):
     """Candidate is not marked 'Open to Work' on LinkedIn - low priority."""
     pass
 
-
 class DuplicateCandidateExists(LinkedInImportError):
     """Candidate already exists (email or phone match)."""
     pass
-
 
 def _parse_linkedin_url(linkedin_url: str) -> str:
     """
@@ -80,7 +74,6 @@ def _parse_linkedin_url(linkedin_url: str) -> str:
         )
 
     return match.group(1)
-
 
 async def _enrich_via_apollo(
     profile_slug: str,
@@ -143,7 +136,6 @@ async def _enrich_via_apollo(
     except Exception as e:
         logger.error(f"Apollo enrichment failed: {e}", exc_info=True)
         raise ApolloCandidateNotFound(f"Apollo enrichment failed: {str(e)}")
-
 
 async def import_linkedin_candidate(
     db: Session,

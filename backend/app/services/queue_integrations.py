@@ -23,7 +23,6 @@ from app.core.logging import logger
 
 logger = logging.getLogger(__name__)
 
-
 class QueueIntegrations:
     """Integration helpers for all modules"""
 

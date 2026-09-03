@@ -35,7 +35,6 @@ from app.models.user import Users, Jobs
 
 import app.services.engagement_metrics_service as svc
 
-
 @pytest.fixture()
 def db_session():
     fd, db_path = tempfile.mkstemp(suffix=".sqlite3")
@@ -56,7 +55,6 @@ def db_session():
         engine.dispose()
         os.remove(db_path)
 
-
 @pytest.fixture()
 def candidate(db_session):
     db_session.add(Users(UserID="U-HR", UserRole="HR Manager", UserEmail="hr@blitzenx.com", UserPassword="h", tenant_id=None))
@@ -64,7 +62,6 @@ def candidate(db_session):
     db_session.add(c)
     db_session.commit()
     return c
-
 
 def _conversation(db, created_at=None):
     conv = CandidateConversation(tenant_id="U-ORG", candidate_id="C-1", status="open", owner_type="ai_agent", owner_id="Thunder", escalation_state="none")
@@ -74,16 +71,13 @@ def _conversation(db, created_at=None):
     db.commit()
     return conv
 
-
 def _outbound(db, conv, at):
     db.add(ConversationEvent(conversation_id=conv.id, event_type="ai_message_sent", event_data={"body": "hi"}, triggered_by="ai_agent", created_at=at))
     db.commit()
 
-
 def _inbound(db, conv, at):
     db.add(ConversationEvent(conversation_id=conv.id, event_type="candidate_reply", event_data={"body": "hi back"}, triggered_by="candidate", created_at=at))
     db.commit()
-
 
 # ── TC-001: zero response ────────────────────────────────────────────────
 
@@ -96,7 +90,6 @@ def test_zero_inbound_gives_zero_response_rate(db_session, candidate):
     result = svc.calculate_engagement_health(db_session, "C-1", "U-ORG")
     assert result["response_rate"] == 0
     assert result["avg_response_time_minutes"] is None
-
 
 # ── TC-002: response time averaging ─────────────────────────────────────
 
@@ -113,7 +106,6 @@ def test_avg_response_time_computed_from_pairs(db_session, candidate):
     result = svc.calculate_engagement_health(db_session, "C-1", "U-ORG")
     assert result["avg_response_time_minutes"] == 120
 
-
 def test_response_rate_capped_at_100(db_session, candidate):
     conv = _conversation(db_session)
     base = datetime.utcnow() - timedelta(days=1)
@@ -123,7 +115,6 @@ def test_response_rate_capped_at_100(db_session, candidate):
 
     result = svc.calculate_engagement_health(db_session, "C-1", "U-ORG")
     assert result["response_rate"] == 100
-
 
 def test_gap_over_7_days_excluded_from_average(db_session, candidate):
     conv = _conversation(db_session)
@@ -136,7 +127,6 @@ def test_gap_over_7_days_excluded_from_average(db_session, candidate):
     result = svc.calculate_engagement_health(db_session, "C-1", "U-ORG")
     assert result["avg_response_time_minutes"] == 30
 
-
 # ── total messages ────────────────────────────────────────────────────────
 
 def test_total_messages_exchanged_counts_all(db_session, candidate):
@@ -148,7 +138,6 @@ def test_total_messages_exchanged_counts_all(db_session, candidate):
 
     result = svc.calculate_engagement_health(db_session, "C-1", "U-ORG")
     assert result["total_messages_exchanged"] == 3
-
 
 # ── BR-01: ghost period excluded from denominator ───────────────────────
 
@@ -169,7 +158,6 @@ def test_ghost_period_outbound_excluded_from_response_rate(db_session, candidate
     # denominator excludes the 3 ghost-period outbound messages -- only the 1 pre-ghost outbound counts
     assert result["response_rate"] == 100
 
-
 # ── days_to_qualification (TC-003) ──────────────────────────────────────
 
 def test_days_to_qualification_populated_when_screened(db_session, candidate):
@@ -188,14 +176,12 @@ def test_days_to_qualification_populated_when_screened(db_session, candidate):
     result = svc.calculate_engagement_health(db_session, "C-1", "U-ORG")
     assert result["days_to_qualification"] == 5
 
-
 def test_days_to_qualification_null_when_not_screened(db_session, candidate):
     conv = _conversation(db_session)
     _outbound(db_session, conv, datetime.utcnow())
 
     result = svc.calculate_engagement_health(db_session, "C-1", "U-ORG")
     assert result["days_to_qualification"] is None
-
 
 # ── sentiment ──────────────────────────────────────────────────────────
 
@@ -210,14 +196,12 @@ def test_avg_sentiment_score_computed(db_session, candidate):
     result = svc.calculate_engagement_health(db_session, "C-1", "U-ORG")
     assert result["avg_sentiment_score"] == 0.0
 
-
 def test_no_sentiment_data_gives_none(db_session, candidate):
     conv = _conversation(db_session)
     _outbound(db_session, conv, datetime.utcnow())
 
     result = svc.calculate_engagement_health(db_session, "C-1", "U-ORG")
     assert result["avg_sentiment_score"] is None
-
 
 # ── upsert + not found ───────────────────────────────────────────────────
 
@@ -230,11 +214,9 @@ def test_recalculation_upserts_not_duplicates(db_session, candidate):
     rows = db_session.query(CandidateEngagementMetrics).filter(CandidateEngagementMetrics.candidate_id == "C-1").all()
     assert len(rows) == 1
 
-
 def test_candidate_not_found(db_session):
     result = svc.calculate_engagement_health(db_session, "NOPE", "U-ORG")
     assert result["outcome"] == "not_found"
-
 
 # ── job batch ─────────────────────────────────────────────────────────
 

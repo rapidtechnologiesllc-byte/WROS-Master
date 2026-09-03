@@ -53,7 +53,6 @@ TASK_TYPES = ("GENERAL", "TICKET")
 PRIORITY_BUMP_CEILING = "HIGH"
 PRIORITY_ORDER = {"LOW": 0, "MEDIUM": 1, "HIGH": 2, "URGENT": 3}
 
-
 def _new_uuid() -> str:
     return str(uuid.uuid4())
 
@@ -165,7 +164,6 @@ class Task(Base):
         ),
     )
 
-
 class TaskReassignmentRequest(Base):
     """A manager-approval-gated reassignment, raised when an assignee is
     unavailable (e.g. taking time off) and has tasks due today. Never
@@ -191,7 +189,6 @@ class TaskReassignmentRequest(Base):
     resolved_at = Column(DateTime, nullable=True)
 
     task = relationship("Task")
-
 
 class TaskCapacityAlert(Base):
     """Advisory-only signal raised when a user's open-task load looks

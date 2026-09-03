@@ -13,7 +13,6 @@ down_revision = "a8e4d2c6f9b1"
 branch_labels = None
 depends_on = None
 
-
 def upgrade():
     op.create_table(
         "system_config",
@@ -32,7 +31,6 @@ def upgrade():
     )
     op.create_index("ix_system_config_tenant_id", "system_config", ["tenant_id"])
     op.create_index("ix_system_config_business_unit_id", "system_config", ["business_unit_id"])
-
 
 def downgrade():
     op.drop_index("ix_system_config_business_unit_id", table_name="system_config")

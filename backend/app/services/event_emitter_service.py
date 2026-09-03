@@ -73,11 +73,9 @@ logger = logging.getLogger(__name__)
 class EventDefinitionNotFoundError(Exception):
     """AC-2: event_type not in EVENT_DEFINITIONS."""
 
-
 class EventValidationError(Exception):
     """AC-3: missing required tenant_id, or missing candidate_id for a
     candidate-scoped event type (BR-02)."""
-
 
 def emit(
     db: Session, event_type: str, payload: Optional[Dict], tenant_id: str, candidate_id: Optional[str] = None,
@@ -102,7 +100,6 @@ def emit(
     db.commit()
     db.refresh(record)
     return record.id
-
 
 def get_events(
     db: Session, tenant_id: str, *, event_type: Optional[str] = None,

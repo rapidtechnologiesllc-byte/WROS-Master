@@ -14,7 +14,6 @@ down_revision = "9d3b7e1c5a26"
 branch_labels = None
 depends_on = None
 
-
 def upgrade():
     op.create_table(
         "recruiter_intervention_queue",
@@ -50,7 +49,6 @@ def upgrade():
         ["tenant_id", "candidate_id", "queue_reason"], unique=True,
         sqlite_where=sa.text("status = 'OPEN'"), mssql_where=sa.text("status = 'OPEN'"),
     )
-
 
 def downgrade():
     op.drop_index("ix_one_open_item_per_candidate_reason", table_name="recruiter_intervention_queue")

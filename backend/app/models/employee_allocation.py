@@ -37,10 +37,8 @@ from sqlalchemy import (
 from app.models.base import Base
 from app.models.project import SI_PARTNERS
 
-
 def _new_uuid() -> str:
     return str(uuid.uuid4())
-
 
 # CORE_PULLED (S-353/HRMS-0514): distinct from a normal ENDED -- a Specialty
 # allocation that was cut short by a same-day Core-Pull transfer, not a

@@ -12,7 +12,6 @@ class DefectReportRequest(BaseModel):
     severity: str = "MEDIUM"  # LOW, MEDIUM, HIGH, CRITICAL
     blocking_production: bool = False  # If true, backend forces severity to CRITICAL regardless of the value above
 
-
 class DefectReportResponse(BaseModel):
     """Response after defect is logged."""
     defect_id: str  # Unique defect identifier

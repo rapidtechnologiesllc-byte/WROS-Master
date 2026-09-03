@@ -30,10 +30,8 @@ from app.models.org_structure import OrgNode
 
 FINANCE_INBOX_EMAIL = "accounts@blitzenx.com"
 
-
 class ExpenseValidationError(Exception):
     pass
-
 
 def log_expense(
     db: Session,
@@ -104,7 +102,6 @@ def log_expense(
     db.refresh(expense)
     return expense
 
-
 def _get_employee_manager(db: Session, employee_user: Users) -> Optional[Users]:
     """PRIORITY-3: Find the employee's manager via org hierarchy.
 
@@ -126,7 +123,6 @@ def _get_employee_manager(db: Session, employee_user: Users) -> Optional[Users]:
 
     # Return the manager user
     return db.query(Users).filter(Users.UserID == manager_node.user_id).first()
-
 
 def _create_manager_approval_task(db: Session, expense: ExpenseRecord, employee_user: Users) -> None:
     """PRIORITY-3: Create a Task for the manager to approve the expense.
@@ -160,7 +156,6 @@ def _create_manager_approval_task(db: Session, expense: ExpenseRecord, employee_
         f"(assigned to {manager_user_id or 'fallback'})"
     )
 
-
 def _finance_assignee(db: Session, tenant_id: Optional[int]) -> Optional[Users]:
     """Picks a Finance-role user to assign the "mark as paid" Task to.
     Deterministic (lowest UserID) rather than round-robin -- this is a
@@ -179,7 +174,6 @@ def _finance_assignee(db: Session, tenant_id: Optional[int]) -> Optional[Users]:
     # Filter to only users with payroll_access or revenue.view_pnl permission
     finance_users = [u for u in all_users if u]
     return finance_users[0] if finance_users else None
-
 
 def approve_manager_step(db: Session, expense: ExpenseRecord, *, approved_by: str) -> ExpenseRecord:
     """PRIORITY-3: Manager approval step in the expense workflow.
@@ -211,7 +205,6 @@ def approve_manager_step(db: Session, expense: ExpenseRecord, *, approved_by: st
     )
     return expense
 
-
 def approve_expense(db: Session, expense: ExpenseRecord, *, approved_by: str) -> ExpenseRecord:
     """PRIORITY-3: Finance approval step (only after manager approval).
 
@@ -238,7 +231,6 @@ def approve_expense(db: Session, expense: ExpenseRecord, *, approved_by: str) ->
     _create_mark_paid_task(db, expense)
     return expense
 
-
 def _notify_finance_of_approval(db: Session, expense: ExpenseRecord) -> None:
     """accounts@blitzenx.com is a shared inbox, not a real Users login
     in this codebase -- goes through EmailService directly (same
@@ -263,9 +255,7 @@ def _notify_finance_of_approval(db: Session, expense: ExpenseRecord) -> None:
         logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[ExpenseService] Could not notify {FINANCE_INBOX_EMAIL} of approval for expense {expense.id}: {exc}")
 
-
 def _create_mark_paid_task(db: Session, expense: ExpenseRecord) -> None:
-    from app.services.task_service import create_task
 
     assignee = _finance_assignee(db, expense.tenant_id)
     create_task(
@@ -277,7 +267,6 @@ def _create_mark_paid_task(db: Session, expense: ExpenseRecord) -> None:
         assigned_to_user_id=assignee.UserID if assignee else None,
         expense_id=expense.id,
     )
-
 
 def mark_expense_paid(db: Session, expense: ExpenseRecord) -> ExpenseRecord:
     """Completes the loop: flips the expense to REIMBURSED and closes
@@ -301,7 +290,6 @@ def mark_expense_paid(db: Session, expense: ExpenseRecord) -> ExpenseRecord:
     db.commit()
     db.refresh(expense)
     return expense
-
 
 def get_client_investment_position(db: Session, client_id: str) -> dict:
     """The full story: total spend on this client (from its very first

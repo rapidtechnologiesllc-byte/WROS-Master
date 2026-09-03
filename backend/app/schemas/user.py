@@ -4,7 +4,6 @@ import logging
 from datetime import datetime, date
 from app.core.logging import logger
 
-
 # Candidate Assignment Schemas
 class CandidateAssignmentCreate(BaseModel):
     candidate_id: str
@@ -122,7 +121,6 @@ class AllUsersResponse(BaseModel):
     total_users: int
     users: list[UserResponse]
 
-
 # Job Schemas
 class JobCreateRequest(BaseModel):
     job_title: str
@@ -201,7 +199,6 @@ class CandidatesByJobResponse(BaseModel):
     total_candidates: int
     candidates: list[CandidateJobSummary]
 
-
 # ── Multi-Job Application schemas (many-to-many) ──────────────────────────────
 
 class JobApplicationCreate(BaseModel):
@@ -236,7 +233,6 @@ class JobCandidatesMultiResponse(BaseModel):
     total_candidates: int
     applications: List[JobApplicationEntry]
 
-
 # ── Job Statistics schema ─────────────────────────────────────────────────────
 
 class ApplicationStatusCount(BaseModel):
@@ -259,7 +255,6 @@ class JobStatisticsResponse(BaseModel):
     rejected: int
     # Full per-status breakdown (covers any custom statuses too)
     status_breakdown: List[ApplicationStatusCount]
-
 
 class JobApproveResponse(BaseModel):
     job_id: str
@@ -368,11 +363,9 @@ class ChangePasswordRequest(BaseModel):
     current_password: str
     new_password: str
 
-
 class AdminResetPasswordRequest(BaseModel):
     """Admin-only password reset - no current password required"""
     new_password: str
-
 
 class HrMeResponse(BaseModel):
     user_id: str
@@ -388,10 +381,8 @@ class HrMeResponse(BaseModel):
     token_type: str = "bearer"
     digest_enabled: bool = True  # S-065/HRMS-0465
 
-
 class DigestPreferenceRequest(BaseModel):
     digest_enabled: bool
-
 
 class DigestPreferenceResponse(BaseModel):
     digest_enabled: bool
@@ -447,7 +438,6 @@ class OfferLetterUpdateRequest(BaseModel):
     # ── Approval workflow fields ──────────────────────────────────────────────
     approval_status: Optional[str] = None
     approval_notes: Optional[str] = None
-
 
 class OfferLetterResponse(BaseModel):
     id: int
@@ -632,7 +622,6 @@ class AllOffersResponse(BaseModel):
     total_offers: int
     offers: list[OfferLetterResponse]
 
-
 # ── Offer Approval (Hiring Manager) ──────────────────────────────────────────
 
 class OfferApprovalResponse(BaseModel):
@@ -641,7 +630,6 @@ class OfferApprovalResponse(BaseModel):
     offer_id: int
     approval_status: str
     approved_at: Optional[datetime] = None
-
 
 # ── Offer Release (HR releases to candidate) ──────────────────────────────────
 
@@ -652,7 +640,6 @@ class OfferReleaseResponse(BaseModel):
     offer_status: str
     released_at: datetime
 
-
 # ── Candidate Signature + Acceptance ─────────────────────────────────────────
 
 class CandidateSignedAcceptanceResponse(BaseModel):
@@ -661,9 +648,6 @@ class CandidateSignedAcceptanceResponse(BaseModel):
     offer_id: int
     offer_status: str
     signed_offer_path: Optional[str] = None
-
-
-
 
 # ── User Section ─────────────────────────────────────────────────────────────
 
@@ -678,7 +662,6 @@ class SingleUserResponse(BaseModel):
     role_template_id: Optional[int] = None
     business_unit_id: Optional[int] = None
     created_at: datetime
-
 
 # ── Hiring Manager Section ────────────────────────────────────────────────────
 

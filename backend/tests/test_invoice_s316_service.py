@@ -26,12 +26,10 @@ from app.services.invoice_s316_service import (
     InvoicePaymentError,
 )
 
-
 @pytest.fixture
 def service():
     """Fixture for InvoiceS316Service."""
     return InvoiceS316Service()
-
 
 @pytest.fixture
 def bu_context(db: Session):
@@ -44,7 +42,6 @@ def bu_context(db: Session):
     db.add(bu)
     db.commit()
     return bu
-
 
 @pytest.fixture
 def client(db: Session, bu_context):
@@ -60,7 +57,6 @@ def client(db: Session, bu_context):
     db.commit()
     return c
 
-
 @pytest.fixture
 def project(db: Session, client):
     """Create a test project."""
@@ -75,7 +71,6 @@ def project(db: Session, client):
     db.add(p)
     db.commit()
     return p
-
 
 @pytest.fixture
 def employee(db: Session, bu_context):
@@ -93,7 +88,6 @@ def employee(db: Session, bu_context):
     db.commit()
     return e
 
-
 @pytest.fixture
 def allocation(db: Session, employee, project):
     """Create an employee allocation."""
@@ -109,7 +103,6 @@ def allocation(db: Session, employee, project):
     db.add(a)
     db.commit()
     return a
-
 
 @pytest.fixture
 def approved_timesheet(db: Session, employee, allocation, bu_context):
@@ -149,7 +142,6 @@ def approved_timesheet(db: Session, employee, allocation, bu_context):
         db.add(entry)
     db.commit()
     return ts
-
 
 # ============================================================================
 # TEST: generate_invoice()
@@ -267,7 +259,6 @@ class TestGenerateInvoice:
                 billing_period_end=date.today() + timedelta(days=7),
             )
 
-
 # ============================================================================
 # TEST: calculate_bill_amount()
 # ============================================================================
@@ -314,7 +305,6 @@ class TestCalculateBillAmount:
                 invoice_id="nonexistent-inv",
                 tenant_id=1,
             )
-
 
 # ============================================================================
 # TEST: send_invoice()
@@ -395,7 +385,6 @@ class TestSendInvoice:
                 sent_by="user-admin-001",
                 client_email="billing@client.com",
             )
-
 
 # ============================================================================
 # TEST: track_payment()
@@ -545,7 +534,6 @@ class TestTrackPayment:
                 payment_date=datetime.utcnow(),
                 payment_method="wire",
             )
-
 
 # ============================================================================
 # TEST: Helper methods

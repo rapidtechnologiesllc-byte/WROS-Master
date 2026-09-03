@@ -93,7 +93,6 @@ from app.services.resource_management_service import (
 
 router = APIRouter(prefix="/employees", tags=["employees"])
 
-
 def _skills_list(raw):
     if not raw:
         return []
@@ -102,7 +101,6 @@ def _skills_list(raw):
     except (json.JSONDecodeError, TypeError):
         raise ValueError("Operation failed")
     return parsed if isinstance(parsed, list) else []
-
 
 def _to_item(db: Session, employee: Employee) -> EmployeeItem:
     bench_entry = db.query(BenchPoolEntry).filter(BenchPoolEntry.employee_id == employee.id).first()
@@ -128,13 +126,11 @@ def _to_item(db: Session, employee: Employee) -> EmployeeItem:
         bench_days=get_bench_duration_days(bench_entry) if bench_entry else None,
     )
 
-
 def _get_employee_or_404(db: Session, employee_id: str) -> Employee:
     employee = db.query(Employee).filter(Employee.id == employee_id).first()
     if employee is None:
         raise HTTPException(status_code=404, detail="Employee not found.")
     return employee
-
 
 @router.post(
     "",
@@ -175,7 +171,6 @@ def create_employee(
     db.commit()
     db.refresh(employee)
     return _to_item(db, employee)
-
 
 @router.post(
     "/convert-candidate/{candidate_id}", response_model=EmployeeItem,
@@ -222,13 +217,11 @@ def convert_candidate(
     db.refresh(employee)
     return _to_item(db, employee)
 
-
 _BULK_IMPORT_COLUMNS = (
     "first_name", "last_name", "email", "joining_date", "current_title",
     "current_skills", "employment_type", "work_location",
     "base_salary_usd_cents", "billing_rate_usd_cents", "nationality",
 )
-
 
 def _parse_bulk_import_date(raw) -> date:
     if isinstance(raw, datetime):
@@ -236,7 +229,6 @@ def _parse_bulk_import_date(raw) -> date:
     if isinstance(raw, date):
         return raw
     return datetime.strptime(str(raw).strip(), "%Y-%m-%d").date()
-
 
 @router.post(
     "/bulk-import", response_model=BulkImportResponse,
@@ -347,7 +339,6 @@ async def bulk_import_employees(
 
             return BulkImportResponse(created=created, skipped=skipped, errors=errors)
 
-
 @router.get(
     "",
     response_model=EmployeeListResponse,
@@ -366,7 +357,6 @@ def list_employees(
     )
     return EmployeeListResponse(employees=[_to_item(db, e) for e in employees])
 
-
 @router.get(
     "/bench-pool", response_model=EmployeeListResponse,
     dependencies=[Depends(get_current_internal_user)],
@@ -384,7 +374,6 @@ def view_bench_pool(
             employees.append(_to_item(db, employee))
     return EmployeeListResponse(employees=employees)
 
-
 @router.get(
     "/bench-aging-alerts", response_model=BenchAgingAlertsResponse,
     dependencies=[Depends(get_current_internal_user)],
@@ -401,7 +390,6 @@ def bench_aging_alerts(
         employee_name = f"{employee.first_name} {employee.last_name}".strip() if employee else "(unknown)"
         items.append(BenchAgingAlertItem(employee_name=employee_name, **alert))
     return BenchAgingAlertsResponse(alerts=items)
-
 
 @router.get(
     "/utilization-summary", response_model=UtilizationSummaryResponse,
@@ -438,7 +426,6 @@ def utilization_summary(
         employees=items, average_utilization_pct=average, low_utilization_count=low_count,
     )
 
-
 @router.get(
     "/bench-cost-summary", response_model=BenchCostSummaryResponse,
     dependencies=[Depends(get_current_internal_user)],
@@ -470,7 +457,6 @@ def bench_cost_summary(
         ))
     return BenchCostSummaryResponse(employees=items, total_running_cost_usd_cents=total_running)
 
-
 @router.get(
     "/{employee_id}",
     response_model=EmployeeItem,
@@ -484,7 +470,6 @@ def get_employee(
 ):
     employee = _get_employee_or_404(db, employee_id)
     return _to_item(db, employee)
-
 
 @router.get(
     "/{employee_id}/staffing-eligibility", response_model=StaffingEligibilityResponse,
@@ -502,7 +487,6 @@ def staffing_eligibility(
     return StaffingEligibilityResponse(
         employee_id=employee_id, delivery_engine=delivery_engine, eligible=eligible, reason=reason,
     )
-
 
 @router.get(
     "/{employee_id}/engine-history", response_model=EngineHistoryResponse,
@@ -537,7 +521,6 @@ def engine_history(
         ],
     )
 
-
 @router.post(
     "/{employee_id}/record-utilization", response_model=UtilizationHistoryItem,
     dependencies=[Depends(get_current_internal_user)],
@@ -557,7 +540,6 @@ def record_utilization(
         period_start=metric.period_start, utilization_pct=float(metric.utilization_pct),
         billable_hours=float(metric.billable_hours), bench_hours=float(metric.bench_hours),
     )
-
 
 @router.get(
     "/{employee_id}/performance", response_model=PerformanceStoreResponse,
@@ -590,7 +572,6 @@ def get_employee_performance(
         score_averages_by_event_type=averages,
     )
 
-
 @router.get(
     "/{employee_id}/utilization-history", response_model=UtilizationHistoryResponse,
     dependencies=[Depends(get_current_internal_user)],
@@ -614,7 +595,6 @@ def utilization_history(
         ],
     )
 
-
 @router.post(
     "/{employee_id}/mark-bench", response_model=EmployeeItem,
     dependencies=[Depends(get_current_internal_user)],
@@ -632,7 +612,6 @@ def mark_bench(
     db.refresh(employee)
     return _to_item(db, employee)
 
-
 @router.post(
     "/{employee_id}/remove-from-bench", response_model=EmployeeItem,
     dependencies=[Depends(get_current_internal_user)],
@@ -648,7 +627,6 @@ def remove_from_bench(
     db.commit()
     db.refresh(employee)
     return _to_item(db, employee)
-
 
 @router.get(
     "/{employee_id}/bench-history", response_model=BenchPeriodHistoryResponse,

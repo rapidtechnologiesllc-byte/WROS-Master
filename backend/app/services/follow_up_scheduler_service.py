@@ -75,7 +75,6 @@ FOLLOWUP_ELIGIBLE_STAGES = ("INTERVIEW",)
 BUSINESS_HOURS_START = 9
 BUSINESS_HOURS_END = 21
 
-
 def followup_hours_for_channel(channel: str, db: Optional[Session] = None, tenant_id: Optional[str] = None) -> int:
     """Public (not underscore-prefixed) -- shared with
     no_response_detection_service (S-042), which needs the same
@@ -93,14 +92,12 @@ def followup_hours_for_channel(channel: str, db: Optional[Session] = None, tenan
             pass
     return WHATSAPP_FOLLOWUP_HOURS if channel == "whatsapp" else EMAIL_FOLLOWUP_HOURS
 
-
 def max_followup_count_for_tenant(db: Session, tenant_id: str) -> int:
     try:
         from app.services.tenant_ai_config_service import get_max_followup_count
         return get_max_followup_count(db, tenant_id)
     except Exception:
         return MAX_FOLLOWUPS
-
 
 def schedule_follow_up(
     db: Session, candidate_id: str, tenant_id: str, conversation_id: int, channel: str,
@@ -133,7 +130,6 @@ def schedule_follow_up(
     db.commit()
     return record
 
-
 def cancel_pending_follow_ups(db: Session, candidate_id: str, tenant_id: str) -> int:
     """Step 4/BR-02. Cancels ALL pending follow-ups the moment any
     inbound message arrives, regardless of which channel it came in
@@ -150,7 +146,6 @@ def cancel_pending_follow_ups(db: Session, candidate_id: str, tenant_id: str) ->
         db.commit()
     return len(rows)
 
-
 def _has_replied_since(db: Session, conversation_id: int, since: Optional[datetime]) -> bool:
     if since is None:
         return False
@@ -160,7 +155,6 @@ def _has_replied_since(db: Session, conversation_id: int, since: Optional[dateti
         .first()
     )
     return reply is not None
-
 
 def _is_business_hours_weekday(now_utc: datetime, tz_name: str) -> bool:
     """Spec's real constraint is "24 calendar hours, gated to business
@@ -179,7 +173,6 @@ def _is_business_hours_weekday(now_utc: datetime, tz_name: str) -> bool:
         now_utc, tz_name, start_hour=BUSINESS_HOURS_START, end_hour=BUSINESS_HOURS_END,
     )
 
-
 def _next_business_hours_weekday(now_utc: datetime, tz_name: str) -> datetime:
     """Next moment that's both a weekday AND inside the business-hours
     window -- reuses notification_service's own single-step
@@ -192,14 +185,12 @@ def _next_business_hours_weekday(now_utc: datetime, tz_name: str) -> datetime:
         candidate += timedelta(hours=1)
     return candidate
 
-
 def _send_followup(db: Session, conversation: CandidateConversation, candidate: Candidate, message_body: str, channel: str) -> None:
     """Step 3.5/3.6. Delegates to thunder_service's shared send helper
     -- see that function's own docstring on why this was consolidated
     (previously duplicated identically in outreach_campaign_service)."""
     from app.services.thunder_service import send_outbound_campaign_message
     send_outbound_campaign_message(db, conversation, candidate, message_body, channel)
-
 
 def run_follow_up_execution_job(db: Session, *, now: Optional[datetime] = None) -> Dict:
     """Step 3. FOLLOWUP_EXECUTION_JOB body, run every 15 min. Never lets

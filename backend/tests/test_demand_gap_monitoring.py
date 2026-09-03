@@ -30,7 +30,6 @@ from app.services.demand_gap_monitoring_service import (
     scan_demand_gap,
 )
 
-
 @pytest.fixture()
 def db_session():
     fd, db_path = tempfile.mkstemp(suffix=".sqlite3")
@@ -47,7 +46,6 @@ def db_session():
         session.close()
         engine.dispose()
         os.remove(db_path)
-
 
 @pytest.fixture()
 def demand(db_session):
@@ -69,7 +67,6 @@ def demand(db_session):
     db_session.commit()
     return d, tenant
 
-
 # ---------------------------------------------------------------------------
 # classify_gap_severity
 # ---------------------------------------------------------------------------
@@ -81,7 +78,6 @@ def test_classify_defaults_to_watch_when_no_classifier_wired():
     assert severity == "WATCH"
     assert llm_parse_failed is True
 
-
 def test_classify_uses_classifier_result():
     classifier = lambda payload: {"gap_severity": "CRITICAL", "rationale": "zero bench match"}
     severity, rationale, llm_parse_failed = classify_gap_severity(
@@ -91,7 +87,6 @@ def test_classify_uses_classifier_result():
     assert severity == "CRITICAL"
     assert rationale == "zero bench match"
     assert llm_parse_failed is False
-
 
 def test_classify_defaults_to_watch_when_classifier_raises():
     def broken(payload):
@@ -103,7 +98,6 @@ def test_classify_defaults_to_watch_when_classifier_raises():
     assert severity == "WATCH"
     assert llm_parse_failed is True
 
-
 def test_classify_defaults_to_watch_on_malformed_severity():
     classifier = lambda payload: {"gap_severity": "SUPER_URGENT"}
     severity, rationale, llm_parse_failed = classify_gap_severity(
@@ -112,7 +106,6 @@ def test_classify_defaults_to_watch_on_malformed_severity():
     )
     assert severity == "WATCH"
     assert llm_parse_failed is True
-
 
 # ---------------------------------------------------------------------------
 # scan_demand_gap -- BR-1102-01 R-04 gate
@@ -133,7 +126,6 @@ def test_no_alert_created_when_bench_first_not_checked(db_session, demand):
     assert score.gap_severity == "CRITICAL"
     assert db_session.query(SourcingAlert).count() == 0
 
-
 def test_alert_created_when_bench_first_checked_and_severity_alert(db_session, demand):
     d, tenant = demand
     d.bench_first_checked = True
@@ -151,7 +143,6 @@ def test_alert_created_when_bench_first_checked_and_severity_alert(db_session, d
     assert alerts[0].severity == "ALERT"
     assert alerts[0].status == "OPEN"
 
-
 def test_no_alert_created_for_watch_or_none_severity(db_session, demand):
     d, tenant = demand
     d.bench_first_checked = True
@@ -162,7 +153,6 @@ def test_no_alert_created_for_watch_or_none_severity(db_session, demand):
     db_session.commit()
 
     assert db_session.query(SourcingAlert).count() == 0
-
 
 def test_router_evaluate_called_before_alert_creation(db_session, demand):
     d, tenant = demand
@@ -187,7 +177,6 @@ def test_router_evaluate_called_before_alert_creation(db_session, demand):
     assert calls[0]["action_type"] == "sourcing_alert_create"
     assert calls[0]["risk_tier"] == "LOW"
     assert db_session.query(SourcingAlert).count() == 1
-
 
 # ---------------------------------------------------------------------------
 # BR-1102-03 -- CRITICAL + 5-day-open escalation
@@ -215,7 +204,6 @@ def test_critical_over_five_days_pages_rm_via_p0(db_session, demand):
     assert len(notifications) == 1
     assert notifications[0].priority_tier == "P0"
 
-
 def test_critical_under_five_days_does_not_page(db_session, demand):
     d, tenant = demand
     d.bench_first_checked = True
@@ -236,7 +224,6 @@ def test_critical_under_five_days_does_not_page(db_session, demand):
 
     assert db_session.query(Notification).count() == 0
 
-
 def test_no_page_without_an_rm_user_supplied(db_session, demand):
     d, tenant = demand
     d.bench_first_checked = True
@@ -251,7 +238,6 @@ def test_no_page_without_an_rm_user_supplied(db_session, demand):
     db_session.commit()
 
     assert db_session.query(Notification).count() == 0
-
 
 # ---------------------------------------------------------------------------
 # BR-1102-04 -- append-only score history

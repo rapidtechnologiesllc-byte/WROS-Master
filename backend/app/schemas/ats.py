@@ -20,7 +20,6 @@ class ATSScoreBreakdown(BaseModel):
     location_score: int     # 0–15
     culture_fit_score: int  # 0–15
 
-
 class ATSScoreResponse(BaseModel):
     """Full ATS result returned to the caller."""
     ats_score_id: int
@@ -39,7 +38,6 @@ class ATSScoreResponse(BaseModel):
 
     scored_at: datetime
 
-
 class CandidateATSListItem(BaseModel):
     """Summary row for HR dashboard listing."""
     ats_score_id: int
@@ -53,11 +51,9 @@ class CandidateATSListItem(BaseModel):
     ats_verdict: Optional[str] = None
     scored_at: datetime
 
-
 class AllATSScoresResponse(BaseModel):
     total: int
     scores: List[CandidateATSListItem]
-
 
 class ATSRescoringRequest(BaseModel):
     """Re-trigger ATS scoring for an existing candidate/job pair."""

@@ -251,7 +251,6 @@ class PersonalDataCategory(str, Enum):
     FEEDBACK_RECEIVING = "feedback_receiving"
     RELATIONSHIP_BUILDING_PACE = "relationship_building_pace"
 
-
 class PersonalIntelligenceService:
     """
     Build 200+ data point personal profile for authentic relationship building.
@@ -585,7 +584,6 @@ class PersonalIntelligenceService:
             summary.append("Enthusiastic personality")
 
         return " | ".join(summary) if summary else "Personal profile extracted"
-
 
 # ============== PERSONALIZATION ENGINE ==============
 

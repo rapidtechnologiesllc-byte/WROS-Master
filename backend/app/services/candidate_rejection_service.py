@@ -36,11 +36,9 @@ class CandidateRejectionError(Exception):
     """Raised when rejection operation fails."""
     pass
 
-
 class CandidateNotFoundError(Exception):
     """Raised when candidate doesn't exist."""
     pass
-
 
 def reject_candidate(
     db: Session,
@@ -156,7 +154,6 @@ def reject_candidate(
         logger.error(f"Error rejecting candidate {candidate_id}: {str(e)}")
         raise CandidateRejectionError(f"Failed to reject candidate: {str(e)}")
 
-
 def send_rejection_email(
     db: Session,
     *,
@@ -222,7 +219,6 @@ def send_rejection_email(
         db.rollback()
         logger.error(f"Error sending rejection email for rejection {rejection_id}: {str(e)}")
         raise CandidateRejectionError(f"Failed to send rejection email: {str(e)}")
-
 
 def archive_candidate(
     db: Session,
@@ -294,7 +290,6 @@ def archive_candidate(
         db.rollback()
         logger.error(f"Error archiving candidate {candidate_id}: {str(e)}")
         raise CandidateRejectionError(f"Failed to archive candidate: {str(e)}")
-
 
 # ---------------------------------------------------------------------------
 # Helper Functions
@@ -398,7 +393,6 @@ def _send_rejection_email_internal(
         logger.error(f"Failed to send rejection email: {str(e)}")
         raise
 
-
 def get_rejection_reasons(
     db: Session,
     *,
@@ -424,7 +418,6 @@ def get_rejection_reasons(
         query = query.filter(CandidateRejectionReason.is_active == True)
 
     return query.all()
-
 
 def get_candidate_rejection_status(
     db: Session,
@@ -455,7 +448,6 @@ def get_candidate_rejection_status(
     latest = active_rejections[0] if active_rejections else None
 
     return is_rejected, latest, rejections
-
 
 def create_default_rejection_reasons(db: Session, tenant_id: int = 1) -> None:
     """

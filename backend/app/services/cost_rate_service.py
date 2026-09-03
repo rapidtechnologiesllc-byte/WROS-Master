@@ -21,7 +21,6 @@ logger = logging.getLogger(__name__)
 class CostRateConfigError(Exception):
     pass
 
-
 def set_cost_rate_config(
     db: Session, *, statutory_pct: float, overhead_pct: float, created_by: str,
     business_unit_id: Optional[int] = None, tenant_id: Optional[int] = None,
@@ -38,7 +37,6 @@ def set_cost_rate_config(
     db.commit()
     db.refresh(config)
     return config
-
 
 def get_active_cost_rate_config(db: Session, *, business_unit_id: Optional[int] = None) -> Optional[CostRateConfig]:
     """Most recent row for the BU wins; falls back to the org-wide
@@ -60,7 +58,6 @@ def get_active_cost_rate_config(db: Session, *, business_unit_id: Optional[int] 
         .first()
     )
 
-
 def calculate_fully_loaded_cost_usd_cents(employee: Employee, config: CostRateConfig) -> Optional[int]:
     """Monthly fully-loaded cost = base salary + statutory components +
     admin overhead allocation, matching the real workbook's Roster
@@ -73,7 +70,6 @@ def calculate_fully_loaded_cost_usd_cents(employee: Employee, config: CostRateCo
     statutory = round(base * float(config.statutory_pct) / 100)
     overhead = round(base * float(config.overhead_pct) / 100)
     return base + statutory + overhead
-
 
 def calculate_blended_delivery_rate(
     db: Session, *, business_unit_id: int, year: int, month: int,

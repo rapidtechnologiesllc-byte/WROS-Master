@@ -37,13 +37,11 @@ from app.services.notification_service import (
 
 router = APIRouter(prefix="/notifications", tags=["notifications"])
 
-
 def _to_item(n: Notification) -> NotificationItem:
     return NotificationItem(
         id=n.id, channel=n.channel, priority_tier=n.priority_tier, message=n.message,
         delivery_status=n.delivery_status, sent_at=n.sent_at, read_at=n.read_at, created_at=n.created_at,
     )
-
 
 @router.get(
     "",
@@ -58,7 +56,6 @@ def list_notifications(
     notifications = get_notifications_for_user(db, current_user.UserID, tenant_id=current_user.tenant_id)
     unread = get_unread_count(db, current_user.UserID, tenant_id=current_user.tenant_id)
     return NotificationListResponse(notifications=[_to_item(n) for n in notifications], unread_count=unread)
-
 
 @router.post(
     "/{notification_id}/mark-read",

@@ -65,7 +65,6 @@ class Department(Base):
     def __repr__(self) -> str:
         return f"<Department id={self.id} name={self.name!r} bu_id={self.business_unit_id}>"
 
-
 class OrgPosition(Base):
     """
     Named organizational titles: CEO, Partner, BU Head, Senior Director, Director, etc.
@@ -98,7 +97,6 @@ class OrgPosition(Base):
 
     def __repr__(self) -> str:
         return f"<OrgPosition id={self.id} name={self.name!r} rank={self.rank}>"
-
 
 class OrgNode(Base):
     """
@@ -155,7 +153,6 @@ class OrgNode(Base):
     def __repr__(self) -> str:
         return f"<OrgNode id={self.id} name={self.name!r} position_id={self.position_id} dept_id={self.department_id}>"
 
-
 class PartnerBUAssignment(Base):
     """
     Links a Partner (OrgNode) to the Business Units they oversee.
@@ -189,7 +186,6 @@ class PartnerBUAssignment(Base):
 
     def __repr__(self) -> str:
         return f"<PartnerBUAssignment partner={self.partner_org_node_id} bu={self.business_unit_id}>"
-
 
 class ApprovalChain(Base):
     """

@@ -30,7 +30,6 @@ from app.services.ai_conversation_service import resolve_default_tenant_id
 
 router = APIRouter(prefix="/activity-feed", tags=["activity-feed"])
 
-
 @router.get("", response_model=ActivityFeedResponse, dependencies=[Depends(require_resource_permission("candidates", "view"))])
 def list_activity_feed(
     candidate_id: Optional[str] = Query(default=None),
@@ -42,20 +41,17 @@ def list_activity_feed(
     tenant_id = resolve_default_tenant_id(db)
     return get_activity_feed(db, tenant_id, candidate_id=candidate_id, severity=severity, page=page, per_page=per_page)
 
-
 @router.patch("/{activity_id}/read", dependencies=[Depends(require_resource_permission("candidates", "view"))])
 def mark_activity_read(activity_id: int, db: Session = Depends(get_db)):
     tenant_id = resolve_default_tenant_id(db)
     ok = mark_read(db, tenant_id, activity_id)
     return {"marked": ok}
 
-
 @router.patch("/read-all", response_model=MarkAllReadResponse, dependencies=[Depends(require_resource_permission("candidates", "view"))])
 def mark_activity_feed_read_all(candidate_id: Optional[str] = Query(default=None), db: Session = Depends(get_db)):
     tenant_id = resolve_default_tenant_id(db)
     count = mark_all_read(db, tenant_id, candidate_id=candidate_id)
     return MarkAllReadResponse(marked_count=count)
-
 
 @router.get("/standup", dependencies=[Depends(require_resource_permission("candidates", "view"))])
 def get_daily_standup(days: int = Query(default=1, ge=1, le=30), db: Session = Depends(get_db)):
@@ -68,7 +64,6 @@ def get_daily_standup(days: int = Query(default=1, ge=1, le=30), db: Session = D
     """
     from app.services.daily_standup_service import get_daily_standup
     return get_daily_standup(db, days=days)
-
 
 @router.get("/flash/standup", dependencies=[Depends(require_resource_permission("candidates", "view"))])
 def get_flash_standup_report(days: int = Query(default=1, ge=1, le=30), db: Session = Depends(get_db)):

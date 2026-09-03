@@ -16,12 +16,10 @@ This migration:
 from alembic import op
 import sqlalchemy as sa
 
-
 revision = '2026_08_24_002'
 down_revision = '2026_08_24_001'
 branch_labels = None
 depends_on = None
-
 
 def upgrade():
     """Apply migrations to fix users tenant_id constraints."""
@@ -46,7 +44,6 @@ def upgrade():
     print("✓ Users tenant_id constraints fixed:")
     print("  - tenant_id column: NOT NULL DEFAULT 1")
     print("  - All existing users updated to have tenant_id = 1")
-
 
 def downgrade():
     """Revert the constraints (not recommended in production)."""

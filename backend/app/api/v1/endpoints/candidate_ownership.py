@@ -31,11 +31,9 @@ from app.services.candidate_pool_service import (
     set_org_pool,
 )
 
-
 router = APIRouter(prefix="/candidate-pool", tags=["candidate-pool"])
 
 VALID_POOL_STATUSES = {POOL_ORG, POOL_BU}
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -44,7 +42,6 @@ VALID_POOL_STATUSES = {POOL_ORG, POOL_BU}
 def _candidate_name(c: Candidate) -> Optional[str]:
     parts = [c.candidateFirstName, c.candidateMiddleName, c.candidateLastName]
     return " ".join(p for p in parts if p) or None
-
 
 def _to_response(candidate_id: str, row: Optional[CandidateOwnership]) -> CandidateOwnershipResponse:
     if row is None:
@@ -62,7 +59,6 @@ def _to_response(candidate_id: str, row: Optional[CandidateOwnership]) -> Candid
         bu_ownership_expires_at=row.bu_ownership_expires_at,
         updated_at=row.updated_at,
     )
-
 
 # ---------------------------------------------------------------------------
 # GET  /candidate-pool/
@@ -132,7 +128,6 @@ def list_candidate_pool(
 
     return CandidateOwnershipListResponse(total=len(results), candidates=results)
 
-
 # ---------------------------------------------------------------------------
 # GET  /candidate-pool/{candidate_id}
 # ---------------------------------------------------------------------------
@@ -160,7 +155,6 @@ def get_candidate_pool_status(
 
     row = get_ownership(candidate_id, db)
     return _to_response(candidate_id, row)
-
 
 # ---------------------------------------------------------------------------
 # POST  /candidate-pool/{candidate_id}/override

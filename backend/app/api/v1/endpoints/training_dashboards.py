@@ -17,7 +17,6 @@ import logging
 
 router = APIRouter(prefix="/dashboards", tags=["Dashboards"])
 
-
 # ============================================================================
 # Training & Certification Dashboard
 # ============================================================================
@@ -54,7 +53,6 @@ def get_training_certification_dashboard(
         logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
-
 @router.get(
     "/training-certification/employee/{employee_id}",
     dependencies=[Depends(require_resource_permission("training-certification", "view"))]
@@ -84,7 +82,6 @@ def get_employee_training_details(
     except Exception as e:
         logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
-
 
 # ============================================================================
 # Troy's Partner Dashboard (Current Demand, Pipeline, Certifications, Buddy, Core Certified)

@@ -93,7 +93,6 @@ from app.services.thunder_service import ConsentNotGiven, ConversationOwnedByHum
 DEFAULT_ORGANIZER_EMAIL = os.getenv("THUNDER_ORGANIZER_EMAIL", "thunder@blitzenx.com")
 GraphCreateEventCall = Callable[[str, str, str, str, str, str, list], str]
 
-
 def _as_utc(dt: datetime) -> datetime:
     """SubmissionInterview.scheduled_at is a plain DateTime column
     (BR-01 stores it in UTC, but SQLite/older drivers can round-trip it
@@ -102,10 +101,8 @@ def _as_utc(dt: datetime) -> datetime:
         return dt.replace(tzinfo=dt_timezone.utc)
     return dt.astimezone(dt_timezone.utc)
 
-
 def _ics_escape(text: str) -> str:
     return (text or "").replace("\\", "\\\\").replace(",", "\\,").replace(";", "\\;").replace("\n", "\\n")
-
 
 def build_ics_file(*, uid: str, summary: str, description: str, location: str, start_utc: datetime, end_utc: datetime, organizer_email: str = DEFAULT_ORGANIZER_EMAIL) -> bytes:
     """Step 2. Minimal, valid VCALENDAR/VEVENT text -- no icalendar
@@ -129,7 +126,6 @@ def build_ics_file(*, uid: str, summary: str, description: str, location: str, s
     ]
     return ("\r\n".join(lines) + "\r\n").encode("utf-8")
 
-
 def _default_graph_create_event_call(organizer_email: str, subject: str, start_iso: str, end_iso: str, timezone: str, body: str, attendees: list) -> str:
     import requests
     from app.core.graph_auth import get_graph_token
@@ -147,7 +143,6 @@ def _default_graph_create_event_call(organizer_email: str, subject: str, start_i
     resp.raise_for_status()
     return resp.json()["id"]
 
-
 def _resolve_interviewer_user(db: Session, panel: Optional[DemandInterviewPanel]) -> Optional[Users]:
     if panel is None:
         return None
@@ -155,7 +150,6 @@ def _resolve_interviewer_user(db: Session, panel: Optional[DemandInterviewPanel]
     if employee is None or not employee.wros_user_id:
         return None
     return db.query(Users).filter(Users.UserID == employee.wros_user_id).first()
-
 
 def _notify_recruiter(db: Session, submission: Submission, message: str) -> None:
     if not submission.submitted_by_user_id:
@@ -171,7 +165,6 @@ def _notify_recruiter(db: Session, submission: Submission, message: str) -> None
     except Exception as exc:
         logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[InterviewConfirmation] Failed to notify recruiter for submission {submission.id!r}: {exc}")
-
 
 def confirm_interview(
     db: Session, interview_id: str, candidate: Candidate, conversation: CandidateConversation, *, graph_create_event_call: Optional[GraphCreateEventCall] = None,

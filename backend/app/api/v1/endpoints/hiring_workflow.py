@@ -17,7 +17,6 @@ import logging
 
 router = APIRouter(prefix="/hiring-workflow", tags=["Hiring Workflow"])
 
-
 @router.get("/suggestions/{demand_id}/panelists", dependencies=[Depends(require_resource_permission("candidates", "view"))])
 def get_panelist_suggestions(
     demand_id: str,
@@ -32,7 +31,6 @@ def get_panelist_suggestions(
     except Exception as e:
         logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @router.get("/interviews/{interview_id}/l1-to-l2-trigger", dependencies=[Depends(require_resource_permission("candidates", "view"))])
 def check_l1_l2_trigger(
@@ -51,7 +49,6 @@ def check_l1_l2_trigger(
     except Exception as e:
         logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @router.get("/submissions/{submission_id}/affordability", dependencies=[Depends(require_resource_permission("revenue", "view"))])
 def check_affordability(
@@ -72,7 +69,6 @@ def check_affordability(
         logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
-
 @router.post("/interviews/{demand_id}/create-l2-panel", dependencies=[Depends(require_resource_permission("candidates", "edit"))])
 def create_l2_panel(
     demand_id: str,
@@ -92,7 +88,6 @@ def create_l2_panel(
     except Exception as e:
         logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @router.post("/interviews/{interview_id}/no-show", dependencies=[Depends(require_resource_permission("candidates", "edit"))])
 def record_no_show(

@@ -39,7 +39,6 @@ def forecast_recruitment_needs(
         logger.error(f"Recruitment forecasting failed: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
-
 @router.post(
     "/resources/forecast",
     dependencies=[Depends(require_resource_permission("resource", "create"))]
@@ -63,7 +62,6 @@ def forecast_resource_needs(
         logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Resource forecasting failed: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @router.post(
     "/revenue/forecast",
@@ -91,7 +89,6 @@ def forecast_revenue_needs(
         logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Revenue forecasting failed: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @router.post(
     "/decision/validate",
@@ -138,7 +135,6 @@ def validate_decision(
         logger.error(f"Decision validation failed: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
-
 @router.post(
     "/alert/generate",
     dependencies=[Depends(require_resource_permission("alert", "create"))]
@@ -176,7 +172,6 @@ def generate_autonomous_alert(
         logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Alert generation failed: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @router.get(
     "/health/summary",

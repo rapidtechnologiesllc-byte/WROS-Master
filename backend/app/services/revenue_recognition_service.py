@@ -28,7 +28,6 @@ from app.models.org_structure import PartnerBUAssignment, OrgNode
 from app.models.business_unit_context import BusinessUnitContext
 from app.core.logging import logger
 
-
 # Custom exceptions
 class InvalidInvoiceError(Exception):
     """Raised when invoice cannot be recognized due to invalid state."""
@@ -39,7 +38,6 @@ logger = logging.getLogger(__name__)
 class ValidationError(Exception):
     """Raised when data validation fails."""
     pass
-
 
 def recognize_revenue_from_paid_invoice(
     db: Session,
@@ -138,7 +136,6 @@ def recognize_revenue_from_paid_invoice(
 
     return revenue
 
-
 def create_revenue_entries(
     db: Session,
     invoice_id: str,
@@ -196,7 +193,6 @@ def create_revenue_entries(
         "gross_margin_usd_cents": revenue.gross_margin_usd_cents,
         "gross_margin_pct": revenue.gross_margin_pct,
     }
-
 
 def calculate_asr(
     db: Session,
@@ -270,7 +266,6 @@ def calculate_asr(
         "months_analyzed": round(months_in_period, 2),
     }
 
-
 def get_revenue_by_month(
     db: Session,
     business_unit_id: Optional[int] = None,
@@ -300,7 +295,6 @@ def get_revenue_by_month(
         }
         for r in results
     ]
-
 
 def get_revenue_by_service(
     db: Session,
@@ -332,7 +326,6 @@ def get_revenue_by_service(
         for r in results
     ]
 
-
 def get_revenue_by_module(
     db: Session,
     business_unit_id: Optional[int] = None,
@@ -362,7 +355,6 @@ def get_revenue_by_module(
         }
         for r in results
     ]
-
 
 def get_revenue_by_pricing_model(
     db: Session,
@@ -394,7 +386,6 @@ def get_revenue_by_pricing_model(
         for r in results
     ]
 
-
 def get_revenue_by_client_owner(
     db: Session,
     business_unit_id: Optional[int] = None,
@@ -424,7 +415,6 @@ def get_revenue_by_client_owner(
         }
         for r in results
     ]
-
 
 def get_partner_revenue_share_analysis(
     db: Session,
@@ -463,7 +453,6 @@ def get_partner_revenue_share_analysis(
         }
         for r in results
     ]
-
 
 def get_forecast_vs_actual(
     db: Session,
@@ -507,7 +496,6 @@ def get_forecast_vs_actual(
         for r in results
     ]
 
-
 def get_negative_margin_alerts(
     db: Session,
     business_unit_id: Optional[int] = None,
@@ -539,7 +527,6 @@ def get_negative_margin_alerts(
         }
         for r in results
     ]
-
 
 def calculate_p_and_l_summary(
     db: Session,
@@ -597,7 +584,6 @@ def calculate_p_and_l_summary(
         ) if revenues else 0,
     }
 
-
 # ============================================================================
 # HELPER FUNCTIONS
 # ============================================================================
@@ -616,7 +602,6 @@ def _calculate_invoice_costs(line_items: List[InvoiceLineItem]) -> int:
         total_cost += cost
     return total_cost
 
-
 def _calculate_margin_pct(
     revenue_usd_cents: int,
     margin_usd_cents: int
@@ -629,7 +614,6 @@ def _calculate_margin_pct(
     if revenue_usd_cents == 0:
         return 0
     return int((margin_usd_cents / revenue_usd_cents) * 100)
-
 
 def _calculate_partner_share(
     db: Session,
@@ -667,6 +651,5 @@ def _calculate_partner_share(
         "share_pct": share_pct,
         "share_amount": share_amount,
     }
-
 
 import uuid

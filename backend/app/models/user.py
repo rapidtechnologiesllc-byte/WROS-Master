@@ -158,8 +158,6 @@ class Jobs(Base):
     contact_person_user = relationship("Users", foreign_keys=[contactPerson], lazy="select")
     candidates = relationship("Candidate", foreign_keys="Candidate.job_id", lazy="select", back_populates="job")
 
-
-
 class CandidateAssignment(Base):
     __tablename__ = "candidate_assignments"
 
@@ -185,7 +183,6 @@ class InterviewPanel(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
     job = relationship("Jobs", foreign_keys=[job_id], lazy="select")
-
 
 class PanelMember(Base):
     __tablename__ = "panel_members"
@@ -228,7 +225,6 @@ class InterviewFeedback(Base):
     recommendation = Column(String(20))  # Hire / Hold / Reject
 
     submitted_at = Column(DateTime, default=datetime.utcnow)
-
 
 class UserCustomPermission(Base):
     """

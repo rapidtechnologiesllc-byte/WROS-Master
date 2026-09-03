@@ -48,10 +48,8 @@ FALLBACK_GREETING_TEMPLATE = (
 )
 COMPANY_NAME = "BlitzenX"
 
-
 def _first_name(candidate: Candidate) -> str:
     return candidate.candidateFirstName or candidate.candidateEmail
-
 
 def _render_greeting(db: Session, candidate: Candidate, agent_name: str, tenant_id: str) -> str:
     """
@@ -86,12 +84,10 @@ logger = logging.getLogger(__name__)
 class TemplateRenderFailure(Exception):
     pass
 
-
 class FirstEngagementFailed(Exception):
     def __init__(self, reason: str, detail: str = ""):
         self.reason = reason
         super().__init__(f"{reason}: {detail}" if detail else reason)
-
 
 def _already_sent(db: Session, conversation_id: int) -> bool:
     """BR-03: idempotent -- one first message only."""
@@ -101,7 +97,6 @@ def _already_sent(db: Session, conversation_id: int) -> bool:
         .first()
         is not None
     )
-
 
 def _send_first_whatsapp_attempt(
     db: Session, conversation: CandidateConversation, candidate: Candidate, body: str, whatsapp_client,
@@ -143,7 +138,6 @@ def _send_first_whatsapp_attempt(
     )
     db.add(event)
     return delivered
-
 
 def send_first_whatsapp_engagement(
     db: Session, candidate_id: str, tenant_id: str, *, whatsapp_client=None, _sleep=time.sleep,

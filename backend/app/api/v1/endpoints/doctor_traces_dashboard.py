@@ -14,7 +14,6 @@ from app.core.logging import logger
 
 router = APIRouter(prefix="/admin/doctor", tags=["doctor-dashboard"])
 
-
 @router.get(
     "/traces",
     dependencies=[Depends(require_resource_permission("trace", "view"))]
@@ -94,7 +93,6 @@ def get_doctor_traces(
         logger.error(f"Failed to get doctor traces: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to get doctor traces: {str(e)}")
 
-
 @router.get(
     "/traces/by-status/{status}",
     dependencies=[Depends(require_resource_permission("trace", "view"))]
@@ -113,7 +111,6 @@ def get_doctor_traces_by_status(
         Same format as get_doctor_traces
     """
     try:
-        from app.models.doctor_trace import DoctorTrace
 
         # Map status to query filter
         status_filter = None
@@ -162,7 +159,6 @@ def get_doctor_traces_by_status(
         logger.error(f"Failed to filter doctor traces: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to filter doctor traces: {str(e)}")
 
-
 @router.post(
     "/traces/{trace_id}/assign",
     dependencies=[Depends(require_resource_permission("trace", "create"))]
@@ -183,7 +179,6 @@ def assign_escalation(
         {"status": "success", "message": "Escalation assigned"}
     """
     try:
-        from app.models.doctor_trace import DoctorTrace
 
         trace = db.query(DoctorTrace).filter(DoctorTrace.id == trace_id).first()
         if not trace:

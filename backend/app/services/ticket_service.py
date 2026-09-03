@@ -30,14 +30,12 @@ from app.models.ticket import (
     TicketCategoryRoute, TicketDetail, TicketSLAPolicy,
 )
 
-
 def derive_priority_from_impact_urgency(impact: str, urgency: str) -> str:
     if impact not in TICKET_IMPACTS:
         raise ValueError(f"Unknown impact {impact!r}")
     if urgency not in TICKET_URGENCIES:
         raise ValueError(f"Unknown urgency {urgency!r}")
     return IMPACT_URGENCY_PRIORITY_MATRIX[(impact, urgency)]
-
 
 def resolve_category_department(db: Session, *, category: str, subcategory: Optional[str] = None) -> Optional[int]:
     """Exact (category, subcategory) match first, then a
@@ -57,10 +55,8 @@ def resolve_category_department(db: Session, *, category: str, subcategory: Opti
         ).first()
     return route.department_id if route else None
 
-
 def list_categories(db: Session) -> List[TicketCategoryRoute]:
     return db.query(TicketCategoryRoute).filter(TicketCategoryRoute.is_active.is_(True)).order_by(TicketCategoryRoute.category).all()
-
 
 def create_ticket(
     db: Session,
@@ -107,7 +103,6 @@ def create_ticket(
     db.commit()
     db.refresh(task)
     return task
-
 
 def record_first_response(db: Session, task: Task, *, now: Optional[datetime] = None) -> Optional[TicketDetail]:
     """Once responded to, the ticket's relevant deadline shifts from

@@ -25,7 +25,6 @@ from app.services.offer_readiness_service import check_offer_readiness
 
 router = APIRouter(tags=["offer-readiness"])
 
-
 @router.get(
     "/candidates/{candidate_id}/jobs/{job_id}/offer-readiness",
     response_model=OfferReadinessResponse,

@@ -69,7 +69,6 @@ DEFAULT_NUDGE_MESSAGE = (
     "or if there's anything I can help clarify."
 )
 
-
 def _weekend_pause_windows(start: datetime, end: datetime):
     """Every Friday-21:00-to-Monday-09:00 window that could overlap
     [start, end] (naive local datetimes), padded a few days either side
@@ -85,7 +84,6 @@ def _weekend_pause_windows(start: datetime, end: datetime):
             windows.append((pause_start, pause_start + timedelta(hours=60)))  # -> Monday 09:00
         day += timedelta(days=1)
     return windows
-
 
 def business_hours_elapsed(start: datetime, end: datetime) -> float:
     """
@@ -105,11 +103,9 @@ def business_hours_elapsed(start: datetime, end: datetime) -> float:
             paused_hours += (overlap_end - overlap_start).total_seconds() / 3600.0
     return max(0.0, total_hours - paused_hours)
 
-
 def _to_local(utc_naive: datetime, tz_name: str) -> datetime:
     tz = ZoneInfo(tz_name or "Asia/Kolkata")
     return utc_naive.replace(tzinfo=dt_timezone.utc).astimezone(tz).replace(tzinfo=None)
-
 
 def get_last_message_event(db: Session, conversation: CandidateConversation) -> Optional[ConversationEvent]:
     return (
@@ -121,7 +117,6 @@ def get_last_message_event(db: Session, conversation: CandidateConversation) -> 
         .order_by(ConversationEvent.id.desc())
         .first()
     )
-
 
 def evaluate_conversation_inactivity(
     db: Session,
@@ -163,7 +158,6 @@ def evaluate_conversation_inactivity(
         return _reclaim(db, conversation, candidate, elapsed_hours=elapsed, whatsapp_client=whatsapp_client)
 
     return _nudge(db, conversation, candidate, elapsed_hours=elapsed, whatsapp_client=whatsapp_client)
-
 
 def _reclaim(
     db: Session, conversation: CandidateConversation, candidate: Candidate,
@@ -209,7 +203,6 @@ def _reclaim(
     )
 
     return {"action": "reclaimed", "elapsed_hours": elapsed_hours, "checkin_event_id": checkin_event.id}
-
 
 def _nudge(
     db: Session, conversation: CandidateConversation, candidate: Candidate,

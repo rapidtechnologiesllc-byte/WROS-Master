@@ -14,7 +14,6 @@ class SetCostRateConfigRequest(BaseModel):
     effective_date: Optional[date] = None
     notes: Optional[str] = None
 
-
 class CostRateConfigResponse(BaseModel):
     id: int
     business_unit_id: Optional[int]
@@ -28,12 +27,10 @@ class CostRateConfigResponse(BaseModel):
     class Config:
         from_attributes = True
 
-
 class FullyLoadedCostResponse(BaseModel):
     employee_id: str
     base_salary_usd_cents: Optional[int]
     fully_loaded_cost_usd_cents: Optional[int]
-
 
 class BlendedDeliveryRateResponse(BaseModel):
     business_unit_id: int

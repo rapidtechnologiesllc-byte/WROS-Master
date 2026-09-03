@@ -36,7 +36,6 @@ from app.services.technical_scoring_service import CandidateNotFound, JobNotFoun
 
 router = APIRouter(tags=["technical-scoring"])
 
-
 @router.get(
     "/candidates/{candidate_id}/jobs/{job_id}/score",
     response_model=TechnicalScoreResponse,
@@ -71,7 +70,6 @@ def get_technical_score(candidate_id: str, job_id: str, db: Session = Depends(ge
 
     db.commit()
     return TechnicalScoreResponse(**result)
-
 
 @router.get(
     "/jobs/{job_id}/candidates/ranked",

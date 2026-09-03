@@ -31,7 +31,6 @@ class JobClosureStatusResponse(BaseModel):
     eligible_for_closure: bool
     fill_percentage: int
 
-
 class JobClosureActionResponse(BaseModel):
     success: bool
     message: str
@@ -39,9 +38,7 @@ class JobClosureActionResponse(BaseModel):
     action: Optional[str] = None
     closed_at: Optional[str] = None
 
-
 router = APIRouter(prefix="/autonomous-jobs", tags=["autonomous-jobs"])
-
 
 @router.get(
     "/status/{job_id}",
@@ -57,7 +54,6 @@ def get_job_status(job_id: str, db: Session = Depends(get_db)):
     if "error" in status:
         raise HTTPException(status_code=404, detail=status["error"])
     return status
-
 
 @router.post(
     "/close/{job_id}",

@@ -42,7 +42,6 @@ from app.services.resource_forecast_service import (
 
 router = APIRouter(prefix="/resource-forecast", tags=["resource-forecast"])
 
-
 @router.get(
     "/expiring", response_model=ExpiringAllocationsResponse,
     dependencies=[Depends(get_current_internal_user)],
@@ -58,7 +57,6 @@ def expiring_allocations(
         thirty_to_60_days=[ExpiringAllocationItem(**e) for e in buckets["30_to_60_days"]],
         sixty_to_90_days=[ExpiringAllocationItem(**e) for e in buckets["60_to_90_days"]],
     )
-
 
 @router.get(
     "/gap-analysis", response_model=SkillGapAnalysisResponse,

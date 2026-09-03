@@ -17,7 +17,6 @@ class TicketCreateRequest(BaseModel):
     subcategory: Optional[str] = None
     is_external: bool = False
 
-
 class TicketCategoryResponse(BaseModel):
     category: str
     subcategory: Optional[str]
@@ -26,17 +25,14 @@ class TicketCategoryResponse(BaseModel):
     class Config:
         from_attributes = True
 
-
 class TicketCategoryRouteCreateRequest(BaseModel):
     category: str
     subcategory: Optional[str] = None
     department_id: int
 
-
 class TicketSLAPolicyUpdateRequest(BaseModel):
     response_minutes: int
     resolution_minutes: int
-
 
 class TicketSLAPolicyResponse(BaseModel):
     priority: str
@@ -45,7 +41,6 @@ class TicketSLAPolicyResponse(BaseModel):
 
     class Config:
         from_attributes = True
-
 
 class TicketDetailResponse(BaseModel):
     task_id: int

@@ -48,7 +48,6 @@ from app.services.employee_milestone_service import (
 
 router = APIRouter(prefix="/employee-milestones", tags=["employee-milestones"])
 
-
 def _to_item(m: EmployeeMilestone) -> EmployeeMilestoneItem:
     return EmployeeMilestoneItem(
         id=m.id, project_id=m.project_id, employee_id=m.employee_id,
@@ -56,7 +55,6 @@ def _to_item(m: EmployeeMilestone) -> EmployeeMilestoneItem:
         target_date=m.target_date, completed_date=m.completed_date, status=m.status,
         completion_notes=m.completion_notes, set_by=m.set_by,
     )
-
 
 @router.post(
     "",
@@ -81,7 +79,6 @@ def create_milestone_endpoint(
     db.refresh(milestone)
     return _to_item(milestone)
 
-
 @router.get(
     "/employee/{employee_id}", response_model=EmployeeMilestoneListResponse,
     dependencies=[Depends(get_current_internal_user)],
@@ -94,7 +91,6 @@ def list_employee_milestones(
 ):
     milestones = get_employee_milestones(db, employee_id)
     return EmployeeMilestoneListResponse(milestones=[_to_item(m) for m in milestones])
-
 
 @router.post(
     "/{milestone_id}/complete", response_model=EmployeeMilestoneItem,
@@ -117,7 +113,6 @@ def complete_milestone_endpoint(
     db.commit()
     db.refresh(milestone)
     return _to_item(milestone)
-
 
 @router.post(
     "/scan-overdue", response_model=ScanOverdueMilestonesResponse,

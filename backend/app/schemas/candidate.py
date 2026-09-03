@@ -176,12 +176,6 @@ class AllCandidatesResponse(BaseModel):
     total_candidates: int
     candidates: list[CandidateCompleteResponse]
 
-
-
-
-
-
-
 class candidateFormRequest(BaseModel):
     position: str | None = None
     department: str | None = None
@@ -196,10 +190,6 @@ class candidateFormRequest(BaseModel):
 class candidateFormResponse(BaseModel):
     status: str = "Success"
     message: str = "Form submitted successfully"
-
-
-
-
 
 class CandidateGetRequest(BaseModel):
     candidate_id: int
@@ -300,7 +290,6 @@ class ChangePasswordResponse(BaseModel):
     status: str
     message: str
 
-
 # ---------------------------------------------------------------------------
 # Public Job Application schemas
 # ---------------------------------------------------------------------------
@@ -313,7 +302,6 @@ class EducationEntry(BaseModel):
     end_year: str
     percentage: Optional[str] = None
 
-
 class ExperienceEntry(BaseModel):
     company_name: str
     job_title: str
@@ -321,12 +309,10 @@ class ExperienceEntry(BaseModel):
     end_date: Optional[date] = None
     years_of_experience: Optional[str] = None
 
-
 class JobApplicationResponse(BaseModel):
     status: str
     message: str
     candidate_id: Optional[str] = None
-
 
 # ---------------------------------------------------------------------------
 # Schemas
@@ -345,7 +331,6 @@ class CandidateStatusUpdateRequest(BaseModel):
         ),
     )
 
-
 class CandidateStatusResponse(BaseModel):
     candidate_id: str
     candidate_name: Optional[str] = None
@@ -354,11 +339,9 @@ class CandidateStatusResponse(BaseModel):
     pipeline_status: Optional[str] = None
     updated_at: Optional[datetime] = None
 
-
 class AllCandidateStatusResponse(BaseModel):
     total: int
     candidates: List[CandidateStatusResponse]
-
 
 class StatusActionResponse(BaseModel):
     status: str

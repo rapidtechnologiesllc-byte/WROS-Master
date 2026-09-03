@@ -35,13 +35,11 @@ from app.services.task_service import create_task
 
 FEEDBACK_TASK_CATEGORY = "INTERVIEW_FEEDBACK"
 
-
 def _candidate_display_name(candidate: Optional[Candidate]) -> str:
     if not candidate:
         return "Unknown Candidate"
     parts = [candidate.candidateFirstName or "", candidate.candidateLastName or ""]
     return " ".join(p for p in parts if p).strip() or candidate.candidateID
-
 
 def _existing_feedback_task(db: Session, candidate_id: str, interview_id: int, interviewer_id: str) -> Optional[Task]:
     return (
@@ -55,7 +53,6 @@ def _existing_feedback_task(db: Session, candidate_id: str, interview_id: int, i
         .order_by(Task.id.desc())
         .first()
     )
-
 
 def sync_pending_feedback_tasks_for_interview(db: Session, interview: Interview) -> None:
     """Call whenever the set of panel members for an interview may have
@@ -117,7 +114,6 @@ def sync_pending_feedback_tasks_for_interview(db: Session, interview: Interview)
         logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[InterviewFeedbackTask] Failed to sync pending-feedback tasks for interview {interview.id}: {exc}")
         db.rollback()
-
 
 def close_pending_feedback_task(db: Session, interview_id: int, interviewer_id: str) -> None:
     """Call the moment an interviewer submits their feedback."""

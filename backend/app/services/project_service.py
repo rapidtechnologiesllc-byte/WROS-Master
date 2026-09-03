@@ -35,10 +35,8 @@ logger = logging.getLogger(__name__)
 class InvalidProjectTransition(Exception):
     pass
 
-
 class MilestoneValidationError(Exception):
     pass
-
 
 class SiPartnerRequired(Exception):
     """S-358/HRMS-0519 BR: SI Partner Mandatory for SPECIALITY Projects.
@@ -59,7 +57,6 @@ class SiPartnerRequired(Exception):
     SI partner, a parallel si_partner field is redundant. The DB column
     is left in place (untouched schema) but every new project leaves it
     null; nothing reads it as authoritative anymore."""
-
 
 def create_project_from_won_opportunity(
     db: Session, opportunity: Opportunity, *, name: str, tenant_id: Optional[int] = None,
@@ -85,7 +82,6 @@ def create_project_from_won_opportunity(
     db.add(project)
     return project
 
-
 def create_project(
     db: Session, *, tenant_id: Optional[int], client_id: str, name: str,
     billing_type: str = "TIME_AND_MATERIALS", currency: str = "USD",
@@ -107,7 +103,6 @@ def create_project(
     db.add(project)
     return project
 
-
 def transition_project_status(db: Session, project: Project, new_status: str) -> Project:
     allowed = PROJECT_STATUS_TRANSITIONS.get(project.status, set())
     if new_status not in allowed:
@@ -120,7 +115,6 @@ def transition_project_status(db: Session, project: Project, new_status: str) ->
     db.add(project)
     return project
 
-
 def create_milestone(
     db: Session, project: Project, *, title: str, due_date: date,
     tenant_id: Optional[int] = None, description: Optional[str] = None, owner_employee_id: Optional[str] = None,
@@ -131,7 +125,6 @@ def create_milestone(
     )
     db.add(milestone)
     return milestone
-
 
 def complete_milestone(db: Session, milestone: ProjectMilestone, *, completion_date: Optional[date] = None) -> ProjectMilestone:
     """HRMS-0804 BR-0804-01: delay_days is always computed here, never
@@ -145,7 +138,6 @@ def complete_milestone(db: Session, milestone: ProjectMilestone, *, completion_d
     milestone.delay_days = max(0, (completion_date - milestone.due_date).days)
     db.add(milestone)
     return milestone
-
 
 def get_unfilled_project_roles(db: Session, project: Project, *, now: Optional[date] = None) -> List[dict]:
     """
@@ -184,7 +176,6 @@ def get_unfilled_project_roles(db: Session, project: Project, *, now: Optional[d
             "gap_status": gap_status,
         })
     return gaps
-
 
 def calculate_project_expected_revenue(db: Session, project: Project, *, now: Optional[date] = None) -> dict:
     """

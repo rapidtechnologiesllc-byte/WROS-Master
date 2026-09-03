@@ -26,10 +26,8 @@ from sqlalchemy.orm import relationship
 from app.models.base import Base
 from app.models.employee import DELIVERY_ENGINES
 
-
 def _new_uuid() -> str:
     return str(uuid.uuid4())
-
 
 WORK_LOCATIONS = ("REMOTE", "ONSITE", "HYBRID")
 EMPLOYMENT_TYPES = ("W2_FULLTIME",)  # BR-01: the only allowed value, R-03
@@ -156,7 +154,6 @@ class Demand(Base):
         # app.services.demand_service.create_demand() at the application
         # layer, checked before insert.
     )
-
 
 class DemandHistory(Base):
     """Insert-only, same immutable pattern as employee/client history."""

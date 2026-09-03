@@ -24,7 +24,6 @@ from app.models import agent_phalanx  # noqa: F401
 # Referral models — imported here for database table creation
 from app.models import referral  # noqa: F401
 
-
 # Create FastAPI application
 # Swagger/(/docs) and ReDoc (/redoc) are interactive, "Try it out"-capable
 # API explorers against this HR system's real PII (employee bank details,
@@ -51,7 +50,6 @@ app.add_middleware(RequestLoggingMiddleware)
 # DISABLED: Rate limiter was blocking role template permission updates
 # from app.middleware import RateLimitMiddleware
 # app.add_middleware(RateLimitMiddleware, max_requests=10000, window_seconds=60)
-
 
 # S-215/HRMS-0117 Step 3/AC-1 -- an unhandled exception is, by
 # definition, the CRITICAL case (nothing in the request path expected
@@ -83,18 +81,15 @@ async def log_unhandled_exception(request: Request, exc: Exception):
     response.headers["Access-Control-Allow-Credentials"] = "true"
     return response
 
-
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request: Request, exc: HTTPException):
     """Handle HTTPException (401, 403, 404, etc.) with CORS headers"""
-    from fastapi.responses import JSONResponse
     response = JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
     # Add CORS headers so browser doesn't block 401, 403, 404, etc responses
     origin = request.headers.get("origin", "http://localhost:3000")
     response.headers["Access-Control-Allow-Origin"] = origin
     response.headers["Access-Control-Allow-Credentials"] = "true"
     return response
-
 
 @app.on_event("startup")
 async def startup_event():
@@ -137,7 +132,6 @@ async def startup_event():
     # Initialize default organizational positions (CEO, Partner, BU Head, etc.)
     try:
         logger.info("[Startup] Initializing default organizational positions...")
-        from app.core.database import SessionLocal
         from app.services.org_structure_service import init_default_positions
         db = SessionLocal()
         result = init_default_positions(db)
@@ -182,7 +176,6 @@ async def startup_event():
     logger.info(f"[OK] {settings.APP_NAME} v{settings.APP_VERSION} started successfully (no seed data)")
     logger.info(f"[OK] Server running on http://{settings.HOST}:{settings.PORT}")
 
-
 @app.on_event("shutdown")
 async def shutdown_event():
     """
@@ -194,7 +187,6 @@ async def shutdown_event():
     # Shutdown APScheduler
     from app.core.scheduler import shutdown_scheduler
     shutdown_scheduler()
-
 
 # Include API routes
 app.include_router(router)
@@ -238,7 +230,6 @@ if static_dir.exists():
 else:
     logger.warning("Static directory not found. Skipping static file mounting.")
 
-
 @app.get("/")
 def home():
     """
@@ -255,7 +246,6 @@ def home():
         "redoc": "/redoc"
     }
 
-
 @app.get("/health")
 def health_check():
     """
@@ -269,7 +259,6 @@ def health_check():
         "app": settings.APP_NAME,
         "version": settings.APP_VERSION
     }
-
 
 if __name__ == "__main__":
     import uvicorn

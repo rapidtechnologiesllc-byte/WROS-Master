@@ -23,28 +23,23 @@ class PermissionInput(BaseModel):
     can_edit: bool = False
     can_delete: bool = False
 
-
 class RoleTemplateCreate(BaseModel):
     name: str
     display_name: str
     description: Optional[str] = None
     permissions: List[PermissionInput]
 
-
 class ToggleStatusRequest(BaseModel):
     is_active: bool
-
 
 class GrantRevokePermissionInput(BaseModel):
     resource_name: str
     action: str  # view, create, edit, delete
 
-
 class RoleTemplateUpdate(BaseModel):
     display_name: Optional[str] = None
     description: Optional[str] = None
     permissions: List[PermissionInput] = []
-
 
 class RoleTemplateResponse(BaseModel):
     id: int
@@ -56,7 +51,6 @@ class RoleTemplateResponse(BaseModel):
 
     class Config:
         from_attributes = True
-
 
 @router.get(
     "",
@@ -103,7 +97,6 @@ def list_role_templates(
 
     return {"role_templates": result}
 
-
 @router.get(
     "/{template_id}",
     dependencies=[Depends(require_resource_permission("role_templates", "view"))]
@@ -149,7 +142,6 @@ def get_role_template(
         "enabled": template.enabled,
         "permissions": perm_list,
     }
-
 
 @router.post(
     "",
@@ -221,7 +213,6 @@ def create_role_template(
         "description": template.description,
         "message": "Role template created successfully"
     }
-
 
 @router.put(
     "/{template_id}",
@@ -297,7 +288,6 @@ def update_role_template(
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Error updating role template: {str(e)}")
 
-
 @router.post(
     "/{template_id}/grant-permission",
     dependencies=[Depends(require_resource_permission("role_templates", "create"))]
@@ -368,7 +358,6 @@ def grant_permission(
 
     return {"message": f"Permission granted: {resource_name} - {action}"}
 
-
 @router.post(
     "/{template_id}/revoke-permission",
     dependencies=[Depends(require_resource_permission("role_templates", "create"))]
@@ -431,7 +420,6 @@ def revoke_permission(
 
     return {"message": f"Permission revoked: {resource_name} - {action}"}
 
-
 @router.delete(
     "/{template_id}",
     dependencies=[Depends(require_resource_permission("role_templates", "delete"))]
@@ -474,7 +462,6 @@ def delete_role_template(
 
     return {"message": "Role template deleted successfully"}
 
-
 @router.post(
     "/{template_id}/toggle-status",
     dependencies=[Depends(require_resource_permission("role_templates", "create"))]
@@ -508,7 +495,6 @@ def toggle_template_status(
         "message": f"Role template {'enabled' if template.enabled else 'disabled'} successfully"
     }
 
-
 @rbac_router.get("/business-units")
 def list_business_units(
     db: Session = Depends(get_db),
@@ -532,14 +518,12 @@ def list_business_units(
 
     return {"business_units": result}
 
-
 class BusinessUnitCreateRequest(BaseModel):
     name: str
     display_name: Optional[str] = None
     description: Optional[str] = None
     region: Optional[str] = None
     continent: Optional[str] = None
-
 
 @rbac_router.post("/business-units")
 def create_business_unit_rbac(
@@ -578,7 +562,6 @@ def create_business_unit_rbac(
         "status": "created"
     }
 
-
 @router.get(
     "/{template_id}/audit-trail",
     dependencies=[Depends(require_resource_permission("role_templates", "view"))]
@@ -608,7 +591,6 @@ def get_template_audit_trail(
         "template_name": template.name,
         "audit_trail": audit_logs
     }
-
 
 @router.get(
     "/{template_id}/users",
@@ -654,7 +636,6 @@ def get_users_for_role_template(
             for u in users
         ]
     }
-
 
 @router.get(
     "/audit/logs",

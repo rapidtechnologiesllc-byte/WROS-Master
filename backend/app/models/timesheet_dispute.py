@@ -24,10 +24,8 @@ from sqlalchemy import (
 
 from app.models.base import Base
 
-
 def _new_uuid() -> str:
     return str(uuid.uuid4())
-
 
 DISPUTE_RAISED_BY = ("RM", "EMPLOYEE", "CLIENT")
 DISPUTE_STATUSES = ("OPEN", "UNDER_REVIEW", "RESOLVED_ADJUSTED", "RESOLVED_CONFIRMED", "CANCELLED")

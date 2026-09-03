@@ -35,7 +35,6 @@ from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 from docx.shared import Inches, Pt, RGBColor
 
-
 # ---------------------------------------------------------------------------
 # Salary maths
 # ---------------------------------------------------------------------------
@@ -214,7 +213,6 @@ def calculate_salary(employee_name: str, annual_ctc: float) -> SalaryBreakdown:
         esic_employer_pa=esic_employer,
     )
 
-
 # ---------------------------------------------------------------------------
 # Formatting helpers
 # ---------------------------------------------------------------------------
@@ -226,7 +224,6 @@ _WHITE      = "FFFFFF"
 _GOLD       = "C9A84C"
 _LIGHT_GREY = "F2F2F2"
 
-
 def _set_cell_bg(cell, hex_color: str) -> None:
     tc = cell._tc
     tcPr = tc.get_or_add_tcPr()
@@ -235,7 +232,6 @@ def _set_cell_bg(cell, hex_color: str) -> None:
     shd.set(qn("w:color"), "auto")
     shd.set(qn("w:fill"),  hex_color)
     tcPr.append(shd)
-
 
 def _write_cell(
     cell,
@@ -253,7 +249,6 @@ def _write_cell(
     run.font.size = Pt(font_size)
     if color:
         run.font.color.rgb = RGBColor.from_string(color)
-
 
 # ---------------------------------------------------------------------------
 # Document builder
@@ -442,7 +437,6 @@ def generate_salary_structure_docx(
     doc.save(out)
     out.seek(0)
     return out.read()
-
 
 def get_salary_filename(employee_name: str) -> str:
     safe = employee_name.strip().replace(" ", "_").replace("/", "-")

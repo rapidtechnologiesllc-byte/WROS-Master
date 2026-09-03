@@ -19,7 +19,6 @@ from app.core.logging import logger
 
 logger = logging.getLogger(__name__)
 
-
 class BaseChannelProcessor:
     """Base class for all channel processors with common error handling."""
 
@@ -68,7 +67,6 @@ class BaseChannelProcessor:
         missing = [field for field in required_fields if field not in payload]
         if missing:
             raise ValueError(f"Missing required fields in payload: {missing}")
-
 
 class EmailQueueProcessor(BaseChannelProcessor):
     """Process messages to EMAIL_QUEUE - send emails with multi-provider tracking."""
@@ -139,7 +137,6 @@ class EmailQueueProcessor(BaseChannelProcessor):
             logger.error(f"Error: {str(e)}", exc_info=True)
             logger.error(f"EmailQueueProcessor failed: {e}", exc_info=True)
             raise RuntimeError(f"Failed to route message to EMAIL_QUEUE: {str(e)}")
-
 
 class ThunderQueueProcessor(BaseChannelProcessor):
     """Process messages to THUNDER_QUEUE - autonomous candidate engagement."""
@@ -267,7 +264,6 @@ class ThunderQueueProcessor(BaseChannelProcessor):
             logger.error(f"[ThunderQueueProcessor] Failed to process message: {e}", exc_info=True)
             raise RuntimeError(f"Failed to process THUNDER_QUEUE message: {str(e)}")
 
-
 class WhatsAppQueueProcessor(BaseChannelProcessor):
     """Process messages to WHATSAPP_QUEUE."""
 
@@ -310,7 +306,6 @@ class WhatsAppQueueProcessor(BaseChannelProcessor):
             logger.error(f"WhatsAppQueueProcessor failed: {e}", exc_info=True)
             raise RuntimeError(f"Failed to route message to WHATSAPP_QUEUE: {str(e)}")
 
-
 class SMSQueueProcessor(BaseChannelProcessor):
     """Process messages to SMS_QUEUE."""
 
@@ -352,7 +347,6 @@ class SMSQueueProcessor(BaseChannelProcessor):
             logger.error(f"SMSQueueProcessor failed: {e}", exc_info=True)
             raise RuntimeError(f"Failed to route message to SMS_QUEUE: {str(e)}")
 
-
 class SlackQueueProcessor(BaseChannelProcessor):
     """Process messages to SLACK_QUEUE."""
 
@@ -393,7 +387,6 @@ class SlackQueueProcessor(BaseChannelProcessor):
             logger.error(f"Error: {str(e)}", exc_info=True)
             logger.error(f"SlackQueueProcessor failed: {e}", exc_info=True)
             raise RuntimeError(f"Failed to route message to SLACK_QUEUE: {str(e)}")
-
 
 class ApprovalQueueProcessor(BaseChannelProcessor):
     """Process messages to APPROVAL_QUEUE."""
@@ -442,7 +435,6 @@ class ApprovalQueueProcessor(BaseChannelProcessor):
             logger.error(f"ApprovalQueueProcessor failed: {e}", exc_info=True)
             raise RuntimeError(f"Failed to route message to APPROVAL_QUEUE: {str(e)}")
 
-
 class CommissionQueueProcessor(BaseChannelProcessor):
     """Process messages to COMMISSION_QUEUE."""
 
@@ -490,7 +482,6 @@ class CommissionQueueProcessor(BaseChannelProcessor):
             logger.error(f"CommissionQueueProcessor failed: {e}", exc_info=True)
             raise RuntimeError(f"Failed to route message to COMMISSION_QUEUE: {str(e)}")
 
-
 class CRMQueueProcessor(BaseChannelProcessor):
     """Process messages to CRM_QUEUE."""
 
@@ -537,7 +528,6 @@ class CRMQueueProcessor(BaseChannelProcessor):
             logger.error(f"Error: {str(e)}", exc_info=True)
             logger.error(f"CRMQueueProcessor failed: {e}", exc_info=True)
             raise RuntimeError(f"Failed to route message to CRM_QUEUE: {str(e)}")
-
 
 class DashboardQueueProcessor(BaseChannelProcessor):
     """Process messages to DASHBOARD_QUEUE - display notifications."""
@@ -588,7 +578,6 @@ class DashboardQueueProcessor(BaseChannelProcessor):
             logger.error(f"DashboardQueueProcessor failed: {e}", exc_info=True)
             raise RuntimeError(f"Failed to route message to DASHBOARD_QUEUE: {str(e)}")
 
-
 class CalendarQueueProcessor(BaseChannelProcessor):
     """Process messages to CALENDAR_QUEUE - create calendar events."""
 
@@ -638,7 +627,6 @@ class CalendarQueueProcessor(BaseChannelProcessor):
             logger.error(f"CalendarQueueProcessor failed: {e}", exc_info=True)
             raise RuntimeError(f"Failed to route message to CALENDAR_QUEUE: {str(e)}")
 
-
 class SignatureQueueProcessor(BaseChannelProcessor):
     """Process messages to SIGNATURE_QUEUE - digital signature workflows."""
 
@@ -686,7 +674,6 @@ class SignatureQueueProcessor(BaseChannelProcessor):
             logger.error(f"SignatureQueueProcessor failed: {e}", exc_info=True)
             raise RuntimeError(f"Failed to route message to SIGNATURE_QUEUE: {str(e)}")
 
-
 # Registry mapping queue types to processors
 QUEUE_PROCESSORS = {
     EmailQueueProcessor.QUEUE_TYPE: EmailQueueProcessor,
@@ -701,7 +688,6 @@ QUEUE_PROCESSORS = {
     CalendarQueueProcessor.QUEUE_TYPE: CalendarQueueProcessor,
     SignatureQueueProcessor.QUEUE_TYPE: SignatureQueueProcessor,
 }
-
 
 def get_processor(queue_type: str) -> Optional[BaseChannelProcessor]:
     """Get processor for given queue type."""

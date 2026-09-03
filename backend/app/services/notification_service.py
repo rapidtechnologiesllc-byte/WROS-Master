@@ -36,22 +36,17 @@ logger = logging.getLogger(__name__)
 class CrossTenantNotificationError(Exception):
     """BR-0113-02."""
 
-
 class ChannelNotConfigured(Exception):
     """WhatsApp/SMS integrations aren't provisioned in this codebase yet."""
-
 
 class InvalidPriorityTier(Exception):
     pass
 
-
 class InvalidChannel(Exception):
     pass
 
-
 def _send_in_app(recipient: Users, message: str) -> bool:
     return True  # the notifications row itself IS the in-app delivery
-
 
 def _send_email(recipient: Users, message: str) -> bool:
     if not recipient.UserEmail:
@@ -64,14 +59,11 @@ def _send_email(recipient: Users, message: str) -> bool:
     except Exception:
         return False
 
-
 def _send_whatsapp_unconfigured(recipient: Users, message: str) -> bool:
     raise ChannelNotConfigured("WhatsApp Business API is not provisioned in this codebase yet.")
 
-
 def _send_sms_unconfigured(recipient: Users, message: str) -> bool:
     raise ChannelNotConfigured("SMS gateway is not provisioned in this codebase yet.")
-
 
 DEFAULT_CHANNEL_SENDERS: Dict[str, Callable[[Users, str], bool]] = {
     "IN_APP": _send_in_app,
@@ -79,7 +71,6 @@ DEFAULT_CHANNEL_SENDERS: Dict[str, Callable[[Users, str], bool]] = {
     "WHATSAPP": _send_whatsapp_unconfigured,
     "SMS": _send_sms_unconfigured,
 }
-
 
 def _is_within_business_hours(
     now_utc: dt.datetime, tz_name: str,
@@ -92,7 +83,6 @@ def _is_within_business_hours(
     tz = ZoneInfo(tz_name or DEFAULT_TIMEZONE)
     local_now = now_utc.replace(tzinfo=dt.timezone.utc).astimezone(tz)
     return start_hour <= local_now.hour < end_hour
-
 
 def _next_business_hours_release(
     now_utc: dt.datetime, tz_name: str,
@@ -107,7 +97,6 @@ def _next_business_hours_release(
     if local_now.hour >= end_hour:
         candidate += dt.timedelta(days=1)
     return candidate.astimezone(dt.timezone.utc).replace(tzinfo=None)
-
 
 def _dispatch_now(
     notification: Notification, recipient: Users, message: str, channel: str,
@@ -144,7 +133,6 @@ def _dispatch_now(
     # is recorded so a caller/monitor can act on it.
     notification.delivery_status = "FAILED"
 
-
 def _resolve_business_hours_window(db: Session, tenant_id: Optional[int]):
     """S-213/HRMS-0115 -- business_hours_start/business_hours_end now
     live in system_config, Admin-editable without a deploy.
@@ -161,7 +149,6 @@ def _resolve_business_hours_window(db: Session, tenant_id: Optional[int]):
         )
     except Exception:
         return BUSINESS_HOURS_START, BUSINESS_HOURS_END
-
 
 def send_notification(
     db: Session,
@@ -213,7 +200,6 @@ def send_notification(
     db.add(notification)
     return notification
 
-
 def release_pending_notifications(
     db: Session, *, now: Optional[dt.datetime] = None,
     channel_senders: Optional[Dict[str, Callable[[Users, str], bool]]] = None,
@@ -251,12 +237,10 @@ def release_pending_notifications(
 
     return processed
 
-
 def mark_as_read(db: Session, notification: Notification) -> Notification:
     notification.read_at = dt.datetime.utcnow()
     db.add(notification)
     return notification
-
 
 def get_notifications_for_user(
     db: Session, recipient_id: str, *, tenant_id: Optional[int] = None, limit: int = 50,
@@ -278,7 +262,6 @@ def get_notifications_for_user(
         .limit(limit)
         .all()
     )
-
 
 def get_unread_count(db: Session, recipient_id: str, tenant_id: Optional[int] = None) -> int:
     """Backend for HRMS-0113 Step 4's notification bell -- counts

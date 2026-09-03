@@ -15,7 +15,6 @@ from app.core.logging import logger
 
 logger = logging.getLogger(__name__)
 
-
 class MessageQueueService:
     """Service for managing message queue operations with fail-fast error handling."""
 
@@ -130,7 +129,6 @@ class MessageQueueService:
             raise ValueError("Database session required")
 
         try:
-            from app.models.message_queue import MessageQueue
 
             now = datetime.utcnow()
 
@@ -185,7 +183,6 @@ class MessageQueueService:
             raise ValueError("Database session required")
 
         try:
-            from app.models.message_queue import MessageQueue
 
             message = db.query(MessageQueue).filter(MessageQueue.id == message_id).first()
             if not message:
@@ -219,7 +216,6 @@ class MessageQueueService:
             raise ValueError("Database session required")
 
         try:
-            from app.models.message_queue import MessageQueue
 
             message = db.query(MessageQueue).filter(MessageQueue.id == message_id).first()
             if not message:
@@ -264,7 +260,6 @@ class MessageQueueService:
             raise ValueError("Database session required")
 
         try:
-            from app.models.message_queue import MessageQueue
 
             message = db.query(MessageQueue).filter(MessageQueue.id == message_id).first()
             if not message:
@@ -329,7 +324,6 @@ class MessageQueueService:
             raise ValueError("Database session required")
 
         try:
-            from app.models.message_queue import MessageQueue
 
             messages = (
                 db.query(MessageQueue)
@@ -377,7 +371,6 @@ class MessageQueueService:
             raise ValueError("Database session required")
 
         try:
-            from app.models.message_queue import MessageQueue
             from sqlalchemy import func
 
             stats = (

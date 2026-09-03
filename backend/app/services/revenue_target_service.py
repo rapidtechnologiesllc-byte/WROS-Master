@@ -36,7 +36,6 @@ logger = logging.getLogger(__name__)
 class RevenueTargetValidationError(Exception):
     pass
 
-
 def status_band(actual_usd_cents: int, target_usd_cents: int) -> str:
     if target_usd_cents <= 0:
         return "NO_TARGET"
@@ -46,7 +45,6 @@ def status_band(actual_usd_cents: int, target_usd_cents: int) -> str:
     if pct >= AT_RISK_THRESHOLD:
         return "AT_RISK"
     return "BEHIND"
-
 
 def _fy_invoice_total_for_clients(db: Session, client_ids: List[str], fiscal_year: int) -> int:
     if not client_ids:
@@ -63,7 +61,6 @@ def _fy_invoice_total_for_clients(db: Session, client_ids: List[str], fiscal_yea
         .scalar()
     )
     return total or 0
-
 
 # ---------------------------------------------------------------------------
 # S-267: BU Revenue Target (BU Head/Director/Admin-set, per the doc's own BR)
@@ -86,7 +83,6 @@ def set_bu_revenue_target(
     db.refresh(target)
     return target
 
-
 def get_active_bu_target(db: Session, business_unit_id: int, target_period: str, fiscal_year: int) -> Optional[BURevenueTarget]:
     """Most recent row for the period wins -- append-only history, per
     S-267's own "cannot be deleted, only superseded" rule. Ordered by
@@ -104,7 +100,6 @@ def get_active_bu_target(db: Session, business_unit_id: int, target_period: str,
         .first()
     )
 
-
 def get_bu_target_vs_actual(db: Session, business_unit_id: int, target_period: str, fiscal_year: int) -> dict:
     target = get_active_bu_target(db, business_unit_id, target_period, fiscal_year)
     client_ids = [c.id for c in db.query(Client.id).filter(Client.business_unit_id == business_unit_id).all()]
@@ -116,7 +111,6 @@ def get_bu_target_vs_actual(db: Session, business_unit_id: int, target_period: s
         "variance_usd_cents": actual - target_amount,
         "status": status_band(actual, target_amount) if target else "NO_TARGET",
     }
-
 
 # ---------------------------------------------------------------------------
 # PartnerGoal -- CEO-set only, per Avinash's explicit 2026-08-05 override
@@ -153,14 +147,12 @@ def set_partner_goal(
     db.refresh(goal)
     return goal
 
-
 def _partner_actual_revenue_for_fy(db: Session, partner_user_id: str, fiscal_year: int) -> int:
     partner = db.query(Users).filter(Users.UserID == partner_user_id).first()
     if partner is None or partner.business_unit_id is None:
         return 0
     client_ids = [c.id for c in db.query(Client.id).filter(Client.business_unit_id == partner.business_unit_id).all()]
     return _fy_invoice_total_for_clients(db, client_ids, fiscal_year)
-
 
 def get_partner_multi_year_position(db: Session, partner_user_id: str) -> dict:
     """The FY carry-forward design from earlier this session: a
@@ -199,7 +191,6 @@ def get_partner_multi_year_position(db: Session, partner_user_id: str) -> dict:
         "cumulative_deficit_usd_cents": cumulative_deficit,
         "current_fy_surplus_usd_cents": years[-1]["current_fy_surplus_usd_cents"] if years else 0,
     }
-
 
 # ---------------------------------------------------------------------------
 # S-241: Executive Revenue Dashboard -- pure aggregation, BR-0212-01:
@@ -249,7 +240,6 @@ def get_executive_revenue_dashboard(db: Session, *, client_ids: Optional[List[st
         "weighted_forecast_usd_cents": weighted_forecast_usd_cents,
         "by_business_unit": list(by_bu.values()),
     }
-
 
 def get_pipeline_coverage(db: Session, *, client_ids: Optional[List[str]], revenue_target_usd_cents: int) -> Optional[float]:
     """S-244 -- reuses opportunity_service.calculate_pipeline_coverage_ratio(),

@@ -40,7 +40,6 @@ from app.models.user import Users, Jobs
 
 import app.services.drop_risk_service as svc
 
-
 @pytest.fixture()
 def db_session():
     fd, db_path = tempfile.mkstemp(suffix=".sqlite3")
@@ -62,7 +61,6 @@ def db_session():
         engine.dispose()
         os.remove(db_path)
 
-
 @pytest.fixture()
 def candidate(db_session):
     hr_user = Users(UserID="U-HR", UserRole="HR Manager", UserEmail="hr@blitzenx.com", UserPassword="h", tenant_id=None)
@@ -72,7 +70,6 @@ def candidate(db_session):
     db_session.commit()
     return c
 
-
 def _make_conversation(db, created_at=None):
     conv = CandidateConversation(tenant_id="U-ORG", candidate_id="C-1", status="open", owner_type="ai_agent", owner_id="Thunder", escalation_state="none", channel_preference="whatsapp")
     if created_at:
@@ -81,16 +78,13 @@ def _make_conversation(db, created_at=None):
     db.commit()
     return conv
 
-
 def _reply(db, conv, created_at):
     db.add(ConversationEvent(conversation_id=conv.id, event_type="candidate_reply", event_data={}, triggered_by="candidate", created_at=created_at))
     db.commit()
 
-
 def _ai_message(db, conv, created_at):
     db.add(ConversationEvent(conversation_id=conv.id, event_type="ai_message_sent", event_data={"body": "hi"}, triggered_by="ai_agent", created_at=created_at))
     db.commit()
-
 
 def _sentiment(db, sentiment, analyzed_at=None):
     row = CandidateSentimentLog(tenant_id="U-ORG", candidate_id="C-1", message_event_id=None, sentiment=sentiment, confidence=0.9)
@@ -99,7 +93,6 @@ def _sentiment(db, sentiment, analyzed_at=None):
     db.add(row)
     db.commit()
     return row
-
 
 def _job_score(db, calculated_at=None):
     job = Jobs(jobID="J-1", jobTitle="Sr. Dev", jobDescription="d", jobSkills="[]", jobExperience="5", jobLocation="Remote")
@@ -112,13 +105,11 @@ def _job_score(db, calculated_at=None):
     db.commit()
     return score
 
-
 def _submission(db):
     sub = Submission(tenant_id=None, demand_id="D-1", client_id="CL-1", candidate_id="C-1", submitted_by_user_id="U-HR", status="OFFER_EXTENDED")
     db.add(sub)
     db.commit()
     return sub
-
 
 def _interview(db, submission, level, outcome="PENDING", scheduled_at=None, created_at=None, reschedule_count=0):
     interview = SubmissionInterview(tenant_id=None, submission_id=submission.id, candidate_id="C-1", level=level, outcome=outcome, scheduled_at=scheduled_at, reschedule_count=reschedule_count)
@@ -128,7 +119,6 @@ def _interview(db, submission, level, outcome="PENDING", scheduled_at=None, crea
     db.commit()
     return interview
 
-
 def _offer(db, offer_status="Pending", created_at=None, responded_at=None, joining_date=None, released_at=None):
     offer = OfferLetter(candidate_id="C-1", position="Sr. Dev", salary="24 LPA", joining_date=joining_date or date(2026, 9, 1), offer_expire_date=date(2026, 8, 20), offer_status=offer_status, created_by="U-HR", responded_at=responded_at, released_at=released_at)
     if created_at:
@@ -136,7 +126,6 @@ def _offer(db, offer_status="Pending", created_at=None, responded_at=None, joini
     db.add(offer)
     db.commit()
     return offer
-
 
 # ── QUALIFYING stage (TC-001) ────────────────────────────────────────────
 
@@ -153,7 +142,6 @@ def test_qualifying_high_risk_no_response_negative_sentiment_stuck(db_session, c
     assert result["drop_risk_score"] >= 70
     assert result["is_flagged"] is True
 
-
 def test_qualifying_low_risk_engaged_positive(db_session, candidate):
     conv = _make_conversation(db_session, created_at=datetime.utcnow() - timedelta(hours=5))
     _reply(db_session, conv, datetime.utcnow() - timedelta(hours=4))
@@ -163,13 +151,11 @@ def test_qualifying_low_risk_engaged_positive(db_session, candidate):
     assert result["drop_risk_score"] < 40
     assert result["is_flagged"] is False
 
-
 def test_not_applicable_for_engaged_only_stage_still_scores_via_engaged_bucket(db_session, candidate):
     _make_conversation(db_session)
     result = svc.calculate_drop_risk(db_session, "C-1", "U-ORG")
     # ENGAGED is in SCORABLE_STAGES (uses the same qualifying-bucket formula)
     assert "drop_risk_score" in result
-
 
 # ── INTERVIEW stage ──────────────────────────────────────────────────────
 
@@ -182,7 +168,6 @@ def test_interview_stage_reschedules_increase_risk(db_session, candidate):
 
     result = svc.calculate_drop_risk(db_session, "C-1", "U-ORG")
     assert result["risk_signals"]["reschedule_points"] == 20
-
 
 def test_interview_stage_good_response_rate_low_risk(db_session, candidate):
     conv = _make_conversation(db_session, created_at=datetime.utcnow() - timedelta(days=20))
@@ -198,7 +183,6 @@ def test_interview_stage_good_response_rate_low_risk(db_session, candidate):
     result = svc.calculate_drop_risk(db_session, "C-1", "U-ORG")
     assert result["risk_signals"]["response_rate_points"] == 0
 
-
 # ── OFFER stage ──────────────────────────────────────────────────────────
 
 def test_offer_stage_days_since_release_increases_risk(db_session, candidate):
@@ -211,7 +195,6 @@ def test_offer_stage_days_since_release_increases_risk(db_session, candidate):
 
     result = svc.calculate_drop_risk(db_session, "C-1", "U-ORG")
     assert result["risk_signals"]["days_since_release_points"] == 40  # 5 days * 8
-
 
 # ── PREBOARDING stage (TC-002) ────────────────────────────────────────────
 
@@ -230,7 +213,6 @@ def test_preboarding_low_readiness_high_risk(db_session, candidate):
     assert result["risk_signals"]["readiness_points"] == round((100 - 25) * 0.70)
     assert result["drop_risk_score"] >= 65
 
-
 def test_preboarding_no_joining_score_skips_that_component(db_session, candidate):
     conv = _make_conversation(db_session, created_at=datetime.utcnow() - timedelta(days=40))
     _reply(db_session, conv, datetime.utcnow() - timedelta(days=39))
@@ -241,7 +223,6 @@ def test_preboarding_no_joining_score_skips_that_component(db_session, candidate
 
     result = svc.calculate_drop_risk(db_session, "C-1", "U-ORG")
     assert result["risk_signals"]["readiness_points"] == 0
-
 
 # ── BR-03: ghosting multiplier, permanent ───────────────────────────────
 
@@ -257,7 +238,6 @@ def test_ghosting_multiplier_applied_and_capped(db_session, candidate):
     assert result["risk_signals"]["ghosting_multiplier_applied"] is True
     assert result["drop_risk_score"] <= 100
 
-
 def test_reactivated_ghost_does_not_get_multiplier(db_session, candidate):
     conv = _make_conversation(db_session, created_at=datetime.utcnow() - timedelta(hours=5))
     _reply(db_session, conv, datetime.utcnow() - timedelta(hours=4))
@@ -266,7 +246,6 @@ def test_reactivated_ghost_does_not_get_multiplier(db_session, candidate):
 
     result = svc.calculate_drop_risk(db_session, "C-1", "U-ORG")
     assert result["risk_signals"]["ghosting_multiplier_applied"] is False
-
 
 # ── BR-01: CRITICAL notification ────────────────────────────────────────
 
@@ -285,7 +264,6 @@ def test_critical_score_notifies_recruiter_immediately(db_session, candidate):
     assert len(notifications) == 1
     assert "CRITICAL" in notifications[0].message
 
-
 def test_repeated_critical_does_not_renotify(db_session, candidate):
     conv = _make_conversation(db_session, created_at=datetime.utcnow() - timedelta(days=8))
     _reply(db_session, conv, datetime.utcnow() - timedelta(days=8))
@@ -298,7 +276,6 @@ def test_repeated_critical_does_not_renotify(db_session, candidate):
     svc.calculate_drop_risk(db_session, "C-1", "U-ORG")
     svc.calculate_drop_risk(db_session, "C-1", "U-ORG")
     assert db_session.query(Notification).count() == 1
-
 
 # ── Hysteresis: flagged at 70, resolved only below 60 ───────────────────
 
@@ -319,7 +296,6 @@ def test_flag_hysteresis_stays_flagged_between_60_and_69(db_session, candidate):
     assert 60 <= result["drop_risk_score"] < 70
     assert result["is_flagged"] is True  # still flagged, hasn't dropped below 60
 
-
 def test_resolved_and_logged_below_60(db_session, candidate):
     conv = _make_conversation(db_session, created_at=datetime.utcnow() - timedelta(hours=5))
     row = CandidateDropRisk(tenant_id="U-ORG", candidate_id="C-1", drop_risk_score=72, risk_level="HIGH", risk_signals={}, is_flagged=True)
@@ -335,11 +311,9 @@ def test_resolved_and_logged_below_60(db_session, candidate):
     resolved_events = db_session.query(ConversationEvent).filter(ConversationEvent.event_type == "DROP_RISK_RESOLVED").all()
     assert len(resolved_events) == 1
 
-
 def test_candidate_not_found(db_session):
     result = svc.calculate_drop_risk(db_session, "NOPE", "U-ORG")
     assert result["outcome"] == "not_found"
-
 
 def test_joined_candidate_not_applicable(db_session, candidate):
     conv = _make_conversation(db_session)
@@ -354,7 +328,6 @@ def test_joined_candidate_not_applicable(db_session, candidate):
     result = svc.calculate_drop_risk(db_session, "C-1", "U-ORG")
     assert result["outcome"] == "not_applicable"
     assert result["stage"] == "JOINED"
-
 
 # ── Job batch processing ─────────────────────────────────────────────────
 

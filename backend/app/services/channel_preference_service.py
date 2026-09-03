@@ -31,7 +31,6 @@ from app.models.candidate_ai import CandidateConversation, ConversationEvent
 
 MIN_INBOUND_FOR_DETECTION = 3
 
-
 def detect_channel_preference(db: Session, conversation: CandidateConversation) -> Dict[str, Optional[object]]:
     """
     Analyses the last 20 inbound ('candidate_reply') events on this

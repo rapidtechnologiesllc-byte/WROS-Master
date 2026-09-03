@@ -53,7 +53,6 @@ from app.services.ai_conversation_service import CANDIDATE_CORE_FIELDS, INFO_FOR
 TOTAL_PROFILE_FIELDS = len(CANDIDATE_CORE_FIELDS) + len(INFO_FORM_FIELDS)
 PROMPT_TYPE_LABELS = {"conversational_reply": "Conversational Reply"}
 
-
 def attach_explanation(db: Session, reply_event: ConversationEvent, candidate: Candidate, tenant_id: Optional[str]) -> None:
     """Called once, right after a real LLM-generated Thunder reply is
     sent via public_chat_service's live inbound loop. Never raises --
@@ -101,7 +100,6 @@ def attach_explanation(db: Session, reply_event: ConversationEvent, candidate: C
     except Exception:
         db.rollback()
 
-
 def get_message_explanation(db: Session, event_id: int) -> Optional[Dict]:
     """Step 2. Returns None if the event has no explanation (e.g. a
     recruiter's manual message, or a templated Thunder send)."""
@@ -117,7 +115,6 @@ def get_message_explanation(db: Session, event_id: int) -> Optional[Dict]:
         "generated_at": data.get("explanation_generated_at"),
         "model_used": "gemini",
     }
-
 
 def get_explanation_log(db: Session, candidate_id: str) -> List[Dict]:
     """Step 4. Full, immutable history of every explained Thunder

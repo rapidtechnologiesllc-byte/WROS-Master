@@ -37,11 +37,9 @@ from app.services.outreach_agent_service import (
     start_outreach_sequence,
 )
 
-
 @pytest.fixture(autouse=True)
 def _default_whatsapp_number(monkeypatch):
     monkeypatch.setattr(routing, "DEFAULT_WHATSAPP_NUMBER", "+10005550000")
-
 
 @pytest.fixture()
 def db_session():
@@ -62,12 +60,10 @@ def db_session():
         engine.dispose()
         os.remove(db_path)
 
-
 # A Wednesday, 12:00 IST -- squarely inside 08:00-20:00.
 BUSINESS_HOURS_UTC = datetime(2026, 4, 1, 6, 30)
 # 22:00 IST -- outside 08:00-20:00.
 AFTER_HOURS_UTC = datetime(2026, 4, 1, 16, 30)
-
 
 @pytest.fixture()
 def setup(db_session):
@@ -96,15 +92,12 @@ def setup(db_session):
 
     return candidate, demand, tenant
 
-
 def _compose_ok(payload):
     return {"message_text": "Hi! Saw your PolicyCenter background, are you open to a new role?"}
-
 
 def _grant_consent(db, candidate_id):
     db.add(ConsentRecord(subject_type="candidate", subject_id=candidate_id, consent_type="whatsapp_outreach", consent_given=True))
     db.commit()
-
 
 # ---------------------------------------------------------------------------
 # BR-1104-03 -- consent is a hard gate, checked before composition
@@ -131,7 +124,6 @@ def test_no_consent_blocks_before_composition(db_session, setup):
     assert sequence.touch_count == 0
     assert db_session.query(ConversationEvent).count() == 0
 
-
 # ---------------------------------------------------------------------------
 # BR-1104-01/AC-5 -- send goes through sendThunderMessage only
 # ---------------------------------------------------------------------------
@@ -150,7 +142,6 @@ def test_successful_send_records_sent_via_and_touch_count(db_session, setup):
     assert sequence.sent_via == "sendThunderMessage"
     assert sequence.touch_count == 1
     assert sequence.last_touch_sent_at == BUSINESS_HOURS_UTC
-
 
 # ---------------------------------------------------------------------------
 # Debounce -- 24h per candidate+demand
@@ -171,7 +162,6 @@ def test_second_sequence_for_same_candidate_and_demand_is_debounced(db_session, 
             db_session, candidate, demand, message_composer=_compose_ok,
             whatsapp_client=lambda *a: True, now=BUSINESS_HOURS_UTC,
         )
-
 
 def test_debounce_does_not_apply_to_a_different_demand(db_session, setup):
     candidate, demand, tenant = setup
@@ -203,7 +193,6 @@ def test_debounce_does_not_apply_to_a_different_demand(db_session, setup):
     db_session.commit()
     assert sequence2.status == "SENT"
 
-
 # ---------------------------------------------------------------------------
 # AC-6 -- outside business hours defers, does not drop
 # ---------------------------------------------------------------------------
@@ -223,7 +212,6 @@ def test_outside_business_hours_defers_send(db_session, setup):
     assert sequence.touch_count == 0
     assert sent == []
 
-
 def test_p1_emergency_bypasses_business_hours_check(db_session, setup):
     candidate, demand, tenant = setup
     _grant_consent(db_session, candidate.candidateID)
@@ -236,7 +224,6 @@ def test_p1_emergency_bypasses_business_hours_check(db_session, setup):
     db_session.commit()
 
     assert sequence.status == "SENT"
-
 
 # ---------------------------------------------------------------------------
 # BR-1104-02/AC-3 -- R-08 lock halts, no auto channel switch
@@ -274,7 +261,6 @@ def test_r08_lock_blocks_ownership_without_channel_switch(db_session, setup):
     db_session.commit()
     assert advanced.status == "BLOCKED_OWNERSHIP"
 
-
 # ---------------------------------------------------------------------------
 # Orchestration Router integration
 # ---------------------------------------------------------------------------
@@ -299,7 +285,6 @@ def test_router_block_prevents_send_and_is_retryable(db_session, setup):
     assert "blocked" in (sequence.blocked_reason or "").lower()
     assert sequence.status == "QUEUED"  # retryable, not a terminal state
 
-
 def test_router_evaluate_called_with_correct_kwargs_on_success(db_session, setup):
     candidate, demand, tenant = setup
     _grant_consent(db_session, candidate.candidateID)
@@ -320,7 +305,6 @@ def test_router_evaluate_called_with_correct_kwargs_on_success(db_session, setup
     assert calls[0]["entity_type"] == "candidate"
     assert calls[0]["action_type"] == "outreach_send"
     assert calls[0]["risk_tier"] == "LOW"
-
 
 # ---------------------------------------------------------------------------
 # BR-1104-04/AC-4 -- 3-touch cap
@@ -353,7 +337,6 @@ def test_touch_cap_prevents_a_fourth_send(db_session, setup):
     assert advanced.touch_count == 3
     assert sent == []
 
-
 # ---------------------------------------------------------------------------
 # advance_outreach_sequence -- response detection and timing
 # ---------------------------------------------------------------------------
@@ -383,7 +366,6 @@ def test_advance_marks_responded_when_candidate_replied(db_session, setup):
     )
     db_session.commit()
     assert advanced.status == "RESPONDED"
-
 
 def test_advance_does_nothing_before_response_wait_elapses(db_session, setup):
     candidate, demand, tenant = setup

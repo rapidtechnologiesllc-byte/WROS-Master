@@ -18,7 +18,6 @@ from app.core.logging import logger
 from app.services.email_service import send_email
 import logging
 
-
 def calculate_weekly_performance(db: Session) -> List[Tuple[dict, int]]:
     """
     Calculate performance metrics for all recruiters this week.
@@ -85,7 +84,6 @@ def calculate_weekly_performance(db: Session) -> List[Tuple[dict, int]]:
 
     return performance
 
-
 def send_top_performer_email(performer: dict, rank: int, score: int):
     """Send celebration email to top performer."""
     medals = {1: "🥇", 2: "🥈", 3: "🥉"}
@@ -122,7 +120,6 @@ def send_top_performer_email(performer: dict, rank: int, score: int):
         logger.info(f"Sent top performer email to {performer['name']} ({performer['email']})")
     except Exception as e:
         logger.error(f"Failed to send top performer email to {performer['email']}: {e}")
-
 
 def send_improvement_email(performer: dict, rank: int, total_recruiters: int, score: int):
     """Send motivational email to bottom performer with improvement tips."""
@@ -170,7 +167,6 @@ def send_improvement_email(performer: dict, rank: int, total_recruiters: int, sc
     except Exception as e:
         logger.error(f"Failed to send improvement email to {performer['email']}: {e}")
 
-
 def send_weekly_performers_email(db: Session):
     """
     Main function: Calculate performance and send emails to entire org.
@@ -203,7 +199,6 @@ def send_weekly_performers_email(db: Session):
 
     except Exception as e:
         logger.error(f"Failed to send weekly performers emails: {e}", exc_info=True)
-
 
 def schedule_weekly_performers_email():
     """

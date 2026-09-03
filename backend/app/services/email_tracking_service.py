@@ -22,7 +22,6 @@ from app.core.logging import logger
 
 logger = logging.getLogger(__name__)
 
-
 class EmailTrackingService:
     """Service for tracking email engagement across multiple providers."""
 
@@ -121,7 +120,6 @@ class EmailTrackingService:
             raise ValueError("Database session required")
 
         try:
-            from app.models.message_queue import EmailTracking
 
             tracking = db.query(EmailTracking).filter(EmailTracking.id == tracking_id).first()
             if not tracking:
@@ -181,7 +179,6 @@ class EmailTrackingService:
             raise ValueError("Database session required")
 
         try:
-            from app.models.message_queue import EmailTracking, EmailTrackingEvent
 
             tracking = db.query(EmailTracking).filter(EmailTracking.id == tracking_id).first()
             if not tracking:
@@ -224,7 +221,6 @@ class EmailTrackingService:
             raise ValueError("Database session required")
 
         try:
-            from app.models.message_queue import EmailTracking, EmailTrackingEvent
 
             tracking = db.query(EmailTracking).filter(EmailTracking.id == tracking_id).first()
             if not tracking:
@@ -266,7 +262,6 @@ class EmailTrackingService:
             raise ValueError("Database session required")
 
         try:
-            from app.models.message_queue import EmailTracking, EmailTrackingEvent
 
             tracking = db.query(EmailTracking).filter(EmailTracking.id == tracking_id).first()
             if not tracking:
@@ -302,7 +297,6 @@ class EmailTrackingService:
             raise ValueError("Database session required")
 
         try:
-            from app.models.message_queue import EmailTracking, EmailTrackingEvent
 
             tracking = db.query(EmailTracking).filter(EmailTracking.id == tracking_id).first()
             if not tracking:
@@ -339,7 +333,6 @@ class EmailTrackingService:
             raise ValueError("Database session required")
 
         try:
-            from app.models.message_queue import EmailTracking, EmailTrackingEvent
 
             tracking = db.query(EmailTracking).filter(EmailTracking.id == tracking_id).first()
             if not tracking:
@@ -372,7 +365,6 @@ class EmailTrackingService:
             raise ValueError("Database session required")
 
         try:
-            from app.models.message_queue import EmailTracking, EmailTrackingEvent
 
             tracking = db.query(EmailTracking).filter(EmailTracking.id == tracking_id).first()
             if not tracking:
@@ -422,7 +414,6 @@ class EmailTrackingService:
             raise ValueError("Database session required")
 
         try:
-            from app.models.message_queue import EmailTracking
 
             now = datetime.utcnow()
             check_deadline = now - timedelta(seconds=EmailTrackingService.POLLING_INTERVAL_SECONDS)
@@ -471,7 +462,6 @@ class EmailTrackingService:
             raise ValueError("Database session required")
 
         try:
-            from app.models.message_queue import EmailTracking
 
             tracking = db.query(EmailTracking).filter(EmailTracking.id == tracking_id).first()
             if not tracking:
@@ -510,7 +500,6 @@ class EmailTrackingService:
             raise ValueError("Database session required")
 
         try:
-            from app.models.message_queue import EmailTracking
             from sqlalchemy import func
 
             trackings = db.query(EmailTracking).filter(EmailTracking.message_id == message_id).all()

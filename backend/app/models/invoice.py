@@ -25,10 +25,8 @@ from sqlalchemy import (
 from app.models.base import Base
 from app.models.client import BILLING_CURRENCIES
 
-
 def _new_uuid() -> str:
     return str(uuid.uuid4())
-
 
 INVOICE_STATUSES = ("DRAFT", "APPROVED", "SENT", "PAID")
 
@@ -65,7 +63,6 @@ class Invoice(Base):
     paid_at = Column(DateTime, nullable=True)
 
     created_at = Column(DateTime, server_default=func.now())
-
 
 class InvoiceLineItem(Base):
     __tablename__ = "invoice_line_items"

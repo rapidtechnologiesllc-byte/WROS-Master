@@ -84,7 +84,6 @@ def get_valid_parent_levels(employee_level: int) -> list:
         valid_levels.append(i)
     return valid_levels
 
-
 class OrgHierarchyValidator:
     """Validates organizational hierarchy with 17 levels and specialization enforcement"""
 
@@ -278,7 +277,6 @@ class OrgHierarchyValidator:
         print("  4. Same business unit unless parent is org-wide (Partner/CEO)")
         print("  5. No circular reporting chains")
         print("=" * 80 + "\n")
-
 
 def validate_before_employee_creation(
     session: Session,

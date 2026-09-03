@@ -26,7 +26,6 @@ from app.core.logging import logger
 
 logger = logging.getLogger(__name__)
 
-
 class SLMOrchestrationService:
     """Routes messages to appropriate channel queues based on message type."""
 

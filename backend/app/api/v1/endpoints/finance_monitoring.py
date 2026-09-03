@@ -28,7 +28,6 @@ from app.core.database import get_db
 
 router = APIRouter(prefix="/finance", tags=["finance"])
 
-
 def get_user_business_units(user_id: str, tenant_id: int, db: Session) -> List[str]:
     """Get all BUs user has access to"""
     from app.models.bu_access import BUAccess
@@ -44,7 +43,6 @@ def get_user_business_units(user_id: str, tenant_id: int, db: Session) -> List[s
         return [user.business_unit_id]
     return []
 
-
 def check_bu_access(user_id: str, bu_id: str, tenant_id: int, db: Session) -> bool:
     """Verify user has access to this BU"""
     user = db.query(Users).filter(Users.UserID == user_id).first()
@@ -56,7 +54,6 @@ def check_bu_access(user_id: str, bu_id: str, tenant_id: int, db: Session) -> bo
     # User must have this BU assigned
     allowed_bus = get_user_business_units(user_id, tenant_id, db)
     return bu_id in allowed_bus
-
 
 @router.get(
     "/dashboard",
@@ -138,7 +135,6 @@ async def get_finance_dashboard(
         logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Finance calculation error: {str(e)}")
 
-
 @router.get(
     "/partner/{partner_id}/consolidation",
     dependencies=[Depends(require_resource_permission("partner", "view"))]
@@ -165,7 +161,6 @@ async def get_partner_consolidated_pl(
     return FinanceAgent.calculate_real_time_partner_pl(
         db, current_user.tenant_id, partner_id, annual_goal_usd=5000000
     )
-
 
 @router.get(
     "/bu/{bu_id}/metrics",
@@ -196,7 +191,6 @@ async def get_bu_pl(
         db, current_user.tenant_id, bu_id, annual_goal_usd=500000
     )
 
-
 @router.get(
     "/forecast/{partner_id}",
     dependencies=[Depends(require_resource_permission("forecast", "view"))]
@@ -220,7 +214,6 @@ async def forecast_partner_margin(
     return FinanceAgent.forecast_margin_risk(
         db, current_user.tenant_id, partner_id, days_ahead=days
     )
-
 
 @router.get(
     "/anomalies/{partner_id}",
@@ -253,7 +246,6 @@ async def detect_cost_anomalies(
         "anomalies": anomalies,
         "timestamp": __import__('datetime').datetime.utcnow().isoformat()
     }
-
 
 @router.get(
     "/health-check",

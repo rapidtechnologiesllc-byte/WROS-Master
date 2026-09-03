@@ -146,7 +146,6 @@ class InterviewFeedbackNotificationService:
             logger.error(f"Error in notify_feedback_submitted: {str(e)}")
             return False
 
-
 def _format_panel_members(db: Session, panel_ids: list) -> list:
     """Format panel member names."""
     if not panel_ids:

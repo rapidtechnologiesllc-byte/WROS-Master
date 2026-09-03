@@ -30,7 +30,6 @@ from app.services.apollo_integration import (
 )
 from app.services.candidate_service import create_candidate_safe
 
-
 class TestLinkedInURLParsing:
     """Test _parse_linkedin_url() function"""
 
@@ -62,7 +61,6 @@ class TestLinkedInURLParsing:
         """Reject empty URL"""
         with pytest.raises(InvalidLinkedInURL):
             _parse_linkedin_url("")
-
 
 class TestApolloEnrichment:
     """Test _enrich_via_apollo() function"""
@@ -121,7 +119,6 @@ class TestApolloEnrichment:
         """Raise error if apollo_search_func not provided"""
         with pytest.raises(ValueError, match="dependency injection required"):
             await _enrich_via_apollo("some-profile", apollo_search_func=None)
-
 
 class TestLinkedInCandidateImport:
     """Integration tests for complete import workflow"""
@@ -244,7 +241,6 @@ class TestLinkedInCandidateImport:
                 apollo_search_func=mock_apollo,
                 promoted_by="system_test",
             )
-
 
 class TestApolloIntegration:
     """Test Apollo integration module"""

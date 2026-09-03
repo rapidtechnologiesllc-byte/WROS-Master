@@ -11,7 +11,6 @@ from typing import Optional, List
 from datetime import datetime
 from app.core.logging import logger
 
-
 # ---------------------------------------------------------------------------
 # Request schemas
 # ---------------------------------------------------------------------------
@@ -33,7 +32,6 @@ class InternalNoteCreate(BaseModel):
         ),
     )
 
-
 # ---------------------------------------------------------------------------
 # Response schemas
 # ---------------------------------------------------------------------------
@@ -52,7 +50,6 @@ class InternalNoteResponse(BaseModel):
 
     class Config:
         from_attributes = True
-
 
 class InternalNoteListResponse(BaseModel):
     """Response for listing all internal notes for a candidate."""

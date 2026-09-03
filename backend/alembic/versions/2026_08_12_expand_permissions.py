@@ -37,7 +37,6 @@ from typing import Sequence, Union
 from alembic import op
 import sqlalchemy as sa
 
-
 # revision identifiers, used by Alembic.
 revision: str = '2026_08_12_expand_perms'
 down_revision: Union[str, Sequence[str], None] = 'c1d2e3f4a5b6'
@@ -46,7 +45,6 @@ depends_on: Union[str, Sequence[str], None] = None
 
 # SQL Server-compatible default: GETDATE()
 _NOW = sa.text('(GETDATE())')
-
 
 def upgrade() -> None:
     """Upgrade — add ~70 new module×verb permissions and re-seed role-permissions."""
@@ -220,7 +218,6 @@ def upgrade() -> None:
 
     logger.info(f"[OK] Inserted {len(new_permissions)} new module×verb permissions")
 
-
 def downgrade() -> None:
     """Downgrade — remove all module×verb permissions added in this migration.
 
@@ -280,7 +277,6 @@ def downgrade() -> None:
         )
 
     logger.info(f"[OK] Removed {len(permission_names)} module×verb permissions")
-
 
 # Simple logger for migration messages
 class logger:

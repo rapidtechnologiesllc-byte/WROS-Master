@@ -34,7 +34,6 @@ from app.models.agent_execution_log import AgentExecutionLog
 
 logger = logging.getLogger(__name__)
 
-
 def log_agent_execution(
     db: Session,
     agent_name: str,
@@ -119,7 +118,6 @@ def log_agent_execution(
         db.rollback()
         return None
 
-
 def get_agent_metrics(
     db: Session,
     agent_name: str,
@@ -144,7 +142,6 @@ def get_agent_metrics(
         - avg_duration_ms: Average execution time
         - last_execution: Datetime of most recent execution
     """
-    from app.models.agent_execution_log import AgentExecutionLog
     from datetime import timedelta
 
     cutoff_date = func.current_timestamp() - timedelta(days=days)

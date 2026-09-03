@@ -13,12 +13,10 @@ down_revision = "547d41705e1d"
 branch_labels = None
 depends_on = None
 
-
 def upgrade():
     with op.batch_alter_table("candidate_ghosting_status") as batch_op:
         batch_op.add_column(sa.Column("reactivation_attempt_count", sa.Integer(), nullable=False, server_default="0"))
         batch_op.add_column(sa.Column("last_reactivation_sent_at", sa.DateTime(), nullable=True))
-
 
 def downgrade():
     with op.batch_alter_table("candidate_ghosting_status") as batch_op:

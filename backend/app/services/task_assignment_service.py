@@ -39,7 +39,6 @@ from app.models.user import Users
 OPEN_TASK_WIP_CAP = 8  # v1 proxy for "overloaded" -- see module docstring.
 OPEN_STATUSES = ("NEW", "IN_PROGRESS", "ON_HOLD")
 
-
 def resolve_reporting_manager(db: Session, user_id: str) -> Optional[Users]:
     """Users has no reporting-manager column of its own -- the real
     hierarchy lives on Employee (wros_user_id links an Employee record
@@ -51,7 +50,6 @@ def resolve_reporting_manager(db: Session, user_id: str) -> Optional[Users]:
         return None
     return db.query(Users).filter(Users.UserID == employee.reporting_manager_user_id).first()
 
-
 def _open_task_counts_by_user(db: Session, user_ids: List[str]) -> dict:
     if not user_ids:
         return {}
@@ -62,7 +60,6 @@ def _open_task_counts_by_user(db: Session, user_ids: List[str]) -> dict:
         .all()
     )
     return {uid: count for uid, count in rows}
-
 
 def raise_capacity_alert(db: Session, *, user: Users, open_count: int) -> TaskCapacityAlert:
     """Advisory-only -- notifies the user's reporting manager with a
@@ -89,10 +86,8 @@ def raise_capacity_alert(db: Session, *, user: Users, open_count: int) -> TaskCa
         )
     return alert
 
-
 def _eligible_department_users(db: Session, department_id: int) -> List[Users]:
     return db.query(Users).filter(Users.department_id == department_id).all()
-
 
 def assign_task_round_robin(db: Session, task: Task) -> Optional[Task]:
     """Least-loaded active department member, skipping anyone at/over
@@ -124,7 +119,6 @@ def assign_task_round_robin(db: Session, task: Task) -> Optional[Task]:
     db.add(task)
     return task
 
-
 def request_reassignment(
     db: Session, *, task: Task, from_user_id: str, suggested_to_user_id: Optional[str] = None,
     reason: str = "ASSIGNEE_UNAVAILABLE",
@@ -141,7 +135,6 @@ def request_reassignment(
     db.commit()
     db.refresh(req)
     return req
-
 
 def suggest_todays_reassignments(db: Session, *, unavailable_user_id: str, now: Optional[datetime] = None) -> List[TaskReassignmentRequest]:
     """Per Avinash's spec: only tasks due TODAY get reassigned when
@@ -173,7 +166,6 @@ def suggest_todays_reassignments(db: Session, *, unavailable_user_id: str, now: 
         requests.append(request_reassignment(db, task=task, from_user_id=unavailable_user_id, suggested_to_user_id=suggestion))
     return requests
 
-
 def approve_reassignment(db: Session, req: TaskReassignmentRequest, *, approved_by_user_id: str, final_to_user_id: str) -> TaskReassignmentRequest:
     """Manager's own explicit call -- final_to_user_id can be the
     manager themselves or anyone else in the department, not
@@ -191,7 +183,6 @@ def approve_reassignment(db: Session, req: TaskReassignmentRequest, *, approved_
     db.commit()
     db.refresh(req)
     return req
-
 
 def reject_reassignment(db: Session, req: TaskReassignmentRequest, *, approved_by_user_id: str) -> TaskReassignmentRequest:
     req.status = "REJECTED"

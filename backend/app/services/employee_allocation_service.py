@@ -39,16 +39,13 @@ logger = logging.getLogger(__name__)
 class EmployeeAlreadyAllocated(Exception):
     pass
 
-
 class AllocationOverCapacity(Exception):
     """HRMS-0803 BR-0803-01: overlapping allocations summing over 100%
     utilization are blocked, hard -- not just a warning."""
 
-
 class BuddyProgramNotGraduated(Exception):
     """S-365/HRMS-0521 BR: no client deployment while an employee is
     actively mid-Buddy-Program (IN_PROGRESS/EXTENDED)."""
-
 
 # S-365's BR reads as a blanket "buddy_program_status=GRADUATED required
 # for allocation," which read literally would also block every employee
@@ -62,7 +59,6 @@ class BuddyProgramNotGraduated(Exception):
 # unilaterally as final -- confirm with whoever owns onboarding whether
 # NOT_STARTED should also block.
 _BUDDY_PROGRAM_BLOCKING_STATUSES = ("IN_PROGRESS", "EXTENDED")
-
 
 def allocate_employee_to_project(
     db: Session,
@@ -155,7 +151,6 @@ def allocate_employee_to_project(
             remove_employee_from_bench(db, employee)
 
     return allocation
-
 
 def end_allocation(
     db: Session,

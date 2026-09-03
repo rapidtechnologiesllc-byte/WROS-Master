@@ -12,7 +12,6 @@ from app.services.permission_helper import PermissionHelper
 
 router = APIRouter(prefix="/business-metrics", tags=["Business Metrics"])
 
-
 @router.get("/daily-standup", dependencies=[Depends(require_resource_permission("admin-settings", "view"))])
 def get_daily_business_standup(
     db: Session = Depends(get_db),
@@ -52,7 +51,6 @@ def get_daily_business_standup(
         logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
-
 @router.get("/recruitment/{days_back}", dependencies=[Depends(require_resource_permission("admin-settings", "view"))])
 def get_recruitment_metrics_period(
     days_back: int = 7,
@@ -74,7 +72,6 @@ def get_recruitment_metrics_period(
     except Exception as e:
         logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @router.get("/interviews/{days_back}", dependencies=[Depends(require_resource_permission("admin-settings", "view"))])
 def get_interview_metrics_period(
@@ -98,7 +95,6 @@ def get_interview_metrics_period(
         logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
-
 @router.get("/offers/{days_back}", dependencies=[Depends(require_resource_permission("admin-settings", "view"))])
 def get_offer_metrics_period(
     days_back: int = 7,
@@ -120,7 +116,6 @@ def get_offer_metrics_period(
     except Exception as e:
         logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @router.get("/revenue/{days_back}", dependencies=[Depends(require_resource_permission("admin-settings", "view"))])
 def get_revenue_metrics_period(

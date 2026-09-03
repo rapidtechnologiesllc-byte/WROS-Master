@@ -47,7 +47,6 @@ class InteractionType(str, Enum):
     DOCUMENT_SUBMITTED = "document_submitted"
     BACKGROUND_CHECK_PASSED = "background_check_passed"
 
-
 class SentimentScore(str, Enum):
     """Sentiment analysis of interactions"""
     VERY_POSITIVE = "very_positive"  # 1.0
@@ -55,7 +54,6 @@ class SentimentScore(str, Enum):
     NEUTRAL = "neutral"                # 0.5
     NEGATIVE = "negative"              # 0.25
     VERY_NEGATIVE = "very_negative"   # 0.0
-
 
 class InteractionTracker:
     """

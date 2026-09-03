@@ -34,13 +34,11 @@ from app.services.buddy_program_graduation_service import (
 
 router = APIRouter(prefix="/buddy-program", tags=["buddy-program"])
 
-
 def _get_record_or_404(db: Session, record_id: str) -> BuddyProgramRecord:
     record = db.query(BuddyProgramRecord).filter(BuddyProgramRecord.id == record_id).first()
     if not record:
         raise HTTPException(status_code=404, detail=f"Buddy program record {record_id!r} not found.")
     return record
-
 
 @router.get(
     "/records",
@@ -49,7 +47,6 @@ def _get_record_or_404(db: Session, record_id: str) -> BuddyProgramRecord:
 )
 def list_records(current_user: Users = Depends(get_current_internal_user), db: Session = Depends(get_db)):
     return db.query(BuddyProgramRecord).filter(BuddyProgramRecord.status.in_(("IN_PROGRESS", "EXTENDED"))).all()
-
 
 @router.post(
     "/records",
@@ -75,7 +72,6 @@ def create_record(
         db.rollback()
         raise HTTPException(status_code=422, detail=str(exc))
 
-
 @router.get(
     "/records/{record_id}",
     response_model=BuddyProgramRecordResponse,
@@ -83,7 +79,6 @@ def create_record(
 )
 def get_record(record_id: str, current_user: Users = Depends(get_current_internal_user), db: Session = Depends(get_db)):
     return _get_record_or_404(db, record_id)
-
 
 @router.post(
     "/records/{record_id}/scores",
@@ -104,7 +99,6 @@ def submit_scores(
         db.rollback()
         raise HTTPException(status_code=422, detail=str(exc))
 
-
 @router.get(
     "/records/{record_id}/scorecard",
     response_model=ScorecardResponse,
@@ -113,7 +107,6 @@ def submit_scores(
 def get_scorecard(record_id: str, current_user: Users = Depends(get_current_internal_user), db: Session = Depends(get_db)):
     record = _get_record_or_404(db, record_id)
     return compute_day30_scorecard(db, record)
-
 
 def _decide(db: Session, record_id: str, decision: str, notes: "str | None", changed_by: str) -> BuddyProgramRecord:
     record = _get_record_or_404(db, record_id)
@@ -129,7 +122,6 @@ def _decide(db: Session, record_id: str, decision: str, notes: "str | None", cha
         db.rollback()
         raise HTTPException(status_code=422, detail=str(exc))
 
-
 @router.get(
     "/records/{record_id}/can-extend",
     dependencies=[Depends(require_resource_permission("record", "view"))]
@@ -140,7 +132,6 @@ def get_can_extend(record_id: str, current_user: Users = Depends(get_current_int
     record = _get_record_or_404(db, record_id)
     return {"can_extend": can_extend(record)}
 
-
 @router.post(
     "/records/{record_id}/graduate",
     response_model=BuddyProgramRecordResponse,
@@ -149,7 +140,6 @@ def get_can_extend(record_id: str, current_user: Users = Depends(get_current_int
 def graduate(record_id: str, body: GraduationDecisionRequest, current_user: Users = Depends(get_current_internal_user), db: Session = Depends(get_db)):
     return _decide(db, record_id, "GRADUATE", body.notes, current_user.UserID)
 
-
 @router.post(
     "/records/{record_id}/extend",
     response_model=BuddyProgramRecordResponse,
@@ -157,7 +147,6 @@ def graduate(record_id: str, body: GraduationDecisionRequest, current_user: User
 )
 def extend(record_id: str, body: GraduationDecisionRequest, current_user: Users = Depends(get_current_internal_user), db: Session = Depends(get_db)):
     return _decide(db, record_id, "EXTEND", body.notes, current_user.UserID)
-
 
 @router.post(
     "/records/{record_id}/exit",

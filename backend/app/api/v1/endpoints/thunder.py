@@ -60,7 +60,6 @@ from app.services.whatsapp_routing_service import ConversationOwnedByHuman
 
 router = APIRouter(prefix="/thunder", tags=["thunder"])
 
-
 @router.post(
     "/test-chat",
     dependencies=[Depends(require_resource_permission("unknown", "create"))],
@@ -102,7 +101,6 @@ def send_test_chat_message(
 
     return TestChatMessageResponse(**result)
 
-
 @router.get(
     "/test-chat/history",
     dependencies=[Depends(require_resource_permission("candidate", "view"))],
@@ -118,7 +116,6 @@ def get_test_chat_history_endpoint(
         conversation_candidate_id=test_candidate_id_for(current_user.UserID),
         messages=[TestChatHistoryItem(**m) for m in messages],
     )
-
 
 @router.post(
     "/test-chat/reset",

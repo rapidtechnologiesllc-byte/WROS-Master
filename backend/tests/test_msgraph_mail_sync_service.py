@@ -24,7 +24,6 @@ from app.services.msgraph_mail_sync_service import (
     sync_mail_for_user,
 )
 
-
 @pytest.fixture()
 def db_session():
     fd, db_path = tempfile.mkstemp(suffix=".sqlite3")
@@ -42,13 +41,11 @@ def db_session():
         engine.dispose()
         os.remove(db_path)
 
-
 def _make_user(db, user_id="U-HR"):
     user = Users(UserID=user_id, UserRole="Recruiter", UserEmail=f"{user_id}@blitzenx.com", UserPassword="h")
     db.add(user)
     db.commit()
     return user
-
 
 def _make_candidate(db, candidate_id="C-1", email="priya@example.com"):
     candidate = Candidate(
@@ -58,7 +55,6 @@ def _make_candidate(db, candidate_id="C-1", email="priya@example.com"):
     db.add(candidate)
     db.commit()
     return candidate
-
 
 def _fake_graph_call(inbox_messages=None, sent_messages=None):
     inbox_messages = inbox_messages or []
@@ -71,7 +67,6 @@ def _fake_graph_call(inbox_messages=None, sent_messages=None):
             return {"value": sent_messages}
         return {"value": []}
     return call
-
 
 def test_links_inbound_message_from_candidate(db_session):
     _make_candidate(db_session, "C-1", "priya@example.com")
@@ -90,7 +85,6 @@ def test_links_inbound_message_from_candidate(db_session):
     assert entry.entity_id == "C-1"
     assert entry.action == "EMAIL_RECEIVED"
 
-
 def test_links_outbound_message_to_candidate(db_session):
     _make_candidate(db_session, "C-1", "priya@example.com")
     user = _make_user(db_session)
@@ -106,7 +100,6 @@ def test_links_outbound_message_to_candidate(db_session):
     entry = db_session.query(ActivityTimeline).first()
     assert entry.action == "EMAIL_SENT"
 
-
 def test_unmatched_message_is_not_linked_but_sync_still_advances(db_session):
     user = _make_user(db_session)
     graph_call = _fake_graph_call(inbox_messages=[{
@@ -121,7 +114,6 @@ def test_unmatched_message_is_not_linked_but_sync_still_advances(db_session):
     assert db_session.query(ActivityTimeline).count() == 0
     assert user.msgraph_mail_last_synced_at is not None
 
-
 def test_advances_high_water_mark_on_success(db_session):
     user = _make_user(db_session)
     now = datetime(2026, 8, 5, 12, 0, 0)
@@ -129,7 +121,6 @@ def test_advances_high_water_mark_on_success(db_session):
     sync_mail_for_user(db_session, user, "fake-token", graph_call=_fake_graph_call(), now=now)
 
     assert user.msgraph_mail_last_synced_at == now
-
 
 def test_does_not_advance_high_water_mark_on_fetch_failure(db_session):
     user = _make_user(db_session)
@@ -146,7 +137,6 @@ def test_does_not_advance_high_water_mark_on_fetch_failure(db_session):
     assert result["synced"] is False
     assert user.msgraph_mail_last_synced_at == original
 
-
 def test_first_sync_uses_default_lookback_not_full_mailbox(db_session):
     user = _make_user(db_session)
     assert user.msgraph_mail_last_synced_at is None
@@ -162,7 +152,6 @@ def test_first_sync_uses_default_lookback_not_full_mailbox(db_session):
 
     expected_since = (now - timedelta(hours=24)).strftime("%Y-%m-%dT%H:%M:%SZ")
     assert any(expected_since in e for e in captured_endpoints)
-
 
 def test_run_job_syncs_every_linked_user(db_session):
     _make_candidate(db_session, "C-1", "priya@example.com")
@@ -193,7 +182,6 @@ def test_run_job_syncs_every_linked_user(db_session):
 
     assert result["synced_users"] == 2
     assert result["total_linked"] == 2  # both users' inbox each produce 1 match
-
 
 def test_run_job_skips_users_without_a_live_token(db_session):
     user = _make_user(db_session, "U-STALE")

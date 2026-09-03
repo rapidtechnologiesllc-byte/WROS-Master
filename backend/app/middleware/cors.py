@@ -10,7 +10,6 @@ from typing import List
 from app.core.config import settings
 from app.core.logging import logger
 
-
 def setup_cors(app: FastAPI) -> None:
     """
     Configure CORS middleware for the FastAPI application.
@@ -59,7 +58,6 @@ def setup_cors(app: FastAPI) -> None:
     )
     
     logger.info("[OK] CORS middleware configured successfully")
-
 
 def get_cors_config() -> dict:
     """
@@ -142,7 +140,6 @@ class CORSConfig:
         """
         allowed = cls.get_allowed_origins(environment)
         return origin in allowed
-
 
 # Preflight request handler
 def add_cors_headers(response, origin: str = "*"):

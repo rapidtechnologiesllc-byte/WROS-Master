@@ -11,7 +11,6 @@ from typing import Sequence, Union
 from alembic import op
 import sqlalchemy as sa
 
-
 # revision identifiers, used by Alembic.
 revision: str = '51a6401ffa5e'
 down_revision: Union[str, Sequence[str], None] = '91a71eaaad47'
@@ -20,7 +19,6 @@ depends_on: Union[str, Sequence[str], None] = None
 
 # SQL Server-compatible default: GETDATE()
 _NOW = sa.text('(GETDATE())')
-
 
 def upgrade() -> None:
     """Upgrade schema — add RBAC tables and role_id FK on users."""
@@ -83,7 +81,6 @@ def upgrade() -> None:
     op.add_column('users', sa.Column('role_id', sa.Integer(), nullable=True))
     op.create_index(op.f('ix_users_role_id'), 'users', ['role_id'], unique=False)
     op.create_foreign_key('fk_users_role_id', 'users', 'roles', ['role_id'], ['id'])
-
 
 def downgrade() -> None:
     """Downgrade schema — remove RBAC tables and role_id from users."""

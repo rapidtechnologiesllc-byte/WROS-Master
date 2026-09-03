@@ -28,7 +28,6 @@ from app.models.base import Base
 from app.models.tenant import Tenant
 from app.models.user import Users
 
-
 @pytest.fixture()
 def throwaway_jwt_keys(monkeypatch):
     key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
@@ -43,7 +42,6 @@ def throwaway_jwt_keys(monkeypatch):
     ).decode()
     monkeypatch.setattr(security, "PRIVATE_KEY", private_pem)
     monkeypatch.setattr(security, "PUBLIC_KEY", public_pem)
-
 
 @pytest.fixture()
 def client(throwaway_jwt_keys, monkeypatch):
@@ -99,7 +97,6 @@ def client(throwaway_jwt_keys, monkeypatch):
         engine.dispose()
         os.remove(db_path)
 
-
 def test_recruiter_login_triggers_email_otp_not_totp(client):
     """Recruiter is in EMAIL_OTP_REQUIRED_ROLES but NOT in
     MFA_REQUIRED_ROLES -- proves this is a real, separate gate."""
@@ -111,7 +108,6 @@ def test_recruiter_login_triggers_email_otp_not_totp(client):
     assert body["mfa_setup_required"] is False
     assert body["access_token"]  # pending token
 
-
 def test_candidate_like_role_is_unaffected(client):
     """Candidate is deliberately excluded from EMAIL_OTP_REQUIRED_ROLES
     -- the candidate side of this ask (opt-in popup) is separate,
@@ -120,7 +116,6 @@ def test_candidate_like_role_is_unaffected(client):
     assert resp.status_code == 200
     body = resp.json()
     assert body["email_otp_required"] is False
-
 
 def test_correct_code_completes_login(client):
     login = client.post("/auth/login", json={"email": "ravi@blitzenx.com", "password": "correct-horse"})
@@ -146,7 +141,6 @@ def test_correct_code_completes_login(client):
     assert real_resp.status_code == 200
     assert real_resp.json()["email"] == "ravi@blitzenx.com"
 
-
 def test_wrong_code_is_rejected(client):
     login = client.post("/auth/login", json={"email": "ravi@blitzenx.com", "password": "correct-horse"})
     pending_token = login.json()["access_token"]
@@ -156,7 +150,6 @@ def test_wrong_code_is_rejected(client):
         headers={"Authorization": f"Bearer {pending_token}"},
     )
     assert resp.status_code == 401
-
 
 def test_code_is_single_use(client):
     login = client.post("/auth/login", json={"email": "ravi@blitzenx.com", "password": "correct-horse"})
@@ -169,14 +162,12 @@ def test_code_is_single_use(client):
     second = client.post("/auth/mfa/email/verify", json={"code": "123456"}, headers=headers)
     assert second.status_code == 400  # code already cleared -- "no code issued"
 
-
 def test_expired_code_is_rejected(client):
     login = client.post("/auth/login", json={"email": "ravi@blitzenx.com", "password": "correct-horse"})
     pending_token = login.json()["access_token"]
     headers = {"Authorization": f"Bearer {pending_token}"}
 
     # Force expiry directly against the DB the app is using.
-    from app.core.database import get_db
     override = client.app.dependency_overrides[get_db]
     db = next(override())
     user = db.query(Users).filter(Users.UserEmail == "ravi@blitzenx.com").first()
@@ -187,7 +178,6 @@ def test_expired_code_is_rejected(client):
 
     resp = client.post("/auth/mfa/email/verify", json={"code": "123456"}, headers=headers)
     assert resp.status_code == 401
-
 
 def test_resend_issues_a_new_code_that_works(client):
     login = client.post("/auth/login", json={"email": "ravi@blitzenx.com", "password": "correct-horse"})
@@ -205,7 +195,6 @@ def test_resend_issues_a_new_code_that_works(client):
 
     fresh = client.post("/auth/mfa/email/verify", json={"code": "654321"}, headers=headers)
     assert fresh.status_code == 200
-
 
 def test_pending_token_cannot_reach_email_otp_endpoints_of_another_flow_without_auth(client):
     """A normal full token (non-pending) must be rejected by the email
