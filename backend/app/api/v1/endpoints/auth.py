@@ -258,6 +258,9 @@ def unified_login(request: UnifiedLoginRequest, db: Session = Depends(get_db)):
                 )
             raise
 
+        # Check if password reset is required (first login with system-generated password)
+        force_password_reset = getattr(user, 'password_reset_required', False)
+
         return UnifiedLoginResponse(
             entity_type="user",
             access_token=access_token,
@@ -267,6 +270,7 @@ def unified_login(request: UnifiedLoginRequest, db: Session = Depends(get_db)):
             user_name=user.UserName or "",
             user_email=user.UserEmail,
             permissions=user_permissions,
+            force_password_reset=force_password_reset,
         )
 
     # ── 2. Fall back to Candidate ────────────────────────────────
@@ -479,3 +483,33 @@ def refresh_token_endpoint(credentials: HTTPAuthorizationCredentials = Depends(s
 
     else:
         raise HTTPException(status_code=401, detail="User or candidate not found")
+
+@router.post("/reset-password")
+def reset_password(request: dict, db: Session = Depends(get_db)):
+    """
+    Reset user password (first login or regular password change).
+    Requires access token and new password.
+    """
+    from app.core.dependencies import get_current_hr_or_admin
+
+    user_id = request.get("user_id")
+    new_password = request.get("new_password")
+
+    if not user_id or not new_password:
+        raise HTTPException(status_code=400, detail="user_id and new_password required")
+
+    if len(new_password) < 8:
+        raise HTTPException(status_code=400, detail="Password must be at least 8 characters")
+
+    # Get user
+    user = db.query(Users).filter(Users.UserID == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    # Update password
+    user.UserPassword = get_password_hash(new_password)
+    user.password_reset_required = False  # Mark password reset as complete
+    db.add(user)
+    db.commit()
+
+    return {"status": "success", "message": "Password reset successfully"}

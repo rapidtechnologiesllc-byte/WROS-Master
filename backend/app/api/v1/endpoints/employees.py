@@ -215,6 +215,44 @@ def convert_candidate(
     )
     db.commit()
     db.refresh(employee)
+
+    # Send welcome email to new employee
+    try:
+        from app.services.email_service import EmailService
+        from app.services.template_service import TemplateService
+
+        # Get portal URL and login credentials
+        portal_url = "https://wros.blitzenx.com"  # TODO: Configure from environment
+        employee_name = f"{candidate.candidateFirstName or ''} {candidate.candidateLastName or ''}".strip()
+
+        # Render email template with dynamic fields
+        email_body = TemplateService.render_template(
+            db=db,
+            tenant_id=current_user.tenant_id,
+            template_key="EMPLOYEE_WELCOME_EMAIL",
+            channel="EMAIL",
+            context={
+                "employee_name": employee_name,
+                "department": getattr(employee, 'department', 'Not Set'),
+                "business_unit": getattr(employee, 'business_unit', 'Not Set'),
+                "portal_url": portal_url,
+                "login_email": candidate.candidateEmail,
+                "joining_date": body.joining_date.isoformat() if body.joining_date else "Not Set",
+            }
+        )
+
+        # Send email if template exists
+        if email_body:
+            EmailService.send_event_notification(
+                to_email=candidate.candidateEmail,
+                recipient_name=employee_name,
+                event_type="action_required",
+                heading="Welcome to BlitzenX!",
+                message=email_body,
+            )
+    except Exception as e:
+        logger.warning(f"Failed to send welcome email to {candidate.candidateEmail}: {str(e)}")
+
     return _to_item(db, employee)
 
 _BULK_IMPORT_COLUMNS = (

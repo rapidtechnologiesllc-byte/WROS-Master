@@ -17,6 +17,7 @@ class Users(Base):
     UserName = Column(String(150), nullable=True)
     UserEmail = Column(String(512), unique=True, nullable=False, index=True)
     UserPassword = Column(String(512), nullable=False)
+    password_reset_required = Column(Boolean, nullable=False, default=True, index=True)  # Force password change on first login
     CreatedAt = Column(DateTime(timezone=False), server_default=func.now())
     # RBAC — single role template per user (replaces UserRole junction table)
     role_template_id = Column(Integer, ForeignKey("role_templates.id"), nullable=True, index=True)

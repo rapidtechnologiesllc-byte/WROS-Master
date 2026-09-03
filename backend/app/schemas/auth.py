@@ -46,6 +46,7 @@ class UnifiedLoginResponse(BaseModel):
     # POST /auth/mfa/email/verify with that code against the same
     # access_token (mfa_pending) to complete login.
     email_otp_required: bool = False
+    force_password_reset: bool = False  # User must reset system-generated password on first login
 
     # Backlog item, 2026-08-05 (wros_email_2fa_backlog, candidate half).
     # candidate_otp_required: this candidate has opted in -- a code has

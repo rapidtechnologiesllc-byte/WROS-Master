@@ -18,7 +18,7 @@ TEMPLATE_CHANNELS = ("WHATSAPP", "EMAIL", "PORTAL", "ANY")
 # entry. Prevents breaking system references." Extend this tuple (and
 # the matching migration widening the CHECK constraint) as more
 # first-engagement/templated sends get built.
-TEMPLATE_KEYS = ("GREETING_WHATSAPP", "GREETING_EMAIL")
+TEMPLATE_KEYS = ("GREETING_WHATSAPP", "GREETING_EMAIL", "EMPLOYEE_WELCOME_EMAIL")
 
 logger = logging.getLogger(__name__)
 

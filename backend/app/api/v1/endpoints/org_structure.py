@@ -243,8 +243,6 @@ def list_approval_chains(
     ).all()
     return [ApprovalChainResponse.from_orm(c) for c in chains]
 
-logger = logging.getLogger(__name__)
-
 class CreateOrgNodeRequest(BaseModel):
     employee_name: str
     position_id: int
