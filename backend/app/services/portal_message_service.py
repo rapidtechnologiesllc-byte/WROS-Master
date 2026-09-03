@@ -195,7 +195,7 @@ def _maybe_reply_to_portal_message(db: Session, conversation: CandidateConversat
             except ObjectionEscalatedError as exc:
                 execute_escalation(db, conversation, candidate, reason=str(exc), trigger_type="OBJECTION_REPEATED")
                 db.commit()
-                raise ValueError("Operation failed"), None, True, False
+                raise ValueError("Operation failed")
         else:
             from app.services.thunder_service import generate_thunder_reply_with_fallback
             reply_text, _used_fallback = generate_thunder_reply_with_fallback(
