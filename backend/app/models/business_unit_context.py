@@ -1,5 +1,4 @@
 """
-import logging
 BusinessUnitContext Model - Unified Business Unit Reference Pattern
 
 ARCHITECTURAL DECISION (2026-08-14):
@@ -27,6 +26,7 @@ Usage:
           return self.bu_context.partner_org_node
 """
 
+import logging
 from datetime import datetime
 from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Boolean, Index
 from sqlalchemy.orm import relationship
