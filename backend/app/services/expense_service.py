@@ -30,7 +30,6 @@ from app.models.org_structure import OrgNode
 
 FINANCE_INBOX_EMAIL = "accounts@blitzenx.com"
 
-logger = logging.getLogger(__name__)
 
 class ExpenseValidationError(Exception):
     pass
