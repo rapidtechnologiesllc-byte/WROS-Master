@@ -2,7 +2,6 @@
 ATS (Applicant Tracking System) Scorer
 =======================================
 Uses a LangGraph multi-node pipeline powered by Google Gemini to evaluate a
-import logging
 candidate's profile against a job description and produce:
 
   - An overall ATS score (0–100)
@@ -25,6 +24,8 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langgraph.graph import END, StateGraph
 
 load_dotenv()
+
+logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # LLM initialisation (re-uses the same key as job_description_generator)
