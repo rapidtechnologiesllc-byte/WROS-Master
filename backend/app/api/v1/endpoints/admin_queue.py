@@ -17,7 +17,7 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from app.core.database import SessionLocal
-from app.core.dependencies import get_current_internal_user
+from app.core.dependencies import get_current_internal_user, require_resource_permission
 from datetime import datetime, timedelta
 from typing import List, Optional
 

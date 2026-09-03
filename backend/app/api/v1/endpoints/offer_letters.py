@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 import os as _os
 
 from app.core.database import get_db
-from app.core.dependencies import (
+from app.core.dependencies import (, require_resource_permission
     get_current_candidate,
     get_current_internal_user,
     require_permission,

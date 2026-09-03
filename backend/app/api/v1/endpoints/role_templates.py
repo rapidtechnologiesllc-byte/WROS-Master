@@ -4,7 +4,7 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException, status, Request, Body
 from sqlalchemy.orm import Session
 from app.core.database import get_db
-from app.core.dependencies import get_current_internal_user
+from app.core.dependencies import get_current_internal_user, require_resource_permission
 from app.models.user import Users
 from app.models.role_template import Module, Resource, RoleTemplate, RoleTemplatePermission
 from app.models.business_unit import BusinessUnit

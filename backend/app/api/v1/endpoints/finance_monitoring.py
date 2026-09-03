@@ -20,7 +20,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List, Dict, Any
 
-from app.core.dependencies import get_db, get_current_user
+from app.core.dependencies import get_db, get_current_user, require_resource_permission
 from app.models.user import Users
 from app.models.business_unit import BusinessUnit
 from app.services.finance_agent import FinanceAgent

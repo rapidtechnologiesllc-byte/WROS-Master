@@ -38,7 +38,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_internal_user
+from app.core.dependencies import get_current_internal_user, require_resource_permission
 from app.models.client import Client
 from app.models.project import Project
 from app.models.revenue_leakage import ReconciliationAlert, RevenueLeakageFlag

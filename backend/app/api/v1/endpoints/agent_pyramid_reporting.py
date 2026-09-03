@@ -28,7 +28,7 @@ from datetime import datetime, timedelta
 from typing import Dict, Any, List, Optional
 from pydantic import BaseModel
 
-from app.core.dependencies import get_db, get_current_user
+from app.core.dependencies import get_db, get_current_user, require_resource_permission
 from app.models.user import Users
 from app.services.agent_pyramid_reporting import (
     TechLeadWeeklyReportAgent,

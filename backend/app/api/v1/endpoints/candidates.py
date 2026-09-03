@@ -23,7 +23,7 @@ from app.models.candidate import (
     CandidatePanForm as CandidatePanModel
 )
 
-from app.core.dependencies import get_current_candidate
+from app.core.dependencies import get_current_candidate, require_resource_permission
 from app.schemas.candidate import (
     candidateFormRequest,
     candidateFormResponse,

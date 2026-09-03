@@ -8,7 +8,7 @@ import logging
 from typing import Optional
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_user
+from app.core.dependencies import get_current_user, require_resource_permission
 from app.services.interview_decision_service import InterviewDecisionService
 from app.schemas.interview_decision import (
     GetInterviewStatusRequest,

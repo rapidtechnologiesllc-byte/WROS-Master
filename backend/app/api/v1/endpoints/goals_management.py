@@ -13,7 +13,7 @@ from typing import Dict, List, Any
 from pydantic import BaseModel
 from datetime import datetime
 
-from app.core.dependencies import get_db, get_current_user
+from app.core.dependencies import get_db, get_current_user, require_resource_permission
 from app.models.user import Users
 
 router = APIRouter(prefix="/goals", tags=["goals"])

@@ -16,7 +16,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_internal_user, get_current_internal_user
+from app.core.dependencies import get_current_internal_user, get_current_internal_user, require_resource_permission
 from app.models.buddy_program import BuddyProgramRecord
 from app.models.employee import Employee
 from app.models.user import Users

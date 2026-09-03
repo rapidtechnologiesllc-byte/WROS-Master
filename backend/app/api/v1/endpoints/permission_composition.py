@@ -14,7 +14,7 @@ from pydantic import BaseModel
 from typing import List, Dict, Optional
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_internal_user
+from app.core.dependencies import get_current_internal_user, require_resource_permission
 from app.models.user import Users
 from app.models.role_template import RoleTemplate
 from app.services.permission_composition_service import PermissionCompositionService

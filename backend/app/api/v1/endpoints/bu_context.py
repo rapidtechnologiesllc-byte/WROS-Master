@@ -30,7 +30,7 @@ from fastapi import APIRouter, Depends, Header, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_internal_user
+from app.core.dependencies import get_current_internal_user, require_resource_permission
 from app.models.business_unit import BusinessUnit
 from app.models.user import Users
 from app.schemas.bu_context import BUAccessItem, MyBUAccessResponse, SwitchBURequest

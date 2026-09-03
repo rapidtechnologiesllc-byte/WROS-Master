@@ -11,7 +11,7 @@ Uses database resources directly (no hardcoding) - supports all 175 resources dy
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app.core.database import get_db
-from app.core.dependencies import get_current_user
+from app.core.dependencies import get_current_user, require_resource_permission
 from app.services.role_template_permission_service import RoleTemplatePermissionService
 from app.models.role_template import Module, Resource
 from app.core.logging import logger

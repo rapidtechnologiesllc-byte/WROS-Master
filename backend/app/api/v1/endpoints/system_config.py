@@ -21,7 +21,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_internal_user, require_admin_role
+from app.core.dependencies import get_current_internal_user, require_admin_role, require_resource_permission
 from app.api.v1.endpoints.bu_context import get_active_business_unit_id
 from app.models.user import Users
 from app.schemas.system_config import SettingsPanelResponse, UpdateConfigValueRequest, UpdateLocaleRequest

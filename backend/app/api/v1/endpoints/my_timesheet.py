@@ -22,7 +22,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_internal_user
+from app.core.dependencies import get_current_internal_user, require_resource_permission
 from app.models.user import Users
 from app.schemas.allocation import AllocationItem, AllocationListResponse
 from app.schemas.timesheet import TimesheetItem, TimesheetListResponse, UpsertEntriesRequest

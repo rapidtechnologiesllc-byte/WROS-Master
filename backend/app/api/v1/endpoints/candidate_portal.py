@@ -26,7 +26,7 @@ from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_candidate
+from app.core.dependencies import get_current_candidate, require_resource_permission
 from app.models.candidate import Candidate
 from app.schemas.candidate_portal import (
     PortalHomeResponse,

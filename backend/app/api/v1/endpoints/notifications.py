@@ -25,7 +25,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_internal_user
+from app.core.dependencies import get_current_internal_user, require_resource_permission
 from app.models.notification import Notification
 from app.models.user import Users
 from app.schemas.notification import NotificationItem, NotificationListResponse

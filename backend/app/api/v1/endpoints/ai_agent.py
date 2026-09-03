@@ -68,7 +68,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_internal_user, require_resource_permission
+from app.core.dependencies import get_current_internal_user, require_resource_permission, require_resource_permission
 from app.core.webhook_auth import require_webhook_secret_or_internal_user
 from app.models.candidate import Candidate
 from app.models.candidate_ai import (
