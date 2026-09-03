@@ -31,6 +31,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.core.dependencies import require_resource_permission
 from app.core.logging import logger
 from app.schemas.public_chat import (
     PublicChatHistoryItem,

@@ -2,7 +2,6 @@
 S-267/HRMS-0301 (Set BU Revenue Target) + PartnerGoal + S-241/HRMS-0212
 (Executive Revenue Dashboard) + S-244/HRMS-0215 (Pipeline Coverage,
 exposed via calculate_pipeline_coverage_ratio() -- already built,
-import logging
 reused here not reimplemented).
 
 Actuals come from Invoice (client_id, total_usd_cents), never the
@@ -10,6 +9,7 @@ nonexistent analytics_fact_revenue S-267/S-242's own docs cite --
 confirmed absent from this codebase, same call already made for the
 Forecast vs Actual story.
 """
+import logging
 from datetime import datetime
 from typing import List, Optional
 
