@@ -70,6 +70,7 @@ class UnifiedLoginResponse(BaseModel):
     mfa_required: bool = Field(default=False)
     mfa_setup_required: bool = Field(default=False)
     email_otp_required: bool = Field(default=False)
+    force_password_reset: bool = Field(default=False, description="User must reset system-generated password on first login")
     candidate_otp_required: bool = Field(default=False)
     show_2fa_opt_in_popup: bool = Field(default=False)
 
