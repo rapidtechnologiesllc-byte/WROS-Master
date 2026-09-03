@@ -46,6 +46,7 @@ logger = logging.getLogger(__name__)
 SERVICE_MAILBOX = "helpdesk_hrms@blitzenx.com"
 AI_AGENT_NAME = "HRMS AI Agent"
 AI_AGENT_PERSONA = "Professional recruiter assistant"
+DEFAULT_THUNDER_PERSONA_TEXT = """You are a professional AI recruiter helping candidates through their hiring journey."""
 
 # Core field definitions for candidate data
 CANDIDATE_CORE_FIELDS = [
