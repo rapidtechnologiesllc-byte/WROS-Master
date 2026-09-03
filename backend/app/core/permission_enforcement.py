@@ -35,9 +35,9 @@ def require_permission(permission: str):
     Usage:
     @router.get("/candidates")
     @require_permission("candidates.view")
-        async def get_candidates(db: Session = Depends(get_db),
-                                current_user: Users = Depends(get_current_internal_user)):
-            ...
+    async def get_candidates(db: Session = Depends(get_db),
+                            current_user: Users = Depends(get_current_internal_user)):
+        ...
 
     Args:
         permission: Permission string in format 'resource.action' (e.g., 'candidates.view')
@@ -75,8 +75,8 @@ def require_permission(permission: str):
             # Call the original function
             return await func(*args, **kwargs) if hasattr(func, '__await__') else func(*args, **kwargs)
 
-    @wraps(func)
-    def sync_wrapper(*args, **kwargs):
+        @wraps(func)
+        def sync_wrapper(*args, **kwargs):
             db = kwargs.get("db")
             current_user = kwargs.get("current_user")
 
