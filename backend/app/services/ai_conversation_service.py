@@ -133,9 +133,107 @@ def resolve_default_tenant_id() -> str:
     return "1"
 
 
-def run_auto_assign_ai_agent_in_background():
-    """Run AI agent assignment in background."""
-    pass
+def run_auto_assign_ai_agent_in_background(candidate_id: str):
+    """
+    Background task: Prepare candidate for Thunder autonomous processing.
+
+    Called immediately after candidate creation. Creates initial conversation
+    record and logs the outreach event. The Thunder autonomous loop
+    (running every 5 minutes) will then process this candidate.
+
+    This follows the same pattern as thunder_autonomous_loop.py:
+    1. Create CandidateConversation record (candidate is now "ready for outreach")
+    2. Log THUNDER_OUTREACH_INITIATED event
+    3. Let the autonomous loop handle actual outreach scheduling
+
+    Args:
+        candidate_id: The newly created candidate's ID
+    """
+    from app.core.database import SessionLocal
+    from app.models.user import Users
+
+    db = None
+    try:
+        db = SessionLocal()
+
+        # Get candidate to verify it exists
+        candidate = db.query(Candidate).filter(
+            Candidate.candidateID == candidate_id
+        ).first()
+
+        if not candidate:
+            logger.error(f"[Thunder] Candidate {candidate_id} not found for outreach preparation")
+            return
+
+        # Check if conversation already exists (shouldn't, but defensive)
+        existing = db.query(CandidateConversation).filter(
+            CandidateConversation.candidate_id == candidate_id
+        ).first()
+
+        if existing:
+            logger.info(f"[Thunder] Candidate {candidate_id} already has conversation, skipping")
+            return
+
+        # Get system admin for tenant_id (required by FK constraint)
+        system_admin = db.query(Users).filter(
+            Users.UserRole == "Super User"
+        ).first()
+
+        if not system_admin:
+            system_admin = db.query(Users).filter(
+                Users.UserRole.ilike("%admin%")
+            ).first()
+
+        if not system_admin:
+            logger.error(f"[Thunder] No system admin found, cannot prepare candidate {candidate_id}")
+            return
+
+        tenant_user_id = system_admin.UserID
+
+        # Create conversation record (marks candidate as ready for Thunder outreach)
+        conversation = CandidateConversation(
+            candidate_id=candidate_id,
+            tenant_id=tenant_user_id,
+            owner_type="ai_agent",
+            owner_id="THUNDER",
+            status="open",
+            ai_agent_name="THUNDER",
+            channel_preference="email"
+        )
+        db.add(conversation)
+        db.flush()  # Get the conversation ID
+
+        # Log the outreach initiation event
+        if candidate and conversation:
+            event = ConversationEvent(
+                conversation_id=conversation.id,
+                event_type="ai_assigned",
+                triggered_by="system",
+                event_data={
+                    "agent": "THUNDER",
+                    "candidate_email": getattr(candidate, 'candidateEmail', 'unknown'),
+                    "candidate_name": f"{getattr(candidate, 'candidateFirstName', '')} {getattr(candidate, 'candidateLastName', '') or ''}".strip(),
+                    "job_title": getattr(candidate, 'candidateJobTitle', None),
+                    "location": getattr(candidate, 'candidateCurrentLocation', None)
+                }
+            )
+            db.add(event)
+
+        db.commit()
+
+        if conversation:
+            logger.info(f"[Thunder] Prepared candidate {candidate_id} for autonomous outreach (conversation_id={conversation.id})")
+        else:
+            logger.warning(f"[Thunder] Candidate {candidate_id} prepared but conversation object is missing")
+
+    except Exception as e:
+        logger.error(f"[Thunder] Failed to prepare candidate {candidate_id}: {str(e)}", exc_info=True)
+        if db:
+            db.rollback()
+            logger.error(f"[Thunder] Rolled back transaction for candidate {candidate_id}")
+    finally:
+        if db:
+            db.close()
 
 
 def auto_assign_ai_agent_on_creation(candidate_id: str, db: Session) -> Dict:

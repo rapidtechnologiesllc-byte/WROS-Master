@@ -200,16 +200,18 @@ class CodeGateValidator:
                         })
 
             # LOW 1: Missing null check before attribute access
-            if re.search(r'\.UserName|\.first_name|\.email|\.name\s*$', line):
-                prev_5_lines = '\n'.join(self.lines[max(0, i-5):i])
-                if 'if ' not in prev_5_lines:
-                    self.issues.append({
-                        'severity': 'LOW',
-                        'issue': f'Accessing attribute on line {i} without null check',
-                        'line': i,
-                        'fix': 'Add null check: if obj: return obj.attribute',
-                        'impact_type': 'MISSING_NULL_CHECK'
-                    })
+            # Skip import statements (false positives from module names like 'email_service')
+            if not line.strip().startswith('from ') and not line.strip().startswith('import '):
+                if re.search(r'\.UserName|\.first_name|\.email|\.name\s*$', line):
+                    prev_5_lines = '\n'.join(self.lines[max(0, i-5):i])
+                    if 'if ' not in prev_5_lines:
+                        self.issues.append({
+                            'severity': 'LOW',
+                            'issue': f'Accessing attribute on line {i} without null check',
+                            'line': i,
+                            'fix': 'Add null check: if obj: return obj.attribute',
+                            'impact_type': 'MISSING_NULL_CHECK'
+                        })
 
     def _check_javascript(self):
         """Check JavaScript files."""
