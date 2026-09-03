@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""Comprehensive import fixer - identifies all import errors by attempting to compile each file"""
 
 import ast
 import os

@@ -1334,6 +1334,7 @@ def get_candidates_by_job(
 # ==============================================================================
 
 from app.models.candidate import CandidateJobApplication
+from app.schemas.user import (
     JobApplicationCreate, JobApplicationStatusUpdate,
     JobApplicationEntry, CandidateJobsResponse, JobCandidatesMultiResponse,
 )

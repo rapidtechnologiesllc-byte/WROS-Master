@@ -10,7 +10,6 @@ from sqlalchemy.orm import Session
 
 import app.schemas as schema
 from app.core.database import (
-from app.core.database import get_db
     SessionLocal,
     engine,
     check_candidate,

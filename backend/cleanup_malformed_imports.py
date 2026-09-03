@@ -29,7 +29,6 @@ def clean_imports(filepath):
             else:
                 continue
 
-        # Check for malformed lines like "from app.core.dependencies import from fastapi import Request"
         if stripped.startswith('from ') and ' import ' in stripped:
             # Extract the full import statement
             full_import = stripped
