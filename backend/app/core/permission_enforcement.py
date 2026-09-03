@@ -76,7 +76,7 @@ def require_permission(permission: str):
             return await func(*args, **kwargs) if hasattr(func, '__await__') else func(*args, **kwargs)
 
     @wraps(func)
-        def sync_wrapper(*args, **kwargs):
+    def sync_wrapper(*args, **kwargs):
             db = kwargs.get("db")
             current_user = kwargs.get("current_user")
 
@@ -157,7 +157,7 @@ def require_any_permission(permissions: List[str]):
             return await func(*args, **kwargs) if hasattr(func, '__await__') else func(*args, **kwargs)
 
     @wraps(func)
-        def sync_wrapper(*args, **kwargs):
+    def sync_wrapper(*args, **kwargs):
             db = kwargs.get("db")
             current_user = kwargs.get("current_user")
 
@@ -234,7 +234,7 @@ def require_all_permissions(permissions: List[str]):
             return await func(*args, **kwargs) if hasattr(func, '__await__') else func(*args, **kwargs)
 
     @wraps(func)
-        def sync_wrapper(*args, **kwargs):
+    def sync_wrapper(*args, **kwargs):
             db = kwargs.get("db")
             current_user = kwargs.get("current_user")
 
