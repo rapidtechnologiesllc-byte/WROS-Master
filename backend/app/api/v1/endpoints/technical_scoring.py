@@ -54,7 +54,7 @@ router = APIRouter(tags=["technical-scoring"])
     ),
 )
 def get_technical_score(candidate_id: str, job_id: str, db: Session = Depends(get_db)):
-    tenant_id = resolve_default_tenant_id(db)
+    tenant_id = resolve_default_tenant_id()
     if not tenant_id:
         raise HTTPException(status_code=500, detail="No tenant available.")
 
@@ -83,7 +83,7 @@ def get_technical_score(candidate_id: str, job_id: str, db: Session = Depends(ge
     ),
 )
 def get_ranked_candidates_for_job(job_id: str, db: Session = Depends(get_db)):
-    tenant_id = resolve_default_tenant_id(db)
+    tenant_id = resolve_default_tenant_id()
     if not tenant_id:
         raise HTTPException(status_code=500, detail="No tenant available.")
 

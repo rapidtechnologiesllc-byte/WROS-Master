@@ -38,18 +38,18 @@ def list_activity_feed(
     per_page: int = Query(default=25, ge=1, le=100),
     db: Session = Depends(get_db),
 ):
-    tenant_id = resolve_default_tenant_id(db)
+    tenant_id = resolve_default_tenant_id()
     return get_activity_feed(db, tenant_id, candidate_id=candidate_id, severity=severity, page=page, per_page=per_page)
 
 @router.patch("/{activity_id}/read", dependencies=[Depends(require_resource_permission("candidates", "view"))])
 def mark_activity_read(activity_id: int, db: Session = Depends(get_db)):
-    tenant_id = resolve_default_tenant_id(db)
+    tenant_id = resolve_default_tenant_id()
     ok = mark_read(db, tenant_id, activity_id)
     return {"marked": ok}
 
 @router.patch("/read-all", response_model=MarkAllReadResponse, dependencies=[Depends(require_resource_permission("candidates", "view"))])
 def mark_activity_feed_read_all(candidate_id: Optional[str] = Query(default=None), db: Session = Depends(get_db)):
-    tenant_id = resolve_default_tenant_id(db)
+    tenant_id = resolve_default_tenant_id()
     count = mark_all_read(db, tenant_id, candidate_id=candidate_id)
     return MarkAllReadResponse(marked_count=count)
 

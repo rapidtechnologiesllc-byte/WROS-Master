@@ -188,7 +188,7 @@ class ThunderQueueProcessor(BaseChannelProcessor):
             from app.services.ai_conversation_service import auto_assign_ai_agent_on_creation
             from app.services.tenant_config_service import resolve_default_tenant_id
 
-            tenant_id = resolve_default_tenant_id(db)
+            tenant_id = resolve_default_tenant_id()
             try:
                 auto_assign_ai_agent_on_creation(candidate_id, db)
                 logger.info(f"[ThunderQueueProcessor] AI agent assigned to {candidate_id}")

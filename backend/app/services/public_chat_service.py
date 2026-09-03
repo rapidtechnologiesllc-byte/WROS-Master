@@ -162,7 +162,7 @@ def start_public_chat(
     # User") -- neither value was ever read back out by anything
     # downstream, and it diverged from what /activity-feed and every
     # other real reader filter by. Single shared resolver now, always.
-    tenant_id = resolve_default_tenant_id(db)
+    tenant_id = resolve_default_tenant_id()
     if not tenant_id:
         raise PublicChatNoTenantAvailable(
             "No Super User account exists to own this conversation -- Thunder can't be "

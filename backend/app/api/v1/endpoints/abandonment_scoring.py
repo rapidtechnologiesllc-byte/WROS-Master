@@ -38,7 +38,7 @@ router = APIRouter(tags=["abandonment-scoring"])
     ),
 )
 def get_abandonment_score(candidate_id: str, db: Session = Depends(get_db)):
-    tenant_id = resolve_default_tenant_id(db)
+    tenant_id = resolve_default_tenant_id()
     if not tenant_id:
         raise HTTPException(status_code=500, detail="No tenant available.")
 

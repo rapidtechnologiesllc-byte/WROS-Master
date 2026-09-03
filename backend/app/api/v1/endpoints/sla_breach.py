@@ -35,7 +35,7 @@ def list_sla_breaches(
     if is_resolved:
         raise HTTPException(status_code=400, detail="Only is_resolved=false is supported -- resolved-breach history is out of scope for this story.")
 
-    tenant_id = resolve_default_tenant_id(db)
+    tenant_id = resolve_default_tenant_id()
     if not tenant_id:
         raise HTTPException(status_code=500, detail="No tenant available.")
 

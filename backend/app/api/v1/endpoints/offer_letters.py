@@ -939,7 +939,7 @@ def release_offer_letter(
     from app.services.ai_conversation_service import resolve_default_tenant_id
     from app.services.offer_readiness_service import check_offer_readiness
 
-    tenant_id = resolve_default_tenant_id(db)
+    tenant_id = resolve_default_tenant_id()
     readiness = check_offer_readiness(db, offer.candidate_id, offer.job_id, tenant_id)
     if not readiness["is_ready"]:
         raise HTTPException(status_code=409, detail={"message": "Candidate is not ready for an offer.", "blockers": readiness["blockers"]})

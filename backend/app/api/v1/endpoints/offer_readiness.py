@@ -38,6 +38,6 @@ router = APIRouter(tags=["offer-readiness"])
     ),
 )
 def get_offer_readiness(candidate_id: str, job_id: str, db: Session = Depends(get_db)):
-    tenant_id = resolve_default_tenant_id(db)
+    tenant_id = resolve_default_tenant_id()
     result = check_offer_readiness(db, candidate_id, job_id, tenant_id)
     return OfferReadinessResponse(is_ready=result["is_ready"], blockers=result["blockers"], warnings=result["warnings"], checked_at=datetime.utcnow())

@@ -44,7 +44,7 @@ router = APIRouter(tags=["drop-risk"])
     ),
 )
 def get_drop_risk(candidate_id: str, db: Session = Depends(get_db)):
-    tenant_id = resolve_default_tenant_id(db)
+    tenant_id = resolve_default_tenant_id()
     result = calculate_drop_risk(db, candidate_id, tenant_id)
     if "drop_risk_score" not in result:
         raise HTTPException(status_code=404, detail=f"No drop risk score available for candidate {candidate_id!r} (outcome: {result.get('outcome')}).")

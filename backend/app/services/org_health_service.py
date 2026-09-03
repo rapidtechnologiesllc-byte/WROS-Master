@@ -37,7 +37,7 @@ def get_org_health_snapshot(db: Session) -> Dict:
     from app.services.task_assignment_service import OPEN_STATUSES
     from app.models.task import Task, TaskCapacityAlert
 
-    engagement_tenant_id = resolve_default_tenant_id(db)
+    engagement_tenant_id = resolve_default_tenant_id()
 
     intervention_summary = get_queue_summary(db, engagement_tenant_id) if engagement_tenant_id else {}
     sla_breaches = get_active_breaches(db, engagement_tenant_id) if engagement_tenant_id else []

@@ -29,5 +29,5 @@ def thunder_analytics(
     date_to: Optional[date] = Query(default=None),
     db: Session = Depends(get_db),
 ):
-    tenant_id = resolve_default_tenant_id(db)
+    tenant_id = resolve_default_tenant_id()
     return get_thunder_analytics(db, tenant_id, date_from=date_from, date_to=date_to)

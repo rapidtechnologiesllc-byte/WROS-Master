@@ -188,7 +188,7 @@ def assign_agent(
     # tenant_id ("which org owns this data," always the same one here).
     result = assign_ai_agent(
         candidate_id=body.candidate_id,
-        tenant_id=resolve_default_tenant_id(db),
+        tenant_id=resolve_default_tenant_id(),
         assigned_by=current_user.UserID,
         db=db,
     )
@@ -273,7 +273,7 @@ def get_candidate_memory(
     from app.services.candidate_memory_service import get_memory
 
     _get_candidate_or_404(candidate_id, db)
-    tenant_id = resolve_default_tenant_id(db)
+    tenant_id = resolve_default_tenant_id()
     memory = get_memory(db, candidate_id, tenant_id)
     return CandidateMemoryResponse(candidate_id=candidate_id, **memory)
 
@@ -303,7 +303,7 @@ def correct_candidate_memory_fact(
     from app.services.candidate_memory_service import FactNotFound, correct_fact
 
     _get_candidate_or_404(candidate_id, db)
-    tenant_id = resolve_default_tenant_id(db)
+    tenant_id = resolve_default_tenant_id()
     try:
         fact = correct_fact(db, candidate_id, tenant_id, fact_id, body.fact_value, corrected_by=current_user.UserID)
     except FactNotFound as exc:
@@ -337,7 +337,7 @@ def get_skill_suggestions(
 ):
     from app.services.skill_extraction_service import get_unknown_skill_suggestions
 
-    tenant_id = resolve_default_tenant_id(db)
+    tenant_id = resolve_default_tenant_id()
     if not tenant_id:
         raise HTTPException(status_code=500, detail="No tenant available.")
     return {"suggestions": get_unknown_skill_suggestions(db, tenant_id, since_days=since_days)}

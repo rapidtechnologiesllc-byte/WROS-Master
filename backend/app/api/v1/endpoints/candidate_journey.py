@@ -38,7 +38,7 @@ router = APIRouter(tags=["candidate-journey"])
     ),
 )
 def get_journey(candidate_id: str, db: Session = Depends(get_db)):
-    tenant_id = resolve_default_tenant_id(db)
+    tenant_id = resolve_default_tenant_id()
     try:
         return get_candidate_journey(db, candidate_id, tenant_id)
     except CandidateNotFound:
