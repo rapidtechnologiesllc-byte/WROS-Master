@@ -78,7 +78,7 @@ export default function AuthPage() {
       const user = response;
       return user;
     } catch (error) {
-      logger.error(`[AuthPage] Failed to fetch user details: ${error.message}`, error);
+      console.error(`[AuthPage] Failed to fetch user details: ${error.message}`, error);
       throw new Error(`Failed to fetch user details: ${error.message}`);
     }
   };
@@ -87,16 +87,22 @@ export default function AuthPage() {
   // stores the real session and either redirects immediately or, for a
   // never-asked candidate, shows the opt-in popup first.
   const finishLogin = async (data, { offer2faOptIn = false } = {}) => {
-    localStorage.setItem("hrms_token", data.access_token);
-    // Store refresh token for automatic token renewal
-    if (data.refresh_token) {
-      localStorage.setItem("hrms_refresh_token", data.refresh_token);
-    }
-    const user = await getCurrentUser();
-    if (user) {
-      localStorage.setItem("user_info", JSON.stringify(user));
-      localStorage.setItem("permission_role", user.permission_role);
-    }
+    try {
+      localStorage.setItem("hrms_token", data.access_token);
+      // Store refresh token for automatic token renewal
+      if (data.refresh_token) {
+        localStorage.setItem("hrms_refresh_token", data.refresh_token);
+      }
+      try {
+        const user = await getCurrentUser();
+        if (user) {
+          localStorage.setItem("user_info", JSON.stringify(user));
+          localStorage.setItem("permission_role", user.permission_role);
+        }
+      } catch (userError) {
+        console.error("[AuthPage] Non-critical: Failed to fetch user details:", userError);
+        // Continue with fallback permissions from token
+      }
     // Fallback: use user_role from login response if permission_role not available
     if (data?.user_role) {
       localStorage.setItem("permission_role", data.user_role);
@@ -211,6 +217,10 @@ export default function AuthPage() {
       return;
     }
     window.location.href = redirectPath;
+    } catch (error) {
+      console.error("[AuthPage] finishLogin error:", error);
+      throw error;
+    }
   };
 
   const submitLogin = async (event) => {
@@ -295,9 +305,19 @@ export default function AuthPage() {
     setLoading(true);
     try {
       const data = await verifyCandidateEmailOtp(pendingOtpToken, otpCode.trim());
-      await finishLogin(data);
+      try {
+        await finishLogin(data);
+      } catch (finishErr) {
+        console.error("[AuthPage] finishLogin error:", finishErr);
+        setError(finishErr.message || "Failed to complete login.");
+        setLoading(false);
+        throw finishErr;
+      }
     } catch (err) {
+      console.error("[AuthPage] OTP verification error:", err);
       setError(err.message || "Invalid or expired code.");
+      setLoading(false);
+      throw err;
     } finally {
       setLoading(false);
     }
