@@ -288,9 +288,18 @@ def list_business_units(
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=500)
 ):
-    """List all business units."""
+    """
+    List business units accessible to current user.
+    - Super users see all BUs in their tenant
+    - Other users see only their assigned BU
+    """
     try:
         query = db.query(BusinessUnit)
+
+        # Super users see all BUs, others see only their assigned BU
+        is_super = current_user.UserRole and "super" in current_user.UserRole.lower()
+        if not is_super and current_user.business_unit_id:
+            query = query.filter(BusinessUnit.id == current_user.business_unit_id)
 
         if hasattr(current_user, 'tenant_id'):
             query = query.filter(BusinessUnit.tenant_id == current_user.tenant_id)

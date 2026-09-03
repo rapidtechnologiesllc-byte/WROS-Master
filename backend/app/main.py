@@ -10,6 +10,7 @@ from app.core.database import engine, SessionLocal
 from app.core.logging import logger
 from app.models.base import Base
 from app.api.v1.routes import router
+from app.api.v1.endpoints.users_access_control import router as users_access_control_router
 from app.middleware import setup_cors, RequestLoggingMiddleware
 # S-207 -- importing this here (rather than relying on it being pulled in
 # lazily by whichever endpoint module happens to run first) registers the
@@ -187,6 +188,9 @@ async def shutdown_event():
     shutdown_scheduler()
 
 # Include API routes
+# Include admin/users-access-control at root level (it has its own /api/admin/ prefix)
+app.include_router(users_access_control_router)
+# Include v1 routes with /api/v1 prefix
 app.include_router(router)
 
 # HRMS-0114 -- fail startup if any route has no explicit identity/
@@ -216,6 +220,8 @@ assert_all_routes_have_permission_declarations(
         "GET /rbac/modules-and-verbs",
         "GET /admin/certifications/business-units",
         "GET /admin/certifications/roles",
+        "GET /message-templates/keys",
+        "POST /auth/reset-password",
     ],
 )
 logger.info("[OK] HRMS-0114 route permission audit passed")

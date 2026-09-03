@@ -106,7 +106,6 @@ from app.api.v1.endpoints.role_templates import router as role_templates_router
 from app.api.v1.endpoints.role_template_modules import router as role_template_modules_router
 from app.api.v1.endpoints.navigation import router as navigation_router
 from app.api.v1.endpoints.admin_queue import router as admin_queue_router
-from app.api.v1.endpoints.users_access_control import router as users_access_control_router
 from app.api.v1.endpoints.relation_building import router as relation_building_router
 from app.api.v1.endpoints.recruitment_funnel import router as recruitment_funnel_router
 from app.api.v1.endpoints.agent_accountability import router as agent_accountability_router
@@ -226,7 +225,6 @@ router.include_router(router=employee_referrals_router)
 router.include_router(router=work_orders_router)
 router.include_router(router=autonomous_job_management_router)
 router.include_router(router=admin_queue_router)
-router.include_router(router=users_access_control_router)
 router.include_router(router=recruitment_funnel_router)
 router.include_router(router=agent_accountability_router)
 router.include_router(router=pipeline_orchestration_router)
