@@ -68,7 +68,6 @@ export default function AuthPage() {
     } catch (err) {
       console.error("[AuthPage] Email validation error:", err);
       setError(err.message || "Unable to validate email. Please try again.");
-      throw err;
     } finally {
       setLoading(false);
     }
@@ -295,7 +294,6 @@ export default function AuthPage() {
     } catch (err) {
       console.error("[AuthPage] Login error:", err);
       setError(err.message || "Login failed.");
-      throw err;
     } finally {
       setLoading(false);
     }
@@ -312,12 +310,10 @@ export default function AuthPage() {
       } catch (finishErr) {
         console.error("[AuthPage] finishLogin error:", finishErr);
         setError(finishErr.message || "Failed to complete login.");
-        throw finishErr;
       }
     } catch (err) {
       console.error("[AuthPage] OTP verification error:", err);
       setError(err.message || "Invalid or expired code.");
-      throw err;
     } finally {
       setLoading(false);
     }
@@ -337,7 +333,6 @@ export default function AuthPage() {
     } catch (err) {
       console.error("[AuthPage] MFA setup confirm error:", err);
       setError(err.message || "Invalid code. Check your authenticator app and try again.");
-      throw err;
     } finally {
       setLoading(false);
     }
@@ -357,7 +352,6 @@ export default function AuthPage() {
     } catch (err) {
       console.error("[AuthPage] MFA verify error:", err);
       setError(err.message || "Invalid or expired code.");
-      throw err;
     } finally {
       setLoading(false);
     }
@@ -373,7 +367,6 @@ export default function AuthPage() {
     } catch (err) {
       console.error("[AuthPage] Staff email OTP error:", err);
       setError(err.message || "Invalid or expired code.");
-      throw err;
     } finally {
       setLoading(false);
     }
@@ -388,7 +381,6 @@ export default function AuthPage() {
     } catch (err) {
       console.error("[AuthPage] Resend staff OTP error:", err);
       setError(err.message || "Could not resend the code.");
-      throw err;
     }
   };
 
@@ -401,7 +393,6 @@ export default function AuthPage() {
     } catch (err) {
       console.error("[AuthPage] Resend OTP error:", err);
       setError(err.message || "Could not resend the code.");
-      throw err;
     }
   };
 
@@ -410,7 +401,7 @@ export default function AuthPage() {
       await setCandidateEmail2faOptIn(optedIn);
     } catch (err) {
       console.error("[AuthPage] 2FA opt-in save error (non-blocking):", err);
-      throw err;
+      // Non-blocking -- don't throw, just log
     } finally {
       setShow2faOptInPopup(false);
       window.location.href = "/";
