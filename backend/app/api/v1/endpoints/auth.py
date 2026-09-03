@@ -108,15 +108,24 @@ def validate_email(request: ValidateEmailRequest, db: Session = Depends(get_db))
     Returns {exists: true/false} so frontend can show appropriate error.
     Password field is optional (only used if provided for Step 2).
     """
+    from sqlalchemy import text
+
     email = request.email.strip().lower()
     user = check_user(db, email)
 
     # Reject users without a role template (must have permissions)
-    if user and not user.role_template_id:
-        raise HTTPException(
-            status_code=403,
-            detail="Your user account doesn't have permissions loaded. Please reach out to help desk.",
-        )
+    if user:
+        # Explicitly query for role_template_id to ensure it's loaded
+        role_template_id = db.execute(
+            text('SELECT role_template_id FROM users WHERE "UserEmail" = :email'),
+            {"email": email}
+        ).scalar()
+
+        if role_template_id is None:
+            raise HTTPException(
+                status_code=403,
+                detail="Your user account doesn't have permissions loaded. Please reach out to help desk.",
+            )
 
     return {"exists": bool(user)}
 
