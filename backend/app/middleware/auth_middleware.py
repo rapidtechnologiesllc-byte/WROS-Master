@@ -19,7 +19,10 @@ class AuthenticationMiddleware(BaseHTTPMiddleware):
     Middleware to handle JWT authentication for protected routes.
     Validates tokens and attaches user information to request state.
     """
-    
+
+    # Timing constants
+    MS_PER_SECOND = 1000
+
     # Routes that don't require authentication. Kept in sync with the
     # ACTUAL registered paths in app/api/v1/endpoints/ -- these had
     # drifted (e.g. "/auth/v1/login" and "/auth/candidate/login" listed
@@ -92,6 +95,10 @@ class AuthenticationMiddleware(BaseHTTPMiddleware):
         "/spartan/phalanx/{phalanx}/integrity",
         "/spartan/timesheets/kpis",
         "/spartan/timesheets/pending",
+        "/linkedin-candidate-pipeline/dashboard/activity",
+        "/linkedin-candidate-pipeline/list",
+        "/linkedin-candidate-pipeline/queue",
+        "/linkedin-candidate-pipeline/status",
     ]
 
     # Route TEMPLATES (FastAPI's {param} syntax) that are public, for
@@ -124,6 +131,8 @@ class AuthenticationMiddleware(BaseHTTPMiddleware):
         "/spartan/jobs/{job_id}",
         "/spartan/phalanx/{phalanx}/integrity",
         "/spartan/kpis/{phalanx}",
+        "/linkedin-candidate-pipeline/{pipeline_id}/complete-import",
+        "/linkedin-candidate-pipeline/{pipeline_id}/status",
     ]
     
     async def dispatch(self, request: Request, call_next: Callable):
@@ -196,8 +205,8 @@ class AuthenticationMiddleware(BaseHTTPMiddleware):
             # Process request
             response = await call_next(request)
             
-            # Log response time
-            process_time = (time.time() - start_time) * 1000
+            # Log response time (convert seconds to milliseconds)
+            process_time = (time.time() - start_time) * self.MS_PER_SECOND
             response.headers["X-Process-Time"] = f"{process_time:.2f}ms"
             
             return response
