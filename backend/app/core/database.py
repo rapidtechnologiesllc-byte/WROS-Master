@@ -35,11 +35,30 @@ import sys
 print(f"[STARTUP] DATABASE_URL={DATABASE_URL[:70]}...", file=sys.stderr)
 print(f"[STARTUP] Connecting to database...", file=sys.stderr)
 
-if not DATABASE_URL.startswith("postgresql://"):
+# 🚨 HARD RULE: PostgreSQL ONLY - Never allow SQLite
+if not DATABASE_URL.startswith("postgresql://") and not DATABASE_URL.startswith("postgresql+psycopg2://"):
     raise ValueError(
-        f"Invalid DATABASE_URL: '{DATABASE_URL[:30]}...'. "
-        "Only PostgreSQL is supported (no SQLite in production). "
-        "Format: postgresql://username:password@host:port/database_name"
+        f"🚨 FATAL: Only PostgreSQL is supported. SQLite is NOT allowed in this codebase.\n"
+        f"Invalid DATABASE_URL: '{DATABASE_URL[:50]}...'\n"
+        f"Detected: {DATABASE_URL.split('://')[0] if '://' in DATABASE_URL else 'unknown'}\n"
+        f"\n"
+        f"REQUIRED FORMAT: postgresql://username:password@host:port/database_name\n"
+        f"EXAMPLE: postgresql://postgres:password@localhost:5432/wros_dev\n"
+        f"\n"
+        f"SQLite causes data corruption and concurrency issues.\n"
+        f"Use PostgreSQL exclusively for ALL environments (dev, test, prod).\n"
+        f"\n"
+        f"Fix: Set DATABASE_URL in .env or .env.local to a PostgreSQL connection string."
+    )
+
+# Additional safety check: reject file:// URLs (SQLite file paths)
+if "sqlite://" in DATABASE_URL.lower() or "file://" in DATABASE_URL.lower():
+    raise ValueError(
+        f"🚨 FATAL: SQLite is NOT allowed in this codebase.\n"
+        f"DATABASE_URL contains SQLite: {DATABASE_URL[:50]}...\n"
+        f"\n"
+        f"REQUIRED: Use PostgreSQL only\n"
+        f"Format: postgresql://username:password@host:port/database_name"
     )
 
 # 🚨 SAFETY CHECK: Prevent production database access from local development
