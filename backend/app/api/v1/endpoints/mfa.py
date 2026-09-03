@@ -24,6 +24,7 @@ from app.core.dependencies import (
     get_current_candidate,
     get_current_candidate_otp_pending,
     get_current_mfa_pending_user,
+    require_resource_permission,
 )
 from app.core.mfa import (
     EMAIL_OTP_TTL_MINUTES,
