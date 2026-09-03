@@ -10,8 +10,9 @@ from app.services.bi_service import (
     get_table_schema,
     query_table,
     get_table_summary,
-import logging
 )
+
+import logging
 
 router = APIRouter(prefix="/bi", tags=["Business Intelligence"])
 

@@ -885,15 +885,6 @@ def test_sharepoint_connection(
                 "authenticated": True,
                 "sharepoint_configured": True
             }
-            
-            except Exception as e:
-                logger.error(f"Error: {str(e)}", exc_info=True)
-        logger.error(f"SharePoint connection test failed: {str(e)}")
-        return {
-            "status": "error",
-            "message": "Connection test failed",
-            "details": str(e)
-        }
 
 
 

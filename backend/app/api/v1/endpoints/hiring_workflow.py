@@ -10,8 +10,9 @@ from app.services.hiring_workflow_service import (
     check_affordability_for_hire,
     create_l2_interview_panel,
     record_no_show_confirmation
-import logging
 )
+
+import logging
 
 router = APIRouter(prefix="/hiring-workflow", tags=["Hiring Workflow"])
 
