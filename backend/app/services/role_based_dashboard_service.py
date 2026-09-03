@@ -1,6 +1,7 @@
 import logging
 from app.core.logging import logger
-﻿"""Role-Based Dashboard Service - Personalized views for CEO, Recruiter, HR, Finance."""
+
+"""Role-Based Dashboard Service - Personalized views for CEO, Recruiter, HR, Finance."""
 
 from sqlalchemy.orm import Session
 from typing import Optional
