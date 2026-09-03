@@ -11,7 +11,7 @@ from pydantic import BaseModel, EmailStr
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_internal_user, get_current_user, require_permission
+from app.core.dependencies import get_current_internal_user, get_current_user, require_permission, require_resource_permission
 from app.core.logging import logger
 from app.models import Candidate, Interview, InterviewPanel, PanelMember, Users
 from app.services.email_service import EmailService
