@@ -25,8 +25,8 @@ from fastapi.responses import PlainTextResponse
 from app.core.database import SessionLocal
 from app.core.dependencies import get_current_internal_user
 from app.core.logging import logger
-from app.services.whatsapp_webhook_service import (
 from app.core.database import get_db
+from app.services.whatsapp_webhook_service import (
     process_delivery_status,
     store_inbound_whatsapp_message,
     validate_signature,

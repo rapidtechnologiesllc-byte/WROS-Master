@@ -45,6 +45,7 @@ logger = logging.getLogger(__name__)
 
 SERVICE_MAILBOX = "helpdesk_hrms@blitzenx.com"
 AI_AGENT_NAME = "HRMS AI Agent"
+AI_AGENT_PERSONA = "Professional recruiter assistant"
 
 # Core field definitions for candidate data
 CANDIDATE_CORE_FIELDS = [
@@ -56,6 +57,15 @@ INFO_FORM_FIELDS = [
     "highest_qualification", "languages", "willing_to_relocate",
     "visa_status", "salary_expectation"
 ]
+
+
+def resolve_thunder_config():
+    """Resolve Thunder configuration."""
+    return {
+        "agent_name": AI_AGENT_NAME,
+        "persona": AI_AGENT_PERSONA,
+        "mailbox": SERVICE_MAILBOX
+    }
 
 
 class AIConversationService:

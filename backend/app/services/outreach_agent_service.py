@@ -36,8 +36,8 @@ from app.models.demand import Demand
 from app.models.outreach import MAX_TOUCHES, OutreachSequence
 from app.services.ai_conversation_service import AI_AGENT_NAME
 from app.services.notification_service import _is_within_business_hours
-from app.services.thunder_service import (
 from app.core.logging import logger
+from app.services.thunder_service import (
     ConsentNotGiven,
     DuplicateMessageSuppressed,
     ThunderPausedError,

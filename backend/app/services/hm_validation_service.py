@@ -9,8 +9,8 @@ from uuid import uuid4
 from typing import Optional, Dict, List
 from enum import Enum
 
-from app.models import (
 from app.core.logging import logger
+from app.models import (
     HiringManagerValidation,
     HMValidationStatus,
     HMValidationResponse,

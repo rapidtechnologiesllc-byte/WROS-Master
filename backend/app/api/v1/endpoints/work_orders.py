@@ -31,8 +31,8 @@ from app.core.database import get_db
 from app.core.dependencies import get_current_internal_user, require_resource_permission
 from app.models.user import Users
 from app.models.work_order import WorkOrder
-from app.schemas.work_order import (
 from app.core.logging import logger
+from app.schemas.work_order import (
     CreateWorkOrderRequest,
     UpdateWorkOrderRequest,
     WorkOrderItem,

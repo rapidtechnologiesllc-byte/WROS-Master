@@ -4,8 +4,8 @@ SURGICAL SPLIT IMPORT FIXER
 Fixes split imports where a line with "import (" is followed by a "from" line.
 
 Pattern to fix:
+from fastapi import Request
   from app.services.foo import (
-  from fastapi import Request
     Bar,
     Baz,
   )

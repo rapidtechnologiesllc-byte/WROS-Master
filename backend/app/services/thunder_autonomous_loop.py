@@ -22,8 +22,8 @@ from sqlalchemy import and_
 from app.models.candidate import Candidate
 from app.models.candidate_ai import CandidateConversation, ConversationEvent
 from app.models.outreach import OutreachSequence
-from app.services.outreach_agent_service import (
 from app.core.logging import logger
+from app.services.outreach_agent_service import (
     start_outreach_sequence,
     advance_outreach_sequence,
     OutreachDebounced,
