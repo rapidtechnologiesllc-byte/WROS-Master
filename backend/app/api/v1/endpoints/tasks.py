@@ -84,7 +84,7 @@ def create_task_endpoint(
 @router.post(
     "/{task_id}/confirm-urgent",
     response_model=TaskResponse,
-    dependencies=[Depends(require_resource_permission("{task_id}", "create"))]
+    dependencies=[Depends(require_resource_permission("tasks", "create"))]
 )
 def confirm_urgent(task_id: int, current_user: Users = Depends(get_current_internal_user), db: Session = Depends(get_db)):
     task = _get_task_or_404(db, task_id)
@@ -94,7 +94,7 @@ def confirm_urgent(task_id: int, current_user: Users = Depends(get_current_inter
 @router.post(
     "/{task_id}/complete",
     response_model=TaskResponse,
-    dependencies=[Depends(require_resource_permission("{task_id}", "create"))]
+    dependencies=[Depends(require_resource_permission("tasks", "create"))]
 )
 def complete(task_id: int, current_user: Users = Depends(get_current_internal_user), db: Session = Depends(get_db)):
     task = _get_task_or_404(db, task_id)

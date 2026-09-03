@@ -184,7 +184,7 @@ def _to_detail_response(db: Session, client: Client) -> ClientDetailResponse:
 @router.get(
     "/{client_id}",
     response_model=ClientDetailResponse,
-    dependencies=[Depends(require_resource_permission("{client_id}", "view"))]
+    dependencies=[Depends(require_resource_permission("clients", "view"))]
 )
 def get_client_endpoint(
     client_id: str,
@@ -200,7 +200,7 @@ def get_client_endpoint(
 @router.get(
     "/{client_id}/contacts",
     response_model=ClientContactsListResponse,
-    dependencies=[Depends(require_resource_permission("{client_id}", "view"))]
+    dependencies=[Depends(require_resource_permission("clients", "view"))]
 )
 def list_client_contacts_endpoint(
     client_id: str,
@@ -218,7 +218,7 @@ def list_client_contacts_endpoint(
     "/{client_id}/contacts",
     response_model=ClientContactResponse,
     status_code=201,
-    dependencies=[Depends(require_resource_permission("{client_id}", "create"))]
+    dependencies=[Depends(require_resource_permission("clients", "create"))]
 )
 def add_client_contact_endpoint(
     client_id: str,
@@ -243,7 +243,7 @@ def add_client_contact_endpoint(
 @router.patch(
     "/{client_id}",
     response_model=ClientDetailResponse,
-    dependencies=[Depends(require_resource_permission("{client_id}", "update"))]
+    dependencies=[Depends(require_resource_permission("clients", "update"))]
 )
 def update_client_endpoint(
     client_id: str,

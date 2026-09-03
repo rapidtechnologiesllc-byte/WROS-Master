@@ -181,7 +181,7 @@ def get_pipeline(
 @router.get(
     "/{opportunity_id}",
     response_model=OpportunityItem,
-    dependencies=[Depends(require_resource_permission("{opportunity_id}", "view"))]
+    dependencies=[Depends(require_resource_permission("opportunities", "view"))]
 )
 def get_opportunity(
     opportunity_id: str,
@@ -197,7 +197,7 @@ def get_opportunity(
 @router.post(
     "/{opportunity_id}/transition",
     response_model=OpportunityStageTransitionResponse,
-    dependencies=[Depends(require_resource_permission("{opportunity_id}", "create"))]
+    dependencies=[Depends(require_resource_permission("opportunities", "create"))]
 )
 def transition_opportunity_stage(
     opportunity_id: str,
@@ -229,7 +229,7 @@ def transition_opportunity_stage(
 
 @router.get(
     "/{opportunity_id}/revenue-rollup",
-    dependencies=[Depends(require_resource_permission("{opportunity_id}", "view"))]
+    dependencies=[Depends(require_resource_permission("opportunities", "view"))]
 )
 def get_revenue_rollup(
     opportunity_id: str,
@@ -246,7 +246,7 @@ def get_revenue_rollup(
     "/{opportunity_id}/role-demand",
     response_model=RoleDemandFromOpportunityResponse,
     status_code=201,
-    dependencies=[Depends(require_resource_permission("{opportunity_id}", "create"))]
+    dependencies=[Depends(require_resource_permission("opportunities", "create"))]
 )
 def create_role_demand(
     opportunity_id: str,

@@ -246,7 +246,7 @@ def clear_message(message_id: str, db: Session = Depends(get_db)) -> Dict[str, A
 
 @router.post(
     "/{queue_type}/start",
-    dependencies=[Depends(require_resource_permission("{queue_type}", "create"))]
+    dependencies=[Depends(require_resource_permission("queue", "create"))]
 )
 def start_queue(queue_type: str, db: Session = Depends(get_db)) -> Dict[str, Any]:
     """Start processing a queue - mark all pending messages as active for processing."""
@@ -273,7 +273,7 @@ def start_queue(queue_type: str, db: Session = Depends(get_db)) -> Dict[str, Any
 
 @router.post(
     "/{queue_type}/stop",
-    dependencies=[Depends(require_resource_permission("{queue_type}", "create"))]
+    dependencies=[Depends(require_resource_permission("queue", "create"))]
 )
 def stop_queue(queue_type: str, db: Session = Depends(get_db)) -> Dict[str, Any]:
     """Stop processing a queue - pause all pending messages."""
@@ -300,7 +300,7 @@ def stop_queue(queue_type: str, db: Session = Depends(get_db)) -> Dict[str, Any]
 
 @router.post(
     "/{queue_type}/retry",
-    dependencies=[Depends(require_resource_permission("{queue_type}", "create"))]
+    dependencies=[Depends(require_resource_permission("queue", "create"))]
 )
 def retry_queue(queue_type: str, db: Session = Depends(get_db)) -> Dict[str, Any]:
     """Retry all failed messages in a queue."""

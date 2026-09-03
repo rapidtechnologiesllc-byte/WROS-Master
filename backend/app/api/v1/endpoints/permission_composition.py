@@ -124,7 +124,7 @@ def validate_permissions(
 
 @router.get(
     "/{template_id}/tree",
-    dependencies=[Depends(require_resource_permission("{template_id}", "view"))]
+    dependencies=[Depends(require_resource_permission("permission_composition", "view"))]
 )
 def get_permission_tree(
     template_id: int,

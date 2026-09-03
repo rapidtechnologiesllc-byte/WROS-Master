@@ -96,7 +96,7 @@ def list_templates_endpoint(
 @router.get(
     "/{template_id}",
     response_model=TemplateResponse,
-    dependencies=[Depends(require_resource_permission("{template_id}", "view"))]
+    dependencies=[Depends(require_resource_permission("message_templates", "view"))]
 )
 def get_template_endpoint(
     template_id: int,
@@ -130,7 +130,7 @@ def activate_template_endpoint(
 @router.get(
     "/{template_id}/preview",
     response_model=TemplatePreviewResponse,
-    dependencies=[Depends(require_resource_permission("{template_id}", "view"))]
+    dependencies=[Depends(require_resource_permission("message_templates", "view"))]
 )
 def preview_template_endpoint(
     template_id: int,

@@ -49,7 +49,7 @@ def _to_item(n: Notification) -> NotificationItem:
     "",
     response_model=NotificationListResponse,
     summary="This user's in-app notification feed + unread count",
-    dependencies=[Depends(require_resource_permission(", response_model=NotificationListResponse, summary=", "view"))]
+    dependencies=[Depends(require_resource_permission("notifications", "view"))]
 )
 def list_notifications(
     db: Session = Depends(get_db),
@@ -64,7 +64,7 @@ def list_notifications(
     "/{notification_id}/mark-read",
     response_model=NotificationItem,
     summary="Mark one notification read",
-    dependencies=[Depends(require_resource_permission("{notification_id}", "create"))]
+    dependencies=[Depends(require_resource_permission("notifications", "create"))]
 )
 def mark_notification_read(
     notification_id: str,

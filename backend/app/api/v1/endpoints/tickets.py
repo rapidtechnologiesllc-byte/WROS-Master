@@ -68,7 +68,7 @@ def get_categories(current_user: Users = Depends(get_current_internal_user), db:
 @router.post(
     "/{task_id}/first-response",
     response_model=TicketDetailResponse,
-    dependencies=[Depends(require_resource_permission("{task_id}", "create"))]
+    dependencies=[Depends(require_resource_permission("tickets", "create"))]
 )
 def first_response(task_id: int, current_user: Users = Depends(get_current_internal_user), db: Session = Depends(get_db)):
     task = db.query(Task).filter(Task.id == task_id, Task.task_type == "TICKET").first()
@@ -83,7 +83,7 @@ def first_response(task_id: int, current_user: Users = Depends(get_current_inter
 @router.get(
     "/{task_id}/detail",
     response_model=TicketDetailResponse,
-    dependencies=[Depends(require_resource_permission("{task_id}", "view"))]
+    dependencies=[Depends(require_resource_permission("tickets", "view"))]
 )
 def get_ticket_detail(task_id: int, current_user: Users = Depends(get_current_internal_user), db: Session = Depends(get_db)):
     detail = db.query(TicketDetail).filter(TicketDetail.task_id == task_id).first()

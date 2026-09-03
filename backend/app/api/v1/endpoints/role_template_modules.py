@@ -57,7 +57,7 @@ def list_modules_and_resources(
 
 @router.get(
     "/{module_id}/resources",
-    dependencies=[Depends(require_resource_permission("{module_id}", "view"))]
+    dependencies=[Depends(require_resource_permission("role_template_modules", "view"))]
 )
 def get_module_resources(
     module_id: int,

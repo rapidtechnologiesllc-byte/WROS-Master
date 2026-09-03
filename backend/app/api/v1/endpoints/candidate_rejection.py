@@ -137,7 +137,7 @@ def api_reject_candidate(
 @router.post(
     "/{rejection_id}/send-email",
     response_model=SendRejectionEmailResponse,
-    dependencies=[Depends(require_resource_permission("{rejection_id}", "create"))]
+    dependencies=[Depends(require_resource_permission("candidate_rejection", "create"))]
 )
 def api_send_rejection_email(
     rejection_id: int,
@@ -206,7 +206,7 @@ def api_send_rejection_email(
 @router.post(
     "/{rejection_id}/archive",
     response_model=ArchiveCandidateResponse,
-    dependencies=[Depends(require_resource_permission("{rejection_id}", "create"))]
+    dependencies=[Depends(require_resource_permission("candidate_rejection", "create"))]
 )
 def api_archive_candidate(
     rejection_id: int,
@@ -379,7 +379,7 @@ def api_get_candidate_rejection_status(
 @router.get(
     "/{rejection_id}",
     response_model=CandidateRejectionResponse,
-    dependencies=[Depends(require_resource_permission("{rejection_id}", "view"))]
+    dependencies=[Depends(require_resource_permission("candidate_rejection", "view"))]
 )
 def api_get_rejection(
     rejection_id: int,

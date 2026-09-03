@@ -207,7 +207,7 @@ async def list_validations(
 @router.get(
     "/{validation_id}",
     response_model=HMValidationDetailResponse,
-    dependencies=[Depends(require_resource_permission("{validation_id}", "view"))]
+    dependencies=[Depends(require_resource_permission("hiring_manager_validation", "view"))]
 )
 async def get_validation(validation_id: str, db=None):
     """
@@ -260,7 +260,7 @@ async def get_validation(validation_id: str, db=None):
 @router.post(
     "/{validation_id}/respond",
     response_model=HMValidationDecisionResponse,
-    dependencies=[Depends(require_resource_permission("{validation_id}", "create"))]
+    dependencies=[Depends(require_resource_permission("hiring_manager_validation", "create"))]
 )
 async def submit_validation_response(
     validation_id: str,
@@ -361,7 +361,7 @@ async def submit_validation_response(
 
 @router.put(
     "/{validation_id}/remind",
-    dependencies=[Depends(require_resource_permission("{validation_id}", "update"))]
+    dependencies=[Depends(require_resource_permission("hiring_manager_validation", "update"))]
 )
 async def send_reminder(validation_id: str, db=None):
     """
@@ -409,7 +409,7 @@ async def send_reminder(validation_id: str, db=None):
 
 @router.get(
     "/{validation_id}/audit-trail",
-    dependencies=[Depends(require_resource_permission("{validation_id}", "view"))]
+    dependencies=[Depends(require_resource_permission("hiring_manager_validation", "view"))]
 )
 async def get_audit_trail(validation_id: str, db=None):
     """

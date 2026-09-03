@@ -106,7 +106,7 @@ def list_role_templates(
 
 @router.get(
     "/{template_id}",
-    dependencies=[Depends(require_resource_permission("{template_id}", "view"))]
+    dependencies=[Depends(require_resource_permission("role_templates", "view"))]
 )
 def get_role_template(
     template_id: int,
@@ -225,7 +225,7 @@ def create_role_template(
 
 @router.put(
     "/{template_id}",
-    dependencies=[Depends(require_resource_permission("{template_id}", "update"))]
+    dependencies=[Depends(require_resource_permission("role_templates", "update"))]
 )
 def update_role_template(
     template_id: int,
@@ -300,7 +300,7 @@ def update_role_template(
 
 @router.post(
     "/{template_id}/grant-permission",
-    dependencies=[Depends(require_resource_permission("{template_id}", "create"))]
+    dependencies=[Depends(require_resource_permission("role_templates", "create"))]
 )
 def grant_permission(
     template_id: int,
@@ -371,7 +371,7 @@ def grant_permission(
 
 @router.post(
     "/{template_id}/revoke-permission",
-    dependencies=[Depends(require_resource_permission("{template_id}", "create"))]
+    dependencies=[Depends(require_resource_permission("role_templates", "create"))]
 )
 def revoke_permission(
     template_id: int,
@@ -434,7 +434,7 @@ def revoke_permission(
 
 @router.delete(
     "/{template_id}",
-    dependencies=[Depends(require_resource_permission("{template_id}", "delete"))]
+    dependencies=[Depends(require_resource_permission("role_templates", "delete"))]
 )
 def delete_role_template(
     template_id: int,
@@ -477,7 +477,7 @@ def delete_role_template(
 
 @router.post(
     "/{template_id}/toggle-status",
-    dependencies=[Depends(require_resource_permission("{template_id}", "create"))]
+    dependencies=[Depends(require_resource_permission("role_templates", "create"))]
 )
 def toggle_template_status(
     template_id: int,
@@ -581,7 +581,7 @@ def create_business_unit_rbac(
 
 @router.get(
     "/{template_id}/audit-trail",
-    dependencies=[Depends(require_resource_permission("{template_id}", "view"))]
+    dependencies=[Depends(require_resource_permission("role_templates", "view"))]
 )
 def get_template_audit_trail(
     template_id: int,
@@ -612,7 +612,7 @@ def get_template_audit_trail(
 
 @router.get(
     "/{template_id}/users",
-    dependencies=[Depends(require_resource_permission("{template_id}", "view"))]
+    dependencies=[Depends(require_resource_permission("role_templates", "view"))]
 )
 def get_users_for_role_template(
     template_id: int,

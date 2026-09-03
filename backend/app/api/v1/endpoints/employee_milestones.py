@@ -62,7 +62,7 @@ def _to_item(m: EmployeeMilestone) -> EmployeeMilestoneItem:
     "",
     response_model=EmployeeMilestoneItem,
     summary="Create a milestone (PERSONAL/PROJECT/ORG)",
-    dependencies=[Depends(require_resource_permission(", response_model=EmployeeMilestoneItem, summary=", "create"))]
+    dependencies=[Depends(require_resource_permission("employee_milestones", "create"))]
 )
 def create_milestone_endpoint(
     body: CreateEmployeeMilestoneRequest,
