@@ -59,8 +59,8 @@ def create_cycle(body: FeedbackCycleCreateRequest, db: Session = Depends(get_db)
 
 @router.post("/feedback-cycles/{cycle_id}/close", dependencies=[Depends(get_current_internal_user)])
 def close_cycle(cycle_id: str, current_user: Users = Depends(get_current_internal_user), db: Session = Depends(get_db)):
-        if not current_user:
-            raise HTTPException(status_code=401, detail="Authentication required")
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Authentication required")
     cycle = db.query(EmployeeFeedbackCycle).filter(EmployeeFeedbackCycle.id == cycle_id).first()
     if not cycle:
         raise HTTPException(status_code=404, detail=f"Feedback cycle {cycle_id!r} not found.")

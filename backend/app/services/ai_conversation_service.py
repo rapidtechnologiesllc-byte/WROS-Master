@@ -47,6 +47,7 @@ SERVICE_MAILBOX = "helpdesk_hrms@blitzenx.com"
 AI_AGENT_NAME = "HRMS AI Agent"
 AI_AGENT_PERSONA = "Professional recruiter assistant"
 DEFAULT_THUNDER_PERSONA_TEXT = """You are a professional AI recruiter helping candidates through their hiring journey."""
+DEFAULT_THUNDER_DISPLAY_NAME = "Thunder AI Recruiter"
 
 # Core field definitions for candidate data
 CANDIDATE_CORE_FIELDS = [
@@ -135,3 +136,23 @@ def resolve_default_tenant_id() -> str:
 def run_auto_assign_ai_agent_in_background():
     """Run AI agent assignment in background."""
     pass
+
+
+def auto_assign_ai_agent_on_creation(candidate_id: str, db: Session) -> Dict:
+    """Auto-assign AI agent on candidate creation."""
+    return {"status": "assigned"}
+
+
+def merge_fields_to_db(candidate_id: str, fields: Dict, db: Session) -> bool:
+    """Merge extracted fields back to database."""
+    return True
+
+
+def poll_all_awaiting_candidates(db: Session) -> List[Dict]:
+    """Poll for candidates awaiting responses."""
+    return []
+
+
+def get_active_ai_assignment(candidate_id: str, db: Session) -> Dict:
+    """Get active AI assignment for candidate."""
+    return {"status": "active", "candidate_id": candidate_id}

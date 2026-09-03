@@ -1,5 +1,4 @@
 """
-import logging
 S-215/HRMS-0117 -- Error Logging Framework.
 
 log_error() is the one function that writes a real, DB-queryable
@@ -12,6 +11,7 @@ elsewhere this session) -- pages the first Super User, same
 resolve_default_tenant_id()-style convention already established.
 """
 import json
+import logging
 import traceback
 from typing import List, Optional
 
