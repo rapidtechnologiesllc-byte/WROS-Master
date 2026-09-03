@@ -1,35 +1,34 @@
-"""
+“””
 AI Conversation Agent Service
 ==============================
-import logging
 Core brain for the email-based AI hiring agent.
 
 Responsibilities:
   1. Detect missing fields in the candidate record (core table + info form only,
-     NOT Aadhar/PAN â€” those are handled as document uploads).
+     NOT Aadhar/PAN – those are handled as document uploads).
   2. Build and send a branded missing-fields email to the candidate.
   3. Poll the service mailbox (helpdesk_hrms@blitzenx.com) via Microsoft Graph
      to read candidate replies.
   4. Use Gemini to parse the reply and extract field values.
   5. Merge extracted values back into the candidates / candidate_forms tables.
   6. Log every action as a ConversationEvent.
-"""
+“””
 
 import json
 import os
 import re
+import logging
 import requests
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 
-from fastapi import HTTPException
+from fastapi import HTTPException, Depends
 from sqlalchemy.orm import Session
 
 from app.core.graph_auth import get_graph_token
 from app.core.llm_prompt_safety import build_safe_prompt, flag_suspicious_patterns
 from app.core.logging import logger
 from app.models.candidate import (
-from fastapi import Depends
     Candidate,
     CandidateInfoForm,
     CandidateExperienceForm,
