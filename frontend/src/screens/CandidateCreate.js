@@ -24,7 +24,7 @@ import {
   inferFieldsFromResumeText,
 } from "../utils/resumeAutofill";
 import { assignJob, getAllJobs } from "../services/api/jobs";
-import { mapJobFromApi } from "../App";
+import { mapJobFromApi } from "../utils/jobMappers";
 import { ScreenLevelBanner, useScreenBanner, ValidationSummary } from "../components/ScreenLevelBanner";
 import { useNavigate } from "react-router-dom";
 import { useRef } from "react";
@@ -132,7 +132,8 @@ export default function CandidateCreate({ onBack, onSave }) {
         keyword => jobTitle.includes(keyword) || department.includes(keyword)
       );
     } catch (error) {
-      return false;
+      console.error('Failed to check recruiter status:', error);
+      throw new Error(`Failed to determine user role: ${error.message}`);
     }
   };
 

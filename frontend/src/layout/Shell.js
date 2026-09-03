@@ -34,10 +34,8 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { Outlet } from "react-router-dom";
 import {
   hasPermission,
-  getPermissions,
-  getRoles,
-  isSuperUser,
-  isAdmin,
+  getUserPermissions,
+  isSuperAdmin,
   canViewModule,
   loadRoleTemplateModules,
   filterNavigationByModules,
@@ -280,6 +278,9 @@ export default function Shell({
         }
       } catch (error) {
         console.debug(`Permission refresh attempt ${retryCount + 1} failed:`, error);
+        if (retryCount >= MAX_RETRIES - 1) {
+          throw new Error(`Failed to refresh permissions after ${MAX_RETRIES} attempts: ${error.message}`);
+        }
       }
       return false; // Failed, continue retrying
     };
@@ -322,8 +323,9 @@ export default function Shell({
         return Object.keys(stored);
       }
       return Array.isArray(stored) ? stored : [];
-    } catch {
-      return [];
+    } catch (err) {
+      console.error('Failed to parse cached permissions:', err);
+      throw new Error(`Permission cache is corrupted: ${err.message}`);
     }
   })();
 

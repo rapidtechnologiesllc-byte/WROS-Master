@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "antd": "^5.15.0",
+    "axios": "^1.6.5",
     "country-state-city": "^3.2.1",
     "dayjs": "^1.11.21",
     "docx-preview": "^0.3.7",

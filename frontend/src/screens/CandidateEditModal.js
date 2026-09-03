@@ -8,7 +8,7 @@ import {
   inferFieldsFromResumeText,
 } from "../utils/resumeAutofill";
 import { assignJob, getAllJobs } from "../services/api/jobs";
-import { mapJobFromApi } from "../App";
+import { mapJobFromApi } from "../utils/jobMappers";
 import { toast } from "react-toastify";
 
 function splitFullName(full) {

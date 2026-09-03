@@ -14,7 +14,7 @@ import {
   SelectWrapper,
   StyledSelect,
 } from "../styles/CandidateAssignJobModalStyles";
-import { mapJobFromApi } from "../routes/Approutes";
+import { mapJobFromApi } from "../utils/jobMappers";
 
 const getTodayDate = () => {
   const today = new Date();
@@ -292,6 +292,7 @@ const CandidateAssignJobModal = ({
         setSelectedHr1Id(response?.user_id ?? "");
       } catch (error) {
         console.error("Failed to load HR details", error);
+        throw new Error(`Failed to fetch HR details: ${error.message}`);
       }
     };
     fetchDefaultHr();

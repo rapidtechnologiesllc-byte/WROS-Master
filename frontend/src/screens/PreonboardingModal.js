@@ -66,7 +66,7 @@ import { sendMailAttachments } from "../services/api/email";
 import OfferConfirmationEmail from "../utils/offerLetterTemplate";
 import SignatureModal from "../components/ui/SignatureModal";
 import { dayjs } from "dayjs";
-import { mapJobFromApi } from "../routes/Approutes";
+import { mapJobFromApi } from "../utils/jobMappers";
 
 const PreonboardingModal = ({
   fullName,
@@ -183,7 +183,8 @@ const PreonboardingModal = ({
         );
         setJobs(mappedJobs);
       } catch (err) {
-        console.error(err);
+        console.error("Failed to load preonboarding jobs:", err);
+        throw new Error(`Failed to fetch preonboarding jobs: ${err.message}`);
       }
     };
     fetchData();
