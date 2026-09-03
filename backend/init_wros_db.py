@@ -11,7 +11,7 @@ from app.models.tenant import Tenant
 from app.models.user import Users, Jobs
 from app.models.candidate import Candidate
 from app.core.security import get_password_hash
-from app.services.role_template_seed import seed_role_templates, assign_users_to_role_templates
+from app.services.rbac_template_init_service import init_rbac_template_system
 from datetime import datetime, timedelta
 import uuid
 import random
@@ -48,7 +48,7 @@ def init_database():
 
         # Initialize RBAC template system (modules, resources, role templates)
         print("\n[2b] Initializing RBAC template system...")
-        seed_role_templates(db, tenant_id)
+        init_rbac_template_system(db, tenant_id)
         print("    [OK] RBAC templates initialized")
 
         # Create users with job titles (role templates will be created via UI)
@@ -90,13 +90,8 @@ def init_database():
         db.commit()
         print(f"    [SUMMARY] {created_count} users created/updated")
 
-        # Assign role templates to users that don't have one
-        print("\n[3b] Assigning role templates to users...")
-        assign_users_to_role_templates(db, tenant_id)
-        print("    [OK] Role templates assigned")
-
         # Create jobs
-        print("\n[4] Setting up jobs (requires role templates assigned to users)...")
+        print("\n[4] Setting up jobs...")
         job_titles = [
             "Senior Guidewire Developer",
             "Guidewire InsuranceSuite Architect",
@@ -183,12 +178,12 @@ def init_database():
             print(f"  - {user['email']} / {user['password']}")
 
     except Exception as e:
-        logger.error(f"Database initialization failed: {str(e)}", exc_info=True)
-        print(f"\n[ERROR] Database initialization failed: {e}")
+        logger.error(f"Error: {str(e)}", exc_info=True)
+        logger.error(f"Error: {str(e)}", exc_info=True)
+        print(f"\n[ERROR] {e}")
         import traceback
         traceback.print_exc()
         db.rollback()
-        raise
     finally:
         db.close()
 
