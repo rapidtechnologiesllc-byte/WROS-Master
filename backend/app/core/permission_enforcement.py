@@ -35,9 +35,9 @@ def require_permission(permission: str):
     Usage:
     @router.get("/candidates")
     @require_permission("candidates.view")
-    async def get_candidates(db: Session = Depends(get_db),
-                            current_user: Users = Depends(get_current_internal_user)):
-        ...
+        async def get_candidates(db: Session = Depends(get_db),
+                                current_user: Users = Depends(get_current_internal_user)):
+            ...
 
     Args:
         permission: Permission string in format 'resource.action' (e.g., 'candidates.view')
@@ -75,9 +75,9 @@ def require_permission(permission: str):
             # Call the original function
             return await func(*args, **kwargs) if hasattr(func, '__await__') else func(*args, **kwargs)
 
-        @wraps(func)
-        def sync_wrapper(*args, **kwargs):
-            db = kwargs.get("db")
+    @wraps(func)
+    def sync_wrapper(*args, **kwargs):
+        db = kwargs.get("db")
             current_user = kwargs.get("current_user")
 
             if not db or not current_user:
@@ -112,6 +112,7 @@ def require_permission(permission: str):
             return async_wrapper
         else:
             return sync_wrapper
+
 
     return decorator
 
@@ -158,7 +159,7 @@ def require_any_permission(permissions: List[str]):
 
     @wraps(func)
     def sync_wrapper(*args, **kwargs):
-            db = kwargs.get("db")
+        db = kwargs.get("db")
             current_user = kwargs.get("current_user")
 
             if not db or not current_user:
@@ -235,7 +236,7 @@ def require_all_permissions(permissions: List[str]):
 
     @wraps(func)
     def sync_wrapper(*args, **kwargs):
-            db = kwargs.get("db")
+        db = kwargs.get("db")
             current_user = kwargs.get("current_user")
 
             if not db or not current_user:
