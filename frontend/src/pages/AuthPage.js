@@ -67,7 +67,7 @@ export default function AuthPage() {
       }
     } catch (err) {
       console.error("[AuthPage] Email validation error:", err);
-      setError(err.message || "Unable to validate email. Please try again.");
+      setError(err.message || "Unable to validate email. Please try again or contact the help desk if the problem persists.");
     } finally {
       setLoading(false);
     }
@@ -220,7 +220,7 @@ export default function AuthPage() {
     window.location.href = redirectPath;
     } catch (error) {
       console.error("[AuthPage] finishLogin error:", error);
-      setError(error.message || "Login failed. Please try again.");
+      setError(error.message || "Login failed. Please try again or contact the help desk if the problem persists.");
     }
   };
 
@@ -293,7 +293,7 @@ export default function AuthPage() {
       }
     } catch (err) {
       console.error("[AuthPage] Login error:", err);
-      setError(err.message || "Login failed.");
+      setError(err.message || "Login failed. Please try again or contact the help desk if the problem persists.");
     } finally {
       setLoading(false);
     }

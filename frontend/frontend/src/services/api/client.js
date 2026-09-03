@@ -17,9 +17,28 @@ const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || "http://localhost:808
 export const getApiBaseUrl = () => API_BASE_URL;
 
 // FastAPI/Pydantic often returns { detail: [...] } or { detail: "msg" } on 4xx/5xx.
-export const formatApiErrorMessage = (payload) => {
+export const formatApiErrorMessage = (payload, statusCode) => {
   if (!payload || typeof payload !== "object") {
-    return "Request failed.";
+    // For all non-payload errors, show appropriate message
+    if (statusCode === 500) {
+      return "An unexpected error occurred. Please contact the help desk if this persists.";
+    }
+    if (statusCode === 504) {
+      return "The backend service is not responding. Please try again or contact the help desk if the problem continues.";
+    }
+    if (statusCode === 401) {
+      return "Your session has expired. Please sign in again.";
+    }
+    if (statusCode === 403) {
+      return "You do not have permission to perform this action. Please contact the help desk if you believe this is an error.";
+    }
+    if (statusCode === 404) {
+      return "The requested resource was not found. Please verify the information and try again.";
+    }
+    if (statusCode === 400) {
+      return "Invalid request. Please check your input and try again.";
+    }
+    return "An error occurred while processing your request. Please try again or contact the help desk if the problem persists.";
   }
   const rawDetail = payload.detail;
   const rawMessage = payload.message;
@@ -45,11 +64,7 @@ export const formatApiErrorMessage = (payload) => {
     }
     if (typeof detail === "object" && detail.msg) return String(detail.msg);
     if (typeof detail === "object") {
-      try {
-        return JSON.stringify(detail);
-      } catch {
-        return "Request failed.";
-      }
+      return JSON.stringify(detail);
     }
     return String(detail);
   };
@@ -57,7 +72,27 @@ export const formatApiErrorMessage = (payload) => {
   const fromDetail = formatDetail(rawDetail);
   if (fromDetail) return fromDetail;
   if (typeof rawMessage === "string" && rawMessage.trim()) return rawMessage;
-  return "Request failed.";
+
+  // Default messages based on status code
+  if (statusCode === 500) {
+    return "An unexpected error occurred. Please contact the help desk if this persists.";
+  }
+  if (statusCode === 504) {
+    return "The backend service is not responding. Please try again or contact the help desk if the problem continues.";
+  }
+  if (statusCode === 401) {
+    return "Your session has expired. Please sign in again.";
+  }
+  if (statusCode === 403) {
+    return "You do not have permission to perform this action. Please contact the help desk if you believe this is an error.";
+  }
+  if (statusCode === 404) {
+    return "The requested resource was not found. Please verify the information and try again.";
+  }
+  if (statusCode === 400) {
+    return "Invalid request. Please check your input and try again.";
+  }
+  return "An error occurred while processing your request. Please try again or contact the help desk if the problem persists.";
 };
 
 /** Clears stored auth and sends the user to the login screen (same keys as App `handleLogout`). */
@@ -142,7 +177,8 @@ export const apiRequest = async (path, options = {}) => {
   try {
     data = await response.json();
   } catch (err) {
-    data = null;
+    console.error(`[API] ${method} ${path} - Failed to parse JSON response: ${err.message}`);
+    throw new Error(`Failed to parse API response: ${err.message}`);
   }
 
   console.log(`[API] ${method} ${path} - Status: ${response.status}`, data);
@@ -166,7 +202,7 @@ export const apiRequest = async (path, options = {}) => {
       clearAuthSessionAndRedirectToLogin();
       throw new Error("Your session has expired. Please sign in again.");
     }
-    const message = formatApiErrorMessage(data);
+    const message = formatApiErrorMessage(data, response.status);
     console.error(`[API] Error ${response.status} for ${path}: ${message}`, data);
     const error = new Error(message);
     error.status = response.status;
