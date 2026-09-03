@@ -110,6 +110,14 @@ def validate_email(request: ValidateEmailRequest, db: Session = Depends(get_db))
     """
     email = request.email.strip().lower()
     user = check_user(db, email)
+
+    # Reject users without a role template (must have permissions)
+    if user and not user.role_template_id:
+        raise HTTPException(
+            status_code=403,
+            detail="Your user account doesn't have permissions loaded. Please reach out to help desk.",
+        )
+
     return {"exists": bool(user)}
 
 @router.post("/login", response_model=UnifiedLoginResponse)
@@ -133,7 +141,14 @@ def unified_login(request: UnifiedLoginRequest, db: Session = Depends(get_db)):
     logger.warning(f"[LOGIN] unified_login attempt for email='{request.email}'")
 
     # ── 1. Try authenticating as a User first ───────────────────
-    user = authenticate_user(db, request.email, request.password)
+    try:
+        user = authenticate_user(db, request.email, request.password)
+    except Exception as e:
+        logger.error(f"[LOGIN] authenticate_user threw exception: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid email or password",
+        )
     logger.info(f"[LOGIN] authenticate_user returned: {type(user).__name__ if user else 'False'}")
     if user:
         # Get authoritative role_template_id from database (ORM not loading correctly)
@@ -274,7 +289,14 @@ def unified_login(request: UnifiedLoginRequest, db: Session = Depends(get_db)):
         )
 
     # ── 2. Fall back to Candidate ────────────────────────────────
-    candidate = authenticate_candidate(db, request.email, request.password)
+    try:
+        candidate = authenticate_candidate(db, request.email, request.password)
+    except Exception as e:
+        logger.error(f"[LOGIN] authenticate_candidate threw exception: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid email or password",
+        )
     if candidate:
         name_parts = [
             candidate.candidateFirstName,
