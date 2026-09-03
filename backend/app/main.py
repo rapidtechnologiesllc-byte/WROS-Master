@@ -6,7 +6,7 @@ import logging
 from pathlib import Path
 
 from app.core.config import settings
-from app.core.database import engine
+from app.core.database import engine, SessionLocal
 from app.core.logging import logger
 from app.models.base import Base
 from app.api.v1.routes import router
@@ -169,7 +169,6 @@ async def startup_event():
     #                 "The app will run but role/permission data may be incomplete."
     #             )
     #     except Exception as exc:
-    logger.error(f"Error: {str(exc)}", exc_info=True)
     #         logger.error(f"[Startup] Non-retryable error during RBAC seed: {exc}", exc_info=True)
 
     logger.info(f"[OK] {settings.APP_NAME} v{settings.APP_VERSION} started successfully (no seed data)")
