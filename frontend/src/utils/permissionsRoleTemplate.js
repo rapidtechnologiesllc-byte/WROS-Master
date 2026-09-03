@@ -12,7 +12,7 @@ export const getStoredPermissions = () => {
     // Could be array (legacy) or object (role template)
     return parsed;
   } catch (e) {
-    console.warn('Failed to parse permissions:', e);
+    console.error('Failed to parse permissions from localStorage:', e);
     return null;
   }
 };
@@ -63,6 +63,15 @@ export const canDelete = (resourceName) => {
 };
 
 export const hasPermission = (resourceName, action) => {
+  const permissions = getStoredPermissions();
+  if (!permissions) return false;
+
+  // Handle array-based permissions (array of permission strings)
+  if (Array.isArray(permissions)) {
+    return permissions.includes(resourceName);
+  }
+
+  // Handle object-based permissions (resource_name: {can_view: true, ...})
   const actionMap = {
     'view': canView,
     'create': canCreate,
