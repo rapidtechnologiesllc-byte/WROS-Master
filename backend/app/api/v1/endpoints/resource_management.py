@@ -122,7 +122,7 @@ def _get_recommendation_or_404(db: Session, recommendation_id: str) -> BenchAllo
 
 @router.post(
     "/scan",
-    dependencies=[Depends(get_current_user)],
+    dependencies=[Depends(get_current_internal_user)],
     response_model=ScanTriggerResponse,
     summary="Trigger one Resource Management Agent bench-scan cycle",
 )
@@ -137,7 +137,7 @@ def trigger_scan(
 
 @router.get(
     "/recommendations",
-    dependencies=[Depends(get_current_user)],
+    dependencies=[Depends(get_current_internal_user)],
     response_model=RecommendationQueueResponse,
     summary="Get the pending bench-allocation recommendation queue",
 )
@@ -151,7 +151,7 @@ def get_queue(
 
 @router.post(
     "/recommendations/{recommendation_id}/pursue",
-    dependencies=[Depends(get_current_user)],
+    dependencies=[Depends(get_current_internal_user)],
     response_model=RecommendationActionResponse,
     summary="Start actively pursuing a recommendation (interview stage)",
     description=(
@@ -182,7 +182,7 @@ def pursue_recommendation(
 
 @router.post(
     "/recommendations/{recommendation_id}/approve",
-    dependencies=[Depends(get_current_user)],
+    dependencies=[Depends(get_current_internal_user)],
     response_model=ApproveRecommendationResponse,
     summary="Approve a recommendation and create the real allocation",
 )
@@ -209,7 +209,7 @@ def approve_recommendation(
 
 @router.post(
     "/recommendations/{recommendation_id}/reject",
-    dependencies=[Depends(get_current_user)],
+    dependencies=[Depends(get_current_internal_user)],
     response_model=RecommendationActionResponse,
     summary="Reject a recommendation",
 )
@@ -232,7 +232,7 @@ def reject_recommendation(
 
 @router.get(
     "/employees/{employee_id}/actively-engaged",
-    dependencies=[Depends(get_current_user)],
+    dependencies=[Depends(get_current_internal_user)],
     summary="Check whether an employee is currently IN_PROGRESS on another recommendation",
 )
 def check_actively_engaged(
@@ -245,7 +245,7 @@ def check_actively_engaged(
 
 @router.get(
     "/demands/{demand_id}/matching-bench-resources",
-    dependencies=[Depends(get_current_user)],
+    dependencies=[Depends(get_current_internal_user)],
     response_model=MatchBenchResourcesResponse,
     summary="Top bench candidates for a demand, by skill match (S-253)",
 )

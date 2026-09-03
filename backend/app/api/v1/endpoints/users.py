@@ -44,7 +44,7 @@ router = APIRouter(prefix="/hr", tags=["hr"])
 
 @router.get(
     "/me",
-    dependencies=[Depends(get_current_user)],
+    dependencies=[Depends(get_current_internal_user)],
     summary="Get current HR/Admin user's profile with a fresh access token",
 )
 def get_me(
@@ -130,7 +130,7 @@ def get_me(
 
 @router.patch(
     "/me/digest-preference",
-    dependencies=[Depends(get_current_user)],
+    dependencies=[Depends(get_current_internal_user)],
     response_model=DigestPreferenceResponse,
     summary="Enable/disable the recruiter's own Thunder morning digest (S-065/HRMS-0465)",
 )
@@ -147,7 +147,7 @@ def update_digest_preference(
 
 @router.get(
     "/me/permissions",
-    dependencies=[Depends(get_current_user)],
+    dependencies=[Depends(get_current_internal_user)],
     summary="Get current user's permissions for frontend access control",
 )
 def get_current_user_permissions(
@@ -193,7 +193,7 @@ def get_current_user_permissions(
 
 @router.get(
     "/users/all",
-    dependencies=[Depends(get_current_user)],
+    dependencies=[Depends(get_current_internal_user)],
     response_model=AllUsersResponse,
 )
 def get_all_users(
@@ -241,7 +241,7 @@ def get_all_users(
 
 @router.get(
     "/users/search",
-    dependencies=[Depends(get_current_user)],
+    dependencies=[Depends(get_current_internal_user)],
     response_model=AllUsersResponse,
     summary="Search / filter users by name, permission role, or user role",
 )
@@ -356,7 +356,7 @@ def search_users(
 
 @router.get(
     "/users/details/{user_id}",
-    dependencies=[Depends(get_current_user)],
+    dependencies=[Depends(get_current_internal_user)],
     response_model=UserResponse,
     summary="Get user details by user ID",
 )
@@ -1220,7 +1220,7 @@ def get_hiring_manager_assigned_candidates(
 
 @router.get(
     "/job-titles",
-    dependencies=[Depends(get_current_user)],
+    dependencies=[Depends(get_current_internal_user)],
     summary="Get all active job titles for the tenant",
     tags=["reference-data"]
 )

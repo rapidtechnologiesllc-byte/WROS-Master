@@ -90,7 +90,7 @@ def _alert_to_item(alert: ReconciliationAlert) -> ReconciliationAlertItem:
 
 @router.post(
     "/leakage/scan", response_model=Optional[LeakageFlagItem],
-    dependencies=[Depends(get_current_user)],
+    dependencies=[Depends(get_current_internal_user)],
     summary="Scan a project+period for unbilled revenue leakage (null if too early or nothing unbilled)",
 )
 def scan_leakage(
@@ -112,7 +112,7 @@ def scan_leakage(
 
 @router.post(
     "/leakage/{flag_id}/log-reason", response_model=LeakageFlagItem,
-    dependencies=[Depends(get_current_user)],
+    dependencies=[Depends(get_current_internal_user)],
     summary="Log a reason (e.g. client-negotiated cap) that suppresses a leakage flag",
 )
 def log_leakage_reason(
@@ -193,7 +193,7 @@ def rescan_all_projects(
 
 @router.post(
     "/reconciliation/scan", response_model=ReconciliationScanResponse,
-    dependencies=[Depends(get_current_user)],
+    dependencies=[Depends(get_current_internal_user)],
     summary="Find approved-but-uninvoiced timesheets past the grace period and create alerts",
 )
 def scan_reconciliation(
@@ -210,7 +210,7 @@ def scan_reconciliation(
 
 @router.get(
     "/reconciliation/alerts", response_model=ReconciliationAlertsResponse,
-    dependencies=[Depends(get_current_user)],
+    dependencies=[Depends(get_current_internal_user)],
     summary="List reconciliation alerts",
 )
 def list_reconciliation_alerts(
@@ -227,7 +227,7 @@ def list_reconciliation_alerts(
 
 @router.post(
     "/reconciliation/alerts/{alert_id}/resolve", response_model=ReconciliationAlertItem,
-    dependencies=[Depends(get_current_user)],
+    dependencies=[Depends(get_current_internal_user)],
     summary="Mark a reconciliation alert resolved",
 )
 def resolve_reconciliation_alert_endpoint(
@@ -246,7 +246,7 @@ def resolve_reconciliation_alert_endpoint(
 
 @router.get(
     "/dashboard/clients/{client_id}", response_model=ClientRevenueDashboardResponse,
-    dependencies=[Depends(get_current_user)],
+    dependencies=[Depends(get_current_internal_user)],
     summary="Client revenue realization dashboard (internal only, estimate)",
 )
 def get_client_dashboard(

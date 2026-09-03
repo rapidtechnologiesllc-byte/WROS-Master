@@ -46,7 +46,7 @@ router = APIRouter(tags=["ai-recruiter-assignment"])
     "/candidates/{candidate_id}/ai-assignment",
     response_model=AIAssignmentResponse,
     summary="Get a candidate's current active Thunder assignment",
-    dependencies=[Depends(get_current_user)],
+    dependencies=[Depends(get_current_internal_user)],
 )
 def get_candidate_ai_assignment(
     candidate_id: str,

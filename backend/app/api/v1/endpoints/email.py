@@ -113,7 +113,7 @@ class SendLoginCredentialsRequest(BaseModel):
 
 @router.post(
     "/send",
-    dependencies=[Depends(get_current_user)],
+    dependencies=[Depends(get_current_internal_user)],
 
     summary="Send a plain or HTML email from the HRMS service mailbox",
 )
@@ -139,7 +139,7 @@ def send_mail(
 
 @router.post(
     "/send-with-attachments",
-    dependencies=[Depends(get_current_user)],
+    dependencies=[Depends(get_current_internal_user)],
 
     summary="Send an email with one or more file attachments",
 )
@@ -206,7 +206,7 @@ async def send_mail_with_attachments(
 
 @router.post(
     "/notify",
-    dependencies=[Depends(get_current_user)],
+    dependencies=[Depends(get_current_internal_user)],
 
     summary="Send a styled HRMS notification email",
 )
@@ -305,7 +305,7 @@ def send_event_notification(
 
 @router.post(
     "/interview/invite/{interview_id}",
-    dependencies=[Depends(get_current_user)],
+    dependencies=[Depends(get_current_internal_user)],
 
     summary="Send interview invite for an existing scheduled interview",
 )
@@ -402,7 +402,7 @@ def send_interview_invite_by_id(
 
 @router.delete(
     "/interview/cancel/{interview_id}",
-    dependencies=[Depends(get_current_user)],
+    dependencies=[Depends(get_current_internal_user)],
 
     summary="Cancel a scheduled interview â€” removes the Teams event and notifies everyone",
 )
@@ -498,7 +498,7 @@ def cancel_interview_by_id(
 
 @router.post(
     "/interview/invite/custom",
-    dependencies=[Depends(get_current_user)],
+    dependencies=[Depends(get_current_internal_user)],
 
     summary="Send a custom ad-hoc interview invite (no interview_id needed)",
 )
@@ -529,7 +529,7 @@ def send_custom_interview_invite(
 
 @router.post(
     "/login-credentials/{candidate_id}",
-    dependencies=[Depends(get_current_user)],
+    dependencies=[Depends(get_current_internal_user)],
 
     summary="Send login credentials to a candidate via email",
 )

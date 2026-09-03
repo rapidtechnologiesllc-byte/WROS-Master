@@ -349,7 +349,7 @@ def _flag_to_item(flag: TimesheetAnomalyFlag) -> AnomalyFlagItem:
 
 @router.post(
     "/{timesheet_id}/scan-anomalies", response_model=AnomalyFlagsResponse,
-    dependencies=[Depends(get_current_user)],
+    dependencies=[Depends(get_current_internal_user)],
     summary="Run anomaly detection for a timesheet (advisory only, idempotent)",
 )
 def scan_anomalies(
@@ -365,7 +365,7 @@ def scan_anomalies(
 
 @router.get(
     "/{timesheet_id}/anomalies", response_model=AnomalyFlagsResponse,
-    dependencies=[Depends(get_current_user)],
+    dependencies=[Depends(get_current_internal_user)],
     summary="Get existing anomaly flags for a timesheet",
 )
 def get_anomalies(
@@ -396,7 +396,7 @@ def _dispute_to_item(dispute: TimesheetDispute) -> DisputeItem:
 
 @router.post(
     "/{timesheet_id}/disputes", response_model=DisputeItem,
-    dependencies=[Depends(get_current_user)],
+    dependencies=[Depends(get_current_internal_user)],
     summary="Raise a dispute against an approved timesheet",
 )
 def create_dispute(
@@ -421,7 +421,7 @@ def create_dispute(
 
 @router.get(
     "/{timesheet_id}/disputes", response_model=DisputeListResponse,
-    dependencies=[Depends(get_current_user)],
+    dependencies=[Depends(get_current_internal_user)],
     summary="List disputes for a timesheet",
 )
 def list_disputes(
@@ -441,7 +441,7 @@ def list_disputes(
 
 @router.post(
     "/disputes/{dispute_id}/resolve", response_model=DisputeItem,
-    dependencies=[Depends(get_current_user)],
+    dependencies=[Depends(get_current_internal_user)],
     summary="Resolve a dispute (ADJUSTED or CONFIRMED) -- never mutates the original timesheet",
 )
 def resolve_dispute_endpoint(

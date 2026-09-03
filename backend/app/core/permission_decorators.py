@@ -20,6 +20,7 @@ def require_permission(permission: str):
             ...
     """
     def decorator(func: Callable):
+        pass
     @wraps(func)
         async def wrapper(*args, **kwargs):
             # Get db and current_user from kwargs if present, else via dependency injection

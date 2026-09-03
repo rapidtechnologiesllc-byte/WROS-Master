@@ -61,7 +61,7 @@ class UserUpdateRequest(BaseModel):
 
 @router.get(
     "/users",
-    dependencies=[Depends(get_current_user)]
+    dependencies=[Depends(get_current_internal_user)]
 )
 @require_action_permission("administration", "view")
 def list_users(
@@ -121,7 +121,7 @@ def list_users(
 
 @router.post(
     "/users",
-    dependencies=[Depends(get_current_user)]
+    dependencies=[Depends(get_current_internal_user)]
 )
 @require_action_permission("administration", "create")
 def create_user(
@@ -188,7 +188,7 @@ def create_user(
 
 @router.put(
     "/users/{user_id}",
-    dependencies=[Depends(get_current_user)]
+    dependencies=[Depends(get_current_internal_user)]
 )
 @require_action_permission("administration", "edit")
 def update_user(
@@ -235,7 +235,7 @@ def update_user(
 
 @router.delete(
     "/users/{user_id}",
-    dependencies=[Depends(get_current_user)]
+    dependencies=[Depends(get_current_internal_user)]
 )
 @require_action_permission("administration", "delete")
 def delete_user(

@@ -615,7 +615,7 @@ def hr_complete_item(
 
 @router.get(
     "/candidate/my-checklists",
-    dependencies=[Depends(get_current_user)],
+    dependencies=[Depends(get_current_internal_user)],
     response_model=CandidateChecklistListResponse,
     summary="Get the authenticated candidate's checklists",
 )
@@ -642,7 +642,7 @@ def get_my_checklists(
 
 @router.put(
     "/candidate/item/{item_id}/complete",
-    dependencies=[Depends(get_current_user)],
+    dependencies=[Depends(get_current_internal_user)],
     response_model=CompleteItemResponse,
     summary="Candidate submits a checklist item (awaiting HR verification)",
 )

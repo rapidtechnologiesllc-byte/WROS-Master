@@ -48,6 +48,7 @@ class ResumeParsedAgent:
             raise ValueError("Operation failed")
 
             async def extract_skills(self, resume_text: str) -> Optional[list]:
+                pass
         """
         Extract skills from resume text.
 

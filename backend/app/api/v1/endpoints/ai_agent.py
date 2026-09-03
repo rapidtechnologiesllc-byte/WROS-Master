@@ -473,7 +473,7 @@ def poll_and_process(
     "/conversations/{candidate_id}",
     response_model=ConversationThreadResponse,
     summary="Get full agent–candidate conversation thread",
-    dependencies=[Depends(get_current_user)],
+    dependencies=[Depends(get_current_internal_user)],
     description=(
         "Returns **all conversations** for a candidate, each containing the full "
         "chronological event log. This is the primary endpoint for the HR UI to "
@@ -511,7 +511,7 @@ def get_conversations(
     "/conversations/{candidate_id}/active",
     response_model=ConversationThreadItem,
     summary="Get the active conversation for a candidate",
-    dependencies=[Depends(get_current_user)],
+    dependencies=[Depends(get_current_internal_user)],
     description=(
         "Returns the single most-recent open or awaiting conversation for the "
         "candidate, with its full event log. Returns 404 if no active conversation exists."
@@ -852,7 +852,7 @@ def thunder_resume(
     "/assignments/{candidate_id}",
     response_model=List[AIAssignmentOut],
     summary="Get all AI agent assignments for a candidate",
-    dependencies=[Depends(get_current_user)],
+    dependencies=[Depends(get_current_internal_user)],
     description=(
         "Returns the full history of AI agent assignments for a candidate, "
         "ordered newest-first. The active assignment has `is_active = true`."

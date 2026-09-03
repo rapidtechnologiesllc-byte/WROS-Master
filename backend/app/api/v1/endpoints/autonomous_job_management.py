@@ -60,7 +60,7 @@ def get_job_status(job_id: str, db: Session = Depends(get_db)):
 
 @router.post(
     "/close/{job_id}",
-    dependencies=[Depends(get_current_user)],
+    dependencies=[Depends(get_current_internal_user)],
     response_model=JobClosureActionResponse,
 )
 def close_job_manually(job_id: str, db: Session = Depends(get_db)):

@@ -885,7 +885,14 @@ def test_sharepoint_connection(
                 "authenticated": True,
                 "sharepoint_configured": True
             }
-
+    except Exception as e:
+        logger.error(f"SharePoint test connection error: {str(e)}", exc_info=True)
+        return {
+            "status": "error",
+            "message": "SharePoint connection test failed",
+            "details": str(e),
+            "configured": False
+        }
 
 
 @router.get(

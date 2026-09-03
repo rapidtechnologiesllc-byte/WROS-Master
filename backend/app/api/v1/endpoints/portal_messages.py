@@ -39,7 +39,7 @@ router = APIRouter(prefix="/portal/conversations", tags=["portal-messages"])
 
 @router.post(
     "/{conversation_id}/messages",
-    dependencies=[Depends(get_current_user)],
+    dependencies=[Depends(get_current_internal_user)],
     response_model=PortalMessageResponse,
     status_code=201,
     summary="Candidate sends a message via the web portal",
@@ -66,7 +66,7 @@ def post_portal_message(
 
 @router.get(
     "/{conversation_id}/messages",
-    dependencies=[Depends(get_current_user)],
+    dependencies=[Depends(get_current_internal_user)],
     response_model=PortalMessageHistoryResponse,
     summary="Candidate retrieves their portal conversation history",
 )
@@ -86,7 +86,7 @@ def list_portal_messages(
 
 @router.get(
     "/{conversation_id}/messages/poll",
-    dependencies=[Depends(get_current_user)],
+    dependencies=[Depends(get_current_internal_user)],
     response_model=PortalMessageHistoryResponse,
     summary="S-346 -- long-poll for messages newer than after_id (WebSocket fallback)",
 )
