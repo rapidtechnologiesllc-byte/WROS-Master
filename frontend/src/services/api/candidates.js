@@ -10,7 +10,7 @@ export const createCandidate = async (payload) => {
 };
 
 export const getAllCandidates = async () => {
-  const { data } = await apiRequest("/api/v1/candidates/all", {
+  const { data } = await apiRequest("/api/v1/status/all", {
     method: "GET",
   });
   return data;

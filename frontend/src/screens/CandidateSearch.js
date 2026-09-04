@@ -1,7 +1,6 @@
 // Candidate search/listing and selection screen.
 import { useEffect, useMemo, useState } from "react";
 import { Plus, Search, Users } from "lucide-react";
-import { IfPermission } from "../components/PermissionButton";
 import {
   Button,
   Card,
@@ -29,6 +28,7 @@ import { getEmailBodyHTML } from "../utils/preboardingEmailTemplate";
 import { getRejectionEmailHTML } from "../utils/rejectionEmailTemplate";
 import { useNavigate } from "react-router-dom";
 import CandidateActionMenu from "../components/ui/CandidateActionMenu";
+import { hasPermission } from "../utils/permissionsRbac";
 
 export default function CandidateSearch({
   candidates,
@@ -466,14 +466,14 @@ export default function CandidateSearch({
               </div>
 
               <div className="flex items-center gap-2">
-                <IfPermission permission="candidate.create">
+                {hasPermission("candidate.create") && (
                   <Button
                     onClick={onCreateCandidate}
                     className="h-[46px] shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md"
                   >
                     <Plus className="h-4 w-4" /> Add Candidate
                   </Button>
-                </IfPermission>
+                )}
               </div>
             </div>
           </div>
