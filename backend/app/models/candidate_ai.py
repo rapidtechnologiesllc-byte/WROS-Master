@@ -125,20 +125,22 @@ class CandidateConversation(Base):
 
     # THUNDER REDESIGN (2026-09-04): Real engagement lifecycle tracking
     # ================================================================
+    # NOTE: These columns exist in the model but not yet in the database schema.
+    # They are commented out pending migration. Schema upgrade needed before use.
 
-    # Current engagement phase: OUTREACH | CONVERSION | DORMANT | HIRED
-    engagement_phase = Column(
-        String(50),
-        nullable=False,
-        server_default="OUTREACH",
-        index=True
-    )
+    # # Current engagement phase: OUTREACH | CONVERSION | DORMANT | HIRED
+    # engagement_phase = Column(
+    #     String(50),
+    #     nullable=False,
+    #     server_default="OUTREACH",
+    #     index=True
+    # )
 
-    # Knowledge level based on behavioral signals: COLD | WARM | HOT
-    knowledge_level = Column(String(50), nullable=False, server_default="COLD")
+    # # Knowledge level based on behavioral signals: COLD | WARM | HOT
+    # knowledge_level = Column(String(50), nullable=False, server_default="COLD")
 
-    # When last message was sent (Day 0, 2-3, 5-7, 8-13, 14+)
-    last_touch_sent_at = Column(DateTime(timezone=False), nullable=True)
+    # # When last message was sent (Day 0, 2-3, 5-7, 8-13, 14+)
+    # last_touch_sent_at = Column(DateTime(timezone=False), nullable=True)
 
     # When next message should be sent (scheduled for future execution)
     next_touch_scheduled_at = Column(
@@ -147,21 +149,21 @@ class CandidateConversation(Base):
         index=True  # Index for efficient "get next candidates to touch" queries
     )
 
-    # When candidate first responded to any message
-    candidate_responded_at = Column(DateTime(timezone=False), nullable=True)
+    # # When candidate first responded to any message
+    # candidate_responded_at = Column(DateTime(timezone=False), nullable=True)
 
-    # Total number of times candidate has engaged (replied, clicked, opened)
-    response_count = Column(Integer, nullable=False, server_default="0")
+    # # Total number of times candidate has engaged (replied, clicked, opened)
+    # response_count = Column(Integer, nullable=False, server_default="0")
 
-    # JSON tracking of behavioral signals:
-    # { opened_email: bool, clicked_link: bool, replied: bool, ... }
-    behavioral_signals = Column(JSON, nullable=True, server_default="{}")
+    # # JSON tracking of behavioral signals:
+    # # { opened_email: bool, clicked_link: bool, replied: bool, ... }
+    # behavioral_signals = Column(JSON, nullable=True, server_default="{}")
 
-    # Days since candidate's last response (auto-calculated, updated daily)
-    days_since_last_response = Column(Integer, nullable=True)
+    # # Days since candidate's last response (auto-calculated, updated daily)
+    # days_since_last_response = Column(Integer, nullable=True)
 
-    # How many 14-day cycles have completed (0 = first cycle, 1 = second, etc.)
-    cycle_count = Column(Integer, nullable=False, server_default="0")
+    # # How many 14-day cycles have completed (0 = first cycle, 1 = second, etc.)
+    # cycle_count = Column(Integer, nullable=False, server_default="0")
 
     # Audit timestamps
     created_at = Column(DateTime(timezone=False), server_default=func.now())
