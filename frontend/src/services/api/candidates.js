@@ -10,7 +10,7 @@ export const createCandidate = async (payload) => {
 };
 
 export const getAllCandidates = async () => {
-  const { data } = await apiRequest("/api/v1/onboarding/hr/get_all_candidates", {
+  const { data } = await apiRequest("/api/v1/candidates/all", {
     method: "GET",
   });
   return data;
@@ -102,7 +102,7 @@ export const updateCandidate = async (candidateId, payload) => {
 
 export const deleteCandidate = async (candidateId) => {
   const { data } = await apiRequest(
-    `/onboarding/hr/delete_candidate/${candidateId}`,
+    `/api/v1/candidates/${candidateId}`,
     {
       method: "DELETE",
     },
@@ -134,7 +134,7 @@ export const getAssignedCandidates = async () => {
 };
 export const getCandidateContacts = async (candidateId) => {
   const { data } = await apiRequest(
-    `/onboarding/hr/candidate/${candidateId}/contacts`,
+    `/api/v1/candidates/${candidateId}/contacts`,
     {
       method: "GET",
     },

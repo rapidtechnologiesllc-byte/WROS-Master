@@ -50,10 +50,10 @@ from app.schemas.user import CandidateUpdateRequest
 
 from app.utils.uniq_id_generator import generate_password
 
-router = APIRouter(prefix="/onboarding", tags=["onboarding"])
+router = APIRouter(prefix="/candidates", tags=["candidates"])
 
 @router.post(
-    "/hr/create_candidate",
+    "/create",
     response_model=CandidateCreateResponse,
     dependencies=[Depends(require_resource_permission("candidates", "create"))],
 )
@@ -223,7 +223,7 @@ def create_candidate(
     )
 
 @router.get(
-    "/hr/get_all_candidates",
+    "/all",
     response_model=AllCandidatesResponse,
 )
 def get_all_candidates(db: Session = Depends(get_db), user = Depends(get_current_hr_or_admin)):
@@ -377,7 +377,7 @@ def get_all_candidates(db: Session = Depends(get_db), user = Depends(get_current
     )
 
 @router.get(
-    "/hr/candidate/{candidate_id}",
+    "/{candidate_id}",
     response_model=CandidateCompleteResponse,
     dependencies=[Depends(require_resource_permission("candidates", "view"))],
 )
