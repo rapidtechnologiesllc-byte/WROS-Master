@@ -67,9 +67,10 @@ def create_candidate(
 
     try:
         # Queue candidate creation message with retry policy
+        # Note: enqueue() already commits, no need to commit again
+        # Use THUNDER_QUEUE to trigger autonomous candidate journey
         MessageQueueService.enqueue(
-            message_type="create_candidate",
-            queue_type="CANDIDATE_QUEUE",
+            message_type="candidate_created",
             resource_id=message_id,
             created_by=current_user.UserID,
             db=db,
@@ -78,7 +79,6 @@ def create_candidate(
                 "candidate_email": request.candidate_email,
                 "candidate_mobile": request.candidate_mobile,
                 "candidate_password": password,
-                "tenant_id": current_user.tenant_id,
                 "candidate_role": request.candidate_role or "Candidate",
                 "candidate_employee_type": request.candidate_employee_type,
                 "candidate_job_title": request.candidate_job_title,
@@ -88,21 +88,9 @@ def create_candidate(
                 "candidate_date_of_birth": request.candidate_date_of_birth,
                 "candidate_current_location": request.candidate_current_location,
                 "created_by_user": current_user.UserID,
-                "retry_policy": {
-                    "max_retries": 5,
-                    "retry_interval_minutes": 30
-                }
+                "tenant_id": current_user.tenant_id
             }
         )
-
-        try:
-            db.commit()
-        except Exception as e:
-            db.rollback()
-            raise HTTPException(
-                status_code=500,
-                detail=f"Failed to queue candidate creation: {str(e)}"
-            ) from e
 
     except HTTPException:
         raise
