@@ -12,11 +12,14 @@ from datetime import datetime
 
 from app.core.dependencies import get_current_user, get_db
 from app.models.user import Users
-from app.services.candidate_service import create_candidate_safe, parse_experience_to_months
+from app.services.candidate_service import (
+    create_candidate_safe,
+    parse_experience_to_months,
+    DuplicateCandidateError,
+)
 from app.services.ai_conversation_service import run_auto_assign_ai_agent_in_background
 from app.utils.uniq_id_generator import generate_password
 from app.schemas.candidate import CandidateCreateRequest, CandidateCreateResponse
-from app.exceptions import DuplicateCandidateError
 
 router = APIRouter(prefix="/api/v1/candidates", tags=["candidates"])
 
