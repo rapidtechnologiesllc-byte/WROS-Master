@@ -161,6 +161,8 @@ class CandidateCompleteResponse(BaseModel):
     # see at a glance whether this candidate should get extra nurture.
     # Derived on read, see app.services.guidewire_candidate_service.
     is_guidewire_candidate: bool = False
+    # ── Thunder autonomous processing flag ───────────────────────────────────
+    thunder_enabled: bool = True
     # ── Job assignment ───────────────────────────────────────────────────────
     job_id: str | None = None
     # ── Related records ──────────────────────────────────────────────────────

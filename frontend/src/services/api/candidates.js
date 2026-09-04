@@ -10,8 +10,16 @@ export const createCandidate = async (payload) => {
 };
 
 export const getAllCandidates = async () => {
-  const { data } = await apiRequest("/api/v1/status/all", {
+  const { data } = await apiRequest("/api/v1/candidates/all", {
     method: "GET",
+  });
+  return data;
+};
+
+export const updateCandidateThunderEnabled = async (candidateId, enabled) => {
+  const { data } = await apiRequest(`/api/v1/candidates/${candidateId}/thunder-config`, {
+    method: "PATCH",
+    body: JSON.stringify({ thunder_enabled: enabled }),
   });
   return data;
 };

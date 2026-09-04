@@ -1254,6 +1254,63 @@ def start_scheduler():
             logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.warning(f"Could not register message queue worker scheduler: {exc}")
 
+        # ── Every 6 hours: Candidate Maintenance Sweep (14+ day inactive candidates) ─
+        try:
+            from datetime import datetime, timedelta
+            from app.models.candidate import Candidate
+            from app.services.message_queue_service import MessageQueueService
+
+            def _run_candidate_maintenance_sweep():
+                db = SessionLocal()
+                try:
+                    # Find candidates not touched for 14+ days and Thunder is enabled
+                    cutoff_date = datetime.utcnow() - timedelta(days=14)
+                    stale_candidates = db.query(Candidate).filter(
+                        Candidate.candidateCreatedAt <= cutoff_date,
+                        Candidate.thunder_enabled == True,
+                    ).limit(50).all()  # Process max 50 per cycle
+
+                    queued_count = 0
+                    for candidate in stale_candidates:
+                        try:
+                            # Enqueue for Thunder re-engagement
+                            MessageQueueService.enqueue(
+                                message_type="process_candidate_for_engagement",
+                                queue_type="THUNDER_QUEUE",
+                                resource_id=candidate.candidateID,
+                                created_by="system",
+                                db=db,
+                                payload={
+                                    "candidate_id": candidate.candidateID,
+                                    "candidate_email": candidate.candidateEmail,
+                                    "maintenance_sweep": True,
+                                    "days_inactive": (datetime.utcnow() - candidate.candidateCreatedAt).days,
+                                }
+                            )
+                            queued_count += 1
+                        except Exception as e:
+                            logger.error(f"Failed to queue candidate {candidate.candidateID} for maintenance: {e}", exc_info=True)
+
+                    if queued_count > 0:
+                        logger.info(f"[scheduler] Candidate maintenance sweep: {queued_count} candidates queued for re-engagement")
+                except Exception as exc:
+                    logger.error(f"Error: {str(exc)}", exc_info=True)
+                    logger.error(f"[scheduler] Candidate maintenance sweep error: {exc}")
+                finally:
+                    db.close()
+
+            scheduler.add_job(
+                _run_candidate_maintenance_sweep,
+                trigger="interval",
+                hours=6,
+                id="candidate_maintenance_sweep",
+                replace_existing=True,
+            )
+            logger.info("[OK] Scheduled candidate maintenance sweep (every 6 hours)")
+        except Exception as exc:
+            logger.error(f"Error: {str(exc)}", exc_info=True)
+            logger.warning(f"Could not register candidate maintenance sweep scheduler: {exc}")
+
 def shutdown_scheduler():
     """Shutdown the APScheduler instance."""
     if scheduler.running:

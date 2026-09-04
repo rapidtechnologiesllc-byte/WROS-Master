@@ -99,6 +99,7 @@ class Candidate(Base):
     submission_bu_id = Column(Integer, ForeignKey("business_units.id"), nullable=True, index=True)
     associated_bu_id = Column(Integer, ForeignKey("business_units.id"), nullable=True, index=True)
     submission_timestamp = Column(DateTime, nullable=True)  # When candidate was submitted to BU
+    thunder_enabled = Column(Boolean, nullable=False, default=True, server_default="1")  # Enable/disable Thunder autonomous processing
 
     # Relationships
     documents = relationship("CandidateDocument", back_populates="candidate", foreign_keys="CandidateDocument.candidate_id")

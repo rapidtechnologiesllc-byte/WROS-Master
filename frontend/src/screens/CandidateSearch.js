@@ -29,6 +29,7 @@ import { getRejectionEmailHTML } from "../utils/rejectionEmailTemplate";
 import { useNavigate } from "react-router-dom";
 import CandidateActionMenu from "../components/ui/CandidateActionMenu";
 import { hasPermission } from "../utils/permissionsRbac";
+import { updateCandidateThunderEnabled } from "../services/api/candidates";
 
 export default function CandidateSearch({
   candidates,
@@ -68,6 +69,23 @@ export default function CandidateSearch({
   const isAntTableRole =
     hasPermission("candidates", "view") ||
     hasPermission("candidates", "edit");
+
+  const handleThunderToggle = async (candidateId, currentValue) => {
+    try {
+      await updateCandidateThunderEnabled(candidateId, !currentValue);
+      setCandidateList((prev) =>
+        prev.map((c) =>
+          c.candidate_id === candidateId
+            ? { ...c, thunder_enabled: !currentValue }
+            : c
+        )
+      );
+      toast.success(!currentValue ? "Thunder processing enabled" : "Thunder processing disabled");
+    } catch (err) {
+      toast.error("Failed to update Thunder configuration");
+      console.error(err);
+    }
+  };
 
   useEffect(() => {
     // Refresh all candidate lists on mount
@@ -395,6 +413,24 @@ export default function CandidateSearch({
           </div>
           <div className="text-sm text-gray-600">{record?.candidate_email || "-"}</div>
         </div>
+      ),
+    },
+    {
+      title: "Thunder",
+      dataIndex: "thunder_enabled",
+      width: 100,
+      render: (_, record) => (
+        <label className="flex items-center gap-2 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={record?.thunder_enabled ?? true}
+            onChange={() => handleThunderToggle(record?.candidate_id, record?.thunder_enabled ?? true)}
+            className="w-4 h-4"
+          />
+          <span className="text-xs text-gray-600">
+            {record?.thunder_enabled !== false ? "Enabled" : "Disabled"}
+          </span>
+        </label>
       ),
     },
     {

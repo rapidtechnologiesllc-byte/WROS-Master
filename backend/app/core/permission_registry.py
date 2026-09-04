@@ -13,6 +13,13 @@ Code references ONLY these constants.
 # ============================================================================
 
 RESOURCES = {
+    # System & Navigation
+    "navigation": {
+        "display_name": "Navigation",
+        "module": "System",
+        "actions": ["can_view"],
+        "description": "Access to personalized navigation menu"
+    },
     # Recruitment & Candidates
     "candidates": {
         "display_name": "Candidates",
@@ -105,6 +112,9 @@ class Permissions:
 
     Each constant is a tuple: (resource_name, field_name)
     """
+
+    # System & Navigation
+    NAVIGATION_VIEW = ("navigation", "can_view")
 
     # Candidates
     CANDIDATES_VIEW = ("candidates", "can_view")

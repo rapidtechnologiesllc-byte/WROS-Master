@@ -13,12 +13,16 @@ from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from sqlalchemy.orm import Session
 from datetime import datetime
 import uuid
+import logging
+import traceback
 
 from app.core.dependencies import get_current_user, get_db, require_resource_permission
 from app.models.user import Users
 from app.services.message_queue_service import MessageQueueService
 from app.utils.uniq_id_generator import generate_password
 from app.schemas.candidate import CandidateCreateRequest, CandidateCreateResponse
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/candidates", tags=["candidates"])
 
@@ -97,9 +101,12 @@ def create_candidate(
     except HTTPException:
         raise
     except Exception as e:
+        error_detail = f"{type(e).__name__}: {str(e)}"
+        logger.error(f"Candidate creation failed: {error_detail}")
+        logger.error(f"Traceback:\n{traceback.format_exc()}")
         raise HTTPException(
             status_code=500,
-            detail=f"Candidate creation queue error: {str(e)}"
+            detail=f"Candidate creation failed: {error_detail}"
         ) from e
 
     # Return message_id for client polling

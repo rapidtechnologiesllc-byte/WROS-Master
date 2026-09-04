@@ -42,8 +42,8 @@ def get_queue_messages(
             "data": [
                 {
                     "id": "uuid",
-                    "type": "candidate_created",
-                    "queue_type": "THUNDER_QUEUE",
+                    "type": "create_candidate",
+                    "queue_type": "CANDIDATE_QUEUE",
                     "status": "PENDING",
                     "resource_id": "uuid",
                     "created_by": "user-id",

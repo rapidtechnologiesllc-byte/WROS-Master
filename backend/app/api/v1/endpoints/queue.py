@@ -38,7 +38,7 @@ def list_queue_messages(
         limit: Maximum items to return (default: 50, max: 1000)
         queue_type: Filter by channel (THUNDER_QUEUE, EMAIL_QUEUE, etc.)
         status: Filter by status (PENDING, SLM_PROCESSING, CHANNEL_QUEUED, COMPLETED, FAILED)
-        message_type: Filter by message type (candidate_created, interview_scheduled, etc.)
+        message_type: Filter by message type (create_candidate, interview_scheduled, etc.)
         created_after: Filter by creation date (ISO format)
         retry_count_min: Filter by minimum retry count
     """
