@@ -9,7 +9,6 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.logging import logger
 from app.core.dependencies import get_current_internal_user, require_resource_permission
-from app.core.permission_enforcement import require_permission
 from app.models.user import Jobs, Users
 from app.services.message_queue_service import MessageQueueService
 from app.services.ready_for_opportunity_service import scan_new_job_for_matches
@@ -57,9 +56,9 @@ def _build_job_response(job):
 @router.post(
     "/create",
     response_model=JobCreateResponse,
-    summary="Create job (CRUD operation)"
+    summary="Create job (CRUD operation)",
+    dependencies=[Depends(require_resource_permission("jobs", "create"))]
 )
-@require_permission("recruitment.create")
 def create_job(
     request: JobCreateRequest,
     background_tasks: BackgroundTasks,
@@ -130,6 +129,8 @@ def create_job(
             response_message = "Job submitted for approval"
 
     job_id = job_id_generator()
+
+    # Build job object
     job = Jobs(
         jobID=job_id,
         jobTitle=request.job_title,
@@ -150,29 +151,38 @@ def create_job(
         department_id=request.department_id,
         salaryRange=request.salary_range
     )
-    db.add(job)
 
-    # Queue BEFORE commit (atomicity)
-    MessageQueueService.enqueue(
-        message_type="job_created",
-        payload={
-            "job_id": job_id,
-            "job_title": request.job_title,
-            "job_location": request.job_location,
-            "job_skills": request.job_skills,
-            "no_of_positions": request.no_of_positions,
-            "hiring_manager_id": request.hiring_manager_id,
-            "business_unit_id": request.business_unit,
-            "job_status": job_status,
-        },
-        resource_id=job_id,
-        queue_type="THUNDER_QUEUE",
-        created_by=user.UserID,
-        db=db,
-    )
+    try:
+        # Verify job doesn't already exist (idempotency check)
+        existing_job = db.query(Jobs).filter(Jobs.jobID == job_id).first()
+        if existing_job:
+            raise HTTPException(status_code=409, detail=f"Job {job_id} already exists")
 
-    db.commit()
-    db.refresh(job)
+        db.add(job)
+
+        # Queue BEFORE commit (atomicity) - enqueue() commits the transaction
+        msg_id = MessageQueueService.enqueue(
+            message_type="job_created",
+            payload={
+                "job_id": job_id,
+                "job_title": request.job_title,
+                "job_location": request.job_location,
+                "job_skills": request.job_skills,
+                "no_of_positions": request.no_of_positions,
+                "hiring_manager_id": request.hiring_manager_id,
+                "business_unit_id": request.business_unit,
+                "job_status": job_status,
+            },
+            resource_id=job_id,
+            queue_type="THUNDER_QUEUE",
+            created_by=user.UserID,
+            db=db,
+        )
+        db.refresh(job)
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Failed to create job {job_id}: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to create job: {str(e)}")
 
     if job_status == "active":
         background_tasks.add_task(scan_new_job_for_matches, db, job)
@@ -185,9 +195,9 @@ def create_job(
 @router.get(
     "/all",
     response_model=AllJobsResponse,
-    summary="List all jobs (CRUD operation)"
+    summary="List all jobs (CRUD operation)",
+    dependencies=[Depends(require_resource_permission("jobs", "view"))]
 )
-@require_permission("recruitment.view")
 def get_all_jobs(db: Session = Depends(get_db), user=Depends(get_current_internal_user)):
     """Get all jobs."""
     jobs = db.query(Jobs).all()
@@ -197,9 +207,9 @@ def get_all_jobs(db: Session = Depends(get_db), user=Depends(get_current_interna
 @router.get(
     "/{job_id}",
     response_model=JobResponse,
-    summary="Get job by ID (CRUD operation)"
+    summary="Get job by ID (CRUD operation)",
+    dependencies=[Depends(require_resource_permission("jobs", "view"))]
 )
-@require_permission("recruitment.view")
 def get_job_by_id(
     job_id: str,
     db: Session = Depends(get_db),
@@ -214,9 +224,9 @@ def get_job_by_id(
 @router.put(
     "/{job_id}",
     response_model=JobResponse,
-    summary="Update job (CRUD operation)"
+    summary="Update job (CRUD operation)",
+    dependencies=[Depends(require_resource_permission("jobs", "edit"))]
 )
-@require_permission("recruitment.edit")
 def update_job(
     job_id: str,
     request: JobUpdateRequest,
@@ -263,16 +273,37 @@ def update_job(
     if request.salary_range is not None:
         job.salaryRange = request.salary_range
 
-    db.commit()
-    db.refresh(job)
-    return _build_job_response(job)
+    try:
+        # Queue BEFORE commit (atomicity) - enqueue() commits the transaction
+        msg_id = MessageQueueService.enqueue(
+            message_type="job_updated",
+            payload={
+                "job_id": job_id,
+                "job_title": job.jobTitle,
+                "job_location": job.jobLocation,
+                "job_skills": job.jobSkills,
+                "job_status": job.jobStatus,
+                "hiring_manager_id": job.hiringManagerID,
+                "business_unit_id": job.business_unit_id,
+            },
+            resource_id=job_id,
+            queue_type="THUNDER_QUEUE",
+            created_by=user.UserID,
+            db=db,
+        )
+        db.refresh(job)
+        return _build_job_response(job)
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Failed to update job {job_id}: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to update job: {str(e)}")
 
 @router.delete(
     "/{job_id}",
     response_model=DeleteResponse,
-    summary="Delete job (CRUD operation)"
+    summary="Delete job (CRUD operation)",
+    dependencies=[Depends(require_resource_permission("jobs", "delete"))]
 )
-@require_permission("recruitment.delete")
 def delete_job(
     job_id: str,
     db: Session = Depends(get_db),
@@ -282,6 +313,30 @@ def delete_job(
     job = db.query(Jobs).filter(Jobs.jobID == job_id).first()
     if not job:
         raise HTTPException(status_code=404, detail=f"Job '{job_id}' not found")
-    db.delete(job)
-    db.commit()
-    return DeleteResponse(status="Success", message=f"Job {job_id} deleted successfully")
+
+    # Queue BEFORE deletion (atomicity) - enqueue() commits the transaction
+    try:
+        msg_id = MessageQueueService.enqueue(
+            message_type="job_deleted",
+            payload={
+                "job_id": job_id,
+                "job_title": job.jobTitle,
+                "business_unit_id": job.business_unit_id,
+            },
+            resource_id=job_id,
+            queue_type="THUNDER_QUEUE",
+            created_by=user.UserID,
+            db=db,
+        )
+    except Exception as e:
+        logger.error(f"Failed to queue job deletion: {job_id}: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to queue job deletion: {str(e)}")
+
+    try:
+        db.delete(job)
+        db.commit()
+        return DeleteResponse(status="Success", message=f"Job {job_id} deleted successfully")
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Failed to delete job {job_id}: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to delete job: {str(e)}")
