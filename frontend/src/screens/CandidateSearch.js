@@ -508,21 +508,21 @@ export default function CandidateSearch({
                 <button
                   className="font-semibold text-gray-900 transition-colors hover:text-black hover:underline"
                   onClick={() => {
-                    navigate(`/candidates/${c.id}`);
+                    navigate(`/candidates/${c.candidate_id}`);
                   }}
                 >
-                  {c.name}
+                  {c.candidate_name}
                 </button>
               ),
               contact: (
                 <div className="space-y-1 text-xs text-gray-700">
-                  <div>{c.email}</div>
-                  <div>{c.phone}</div>
+                  <div>{c.candidate_email || c.email}</div>
+                  <div>{c.candidate_mobile || c.phone || "-"}</div>
                 </div>
               ),
-              jobTitle: c.jobTitle || "-",
-              pipeline: c.pipelineStatus ? (
-                <StatusBadge status={c.pipelineStatus} />
+              jobTitle: c.job_title || c.candidateJobTitle || "-",
+              pipeline: c.pipline_status || c.pipelineStatus ? (
+                <StatusBadge status={c.pipline_status || c.pipelineStatus} />
               ) : (
                 <span className="text-xs text-gray-400">—</span>
               ),
