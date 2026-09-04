@@ -1267,3 +1267,48 @@ NOT THIS:
 
 **Action:** After orphaned code cleanup, accuracy will be 100%.
 
+### Pre-Existing Warnings & Errors Policy
+
+**RULE: Fix ALL pre-existing warnings, errors, and gate violations before committing new code.**
+
+**Problem:** Gate reports "Critical Issues: 0" but blocks commits on pre-existing warnings from unmodified code. This creates frustration and prevents deployment.
+
+**Solution:** When touching a file:
+1. ✅ Fix ALL new violations you introduced
+2. ✅ Fix ALL pre-existing violations in that file
+3. ✅ Do not commit if gate shows warnings on code you didn't touch
+
+**What counts as "pre-existing":**
+- Lines you didn't modify but the gate flagged
+- Helper functions in the same file
+- Global error handlers
+- Utility methods
+
+**Why this matters:**
+- Gate shouldn't "complain" about the same issues repeatedly
+- Each commit improves code quality, not maintains status quo
+- Clean files are easier to review and maintain
+- Prevents gate fatigue and false negatives
+
+**Example workflow:**
+```python
+# Before commit:
+# Gate shows 15 warnings total
+# - 3 are from your changes (NEW)
+# - 12 are pre-existing in the file (ALSO FIX)
+
+# Action: Fix all 15
+# Result: Gate passes cleanly
+# Commit: Clean, no warnings
+```
+
+**No exceptions:** This applies to all commits, regardless of urgency or file size. A 1000-line file with pre-existing warnings requires fixing them all, not just your changes.
+
+**For legacy files:** If a file has too many warnings to fix in one session:
+- Create a separate "cleanup" ticket or sprint
+- Fix those warnings in an isolated commit first
+- Then make your feature commit on clean code
+- Never stack feature work on top of warning-ridden code
+
+**Result:** Cleaner codebase, easier reviews, gate reports actually signal real problems.
+
