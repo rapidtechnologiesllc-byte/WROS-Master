@@ -66,7 +66,7 @@ def create_candidate(
         candidate, is_new = create_candidate_safe(
             db,
             email=request.candidate_email,
-            mobile=request.candidate_phone,
+            mobile=request.candidate_mobile,
             plain_password=password,
             tenant_id=current_user.tenant_id,
             candidateRole=request.candidate_role,
