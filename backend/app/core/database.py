@@ -181,6 +181,7 @@ def authenticate_user(db: Session, email: str, password: str):
         return False
 
     logger.warning(f"[AUTH] === SUCCESS ===")
+    logger.warning(f"[AUTH] Returning user with role_template_id={user.role_template_id}")
     return user
 
 def get_candidate(db: Session, email: str):
