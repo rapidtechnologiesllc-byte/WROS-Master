@@ -94,6 +94,7 @@ def create_candidate(
             email=request.candidate_email,
             mobile=request.candidate_mobile,
             plain_password=password,
+            tenant_id=user.tenant_id,
             candidateRole=request.candidate_role,
             candidateEmployeeType=request.candidate_employee_type,
             candidateJobTitle=request.candidate_job_title,

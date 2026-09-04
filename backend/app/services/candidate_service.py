@@ -81,6 +81,7 @@ def create_candidate_safe(
     linkedin_url: Optional[str] = None,
     candidate_id: Optional[str] = None,
     plain_password: Optional[str] = None,
+    tenant_id: Optional[str] = None,
     **fields,
 ) -> Tuple[Candidate, bool]:
     """
@@ -112,6 +113,7 @@ def create_candidate_safe(
         candidateTempPassword=plain_password,
         candidateIsVerified=False,
         associated_bu_id=None,  # BU lifecycle: New candidates are org-wide (NULL)
+        tenant_id=tenant_id or "1",  # Default to tenant 1 if not provided
         **fields,
     )
     db.add(candidate)
