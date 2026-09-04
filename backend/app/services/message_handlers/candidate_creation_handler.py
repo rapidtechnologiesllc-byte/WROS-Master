@@ -140,6 +140,35 @@ class CandidateCreationHandler:
                 f"id={candidate_id}, email={candidate_email}, is_new={is_new}"
             )
 
+            # Queue THUNDER_QUEUE message for Thunder to process candidate
+            # Thunder is now queue-driven: no autonomous loop, only processes THUNDER_QUEUE messages
+            try:
+                from app.services.message_queue_service import MessageQueueService
+
+                thunder_message_id = MessageQueueService.enqueue(
+                    message_type="process_candidate_for_engagement",
+                    queue_type="THUNDER_QUEUE",
+                    resource_id=candidate_id,
+                    created_by="system",
+                    db=db,
+                    payload={
+                        "candidate_id": candidate_id,
+                        "candidate_email": candidate_email,
+                        "source_message_id": message.id,  # Link back to creation message
+                    }
+                )
+                logger.info(
+                    f"[CandidateCreationHandler] Queued THUNDER_QUEUE message for candidate: "
+                    f"id={candidate_id}, thunder_message_id={thunder_message_id}"
+                )
+            except Exception as thunder_queue_err:
+                logger.error(
+                    f"[CandidateCreationHandler] Failed to queue THUNDER_QUEUE message for {candidate_id}: {thunder_queue_err}",
+                    exc_info=True
+                )
+                # Don't fail candidate creation if Thunder queueing fails - Thunder will eventually process via sweep
+                # But log the error for monitoring
+
             return {
                 "status": "success",
                 "candidate_id": candidate_id,

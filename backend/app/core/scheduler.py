@@ -1190,38 +1190,15 @@ def start_scheduler():
             logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.warning(f"Could not register message queue processing scheduler: {exc}")
 
-        # ── Every 5 min: THUNDER_AUTONOMOUS_LOOP (Candidate Outreach) ────────
-        try:
-            from app.services.thunder_autonomous_loop import run_thunder_autonomous_cycle
-
-            def _run_thunder_autonomous():
-                db = SessionLocal()
-                try:
-                    result = run_thunder_autonomous_cycle(db)
-                    if result.get("status") == "success":
-                        if result.get("candidates_contacted") or result.get("sequences_advanced"):
-                            logger.info(f"[scheduler] Thunder autonomous: {result}")
-                    elif result.get("status") == "paused":
-                        logger.debug("[scheduler] Thunder paused (kill switch active)")
-                    else:
-                        logger.error(f"[scheduler] Thunder autonomous error: {result.get('error')}")
-                except Exception as exc:
-                    logger.error(f"Error: {str(exc)}", exc_info=True)
-                    logger.error(f"[scheduler] Thunder autonomous error: {exc}")
-                finally:
-                    db.close()
-
-            scheduler.add_job(
-                _run_thunder_autonomous,
-                trigger="interval",
-                minutes=5,
-                id="thunder_autonomous_loop",
-                replace_existing=True,
-            )
-            logger.info("[OK] Scheduled Thunder autonomous loop (every 5 min)")
-        except Exception as exc:
-            logger.error(f"Error: {str(exc)}", exc_info=True)
-            logger.warning(f"Could not register Thunder autonomous loop scheduler: {exc}")
+        # ── DISABLED: Thunder now runs via THUNDER_QUEUE messages only ────────
+        # Thunder is queue-driven architecture:
+        # 1. CandidateCreationHandler completes candidate → enqueues THUNDER_QUEUE message
+        # 2. Thunder queue processor processes message → contacts candidate
+        # 3. Retries handled by message queue, not autonomous loop
+        #
+        # This prevents cascading failures: if Thunder errors, queue retry logic handles it
+        # instead of crashing the autonomous loop.
+        logger.info("[OK] Thunder processing: queue-driven (no autonomous loop)")
 
         # ── Every 30 min: SLM_IMPROVEMENT_CYCLE (Self-Learning Model) ───────
         try:
