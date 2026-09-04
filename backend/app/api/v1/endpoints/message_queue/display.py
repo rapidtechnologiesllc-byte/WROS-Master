@@ -24,7 +24,7 @@ from app.models.user import Users
 from app.models.message_queue import MessageQueue
 from pydantic import BaseModel, Field
 
-router = APIRouter(prefix="/api/v1/message-queue", tags=["message-queue"])
+router = APIRouter(prefix="/message-queue", tags=["message-queue"])
 
 
 class QueueMessageRow(BaseModel):
