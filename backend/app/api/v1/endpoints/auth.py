@@ -271,10 +271,10 @@ def unified_login(request: UnifiedLoginRequest, db: Session = Depends(get_db)):
         except HTTPException:
             raise
         except Exception as e:
-            logger.error(f"[LOGIN] Failed to fetch role template: {str(e)}", exc_info=True)
+            logger.error(f"[LOGIN] EXCEPTION in RoleTemplate lookup: {type(e).__name__}: {str(e)}", exc_info=True)
             raise HTTPException(
                 status_code=403,
-                detail="Your user account doesn't have permissions loaded. Please reach out to help desk."
+                detail=f"ERROR-999: {type(e).__name__}: {str(e)[:80]}"
             )
 
         # Fallback role check for legacy compatibility (user.UserRole as backup)
