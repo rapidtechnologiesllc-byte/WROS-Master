@@ -190,60 +190,62 @@ def run_auto_assign_ai_agent_in_background(candidate_id: str):
 
         tenant_user_id = system_admin.UserID
 
-        # Create conversation record (marks candidate as ready for Thunder outreach)
-        conversation = CandidateConversation(
-            candidate_id=candidate_id,
-            tenant_id=tenant_user_id,
-            owner_type="ai_agent",
-            owner_id="THUNDER",
-            status="open",
-            ai_agent_name="THUNDER",
-            channel_preference="email"
-        )
-        db.add(conversation)
-        db.flush()  # Get the conversation ID
+        # Queue conversation creation through message queue (not direct DB writes)
+        # This ensures idempotency and distributed-system safety
+        try:
+            from app.services.message_queue_service import MessageQueueService
 
-        # Log the outreach initiation event
-        if candidate and conversation:
-            event = ConversationEvent(
-                conversation_id=conversation.id,
-                event_type="ai_assigned",
-                triggered_by="system",
-                event_data={
-                    "agent": "THUNDER",
-                    "candidate_email": getattr(candidate, 'candidateEmail', 'unknown'),
+            # Queue message to create Thunder conversation
+            MessageQueueService.enqueue(
+                message_type="thunder_create_conversation",
+                queue_type="SYSTEM_QUEUE",
+                resource_id=candidate_id,
+                created_by="system",
+                db=db,
+                payload={
+                    "candidate_id": candidate_id,
+                    "tenant_id": tenant_user_id,
+                    "owner_type": "ai_agent",
+                    "owner_id": "THUNDER",
+                    "status": "open",
+                    "ai_agent_name": "THUNDER",
+                    "channel_preference": "email",
+                    "candidate_email": getattr(candidate, 'candidateEmail', None),
                     "candidate_name": f"{getattr(candidate, 'candidateFirstName', '')} {getattr(candidate, 'candidateLastName', '') or ''}".strip(),
                     "job_title": getattr(candidate, 'candidateJobTitle', None),
                     "location": getattr(candidate, 'candidateCurrentLocation', None)
                 }
             )
-            db.add(event)
+            logger.info(f"[Thunder] Queued conversation creation for candidate {candidate_id}")
 
-        # Enqueue initial email to candidate for Thunder to send
-        if candidate and conversation:
+            # Queue initial email message (will be sent after conversation exists)
+            candidate_email = getattr(candidate, 'candidateEmail', None)
+            if candidate_email:
+                MessageQueueService.enqueue(
+                    message_type="thunder_initial_email",
+                    queue_type="EMAIL_QUEUE",
+                    resource_id=candidate_id,
+                    created_by="system",
+                    db=db,
+                    payload={
+                        "candidate_id": candidate_id,
+                        "candidate_email": candidate_email,
+                        "candidate_name": f"{getattr(candidate, 'candidateFirstName', '')} {getattr(candidate, 'candidateLastName', '') or ''}".strip(),
+                        "template": "thunder_initial_intake"
+                    }
+                )
+                logger.info(f"[Thunder] Queued initial email for candidate {candidate_id}")
+
             try:
-                from app.services.message_queue_service import MessageQueueService
-                candidate_email = getattr(candidate, 'candidateEmail', None)
-                if candidate_email:
-                    MessageQueueService.enqueue(
-                        message_type="thunder_initial_email",
-                        queue_type="EMAIL_QUEUE",
-                        resource_id=candidate_id,
-                        created_by="system",
-                        db=db,
-                        payload={
-                            "candidate_id": candidate_id,
-                            "candidate_email": candidate_email,
-                            "candidate_name": f"{getattr(candidate, 'candidateFirstName', '')} {getattr(candidate, 'candidateLastName', '') or ''}".strip(),
-                            "conversation_id": conversation.id,
-                            "template": "thunder_initial_intake"
-                        }
-                    )
-                    logger.info(f"[Thunder] Enqueued initial email for candidate {candidate_id}")
-            except Exception as e:
-                logger.error(f"[Thunder] Failed to enqueue email for candidate {candidate_id}: {str(e)}", exc_info=True)
+                db.commit()
+            except Exception as commit_err:
+                db.rollback()
+                logger.error(f"[Thunder] Failed to commit queued messages for candidate {candidate_id}: {commit_err}", exc_info=True)
+                raise
 
-        db.commit()
+        except Exception as e:
+            logger.error(f"[Thunder] Failed to queue messages for candidate {candidate_id}: {str(e)}", exc_info=True)
+            raise
 
         if conversation:
             logger.info(f"[Thunder] Prepared candidate {candidate_id} for autonomous outreach (conversation_id={conversation.id})")
