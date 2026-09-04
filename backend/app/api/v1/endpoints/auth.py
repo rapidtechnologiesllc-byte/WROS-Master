@@ -175,7 +175,7 @@ def validate_email(request: ValidateEmailRequest, db: Session = Depends(get_db))
 @router.post("/login", response_model=UnifiedLoginResponse)
 def unified_login(request: UnifiedLoginRequest, db: Session = Depends(get_db)):
     """
-    Unified login endpoint. UPDATED 2026-09-04 TEST-MARKER-12345
+    Unified login endpoint.
 
     Accepts a single email + password and automatically determines whether
     the credentials belong to a **User** (HR / Admin / etc.) or a **Candidate**.
