@@ -51,32 +51,52 @@ def init_database():
         init_rbac_template_system(db, tenant_id)
         print("    [OK] RBAC templates initialized")
 
-        # Create users with job titles (role templates will be created via UI)
-        print("\n[3] Setting up users...")
+        # Build role template ID lookup from existing database records
+        print("\n[3] Building role template mapping...")
+        role_template_ids = {}
+        try:
+            for rt in db.query(RoleTemplate).all():
+                role_template_ids[rt.name] = rt.id
+                print(f"    [OK] Role template '{rt.name}' -> ID {rt.id}")
+        except Exception as e:
+            logger.error(f"Failed to query role templates: {e}", exc_info=True)
+            db.rollback()
+            raise
+
+        # Create users with role_template_id assigned immediately (NEVER NULL)
+        print("\n[3b] Creating users with role templates...")
 
         test_users = [
-            {"email": "am@blitzenx.com", "password": "Am@123", "name": "Avinash Mukund", "job_title": "CEO"},
-            {"email": "admin@blitzenx.com", "password": "Admin@123", "name": "Admin User", "job_title": "Admin"},
-            {"email": "test@blitzenx.com", "password": "Test@123", "name": "Test User", "job_title": "HR Manager"},
-            {"email": "superuser@blitzenx.com", "password": "Superuser!123", "name": "Super User", "job_title": "Super User"},
-            {"email": "recruiter1@blitzenx.com", "password": "Recruiter@123", "name": "John Recruiter", "job_title": "Recruiter"},
-            {"email": "recruiter2@blitzenx.com", "password": "Recruiter@123", "name": "Jane Recruiter", "job_title": "Recruiter"},
-            {"email": "hr1@blitzenx.com", "password": "HR@123", "name": "HR Manager 1", "job_title": "HR Manager"},
-            {"email": "hr2@blitzenx.com", "password": "HR@123", "name": "HR Manager 2", "job_title": "HR Manager"},
+            {"email": "am@blitzenx.com", "password": "Am@123", "name": "Avinash Mukund", "job_title": "CEO", "template": "Super User"},
+            {"email": "admin@blitzenx.com", "password": "Admin@123", "name": "Admin User", "job_title": "Admin", "template": "Admin"},
+            {"email": "test@blitzenx.com", "password": "Test@123", "name": "Test User", "job_title": "HR Manager", "template": "HR Manager"},
+            {"email": "superuser@blitzenx.com", "password": "Superuser!123", "name": "Super User", "job_title": "Super User", "template": "Super User"},
+            {"email": "recruiter1@blitzenx.com", "password": "Recruiter@123", "name": "John Recruiter", "job_title": "Recruiter", "template": "Recruiter"},
+            {"email": "recruiter2@blitzenx.com", "password": "Recruiter@123", "name": "Jane Recruiter", "job_title": "Recruiter", "template": "Recruiter"},
+            {"email": "hr1@blitzenx.com", "password": "HR@123", "name": "HR Manager 1", "job_title": "HR Manager", "template": "HR Manager"},
+            {"email": "hr2@blitzenx.com", "password": "HR@123", "name": "HR Manager 2", "job_title": "HR Manager", "template": "HR Manager"},
         ]
 
         created_count = 0
-        for user_data in test_users:
-            existing = db.query(Users).filter(Users.UserEmail == user_data["email"]).first()
-            if not existing:
+        try:
+            for user_data in test_users:
+                existing = db.query(Users).filter(Users.UserEmail == user_data["email"]).first()
+                if existing:
+                    print(f"    [SKIP] {user_data['email']} already exists")
+                    continue
+
+                template_id = role_template_ids.get(user_data["template"])
+                if not template_id:
+                    raise ValueError(f"Role template '{user_data['template']}' not found in database")
+
                 user = Users(
                     UserID=str(uuid.uuid4()),
                     UserEmail=user_data["email"],
                     UserPassword=get_password_hash(user_data["password"]),
                     UserName=user_data["name"],
-                    UserRole=user_data["job_title"],  # Keep for backward compatibility
+                    UserRole=user_data["job_title"],
                     job_title=user_data["job_title"],
-                    role_template_id=None,  # Will be assigned via UI
+                    role_template_id=template_id,  # MANDATORY - assigned immediately
                     tenant_id=tenant_id,
                     mfa_enabled=False,
                     digest_enabled=True,
@@ -85,10 +105,14 @@ def init_database():
                 )
                 db.add(user)
                 created_count += 1
-                print(f"    [OK] Created {user_data['email']} (job_title: {user_data['job_title']})")
+                print(f"    [OK] Created {user_data['email']} with role_template_id={template_id}")
 
-        db.commit()
-        print(f"    [SUMMARY] {created_count} users created/updated")
+            db.commit()
+            print(f"    [SUMMARY] {created_count} users created/updated")
+        except Exception as e:
+            logger.error(f"Failed to create users: {e}", exc_info=True)
+            db.rollback()
+            raise
 
         # Create jobs
         print("\n[4] Setting up jobs...")
