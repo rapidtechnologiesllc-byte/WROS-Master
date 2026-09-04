@@ -287,7 +287,7 @@ def require_permission(permission: str):
     @router.get("/path", dependencies=[Depends(require_permission("candidate.view"))])
 
     New Usage (preferred):
-    @router.post("/path", dependencies=[Depends(require_resource_permission("candidates", "create"))])
+    @router.post("/path", dependencies=[Depends(require_role_template_permission("candidates", "can_create"))])
     """
     async def _check(
         credentials: HTTPAuthorizationCredentials = Depends(security),
