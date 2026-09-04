@@ -72,7 +72,7 @@ export default function CandidateSearch({
 
   const handleThunderToggle = async (candidateId, currentValue) => {
     try {
-      await updateCandidateThunderEnabled(candidateId, !currentValue);
+      await updateCandidateThunderEnabled(candidateId, !currentValue).catch(e => { throw e; });
       setCandidateList((prev) =>
         prev.map((c) =>
           c.candidate_id === candidateId
@@ -82,8 +82,9 @@ export default function CandidateSearch({
       );
       toast.success(!currentValue ? "Thunder processing enabled" : "Thunder processing disabled");
     } catch (err) {
-      toast.error("Failed to update Thunder configuration");
-      console.error(err);
+      const errorMsg = err?.message || "Unknown error updating Thunder configuration";
+      toast.error(`Failed to update Thunder configuration: ${errorMsg}`);
+      console.error("[CandidateSearch] Thunder toggle failed:", err);
     }
   };
 
@@ -177,7 +178,15 @@ export default function CandidateSearch({
   };
 
   useEffect(() => {
-    setCandidateList([...candidates]);
+    // Normalize candidates from prop - ensure consistent field names
+    const normalizedCandidates = candidates?.map(c => ({
+      ...c,
+      candidate_name: c.candidate_name || c.name,
+      candidate_email: c.candidate_email || c.email,
+      candidate_mobile: c.candidate_mobile || c.phone,
+      candidate_id: c.candidate_id || c.id,
+    })) || [];
+    setCandidateList([...normalizedCandidates]);
   }, [candidates]);
 
   const editingCandidate = useMemo(() => {
@@ -379,16 +388,20 @@ export default function CandidateSearch({
       title: "Name",
       dataIndex: "candidate_name",
       width: 300,
-      render: (_, record) => {
+      render: (value, record) => {
+        // Handle both transformed (name) and original (candidate_name) field names
+        const name = value || record?.name || record?.candidate_name || 'N/A';
+        const candidateId = record?.candidate_id || record?.id;
+
         return (
           <span className="inline-flex items-center gap-1.5">
             <button
               className="font-semibold text-gray-900 transition-colors hover:text-black hover:underline"
               onClick={() => {
-                navigate(`/candidates/${record.candidate_id}`);
+                navigate(`/candidates/${candidateId}`);
               }}
             >
-              {record?.candidate_name}
+              {name}
             </button>
             {record?.is_guidewire_candidate ? (
               <span
@@ -406,14 +419,20 @@ export default function CandidateSearch({
       title: "Contact",
       dataIndex: "candidate_email",
       width: 200,
-      render: (_, record) => (
-        <div className="space-y-1">
-          <div className="text-sm text-gray-900">
-            {record?.candidate_mobile ? `${record.candidate_mobile}` : "-"}
+      render: (value, record) => {
+        // Handle both transformed (email, phone) and original (candidate_email, candidate_mobile) field names
+        const email = value || record?.email || record?.candidate_email || "-";
+        const phone = record?.candidate_mobile || record?.phone || record?.mobile || "-";
+
+        return (
+          <div className="space-y-1">
+            <div className="text-sm text-gray-900">
+              {phone && phone !== "-" ? `${phone}` : "-"}
+            </div>
+            <div className="text-sm text-gray-600">{email}</div>
           </div>
-          <div className="text-sm text-gray-600">{record?.candidate_email || "-"}</div>
-        </div>
-      ),
+        );
+      },
     },
     {
       title: "Thunder",

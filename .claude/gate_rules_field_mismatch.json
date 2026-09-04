@@ -1,0 +1,95 @@
+{
+  "rule_name": "Detect Ant Table Field Mismatch",
+  "rule_id": "FIELD_MISMATCH_001",
+  "severity": "CRITICAL",
+  "description": "Detects when Ant Table columns reference fields that don't exist in the data records. Catches silent rendering failures where UI shows empty values.",
+  "scope": "frontend",
+  "pattern": {
+    "detects": [
+      "dataIndex value doesn't match any field in record object",
+      "render function accesses field that isn't in data transformation",
+      "Parent transforms data (e.g., candidate_name → name) but child expects original field names",
+      "Table columns reference snake_case but data has camelCase (or vice versa)"
+    ],
+    "examples_that_trigger": [
+      {
+        "issue": "Parent transforms candidate_name → name, table expects candidate_name",
+        "file": "CandidateSearch.js",
+        "line": "380: dataIndex: 'candidate_name'",
+        "reason": "render() tries to access record.candidate_name but record only has 'name' after transformation"
+      },
+      {
+        "issue": "Table column references undefined field",
+        "code": "{ title: 'Email', dataIndex: 'email' } but data has { candidate_email: 'x@y.com' }",
+        "result": "Column renders empty"
+      }
+    ]
+  },
+  "detection_rules": {
+    "rule_1": {
+      "name": "Check dataIndex matches record fields",
+      "check": "For each column with dataIndex, verify that the dataIndex key exists in 100% of records",
+      "implementation": "Parse Ant Table columns configuration + data structure; cross-reference",
+      "severity": "CRITICAL",
+      "auto_fix": "Use consistent field names or add field mapping layer"
+    },
+    "rule_2": {
+      "name": "Detect data transformation mismatches",
+      "check": "If parent component transforms data, child component must either: (a) not transform, or (b) transform consistently",
+      "implementation": "Track mapCandidate calls; verify output field names match table expectations",
+      "severity": "CRITICAL",
+      "auto_fix": "Either don't transform in parent, or ensure child handles both original and transformed names"
+    },
+    "rule_3": {
+      "name": "Verify field presence in render functions",
+      "check": "Any record?.field_name access in render functions must have corresponding field in data",
+      "implementation": "Static analysis of render functions vs data schema",
+      "severity": "HIGH",
+      "auto_fix": "Add defensive checks: record?.field_name || record?.alternative_field_name"
+    },
+    "rule_4": {
+      "name": "Detect silent empty renders",
+      "check": "If {record?.field} renders as empty string/nothing, it means field is undefined",
+      "implementation": "Linting rule to warn on empty JSX renders with optional chaining",
+      "severity": "HIGH",
+      "auto_fix": "Log warning or render fallback: {record?.field || 'N/A'}"
+    }
+  },
+  "prevention_strategy": {
+    "point_1": "Use type definitions (TypeScript) to define expected data shape",
+    "point_2": "Add runtime validation: verify all dataIndex fields exist before rendering table",
+    "point_3": "Normalize data in ONE place only (either parent or child, not both)",
+    "point_4": "Add console.error if field is missing (catch during development)"
+  },
+  "git_commit_enforcement": {
+    "gate_blocks_commit": true,
+    "message": "Field mismatch detected: table columns reference undefined fields. This will render as empty in UI.",
+    "require_fix_before_merge": true,
+    "no_bypass_allowed": true
+  },
+  "example_fix": {
+    "before": {
+      "parent": "const data = mapCandidate(apiData, 'ant');  // Transforms candidate_name → name",
+      "child_table": "{ title: 'Name', dataIndex: 'candidate_name', render: (_, record) => record?.candidate_name }"
+    },
+    "after_option_a": {
+      "description": "Normalize in child component to handle both field name formats",
+      "child_code": "useEffect(() => { setCandidateList(candidates?.map(c => ({ ...c, candidate_name: c.candidate_name || c.name })) || []) }, [candidates])"
+    },
+    "after_option_b": {
+      "description": "Use consistent field names everywhere (prefer candidate_name since API uses it)",
+      "change": "Remove mapCandidate transformation of candidate_name; keep it as-is"
+    }
+  },
+  "test_case": {
+    "name": "Ant Table Field Mismatch Detection",
+    "setup": "Create table with dataIndex='candidate_name' but data has { name: 'Jane' } only",
+    "expected": "Gate BLOCKS commit with error message about missing field",
+    "actual_before_rule": "Bug committed; users see empty Name column at runtime"
+  },
+  "affected_files_this_incident": [
+    "frontend/src/screens/CandidateSearch.js (line 380-391)"
+  ],
+  "learned_date": "2026-09-04 (Candidate names display bug - 50+ hour production outage)",
+  "impact": "CRITICAL - Silent rendering failure; no errors in console; users see empty UI with no indication of what's wrong"
+}
