@@ -419,7 +419,7 @@ class CodeGateValidator:
                         break
 
             # HIGH: No error handling on await
-            if 'await' in line and '.catch' not in '\n'.join(self.lines[i:min(i+3, len(self.lines))]):
+            if 'await' in line and '.catch' not in '\n'.join(self.lines[i-1:min(i+2, len(self.lines))]):
                 self.issues.append({
                     'severity': 'HIGH',
                     'line': i,
