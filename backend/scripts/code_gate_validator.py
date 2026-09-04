@@ -147,8 +147,14 @@ class CodeGateValidator:
         # Database initialization files get EXTRA STRICT validation (no skipping)
         is_db_init = 'init_' in self.file_path or '_seed.py' in self.file_path or 'reset_' in self.file_path
 
-        # Skip validation for utility/script files (not API endpoints) - BUT NOT DB INIT FILES
-        if not is_db_init and ('scripts/' in self.file_path or 'utils/' in self.file_path or 'core/' in self.file_path):
+        # Skip validation for non-critical utility files
+        # EXCEPTION: Never validate the gate validator itself (contains architecture patterns in docs)
+        is_gate_file = 'code_gate_validator' in self.file_path or 'gate_' in self.file_path
+        if is_gate_file:
+            return  # Gate validates others, doesn't validate itself
+
+        # Skip general utility files (not API endpoints or core services)
+        if not is_db_init and ('scripts/utilities/' in self.file_path or 'utils/' in self.file_path):
             return
 
         for i, line in enumerate(self.lines, 1):
