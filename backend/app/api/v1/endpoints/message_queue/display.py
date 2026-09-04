@@ -123,6 +123,10 @@ def display_message_queue(
         # Build query
         query = db.query(MessageQueue)
 
+        # Filter by tenant for data isolation
+        if current_user.tenant_id:
+            query = query.filter(MessageQueue.tenant_id == current_user.tenant_id)
+
         # Apply filters
         if queue_type:
             query = query.filter(MessageQueue.queue_type == queue_type)
@@ -211,9 +215,12 @@ def get_queue_stats(
     try:
         from datetime import datetime
 
-        # Get all messages
+        # Get messages for user's tenant
         try:
-            all_messages = db.query(MessageQueue).all()
+            query = db.query(MessageQueue)
+            if current_user.tenant_id:
+                query = query.filter(MessageQueue.tenant_id == current_user.tenant_id)
+            all_messages = query.all()
         except Exception as e:
             logger = logging.getLogger(__name__)
             logger.error(f"Failed to query message queue: {e}", exc_info=True)
