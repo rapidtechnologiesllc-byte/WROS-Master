@@ -18,14 +18,15 @@ from app.core.database import (
     authenticate_user,
     authenticate_candidate
 )
-from app.core.security_local import (
+from app.core.security import (
     verify_password,
     create_access_token,
     create_refresh_token,
     get_password_hash,
+    security,
+    decode_access_token
 )
 from app.core.dependencies import get_current_candidate, get_current_hr_or_admin
-from app.core.security import security, decode_access_token
 from app.core.mfa import (
     EMAIL_OTP_TTL_MINUTES,
     MFA_PENDING_TOKEN_MINUTES,
@@ -62,6 +63,8 @@ def signup(request: SignupRequest, db: Session = Depends(get_db)):
     """
     Create a new user account
 
+    PUBLIC ENDPOINT - no authentication required (see auth_middleware.PUBLIC_ROUTES)
+
     Args:
         request: SignupRequest containing user details
         db: Database session
@@ -72,12 +75,29 @@ def signup(request: SignupRequest, db: Session = Depends(get_db)):
     Raises:
         HTTPException: If user with email already exists
     """
-    # Check if user already exists
+    # Check if user already exists (defensive: check both ways)
     existing = check_user(db, request.user_email)
     if existing:
         raise HTTPException(
             status_code=400,
             detail=f"Account already exists with email {request.user_email}"
+        )
+
+    # Double-check with direct query to ensure user doesn't exist
+    try:
+        duplicate = db.query(Users).filter(Users.UserEmail == request.user_email.lower()).first()
+        if duplicate:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Account already exists with email {request.user_email}"
+            )
+    except Exception as e:
+        if isinstance(e, HTTPException):
+            raise
+        logger.error(f"Failed to check user existence: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to process signup. Please try again."
         )
 
     # Generate unique ID and hash password
@@ -95,9 +115,17 @@ def signup(request: SignupRequest, db: Session = Depends(get_db)):
         UserRole=SELF_SIGNUP_DEFAULT_ROLE,
     )
 
-    db.add(user)
-    db.commit()
-    db.refresh(user)
+    try:
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Failed to create user: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to create user account. Please try again later."
+        )
 
     return SignupResponse(response="User created successfully")
     
@@ -107,8 +135,16 @@ def validate_email(request: ValidateEmailRequest, db: Session = Depends(get_db))
     Validate if an email exists as an employee user.
     Returns {exists: true/false} so frontend can show appropriate error.
     Password field is optional (only used if provided for Step 2).
+
+    PUBLIC ENDPOINT - no authentication required (see auth_middleware.PUBLIC_ROUTES)
     """
     from sqlalchemy import text
+
+    if not request or not request.email:
+        raise HTTPException(
+            status_code=400,
+            detail="Email is required"
+        )
 
     email = request.email.strip().lower()
     user = check_user(db, email)
@@ -116,15 +152,22 @@ def validate_email(request: ValidateEmailRequest, db: Session = Depends(get_db))
     # Reject users without a role template (must have permissions)
     if user:
         # Explicitly query for role_template_id to ensure it's loaded
-        role_template_id = db.execute(
-            text('SELECT role_template_id FROM users WHERE "UserEmail" = :email'),
-            {"email": email}
-        ).scalar()
+        try:
+            role_template_id = db.execute(
+                text('SELECT role_template_id FROM users WHERE "UserEmail" = :email'),
+                {"email": email}
+            ).scalar()
 
-        if role_template_id is None:
+            if role_template_id is None:
+                raise HTTPException(
+                    status_code=403,
+                    detail="Your user account doesn't have permissions loaded. Please reach out to help desk.",
+                )
+        except Exception as e:
+            logger.error(f"Error validating email {email}: {str(e)}", exc_info=True)
             raise HTTPException(
-                status_code=403,
-                detail="Your user account doesn't have permissions loaded. Please reach out to help desk.",
+                status_code=500,
+                detail="Failed to validate email. Please try again later."
             )
 
     return {"exists": bool(user)}
@@ -139,9 +182,16 @@ def unified_login(request: UnifiedLoginRequest, db: Session = Depends(get_db)):
     The response includes an `entity_type` field ("user" or "candidate") so
     the frontend can route accordingly.
 
+    PUBLIC ENDPOINT - no authentication required (see auth_middleware.PUBLIC_ROUTES)
+
     Raises:
         HTTPException 401: If credentials do not match any user or candidate.
     """
+    if not request or not request.email or not request.password:
+        raise HTTPException(
+            status_code=400,
+            detail="Email and password are required"
+        )
     from app.core.logging import logger
     import os
 
@@ -150,27 +200,65 @@ def unified_login(request: UnifiedLoginRequest, db: Session = Depends(get_db)):
     logger.warning(f"[LOGIN] unified_login attempt for email='{request.email}'")
 
     # ── 1. Try authenticating as a User first ───────────────────
+    user = None
     try:
+        logger.warning(f"[LOGIN] Calling authenticate_user with email='{request.email}'")
         user = authenticate_user(db, request.email, request.password)
+        logger.warning(f"[LOGIN] authenticate_user returned: {type(user).__name__ if user else 'None'}")
+        if user:
+            logger.warning(f"[LOGIN] User authenticated: {user.UserEmail}, role_template_id={user.role_template_id}")
     except Exception as e:
         logger.error(f"[LOGIN] authenticate_user threw exception: {str(e)}", exc_info=True)
-        raise HTTPException(
-            status_code=401,
-            detail="Invalid email or password",
-        )
-    logger.info(f"[LOGIN] authenticate_user returned: {type(user).__name__ if user else 'False'}")
+        # Continue to candidate auth below
+        user = None
     if user:
-        # Get authoritative role_template_id from database (ORM not loading correctly)
-        from sqlalchemy import text
-        role_template_id = db.execute(text('SELECT role_template_id FROM users WHERE "UserEmail" = :email'), {"email": request.email}).scalar()
+        # Defensive null check: user must have required attributes
+        if not user or not user.UserID or not user.UserEmail:
+            raise HTTPException(
+                status_code=500,
+                detail="User record incomplete. Please contact help desk."
+            )
 
-        # Get role template name
-        user_role = user.UserRole or "User"  # Fall back to UserRole field or "User"
-        if role_template_id:
-            from app.models.role_template import RoleTemplate
+        # MANDATORY PERMISSION ENFORCEMENT: User MUST have a role_template_id to proceed
+        # This permission check happens immediately after authentication (not optional)
+        if not hasattr(user, 'role_template_id') or not user.role_template_id:
+            raise HTTPException(
+                status_code=403,
+                detail="Your user account doesn't have permissions loaded. Please reach out to help desk."
+            )
+
+        # role_template_id is mandatory and already validated above
+        # Use the validated value from authenticated user object
+        from sqlalchemy import text
+        from app.models.role_template import RoleTemplate
+
+        # Assign from already-validated user attribute
+        role_template_id = user.role_template_id
+
+        # Get role template name - user MUST have a valid role_template
+        user_role = "User"
+        try:
             rt = db.query(RoleTemplate).filter(RoleTemplate.id == role_template_id).first()
-            if rt:
+            if rt and hasattr(rt, 'name') and rt.name:
                 user_role = rt.name
+            else:
+                logger.error(f"[LOGIN] Role template {role_template_id} not found for user {request.email}")
+                raise HTTPException(
+                    status_code=403,
+                    detail="Your user account doesn't have permissions loaded. Please reach out to help desk."
+                )
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"[LOGIN] Failed to fetch role template: {str(e)}", exc_info=True)
+            raise HTTPException(
+                status_code=403,
+                detail="Your user account doesn't have permissions loaded. Please reach out to help desk."
+            )
+
+        # Fallback role check for legacy compatibility (user.UserRole as backup)
+        if user and hasattr(user, 'UserRole') and user.UserRole and user_role == "User":
+            user_role = user.UserRole
         # Phase 1 B3 -- gate is off by default (mfa_enforcement_enabled())
         # and only applies to MFA_REQUIRED_ROLES even when on. See
         # app.core.mfa's module docstring: do not enable the env flag
@@ -201,14 +289,25 @@ def unified_login(request: UnifiedLoginRequest, db: Session = Depends(get_db)):
                 # must be proactively issued and sent by us right now --
                 # there's nothing for the user to produce on their own.
                 code = generate_email_otp_code()
-                user.email_otp_code_hash = hash_email_otp_code(code)
-                user.email_otp_expires_at = datetime.utcnow() + timedelta(minutes=EMAIL_OTP_TTL_MINUTES)
-                db.add(user)
-                db.commit()
                 try:
+                    user.email_otp_code_hash = hash_email_otp_code(code)
+                    user.email_otp_expires_at = datetime.utcnow() + timedelta(minutes=EMAIL_OTP_TTL_MINUTES)
+                    db.add(user)
+                    db.commit()
+                except Exception as e:
+                    db.rollback()
+                    logger.error(f"[LOGIN] Failed to store email OTP: {str(e)}", exc_info=True)
+                    raise HTTPException(
+                        status_code=500,
+                        detail="Failed to generate verification code. Please try again."
+                    )
+
+                try:
+                    user_email = user.UserEmail if user and hasattr(user, 'UserEmail') else request.email
+                    user_name = user.UserName if user and hasattr(user, 'UserName') and user.UserName else user_email
                     EmailService.send_event_notification(
-                        to_email=user.UserEmail,
-                        recipient_name=user.UserName or user.UserEmail,
+                        to_email=user_email,
+                        recipient_name=user_name,
                         event_type="action_required",
                         heading="Your BlitzenX WROS verification code",
                         message=(
@@ -224,38 +323,41 @@ def unified_login(request: UnifiedLoginRequest, db: Session = Depends(get_db)):
                     pass
 
             # Get user permissions for frontend navigation
+            user_permissions = []
             try:
                 user_permissions = RoleTemplatePermissionService.get_user_permissions(
-                    db, user.UserID, user.tenant_id
+                    db, user.UserID, user.tenant_id if hasattr(user, 'tenant_id') else None
                 )
             except Exception as e:
-                logger.error(f"Error: {str(e)}", exc_info=True)
+                logger.error(f"[LOGIN] Error fetching permissions: {str(e)}", exc_info=True)
                 if "no role template" in str(e).lower():
                     raise HTTPException(
                         status_code=403,
                         detail="Your user account doesn't have permissions loaded. Please reach out to help desk.",
                     )
-                raise
+                # Non-critical: continue with empty permissions
+                user_permissions = []
 
             return UnifiedLoginResponse(
                 entity_type="user",
                 access_token=pending_token,
                 is_first_time=False,
                 user_role=user_role,
-                user_name=user.UserName or "",
-                user_email=user.UserEmail,
+                user_name=user.UserName if (user and hasattr(user, 'UserName') and user.UserName) else "",
+                user_email=user.UserEmail if (user and hasattr(user, 'UserEmail')) else request.email,
                 permissions=user_permissions,
-                mfa_required=bool(user.mfa_enabled) if totp_gate else False,
-                mfa_setup_required=(not bool(user.mfa_enabled)) if totp_gate else False,
+                mfa_required=bool(user.mfa_enabled) if (user and hasattr(user, 'mfa_enabled') and totp_gate) else False,
+                mfa_setup_required=(not bool(user.mfa_enabled)) if (user and hasattr(user, 'mfa_enabled') and totp_gate) else False,
                 email_otp_required=email_otp_gate,
             )
 
+        # Standard (non-MFA) login flow
         access_token = create_access_token(
             data={
                 "sub": user.UserID,
                 "email": user.UserEmail,
                 "type": "user",
-                "name": user.UserName,
+                "name": user.UserName if (hasattr(user, 'UserName') and user.UserName) else "",
             }
         )
 
@@ -269,18 +371,20 @@ def unified_login(request: UnifiedLoginRequest, db: Session = Depends(get_db)):
         )
 
         # Get user permissions for frontend navigation
+        user_permissions = []
         try:
             user_permissions = RoleTemplatePermissionService.get_user_permissions(
-                db, user.UserID, user.tenant_id
+                db, user.UserID, user.tenant_id if hasattr(user, 'tenant_id') else None
             )
         except Exception as e:
-            logger.error(f"Error: {str(e)}", exc_info=True)
+            logger.error(f"[LOGIN] Error fetching permissions: {str(e)}", exc_info=True)
             if "no role template" in str(e).lower():
                 raise HTTPException(
                     status_code=403,
                     detail="Your user account doesn't have permissions loaded. Please reach out to help desk.",
                 )
-            raise
+            # Non-critical: continue with empty permissions
+            user_permissions = []
 
         # Check if password reset is required (first login with system-generated password)
         force_password_reset = getattr(user, 'password_reset_required', False)
@@ -291,31 +395,41 @@ def unified_login(request: UnifiedLoginRequest, db: Session = Depends(get_db)):
             refresh_token=refresh_token,
             is_first_time=False,
             user_role=user_role,
-            user_name=user.UserName or "",
-            user_email=user.UserEmail,
+            user_name=user.UserName if (user and hasattr(user, 'UserName') and user.UserName) else "",
+            user_email=user.UserEmail if (user and hasattr(user, 'UserEmail')) else request.email,
             permissions=user_permissions,
             force_password_reset=force_password_reset,
         )
 
     # ── 2. Fall back to Candidate ────────────────────────────────
+    candidate = None
     try:
         candidate = authenticate_candidate(db, request.email, request.password)
     except Exception as e:
         logger.error(f"[LOGIN] authenticate_candidate threw exception: {str(e)}", exc_info=True)
-        raise HTTPException(
-            status_code=401,
-            detail="Invalid email or password",
-        )
+        candidate = None
+
     if candidate:
-        name_parts = [
-            candidate.candidateFirstName,
-            candidate.candidateMiddleName,
-            candidate.candidateLastName,
-        ]
+        # Defensive null checks
+        if not candidate or not candidate.candidateID or not candidate.candidateEmail:
+            raise HTTPException(
+                status_code=500,
+                detail="Candidate record incomplete. Please contact help desk."
+            )
+
+        # Build candidate name from parts - defensive access
+        name_parts = []
+        if candidate and hasattr(candidate, 'candidateFirstName') and candidate.candidateFirstName:
+            name_parts.append(candidate.candidateFirstName)
+        if candidate and hasattr(candidate, 'candidateMiddleName') and candidate.candidateMiddleName:
+            name_parts.append(candidate.candidateMiddleName)
+        if candidate and hasattr(candidate, 'candidateLastName') and candidate.candidateLastName:
+            name_parts.append(candidate.candidateLastName)
         candidate_name = " ".join(filter(None, name_parts)) or ""
+
         is_first_time = (
             not candidate.candidateIsVerified
-            if candidate.candidateIsVerified is not None
+            if (candidate and hasattr(candidate, 'candidateIsVerified') and candidate.candidateIsVerified is not None)
             else True
         )
 
@@ -323,17 +437,27 @@ def unified_login(request: UnifiedLoginRequest, db: Session = Depends(get_db)):
         # half): opted-in candidates get a pending token + emailed code
         # instead of a full session, same shape as the internal-user
         # email-OTP gate in the branch above but candidate-scoped.
-        if candidate.email_2fa_opted_in:
+        if candidate and hasattr(candidate, 'email_2fa_opted_in') and candidate.email_2fa_opted_in:
             from datetime import timedelta as _timedelta
             code = generate_email_otp_code()
-            candidate.email_otp_code_hash = hash_email_otp_code(code)
-            candidate.email_otp_expires_at = datetime.utcnow() + _timedelta(minutes=EMAIL_OTP_TTL_MINUTES)
-            db.add(candidate)
-            db.commit()
             try:
+                candidate.email_otp_code_hash = hash_email_otp_code(code)
+                candidate.email_otp_expires_at = datetime.utcnow() + _timedelta(minutes=EMAIL_OTP_TTL_MINUTES)
+                db.add(candidate)
+                db.commit()
+            except Exception as e:
+                db.rollback()
+                logger.error(f"[LOGIN] Failed to store candidate OTP: {str(e)}", exc_info=True)
+                raise HTTPException(
+                    status_code=500,
+                    detail="Failed to generate verification code. Please try again."
+                )
+
+            try:
+                candidate_email = candidate.candidateEmail if (candidate and hasattr(candidate, 'candidateEmail')) else request.email
                 EmailService.send_event_notification(
-                    to_email=candidate.candidateEmail,
-                    recipient_name=candidate_name or candidate.candidateEmail,
+                    to_email=candidate_email,
+                    recipient_name=candidate_name or candidate_email,
                     event_type="action_required",
                     heading="Your BlitzenX verification code",
                     message=(
@@ -353,13 +477,14 @@ def unified_login(request: UnifiedLoginRequest, db: Session = Depends(get_db)):
                 access_token=pending_token,
                 is_first_time=is_first_time,
                 candidate_id=candidate.candidateID,
-                candidate_role=candidate.candidateRole or "Candidate",
+                candidate_role=candidate.candidateRole if (hasattr(candidate, 'candidateRole') and candidate.candidateRole) else "Candidate",
                 candidate_name=candidate_name,
                 candidate_email=candidate.candidateEmail,
-                candidate_mobile=candidate.candidateMobile,
+                candidate_mobile=candidate.candidateMobile if (hasattr(candidate, 'candidateMobile')) else None,
                 candidate_otp_required=True,
             )
 
+        # Standard candidate login (non-OTP)
         access_token = create_access_token(
             data={
                 "sub": candidate.candidateID,
@@ -381,11 +506,11 @@ def unified_login(request: UnifiedLoginRequest, db: Session = Depends(get_db)):
             refresh_token=refresh_token,
             is_first_time=is_first_time,
             candidate_id=candidate.candidateID,
-            candidate_role=candidate.candidateRole or "Candidate",
+            candidate_role=candidate.candidateRole if (hasattr(candidate, 'candidateRole') and candidate.candidateRole) else "Candidate",
             candidate_name=candidate_name,
             candidate_email=candidate.candidateEmail,
-            candidate_mobile=candidate.candidateMobile,
-            show_2fa_opt_in_popup=candidate.email_2fa_opted_in is None,
+            candidate_mobile=candidate.candidateMobile if (hasattr(candidate, 'candidateMobile')) else None,
+            show_2fa_opt_in_popup=(not (hasattr(candidate, 'email_2fa_opted_in') and candidate.email_2fa_opted_in is not None)),
         )
 
     # ── 3. Neither matched ───────────────────────────────────────
@@ -395,7 +520,11 @@ def unified_login(request: UnifiedLoginRequest, db: Session = Depends(get_db)):
     )
 
 @router.post("/v1/refresh", response_model=UnifiedLoginResponse)
-def refresh_token_endpoint(credentials: HTTPAuthorizationCredentials = Depends(security), db: Session = Depends(get_db)):
+def refresh_token_endpoint(
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_hr_or_admin)
+):
     """
     Refresh an access token using a refresh token.
 
@@ -411,9 +540,18 @@ def refresh_token_endpoint(credentials: HTTPAuthorizationCredentials = Depends(s
         raise HTTPException(status_code=401, detail="Missing refresh token")
 
     refresh_token_str = credentials.credentials
+    if not refresh_token_str:
+        raise HTTPException(status_code=401, detail="Missing refresh token")
 
     # Verify refresh token
-    payload = verify_token(refresh_token_str)
+    payload = None
+    try:
+        from app.core.security import verify_token as verify_jwt
+        payload = verify_jwt(refresh_token_str)
+    except Exception as e:
+        logger.error(f"[REFRESH] Token verification failed: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=401, detail="Invalid refresh token")
+
     if not payload:
         raise HTTPException(status_code=401, detail="Invalid refresh token")
 
@@ -426,17 +564,37 @@ def refresh_token_endpoint(credentials: HTTPAuthorizationCredentials = Depends(s
         raise HTTPException(status_code=401, detail="Invalid refresh token")
 
     # Determine if this is a user or candidate
-    user = check_user(db, None, user_id)
-    candidate = check_candidate(db, None, user_id) if not user else None
+    user = None
+    candidate = None
+    try:
+        user = check_user(db, None, user_id)
+        candidate = check_candidate(db, None, user_id) if not user else None
+    except Exception as e:
+        logger.error(f"[REFRESH] Failed to lookup user/candidate: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=401, detail="User not found")
 
     if user:
+        # Defensive null checks
+        if not user or not user.UserID or not user.UserEmail:
+            raise HTTPException(
+                status_code=500,
+                detail="User record incomplete. Please contact help desk."
+            )
+
+        # MANDATORY: User MUST have a role_template_id (cannot refresh without permissions)
+        if not hasattr(user, 'role_template_id') or not user.role_template_id:
+            raise HTTPException(
+                status_code=403,
+                detail="Your user account doesn't have permissions loaded. Please reach out to help desk."
+            )
+
         # Create new access token for user
         access_token = create_access_token(
             data={
                 "sub": user.UserID,
                 "email": user.UserEmail,
                 "type": "user",
-                "name": user.UserName,
+                "name": user.UserName if (hasattr(user, 'UserName') and user.UserName) else "",
             }
         )
 
@@ -450,16 +608,28 @@ def refresh_token_endpoint(credentials: HTTPAuthorizationCredentials = Depends(s
         )
 
         # Get user permissions
-        user_permissions = RoleTemplatePermissionService.get_user_permissions(
-            db, user.UserID, user.tenant_id
-        )
+        user_permissions = []
+        try:
+            user_permissions = RoleTemplatePermissionService.get_user_permissions(
+                db, user.UserID, user.tenant_id if hasattr(user, 'tenant_id') else None
+            )
+        except Exception as e:
+            logger.error(f"[REFRESH] Error fetching permissions: {str(e)}", exc_info=True)
+            user_permissions = []
 
         # Get user role
-        user_role = user.UserRole or "User"
-        if user.role_template_id:
-            rt = db.query(RoleTemplate).filter(RoleTemplate.id == user.role_template_id).first()
-            if rt:
-                user_role = rt.name
+        user_role = "User"
+        if user and hasattr(user, 'UserRole') and user.UserRole:
+            user_role = user.UserRole
+
+        if user and hasattr(user, 'role_template_id') and user.role_template_id:
+            try:
+                from app.models.role_template import RoleTemplate
+                rt = db.query(RoleTemplate).filter(RoleTemplate.id == user.role_template_id).first()
+                if rt and hasattr(rt, 'name') and rt.name:
+                    user_role = rt.name
+            except Exception as e:
+                logger.error(f"[REFRESH] Failed to fetch role template: {str(e)}", exc_info=True)
 
         logger.info(f"[REFRESH] Successfully refreshed token for user {user.UserID}")
 
@@ -469,12 +639,19 @@ def refresh_token_endpoint(credentials: HTTPAuthorizationCredentials = Depends(s
             refresh_token=new_refresh_token,
             is_first_time=False,
             user_role=user_role,
-            user_name=user.UserName or "",
+            user_name=user.UserName if (user and hasattr(user, 'UserName') and user.UserName) else "",
             user_email=user.UserEmail,
             permissions=user_permissions,
         )
 
     elif candidate:
+        # Defensive null checks
+        if not candidate or not candidate.candidateID or not candidate.candidateEmail:
+            raise HTTPException(
+                status_code=500,
+                detail="Candidate record incomplete. Please contact help desk."
+            )
+
         # Create new access token for candidate
         access_token = create_access_token(
             data={
@@ -491,11 +668,14 @@ def refresh_token_endpoint(credentials: HTTPAuthorizationCredentials = Depends(s
             }
         )
 
-        name_parts = [
-            candidate.candidateFirstName,
-            candidate.candidateMiddleName,
-            candidate.candidateLastName,
-        ]
+        # Build candidate name - defensive access
+        name_parts = []
+        if candidate and hasattr(candidate, 'candidateFirstName') and candidate.candidateFirstName:
+            name_parts.append(candidate.candidateFirstName)
+        if candidate and hasattr(candidate, 'candidateMiddleName') and candidate.candidateMiddleName:
+            name_parts.append(candidate.candidateMiddleName)
+        if candidate and hasattr(candidate, 'candidateLastName') and candidate.candidateLastName:
+            name_parts.append(candidate.candidateLastName)
         candidate_name = " ".join(filter(None, name_parts)) or ""
 
         logger.info(f"[REFRESH] Successfully refreshed token for candidate {candidate.candidateID}")
@@ -506,22 +686,30 @@ def refresh_token_endpoint(credentials: HTTPAuthorizationCredentials = Depends(s
             refresh_token=new_refresh_token,
             is_first_time=False,
             candidate_id=candidate.candidateID,
-            candidate_role=candidate.candidateRole or "Candidate",
+            candidate_role=candidate.candidateRole if (hasattr(candidate, 'candidateRole') and candidate.candidateRole) else "Candidate",
             candidate_name=candidate_name,
             candidate_email=candidate.candidateEmail,
-            candidate_mobile=candidate.candidateMobile,
+            candidate_mobile=candidate.candidateMobile if (hasattr(candidate, 'candidateMobile')) else None,
         )
 
     else:
         raise HTTPException(status_code=401, detail="User or candidate not found")
 
 @router.post("/reset-password")
-def reset_password(request: dict, db: Session = Depends(get_db)):
+def reset_password(
+    request: dict,
+    current_user: Users = Depends(get_current_hr_or_admin),
+    db: Session = Depends(get_db)
+):
     """
     Reset user password (first login or regular password change).
     Requires access token and new password.
+
+    Protected endpoint - requires authentication and HR/Admin role
     """
-    from app.core.dependencies import get_current_hr_or_admin
+
+    if not request:
+        raise HTTPException(status_code=400, detail="Request body is required")
 
     user_id = request.get("user_id")
     new_password = request.get("new_password")
@@ -529,18 +717,35 @@ def reset_password(request: dict, db: Session = Depends(get_db)):
     if not user_id or not new_password:
         raise HTTPException(status_code=400, detail="user_id and new_password required")
 
-    if len(new_password) < 8:
+    if not isinstance(new_password, str) or len(new_password) < 8:
         raise HTTPException(status_code=400, detail="Password must be at least 8 characters")
 
     # Get user
-    user = db.query(Users).filter(Users.UserID == user_id).first()
+    user = None
+    try:
+        user = db.query(Users).filter(Users.UserID == user_id).first()
+    except Exception as e:
+        logger.error(f"[RESET_PASSWORD] Failed to query user: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Database error. Please try again later.")
+
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
+    # Defensive check for required attributes
+    if not hasattr(user, 'UserPassword'):
+        logger.error(f"[RESET_PASSWORD] User record incomplete (missing UserPassword)")
+        raise HTTPException(status_code=500, detail="User record incomplete. Please contact help desk.")
+
     # Update password
-    user.UserPassword = get_password_hash(new_password)
-    user.password_reset_required = False  # Mark password reset as complete
-    db.add(user)
-    db.commit()
+    try:
+        user.UserPassword = get_password_hash(new_password)
+        user.password_reset_required = False  # Mark password reset as complete
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+    except Exception as e:
+        db.rollback()
+        logger.error(f"[RESET_PASSWORD] Failed to update password: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to reset password. Please try again later.")
 
     return {"status": "success", "message": "Password reset successfully"}
