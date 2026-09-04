@@ -10,6 +10,7 @@ from app.core.database import engine, SessionLocal
 from app.core.logging import logger
 from app.models.base import Base
 from app.api.v1.routes import router
+from app.api.v1.endpoints.auth import router as auth_router
 from app.api.v1.endpoints.users_access_control import router as users_access_control_router
 from app.middleware import setup_cors, RequestLoggingMiddleware
 # S-207 -- importing this here (rather than relying on it being pulled in
@@ -188,6 +189,8 @@ async def shutdown_event():
     shutdown_scheduler()
 
 # Include API routes
+# Include auth routes with /auth prefix
+app.include_router(auth_router)
 # Include admin/users-access-control at root level (it has its own /api/admin/ prefix)
 app.include_router(users_access_control_router)
 # Include v1 routes with /api/v1 prefix
