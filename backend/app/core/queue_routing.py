@@ -31,7 +31,7 @@ class QueueRouter:
         Determine queue type for a message based on STRICT API CONTRACT.
 
         Args:
-            message_type: Type of message (e.g., 'candidate_created')
+            message_type: Type of message (e.g., 'create_candidate', 'interview_scheduled')
             db: Database session (optional, for future role-template integration)
 
         Returns:
@@ -44,10 +44,13 @@ class QueueRouter:
             # Get routing config from contract (strict validation)
             config = validate_queue_routing_config(message_type)
 
-            # Use default queue from contract
-            # Future: Can integrate with role templates to allow per-role queue routing
-            logger.info(f"Queue routing for {message_type}: {config.default_queue.value}")
-            return config.default_queue.value
+            # Validate config before using it
+            if config and hasattr(config, 'default_queue'):
+                # Use default queue from contract
+                # Future: Can integrate with role templates to allow per-role queue routing
+                logger.info(f"Queue routing for {message_type}: {config.default_queue.value}")
+                return config.default_queue.value
+            raise ValueError(f"Invalid routing config for {message_type}")
 
         except ValueError as e:
             logger.error(f"Queue routing validation failed for {message_type}: {e}")

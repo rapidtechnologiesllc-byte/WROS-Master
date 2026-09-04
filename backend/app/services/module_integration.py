@@ -79,7 +79,7 @@ class ModuleIntegration:
     def candidate_created(candidate_id: str, candidate_data: Dict[str, Any], db: Optional[Session] = None) -> str:
         """Candidate added to system."""
         return ModuleIntegration._enqueue(
-            message_type="candidate_created",
+            message_type="create_candidate",
             payload={
                 "candidate_id": candidate_id,
                 "candidate_name": candidate_data.get("candidate_name"),

@@ -260,8 +260,10 @@ class QueueType(str, Enum):
 
 class MessageType(str, Enum):
     """STRICT: Valid message types - must map to permissions"""
-    CANDIDATE_CREATED = "candidate_created"
-    CANDIDATE_UPDATED = "candidate_updated"
+    CANDIDATE_CREATE = "create_candidate"
+    CANDIDATE_UPDATE = "update_candidate"
+    CANDIDATE_DELETE = "delete_candidate"
+    CANDIDATE_CONVERT = "convert_candidate_to_employee"
     INTERVIEW_SCHEDULED = "interview_scheduled"
     OFFER_GENERATED = "offer_generated"
     EMPLOYEE_ONBOARDED = "employee_onboarded"
@@ -303,9 +305,24 @@ class QueueRoutingConfig(BaseModel):
 
 # Queue routing mapping - role-template driven
 QUEUE_ROUTING_CONFIG = {
-    MessageType.CANDIDATE_CREATED: QueueRoutingConfig(
-        message_type=MessageType.CANDIDATE_CREATED,
-        required_permission="candidate.created_event",
+    MessageType.CANDIDATE_CREATE: QueueRoutingConfig(
+        message_type=MessageType.CANDIDATE_CREATE,
+        required_permission="candidate.create_event",
+        default_queue=QueueType.CANDIDATE_QUEUE
+    ),
+    MessageType.CANDIDATE_UPDATE: QueueRoutingConfig(
+        message_type=MessageType.CANDIDATE_UPDATE,
+        required_permission="candidate.update_event",
+        default_queue=QueueType.CANDIDATE_QUEUE
+    ),
+    MessageType.CANDIDATE_DELETE: QueueRoutingConfig(
+        message_type=MessageType.CANDIDATE_DELETE,
+        required_permission="candidate.delete_event",
+        default_queue=QueueType.CANDIDATE_QUEUE
+    ),
+    MessageType.CANDIDATE_CONVERT: QueueRoutingConfig(
+        message_type=MessageType.CANDIDATE_CONVERT,
+        required_permission="candidate.convert_event",
         default_queue=QueueType.CANDIDATE_QUEUE
     ),
     MessageType.INTERVIEW_SCHEDULED: QueueRoutingConfig(

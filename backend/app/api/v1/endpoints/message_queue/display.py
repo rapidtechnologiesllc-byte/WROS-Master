@@ -31,7 +31,7 @@ class QueueMessageRow(BaseModel):
     """Single message queue row for display"""
     id: str = Field(..., description="Message ID")
     queue_type: str = Field(..., description="Queue type (CANDIDATE_QUEUE, THUNDER_QUEUE, etc)")
-    message_type: str = Field(..., description="Message type (candidate_created, etc)")
+    message_type: str = Field(..., description="Message type (create_candidate, update_candidate, etc)")
     action: str = Field(..., description="CRUD action: CREATE, UPDATE, DELETE, PROCESS")
     status: str = Field(..., description="Message status: PENDING, PROCESSING, COMPLETED, FAILED, RETRYING")
     resource_id: Optional[str] = Field(default=None, description="Related resource ID")

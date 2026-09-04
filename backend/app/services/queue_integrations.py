@@ -34,7 +34,7 @@ class QueueIntegrations:
         candidate_email: str,
         candidate_name: str,
         job_id: Optional[str] = None,
-        source: str = "manual_intake",
+        source: str = "direct_intake",
         created_by: str = "system",
         db: Optional[Session] = None,
     ) -> str:
@@ -46,7 +46,7 @@ class QueueIntegrations:
             candidate_email: Candidate email
             candidate_name: Candidate full name
             job_id: Optional job ID if candidate applied for specific role
-            source: Source of candidate (manual_intake, referral, job_board, etc.)
+            source: Source of candidate (direct_intake, referral, job_board, etc.)
             created_by: User who created candidate
             db: Database session
 
@@ -66,7 +66,7 @@ class QueueIntegrations:
             }
 
             message_id = MessageQueueService.enqueue(
-                message_type="candidate_created",
+                message_type="create_candidate",
                 payload=payload,
                 resource_id=candidate_id,
                 created_by=created_by,
@@ -74,13 +74,13 @@ class QueueIntegrations:
             )
 
             logger.info(
-                f"Queued candidate_created: {candidate_id} "
+                f"Queued create_candidate: {candidate_id} "
                 f"from {source} (message: {message_id})"
             )
             return message_id
 
         except Exception as e:
-            logger.error(f"Failed to queue candidate_created: {e}", exc_info=True)
+            logger.error(f"Failed to queue create_candidate: {e}", exc_info=True)
             raise
 
     @staticmethod
