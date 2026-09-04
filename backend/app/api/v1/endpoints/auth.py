@@ -221,7 +221,10 @@ def unified_login(request: UnifiedLoginRequest, db: Session = Depends(get_db)):
 
         # MANDATORY PERMISSION ENFORCEMENT: User MUST have a role_template_id to proceed
         # This permission check happens immediately after authentication (not optional)
+        logger.warning(f"[LOGIN] Checking role_template_id: hasattr={hasattr(user, 'role_template_id')}, value={getattr(user, 'role_template_id', 'MISSING')}")
+
         if not hasattr(user, 'role_template_id') or not user.role_template_id:
+            logger.error(f"[LOGIN] PERMISSION CHECK FAILED: role_template_id missing or falsy")
             raise HTTPException(
                 status_code=403,
                 detail="Your user account doesn't have permissions loaded. Please reach out to help desk."
