@@ -69,9 +69,6 @@ try:
     print("\n[3] Setting up modules and resources...")
 
     modules_config = [
-        ('recruitment_management', 'Recruitment Management'),
-        ('finance_revenue', 'Finance & Revenue'),
-        ('workforce_employees', 'Workforce & Employees'),
         ('administration', 'Administration'),
         ('sales', 'Sales'),
         ('project_management', 'Project Management'),
