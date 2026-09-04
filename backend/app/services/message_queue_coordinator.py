@@ -89,7 +89,12 @@ class MessageQueueCoordinator:
 
                     # Update message status
                     message.status = MessageQueueCoordinator.STATUS_CHANNEL_QUEUED
-                    db.commit()
+                    try:
+                        db.commit()
+                    except Exception as e:
+                        db.rollback()
+                        logger.error(f"Failed to commit message status update: {e}", exc_info=True)
+                        raise
 
                     stats["messages_processed"] += 1
                     stats["channels_created"] += result.get("channel_count", 0)
@@ -107,14 +112,24 @@ class MessageQueueCoordinator:
                     if message.retry_count >= MessageQueueCoordinator.MAX_RETRIES:
                         message.status = MessageQueueCoordinator.STATUS_FAILED
                         message.error = str(e)
-                        db.commit()
+                        try:
+                            db.commit()
+                        except Exception as commit_err:
+                            db.rollback()
+                            logger.error(f"Failed to mark message {message.id} as failed: {commit_err}", exc_info=True)
+                            raise
                     else:
                         # Schedule retry
                         message.retry_count += 1
                         message.next_retry_at = datetime.utcnow() + timedelta(
                             minutes=MessageQueueCoordinator.RETRY_DELAY_MINUTES
                         )
-                        db.commit()
+                        try:
+                            db.commit()
+                        except Exception as commit_err:
+                            db.rollback()
+                            logger.error(f"Failed to schedule message retry for {message.id}: {commit_err}", exc_info=True)
+                            raise
 
                     logger.info(f"Message processing complete: {stats}")
             return stats
@@ -186,7 +201,12 @@ class MessageQueueCoordinator:
                         logger.warning(f"Message not found for channel: {channel.id}")
                         channel.status = "FAILED"
                         channel.error_details = "Message not found"
-                        db.commit()
+                        try:
+                            db.commit()
+                        except Exception as e:
+                            db.rollback()
+                            logger.error(f"Failed to mark channel {channel.id} as failed: {e}", exc_info=True)
+                            raise
                         continue
 
                     # Process with appropriate processor
@@ -200,7 +220,12 @@ class MessageQueueCoordinator:
                     # Mark channel as completed
                     channel.status = "COMPLETED"
                     channel.processed_at = datetime.utcnow()
-                    db.commit()
+                    try:
+                        db.commit()
+                    except Exception as e:
+                        db.rollback()
+                        logger.error(f"Failed to mark channel {channel.id} as completed: {e}", exc_info=True)
+                        raise
 
                     stats["channels_processed"] += 1
                     logger.debug(f"Channel {channel.id} processed for {queue_type}")
@@ -268,7 +293,12 @@ class MessageQueueCoordinator:
                 if not channels:
                     # No channels created (shouldn't happen, but handle gracefully)
                     message.status = MessageQueueCoordinator.STATUS_COMPLETED
-                    db.commit()
+                    try:
+                        db.commit()
+                    except Exception as e:
+                        db.rollback()
+                        logger.error(f"Failed to mark message {message.id} as completed: {e}", exc_info=True)
+                        raise
                     stats["messages_completed"] += 1
                     continue
 
@@ -285,7 +315,12 @@ class MessageQueueCoordinator:
                         message.status = MessageQueueCoordinator.STATUS_COMPLETED
                         stats["messages_completed"] += 1
 
-                    db.commit()
+                    try:
+                        db.commit()
+                    except Exception as e:
+                        db.rollback()
+                        logger.error(f"Failed to update message completion status for {message.id}: {e}", exc_info=True)
+                        raise
 
             logger.info(f"Message completion check done: {stats}")
             return stats
