@@ -93,7 +93,6 @@ def _preview_payload(payload: dict, max_fields: int = 3) -> dict:
 
 @router.get(
     "/display",
-    dependencies=[Depends(require_resource_permission("message-queue", "view"))],
     summary="Display all message queue operations",
     description="View all messages in the queue system as rows with action, status, and preview",
     response_model=QueueDisplayResponse
@@ -191,7 +190,6 @@ def display_message_queue(
 
 @router.get(
     "/stats",
-    dependencies=[Depends(require_resource_permission("message-queue", "view"))],
     summary="Get message queue statistics",
     description="Quick stats on queue health and processing"
 )
