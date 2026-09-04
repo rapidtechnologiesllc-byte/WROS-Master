@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Plus, Search, Users } from "lucide-react";
 import { IfPermission } from "../components/PermissionButton";
+import { hasPermission } from "../utils/permissionsRbac";
 import {
   Button,
   Card,
