@@ -521,7 +521,7 @@ export default function CandidateSearch({
               </div>
 
               <div className="flex items-center gap-2">
-                {hasPermission("recruitment.candidate", "can_create") && (
+                {hasPermission("candidates", "create") && (
                   <Button
                     onClick={onCreateCandidate}
                     className="h-[46px] shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md"
