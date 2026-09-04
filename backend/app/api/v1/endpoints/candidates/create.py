@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 from datetime import datetime
 
 from app.core.dependencies import get_current_user, get_db
-from app.models.users import Users
+from app.models.user import Users
 from app.services.candidate_service import create_candidate_safe, parse_experience_to_months
 from app.services.ai_conversation_service import run_auto_assign_ai_agent_in_background
 from app.core.password_utils import generate_password
