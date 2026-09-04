@@ -56,19 +56,33 @@ def get_user_navigation(db: Session = Depends(get_db), current_user = Depends(ge
     """
     Get personalized navigation structure for the logged-in user.
 
-    Returns only modules and resources the user has permission to access,
-    based on their actual role template permissions.
+    FULLY DYNAMIC: Returns only resources the user has permission to access,
+    grouped by their module, based on actual role template permissions.
 
-    Uses database fields directly (no hardcoding) - supports all 175 resources.
+    No hardcoding - everything comes from database:
+    - Modules from module table
+    - Resources from resource table
+    - Permissions from role_template_permissions table
+
+    Includes: can_view, can_edit, can_create, can_delete for each resource
 
     Response format:
     {
         "groups": [
             {
                 "label": "Recruitment",
-                "icon": "Users",
+                "icon": "TrendingUp",
                 "items": [
-                    {"key": "candidates", "label": "Candidates", "icon": "Users", "route": "/candidates"},
+                    {
+                        "key": "candidates",
+                        "label": "Candidates",
+                        "icon": "Users",
+                        "route": "/candidates",
+                        "can_view": true,
+                        "can_create": true,
+                        "can_edit": true,
+                        "can_delete": true
+                    },
                     ...
                 ]
             },
@@ -77,74 +91,119 @@ def get_user_navigation(db: Session = Depends(get_db), current_user = Depends(ge
     }
     """
     try:
-        import sys
-        print("[NAV-ENDPOINT-CALLED]", file=sys.stderr)
-        sys.stderr.flush()
-
-        logger.warning("[NAV-FIX] Starting navigation with resource_name fix active")
-        # Get user ID
+        # Get user ID and tenant
         if hasattr(current_user, 'UserID'):
             user_id = current_user.UserID
-            tenant_id = getattr(current_user, 'tenant_id', 1)
+            tenant_id = getattr(current_user, 'tenant_id', None)
+            if tenant_id is None:
+                tenant_id = 1  # Default tenant
         else:
             user_id = current_user.get("sub")
-            tenant_id = current_user.get("tenant_id", 1)
+            tenant_id = current_user.get("tenant_id", None)
+            if tenant_id is None:
+                tenant_id = 1  # Default tenant
 
         if not user_id:
             raise HTTPException(status_code=401, detail="User not identified")
+        if not isinstance(tenant_id, int) or tenant_id <= 0:
+            raise HTTPException(status_code=400, detail="Invalid tenant ID")
 
-        print(f"[NAV-USER-ID] {user_id}", file=sys.stderr)
-        sys.stderr.flush()
+        # MANDATORY: Get user's role template(s) - user MUST have roles
+        try:
+            from app.models.user import UserRole
+            user_roles = db.query(UserRole).filter(UserRole.user_id == user_id).all()
+            if not user_roles:
+                raise HTTPException(status_code=403, detail="User has no roles assigned - access denied")
 
-        # Load module/resource structure from init_resources.py
-        from app.seeds.init_resources import MODULES_AND_RESOURCES, RESOURCE_ROUTES
-        print(f"[NAV-LOADED] MODULES_AND_RESOURCES has {len(MODULES_AND_RESOURCES)} modules", file=sys.stderr)
-        sys.stderr.flush()
+            role_template_ids = [ur.role_template_id for ur in user_roles]
+            if not role_template_ids:
+                raise HTTPException(status_code=403, detail="User roles invalid - access denied")
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Error loading user roles: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail="Failed to load user roles")
+
+        # Query ALL modules from database (no hardcoding)
+        try:
+            modules = db.query(Module).filter(Module.tenant_id == tenant_id).all()
+            if not modules:
+                logger.warning(f"No modules found for tenant {tenant_id}")
+                return {"data": {"groups": []}}
+        except Exception as e:
+            logger.error(f"Error loading modules: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail="Failed to load modules")
 
         navigation_modules = {}
-        module_icons = {
-            "Personal": "LayoutDashboard", "Recruitment": "Users", "Workforce": "Users2",
-            "Finance": "BadgeDollarSign", "Sales": "Briefcase", "Project Management": "FolderKanban",
-            "Reporting": "BarChart3", "System": "Settings", "Executive": "TrendingUp",
-            "Admin": "Shield", "Executive Dashboards": "BarChart3", "AI & Automation": "Bot"
-        }
 
-        # Build navigation from init_resources
-        import sys
-        for module_name, resource_names in MODULES_AND_RESOURCES.items():
-            module_icon = module_icons.get(module_name, "Briefcase")
-            navigation_modules[module_name] = {"label": module_name, "icon": module_icon, "items": []}
-
-            for resource_name in resource_names:
-                # Check if user has permission to view this resource
+        # Build navigation from database resources
+        if modules:
+            for module in modules:
+                # Get all resources in this module
                 try:
-                    can_view = RoleTemplatePermissionService.can_view(db, user_id, resource_name, tenant_id)
+                    resources = db.query(Resource).filter(Resource.module_id == module.id).all()
+                    if not resources or len(resources) == 0:
+                        continue
                 except Exception as e:
-                    logger.error(f"Error: {str(e)}", exc_info=True)
-                    logger.warning(f"[NAV] Permission check failed for {resource_name}: {e}")
-                    can_view = False
+                    logger.error(f"Error loading resources for module {module.id}: {e}", exc_info=True)
+                    continue
 
-                if can_view:
-                    route = RESOURCE_ROUTES.get(resource_name) or f"/{resource_name}"
-                    if not route.startswith('/'):
-                        route = f"/{route}"
+                # Filter resources by user's permissions
+                accessible_items = []
+                if resources:  # Validate resources exists before looping
+                    for resource in resources:
+                        try:
+                            # Get user's permissions for this resource (from any of their role templates)
+                            perms = db.query(RoleTemplatePermission).filter(
+                                RoleTemplatePermission.resource_id == resource.id,
+                                RoleTemplatePermission.role_template_id.in_(role_template_ids)
+                            ).all()
 
-                    navigation_modules[module_name]["items"].append({
-                        "key": resource_name,
-                        "label": resource_name.replace('-', ' ').title(),
-                        "icon": get_icon_for_resource(resource_name),
-                        "route": route
-                    })
+                            # If user has ANY permission through ANY role, include it
+                            if perms and len(perms) > 0:
+                                # Merge permissions from all roles (OR logic)
+                                can_view = any(p.can_view for p in perms)
+                                can_create = any(p.can_create for p in perms)
+                                can_edit = any(p.can_edit for p in perms)
+                                can_delete = any(p.can_delete for p in perms)
 
-        groups = [m for m in navigation_modules.values() if m["items"]]
-        logger.warning(f"[NAV] Returning {len(groups)} groups")
-        response = {"data": {"groups": groups}}
-        logger.warning(f"[NAV] Response: {response}")
-        return response
+                                # Only include if user has at least one permission
+                                if can_view or can_create or can_edit or can_delete:
+                                    # Convert resource name to route (kebab-case to path)
+                                    route = f"/{resource.name.replace('_', '-')}"
+                                    if resource.route_path:
+                                        route = resource.route_path
 
-    except Exception as e:
-        logger.error(f"Error: {str(e)}", exc_info=True)
-        logger.error(f"Navigation error: {e}", exc_info=True)
-        # Do NOT return fallback empty response - let error propagate
-        # ALL navigation should be fully dynamic, no hardcoded fallbacks
+                                    accessible_items.append({
+                                        "key": resource.name,
+                                        "label": resource.display_name,
+                                        "icon": get_icon_for_resource(resource.name),
+                                        "route": route,
+                                        "can_view": can_view,
+                                        "can_create": can_create,
+                                        "can_edit": can_edit,
+                                        "can_delete": can_delete,
+                                    })
+                        except Exception as e:
+                            logger.error(f"Error processing resource {resource.id}: {e}", exc_info=True)
+                            continue
+
+                # Only include module if it has accessible resources
+                if accessible_items:
+                    navigation_modules[module.id] = {
+                        "label": module.display_name,
+                        "icon": module.name,  # Use module name as icon key
+                        "items": accessible_items
+                    }
+
+        # Return only modules with accessible items
+        groups = list(navigation_modules.values())
+        logger.info(f"[NAV] User {user_id} has access to {len(groups)} modules with {sum(len(m['items']) for m in groups)} total resources")
+
+        return {"data": {"groups": groups}}
+
+    except HTTPException:
         raise
+    except Exception as e:
+        logger.error(f"Navigation error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Navigation error: {str(e)}")
