@@ -232,8 +232,11 @@ def validate_resource_exists(module: str, resource: str) -> bool:
 def get_all_resources() -> List[str]:
     """Get all resources defined in contract"""
     resources = []
-    for module_resources in MODULES_AND_RESOURCES.values():
-        resources.extend(module_resources)
+    modules_values = MODULES_AND_RESOURCES.values() if MODULES_AND_RESOURCES else []
+    if modules_values:
+        for module_resources in modules_values:
+            if module_resources:
+                resources.extend(module_resources)
     return resources
 
 def get_all_modules() -> List[str]:
@@ -246,6 +249,7 @@ def get_all_modules() -> List[str]:
 
 class QueueType(str, Enum):
     """STRICT: Valid queue types for message routing"""
+    CANDIDATE_QUEUE = "CANDIDATE_QUEUE"
     THUNDER_QUEUE = "THUNDER_QUEUE"
     EMAIL_QUEUE = "EMAIL_QUEUE"
     INTERVIEW_QUEUE = "INTERVIEW_QUEUE"
@@ -302,7 +306,7 @@ QUEUE_ROUTING_CONFIG = {
     MessageType.CANDIDATE_CREATED: QueueRoutingConfig(
         message_type=MessageType.CANDIDATE_CREATED,
         required_permission="candidate.created_event",
-        default_queue=QueueType.THUNDER_QUEUE
+        default_queue=QueueType.CANDIDATE_QUEUE
     ),
     MessageType.INTERVIEW_SCHEDULED: QueueRoutingConfig(
         message_type=MessageType.INTERVIEW_SCHEDULED,
@@ -342,7 +346,9 @@ def validate_queue_routing_config(message_type: str) -> QueueRoutingConfig:
 def get_default_queue(message_type: str) -> QueueType:
     """Get default queue for message type per contract"""
     config = validate_queue_routing_config(message_type)
-    return config.default_queue
+    if config and hasattr(config, 'default_queue'):
+        return config.default_queue
+    raise ValueError(f"No default queue configured for {message_type}")
 
 # ============================================================================
 # ENFORCEMENT: Backend must use these schemas

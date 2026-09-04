@@ -67,11 +67,12 @@ def create_candidate(
 
     try:
         # Queue candidate creation message for async processing
-        # Message goes to THUNDER_QUEUE for autonomous candidate journey
+        # Message goes to CANDIDATE_QUEUE for creation + DB persistence
+        # Once complete, Thunder processes the candidate for autonomous engagement
         # Returns message_id for polling to get candidate_id when complete
         MessageQueueService.enqueue(
             message_type="candidate_created",
-            queue_type="THUNDER_QUEUE",
+            queue_type="CANDIDATE_QUEUE",
             resource_id=message_id,
             created_by=current_user.UserID,
             db=db,

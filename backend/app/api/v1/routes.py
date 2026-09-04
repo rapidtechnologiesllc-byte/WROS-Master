@@ -115,8 +115,12 @@ from app.api.v1.endpoints.goals_management import router as goals_router
 from app.api.v1.endpoints.slm_feedback import router as slm_feedback_router
 from app.api.v1.endpoints.queue_dashboard import router as queue_dashboard_router
 from app.api.v1.endpoints.linkedin_candidate_pipeline import router as linkedin_pipeline_router
+from app.api.v1.endpoints.message_queue.display import router as message_queue_router
 
-router = fastapi.APIRouter(prefix="/api/v1")
+try:
+    router = fastapi.APIRouter(prefix="/api/v1")
+except Exception as e:
+    raise RuntimeError(f"Failed to create API router: {str(e)}") from e
 
 router.include_router(router=auth_router)
 router.include_router(router=navigation_router)
@@ -232,3 +236,4 @@ router.include_router(router=goals_router)
 router.include_router(router=certifications_admin_router)
 router.include_router(router=slm_feedback_router)
 router.include_router(router=queue_dashboard_router)
+router.include_router(router=message_queue_router)
