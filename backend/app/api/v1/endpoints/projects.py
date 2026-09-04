@@ -44,7 +44,9 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.dependencies import get_current_internal_user
-from app.core.permission_enforcement import require_permission
+from app.core.dependencies import require_resource_permission
+from app.core.logging import logger
+from app.services.message_queue_service import MessageQueueService
 from app.models.client import Client
 from app.models.project import (
     CORE_CURRENCIES,
@@ -104,8 +106,12 @@ def _get_project_or_404(db: Session, project_id: str) -> Project:
         raise HTTPException(status_code=404, detail="Project not found.")
     return project
 
-@router.post("", response_model=ProjectItem, summary="Create a project")
-@require_permission("project.create")
+@router.post(
+    "",
+    response_model=ProjectItem,
+    summary="Create a project",
+    dependencies=[Depends(require_resource_permission("projects", "create"))]
+)
 def create_project_endpoint(
     body: CreateProjectRequest,
     db: Session = Depends(get_db),
@@ -159,13 +165,43 @@ def create_project_endpoint(
         created_by=current_user.UserID,
     )
     project.allow_weekend_billing = body.allow_weekend_billing
-    db.add(project)
-    db.commit()
-    db.refresh(project)
-    return _to_item(project)
 
-@router.get("", response_model=ProjectListResponse, summary="List projects")
-@require_permission("project.view")
+    # Idempotency check - prevent duplicate inserts on retry
+    existing_project = db.query(Project).filter(Project.id == project.id).first()
+    if existing_project:
+        raise HTTPException(status_code=409, detail=f"Project {project.id} already exists")
+
+    db.add(project)
+
+    try:
+        msg_id = MessageQueueService.enqueue(
+            message_type="project_created",
+            payload={
+                "project_id": project.id,
+                "project_name": project.name,
+                "client_id": body.client_id,
+                "delivery_engine": delivery_engine,
+                "billing_type": body.billing_type,
+                "currency": body.currency,
+            },
+            resource_id=project.id,
+            queue_type="PROJECTS_QUEUE",
+            created_by=current_user.UserID,
+            db=db,
+        )
+        db.refresh(project)
+        return _to_item(project)
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Failed to create project: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to create project: {str(e)}")
+
+@router.get(
+    "",
+    response_model=ProjectListResponse,
+    summary="List projects",
+    dependencies=[Depends(require_resource_permission("projects", "view"))]
+)
 def list_projects(
     client_id: Optional[str] = None,
     status: Optional[str] = None,
@@ -180,8 +216,12 @@ def list_projects(
     projects = query.order_by(Project.created_at.desc()).all()
     return ProjectListResponse(projects=[_to_item(p) for p in projects])
 
-@router.get("/{project_id}", response_model=ProjectItem, summary="Get one project")
-@require_permission("project.view")
+@router.get(
+    "/{project_id}",
+    response_model=ProjectItem,
+    summary="Get one project",
+    dependencies=[Depends(require_resource_permission("projects", "view"))]
+)
 def get_project(
     project_id: str,
     db: Session = Depends(get_db),
@@ -189,8 +229,12 @@ def get_project(
 ):
     return _to_item(_get_project_or_404(db, project_id))
 
-@router.post("/{project_id}/status", response_model=ProjectItem, summary="Transition project status")
-@require_permission("project.edit")
+@router.post(
+    "/{project_id}/status",
+    response_model=ProjectItem,
+    summary="Transition project status",
+    dependencies=[Depends(require_resource_permission("projects", "edit"))]
+)
 def transition_status(
     project_id: str,
     body: TransitionProjectStatusRequest,
@@ -202,12 +246,33 @@ def transition_status(
         project = transition_project_status(db, project, body.status)
     except InvalidProjectTransition as exc:
         raise HTTPException(status_code=409, detail=str(exc))
-    db.commit()
-    db.refresh(project)
-    return _to_item(project)
 
-@router.post("/{project_id}/milestones", response_model=MilestoneItem, summary="Create a project milestone")
-@require_permission("project.create")
+    try:
+        msg_id = MessageQueueService.enqueue(
+            message_type="project_status_changed",
+            payload={
+                "project_id": project.id,
+                "project_name": project.name,
+                "new_status": body.status,
+            },
+            resource_id=project.id,
+            queue_type="PROJECTS_QUEUE",
+            created_by=current_user.UserID,
+            db=db,
+        )
+        db.refresh(project)
+        return _to_item(project)
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Failed to transition project status: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to transition project: {str(e)}")
+
+@router.post(
+    "/{project_id}/milestones",
+    response_model=MilestoneItem,
+    summary="Create a project milestone",
+    dependencies=[Depends(require_resource_permission("projects", "create"))]
+)
 def create_milestone_endpoint(
     project_id: str,
     body: CreateMilestoneRequest,
@@ -220,12 +285,34 @@ def create_milestone_endpoint(
         tenant_id=current_user.tenant_id, description=body.description,
         owner_employee_id=body.owner_employee_id,
     )
-    db.commit()
-    db.refresh(milestone)
-    return _milestone_to_item(milestone)
 
-@router.get("/{project_id}/milestones", response_model=MilestoneListResponse, summary="List project milestones")
-@require_permission("project.view")
+    try:
+        msg_id = MessageQueueService.enqueue(
+            message_type="milestone_created",
+            payload={
+                "milestone_id": milestone.id,
+                "project_id": project.id,
+                "milestone_title": body.title,
+                "due_date": str(body.due_date) if body.due_date else None,
+            },
+            resource_id=milestone.id,
+            queue_type="PROJECTS_QUEUE",
+            created_by=current_user.UserID,
+            db=db,
+        )
+        db.refresh(milestone)
+        return _milestone_to_item(milestone)
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Failed to create milestone: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to create milestone: {str(e)}")
+
+@router.get(
+    "/{project_id}/milestones",
+    response_model=MilestoneListResponse,
+    summary="List project milestones",
+    dependencies=[Depends(require_resource_permission("projects", "view"))]
+)
 def list_milestones(
     project_id: str,
     db: Session = Depends(get_db),
@@ -241,10 +328,11 @@ def list_milestones(
     return MilestoneListResponse(milestones=[_milestone_to_item(m) for m in milestones])
 
 @router.post(
-    "/{project_id}/milestones/{milestone_id}/complete", response_model=MilestoneItem,
+    "/{project_id}/milestones/{milestone_id}/complete",
+    response_model=MilestoneItem,
     summary="Mark a milestone complete (delay_days always computed, never caller-supplied)",
+    dependencies=[Depends(require_resource_permission("projects", "edit"))]
 )
-@require_permission("project.edit")
 def complete_milestone_endpoint(
     project_id: str,
     milestone_id: str,
@@ -261,15 +349,35 @@ def complete_milestone_endpoint(
         milestone = complete_milestone(db, milestone, completion_date=body.completion_date)
     except MilestoneValidationError as exc:
         raise HTTPException(status_code=409, detail=str(exc))
-    db.commit()
-    db.refresh(milestone)
-    return _milestone_to_item(milestone)
+
+    try:
+        msg_id = MessageQueueService.enqueue(
+            message_type="milestone_completed",
+            payload={
+                "milestone_id": milestone.id,
+                "project_id": project_id,
+                "milestone_title": milestone.title,
+                "completion_date": str(body.completion_date) if body.completion_date else None,
+                "delay_days": milestone.delay_days,
+            },
+            resource_id=milestone.id,
+            queue_type="PROJECTS_QUEUE",
+            created_by=current_user.UserID,
+            db=db,
+        )
+        db.refresh(milestone)
+        return _milestone_to_item(milestone)
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Failed to complete milestone: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to complete milestone: {str(e)}")
 
 @router.get(
-    "/{project_id}/unfilled-roles", response_model=UnfilledRolesResponse,
+    "/{project_id}/unfilled-roles",
+    response_model=UnfilledRolesResponse,
     summary="Open headcount gaps for this project's linked demands",
+    dependencies=[Depends(require_resource_permission("projects", "view"))]
 )
-@require_permission("project.view")
 def unfilled_roles(
     project_id: str,
     db: Session = Depends(get_db),
@@ -280,9 +388,10 @@ def unfilled_roles(
     return UnfilledRolesResponse(roles=[UnfilledRoleItem(**g) for g in gaps])
 
 @router.get(
-    "/{project_id}/expected-revenue", response_model=ExpectedRevenueResponse,
-    dependencies=[Depends(get_current_internal_user)],
+    "/{project_id}/expected-revenue",
+    response_model=ExpectedRevenueResponse,
     summary="Rough expected-revenue/margin estimate -- not a finance figure",
+    dependencies=[Depends(require_resource_permission("projects", "view"))]
 )
 def expected_revenue(
     project_id: str,
