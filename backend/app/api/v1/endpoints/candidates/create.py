@@ -26,7 +26,6 @@ router = APIRouter(prefix="/api/v1/candidates", tags=["candidates"])
 
 @router.post(
     "/create",
-    response_model=CandidateCreateResponse,
     summary="Create a new candidate",
     description="Create a candidate profile and auto-assign to Thunder AI recruiter",
 )
@@ -35,7 +34,7 @@ def create_candidate(
     current_user: Users = Depends(get_current_user),
     db: Session = Depends(get_db),
     background_tasks: BackgroundTasks = BackgroundTasks(),
-) -> CandidateCreateResponse:
+) -> dict:
     """
     Create a new candidate and assign to Thunder AI recruiter.
 
@@ -120,8 +119,8 @@ def create_candidate(
     )
 
     # Return response with generated password for candidate notification
-    return CandidateCreateResponse(
-        candidate_id=candidate_id,
-        candidate_is_first_time=True,
-        candidate_password=password
-    )
+    return {
+        "candidate_id": candidate_id,
+        "candidate_is_first_time": True,
+        "candidate_password": password
+    }
