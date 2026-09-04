@@ -169,10 +169,12 @@ class CodeGateValidator:
                 decorator_block = '\n'.join(self.lines[i-1:min(i+9, len(self.lines))])
 
                 # Check for role template permission patterns:
-                # 1. dependencies=[Depends(require_resource_permission(...))]
-                # 2. dependencies=[Depends(require_admin_role)] (legacy)
-                # 3. current_user parameter in function signature
+                # 1. dependencies=[Depends(require_role_template_permission(...))] (NEW)
+                # 2. dependencies=[Depends(require_resource_permission(...))] (legacy)
+                # 3. dependencies=[Depends(require_admin_role)] (legacy)
+                # 4. current_user parameter in function signature
                 has_permission_check = (
+                    'require_role_template_permission' in decorator_block or
                     'require_resource_permission' in decorator_block or
                     'require_admin_role' in decorator_block or
                     'require_permission' in decorator_block or
