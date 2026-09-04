@@ -547,8 +547,9 @@ def _dispute_to_item(dispute: TimesheetDispute) -> DisputeItem:
     )
 
 @router.post(
-    "/{timesheet_id}/disputes", response_model=DisputeItem,
-    dependencies=[Depends(require_permission("timesheet.edit"))],
+    "/{timesheet_id}/disputes",
+    response_model=DisputeItem,
+    dependencies=[Depends(require_role_template_permission(*Permissions.TIMESHEETS_EDIT))],
     summary="Raise a dispute against an approved timesheet",
 )
 def create_dispute(
