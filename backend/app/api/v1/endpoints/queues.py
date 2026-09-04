@@ -6,27 +6,29 @@ GET  /queues/stats        - Get queue statistics
 import logging
 from typing import Optional
 
-from fastapi import APIRouter, Query
-from sqlalchemy.orm import Session
+from fastapi import APIRouter, Query, Depends
 
 from app.core.database import SessionLocal
+from app.core.dependencies import get_current_user
 from app.models.message_queue import MessageQueue
+from app.models.user import Users
 from app.services.message_queue_service import MessageQueueService
-from fastapi import Depends
+from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/queues", tags=["queues"])
 
-@router.get(
-    "",
-    dependencies=[Depends(require_resource_permission("unknown", "view"))]
-)
+DEFAULT_LIMIT = 50
+MAX_LIMIT = 500
+
+@router.get("")
 def get_queue_messages(
     queue_type: Optional[str] = Query(None),
     status: Optional[str] = Query(None),
-    limit: int = Query(50, ge=1, le=500),
+    limit: int = Query(DEFAULT_LIMIT, ge=1, le=MAX_LIMIT),
     offset: int = Query(0, ge=0),
+    current_user: Users = Depends(get_current_user),
 ):
     """
     Get all queue messages with optional filtering.
@@ -104,9 +106,10 @@ def get_queue_messages(
 
 @router.get(
     "/stats",
-    dependencies=[Depends(require_resource_permission("stat", "view"))]
 )
-def get_queue_stats():
+def get_queue_stats(
+    current_user: Users = Depends(get_current_user),
+):
     """
     Get queue statistics.
 
@@ -140,9 +143,10 @@ def get_queue_stats():
 
         # Count by status
         by_status = {}
-        for m in messages:
-            status = m.status or "UNKNOWN"
-            by_status[status] = by_status.get(status, 0) + 1
+        if messages:
+            for m in messages:
+                status = m.status or "UNKNOWN"
+                by_status[status] = by_status.get(status, 0) + 1
 
         return {
             "total": total,
