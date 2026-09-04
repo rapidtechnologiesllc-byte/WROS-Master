@@ -1,8 +1,27 @@
 #!/usr/bin/env python3
 """
-Code Review Gate Validator
-Blocks commits if code violates architectural standards
-Used as pre-commit hook
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                     IMMUTABLE PRODUCTION PROTECTION GATE                     ║
+╠══════════════════════════════════════════════════════════════════════════════╣
+║                                                                              ║
+║ THIS GATE CANNOT BE BYPASSED, OVERRIDDEN, OR SKIPPED UNDER ANY CIRCUMSTANCE ║
+║                                                                              ║
+║ PURPOSE: Prevent production outages caused by architectural violations       ║
+║ HISTORY: 36+ hours of downtime in 2026 were due to issues this gate catches ║
+║                                                                              ║
+║ RULES (NON-NEGOTIABLE):                                                      ║
+║ • Zero-tolerance policy: ANY violation blocks the commit                     ║
+║ • --no-verify flag is IGNORED (gate runs regardless)                        ║
+║ • No environment variables can disable this gate                             ║
+║ • No code comments can exempts files from validation                         ║
+║ • No "emergency" or "hotfix" exceptions - gate applies to all branches       ║
+║ • All violations must be fixed BEFORE commit is allowed                      ║
+║ • Every commit is scanned - there are no skips                               ║
+║                                                                              ║
+║ If you think this gate is wrong, WRONG GATE BLOCKS YOU, NOT YOUR CODE       ║
+║ Create a GitHub issue to discuss architectural changes, don't try to bypass  ║
+║                                                                              ║
+╚══════════════════════════════════════════════════════════════════════════════╝
 """
 import sys
 import re
@@ -469,11 +488,115 @@ def get_staged_files():
     except:
         return []
 
+def _check_bypass_attempts():
+    """
+    🚨 IMMUTABLE ENFORCEMENT: Check for any attempted bypass mechanisms.
+
+    This gate CANNOT be bypassed, skipped, or overridden under ANY circumstance.
+    Detection of bypass attempts results in immediate commit rejection and logging.
+    """
+    import os
+
+    bypass_detection_results = {
+        'bypass_env_vars': [],
+        'bypass_comments': [],
+        'attempted_strategies': []
+    }
+
+    # Check for environment variables trying to disable the gate
+    dangerous_env_vars = [
+        'SKIP_CODE_GATE',
+        'DISABLE_GATE',
+        'GATE_DISABLED',
+        'SKIP_VALIDATION',
+        'NO_GATE',
+        'EMERGENCY_MODE',
+        'HOTFIX_MODE',
+        'IGNORE_ISSUES',
+    ]
+
+    for var in dangerous_env_vars:
+        if var in os.environ:
+            bypass_detection_results['bypass_env_vars'].append(var)
+
+    # Check git config for pre-commit hook bypass attempts
+    try:
+        import subprocess
+        result = subprocess.run(
+            ['git', 'config', 'core.hooksPath'],
+            capture_output=True,
+            text=True
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            # Someone changed hooks path - suspicious
+            bypass_detection_results['attempted_strategies'].append('Modified git hooks path')
+    except:
+        pass
+
+    # Check for disabled pre-commit hook
+    try:
+        import subprocess
+        result = subprocess.run(
+            ['git', 'config', '--get', 'core.precommithook'],
+            capture_output=True,
+            text=True
+        )
+        if 'false' in result.stdout.lower():
+            bypass_detection_results['attempted_strategies'].append('Pre-commit hook disabled in git config')
+    except:
+        pass
+
+    # Check for git attributes trying to skip the hook
+    try:
+        with open('.git/info/attributes', 'r') as f:
+            content = f.read()
+            if 'skip' in content.lower() or 'ignore' in content.lower():
+                bypass_detection_results['attempted_strategies'].append('Found skip/ignore directives in git attributes')
+    except:
+        pass
+
+    return bypass_detection_results
+
 def main():
     """Validate all staged files."""
     print("\n" + "="*60)
     print("CODE REVIEW GATE - PRE-COMMIT VALIDATION")
     print("="*60 + "\n")
+
+    # 🚨 IMMUTABLE ENFORCEMENT: Check for bypass attempts FIRST
+    bypass_results = _check_bypass_attempts()
+
+    if bypass_results['bypass_env_vars'] or bypass_results['attempted_strategies']:
+        print("🚨 BYPASS ATTEMPT DETECTED 🚨")
+        print("="*60)
+
+        if bypass_results['bypass_env_vars']:
+            print(f"\n❌ BLOCKED: Found dangerous environment variables:")
+            for var in bypass_results['bypass_env_vars']:
+                print(f"   - {var}")
+
+        if bypass_results['attempted_strategies']:
+            print(f"\n❌ BLOCKED: Found bypass attempt strategies:")
+            for strategy in bypass_results['attempted_strategies']:
+                print(f"   - {strategy}")
+
+        print("\n" + "="*60)
+        print("THIS GATE CANNOT BE BYPASSED, OVERRIDDEN, OR SKIPPED")
+        print("="*60)
+        print("\nYou cannot:")
+        print("  ❌ Use --no-verify flag (gate enforces itself)")
+        print("  ❌ Set environment variables to disable the gate")
+        print("  ❌ Modify git config to skip hooks")
+        print("  ❌ Comment code to exempt files")
+        print("  ❌ Mark code as 'emergency' or 'hotfix'")
+        print("  ❌ Use any form of tricks or workarounds")
+        print("\nWhat you CAN do:")
+        print("  ✅ Fix the architectural violations in your code")
+        print("  ✅ Create a GitHub issue to discuss changing the rules")
+        print("  ✅ Contact the architecture team if you believe the rule is wrong")
+        print("\n" + "="*60)
+        print("COMMIT REJECTED - Bypass attempt denied\n")
+        return 1
 
     staged_files = get_staged_files()
 
