@@ -28,7 +28,7 @@ import { getEmailBodyHTML } from "../utils/preboardingEmailTemplate";
 import { getRejectionEmailHTML } from "../utils/rejectionEmailTemplate";
 import { useNavigate } from "react-router-dom";
 import CandidateActionMenu from "../components/ui/CandidateActionMenu";
-import { hasPermission, isSuperUser } from "../utils/permissionsRbac";
+import { hasPermission } from "../utils/permissionsRbac";
 import { updateCandidateThunderEnabled } from "../services/api/candidates";
 
 export default function CandidateSearch({
@@ -521,7 +521,7 @@ export default function CandidateSearch({
               </div>
 
               <div className="flex items-center gap-2">
-                {(isSuperUser() || hasPermission("candidates", "create")) && (
+                {hasPermission("candidates", "create") && (
                   <Button
                     onClick={onCreateCandidate}
                     className="h-[46px] shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md"
