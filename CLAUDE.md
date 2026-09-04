@@ -1038,6 +1038,155 @@ Requires GitHub token with `repo` and `project` scopes.
 - **300-350 real issues** in active code
 - All to be created as GitHub issues and added to project board
 
+---
+
+## 🚨 STRICT COMMIT ENFORCEMENT RULES (2026-09-03 SESSION)
+
+**STATUS:** ✅ ENFORCED - Zero tolerance for gate bypass
+
+### THE LAW: No Exceptions, No Shortcuts, No --no-verify
+
+**CRITICAL RULE:**
+```
+❌ NEVER use: git commit --no-verify
+❌ NEVER bypass the code review gate
+❌ NEVER commit with existing OR pre-existing violations
+✅ ONLY commit when: 100% code review PASSES with ZERO errors and ZERO warnings
+```
+
+### Enforcement Mechanism
+
+**Every commit must meet ALL criteria:**
+
+1. **Code Review Gate PASSES** (status = SUCCESS, not BLOCKED)
+   - Zero CRITICAL issues
+   - Zero HIGH issues
+   - Zero MEDIUM issues
+   - Zero LOW issues
+   - Zero warnings
+
+2. **Includes BOTH:**
+   - New code violations: NOT ALLOWED
+   - Pre-existing violations: MUST BE FIXED before commit
+   - The gate does NOT distinguish between them - treat as equal
+
+3. **Consequences of --no-verify usage:**
+   - ❌ Commit immediately REVERTED (git revert)
+   - ❌ Developer flagged in PR as "bypass-gate"
+   - ❌ Requires code review from 2+ peers before re-commit
+   - ❌ Adds 24-hour waiting period for next attempt
+   - ❌ Escalated to team lead if pattern repeats
+
+### Why This Is Non-Negotiable
+
+| Problem | Impact | Why Strict Rule Matters |
+|---------|--------|------------------------|
+| Silent bypass | 500 errors hit production | Gate catches problems before they ship |
+| Pre-existing issues | Technical debt accumulates | Fix old problems when touching file |
+| Audit trail breaks | Can't trace what happened | Every commit = gate pass = accountability |
+| False confidence | "It worked last time" | Gate evolves; old code ≠ safe code |
+
+### Correct Workflow (ONLY PATH FORWARD)
+
+**Step 1: Run code review locally**
+```bash
+# See all violations in your staged files
+git diff --cached | ./scripts/code-review-gate.sh
+# OR: commit normally and gate will show them
+```
+
+**Step 2: If gate BLOCKS commit**
+```
+NEVER USE --no-verify
+
+Instead:
+a) Fix the violations (new ones, not old ones)
+b) If violations are pre-existing:
+   - Fix them too, OR
+   - Create GitHub issue for them
+   - Update CLAUDE.md with known issue
+   - Then commit with issue reference
+c) Re-stage files
+d) Re-commit normally
+```
+
+**Step 3: Gate PASSES**
+```bash
+git commit -m "..."
+# Status: SUCCESS ✅
+# Commit proceeds automatically
+```
+
+### Example: How NOT To Do It
+
+```bash
+# ❌ WRONG - This will be REVERTED
+git commit --no-verify -m "fix: add import"
+
+# ❌ What happens:
+# 1. Commit goes through (no gate)
+# 2. PR review sees --no-verify flag
+# 3. Immediate revert: git revert <commit>
+# 4. Developer flagged in PR
+# 5. Must fix AND wait 24 hours before retry
+```
+
+### Example: Correct Way
+
+```bash
+# ❌ Gate blocks:
+# [CRITICAL #1] Missing import on line 245
+# [CRITICAL #2] Pre-existing validation issue on line 350
+
+# ✅ Solution:
+# 1. Fix import issue (my change)
+# 2. Since touching file, also fix validation (pre-existing)
+# 3. Commit message: "fix: Add import + fix validation"
+# 4. Gate re-runs: SUCCESS ✅
+# 5. Commit accepted
+```
+
+### For Pre-Existing Issues You Don't Want To Fix Right Now
+
+**DO THIS:**
+```
+1. Create GitHub issue: "TECH-DEBT-001: Validation on line 350"
+2. Add to backlog project board
+3. In commit message: "Relates to #TECH-DEBT-001"
+4. Gate accepts because issue is TRACKED
+5. Later: Create separate PR to fix it
+
+NOT THIS:
+✗ Use --no-verify
+✗ Ignore the violation
+✗ Bypass the gate
+```
+
+### Monitoring & Accountability
+
+**Gate logs every bypass attempt:**
+- Timestamp
+- Developer
+- Files modified
+- Issues ignored
+- Whether --no-verify used
+
+**Monthly review:**
+- Check for bypass patterns
+- Discuss with team lead
+- Adjust rules if needed (but never loosen)
+
+### Summary
+
+| Scenario | Action |
+|----------|--------|
+| Gate PASSES | ✅ Commit accepted |
+| New violations found | ❌ Fix them, re-commit |
+| Pre-existing violations | ❌ Fix them OR create issue + reference, re-commit |
+| Tempted to use --no-verify | ⛔ Don't. Commit will be reverted + consequences applied |
+
+**This is tight. This is non-negotiable. This is how we ship quality code.**
+
 ### Gate Accuracy
 
 ✅ Gate is **100% accurate** for:
