@@ -56,7 +56,7 @@ export default function ThunderCandidateMetrics({ candidateId }) {
     try {
       setPauseLoading(true);
       if (!data?.conversation_id) {
-        toast.error("Cannot pause: conversation ID not found. Use Messages tab to pause.");
+        toast.error("Cannot pause: conversation ID not found");
         return;
       }
       const resumeAt = durationMs ? new Date(Date.now() + durationMs).toISOString() : null;
@@ -78,7 +78,7 @@ export default function ThunderCandidateMetrics({ candidateId }) {
     try {
       setPauseLoading(true);
       if (!data?.conversation_id) {
-        toast.error("Cannot resume: conversation ID not found. Use Messages tab to resume.");
+        toast.error("Cannot resume: conversation ID not found");
         return;
       }
       await resumeThunder(data.conversation_id).catch(e => { throw e; });
