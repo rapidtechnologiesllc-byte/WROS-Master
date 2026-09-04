@@ -29,7 +29,7 @@ router = APIRouter(prefix="/api/v1/candidates", tags=["candidates"])
 
 @router.post(
     "/create",
-    dependencies=[Depends(require_resource_permission("candidates", "create"))],
+    dependencies=[Depends(require_resource_permission("candidates", "can_create"))],
     summary="Queue candidate creation",
     description="Queue a candidate creation request for processing with retries",
 )
