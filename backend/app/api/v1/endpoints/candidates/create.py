@@ -66,11 +66,12 @@ def create_candidate(
     message_id = str(uuid.uuid4())
 
     try:
-        # Queue candidate creation message with retry policy
-        # Note: enqueue() already commits, no need to commit again
-        # Use THUNDER_QUEUE to trigger autonomous candidate journey
+        # Queue candidate creation message for async processing
+        # Message goes to THUNDER_QUEUE for autonomous candidate journey
+        # Returns message_id for polling to get candidate_id when complete
         MessageQueueService.enqueue(
             message_type="candidate_created",
+            queue_type="THUNDER_QUEUE",
             resource_id=message_id,
             created_by=current_user.UserID,
             db=db,
