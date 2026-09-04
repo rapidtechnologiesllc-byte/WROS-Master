@@ -2,6 +2,42 @@
 
 ---
 
+## 🚨 MANDATORY: NO NEW FEATURES UNTIL GATE CLEARANCE (2026-09-04 Enforcement)
+
+**BLOCKING POLICY: All pre-existing code quality violations MUST be fixed before picking up new feature work.**
+
+**Current Status:**
+- ❌ ai_agent.py: 14 pre-existing gate warnings (BLOCKER)
+- ❌ Multiple files: Pre-existing violations throughout codebase
+- ⏳ Feature work: BLOCKED until gate clearance achieved
+
+**What This Means:**
+1. **NO new feature branches** will be created
+2. **NO new user stories** will be started
+3. **ONLY gate-clearing work** is authorized
+4. **Exception:** Thunder pause/resume UI fix (b62b5b45 - already committed)
+
+**Next Steps (This Session):**
+1. Fix all 14 warnings in ai_agent.py
+2. Verify gate passes on clean code
+3. Commit with clean gate status
+4. Then resume new feature development
+
+**Why This Matters:**
+- Gate violations = production risks
+- Pre-existing issues block deployment
+- Clean code quality > feature velocity
+- Every commit improves codebase, not maintains status quo
+
+**Feature Queue (PAUSED):**
+- Permission system hardening (15 timesheets endpoints)
+- LinkedIn candidate import completion
+- All other feature work
+
+**Resume When:** Gate reports "Critical Issues: 0" AND "Warnings: 0" on modified files
+
+---
+
 ## 🚀 NEXT SESSION PRIORITY - Permission System Hardening (2026-09-04 Session - READY TO EXECUTE)
 
 **Status: VERY CLOSE - One focused task remains**
