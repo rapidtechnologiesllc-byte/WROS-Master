@@ -27,11 +27,8 @@ from sqlalchemy import or_
 from typing import List, Optional
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_internal_user, require_resource_permission
-from fastapi import Request
-from app.core.permission_enforcement import (
-    require_action_permission, check_permission, check_any_permission
-)
+from app.core.dependencies import get_current_internal_user, require_role_template_permission
+from app.core.permission_registry import Permissions
 from app.models.user import Users
 from app.models.business_unit import BusinessUnit
 from app.models.location import Location
@@ -62,9 +59,11 @@ class UserUpdateRequest(BaseModel):
 
 @router.get(
     "/users",
-    dependencies=[Depends(get_current_internal_user)]
+    dependencies=[
+        Depends(get_current_internal_user),
+        Depends(require_role_template_permission(*Permissions.USERS_VIEW))
+    ]
 )
-@require_action_permission("administration", "view")
 def list_users(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user),
@@ -122,9 +121,11 @@ def list_users(
 
 @router.post(
     "/users",
-    dependencies=[Depends(get_current_internal_user)]
+    dependencies=[
+        Depends(get_current_internal_user),
+        Depends(require_role_template_permission(*Permissions.USERS_CREATE))
+    ]
 )
-@require_action_permission("administration", "create")
 def create_user(
     req: UserCreateRequest,
     db: Session = Depends(get_db),
@@ -189,9 +190,11 @@ def create_user(
 
 @router.put(
     "/users/{user_id}",
-    dependencies=[Depends(get_current_internal_user)]
+    dependencies=[
+        Depends(get_current_internal_user),
+        Depends(require_role_template_permission(*Permissions.USERS_EDIT))
+    ]
 )
-@require_action_permission("administration", "edit")
 def update_user(
     user_id: str,
     req: UserUpdateRequest,
@@ -236,9 +239,11 @@ def update_user(
 
 @router.delete(
     "/users/{user_id}",
-    dependencies=[Depends(get_current_internal_user)]
+    dependencies=[
+        Depends(get_current_internal_user),
+        Depends(require_role_template_permission(*Permissions.USERS_DELETE))
+    ]
 )
-@require_action_permission("administration", "delete")
 def delete_user(
     user_id: str,
     db: Session = Depends(get_db),

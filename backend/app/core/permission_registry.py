@@ -48,6 +48,34 @@ RESOURCES = {
         "actions": ["can_view", "can_create", "can_edit", "can_delete"],
         "description": "Employee records and management"
     },
+    "timesheets": {
+        "display_name": "Timesheets",
+        "module": "HR",
+        "actions": ["can_view", "can_create", "can_edit", "can_delete"],
+        "description": "Timesheet submission and approval"
+    },
+
+    # Finance & Billing
+    "invoices": {
+        "display_name": "Invoices",
+        "module": "Finance",
+        "actions": ["can_view", "can_create", "can_edit", "can_delete"],
+        "description": "Invoice generation and management"
+    },
+
+    # Sales & Opportunities
+    "opportunities": {
+        "display_name": "Opportunities",
+        "module": "Sales",
+        "actions": ["can_view", "can_create", "can_edit", "can_delete"],
+        "description": "Sales opportunities and pipeline"
+    },
+    "clients": {
+        "display_name": "Clients",
+        "module": "Sales",
+        "actions": ["can_view", "can_create", "can_edit", "can_delete"],
+        "description": "Client accounts and information"
+    },
 
     # Administration
     "users": {
@@ -107,6 +135,36 @@ class Permissions:
     EMPLOYEES_CREATE = ("employees", "can_create")
     EMPLOYEES_EDIT = ("employees", "can_edit")
     EMPLOYEES_DELETE = ("employees", "can_delete")
+
+    # Timesheets
+    TIMESHEETS_VIEW = ("timesheets", "can_view")
+    TIMESHEETS_CREATE = ("timesheets", "can_create")
+    TIMESHEETS_EDIT = ("timesheets", "can_edit")
+    TIMESHEETS_DELETE = ("timesheets", "can_delete")
+
+    # Invoices
+    INVOICES_VIEW = ("invoices", "can_view")
+    INVOICES_CREATE = ("invoices", "can_create")
+    INVOICES_EDIT = ("invoices", "can_edit")
+    INVOICES_DELETE = ("invoices", "can_delete")
+
+    # Opportunities
+    OPPORTUNITIES_VIEW = ("opportunities", "can_view")
+    OPPORTUNITIES_CREATE = ("opportunities", "can_create")
+    OPPORTUNITIES_EDIT = ("opportunities", "can_edit")
+    OPPORTUNITIES_DELETE = ("opportunities", "can_delete")
+
+    # Clients
+    CLIENTS_VIEW = ("clients", "can_view")
+    CLIENTS_CREATE = ("clients", "can_create")
+    CLIENTS_EDIT = ("clients", "can_edit")
+    CLIENTS_DELETE = ("clients", "can_delete")
+
+    # Business Units
+    BUSINESS_UNITS_VIEW = ("business_units", "can_view")
+    BUSINESS_UNITS_CREATE = ("business_units", "can_create")
+    BUSINESS_UNITS_EDIT = ("business_units", "can_edit")
+    BUSINESS_UNITS_DELETE = ("business_units", "can_delete")
 
     # Users & Administration
     USERS_VIEW = ("users", "can_view")

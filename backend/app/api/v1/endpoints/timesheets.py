@@ -58,8 +58,11 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_internal_user, require_resource_permission
-from app.core.permission_enforcement import require_permission
+from app.core.dependencies import get_current_internal_user, require_role_template_permission
+from app.core.permission_registry import Permissions
+import logging
+
+logger = logging.getLogger(__name__)
 from app.models.employee import Employee
 from app.models.employee_allocation import EmployeeAllocation
 from app.models.timesheet import Timesheet, TimesheetEntry
@@ -152,8 +155,12 @@ def _get_timesheet_or_404(db: Session, timesheet_id: str) -> Timesheet:
         raise HTTPException(status_code=404, detail="Timesheet not found.")
     return timesheet
 
-@router.post("/weekly-draft", response_model=TimesheetItem, summary="Create (or return existing) a weekly timesheet draft")
-@require_permission("employee.create")
+@router.post(
+    "/weekly-draft",
+    response_model=TimesheetItem,
+    summary="Create (or return existing) a weekly timesheet draft",
+    dependencies=[Depends(require_role_template_permission(*Permissions.TIMESHEETS_CREATE))]
+)
 def create_draft(
     body: CreateWeeklyDraftRequest,
     db: Session = Depends(get_db),
@@ -193,8 +200,12 @@ def create_draft(
         raise HTTPException(status_code=500, detail=f"Failed to create timesheet: {str(e)}")
     return _to_item(db, timesheet)
 
-@router.put("/{timesheet_id}/entries", response_model=TimesheetItem, summary="Upsert daily entries for a timesheet")
-@require_permission("employee.edit")
+@router.put(
+    "/{timesheet_id}/entries",
+    response_model=TimesheetItem,
+    summary="Upsert daily entries for a timesheet",
+    dependencies=[Depends(require_role_template_permission(*Permissions.TIMESHEETS_EDIT))]
+)
 def upsert_timesheet_entries(
     timesheet_id: str,
     body: UpsertEntriesRequest,
@@ -231,8 +242,12 @@ def upsert_timesheet_entries(
         logger.error(f"Failed to update timesheet entries {timesheet.id}: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to update timesheet: {str(e)}")
 
-@router.post("/{timesheet_id}/submit", response_model=TimesheetItem, summary="Submit a draft timesheet")
-@require_permission("employee.view")
+@router.post(
+    "/{timesheet_id}/submit",
+    response_model=TimesheetItem,
+    summary="Submit a draft timesheet",
+    dependencies=[Depends(require_role_template_permission(*Permissions.TIMESHEETS_VIEW))]
+)
 def submit(
     timesheet_id: str,
     db: Session = Depends(get_db),
@@ -271,8 +286,12 @@ def submit(
         logger.error(f"Failed to submit timesheet {timesheet_id}: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to submit timesheet: {str(e)}")
 
-@router.post("/{timesheet_id}/approve", response_model=TimesheetItem, summary="Approve a submitted timesheet")
-@require_permission("employee.edit")
+@router.post(
+    "/{timesheet_id}/approve",
+    response_model=TimesheetItem,
+    summary="Approve a submitted timesheet",
+    dependencies=[Depends(require_role_template_permission(*Permissions.TIMESHEETS_EDIT))]
+)
 def approve(
     timesheet_id: str,
     db: Session = Depends(get_db),
@@ -304,8 +323,12 @@ def approve(
         logger.error(f"Failed to approve timesheet {timesheet_id}: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to approve timesheet: {str(e)}")
 
-@router.post("/{timesheet_id}/reject", response_model=TimesheetItem, summary="Reject a submitted timesheet")
-@require_permission("employee.edit")
+@router.post(
+    "/{timesheet_id}/reject",
+    response_model=TimesheetItem,
+    summary="Reject a submitted timesheet",
+    dependencies=[Depends(require_role_template_permission(*Permissions.TIMESHEETS_EDIT))]
+)
 def reject(
     timesheet_id: str,
     body: RejectTimesheetRequest,
@@ -341,8 +364,12 @@ def reject(
         logger.error(f"Failed to reject timesheet {timesheet_id}: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to reject timesheet: {str(e)}")
 
-@router.post("/{timesheet_id}/reopen", response_model=TimesheetItem, summary="Reopen a rejected timesheet for editing")
-@require_permission("employee.edit")
+@router.post(
+    "/{timesheet_id}/reopen",
+    response_model=TimesheetItem,
+    summary="Reopen a rejected timesheet for editing",
+    dependencies=[Depends(require_role_template_permission(*Permissions.TIMESHEETS_EDIT))]
+)
 def reopen(
     timesheet_id: str,
     db: Session = Depends(get_db),
@@ -374,8 +401,12 @@ def reopen(
         logger.error(f"Failed to reopen timesheet {timesheet_id}: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to reopen timesheet: {str(e)}")
 
-@router.post("/bulk-approve", response_model=BulkApproveResponse, summary="Approve multiple submitted timesheets at once")
-@require_permission("employee.edit")
+@router.post(
+    "/bulk-approve",
+    response_model=BulkApproveResponse,
+    summary="Approve multiple submitted timesheets at once",
+    dependencies=[Depends(require_role_template_permission(*Permissions.TIMESHEETS_EDIT))]
+)
 def bulk_approve_endpoint(
     body: BulkApproveRequest,
     db: Session = Depends(get_db),
@@ -408,8 +439,12 @@ def bulk_approve_endpoint(
         logger.error(f"Failed to bulk approve timesheets: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to approve timesheets: {str(e)}")
 
-@router.get("", response_model=TimesheetListResponse, summary="List timesheets")
-@require_permission("employee.view")
+@router.get(
+    "",
+    response_model=TimesheetListResponse,
+    summary="List timesheets",
+    dependencies=[Depends(require_role_template_permission(*Permissions.TIMESHEETS_VIEW))]
+)
 def list_timesheets(
     employee_id: Optional[str] = None,
     status: Optional[str] = None,
@@ -424,8 +459,12 @@ def list_timesheets(
     timesheets = query.order_by(Timesheet.week_starting_date.desc()).all()
     return TimesheetListResponse(timesheets=[_to_item(db, t) for t in timesheets])
 
-@router.get("/{timesheet_id}", response_model=TimesheetItem, summary="Get one timesheet with entries")
-@require_permission("employee.view")
+@router.get(
+    "/{timesheet_id}",
+    response_model=TimesheetItem,
+    summary="Get one timesheet with entries",
+    dependencies=[Depends(require_role_template_permission(*Permissions.TIMESHEETS_VIEW))]
+)
 def get_timesheet(
     timesheet_id: str,
     db: Session = Depends(get_db),
@@ -445,8 +484,9 @@ def _flag_to_item(flag: TimesheetAnomalyFlag) -> AnomalyFlagItem:
     )
 
 @router.post(
-    "/{timesheet_id}/scan-anomalies", response_model=AnomalyFlagsResponse,
-    dependencies=[Depends(require_permission("timesheet.view"))],
+    "/{timesheet_id}/scan-anomalies",
+    response_model=AnomalyFlagsResponse,
+    dependencies=[Depends(require_role_template_permission(*Permissions.TIMESHEETS_VIEW))],
     summary="Run anomaly detection for a timesheet (advisory only, idempotent)",
 )
 def scan_anomalies(
@@ -477,8 +517,9 @@ def scan_anomalies(
         raise HTTPException(status_code=500, detail=f"Failed to scan anomalies: {str(e)}")
 
 @router.get(
-    "/{timesheet_id}/anomalies", response_model=AnomalyFlagsResponse,
-    dependencies=[Depends(require_permission("timesheet.view"))],
+    "/{timesheet_id}/anomalies",
+    response_model=AnomalyFlagsResponse,
+    dependencies=[Depends(require_role_template_permission(*Permissions.TIMESHEETS_VIEW))],
     summary="Get existing anomaly flags for a timesheet",
 )
 def get_anomalies(
