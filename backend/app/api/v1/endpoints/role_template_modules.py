@@ -1,16 +1,19 @@
+import logging
 """Module and Resource listing endpoints."""
 
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from app.core.database import get_db
-from app.core.dependencies import get_current_internal_user
+from app.core.dependencies import get_current_internal_user, require_resource_permission
 from app.models.user import Users
 from app.models.role_template import Module, Resource
 
 router = APIRouter(prefix="/admin/modules", tags=["Modules & Resources"])
 
-
-@router.get("")
+@router.get(
+    "",
+    dependencies=[Depends(require_resource_permission("unknown", "view"))]
+)
 def list_modules_and_resources(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user)
@@ -50,8 +53,10 @@ def list_modules_and_resources(
 
     return {"modules": result}
 
-
-@router.get("/{module_id}/resources")
+@router.get(
+    "/{module_id}/resources",
+    dependencies=[Depends(require_resource_permission("role_template_modules", "view"))]
+)
 def get_module_resources(
     module_id: int,
     db: Session = Depends(get_db),

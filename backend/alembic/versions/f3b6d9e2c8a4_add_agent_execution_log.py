@@ -1,3 +1,4 @@
+import logging
 """add agent_execution_log table (S-066/HRMS-0466)
 
 Revision ID: f3b6d9e2c8a4
@@ -11,7 +12,6 @@ revision = "f3b6d9e2c8a4"
 down_revision = "e7a1c3f9b2d6"
 branch_labels = None
 depends_on = None
-
 
 def upgrade():
     op.create_table(
@@ -32,7 +32,6 @@ def upgrade():
     op.create_index("ix_agent_execution_log_tenant_id", "agent_execution_log", ["tenant_id"])
     op.create_index("ix_agent_execution_log_candidate_id", "agent_execution_log", ["candidate_id"])
     op.create_index("ix_agent_execution_log_execution_at", "agent_execution_log", ["execution_at"])
-
 
 def downgrade():
     op.drop_index("ix_agent_execution_log_execution_at", table_name="agent_execution_log")

@@ -14,6 +14,7 @@ import {
   formatLocation,
   parseLocation,
 } from "../components/ui";
+import RateField from "../components/ui/RateField";
 import {
   createCandidateHistoryEvent,
   HISTORY_EVENT_TYPES,
@@ -23,11 +24,12 @@ import {
   inferFieldsFromResumeText,
 } from "../utils/resumeAutofill";
 import { assignJob, getAllJobs } from "../services/api/jobs";
-import { mapJobFromApi } from "../App";
+import { mapJobFromApi } from "../utils/jobMappers";
 import { ScreenLevelBanner, useScreenBanner, ValidationSummary } from "../components/ScreenLevelBanner";
 import { useNavigate } from "react-router-dom";
 import { useRef } from "react";
 import { handleApiError } from "../utils/apiErrorHandler";
+import { hasPermission } from "../utils/permissionsRoleTemplate";
 
 // Added 2026-07-23 -- real bug: the Mobile input used to strip any
 // country code the candidate typed (removed a leading "91", hard-capped
@@ -46,6 +48,18 @@ const COUNTRY_CODES = [
   { value: "+65", label: "+65 (Singapore)" },
   { value: "+49", label: "+49 (Germany)" },
   { value: "+63", label: "+63 (Philippines)" },
+];
+
+const SOURCE_OPTIONS = [
+  { value: "Campus Hiring", label: "Campus Hiring" },
+  { value: "Conference", label: "Conference" },
+  { value: "LinkedIn", label: "LinkedIn" },
+  { value: "Career Site", label: "Career Site" },
+  { value: "Employee Referral", label: "Employee Referral" },
+  { value: "Indeed", label: "Indeed" },
+  { value: "Naukri", label: "Naukri" },
+  { value: "Monster", label: "Monster" },
+  { value: "Other", label: "Other" },
 ];
 
 export default function CandidateCreate({ onBack, onSave }) {
@@ -87,7 +101,62 @@ export default function CandidateCreate({ onBack, onSave }) {
   const [isAssigning, setIsAssigning] = useState(false);
   const [jobName, setJobName] = useState("");
   const [availableJobs, setAvailableJobs] = useState([]);
+  const [currentSalaryRateType, setCurrentSalaryRateType] = useState("$/Year");
+  const [expectedSalaryRateType, setExpectedSalaryRateType] = useState("$/Year");
+  const [showSkillsModal, setShowSkillsModal] = useState(false);
+  const [selectedSkills, setSelectedSkills] = useState([]);
+  const [customSource, setCustomSource] = useState("");
+  const [showEmployeeReferralList, setShowEmployeeReferralList] = useState(false);
   const navigate = useNavigate();
+
+  // Redirect if user tries to create candidate without permission
+  useEffect(() => {
+    if (!hasPermission("candidates", "create")) {
+      navigate("/candidates");
+    }
+  }, [navigate]);
+
+  // Helper function to check if user is in recruitment department
+  const isRecruitmentUser = () => {
+    try {
+      const userInfo = localStorage.getItem("user_info");
+      if (!userInfo) return false;
+
+      const user = JSON.parse(userInfo);
+      // Check job title or department for recruitment keywords
+      const jobTitle = (user.UserJobTitle || "").toLowerCase();
+      const department = (user.department || "").toLowerCase();
+
+      const recruitmentKeywords = ["recruit", "talent", "staffing", "hr", "hiring", "acquisition"];
+      return recruitmentKeywords.some(
+        keyword => jobTitle.includes(keyword) || department.includes(keyword)
+      );
+    } catch (error) {
+      console.error('Failed to check recruiter status:', error);
+      throw new Error(`Failed to determine user role: ${error.message}`);
+    }
+  };
+
+  // Initialize source and assignment based on recruiter status
+  useEffect(() => {
+    const initializeSource = () => {
+      try {
+        const userInfo = localStorage.getItem("user_info");
+        if (userInfo) {
+          const user = JSON.parse(userInfo);
+
+          // Auto-assign to current user if they are recruitment staff
+          if (isRecruitmentUser()) {
+            setAssignedHrManagerId(user.UserID || "");
+          }
+        }
+      } catch (error) {
+        console.log("Could not auto-initialize recruiter source:", error);
+      }
+    };
+
+    initializeSource();
+  }, []);
 
   // Field refs for scrolling to errors
   const fieldRefs = useRef({
@@ -104,8 +173,9 @@ export default function CandidateCreate({ onBack, onSave }) {
 
   const loadAvailableJobs = async () => {
     try {
-      const jobs = await getAllJobs();
-      const openJobs = jobs.filter(job => job.jobStatus === "OPEN" || job.status === "OPEN");
+      const response = await getAllJobs();
+      const jobsList = Array.isArray(response) ? response : response?.jobs || [];
+      const openJobs = jobsList.filter(job => job.jobStatus === "OPEN" || job.status === "OPEN");
       setAvailableJobs(openJobs);
     } catch (error) {
       console.log("Could not load jobs", error);
@@ -392,6 +462,27 @@ export default function CandidateCreate({ onBack, onSave }) {
     setResumeParsing(true);
     setActionNotice("");
     try {
+      // Auto-set source when recruiter/HR staff uploads resume
+      if (isRecruitmentUser() && !source) {
+        try {
+          const userInfo = localStorage.getItem("user_info");
+          if (userInfo) {
+            const user = JSON.parse(userInfo);
+            const jobTitle = (user.UserJobTitle || "").toLowerCase();
+            // Set source based on specific job title
+            if (jobTitle.includes("recruiter")) {
+              setSource("Recruiter");
+            } else if (jobTitle.includes("hr") || jobTitle.includes("talent")) {
+              setSource("HR");
+            } else {
+              setSource("Internal");
+            }
+          }
+        } catch (e) {
+          // If parsing fails, just continue without auto-setting source
+        }
+      }
+
       const text = await extractResumeText(file);
       const fields = inferFieldsFromResumeText(text);
       if (fields.email) {
@@ -441,6 +532,7 @@ export default function CandidateCreate({ onBack, onSave }) {
     if (!mobile.trim()) newErrors.mobile = "Mobile is required.";
     else if (!/^\d{7,15}$/.test(mobile.replace(/\D/g, ''))) newErrors.mobile = "Mobile must be 7-15 digits.";
     if (!email.trim()) newErrors.email = "Email is required.";
+    if (!locationValue?.countryCode || !locationValue?.city) newErrors.location = "Location (Country and City) is required.";
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
       return;
@@ -521,12 +613,14 @@ export default function CandidateCreate({ onBack, onSave }) {
         candidate_mobile: mobile ? `${countryCode}${mobile}` : null,
         candidate_gender: gender || null,
         candidate_date_of_birth: dob || null,
-        candidate_source: source || null,
+        candidate_source: source === "Other" ? customSource : (source || null),
         candidate_experience: experience || null,
-        candidate_skills: skills || null,
+        candidate_skills: selectedSkills.length > 0 ? selectedSkills.map(s => s.name).join(", ") : null,
         candidate_joining_date: joiningDate || null,
         candidate_expected_salary: expectedSalary || null,
+        candidate_expected_salary_type: expectedSalaryRateType || null,
         candidate_current_salary: currentSalary || null,
+        candidate_current_salary_type: currentSalaryRateType || null,
         candidate_current_location: formattedLocation,
         assigned_hr_manager_id: assignedHrManagerId || null,
         assigned_report_manager_id: assignedReportManagerId || null,
@@ -738,7 +832,6 @@ export default function CandidateCreate({ onBack, onSave }) {
           </div>
           <div>
             <Input
-              ref={(ref) => (fieldRefs.current.email = ref?.input)}
               label="Email *"
               value={email}
               onChange={(value) => {
@@ -755,7 +848,6 @@ export default function CandidateCreate({ onBack, onSave }) {
 
           <div>
             <Input
-              ref={(ref) => (fieldRefs.current.firstName = ref?.input)}
               label="First Name *"
               value={firstName}
               onChange={(value) => {
@@ -780,7 +872,6 @@ export default function CandidateCreate({ onBack, onSave }) {
 
           <div>
             <Input
-              ref={(ref) => (fieldRefs.current.lastName = ref?.input)}
               label="Last Name *"
               value={lastName}
               onChange={(value) => {
@@ -850,29 +941,37 @@ export default function CandidateCreate({ onBack, onSave }) {
               type="date"
             />
           </div>
-          <Input label="Source" value={source} onChange={setSource} />
-          <Input
-            label="Skills (comma separated)"
-            value={skills}
-            onChange={setSkills}
-          />
-          <Input
-            label="Current Salary"
-            value={currentSalary}
-            onChange={setCurrentSalary}
-          />
-          <Input
-            label="Expected Salary"
-            value={expectedSalary}
-            onChange={setExpectedSalary}
-          />
-
-          <div className="md:col-span-2">
-            <div className="mb-1 text-xs font-semibold text-gray-700">
-              Current Location *
-            </div>
-            <LocationCascadeSelect value={locationValue} onChange={setLocationValue} />
+          <div>
+            <Select
+              label="Source"
+              value={source}
+              onChange={(value) => {
+                setSource(value);
+                setCustomSource("");
+                setShowEmployeeReferralList(value === "Employee Referral");
+              }}
+              options={[
+                { value: "", label: "Select source" },
+                ...SOURCE_OPTIONS.map(opt => ({ value: opt.value, label: opt.label }))
+              ]}
+            />
           </div>
+
+          {source === "Other" && (
+            <Input
+              label="Other Source"
+              value={customSource}
+              onChange={setCustomSource}
+              placeholder="Please specify the source"
+            />
+          )}
+
+          {showEmployeeReferralList && (
+            <div className="md:col-span-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+              <p className="text-sm text-gray-700 mb-2">Select referring employee (feature coming soon)</p>
+              <p className="text-xs text-gray-500">Employee list will be populated here</p>
+            </div>
+          )}
 
           <Input
             label="Availability Date"
@@ -882,6 +981,51 @@ export default function CandidateCreate({ onBack, onSave }) {
             }}
             type="date"
           />
+
+          <div className="md:col-span-2">
+            <div className="flex items-center justify-between mb-2">
+              <div className="text-xs font-semibold text-gray-700">Skills</div>
+              <button
+                type="button"
+                onClick={() => setShowSkillsModal(true)}
+                className="text-xs text-blue-600 hover:text-blue-700 font-semibold"
+              >
+                {selectedSkills.length > 0 ? `Edit (${selectedSkills.length})` : "Add Skills"}
+              </button>
+            </div>
+            {selectedSkills.length > 0 ? (
+              <div className="text-sm text-gray-600">
+                {selectedSkills.map(s => s.name).join(", ")}
+              </div>
+            ) : (
+              <p className="text-sm text-gray-500">No skills added. Click "Add Skills" to add your top skills.</p>
+            )}
+          </div>
+
+          <RateField
+            label="Current Salary"
+            value={currentSalary}
+            onValueChange={setCurrentSalary}
+            rateType={currentSalaryRateType}
+            onRateTypeChange={setCurrentSalaryRateType}
+            rateTypeOptions={["$/Hour", "$/Day", "$/Week", "$/Month", "$/Year"]}
+          />
+
+          <RateField
+            label="Expected Salary"
+            value={expectedSalary}
+            onValueChange={setExpectedSalary}
+            rateType={expectedSalaryRateType}
+            onRateTypeChange={setExpectedSalaryRateType}
+            rateTypeOptions={["$/Hour", "$/Day", "$/Week", "$/Month", "$/Year"]}
+          />
+
+          <div className="md:col-span-2">
+            <div className="mb-1 text-xs font-semibold text-gray-700">
+              Current Location *
+            </div>
+            <LocationCascadeSelect value={locationValue} onChange={setLocationValue} />
+          </div>
         </div>
 
         <div className="mt-4 space-y-3">
@@ -1153,6 +1297,120 @@ export default function CandidateCreate({ onBack, onSave }) {
           </Button>
         </div>
       </Card>
+
+      {showSkillsModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <Card className="w-full max-w-2xl mx-auto max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-semibold">Manage Skills</h2>
+              <button
+                onClick={() => setShowSkillsModal(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-3 mb-6">
+              {selectedSkills.length > 0 ? (
+                selectedSkills.map((skill, idx) => (
+                  <div key={idx} className="p-3 bg-gray-50 border border-gray-200 rounded-lg">
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <div className="font-semibold text-gray-900">{skill.name}</div>
+                        {skill.yearsOfExperience && (
+                          <div className="text-sm text-gray-600">Experience: {skill.yearsOfExperience} years</div>
+                        )}
+                        {skill.lastUsedDate && (
+                          <div className="text-sm text-gray-600">Last used: {skill.lastUsedDate}</div>
+                        )}
+                        {skill.isPrimary && (
+                          <div className="text-xs font-semibold text-blue-600 mt-1">Primary Skill</div>
+                        )}
+                      </div>
+                      <button
+                        onClick={() => setSelectedSkills(prev => prev.filter((_, i) => i !== idx))}
+                        className="text-red-600 hover:text-red-700 text-sm font-semibold"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <p className="text-gray-500 text-center py-4">No skills added yet</p>
+              )}
+            </div>
+
+            <div className="border-t pt-4 space-y-3">
+              <Input
+                label="Skill Name"
+                placeholder="e.g., Java, React, Project Management"
+                id="skill-name-modal"
+              />
+              <Input
+                label="Years of Experience"
+                type="number"
+                placeholder="e.g., 5"
+                id="years-exp-modal"
+              />
+              <Input
+                label="Last Used Date"
+                type="date"
+                id="last-used-modal"
+              />
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="is-primary-skill"
+                  className="w-4 h-4"
+                />
+                <label htmlFor="is-primary-skill" className="text-sm font-medium">
+                  Mark as Primary Skill
+                </label>
+              </div>
+              <Button
+                onClick={() => {
+                  const nameInput = document.getElementById('skill-name-modal');
+                  const yearsInput = document.getElementById('years-exp-modal');
+                  const dateInput = document.getElementById('last-used-modal');
+                  const primaryInput = document.getElementById('is-primary-skill');
+
+                  if (nameInput.value.trim()) {
+                    const newSkill = {
+                      name: nameInput.value.trim(),
+                      yearsOfExperience: yearsInput.value ? parseInt(yearsInput.value) : null,
+                      lastUsedDate: dateInput.value || null,
+                      isPrimary: primaryInput.checked,
+                    };
+
+                    setSelectedSkills(prev => {
+                      if (primaryInput.checked) {
+                        return [...prev.map(s => ({ ...s, isPrimary: false })), newSkill];
+                      }
+                      return [...prev, newSkill];
+                    });
+
+                    nameInput.value = '';
+                    yearsInput.value = '';
+                    dateInput.value = '';
+                    primaryInput.checked = false;
+                  }
+                }}
+                className="w-full"
+              >
+                Add Skill
+              </Button>
+            </div>
+
+            <div className="mt-6 flex items-center justify-end gap-2 border-t pt-4">
+              <Button variant="secondary" onClick={() => setShowSkillsModal(false)}>
+                Done
+              </Button>
+            </div>
+          </Card>
+        </div>
+      )}
     </div>
   );
 }

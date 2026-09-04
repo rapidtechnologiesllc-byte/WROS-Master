@@ -1,4 +1,5 @@
 """
+import logging
 S-028/HRMS-0428 -- Resume Parsing Engine.
 
 Real architecture facts (confirmed by reading the actual code before
@@ -45,6 +46,7 @@ own worked example (Company A Jan2020-Dec2022 + Company B Jun2021-Jun2023
 prose says "3 years" but TC-002's own numbers say 42mo/3.5yr; the
 executable test case wins over the narrative aside).
 """
+import logging
 import io
 import json
 import os
@@ -63,26 +65,23 @@ MIN_RAW_TEXT_LENGTH = 100
 
 GEMINI_MODEL_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
 
+logger = logging.getLogger(__name__)
 
 class TextExtractionFailed(Exception):
     pass
 
-
 class ResumeParsingFailed(Exception):
     pass
-
 
 def extract_text_from_pdf(file_content: bytes) -> str:
     import pypdf
     reader = pypdf.PdfReader(io.BytesIO(file_content))
     return "\n".join((page.extract_text() or "") for page in reader.pages)
 
-
 def extract_text_from_docx(file_content: bytes) -> str:
     import docx
     document = docx.Document(io.BytesIO(file_content))
     return "\n".join(p.text for p in document.paragraphs)
-
 
 def extract_raw_text(file_content: bytes, extension: str) -> str:
     """Step 2. Raises TextExtractionFailed if extraction errors or
@@ -98,12 +97,12 @@ def extract_raw_text(file_content: bytes, extension: str) -> str:
     except TextExtractionFailed:
         raise
     except Exception as exc:
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         raise TextExtractionFailed(f"Text extraction raised: {exc}") from exc
 
     if not text or len(text.strip()) < MIN_RAW_TEXT_LENGTH:
         raise TextExtractionFailed(f"Extracted text too short ({len(text.strip()) if text else 0} chars)")
     return text
-
 
 # ---------------------------------------------------------------------------
 # BR-01/BR-02: non-overlapping total experience calculation
@@ -119,7 +118,6 @@ def _parse_year_month(value: Optional[str]) -> Optional[date]:
     if not (1 <= month <= 12):
         return None
     return date(year, month, 1)
-
 
 def calculate_total_experience_months(work_history: List[Dict]) -> int:
     """
@@ -162,7 +160,6 @@ def calculate_total_experience_months(work_history: List[Dict]) -> int:
         total_months += max(months, 0)
     return total_months
 
-
 # ---------------------------------------------------------------------------
 # SLM parsing (Self-Learning Model - Internal, No External API Calls)
 # ---------------------------------------------------------------------------
@@ -198,16 +195,15 @@ def _parse_with_slm(raw_text: str) -> Dict:
         return parsed
 
     except Exception as exc:
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.error(f"[ResumeSLM] Parse error: {exc}")
         raise ValueError(f"SLM parsing failed: {exc}") from exc
-
 
 def _log_event(db: Session, conversation: Optional[CandidateConversation], event_type: str, event_data: Dict) -> None:
     if conversation is None:
         return
     db.add(ConversationEvent(conversation_id=conversation.id, event_type=event_type, event_data=event_data, triggered_by="system"))
     db.flush()
-
 
 def _notify_recruiter_of_parse_failure(db: Session, tenant_id: str, candidate: Candidate) -> None:
     from app.models.candidate_ai import CandidateAIAssignment
@@ -231,8 +227,8 @@ def _notify_recruiter_of_parse_failure(db: Session, tenant_id: str, candidate: C
             message=f"Thunder couldn't auto-parse {candidate.candidateFirstName or candidate.candidateID}'s resume -- please review it manually.",
         )
     except Exception as exc:
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[ResumeParsing] Failed to notify recruiter for candidate {candidate.candidateID}: {exc}")
-
 
 def parse_resume(
     db: Session,
@@ -264,6 +260,7 @@ def parse_resume(
     try:
         parsed_json = _parse_with_slm(raw_text)
     except Exception as exc:
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         last_error = exc
         logger.warning(f"[ResumeSLM] Parse failed for candidate {candidate.candidateID}: {exc}")
 

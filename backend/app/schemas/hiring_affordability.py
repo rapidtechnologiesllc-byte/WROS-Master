@@ -1,7 +1,10 @@
+import logging
 from typing import Optional
 
 from pydantic import BaseModel
+from app.core.logging import logger
 
+logger = logging.getLogger(__name__)
 
 class HiringAffordabilityResponse(BaseModel):
     business_unit_id: int

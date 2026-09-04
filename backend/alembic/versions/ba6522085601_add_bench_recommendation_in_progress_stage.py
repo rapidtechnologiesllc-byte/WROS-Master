@@ -1,3 +1,4 @@
+import logging
 """widen bench_allocation_recommendations.status to include IN_PROGRESS + pursued_by/pursued_at
 
 Revision ID: ba6522085601
@@ -20,7 +21,6 @@ from typing import Sequence, Union
 from alembic import op
 import sqlalchemy as sa
 
-
 # revision identifiers, used by Alembic.
 revision: str = 'ba6522085601'
 down_revision: Union[str, Sequence[str], None] = '73c1aca4119d'
@@ -29,7 +29,6 @@ depends_on: Union[str, Sequence[str], None] = None
 
 _OLD_STATUSES = "'PENDING_RM_REVIEW','APPROVED','REJECTED'"
 _NEW_STATUSES = "'PENDING_RM_REVIEW','IN_PROGRESS','APPROVED','REJECTED'"
-
 
 def upgrade() -> None:
     """Upgrade schema."""
@@ -44,7 +43,6 @@ def upgrade() -> None:
             nullable=True,
         ))
         batch_op.add_column(sa.Column('pursued_at', sa.DateTime(), nullable=True))
-
 
 def downgrade() -> None:
     """Downgrade schema."""

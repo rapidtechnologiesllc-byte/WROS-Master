@@ -1,8 +1,10 @@
 """
+import logging
 COMPLETE REVENUE API ENDPOINTS - Production Grade
 
 All revenue recognition and reporting endpoints wired to business logic.
 """
+import logging
 from datetime import datetime, date
 from typing import Optional, List
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -25,10 +27,10 @@ from app.services.revenue_recognition_service import (
 
 router = APIRouter(prefix="/api/v1/revenue", tags=["revenue"])
 
-
 # ============================================================================
 # REQUEST/RESPONSE MODELS
 # ============================================================================
+logger = logging.getLogger(__name__)
 
 class RevenueBreakdownResponse(BaseModel):
     dimension: str
@@ -42,7 +44,6 @@ class RevenueBreakdownResponse(BaseModel):
     class Config:
         from_attributes = True
 
-
 class MonthlyRevenueResponse(BaseModel):
     month: str
     revenue_usd_cents: int
@@ -54,7 +55,6 @@ class MonthlyRevenueResponse(BaseModel):
     class Config:
         from_attributes = True
 
-
 class ForecastVsActualResponse(BaseModel):
     period: str
     forecast_usd_cents: int
@@ -65,7 +65,6 @@ class ForecastVsActualResponse(BaseModel):
 
     class Config:
         from_attributes = True
-
 
 class NegativeMarginAlertResponse(BaseModel):
     invoice_id: str
@@ -79,7 +78,6 @@ class NegativeMarginAlertResponse(BaseModel):
 
     class Config:
         from_attributes = True
-
 
 class PandLSummaryResponse(BaseModel):
     month: str
@@ -95,7 +93,6 @@ class PandLSummaryResponse(BaseModel):
     class Config:
         from_attributes = True
 
-
 class PartnerRevenueShareResponse(BaseModel):
     business_unit_id: int
     period: str
@@ -106,7 +103,6 @@ class PartnerRevenueShareResponse(BaseModel):
 
     class Config:
         from_attributes = True
-
 
 # ============================================================================
 # ENDPOINTS
@@ -148,8 +144,8 @@ def get_revenue_dashboard(
         return result
 
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @router.get(
     "/by-opportunity/{opportunity_id}",
@@ -197,8 +193,8 @@ def get_revenue_by_opportunity(
     except HTTPException:
         raise
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @router.get(
     "/by-client-owner/{client_owner_id}",
@@ -237,8 +233,8 @@ def get_revenue_by_account_manager(
     except HTTPException:
         raise
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @router.get(
     "/breakdowns/{business_unit_id}",
@@ -297,8 +293,8 @@ def get_revenue_breakdowns(
     except HTTPException:
         raise
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @router.get(
     "/forecast-vs-actual/{business_unit_id}",
@@ -334,8 +330,8 @@ def get_revenue_forecast_vs_actual(
     except HTTPException:
         raise
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @router.get(
     "/margin-analysis/{business_unit_id}",
@@ -377,8 +373,8 @@ def get_revenue_margin_analysis(
     except HTTPException:
         raise
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @router.get(
     "/partner-share/{business_unit_id}",
@@ -419,8 +415,8 @@ def get_revenue_partner_share(
     except HTTPException:
         raise
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @router.get(
     "/alerts",
@@ -451,4 +447,5 @@ def get_revenue_alerts(
         return result[:limit]
 
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))

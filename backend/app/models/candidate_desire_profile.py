@@ -1,4 +1,5 @@
 """
+import logging
 S-348/HRMS-P118 -- Desire Profile Builder.
 
 candidate_desire_profiles: one row per candidate (UNIQUE candidate_id,
@@ -10,6 +11,7 @@ desire_ranking is the full sorted array (JSON) -- top_desire_category/
 top_desire_score are denormalized copies of desire_ranking[0] for fast
 reads without deserializing the array on every list view.
 """
+import logging
 from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Integer, JSON, String, Text, UniqueConstraint, func
 from sqlalchemy.orm import relationship
 
@@ -18,14 +20,15 @@ from app.models.base import Base
 ENGAGEMENT_LEVELS = ("HOT", "WARM", "COOL", "COLD")
 DECISION_URGENCY_LEVELS = ("URGENT", "NORMAL", "SLOW")
 
+logger = logging.getLogger(__name__)
 
 class CandidateDesireProfile(Base):
     __tablename__ = "candidate_desire_profiles"
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
 
-    tenant_id = Column(String(50), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=False, index=True)
-    candidate_id = Column(String(36), ForeignKey("candidates.candidateID", ondelete="CASCADE"), nullable=False)
+    tenant_id = Column(String(512), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=False, index=True)
+    candidate_id = Column(String(512), ForeignKey("candidates.candidateID", ondelete="CASCADE"), nullable=False)
 
     top_desire_category = Column(String(30), nullable=True)
     top_desire_score = Column(Float, nullable=True)

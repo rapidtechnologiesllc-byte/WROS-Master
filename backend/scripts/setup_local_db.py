@@ -1,3 +1,4 @@
+import logging
 """DEPRECATED: SQLite local database setup is no longer supported.
 
 This script was used to build local SQLite databases for development.

@@ -1,66 +1,76 @@
 """
-Role Template Permission Service - Dynamic permission checking based on role templates.
+Role Template Permission Service - Simplified single-role with custom overrides.
 
-Replaces hardcoded "Super User" checks with actual role template permissions (V/C/E/D).
+Architecture (Option C):
+1. Each user has ONE role_template (via users.role_id)
+2. User can have custom permission overrides (user_custom_permissions table)
+3. Permission = role_template permission + custom override (if exists)
+
+NO UNION logic. NO multi-role complexity. Just database + overrides.
 """
+import logging
 
 from sqlalchemy.orm import Session
-from sqlalchemy import and_
 from app.models.role_template import RoleTemplate, RoleTemplatePermission, Resource
-from app.models.user import Users, UserRole
+from app.models.user import Users, UserCustomPermission
 from app.core.logging import logger
 
+logger = logging.getLogger(__name__)
 
 class RoleTemplatePermissionService:
     """
-    Check user permissions against their assigned role templates.
-    Each user can have multiple roles; permissions are the UNION of all assigned roles.
+    Check user permissions based on their assigned role + custom overrides.
+
+    Simple model:
+    - User has ONE role_template (not multiple)
+    - Custom permissions can override the role template
+    - No UNION logic needed
     """
 
     @staticmethod
-    def get_user_roles(db: Session, user_id: str, tenant_id: int = 1) -> list[RoleTemplate]:
-        """Get all role templates assigned to a user via the UserRole junction table."""
-        user_roles = db.query(UserRole).filter(
-            UserRole.user_id == user_id,
-            UserRole.tenant_id == tenant_id
-        ).all()
-
-        return [ur.role_template for ur in user_roles if ur.role_template]
-
-    @staticmethod
-    def get_resource_by_name(db: Session, resource_name: str, tenant_id: int = 1) -> Resource:
-        """Get a resource by name (e.g., 'candidates', 'jobs', 'users')."""
-        return db.query(Resource).filter(
-            Resource.name == resource_name,
-            Resource.tenant_id == tenant_id
-        ).first()
-
-    @staticmethod
-    def is_super_user(db: Session, user_id: str, tenant_id: int = 1) -> bool:
-        """
-        Check if user is a Super User (bypass all permission checks).
-
-        Args:
-            db: Database session
-            user_id: User ID
-            tenant_id: Tenant ID for multi-tenancy
-
-        Returns:
-            True if user is Super User, False otherwise
-        """
+    def get_user_role(db: Session, user_id: str, tenant_id: int = 1) -> RoleTemplate | None:
+        """Get the user's assigned role template (single role, not multiple)."""
         try:
-            # Get user's role templates
-            user_roles = RoleTemplatePermissionService.get_user_roles(db, user_id, tenant_id)
+            user = db.query(Users).filter(Users.UserID == user_id).first()
+            if not user:
+                logger.warning(f"User not found: {user_id}")
+                return None
 
-            # Check if any role is "Super User"
-            for role in user_roles:
-                if role.name and role.name.lower() in ['super user', 'super_user', 'admin']:
-                    return True
+            if not user.role_template_id:
+                logger.warning(f"User {user_id} has no role_template_id assigned")
+                return None
 
-            return False
-        except Exception as e:
-            logger.error(f"Error checking super user status: {e}")
-            return False
+            role = db.query(RoleTemplate).filter(
+                RoleTemplate.id == user.role_template_id,
+                RoleTemplate.tenant_id == tenant_id,
+                RoleTemplate.enabled == True
+            ).first()
+
+            if not role:
+                logger.warning(f"Role template {user.role_template_id} not found for user {user_id}")
+                return None
+
+            return role
+
+        except (AttributeError, ValueError, TypeError) as e:
+            logger.error(f"get_user_role({user_id}, tenant={tenant_id}): {e}", exc_info=True)
+            raise ValueError("Operation failed")
+
+    @staticmethod
+    def get_resource_by_name(db: Session, resource_name: str, tenant_id: int = 1) -> Resource | None:
+        """Get a resource by name."""
+        if not resource_name:
+            return None
+
+        try:
+            return db.query(Resource).filter(
+                Resource.name == resource_name,
+                Resource.tenant_id == tenant_id,
+                Resource.enabled == True
+            ).first()
+        except (AttributeError, ValueError) as e:
+            logger.error(f"get_resource_by_name({resource_name}, tenant={tenant_id}): {e}", exc_info=True)
+            raise ValueError("Operation failed")
 
     @staticmethod
     def has_permission(
@@ -73,6 +83,12 @@ class RoleTemplatePermissionService:
         """
         Check if user has permission to perform an action on a resource.
 
+        Process:
+        1. Get user's role_template (single role)
+        2. Check role_template_permissions for this resource
+        3. Check user_custom_permissions for override
+        4. Return: role permission OR custom override
+
         Args:
             db: Database session
             user_id: User ID
@@ -84,20 +100,8 @@ class RoleTemplatePermissionService:
             True if user has permission, False otherwise
         """
         try:
-            # SUPER USER BYPASS: Super Users have all permissions
-            if RoleTemplatePermissionService.is_super_user(db, user_id, tenant_id):
-                logger.info(f"Super User {user_id} granted all permissions (bypass)")
-                return True
-
-            # Get user's role templates
-            user_roles = RoleTemplatePermissionService.get_user_roles(db, user_id, tenant_id)
-            if not user_roles:
-                return False
-
-            # Get the resource
-            resource = RoleTemplatePermissionService.get_resource_by_name(db, resource_name, tenant_id)
-            if not resource:
-                # If resource doesn't exist, no permission
+            # Validate inputs
+            if not user_id or not resource_name or not action:
                 return False
 
             # Map action to permission field
@@ -109,25 +113,72 @@ class RoleTemplatePermissionService:
             }
 
             if action not in action_map:
+                logger.warning(f"has_permission: invalid action '{action}'")
                 return False
 
             permission_field = action_map[action]
 
-            # Check if ANY of the user's roles has this permission
-            # (permissions are ORed together for multi-role users)
-            for role in user_roles:
-                perm = db.query(RoleTemplatePermission).filter(
-                    RoleTemplatePermission.role_template_id == role.id,
-                    RoleTemplatePermission.resource_id == resource.id
+            # Get user's role template (single role)
+            role = RoleTemplatePermissionService.get_user_role(db, user_id, tenant_id)
+            if not role:
+                return False
+
+            # Get the resource
+            resource = RoleTemplatePermissionService.get_resource_by_name(db, resource_name, tenant_id)
+            if not resource:
+                return False
+
+            # Step 1: Check role template permission
+            role_perm = db.query(RoleTemplatePermission).filter(
+                RoleTemplatePermission.role_template_id == role.id,
+                RoleTemplatePermission.resource_id == resource.id
+            ).first()
+
+            role_has_permission = False
+            if role_perm:
+                role_has_permission = getattr(role_perm, permission_field, False)
+
+            # Step 2: Check user custom override (can grant or restrict)
+            # Query user_custom_permissions if it exists
+            try:
+                from app.models.user import UserCustomPermission
+                custom_perm = db.query(UserCustomPermission).filter(
+                    UserCustomPermission.user_id == user_id,
+                    UserCustomPermission.resource_id == resource.id
                 ).first()
 
-                if perm and getattr(perm, permission_field):
-                    return True
+                if custom_perm:
+                    # Custom override takes precedence
+                    return getattr(custom_perm, permission_field, False)
+            except (ImportError, AttributeError):
+                # UserCustomPermission model doesn't exist yet, use role permission only
+                pass
 
+            # Return role permission (no custom override)
+            return role_has_permission
+
+        except (AttributeError, ValueError, TypeError) as e:
+            logger.error(f"has_permission({user_id}, {resource_name}, {action}, tenant={tenant_id}): {e}", exc_info=True)
             return False
 
+    @staticmethod
+    def is_super_user(db: Session, user_id: str, tenant_id: int = 1) -> bool:
+        """Check if user is a super user (has all permissions)."""
+        try:
+            user = db.query(Users).filter(Users.UserID == user_id).first()
+            if not user:
+                return False
+
+            # Check if user has a super user role
+            role = RoleTemplatePermissionService.get_user_role(db, user_id, tenant_id)
+            if not role:
+                return False
+
+            # Super user roles typically have a name like "Super User" or "Admin"
+            # or have a super_user flag in the database
+            return getattr(role, 'is_super_user', False) or role.name in ['Super User', 'Admin']
         except Exception as e:
-            logger.error(f"Error checking role template permission: {e}")
+            logger.error(f"is_super_user({user_id}): {e}", exc_info=True)
             return False
 
     @staticmethod
@@ -155,18 +206,31 @@ class RoleTemplatePermissionService:
         """
         Get all permissions for a user as a dictionary.
 
+        Combines role template permissions with custom overrides.
+
         Returns: {
             "resource_name": {
                 "can_view": True/False,
                 "can_create": True/False,
                 "can_edit": True/False,
-                "can_delete": True/False
+                "can_delete": True/False,
+                "display_name": "Display Name",
+                "overridden": True/False  (True if custom override applied)
             },
             ...
         }
         """
         try:
-            permissions = {}
+            # Validate input
+            if not user_id:
+                # CRITICAL FIX: Raise error instead of returning empty dict
+                raise ValueError("Cannot get user permissions: user_id is required")
+
+            # Get user's role template
+            role = RoleTemplatePermissionService.get_user_role(db, user_id, tenant_id)
+            if not role:
+                # CRITICAL FIX: Raise error instead of returning empty dict
+                raise ValueError(f"Cannot get user permissions: no role template found for user_id={user_id}")
 
             # Get all resources for this tenant
             resources = db.query(Resource).filter(
@@ -174,44 +238,68 @@ class RoleTemplatePermissionService:
                 Resource.enabled == True
             ).all()
 
-            # Get user's roles
-            user_roles = RoleTemplatePermissionService.get_user_roles(db, user_id, tenant_id)
-            role_ids = [role.id for role in user_roles]
+            if not resources:
+                # CRITICAL FIX: Raise error instead of returning empty dict
+                raise ValueError(f"Cannot get user permissions: no resources found for tenant_id={tenant_id}")
 
-            # For each resource, check all permissions
-            for resource in resources:
-                # Check if ANY role has this permission (OR logic for multi-role users)
-                can_view = False
-                can_create = False
-                can_edit = False
-                can_delete = False
+            # Get all role template permissions for this role
+            role_perms = db.query(RoleTemplatePermission).filter(
+                RoleTemplatePermission.role_template_id == role.id
+            ).all()
 
-                if role_ids:
-                    perms = db.query(RoleTemplatePermission).filter(
-                        RoleTemplatePermission.resource_id == resource.id,
-                        RoleTemplatePermission.role_template_id.in_(role_ids)
-                    ).all()
-
-                    for perm in perms:
-                        if perm.can_view:
-                            can_view = True
-                        if perm.can_create:
-                            can_create = True
-                        if perm.can_edit:
-                            can_edit = True
-                        if perm.can_delete:
-                            can_delete = True
-
-                permissions[resource.name] = {
-                    "can_view": can_view,
-                    "can_create": can_create,
-                    "can_edit": can_edit,
-                    "can_delete": can_delete,
-                    "display_name": resource.display_name
+            # Build role permission lookup
+            role_perm_lookup = {}
+            for perm in role_perms:
+                role_perm_lookup[perm.resource_id] = {
+                    "can_view": perm.can_view,
+                    "can_create": perm.can_create,
+                    "can_edit": perm.can_edit,
+                    "can_delete": perm.can_delete
                 }
 
+            # Get user custom permissions (overrides)
+            custom_perms = {}
+            try:
+                custom_perm_rows = db.query(UserCustomPermission).filter(
+                    UserCustomPermission.user_id == user_id
+                ).all()
+
+                for perm in custom_perm_rows:
+                    custom_perms[perm.resource_id] = {
+                        "can_view": perm.can_view,
+                        "can_create": perm.can_create,
+                        "can_edit": perm.can_edit,
+                        "can_delete": perm.can_delete
+                    }
+            except (ImportError, AttributeError):
+                # UserCustomPermission doesn't exist yet
+                pass
+
+            # Build final permissions (role + overrides)
+            permissions = {}
+            for resource in resources:
+                # Start with role permission
+                if resource.id in role_perm_lookup:
+                    perms = role_perm_lookup[resource.id]
+                    overridden = False
+                else:
+                    perms = {"can_view": False, "can_create": False, "can_edit": False, "can_delete": False}
+                    overridden = False
+
+                # Apply custom override if exists
+                if resource.id in custom_perms:
+                    perms = custom_perms[resource.id]
+                    overridden = True
+
+                permissions[resource.name] = {
+                    **perms,
+                    "display_name": resource.display_name,
+                    "overridden": overridden
+                }
+
+            logger.info(f"get_user_permissions({user_id}): {len(permissions)} resources, {sum(1 for p in permissions.values() if p['overridden'])} overridden")
             return permissions
 
         except Exception as e:
-            logger.error(f"Error getting user permissions: {e}")
-            return {}
+            logger.error(f"get_user_permissions({user_id}, tenant={tenant_id}): {e}", exc_info=True)
+            raise RuntimeError(f"Failed to get user permissions for user_id={user_id}: {str(e)}")

@@ -3,6 +3,7 @@ HRMS-0118's scan gate -- the Development & Review Standard's own named
 example of a schema field that implies a rule without the enforcement
 behind it: `CandidateDocument.is_virus_scanned` defaults to False and,
 before this module, nothing anywhere in this codebase ever set it or
+import logging
 checked it before serving a file back to a browser.
 
 Two pieces, matching this codebase's established pattern for
@@ -32,21 +33,22 @@ silently no-op'ing):
                                virus_scan_result=None or "error", never
                                silently treated as safe.
 """
+import logging
 from typing import Callable, Optional
 
 from app.models.document import CandidateDocument
+from app.core.logging import logger
 
 VIRUS_SCAN_RESULTS = ("clean", "infected", "error")
 
+logger = logging.getLogger(__name__)
 
 class VirusScanUnavailable(Exception):
     """Raised by the default scanner client -- no AV scanning service is
     provisioned in this codebase yet."""
 
-
 def _scan_unconfigured(file_content: bytes) -> str:
     raise VirusScanUnavailable("No virus-scanning service is provisioned in this codebase yet.")
-
 
 def scan_document_content(
     document: CandidateDocument,
@@ -73,7 +75,6 @@ def scan_document_content(
     document.is_virus_scanned = True
     document.virus_scan_result = result
     return document
-
 
 def document_is_accessible(document: CandidateDocument) -> bool:
     """The access gate -- fail closed. Only an explicit "clean" result

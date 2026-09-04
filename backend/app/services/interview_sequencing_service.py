@@ -7,6 +7,7 @@ SubmissionInterview` system, which already enforces R-05 for real in
 `app.services.interview_service.create_interview()` -- this module does
 not duplicate that, it closes the gap in the OTHER, older system the
 Phase 3 doc names specifically ("the existing Onboarding Module code
+import logging
 has zero enforcement of it today").
 
 This legacy system has no L1/L2 concept in its schema at all --
@@ -36,10 +37,12 @@ confirmed product decision** -- flagged for whoever owns the interview
 process to confirm or override, same posture as the MFA role-mapping
 and Client v2 contact-role-vocabulary calls made earlier this session.
 """
+import logging
 from typing import List
 
 from sqlalchemy.orm import Session
 
+from app.core.logging import logger
 from app.models.candidate import Candidate, CandidateStatus
 from app.models.user import (
     CandidateAssignment,
@@ -50,11 +53,11 @@ from app.models.user import (
     Users,
 )
 
+logger = logging.getLogger(__name__)
 
 class PriorRoundNotPassed(Exception):
     """R-05: the candidate's most recent prior interview round has not
     been recorded as passed -- a new round cannot be scheduled yet."""
-
 
 def _round_has_passed(db: Session, panel: InterviewPanel) -> bool:
     interviews = db.query(Interview).filter(Interview.panel_id == panel.id).all()
@@ -71,7 +74,6 @@ def _round_has_passed(db: Session, panel: InterviewPanel) -> bool:
     if "Reject" in recommendations:
         return False
     return "Hire" in recommendations
-
 
 def enforce_interview_sequencing_gate(db: Session, candidate_id: str) -> None:
     """
@@ -99,7 +101,6 @@ def enforce_interview_sequencing_gate(db: Session, candidate_id: str) -> None:
             f"until it is."
         )
 
-
 # ---------------------------------------------------------------------------
 # S-102/HRMS-P207 -- Hiring Manager Candidate Review. app.schemas.interview's
 # HMFeedbackDetail/HMInterviewRound/HMCandidateReviewItem/HMCandidateReview
@@ -125,7 +126,6 @@ def _round_overall_recommendation(feedbacks: List[InterviewFeedback]) -> str:
     if recommendations == {"Hire"}:
         return "Hire"
     return "Mixed"
-
 
 def get_hm_candidate_review_list(db: Session, hiring_manager: Users) -> dict:
     """Every candidate assigned to this hiring manager (CandidateAssignment.

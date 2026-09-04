@@ -1,4 +1,5 @@
 """
+import logging
 Finance Agent - Constant Vigilance Over Profitability
 
 This agent is "smelling everyone's ass every second of their living" -
@@ -15,6 +16,7 @@ It doesn't care about excuses, deadlines, or strategic plans.
 If net profit < 25%, it sounds the alarm immediately.
 """
 
+import logging
 from datetime import datetime, timedelta
 from typing import Dict, Any, List
 from sqlalchemy.orm import Session
@@ -26,6 +28,7 @@ from app.models.employee import Employee
 from app.models.business_unit import BusinessUnit
 from app.core.logging import logger
 
+logger = logging.getLogger(__name__)
 
 class FinanceAgent:
     """

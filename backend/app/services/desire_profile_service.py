@@ -1,4 +1,5 @@
 """
+import logging
 S-348/HRMS-P118 -- Desire Profile Builder.
 
 Aggregates S-347's raw candidate_desire_signals into one ranked,
@@ -43,7 +44,6 @@ DESIRE_CATEGORIES = (
     "DOMAIN_INTEREST", "COMPANY_REPUTATION", "WORK_LIFE_BALANCE", "SPEED_OF_DECISION",
 )
 
-
 def _recency_weight(created_at: datetime, *, now: datetime) -> float:
     """BR-01: last 7 days *1.5, last 30 days *1.0, older *0.5."""
     age_days = (now - created_at).days
@@ -52,7 +52,6 @@ def _recency_weight(created_at: datetime, *, now: datetime) -> float:
     if age_days <= 30:
         return 1.0
     return 0.5
-
 
 def _weighted_category_scores(signals: List[CandidateDesireSignal], direction: str, *, now: datetime) -> Dict[str, Dict]:
     buckets: Dict[str, Dict] = {}
@@ -72,7 +71,6 @@ def _weighted_category_scores(signals: List[CandidateDesireSignal], direction: s
         for category, b in buckets.items()
     }
 
-
 def _engagement_level(response_speed_signals: List[CandidateDesireSignal]) -> Optional[str]:
     minutes = [s.signal_data.get("minutes") for s in response_speed_signals if isinstance(s.signal_data, dict) and s.signal_data.get("minutes") is not None]
     if not minutes:
@@ -86,14 +84,12 @@ def _engagement_level(response_speed_signals: List[CandidateDesireSignal]) -> Op
         return "COOL"
     return "COLD"
 
-
 def _has_competing_offer(message_signals: List[CandidateDesireSignal]) -> bool:
     for signal in message_signals:
         body = (signal.signal_data or {}).get("message_body", "") if isinstance(signal.signal_data, dict) else ""
         if any(keyword in body.lower() for keyword in COMPETING_OFFER_KEYWORDS):
             return True
     return False
-
 
 def _decision_urgency(response_speed_signals: List[CandidateDesireSignal], has_competing_offer: bool) -> str:
     """BR-02: has_competing_offer always wins, regardless of trend."""
@@ -118,7 +114,6 @@ def _decision_urgency(response_speed_signals: List[CandidateDesireSignal], has_c
     if later_avg > earlier_avg * 1.2:  # responding meaningfully slower over time
         return "SLOW"
     return "NORMAL"
-
 
 def build_desire_profile(db: Session, tenant_id: str, candidate_id: str, *, now: Optional[datetime] = None) -> CandidateDesireProfile:
     now = now or datetime.utcnow()
@@ -188,10 +183,10 @@ def build_desire_profile(db: Session, tenant_id: str, candidate_id: str, *, now:
         if previous_engagement_level in ("HOT", "WARM") and engagement_level == "COOL":
             emit(db, "candidate.engagement_cooled", {"from": previous_engagement_level, "to": "COOL"}, tenant_id, candidate_id)
     except Exception as exc:
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[DesireProfile] Event emission failed for candidate {candidate_id!r}: {exc}")
 
     return profile
-
 
 # ---------------------------------------------------------------------------
 # Narrative summary (LLM)
@@ -208,7 +203,6 @@ def _default_llm_call(prompt: str, api_key: str) -> str:
     result = resp.json()
     return result.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "").strip()
 
-
 def _call_llm(prompt: str, llm_call: Optional[Callable[[str], str]]) -> str:
     if llm_call is not None:
         return llm_call(prompt)
@@ -216,7 +210,6 @@ def _call_llm(prompt: str, llm_call: Optional[Callable[[str], str]]) -> str:
     if not api_key:
         raise RuntimeError("GEMINI_API_KEY not set")
     return _default_llm_call(prompt, api_key)
-
 
 def generate_desire_narrative(db: Session, profile: CandidateDesireProfile, *, llm_call: Optional[Callable[[str], str]] = None) -> Optional[str]:
     """Never raises -- a narrative failure must not block the (already
@@ -245,9 +238,9 @@ def generate_desire_narrative(db: Session, profile: CandidateDesireProfile, *, l
         narrative = _call_llm(prompt, llm_call)
         return narrative.strip() or None
     except Exception as exc:
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[DesireProfile] Narrative generation failed for candidate {profile.candidate_id!r}: {exc}")
-        return None
-
+        raise ValueError("Operation failed")
 
 def generate_talking_points(db: Session, profile: CandidateDesireProfile, *, llm_call: Optional[Callable[[str], str]] = None) -> Optional[List[str]]:
     """S-350 Step 4 -- 3-5 bullet points for HR's next conversation,
@@ -283,9 +276,9 @@ def generate_talking_points(db: Session, profile: CandidateDesireProfile, *, llm
             return None
         return [str(p).strip() for p in points if str(p).strip()][:5]
     except Exception as exc:
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[DesireProfile] Talking points generation failed for candidate {profile.candidate_id!r}: {exc}")
-        return None
-
+        raise ValueError("Operation failed")
 
 def build_and_narrate(db: Session, tenant_id: str, candidate_id: str, *, llm_call: Optional[Callable[[str], str]] = None, now: Optional[datetime] = None) -> CandidateDesireProfile:
     profile = build_desire_profile(db, tenant_id, candidate_id, now=now)
@@ -301,7 +294,6 @@ def build_and_narrate(db: Session, tenant_id: str, candidate_id: str, *, llm_cal
         db.commit()
         db.refresh(profile)
     return profile
-
 
 # ---------------------------------------------------------------------------
 # DesireProfileUpdateJob -- every 4 hours
@@ -334,7 +326,6 @@ def _candidates_with_new_signals_since_last_update(db: Session) -> List[Dict]:
             due.append({"tenant_id": tenant_by_candidate[candidate_id], "candidate_id": candidate_id})
     return due
 
-
 def run_desire_profile_update_job(db: Session, *, llm_call: Optional[Callable[[str], str]] = None) -> Dict:
     """BR-03: max 4-hour staleness -- this job's own interval enforces
     that; each run picks up every candidate with signals newer than
@@ -347,6 +338,7 @@ def run_desire_profile_update_job(db: Session, *, llm_call: Optional[Callable[[s
             build_and_narrate(db, item["tenant_id"], item["candidate_id"], llm_call=llm_call)
             updated += 1
         except Exception as exc:
+            logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.warning(f"[DesireProfile] Update job failed for candidate {item['candidate_id']!r}: {exc}")
             db.rollback()
             failed += 1

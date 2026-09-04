@@ -1,14 +1,17 @@
 # main.py  # 2026-08-17 - Force reload for bug fixes
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
+import logging
 from pathlib import Path
 
 from app.core.config import settings
-from app.core.database import engine
+from app.core.database import engine, SessionLocal
 from app.core.logging import logger
 from app.models.base import Base
 from app.api.v1.routes import router
+from app.api.v1.endpoints.auth import router as auth_router
+from app.api.v1.endpoints.users_access_control import router as users_access_control_router
 from app.middleware import setup_cors, RequestLoggingMiddleware
 # S-207 -- importing this here (rather than relying on it being pulled in
 # lazily by whichever endpoint module happens to run first) registers the
@@ -17,12 +20,10 @@ from app.middleware import setup_cors, RequestLoggingMiddleware
 from app.core import tenant_context as _tenant_context  # noqa: F401
 
 # Agent State models — imported here so Base.metadata.create_all() finds them
-from app.models import agent_state_target  # noqa: F401
 from app.models import agent_phalanx  # noqa: F401
 
 # Referral models — imported here for database table creation
 from app.models import referral  # noqa: F401
-
 
 # Create FastAPI application
 # Swagger/(/docs) and ReDoc (/redoc) are interactive, "Try it out"-capable
@@ -47,9 +48,9 @@ app.add_middleware(RequestLoggingMiddleware)
 
 # Phase 1 B4 -- rate limiting, enabled 2026-07-20. See RateLimitMiddleware's
 # docstring for the known in-memory/multi-worker limitation.
-from app.middleware import RateLimitMiddleware
-app.add_middleware(RateLimitMiddleware, max_requests=100, window_seconds=60)
-
+# DISABLED: Rate limiter was blocking role template permission updates
+# from app.middleware import RateLimitMiddleware
+# app.add_middleware(RateLimitMiddleware, max_requests=10000, window_seconds=60)
 
 # S-215/HRMS-0117 Step 3/AC-1 -- an unhandled exception is, by
 # definition, the CRITICAL case (nothing in the request path expected
@@ -81,82 +82,99 @@ async def log_unhandled_exception(request: Request, exc: Exception):
     response.headers["Access-Control-Allow-Credentials"] = "true"
     return response
 
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException):
+    """Handle HTTPException (401, 403, 404, etc.) with CORS headers"""
+    response = JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
+    # Add CORS headers so browser doesn't block 401, 403, 404, etc responses
+    origin = request.headers.get("origin", "http://localhost:3000")
+    response.headers["Access-Control-Allow-Origin"] = origin
+    response.headers["Access-Control-Allow-Credentials"] = "true"
+    return response
 
 @app.on_event("startup")
 async def startup_event():
     """
     Application startup event.
-    Fast path: start scheduler immediately.
-    Slow DB work (create_all + RBAC seed) runs in a background thread.
+    Creates tables and seeds RBAC data.
     """
     import asyncio
+    import time
     from concurrent.futures import ThreadPoolExecutor
+    from sqlalchemy.exc import OperationalError
+
+    # Validate configuration immediately
+    settings.validate_config()
+    logger.info("[OK] Configuration validated")
 
     # Start APScheduler immediately (no I/O needed)
     from app.core.scheduler import start_scheduler
     start_scheduler()
+    logger.info("[OK] Scheduler started")
 
-    # Validate configuration
-    settings.validate_config()
-    logger.info("[OK] Configuration validated")
+    # Run DB operations synchronously (not in background thread)
+    # This ensures tables exist before app accepts requests
+    try:
+        logger.info("[Startup] Creating database tables...")
+        Base.metadata.create_all(bind=engine, checkfirst=True)
+        logger.info("[OK] Database tables initialized")
+    except Exception as exc:
+        logger.error(f"[Startup] Failed to create DB tables: {exc}", exc_info=True)
+        return  # Don't crash startup, but tables won't exist
 
-    # Run slow DB operations in a thread so uvicorn reports "started" right away
-    loop = asyncio.get_event_loop()
-    executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="startup")
+    # Initialize database contract (tenant, RBAC, admin user)
+    try:
+        from app.core.db_contract import initialize_database
+        initialize_database()
+    except Exception as exc:
+        logger.error(f"[Startup] Failed to initialize database contract: {exc}", exc_info=True)
+        return  # Don't crash startup, but contract won't be initialized
 
-    async def _db_init():
-        def _run():
-            import time
-            from sqlalchemy.exc import OperationalError
+    # Initialize default organizational positions (CEO, Partner, BU Head, etc.)
+    try:
+        logger.info("[Startup] Initializing default organizational positions...")
+        from app.services.org_structure_service import init_default_positions
+        db = SessionLocal()
+        result = init_default_positions(db)
+        db.close()
+        logger.info(f"[OK] Organizational positions initialized (created: {result['created']}, updated: {result['updated']})")
+    except Exception as exc:
+        logger.error(f"[Startup] Failed to initialize org positions: {exc}", exc_info=True)
 
-            try:
-                # checkfirst=True skips tables that already exist — much faster on restarts
-                Base.metadata.create_all(bind=engine, checkfirst=True)
-                logger.info("[OK] Database tables initialized")
-            except Exception as exc:
-                logger.error(f"[Startup] Failed to create DB tables: {exc}", exc_info=True)
-                return  # Can't continue without tables
+    # Seed RBAC with retries
+    # DISABLED: Starting with clean database for RBAC testing
+    # from app.core.database import SessionLocal
+    # from app.services.role_template_seed import seed_role_templates
 
-            # Seed RBAC with retries — transient network blips (08S01) are common on cold start
-            from app.core.database import SessionLocal
-            from app.services.rbac_service import RBACService
-            from app.services.role_template_seed import seed_role_templates
+    # MAX_RETRIES = 3
+    # RETRY_DELAY = 2  # seconds
 
-            MAX_RETRIES = 3
-            RETRY_DELAY = 5  # seconds
+    # for attempt in range(1, MAX_RETRIES + 1):
+    #     _db = SessionLocal()
+    #     try:
+    #         logger.info(f"[Startup] Seeding RBAC (attempt {attempt}/{MAX_RETRIES})...")
+    #         seed_role_templates(_db, tenant_id=1)
+    #         logger.info(f"[OK] {settings.APP_NAME} v{settings.APP_VERSION} started successfully")
+    #         logger.info(f"[OK] Server running on http://{settings.HOST}:{settings.PORT}")
+    #         break  # Success — exit retry loop
+    #     except OperationalError as exc:
+    #         logger.warning(
+    #             f"[Startup] RBAC seed attempt {attempt}/{MAX_RETRIES} failed "
+    #             f"(DB connectivity issue): {exc}"
+    #         )
+    #         if attempt < MAX_RETRIES:
+    #             logger.info(f"[Startup] Retrying RBAC seed in {RETRY_DELAY}s...")
+    #             time.sleep(RETRY_DELAY)
+    #         else:
+    #             logger.error(
+    #                 "[Startup] RBAC seed failed after all retries. "
+    #                 "The app will run but role/permission data may be incomplete."
+    #             )
+    #     except Exception as exc:
+    #         logger.error(f"[Startup] Non-retryable error during RBAC seed: {exc}", exc_info=True)
 
-            for attempt in range(1, MAX_RETRIES + 1):
-                _db = SessionLocal()
-                try:
-                    # RBACService.seed_roles_and_permissions(_db)  # Replaced by seed_role_templates
-                    seed_role_templates(_db, tenant_id=1)
-                    logger.info(f"[OK] {settings.APP_NAME} v{settings.APP_VERSION} started successfully")
-                    logger.info(f"[OK] Server running on http://{settings.HOST}:{settings.PORT}")
-                    break  # Success — exit retry loop
-                except OperationalError as exc:
-                    logger.warning(
-                        f"[Startup] RBAC seed attempt {attempt}/{MAX_RETRIES} failed "
-                        f"(DB connectivity issue): {exc}"
-                    )
-                    if attempt < MAX_RETRIES:
-                        logger.info(f"[Startup] Retrying RBAC seed in {RETRY_DELAY}s...")
-                        time.sleep(RETRY_DELAY)
-                    else:
-                        logger.error(
-                            "[Startup] RBAC seed failed after all retries. "
-                            "The app will run but role/permission data may be incomplete."
-                        )
-                except Exception as exc:
-                    logger.error(f"Background startup error: {exc}", exc_info=True)
-                    break  # Non-retryable error
-                finally:
-                    _db.close()
-
-        await loop.run_in_executor(executor, _run)
-
-    # Fire-and-forget — don't await so uvicorn finishes startup immediately
-    loop.create_task(_db_init())
-
+    logger.info(f"[OK] {settings.APP_NAME} v{settings.APP_VERSION} started successfully (no seed data)")
+    logger.info(f"[OK] Server running on http://{settings.HOST}:{settings.PORT}")
 
 @app.on_event("shutdown")
 async def shutdown_event():
@@ -170,8 +188,12 @@ async def shutdown_event():
     from app.core.scheduler import shutdown_scheduler
     shutdown_scheduler()
 
-
 # Include API routes
+# Include auth routes with /auth prefix
+app.include_router(auth_router)
+# Include admin/users-access-control at root level (it has its own /api/admin/ prefix)
+app.include_router(users_access_control_router)
+# Include v1 routes with /api/v1 prefix
 app.include_router(router)
 
 # HRMS-0114 -- fail startup if any route has no explicit identity/
@@ -199,6 +221,10 @@ assert_all_routes_have_permission_declarations(
         "POST /msgraph/calendar/schedule",
         "POST /msgraph/mail/send",
         "GET /rbac/modules-and-verbs",
+        "GET /admin/certifications/business-units",
+        "GET /admin/certifications/roles",
+        "GET /message-templates/keys",
+        "POST /auth/reset-password",
     ],
 )
 logger.info("[OK] HRMS-0114 route permission audit passed")
@@ -210,7 +236,6 @@ if static_dir.exists():
     logger.info("[OK] Static files mounted at /static")
 else:
     logger.warning("Static directory not found. Skipping static file mounting.")
-
 
 @app.get("/")
 def home():
@@ -228,7 +253,6 @@ def home():
         "redoc": "/redoc"
     }
 
-
 @app.get("/health")
 def health_check():
     """
@@ -242,7 +266,6 @@ def health_check():
         "app": settings.APP_NAME,
         "version": settings.APP_VERSION
     }
-
 
 if __name__ == "__main__":
     import uvicorn

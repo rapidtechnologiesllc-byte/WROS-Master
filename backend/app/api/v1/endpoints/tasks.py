@@ -2,6 +2,7 @@
 S-434 -- Org-wide Task Dashboard.
 ==================================================================
 Prefix: /tasks
+import logging
 Tag:    tasks
 
 Internal-employees-only surface (any authenticated Users row, not
@@ -21,7 +22,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_internal_user
+from app.core.dependencies import get_current_internal_user, require_resource_permission
 from app.models.task import Task, TaskReassignmentRequest
 from app.models.user import Users
 from app.schemas.task import (
@@ -34,25 +35,33 @@ from app.services.task_service import complete_task, confirm_urgent_task, create
 
 router = APIRouter(prefix="/tasks", tags=["tasks"])
 
-
 def _get_task_or_404(db: Session, task_id: int) -> Task:
     task = db.query(Task).filter(Task.id == task_id).first()
     if not task:
         raise HTTPException(status_code=404, detail=f"Task #{task_id} not found.")
     return task
 
-
-@router.get("/my-day", response_model=list[TaskResponse])
+@router.get(
+    "/my-day",
+    response_model=list[TaskResponse],
+    dependencies=[Depends(require_resource_permission("my-day", "view"))]
+)
 def my_day(current_user: Users = Depends(get_current_internal_user), db: Session = Depends(get_db)):
     return get_daily_task_list(db, assigned_to_user_id=current_user.UserID)
 
-
-@router.get("/my-day/upcoming", response_model=list[TaskResponse])
+@router.get(
+    "/my-day/upcoming",
+    response_model=list[TaskResponse],
+    dependencies=[Depends(require_resource_permission("my-day", "view"))]
+)
 def my_day_upcoming(current_user: Users = Depends(get_current_internal_user), db: Session = Depends(get_db)):
     return get_upcoming_urgent_tasks(db, assigned_to_user_id=current_user.UserID)
 
-
-@router.post("", response_model=TaskResponse)
+@router.post(
+    "",
+    response_model=TaskResponse,
+    dependencies=[Depends(require_resource_permission("unknown", "create"))]
+)
 def create_task_endpoint(
     body: TaskCreateRequest, current_user: Users = Depends(get_current_internal_user), db: Session = Depends(get_db),
 ):
@@ -67,20 +76,28 @@ def create_task_endpoint(
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc))
 
-
-@router.post("/{task_id}/confirm-urgent", response_model=TaskResponse)
+@router.post(
+    "/{task_id}/confirm-urgent",
+    response_model=TaskResponse,
+    dependencies=[Depends(require_resource_permission("tasks", "create"))]
+)
 def confirm_urgent(task_id: int, current_user: Users = Depends(get_current_internal_user), db: Session = Depends(get_db)):
     task = _get_task_or_404(db, task_id)
     return confirm_urgent_task(db, task)
 
-
-@router.post("/{task_id}/complete", response_model=TaskResponse)
+@router.post(
+    "/{task_id}/complete",
+    response_model=TaskResponse,
+    dependencies=[Depends(require_resource_permission("tasks", "create"))]
+)
 def complete(task_id: int, current_user: Users = Depends(get_current_internal_user), db: Session = Depends(get_db)):
     task = _get_task_or_404(db, task_id)
     return complete_task(db, task)
 
-
-@router.post("/reassign-suggest")
+@router.post(
+    "/reassign-suggest",
+    dependencies=[Depends(require_resource_permission("reassign-suggest", "create"))]
+)
 def reassign_suggest(
     body: MarkUnavailableRequest, current_user: Users = Depends(get_current_internal_user), db: Session = Depends(get_db),
 ):
@@ -90,8 +107,10 @@ def reassign_suggest(
     requests = suggest_todays_reassignments(db, unavailable_user_id=body.user_id)
     return {"requests_created": len(requests), "request_ids": [r.id for r in requests]}
 
-
-@router.post("/reassignments/{request_id}/approve")
+@router.post(
+    "/reassignments/{request_id}/approve",
+    dependencies=[Depends(require_resource_permission("reassignment", "create"))]
+)
 def approve(
     request_id: str, body: ReassignmentApproveRequest,
     current_user: Users = Depends(get_current_internal_user), db: Session = Depends(get_db),
@@ -101,8 +120,10 @@ def approve(
         raise HTTPException(status_code=404, detail=f"Reassignment request {request_id!r} not found.")
     return approve_reassignment(db, req, approved_by_user_id=current_user.UserID, final_to_user_id=body.final_to_user_id)
 
-
-@router.post("/reassignments/{request_id}/reject")
+@router.post(
+    "/reassignments/{request_id}/reject",
+    dependencies=[Depends(require_resource_permission("reassignment", "create"))]
+)
 def reject(request_id: str, current_user: Users = Depends(get_current_internal_user), db: Session = Depends(get_db)):
     req = db.query(TaskReassignmentRequest).filter(TaskReassignmentRequest.id == request_id).first()
     if not req:

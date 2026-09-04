@@ -1,3 +1,4 @@
+import logging
 """Advanced Permission Composition Rules Service.
 
 Implements complex permission logic including:
@@ -10,7 +11,9 @@ Implements complex permission logic including:
 from typing import Set, List, Dict, Optional
 from sqlalchemy.orm import Session
 from app.models.role_template import RoleTemplate, RoleTemplatePermission, Resource
+from app.core.logging import logger
 
+logger = logging.getLogger(__name__)
 
 class PermissionCompositionService:
     """Advanced permission composition and rule engine."""

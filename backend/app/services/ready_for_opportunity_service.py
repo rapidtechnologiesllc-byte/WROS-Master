@@ -5,6 +5,7 @@ candidate who isn't a fit right now shouldn't just be `closed` -- keep
 watching for a future job that fits, nudge only when a real match
 appears, never on a recurring schedule ("that doesn't mean we reach
 out daily or weekly... only when we know we can convert the
+import logging
 candidate").
 
 Trigger for entering the watch: the ONE real, live "conversation
@@ -53,11 +54,9 @@ _STOPWORDS = {
     "strong", "good", "excellent", "knowledge", "skills", "ability",
 }
 
-
 def _keywords(text: Optional[str]) -> set:
     tokens = re.findall(r"[A-Za-z][A-Za-z0-9+.#]*", text or "")
     return {t.lower() for t in tokens if len(t) > 1 and t.lower() not in _STOPWORDS}
-
 
 def start_watching(db: Session, candidate: Candidate, *, reason: str, tenant_id=None) -> CandidateOpportunityWatch:
     """Idempotent -- a candidate already being actively watched doesn't
@@ -76,12 +75,10 @@ def start_watching(db: Session, candidate: Candidate, *, reason: str, tenant_id=
     db.flush()
     return watch
 
-
 def _is_plausible_match(candidate: Candidate, job: Jobs) -> bool:
     candidate_terms = _keywords(candidate.candidateSkills) | _keywords(candidate.candidateJobTitle)
     job_terms = _keywords(job.jobSkills) | _keywords(job.jobTitle)
     return len(candidate_terms & job_terms) >= MATCH_KEYWORD_MIN_OVERLAP
-
 
 def scan_new_job_for_matches(db: Session, job: Jobs, *, now: Optional[datetime] = None) -> List[CandidateOpportunityWatch]:
     """Called as a background task right after a job is published --

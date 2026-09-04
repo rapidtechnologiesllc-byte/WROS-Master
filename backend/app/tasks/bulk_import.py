@@ -1,5 +1,6 @@
 """
 Bulk Import Tasks
+import logging
 =================
 
 Async tasks for importing candidates in bulk from CSV files.
@@ -12,7 +13,6 @@ from app.core.database import SessionLocal
 from app.services.bulk_engagement_service import import_candidates_from_csv
 from app.api.v1.endpoints.admin_queue import TaskStatus, log_task_message
 import uuid
-
 
 @celery_app.task(bind=True, name="tasks.bulk_import_candidates")
 def import_candidates_task(self, file_path: str, tenant_id: str = "default"):
@@ -71,6 +71,7 @@ def import_candidates_task(self, file_path: str, tenant_id: str = "default"):
         }
 
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         error_msg = f"Bulk import failed: {str(e)}"
         log_task_message(task_id, error_msg, "error")
         TaskStatus.update_task(task_id, status="failed")
@@ -82,7 +83,6 @@ def import_candidates_task(self, file_path: str, tenant_id: str = "default"):
         }
     finally:
         db.close()
-
 
 @celery_app.task(name="tasks.import_candidates_from_csv_batch")
 def import_candidates_batch_task(csv_content: str, batch_id: str = None):
@@ -110,6 +110,7 @@ def import_candidates_batch_task(csv_content: str, batch_id: str = None):
         return {"status": "success", "task_id": task_id}
 
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         log_task_message(task_id, f"Error: {str(e)}", "error")
         TaskStatus.update_task(task_id, status="failed")
         return {"status": "error", "task_id": task_id, "error": str(e)}

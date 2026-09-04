@@ -1,4 +1,5 @@
-﻿"""
+"""
+import logging
 S-324/HRMS-ONBOARDING-WORKFLOW -- REST API Endpoints.
 
 Provides REST endpoints for onboarding workflow operations:
@@ -9,6 +10,7 @@ Provides REST endpoints for onboarding workflow operations:
 - GET /onboarding-workflow/{workflow_id}
 - GET /onboarding-workflow/employee/{employee_id}
 """
+import logging
 from datetime import datetime, date
 from typing import Optional, List
 
@@ -18,7 +20,7 @@ import json
 
 import app.schemas as schema
 from app.core.database import get_db
-from app.core.dependencies import get_current_hr_or_admin, require_resource_permission
+from app.core.dependencies import get_current_internal_user, require_resource_permission
 from app.core.logging import logger
 from app.core.tenant_context import get_current_tenant_id
 
@@ -38,10 +40,10 @@ from app.services.onboarding_workflow_service import (
 
 router = APIRouter(prefix="/onboarding-workflow", tags=["onboarding-workflow"])
 
-
 # ============================================================================
 # SCHEMAS
 # ============================================================================
+logger = logging.getLogger(__name__)
 
 class StartOnboardingRequest(schema.BaseModel):
     employee_id: str
@@ -49,13 +51,11 @@ class StartOnboardingRequest(schema.BaseModel):
     reporting_manager_id: Optional[str] = None
     expected_completion_days: int = 30
 
-
 class AssignBuddyRequest(schema.BaseModel):
     workflow_id: int
     buddy_user_id: str
     activation_date: Optional[date] = None
     notes: Optional[str] = None
-
 
 class SendWelcomeKitRequest(schema.BaseModel):
     workflow_id: int
@@ -64,7 +64,6 @@ class SendWelcomeKitRequest(schema.BaseModel):
     kit_contents: Optional[List[str]] = None
     sent_by_user_id: Optional[str] = None
     delivery_channel: str = "EMAIL"  # EMAIL, PHYSICAL_MAIL, SMS, IN_PERSON
-
 
 class ScheduleTrainingRequest(schema.BaseModel):
     workflow_id: int
@@ -77,7 +76,6 @@ class ScheduleTrainingRequest(schema.BaseModel):
     duration_minutes: int = 60
     training_description: Optional[str] = None
     is_mandatory: bool = True
-
 
 class OnboardingWorkflowResponse(schema.BaseModel):
     workflow_id: int
@@ -92,7 +90,6 @@ class OnboardingWorkflowResponse(schema.BaseModel):
     class Config:
         from_attributes = True
 
-
 class OnboardingBuddyResponse(schema.BaseModel):
     buddy_id: int
     buddy_user_id: str
@@ -103,7 +100,6 @@ class OnboardingBuddyResponse(schema.BaseModel):
     class Config:
         from_attributes = True
 
-
 class WelcomeKitResponse(schema.BaseModel):
     kit_id: int
     kit_type: str
@@ -113,7 +109,6 @@ class WelcomeKitResponse(schema.BaseModel):
 
     class Config:
         from_attributes = True
-
 
 class TrainingSessionResponse(schema.BaseModel):
     session_id: int
@@ -127,7 +122,6 @@ class TrainingSessionResponse(schema.BaseModel):
     class Config:
         from_attributes = True
 
-
 # ============================================================================
 # ENDPOINTS
 # ============================================================================
@@ -140,7 +134,7 @@ class TrainingSessionResponse(schema.BaseModel):
 def start_onboarding_endpoint(
     request: StartOnboardingRequest,
     db: Session = Depends(get_db),
-    user=Depends(get_current_hr_or_admin),
+    user=Depends(get_current_internal_user),
 ) -> dict:
     """
     Initiates onboarding workflow for a new employee.
@@ -170,9 +164,9 @@ def start_onboarding_endpoint(
     except HTTPException:
         raise
     except Exception as exc:
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.error(f"[OnboardingWorkflow API] start failed: {exc}")
         raise HTTPException(status_code=500, detail=f"Failed to start onboarding: {str(exc)}")
-
 
 @router.post(
     "/assign-buddy",
@@ -182,7 +176,7 @@ def start_onboarding_endpoint(
 def assign_buddy_endpoint(
     request: AssignBuddyRequest,
     db: Session = Depends(get_db),
-    user=Depends(get_current_hr_or_admin),
+    user=Depends(get_current_internal_user),
 ) -> dict:
     """
     Assigns a buddy to guide new employee through onboarding.
@@ -209,9 +203,9 @@ def assign_buddy_endpoint(
     except HTTPException:
         raise
     except Exception as exc:
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.error(f"[OnboardingWorkflow API] assign_buddy failed: {exc}")
         raise HTTPException(status_code=500, detail=f"Failed to assign buddy: {str(exc)}")
-
 
 @router.post(
     "/send-welcome-kit",
@@ -221,7 +215,7 @@ def assign_buddy_endpoint(
 def send_welcome_kit_endpoint(
     request: SendWelcomeKitRequest,
     db: Session = Depends(get_db),
-    user=Depends(get_current_hr_or_admin),
+    user=Depends(get_current_internal_user),
 ) -> dict:
     """
     Dispatches welcome kit/materials to new employee.
@@ -255,9 +249,9 @@ def send_welcome_kit_endpoint(
     except HTTPException:
         raise
     except Exception as exc:
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.error(f"[OnboardingWorkflow API] send_welcome_kit failed: {exc}")
         raise HTTPException(status_code=500, detail=f"Failed to send welcome kit: {str(exc)}")
-
 
 @router.post(
     "/schedule-training",
@@ -267,7 +261,7 @@ def send_welcome_kit_endpoint(
 def schedule_training_endpoint(
     request: ScheduleTrainingRequest,
     db: Session = Depends(get_db),
-    user=Depends(get_current_hr_or_admin),
+    user=Depends(get_current_internal_user),
 ) -> dict:
     """
     Schedules a training session for new employee onboarding.
@@ -305,9 +299,9 @@ def schedule_training_endpoint(
     except HTTPException:
         raise
     except Exception as exc:
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.error(f"[OnboardingWorkflow API] schedule_training failed: {exc}")
         raise HTTPException(status_code=500, detail=f"Failed to schedule training: {str(exc)}")
-
 
 @router.get(
     "/{workflow_id}",
@@ -318,7 +312,7 @@ def schedule_training_endpoint(
 def get_workflow(
     workflow_id: int,
     db: Session = Depends(get_db),
-    user=Depends(get_current_hr_or_admin),
+    user=Depends(get_current_internal_user),
 ) -> OnboardingWorkflow:
     """
     Returns full onboarding workflow including:
@@ -341,9 +335,9 @@ def get_workflow(
     except HTTPException:
         raise
     except Exception as exc:
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.error(f"[OnboardingWorkflow API] get_workflow failed: {exc}")
         raise HTTPException(status_code=500, detail=f"Failed to retrieve workflow: {str(exc)}")
-
 
 @router.get(
     "/employee/{employee_id}",
@@ -353,7 +347,7 @@ def get_workflow(
 def get_workflow_by_employee(
     employee_id: str,
     db: Session = Depends(get_db),
-    user=Depends(get_current_hr_or_admin),
+    user=Depends(get_current_internal_user),
 ) -> dict:
     """
     Returns onboarding workflow for specific employee including all related data:
@@ -435,9 +429,9 @@ def get_workflow_by_employee(
     except HTTPException:
         raise
     except Exception as exc:
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.error(f"[OnboardingWorkflow API] get_workflow_by_employee failed: {exc}")
         raise HTTPException(status_code=500, detail=f"Failed to retrieve workflow: {str(exc)}")
-
 
 @router.get(
     "/{workflow_id}/tasks",
@@ -448,7 +442,7 @@ def get_workflow_tasks(
     workflow_id: int,
     status: Optional[str] = Query(None, description="Filter by status (PENDING, IN_PROGRESS, COMPLETED, etc.)"),
     db: Session = Depends(get_db),
-    user=Depends(get_current_hr_or_admin),
+    user=Depends(get_current_internal_user),
 ) -> dict:
     """
     Returns all onboarding tasks for a workflow with optional status filter.
@@ -479,9 +473,9 @@ def get_workflow_tasks(
         }
 
     except Exception as exc:
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.error(f"[OnboardingWorkflow API] get_workflow_tasks failed: {exc}")
         raise HTTPException(status_code=500, detail=f"Failed to retrieve tasks: {str(exc)}")
-
 
 @router.get(
     "/{workflow_id}/training",
@@ -492,7 +486,7 @@ def get_workflow_training_sessions(
     workflow_id: int,
     status: Optional[str] = Query(None, description="Filter by status (SCHEDULED, IN_PROGRESS, COMPLETED, etc.)"),
     db: Session = Depends(get_db),
-    user=Depends(get_current_hr_or_admin),
+    user=Depends(get_current_internal_user),
 ) -> dict:
     """
     Returns all training sessions scheduled for an onboarding workflow.
@@ -523,5 +517,6 @@ def get_workflow_training_sessions(
         }
 
     except Exception as exc:
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.error(f"[OnboardingWorkflow API] get_workflow_training_sessions failed: {exc}")
         raise HTTPException(status_code=500, detail=f"Failed to retrieve training sessions: {str(exc)}")

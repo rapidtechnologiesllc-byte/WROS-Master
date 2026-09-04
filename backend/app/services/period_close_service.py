@@ -1,4 +1,5 @@
 """
+import logging
 PERIOD CLOSE SERVICE - Month-End Reconciliation & Locking
 
 Handles:
@@ -8,6 +9,7 @@ Handles:
 - Complete reconciliation reporting
 - Audit trail for all closes
 """
+import logging
 from datetime import datetime, date
 from typing import Optional, Dict, List
 from sqlalchemy.orm import Session
@@ -17,17 +19,17 @@ from app.models.invoice import Invoice
 from app.models.revenue import Revenue
 from app.models.org_structure import BusinessUnit
 from app.models.timesheet import Timesheet
+from app.core.logging import logger
 
+logger = logging.getLogger(__name__)
 
 class PeriodLockError(Exception):
     """Period is locked and cannot be modified"""
     pass
 
-
 class PeriodCloseError(Exception):
     """Period close validation failed"""
     pass
-
 
 # ============================================================================
 # PART 1: PERIOD CLOSE VALIDATION
@@ -120,7 +122,6 @@ def validate_period_ready_for_close(
         "margin_pct": (total_margin / total_revenue * 100) if total_revenue > 0 else 0,
     }
 
-
 # ============================================================================
 # PART 2: PERIOD CLOSE LOCKING
 # ============================================================================
@@ -192,7 +193,6 @@ def close_period(
         "margin_total": validation["total_margin"],
     }
 
-
 def is_period_closed(
     db: Session,
     business_unit_id: int,
@@ -213,7 +213,6 @@ def is_period_closed(
     """
     # Placeholder - would query PeriodClose table
     return False
-
 
 # ============================================================================
 # PART 3: IMMUTABILITY ENFORCEMENT
@@ -241,7 +240,6 @@ def validate_invoice_modifiable(
     Raises:
         PeriodLockError: If period is locked
     """
-    from app.models.invoice import Invoice
 
     invoice = db.query(Invoice).filter(Invoice.id == invoice_id).first()
 
@@ -264,7 +262,6 @@ def validate_invoice_modifiable(
         )
 
     return True
-
 
 def validate_revenue_modifiable(
     db: Session,
@@ -307,7 +304,6 @@ def validate_revenue_modifiable(
         )
 
     return True
-
 
 # ============================================================================
 # PART 4: RECONCILIATION REPORTING
@@ -423,7 +419,6 @@ def get_period_reconciliation(
         },
         "discrepancies": discrepancies,
     }
-
 
 # ============================================================================
 # PART 5: REOPEN PERIOD (For corrections)

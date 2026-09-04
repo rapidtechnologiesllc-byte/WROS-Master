@@ -1,4 +1,5 @@
 """
+import logging
 S-071/HRMS-0471 -- AI Recruiter Performance Analytics.
 
 Real architecture adaptations:
@@ -45,12 +46,10 @@ DEFAULT_RANGE_DAYS = 30
 TOP_RISK_COUNT = 5
 HUMAN_DEPENDENCY_TARGET_PCT = 20  # BR-01
 
-
 def _date_range(date_from: Optional[date], date_to: Optional[date]) -> (datetime, datetime):
     to_dt = datetime.combine(date_to or datetime.utcnow().date(), datetime.max.time())
     from_dt = datetime.combine(date_from or (to_dt.date() - timedelta(days=DEFAULT_RANGE_DAYS)), datetime.min.time())
     return from_dt, to_dt
-
 
 def get_thunder_analytics(db: Session, tenant_id: str, *, date_from: Optional[date] = None, date_to: Optional[date] = None) -> Dict:
     from_dt, to_dt = _date_range(date_from, date_to)
@@ -144,13 +143,11 @@ def get_thunder_analytics(db: Session, tenant_id: str, *, date_from: Optional[da
         "agent_actions_breakdown": {"thunder_actions": thunder_actions, "human_actions": human_actions, "thunder_pct": thunder_pct},
     }
 
-
 def _display_name(candidate) -> str:
     if candidate is None:
         return "Unknown candidate"
     parts = [candidate.candidateFirstName, candidate.candidateLastName]
     return " ".join(p for p in parts if p).strip() or candidate.candidateEmail
-
 
 def _build_trends(db: Session, tenant_id: str, from_dt: datetime, to_dt: datetime) -> List[Dict]:
     days = (to_dt.date() - from_dt.date()).days + 1

@@ -1,4 +1,5 @@
 """
+import logging
 HRMS-0101 -- employee number generation and status transitions.
 
 Per the Development & Review Standard's pattern (and this codebase's
@@ -7,6 +8,7 @@ sanctioned function per state machine, never a bare column UPDATE
 scattered across call sites, so the transition-validity + history-
 logging guarantee lives in one place.
 """
+import logging
 import json
 from datetime import date
 from typing import Optional
@@ -14,6 +16,7 @@ from typing import Optional
 from sqlalchemy.orm import Session
 
 from app.models.candidate import Candidate
+from app.core.logging import logger
 from app.models.employee import (
     ALLOWED_STATUS_TRANSITIONS,
     Employee,
@@ -21,19 +24,17 @@ from app.models.employee import (
     EmployeeEngineHistory,
 )
 
+logger = logging.getLogger(__name__)
 
 class DuplicateEmployeeEmail(Exception):
     pass
 
-
 class InvalidStatusTransition(Exception):
     pass
-
 
 class CoreAssignmentNotAllowed(Exception):
     """S-351/HRMS-0512 BR: only set_core_delivery_engine() may assign
     CORE, and only for an already core_certified employee."""
-
 
 def generate_employee_number(db: Session, tenant_id: int, tenant_code: str) -> str:
     """
@@ -46,7 +47,6 @@ def generate_employee_number(db: Session, tenant_id: int, tenant_code: str) -> s
     existing_count = db.query(Employee).filter(Employee.tenant_id == tenant_id).count()
     sequence = existing_count + 1
     return f"{tenant_code}-{sequence:03d}"
-
 
 def transition_employee_status(
     db: Session,
@@ -84,7 +84,6 @@ def transition_employee_status(
     db.add(employee)
     db.add(history)
     return employee
-
 
 # ---------------------------------------------------------------------------
 # S-351 / HRMS-0512 -- Delivery Engine Assignment: Speciality vs Core.
@@ -146,7 +145,6 @@ def convert_candidate_to_employee(
 
     return employee
 
-
 def set_core_delivery_engine(
     db: Session,
     employee: Employee,
@@ -185,7 +183,6 @@ def set_core_delivery_engine(
     ))
 
     return employee
-
 
 # ---------------------------------------------------------------------------
 # S-245/HRMS-0501 (canonical) -- Create Employee Profile, direct-hire path.

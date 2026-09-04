@@ -1,4 +1,5 @@
 """
+import logging
 S-030/HRMS-0430 -- Resume Completeness Score.
 
 BR-01: distinct from profile completeness (get_missing_fields()) --
@@ -28,12 +29,10 @@ from app.models.candidate_resume_parsed import CandidateResumeParsed
 
 MIN_EXPERIENCE_MONTHS_FOR_BONUS = 60  # 5 years, matches HRMS-P601's own threshold
 
-
 def _score_contact_info(parsed: CandidateResumeParsed) -> int:
     has_name = bool(parsed.full_name)
     has_contact = bool(parsed.email or parsed.phone)
     return 10 if (has_name and has_contact) else 0
-
 
 def _score_work_history(parsed: CandidateResumeParsed) -> int:
     entries = parsed.work_history or []
@@ -43,16 +42,13 @@ def _score_work_history(parsed: CandidateResumeParsed) -> int:
         return 10
     return 0
 
-
 def _score_work_descriptions(parsed: CandidateResumeParsed) -> int:
     entries = parsed.work_history or []
     with_description = sum(1 for e in entries if isinstance(e, dict) and str(e.get("description") or "").strip())
     return min(with_description, 3) * 5  # max 15
 
-
 def _score_education(parsed: CandidateResumeParsed) -> int:
     return 10 if (parsed.education or []) else 0
-
 
 def _score_skills(parsed: CandidateResumeParsed) -> int:
     count = len(parsed.skills or [])
@@ -64,15 +60,12 @@ def _score_skills(parsed: CandidateResumeParsed) -> int:
         return 5
     return 0
 
-
 def _score_certifications(parsed: CandidateResumeParsed) -> int:
     return 10 if (parsed.certifications or []) else 0
-
 
 def _score_experience_bonus(parsed: CandidateResumeParsed) -> int:
     months = parsed.total_experience_months or 0
     return 10 if months >= MIN_EXPERIENCE_MONTHS_FOR_BONUS else 0
-
 
 def calculate_resume_completeness(parsed: Optional[CandidateResumeParsed]) -> int:
     """Step 1's scoring criteria. Returns 0 for a missing/empty record."""
@@ -88,7 +81,6 @@ def calculate_resume_completeness(parsed: Optional[CandidateResumeParsed]) -> in
         + _score_experience_bonus(parsed)
     )
     return min(score, 100)
-
 
 def update_resume_completeness_score(db: Session, candidate: Candidate, tenant_id: str) -> Dict:
     """Step 2. Loads candidate_resume_parsed, scores it, stores the

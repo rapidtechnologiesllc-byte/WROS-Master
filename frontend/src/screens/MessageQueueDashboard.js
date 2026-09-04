@@ -1,28 +1,22 @@
-import { useEffect, useState } from "react";
+import React, { useState, useEffect } from 'react';
 import {
   Card,
   Table,
   Tag,
   Button,
-  Drawer,
-  Statistic,
-  Row,
-  Col,
   Space,
   Spin,
   Empty,
   message,
-  Badge,
-  Progress,
-} from "antd";
+  Drawer,
+} from 'antd';
 import {
   ReloadOutlined,
-  DeleteOutlined,
-  RedoOutlined,
-  ExclamationCircleOutlined,
-} from "@ant-design/icons";
-import styled from "styled-components";
-import { apiRequest } from "../services/api/client";
+  CheckCircleOutlined,
+  CloseCircleOutlined,
+  ArrowLeftOutlined,
+} from '@ant-design/icons';
+import styled from 'styled-components';
 
 const PageContainer = styled.div`
   padding: 24px;
@@ -30,351 +24,390 @@ const PageContainer = styled.div`
   min-height: 100vh;
 `;
 
-const StatsContainer = styled.div`
-  margin-bottom: 24px;
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 16px;
-`;
-
 function MessageQueueDashboard() {
-  const [tasks, setTasks] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [selectedTask, setSelectedTask] = useState(null);
-  const [drawerOpen, setDrawerOpen] = useState(false);
-  const [stats, setStats] = useState({
-    total: 0,
-    queued: 0,
-    active: 0,
-    completed: 0,
-    failed: 0,
-  });
+  const [queues, setQueues] = useState([]);
+  const [messages, setMessages] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [selectedQueue, setSelectedQueue] = useState(null);
+  const [drawerVisible, setDrawerVisible] = useState(false);
 
-  const loadTasks = async () => {
+  const QUEUE_TYPES = [
+    'THUNDER_QUEUE',
+    'EMAIL_QUEUE',
+    'WHATSAPP_QUEUE',
+    'SMS_QUEUE',
+    'SLACK_QUEUE',
+    'APPROVAL_QUEUE',
+    'COMMISSION_QUEUE',
+    'CRM_QUEUE',
+    'DASHBOARD_QUEUE',
+    'CALENDAR_QUEUE',
+    'SIGNATURE_QUEUE',
+  ];
+
+  useEffect(() => {
+    fetchQueueStats();
+    const interval = setInterval(fetchQueueStats, 10000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const fetchQueueStats = async () => {
     try {
       setLoading(true);
-      const response = await apiRequest("/admin/queue/tasks", {
-        method: "GET",
+      setError(null);
+
+      const token = localStorage.getItem('hrms_token');
+      const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
+
+      const statsRes = await fetch(`/api/v1/queues/stats`, { headers });
+      if (!statsRes.ok) {
+        const errText = await statsRes.text();
+        throw new Error(`Failed to fetch stats: ${errText}`);
+      }
+      const statsData = await statsRes.json();
+
+      // Transform stats to queue list format
+      const queueList = QUEUE_TYPES.map(queueType => {
+        const queueData = statsData.queues?.[queueType] || {};
+        const messageCount = queueData.total || 0;
+
+        return {
+          id: queueType,
+          name: queueType,
+          total_messages: messageCount,
+          status: messageCount > 0 ? 'Running' : 'Idle',
+          pending: queueData.pending || 0,
+          completed: queueData.completed || 0,
+          failed: queueData.failed || 0,
+        };
       });
 
-      if (response?.data?.tasks) {
-        setTasks(response.data.tasks);
-        calculateStats(response.data.tasks);
-      }
-    } catch (error) {
-      console.error("Failed to load tasks", error);
-      message.error("Failed to load message queue tasks");
-    } finally {
+      setQueues(queueList);
+      setLoading(false);
+    } catch (err) {
+      setError(err.message);
       setLoading(false);
     }
   };
 
-  const calculateStats = (taskList) => {
-    const newStats = {
-      total: taskList.length,
-      queued: 0,
-      active: 0,
-      completed: 0,
-      failed: 0,
-    };
-
-    taskList.forEach((task) => {
-      const status = task.status?.toLowerCase();
-      if (status === "queued") newStats.queued++;
-      if (status === "active") newStats.active++;
-      if (status === "completed") newStats.completed++;
-      if (status === "failed") newStats.failed++;
-    });
-
-    setStats(newStats);
-  };
-
-  useEffect(() => {
-    loadTasks();
-    // Auto-refresh every 10 seconds
-    const interval = setInterval(loadTasks, 10000);
-    return () => clearInterval(interval);
-  }, []);
-
-  const handleRetryTask = async (taskId) => {
+  const fetchQueueMessages = async (queueType) => {
     try {
-      await apiRequest(`/admin/queue/tasks/${taskId}/retry`, {
-        method: "POST",
-      });
-      message.success("Task retry queued");
-      loadTasks();
-    } catch (error) {
-      console.error("Failed to retry task", error);
-      message.error("Failed to retry task");
+      const token = localStorage.getItem('hrms_token');
+      const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
+
+      const params = new URLSearchParams();
+      params.append('queue_type', queueType);
+      params.append('limit', 100);
+      params.append('offset', 0);
+
+      const messagesRes = await fetch(`/api/v1/queues?${params}`, { headers });
+      if (!messagesRes.ok) {
+        const errText = await messagesRes.text();
+        throw new Error(`Failed to fetch messages: ${errText}`);
+      }
+      const messagesData = await messagesRes.json();
+      setMessages(messagesData.data || []);
+      setSelectedQueue(queueType);
+      setDrawerVisible(true);
+    } catch (err) {
+      message.error(err.message);
     }
   };
 
-  const handleClearTask = async (taskId) => {
+  const handleQueueAction = async (queueType, action) => {
     try {
-      await apiRequest(`/admin/queue/tasks/${taskId}/clear`, {
-        method: "POST",
+      const token = localStorage.getItem('hrms_token');
+      const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
+
+      const res = await fetch(`/api/v1/queues/${queueType}/${action}`, {
+        method: 'POST',
+        headers
       });
-      message.success("Task cleared");
-      loadTasks();
-    } catch (error) {
-      console.error("Failed to clear task", error);
-      message.error("Failed to clear task");
+
+      if (!res.ok) {
+        const errText = await res.text();
+        throw new Error(`Failed to ${action} queue: ${errText}`);
+      }
+
+      const result = await res.json();
+      message.success(result.message || `Queue ${action} successful`);
+
+      // Refresh stats
+      await fetchQueueStats();
+    } catch (err) {
+      message.error(err.message);
     }
   };
 
-  const getStatusColor = (status) => {
-    switch (status?.toLowerCase()) {
-      case "queued":
-        return "blue";
-      case "active":
-        return "processing";
-      case "completed":
-        return "success";
-      case "failed":
-        return "error";
-      default:
-        return "default";
-    }
-  };
-
-  const getStatusIcon = (status) => {
-    if (status?.toLowerCase() === "failed") {
-      return <ExclamationCircleOutlined />;
-    }
-    return null;
-  };
-
-  const columns = [
+  const queueColumns = [
     {
-      title: "Task ID",
-      dataIndex: "task_id",
-      key: "task_id",
-      width: 200,
-      render: (id) => <code style={{ fontSize: "11px" }}>{id?.substring(0, 20)}...</code>,
+      title: 'Queue Type',
+      dataIndex: 'name',
+      key: 'name',
+      width: '30%',
+      render: (text, record) => (
+        <Button
+          type="link"
+          onClick={() => fetchQueueMessages(record.name)}
+          style={{ padding: 0, textAlign: 'left' }}
+        >
+          {text}
+        </Button>
+      ),
     },
     {
-      title: "Task Name",
-      dataIndex: "task_name",
-      key: "task_name",
-      width: 200,
-    },
-    {
-      title: "Status",
-      dataIndex: "status",
-      key: "status",
-      width: 120,
+      title: 'Status',
+      dataIndex: 'status',
+      key: 'status',
+      width: '15%',
       render: (status) => (
-        <Tag color={getStatusColor(status)} icon={getStatusIcon(status)}>
+        <Tag icon={status === 'Running' ? <CheckCircleOutlined /> : <CloseCircleOutlined />}
+             color={status === 'Running' ? 'green' : 'gray'}>
           {status}
         </Tag>
       ),
     },
     {
-      title: "Progress",
-      dataIndex: "progress",
-      key: "progress",
-      width: 150,
-      render: (progress) => (
-        <Progress percent={progress || 0} size="small" />
-      ),
+      title: 'Total Messages',
+      dataIndex: 'total_messages',
+      key: 'total_messages',
+      width: '15%',
     },
     {
-      title: "Created",
-      dataIndex: "created_at",
-      key: "created_at",
-      width: 180,
-      render: (date) =>
-        date
-          ? new Date(date).toLocaleString()
-          : "-",
+      title: 'Completed',
+      dataIndex: 'completed',
+      key: 'completed',
+      width: '13%',
+      render: (count) => <Tag color="green">{count}</Tag>,
     },
     {
-      title: "Action",
-      key: "action",
-      width: 250,
-      render: (_, record) => (
-        <Space>
+      title: 'Failed',
+      dataIndex: 'failed',
+      key: 'failed',
+      width: '13%',
+      render: (count) => <Tag color="red">{count}</Tag>,
+    },
+    {
+      title: 'Pending',
+      dataIndex: 'pending',
+      key: 'pending',
+      width: '14%',
+      render: (count) => <Tag color="blue">{count}</Tag>,
+    },
+    {
+      title: 'Actions',
+      key: 'actions',
+      width: '15%',
+      render: (text, record) => (
+        <Space size="small">
           <Button
-            type="link"
             size="small"
-            onClick={() => {
-              setSelectedTask(record);
-              setDrawerOpen(true);
-            }}
+            type="primary"
+            onClick={() => handleQueueAction(record.name, 'start')}
+            loading={loading}
           >
-            View Messages
+            Start
           </Button>
-          {record.status?.toLowerCase() === "failed" && (
-            <>
-              <Button
-                type="link"
-                size="small"
-                icon={<RedoOutlined />}
-                onClick={() => handleRetryTask(record.task_id)}
-              >
-                Retry
-              </Button>
-              <Button
-                type="link"
-                size="small"
-                danger
-                icon={<DeleteOutlined />}
-                onClick={() => handleClearTask(record.task_id)}
-              >
-                Clear
-              </Button>
-            </>
-          )}
+          <Button
+            size="small"
+            danger
+            onClick={() => handleQueueAction(record.name, 'stop')}
+            loading={loading}
+          >
+            Stop
+          </Button>
+          <Button
+            size="small"
+            onClick={() => handleQueueAction(record.name, 'retry')}
+            loading={loading}
+          >
+            Retry
+          </Button>
         </Space>
       ),
     },
   ];
 
-  return (
-    <PageContainer>
-      <div>
-        <h1>Message Queue Dashboard</h1>
-        <Space style={{ marginBottom: 16 }}>
+  const messageColumns = [
+    {
+      title: 'Message ID',
+      dataIndex: 'id',
+      key: 'id',
+      width: '20%',
+      ellipsis: true,
+    },
+    {
+      title: 'Type',
+      dataIndex: 'type',
+      key: 'type',
+      width: '15%',
+    },
+    {
+      title: 'Status',
+      dataIndex: 'status',
+      key: 'status',
+      width: '15%',
+      render: (status) => (
+        <Tag color={status === 'COMPLETED' ? 'green' : status === 'FAILED' ? 'red' : 'blue'}>
+          {status}
+        </Tag>
+      ),
+    },
+    {
+      title: 'Resource',
+      dataIndex: 'resource_id',
+      key: 'resource_id',
+      width: '20%',
+      ellipsis: true,
+    },
+    {
+      title: 'Created',
+      dataIndex: 'created_at',
+      key: 'created_at',
+      width: '20%',
+      render: (date) => date ? new Date(date).toLocaleString() : '-',
+    },
+    {
+      title: 'Retries',
+      dataIndex: 'retry_count',
+      key: 'retry_count',
+      width: '10%',
+    },
+    {
+      title: 'Actions',
+      key: 'actions',
+      width: '15%',
+      render: (text, record) => (
+        <Space size="small">
+          {record.status === 'FAILED' && (
+            <Button
+              size="small"
+              type="primary"
+              onClick={() => retryMessage(record.id)}
+            >
+              Retry
+            </Button>
+          )}
           <Button
-            icon={<ReloadOutlined />}
-            onClick={loadTasks}
-            loading={loading}
+            size="small"
+            danger
+            onClick={() => clearMessage(record.id)}
           >
-            Refresh
+            Clear
           </Button>
         </Space>
-      </div>
+      ),
+    },
+  ];
 
-      <StatsContainer>
-        <Card>
-          <Statistic
-            title="Total Tasks"
-            value={stats.total}
-            valueStyle={{ color: "#1890ff" }}
-          />
-        </Card>
-        <Card>
-          <Statistic
-            title="Queued"
-            value={stats.queued}
-            valueStyle={{ color: "#1890ff" }}
-          />
-        </Card>
-        <Card>
-          <Statistic
-            title="Active"
-            value={stats.active}
-            valueStyle={{ color: "#faad14" }}
-          />
-        </Card>
-        <Card>
-          <Statistic
-            title="Completed"
-            value={stats.completed}
-            valueStyle={{ color: "#52c41a" }}
-          />
-        </Card>
-        <Card>
-          <Statistic
-            title="Failed"
-            value={stats.failed}
-            valueStyle={{ color: "#ff4d4f" }}
-          />
-        </Card>
-      </StatsContainer>
+  const retryMessage = async (messageId) => {
+    try {
+      const token = localStorage.getItem('hrms_token');
+      const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
 
-      <Card>
+      const res = await fetch(`/api/v1/queues/${messageId}/retry`, {
+        method: 'POST',
+        headers
+      });
+
+      if (!res.ok) {
+        const errText = await res.text();
+        throw new Error(`Failed to retry message: ${errText}`);
+      }
+
+      message.success('Message queued for retry');
+
+      // Refresh messages
+      if (selectedQueue) {
+        await fetchQueueMessages(selectedQueue);
+      }
+    } catch (err) {
+      message.error(err.message);
+    }
+  };
+
+  const clearMessage = async (messageId) => {
+    try {
+      const token = localStorage.getItem('hrms_token');
+      const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
+
+      const res = await fetch(`/api/v1/queues/${messageId}/clear`, {
+        method: 'POST',
+        headers
+      });
+
+      if (!res.ok) {
+        const errText = await res.text();
+        throw new Error(`Failed to clear message: ${errText}`);
+      }
+
+      message.success('Message cleared from queue');
+
+      // Refresh messages
+      if (selectedQueue) {
+        await fetchQueueMessages(selectedQueue);
+      }
+    } catch (err) {
+      message.error(err.message);
+    }
+  };
+
+  return (
+    <PageContainer>
+      <Card
+        title="Message Queue Dashboard"
+        extra={<Button icon={<ReloadOutlined />} onClick={fetchQueueStats}>Refresh</Button>}
+        style={{ marginBottom: '24px' }}
+      >
+        {error && (
+          <div style={{ marginBottom: '16px', padding: '12px', background: '#fff2f0', borderRadius: '4px', color: '#ff4d4f' }}>
+            {error}
+          </div>
+        )}
+
         <Spin spinning={loading}>
-          {tasks.length === 0 ? (
-            <Empty description="No tasks in queue" />
-          ) : (
+          {queues.length > 0 ? (
             <Table
-              columns={columns}
-              dataSource={tasks}
-              rowKey="task_id"
-              pagination={{ pageSize: 20 }}
-              scroll={{ x: 1200 }}
+              columns={queueColumns}
+              dataSource={queues.map((q, idx) => ({ ...q, key: idx }))}
+              pagination={false}
+              size="middle"
+              onRow={(record) => ({
+                style: { cursor: 'pointer' },
+              })}
             />
+          ) : (
+            <Empty description="No queues available" />
           )}
         </Spin>
       </Card>
 
       <Drawer
-        title={`Task Messages: ${selectedTask?.task_name}`}
+        title={
+          <Space>
+            <Button
+              type="text"
+              icon={<ArrowLeftOutlined />}
+              onClick={() => setDrawerVisible(false)}
+            />
+            <span>Messages in {selectedQueue}</span>
+          </Space>
+        }
         placement="right"
-        onClose={() => setDrawerOpen(false)}
-        open={drawerOpen}
-        width={600}
+        onClose={() => setDrawerVisible(false)}
+        open={drawerVisible}
+        width="90%"
       >
-        {selectedTask && (
-          <div>
-            <div style={{ marginBottom: 16 }}>
-              <h3>Task Details</h3>
-              <p><strong>Task ID:</strong> <code>{selectedTask.task_id}</code></p>
-              <p><strong>Status:</strong> <Tag color={getStatusColor(selectedTask.status)}>{selectedTask.status}</Tag></p>
-              <p><strong>Created:</strong> {new Date(selectedTask.created_at).toLocaleString()}</p>
-              <p><strong>Progress:</strong> <Progress percent={selectedTask.progress || 0} /></p>
-            </div>
-
-            <div>
-              <h3>Messages & Events</h3>
-              {selectedTask.messages && selectedTask.messages.length > 0 ? (
-                <div style={{ maxHeight: "400px", overflowY: "auto" }}>
-                  {selectedTask.messages.map((msg, idx) => (
-                    <Card
-                      key={idx}
-                      size="small"
-                      style={{ marginBottom: 12 }}
-                      type={msg.level === "error" ? "error" : "default"}
-                    >
-                      <p style={{ margin: 0, marginBottom: 4 }}>
-                        <strong>
-                          <Tag color={msg.level === "error" ? "red" : "blue"}>
-                            {msg.level?.toUpperCase()}
-                          </Tag>
-                        </strong>
-                        <small style={{ marginLeft: 8 }}>
-                          {new Date(msg.timestamp).toLocaleTimeString()}
-                        </small>
-                      </p>
-                      <p style={{ margin: 0, fontFamily: "monospace", fontSize: "12px", whiteSpace: "pre-wrap" }}>
-                        {msg.message}
-                      </p>
-                    </Card>
-                  ))}
-                </div>
-              ) : (
-                <Empty description="No messages yet" />
-              )}
-            </div>
-
-            {selectedTask.status?.toLowerCase() === "failed" && (
-              <div style={{ marginTop: 16, paddingTop: 16, borderTop: "1px solid #ddd" }}>
-                <Space>
-                  <Button
-                    type="primary"
-                    icon={<RedoOutlined />}
-                    onClick={() => {
-                      handleRetryTask(selectedTask.task_id);
-                      setDrawerOpen(false);
-                    }}
-                  >
-                    Retry Task
-                  </Button>
-                  <Button
-                    danger
-                    icon={<DeleteOutlined />}
-                    onClick={() => {
-                      handleClearTask(selectedTask.task_id);
-                      setDrawerOpen(false);
-                    }}
-                  >
-                    Clear Task
-                  </Button>
-                </Space>
-              </div>
-            )}
-          </div>
+        {messages.length > 0 ? (
+          <Table
+            columns={messageColumns}
+            dataSource={messages.map((m, idx) => ({ ...m, key: idx }))}
+            pagination={{ pageSize: 20 }}
+            size="small"
+          />
+        ) : (
+          <Empty description="No messages in this queue" />
         )}
       </Drawer>
     </PageContainer>

@@ -40,7 +40,6 @@ class Colors:
     END = '\033[0m'
     BOLD = '\033[1m'
 
-
 def format_time_remaining(seconds: int) -> str:
     """Format seconds into readable duration."""
     if seconds < 60:
@@ -49,7 +48,6 @@ def format_time_remaining(seconds: int) -> str:
         return f"{seconds // 60}m {seconds % 60}s"
     else:
         return f"{seconds // 3600}h {(seconds % 3600) // 60}m"
-
 
 def print_status_bar(current: int, total: int, width: int = 40) -> str:
     """Generate a text-based progress bar."""
@@ -62,7 +60,6 @@ def print_status_bar(current: int, total: int, width: int = 40) -> str:
 
     bar = "[" + "=" * filled + " " * empty + "]"
     return f"{bar} {percentage:.1f}%"
-
 
 def get_queue_stats() -> Dict:
     """Get current queue statistics."""
@@ -79,7 +76,6 @@ def get_queue_stats() -> Dict:
 
     return stats
 
-
 def calculate_throughput(prev_stats: Dict, curr_stats: Dict, elapsed: float) -> Dict:
     """Calculate throughput metrics."""
     if elapsed == 0:
@@ -92,7 +88,6 @@ def calculate_throughput(prev_stats: Dict, curr_stats: Dict, elapsed: float) -> 
         "tasks_per_second": completed_delta / elapsed if elapsed > 0 else 0,
         "completed_rate": f"{completed_delta} tasks in {elapsed:.1f}s",
     }
-
 
 def monitor_queue(interval: int = 5, duration: int = 600):
     """Monitor queue status at regular intervals."""
@@ -222,7 +217,6 @@ def monitor_queue(interval: int = 5, duration: int = 600):
 
     print(f"\n{'='*80}\n")
 
-
 def main():
     """Main entry point."""
     parser = argparse.ArgumentParser(
@@ -244,7 +238,6 @@ def main():
     args = parser.parse_args()
 
     monitor_queue(interval=args.interval, duration=args.duration)
-
 
 if __name__ == "__main__":
     main()

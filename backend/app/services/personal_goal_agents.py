@@ -1,4 +1,5 @@
 """
+import logging
 Personal Goal Agents - Individual Accountability
 
 Every person with a target gets an agent that:
@@ -14,6 +15,7 @@ Personal Goal Agents:
 - BU Head Goal Agent (for each BU leader)
 """
 
+import logging
 from datetime import datetime, timedelta
 from typing import Dict, Any, List
 from sqlalchemy.orm import Session
@@ -25,6 +27,7 @@ from app.models.candidate import Candidate
 from app.models.user import Users
 from app.core.logging import logger
 
+logger = logging.getLogger(__name__)
 
 class RecruiterGoalAgent:
     """
@@ -176,7 +179,6 @@ class RecruiterGoalAgent:
             "action": "Push lagging recruiters; celebrate on-pace recruiters"
         }
 
-
 class SalesPersonGoalAgent:
     """
     Sales Person Goal Agent - Track each sales person's revenue target.
@@ -274,7 +276,6 @@ class SalesPersonGoalAgent:
         else:
             return f"🔴 WEAK WEEK: ${revenue:,.0f}/${target:,.0f}. Increase prospecting ASAP."
 
-
 class PartnerGoalAgent:
     """
     Partner Goal Agent - Track each partner's revenue target.
@@ -329,7 +330,6 @@ class PartnerGoalAgent:
             },
             "recommendation": f"💰 {"ON TRACK" if pace_pct >= 100 else "NEEDS PUSH"}: ${ytd_revenue:,.0f}/${annual_target_usd:,.0f}"
         }
-
 
 class BUHeadGoalAgent:
     """

@@ -1,13 +1,14 @@
-﻿"""Flash Interview Analysis endpoints â€” AI-powered interview assessment."""
+from app.core.logging import logger
+"""Flash Interview Analysis endpoints â€” AI-powered interview assessment."""
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 from app.core.dependencies import get_current_internal_user, require_resource_permission
 from app.core.database import get_db
 from app.models.user import Users
+import logging
 from app.services.flash_transcript_service import FlashTranscriptService
 
 router = APIRouter(prefix="/flash/interviews", tags=["Flash Interview Analysis"])
-
 
 @router.get("/{interview_id}/analysis", dependencies=[Depends(require_resource_permission("candidates", "view"))])
 def get_flash_interview_analysis(
@@ -46,8 +47,8 @@ def get_flash_interview_analysis(
             "data": decision
         }
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @router.get("/{interview_id}/comparison", dependencies=[Depends(require_resource_permission("candidates", "view"))])
 def get_flash_panel_comparison(
@@ -71,8 +72,8 @@ def get_flash_panel_comparison(
             raise HTTPException(status_code=404, detail=comparison["error"])
         return {"status": "success", "data": comparison}
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @router.post("/{interview_id}/coaching-email", dependencies=[Depends(require_resource_permission("candidates", "edit"))])
 def send_coaching_email_to_panel_member(
@@ -190,4 +191,5 @@ Candidate: {candidate_name}
         }
 
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))

@@ -1,4 +1,5 @@
 """
+import logging
 S-055/HRMS-0455 -- Offer FAQ Bot.
 
 offer_faq_entries: genuinely new table -- the real, honest substitute
@@ -20,6 +21,7 @@ session) -- same posture S-029's synonym library took for an identical
 "no BA available" situation. Flag for real content review before
 launch.
 """
+import logging
 from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint, func
 from sqlalchemy.orm import relationship
 
@@ -30,13 +32,14 @@ FAQ_TOPICS = (
     "PROBATION_PERIOD", "LEAVE_POLICY", "REMOTE_WORK_POLICY", "EQUIPMENT_PROVIDED",
 )
 
+logger = logging.getLogger(__name__)
 
 class OfferFAQEntry(Base):
     __tablename__ = "offer_faq_entries"
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
-    tenant_id = Column(String(50), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=False, index=True)
-    topic = Column(String(50), nullable=False)
+    tenant_id = Column(String(512), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=False, index=True)
+    topic = Column(String(512), nullable=False)
     answer_text = Column(Text, nullable=False)
 
     updated_at = Column(DateTime(timezone=False), server_default=func.now(), onupdate=func.now())

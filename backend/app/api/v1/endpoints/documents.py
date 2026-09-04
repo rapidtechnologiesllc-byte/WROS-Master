@@ -2,6 +2,7 @@
 Secure Document Upload Endpoints
 Uses service layer for better separation of concerns and scalability.
 Uses service account authentication - candidates don't need Microsoft accounts.
+import logging
 """
 
 from typing import Optional
@@ -9,16 +10,19 @@ from fastapi import APIRouter, UploadFile, File, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_candidate, get_current_hr_or_admin, require_resource_permission
+from app.core.dependencies import get_current_candidate, get_current_internal_user, require_resource_permission
 from app.core.graph_auth import get_graph_token
+from app.core.dependencies import get_current_internal_user
+from app.models.candidate import Candidate
+
+# Alias for backward compatibility
+get_current_user = get_current_internal_user
 from app.schemas.document import DocumentUploadResponse
 from app.services.document_service import DocumentService, SHAREPOINT_SITE_ID, SHAREPOINT_DRIVE_ID, MULTI_UPLOAD_TYPES
 from app.services.virus_scan_service import document_is_accessible, scan_document_content
 from app.core.logging import logger
 
-
 router = APIRouter(prefix="/documents", tags=["Documents uploads"])
-
 
 async def _upload_document_helper(
     file: UploadFile,
@@ -78,6 +82,7 @@ async def _upload_document_helper(
     except HTTPException:
         raise
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"SharePoint upload failed: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
     
@@ -121,7 +126,6 @@ async def _upload_document_helper(
         logger.error(f"Failed to save document metadata: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to save document metadata")
 
-
 @router.post(
     "/upload/resume",
     response_model=DocumentUploadResponse,
@@ -130,7 +134,7 @@ async def _upload_document_helper(
 async def upload_resume(
     candidate_id: str,
     file: UploadFile = File(..., description="Resume file (PDF, DOC, DOCX)"),
-    user = Depends(get_current_hr_or_admin),
+    user = Depends(get_current_internal_user),
     db: Session = Depends(get_db)
 ):
     """
@@ -152,8 +156,7 @@ async def upload_resume(
     # Use candidate object for upload (not the HR user)
     return await _upload_document_helper(file, "resume", candidate, db)
 
-
-@router.post("/upload/pan", response_model=DocumentUploadResponse)
+@router.post("/upload/pan", response_model=DocumentUploadResponse, dependencies=[Depends(require_resource_permission("upload", "create"))])
 async def upload_pan(
     file: UploadFile = File(..., description="PAN card file (PDF, JPG, PNG)"),
     user = Depends(get_current_candidate),
@@ -162,8 +165,7 @@ async def upload_pan(
     """Upload PAN card document to SharePoint with database tracking."""
     return await _upload_document_helper(file, "pan", user, db)
 
-
-@router.post("/upload/aadhar", response_model=DocumentUploadResponse)
+@router.post("/upload/aadhar", response_model=DocumentUploadResponse, dependencies=[Depends(require_resource_permission("upload", "create"))])
 async def upload_aadhar(
     file: UploadFile = File(..., description="Aadhar card file (PDF, JPG, PNG)"),
     user = Depends(get_current_candidate),
@@ -172,8 +174,7 @@ async def upload_aadhar(
     """Upload Aadhar card document to SharePoint with database tracking."""
     return await _upload_document_helper(file, "aadhar", user, db)
 
-
-@router.post("/upload/education", response_model=DocumentUploadResponse)
+@router.post("/upload/education", response_model=DocumentUploadResponse, dependencies=[Depends(require_resource_permission("upload", "create"))])
 async def upload_education_certificate(
     file: UploadFile = File(..., description="Education certificate file (PDF, JPG, PNG)"),
     user = Depends(get_current_candidate),
@@ -182,8 +183,7 @@ async def upload_education_certificate(
     """Upload education certificate to SharePoint with database tracking."""
     return await _upload_document_helper(file, "education", user, db)
 
-
-@router.post("/upload/experience", response_model=DocumentUploadResponse)
+@router.post("/upload/experience", response_model=DocumentUploadResponse, dependencies=[Depends(require_resource_permission("upload", "create"))])
 async def upload_experience_letter(
     file: UploadFile = File(..., description="Experience letter file (PDF, JPG, PNG)"),
     user = Depends(get_current_candidate),
@@ -192,8 +192,7 @@ async def upload_experience_letter(
     """Upload experience letter to SharePoint with database tracking."""
     return await _upload_document_helper(file, "experience", user, db)
 
-
-@router.post("/upload/salary-slip", response_model=DocumentUploadResponse)
+@router.post("/upload/salary-slip", response_model=DocumentUploadResponse, dependencies=[Depends(require_resource_permission("upload", "create"))])
 async def upload_salary_slip(
     file: UploadFile = File(..., description="Salary slip file (PDF, JPG, PNG)"),
     user = Depends(get_current_candidate),
@@ -202,8 +201,7 @@ async def upload_salary_slip(
     """Upload salary slip to SharePoint with database tracking."""
     return await _upload_document_helper(file, "salary_slip", user, db)
 
-
-@router.post("/upload/bank-statement", response_model=DocumentUploadResponse)
+@router.post("/upload/bank-statement", response_model=DocumentUploadResponse, dependencies=[Depends(require_resource_permission("upload", "create"))])
 async def upload_bank_statement(
     file: UploadFile = File(..., description="Bank statement file (PDF, JPG, PNG)"),
     user = Depends(get_current_candidate),
@@ -212,7 +210,7 @@ async def upload_bank_statement(
     """Upload bank statement to SharePoint with database tracking."""
     return await _upload_document_helper(file, "bank_statement", user, db)
 
-@router.post("/upload/uan-pf", response_model=DocumentUploadResponse)
+@router.post("/upload/uan-pf", response_model=DocumentUploadResponse, dependencies=[Depends(require_resource_permission("upload", "create"))])
 async def upload_uan_pf(
     file: UploadFile = File(..., description="UAN-PF file (PDF, JPG, PNG)"),
     user = Depends(get_current_candidate),
@@ -221,7 +219,6 @@ async def upload_uan_pf(
     """Upload UAN-PF to SharePoint with database tracking."""
     return await _upload_document_helper(file, "uan_pf", user, db)
 
-
 # ============================================
 # Candidate Self-Service Document Endpoint
 # ============================================
@@ -229,6 +226,7 @@ async def upload_uan_pf(
 @router.get(
     "/my-documents",
     summary="Get all documents uploaded by the currently authenticated candidate",
+    dependencies=[Depends(get_current_internal_user)]
 )
 async def get_my_documents(
     current_user=Depends(get_current_candidate),
@@ -242,7 +240,6 @@ async def get_my_documents(
         List of all documents for the authenticated candidate with verification status.
     """
     from app.models.document import CandidateDocument
-    from app.models.candidate import Candidate
 
     candidate_id = current_user.candidateID
 
@@ -312,7 +309,6 @@ async def get_my_documents(
         "documents": list(grouped.values()),
     }
 
-
 # ============================================
 # HR/Admin Document Management Endpoints
 # ============================================
@@ -327,7 +323,7 @@ async def get_candidate_documents(
         default=None,
         description="Filter by verification status. Accepted values: Pending, Verified, Rejected",
     ),
-    current_user = Depends(get_current_hr_or_admin),
+    current_user = Depends(get_current_internal_user),
     db: Session = Depends(get_db)
 ):
     """
@@ -343,8 +339,6 @@ async def get_candidate_documents(
     Returns:
         List of all documents for the candidate with verification status
     """
-    from app.models.document import CandidateDocument
-    from app.models.candidate import Candidate
 
     VALID_STATUSES = {"Pending", "Verified", "Rejected"}
     if verification_status and verification_status not in VALID_STATUSES:
@@ -432,18 +426,14 @@ async def get_candidate_documents(
         "documents": list(grouped.values()),
     }
 
-
-
-
-
-
 @router.get(
     "/{document_id}",
     summary="Get a single document's metadata by its ID",
+    dependencies=[Depends(get_current_internal_user)]
 )
 async def get_document_by_id(
     document_id: int,
-    current_user=Depends(get_current_hr_or_admin),
+    current_user=Depends(get_current_internal_user),
     db: Session = Depends(get_db),
 ):
     """
@@ -455,7 +445,6 @@ async def get_document_by_id(
 
     Only accessible by HR/Admin users.
     """
-    from app.models.document import CandidateDocument
 
     doc = db.query(CandidateDocument).filter(
         CandidateDocument.id == document_id,
@@ -495,7 +484,6 @@ async def get_document_by_id(
         "tags": doc.tags,
     }
 
-
 @router.get(
     "/{document_id}/view",
     dependencies=[Depends(require_resource_permission("documents", "view"))],
@@ -503,7 +491,7 @@ async def get_document_by_id(
 )
 async def view_document(
     document_id: int,
-    current_user=Depends(get_current_hr_or_admin),
+    current_user=Depends(get_current_internal_user),
     db: Session = Depends(get_db),
 ):
     """
@@ -512,7 +500,6 @@ async def view_document(
     The response includes Content-Disposition: inline so browsers open
     the file in a tab/iframe instead of downloading it.
     """
-    from app.models.document import CandidateDocument
     from fastapi.responses import StreamingResponse
     import requests as req
     import io
@@ -544,6 +531,7 @@ async def view_document(
     try:
         access_token = get_graph_token()
     except Exception as exc:
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.error(f"Failed to get Graph token for document view: {exc}")
         raise HTTPException(status_code=500, detail="Failed to authenticate with SharePoint")
 
@@ -584,7 +572,6 @@ async def view_document(
         },
     )
 
-
 @router.patch(
     "/verify/{document_id}",
     dependencies=[Depends(require_resource_permission("documents", "edit"))],
@@ -593,7 +580,7 @@ async def update_document_verification(
     document_id: int,
     verification_status: str,
     notes: str = None,
-    current_user = Depends(get_current_hr_or_admin),
+    current_user = Depends(get_current_internal_user),
     db: Session = Depends(get_db)
 ):
     """
@@ -608,7 +595,6 @@ async def update_document_verification(
         verification_status: Verification status — must be one of: Pending, Verified, Rejected
         notes: Optional HR notes about the verification decision
     """
-    from app.models.document import CandidateDocument
     from datetime import datetime
 
     VALID_STATUSES = {"Pending", "Verified", "Rejected"}
@@ -672,7 +658,6 @@ async def update_document_verification(
         }
     }
 
-
 # ============================================
 # Delete All Candidate Documents
 # ============================================
@@ -684,7 +669,7 @@ async def update_document_verification(
 )
 async def delete_all_candidate_documents(
     candidate_id: str,
-    current_user=Depends(get_current_hr_or_admin),
+    current_user=Depends(get_current_internal_user),
     db: Session = Depends(get_db),
 ):
     """
@@ -702,8 +687,6 @@ async def delete_all_candidate_documents(
     Only accessible by HR/Admin users with the `document.manage` permission.
     """
     import requests as req
-    from app.models.document import CandidateDocument
-    from app.models.candidate import Candidate
 
     # Verify candidate exists
     candidate = db.query(Candidate).filter(Candidate.candidateID == candidate_id).first()
@@ -733,6 +716,7 @@ async def delete_all_candidate_documents(
     try:
         access_token = get_graph_token()
     except Exception as exc:
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.error(f"[DeleteAllDocs] Failed to get Graph token: {exc}")
         raise HTTPException(
             status_code=500,
@@ -771,6 +755,7 @@ async def delete_all_candidate_documents(
                     f"(doc id={doc.id}, type={doc.document_type})."
                 )
         except Exception as exc:
+            logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.warning(
                 f"[DeleteAllDocs] Could not delete SharePoint item "
                 f"{doc.sharepoint_file_id} (doc id={doc.id}): {exc}"

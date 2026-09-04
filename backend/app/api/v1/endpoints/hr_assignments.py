@@ -1,6 +1,7 @@
-﻿"""
+"""
 HR Assignments API
 ==================
+import logging
 Routes (prefix: /hr-assignments, tag: hr-assignments):
 
   POST   /hr-assignments/                          â€” Create a new HR assignment
@@ -17,7 +18,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_hr_or_admin, get_current_user, require_resource_permission
+from app.core.dependencies import get_current_internal_user, get_current_user, require_resource_permission
 from app.models.candidate import Candidate
 from app.models.hr_assignment import HRAssignment
 from app.models.user import Users
@@ -29,9 +30,7 @@ from app.schemas.hr_assignment import (
     UserSummary,
 )
 
-
 router = APIRouter(prefix="/hr-assignments", tags=["hr-assignments"])
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -42,7 +41,6 @@ def _candidate_name(c: Candidate) -> Optional[str]:
     parts = [c.candidateFirstName, c.candidateMiddleName, c.candidateLastName]
     return " ".join(p for p in parts if p) or None
 
-
 def _user_summary(u: Optional[Users]) -> Optional[UserSummary]:
     """Build a lightweight UserSummary from a Users ORM object."""
     if u is None:
@@ -52,7 +50,6 @@ def _user_summary(u: Optional[Users]) -> Optional[UserSummary]:
         user_name=u.UserName,
         user_email=u.UserEmail,
     )
-
 
 def _to_response(row: HRAssignment, db: Session) -> HRAssignmentResponse:
     """Convert an HRAssignment ORM row into the full response shape."""
@@ -76,7 +73,6 @@ def _to_response(row: HRAssignment, db: Session) -> HRAssignmentResponse:
         updated_at=row.updated_at,
     )
 
-
 # ---------------------------------------------------------------------------
 # POST /hr-assignments/  â€” Create HR assignment
 # ---------------------------------------------------------------------------
@@ -91,7 +87,7 @@ def _to_response(row: HRAssignment, db: Session) -> HRAssignmentResponse:
 def create_hr_assignment(
     body: HRAssignmentCreate,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     """
     Assign one or two HR / Recruiter users to a candidate for the recruitment process.
@@ -147,7 +143,6 @@ def create_hr_assignment(
 
     return _to_response(assignment, db)
 
-
 # ---------------------------------------------------------------------------
 # GET /hr-assignments/candidates  â€” Get all candidates (for dashboard/admin)
 # ---------------------------------------------------------------------------
@@ -178,7 +173,6 @@ def get_all_candidates(
         assignments=[_to_response(r, db) for r in rows],
     )
 
-
 # ---------------------------------------------------------------------------
 # GET /hr-assignments/my-candidates  â€” Get my assigned candidates (as HR)
 # ---------------------------------------------------------------------------
@@ -191,7 +185,7 @@ def get_all_candidates(
 )
 def get_my_candidates(
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
     skip: int = Query(default=0, ge=0),
     limit: int = Query(default=50, ge=1, le=200),
 ):
@@ -214,7 +208,6 @@ def get_my_candidates(
         total=total,
         assignments=[_to_response(r, db) for r in rows],
     )
-
 
 # ---------------------------------------------------------------------------
 # GET /hr-assignments/by-candidate/{candidate_id}  â€” Get HR by candidate ID
@@ -253,7 +246,6 @@ def get_hr_by_candidate(
 
     return _to_response(assignment, db)
 
-
 # ---------------------------------------------------------------------------
 # PATCH /hr-assignments/by-candidate/{candidate_id}  â€” Update HR assignment
 # ---------------------------------------------------------------------------
@@ -268,7 +260,7 @@ def update_hr_assignment(
     candidate_id: str,
     body: HRAssignmentUpdate,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     """
     Update the HR1 and/or HR2 assigned to a candidate.
@@ -312,7 +304,6 @@ def update_hr_assignment(
 
     return _to_response(assignment, db)
 
-
 # ---------------------------------------------------------------------------
 # DELETE /hr-assignments/by-candidate/{candidate_id}  â€” Delete HR assignment
 # ---------------------------------------------------------------------------
@@ -326,7 +317,7 @@ def update_hr_assignment(
 def delete_hr_assignment(
     candidate_id: str,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     """
     Permanently removes the HR/Recruiter assignment for a candidate.

@@ -1,10 +1,12 @@
 """
 Extends HRMS-0109's tenant-isolation proof to the Candidate table --
+import logging
 the highest-value target, since it holds real candidate PII.
 
 Same pattern as test_tenant_isolation.py: throwaway SQLite file, never
 the real database.
 """
+import logging
 import os
 import tempfile
 
@@ -16,7 +18,6 @@ from app.models.base import Base
 from app.models.tenant import Tenant
 from app.models.candidate import Candidate
 from app.core.tenant_context import get_tenant_scoped_query
-
 
 @pytest.fixture()
 def db_session():
@@ -32,12 +33,12 @@ def db_session():
         engine.dispose()
         os.remove(db_path)
 
+logger = logging.getLogger(__name__)
 
 class _FakeUser:
     """Stand-in for a Users row -- get_tenant_scoped_query only reads .tenant_id."""
     def __init__(self, tenant_id):
         self.tenant_id = tenant_id
-
 
 def _seed_two_tenants_of_candidates(db):
     blitzenx = Tenant(name="BlitzenX")
@@ -57,7 +58,6 @@ def _seed_two_tenants_of_candidates(db):
     db.commit()
     return blitzenx, other, aisha, ravi
 
-
 def test_recruiter_only_sees_their_own_tenants_candidates(db_session):
     blitzenx, other, aisha, ravi = _seed_two_tenants_of_candidates(db_session)
 
@@ -69,7 +69,6 @@ def test_recruiter_only_sees_their_own_tenants_candidates(db_session):
 
     assert [c.candidateID for c in blitzenx_results] == ["C-AISHA"]
     assert [c.candidateID for c in other_results] == ["C-RAVI"]
-
 
 def test_negative_case_candidate_pii_never_crosses_tenants(db_session):
     """

@@ -2,6 +2,7 @@
 Candidate Ownership Model
 =========================
 Tracks whether a candidate belongs to the Org Pool (visible to all BUs)
+import logging
 or is exclusively owned by a specific Business Unit.
 
 State machine:
@@ -10,16 +11,17 @@ State machine:
                             or 90-day ownership lock expires)
 """
 
+import logging
 from datetime import datetime
 from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, func
 from sqlalchemy.orm import relationship
 from app.models.base import Base
 
-
 # Pool status constants — use these everywhere, never raw strings
 POOL_ORG   = "Org Pool"
 POOL_BU    = "BU Owned"
 
+logger = logging.getLogger(__name__)
 
 class CandidateOwnership(Base):
     __tablename__ = "candidate_ownership"
@@ -52,10 +54,10 @@ class CandidateOwnership(Base):
     )
 
     # Human-readable BU name snapshot (stored so it survives BU renames)
-    owned_by_bu_name = Column(String(100), nullable=True)
+    owned_by_bu_name = Column(String(512), nullable=True)
 
     # Why the status was set — e.g. "Assigned to job JOB-42", "BU Rejected"
-    ownership_reason = Column(String(200), nullable=True)
+    ownership_reason = Column(String(512), nullable=True)
 
     # When BU ownership was acquired (null for Org Pool rows)
     bu_owned_since = Column(DateTime(timezone=False), nullable=True)

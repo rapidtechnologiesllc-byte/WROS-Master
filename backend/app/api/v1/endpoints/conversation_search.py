@@ -2,6 +2,7 @@
 S-015/S-016 (HRMS-0415/0416) -- Conversation Search + Filters
 ==================================================================
 Prefix: /conversations
+import logging
 Tag:    conversation-search
 
 GET /conversations/search?q=&channel=&date_from=&date_to=&page=&per_page=
@@ -19,7 +20,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_hr_or_admin
+from app.core.dependencies import get_current_internal_user, require_resource_permission
 from app.models.user import Users
 from app.schemas.conversation_search import SearchResponse
 from app.services.ai_conversation_service import resolve_default_tenant_id
@@ -27,8 +28,11 @@ from app.services.conversation_search_service import SearchTermTooShort, search_
 
 router = APIRouter(prefix="/conversations", tags=["conversation-search"])
 
-
-@router.get("/search", response_model=SearchResponse)
+@router.get(
+    "/search",
+    response_model=SearchResponse,
+    dependencies=[Depends(require_resource_permission("search", "view"))]
+)
 def search_conversations_endpoint(
     q: str,
     channel: Optional[str] = None,
@@ -42,9 +46,9 @@ def search_conversations_endpoint(
     updated_after: Optional[datetime] = None,
     updated_before: Optional[datetime] = None,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
-    tenant_id = resolve_default_tenant_id(db)
+    tenant_id = resolve_default_tenant_id()
     if not tenant_id:
         raise HTTPException(status_code=500, detail="No tenant available to search.")
 

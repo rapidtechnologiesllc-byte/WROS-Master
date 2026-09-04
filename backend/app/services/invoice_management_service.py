@@ -1,4 +1,5 @@
 """
+import logging
 COMPLETE INVOICE MANAGEMENT SERVICE - Production Grade
 
 Complete invoice lifecycle management with:
@@ -12,6 +13,7 @@ Complete invoice lifecycle management with:
 
 This service is the complete invoice-to-revenue pipeline.
 """
+import logging
 from datetime import datetime, date, timedelta
 from typing import Optional, List, Dict, Tuple
 from enum import Enum
@@ -27,27 +29,25 @@ from app.models.client import Client
 from app.models.org_structure import BusinessUnit
 
 from app.services.revenue_recognition_service import recognize_revenue_from_paid_invoice
+from app.core.logging import logger
 
+logger = logging.getLogger(__name__)
 
 class InvoiceError(Exception):
     """Base exception for invoice operations"""
     pass
 
-
 class InvalidInvoiceTransition(InvoiceError):
     """Invalid status transition attempted"""
     pass
-
 
 class ValidationError(InvoiceError):
     """Invoice validation failed"""
     pass
 
-
 class PeriodLockedError(InvoiceError):
     """Period is locked/closed - no invoices allowed"""
     pass
-
 
 class AdjustmentType(Enum):
     """Adjustment types for corrections"""
@@ -55,7 +55,6 @@ class AdjustmentType(Enum):
     CORRECTION = "CORRECTION"  # Error correction
     BONUS = "BONUS"  # Performance bonus
     WRITEOFF = "WRITEOFF"  # Uncollectible debt
-
 
 # ============================================================================
 # PART 1: INVOICE CREATION & VALIDATION
@@ -157,7 +156,6 @@ def create_invoice(
 
     return invoice
 
-
 def add_line_item(
     db: Session,
     invoice: Invoice,
@@ -248,7 +246,6 @@ def add_line_item(
 
     return line_item
 
-
 def remove_line_item(db: Session, invoice: Invoice, line_item_id: str) -> None:
     """
     Remove a line item from invoice (DRAFT only).
@@ -279,7 +276,6 @@ def remove_line_item(db: Session, invoice: Invoice, line_item_id: str) -> None:
     invoice.total_usd_cents -= line_item.amount_usd_cents
 
     db.delete(line_item)
-
 
 # ============================================================================
 # PART 2: INVOICE STATUS WORKFLOW
@@ -330,7 +326,6 @@ def approve_invoice(
 
     return invoice
 
-
 def send_invoice(db: Session, invoice: Invoice) -> Invoice:
     """
     Send invoice to client (APPROVED → SENT).
@@ -360,7 +355,6 @@ def send_invoice(db: Session, invoice: Invoice) -> Invoice:
     # TODO: Send email to client with invoice attachment
 
     return invoice
-
 
 def mark_invoice_paid(
     db: Session,
@@ -398,11 +392,9 @@ def mark_invoice_paid(
     db.add(invoice)
 
     # Trigger revenue recognition (this creates immutable Revenue record)
-    from app.services.revenue_recognition_service import recognize_revenue_from_paid_invoice
     revenue = recognize_revenue_from_paid_invoice(db, invoice)
 
     return invoice, revenue
-
 
 def cancel_invoice(
     db: Session,
@@ -444,7 +436,6 @@ def cancel_invoice(
     #     reason=reason,
     #     invoice_id=invoice.id,
     # )
-
 
 # ============================================================================
 # PART 3: VALIDATION & BUSINESS RULES
@@ -522,7 +513,6 @@ def _validate_invoice_before_approval(db: Session, invoice: Invoice) -> None:
     # TODO: Validate no open disputes for this period
     # TODO: Validate period not closed/locked
 
-
 def validate_billing_period_continuous(
     db: Session,
     period_start: date,
@@ -548,7 +538,6 @@ def validate_billing_period_continuous(
         )
 
     return True
-
 
 # ============================================================================
 # PART 4: QUERY FUNCTIONS
@@ -596,7 +585,6 @@ def get_invoices(
 
     return query.order_by(Invoice.created_at.desc()).all()
 
-
 def get_invoice_detail(db: Session, invoice_id: str) -> Optional[Invoice]:
     """
     Get invoice with all details and line items.
@@ -609,7 +597,6 @@ def get_invoice_detail(db: Session, invoice_id: str) -> Optional[Invoice]:
         Invoice with populated line items
     """
     return db.query(Invoice).filter(Invoice.id == invoice_id).first()
-
 
 def get_invoice_totals_by_status(
     db: Session,
@@ -643,7 +630,6 @@ def get_invoice_totals_by_status(
         result[status] = total or 0
 
     return result
-
 
 def get_outstanding_invoices(
     db: Session,
@@ -685,7 +671,6 @@ def get_outstanding_invoices(
         })
 
     return result
-
 
 def get_invoices_by_opportunity(db: Session, opportunity_id: str) -> List[Invoice]:
     """

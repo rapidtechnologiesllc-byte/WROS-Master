@@ -1,4 +1,5 @@
 """
+import logging
 S-066/HRMS-0466 -- Supervisor Agent, Multi-Agent Coordinator.
 
 Real architecture under test (see supervisor_agent_service module
@@ -36,7 +37,6 @@ from app.models.user import Users, Jobs
 
 import app.services.supervisor_agent_service as svc
 
-
 @pytest.fixture()
 def db_session():
     fd, db_path = tempfile.mkstemp(suffix=".sqlite3")
@@ -57,14 +57,12 @@ def db_session():
         engine.dispose()
         os.remove(db_path)
 
-
 @pytest.fixture()
 def tenant(db_session):
     user = Users(UserID="U-ORG", UserRole="Super User", UserEmail="org@blitzenx.com", UserPassword="h", thunder_enabled=True)
     db_session.add(user)
     db_session.commit()
     return user
-
 
 def _make_candidate(db, cid, tenant_id, *, owner_type="ai_agent", escalation_state="none", is_thunder_paused=False):
     candidate = Candidate(candidateID=cid, candidateEmail=f"{cid}@example.com", candidatePassword="h", candidateFirstName="Test")
@@ -78,7 +76,6 @@ def _make_candidate(db, cid, tenant_id, *, owner_type="ai_agent", escalation_sta
     db.commit()
     return candidate, conv
 
-
 def test_human_owned_conversation_skipped_br01(db_session, tenant):
     _, conv = _make_candidate(db_session, "C-1", "U-ORG", owner_type="hr_user")
     result = svc.run_supervisor_cycle(db_session, "U-ORG")
@@ -88,13 +85,11 @@ def test_human_owned_conversation_skipped_br01(db_session, tenant):
     assert logs[0].action_data["reason"] == "HUMAN_OWNED"
     assert result["skipped"] == 1
 
-
 def test_escalated_conversation_skipped(db_session, tenant):
     _make_candidate(db_session, "C-1", "U-ORG", escalation_state="escalated")
     svc.run_supervisor_cycle(db_session, "U-ORG")
     logs = db_session.query(AgentExecutionLog).filter(AgentExecutionLog.candidate_id == "C-1").all()
     assert logs[0].action_data["reason"] == "ESCALATED"
-
 
 def test_paused_conversation_skipped_s075(db_session, tenant):
     _make_candidate(db_session, "C-1", "U-ORG", is_thunder_paused=True)
@@ -102,14 +97,12 @@ def test_paused_conversation_skipped_s075(db_session, tenant):
     logs = db_session.query(AgentExecutionLog).filter(AgentExecutionLog.candidate_id == "C-1").all()
     assert logs[0].action_data["reason"] == "THUNDER_PAUSED"
 
-
 def test_ai_owned_active_conversation_evaluated_not_skipped(db_session, tenant):
     _make_candidate(db_session, "C-1", "U-ORG")
     svc.run_supervisor_cycle(db_session, "U-ORG")
     logs = db_session.query(AgentExecutionLog).filter(AgentExecutionLog.candidate_id == "C-1").all()
     assert logs[0].action_taken == "EVALUATED"
     assert logs[0].agent_name in svc.STAGE_TO_AGENT_NAME.values()
-
 
 def test_closed_conversations_excluded(db_session, tenant):
     candidate = Candidate(candidateID="C-1", candidateEmail="c1@example.com", candidatePassword="h", candidateFirstName="Test")
@@ -124,7 +117,6 @@ def test_closed_conversations_excluded(db_session, tenant):
     assert len(logs) == 0
     assert result["candidates_evaluated"] == 0
 
-
 def test_cycle_emits_supervisor_cycle_completed_event(db_session, tenant):
     _make_candidate(db_session, "C-1", "U-ORG")
     svc.run_supervisor_cycle(db_session, "U-ORG")
@@ -132,7 +124,6 @@ def test_cycle_emits_supervisor_cycle_completed_event(db_session, tenant):
     assert len(events) == 1
     assert events[0].tenant_id == "U-ORG"
     assert events[0].payload["candidates_evaluated"] == 1
-
 
 def test_conflict_detected_when_ai_message_sent_on_human_owned_conversation(db_session, tenant):
     """BR-01/BR-03 real audit -- a defense-in-depth check, not a
@@ -148,7 +139,6 @@ def test_conflict_detected_when_ai_message_sent_on_human_owned_conversation(db_s
     result = svc.run_supervisor_cycle(db_session, "U-ORG")
     assert result["conflicts_detected"] == 1
 
-
 def test_no_conflict_when_ai_message_sent_on_ai_owned_conversation(db_session, tenant):
     _, conv = _make_candidate(db_session, "C-1", "U-ORG")
     db_session.add(ConversationEvent(
@@ -160,7 +150,6 @@ def test_no_conflict_when_ai_message_sent_on_ai_owned_conversation(db_session, t
     result = svc.run_supervisor_cycle(db_session, "U-ORG")
     assert result["conflicts_detected"] == 0
 
-
 def test_run_supervisor_cycle_across_all_tenants_when_tenant_id_omitted(db_session, tenant):
     db_session.add(Users(UserID="U-OTHER", UserRole="Super User", UserEmail="other@blitzenx.com", UserPassword="h"))
     db_session.commit()
@@ -170,7 +159,6 @@ def test_run_supervisor_cycle_across_all_tenants_when_tenant_id_omitted(db_sessi
     result = svc.run_supervisor_cycle(db_session)  # no tenant_id -- all tenants
     assert result["tenants_processed"] == 2
     assert result["candidates_evaluated"] == 2
-
 
 def test_one_bad_tenant_does_not_abort_the_whole_cycle(db_session, tenant, monkeypatch):
     _make_candidate(db_session, "C-1", "U-ORG")

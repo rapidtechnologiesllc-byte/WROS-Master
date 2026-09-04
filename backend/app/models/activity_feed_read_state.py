@@ -1,4 +1,5 @@
 """
+import logging
 S-061/HRMS-0461 -- AI Activity Feed, read-state tracking.
 
 No new `thunder_activity_feed` denormalized table -- see
@@ -13,18 +14,20 @@ one row per conversation_event actually marked read. No row = unread
 (the default), avoiding a wasteful is_read=False row for every one of
 the thousands of events this codebase already logs.
 """
+import logging
 from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, UniqueConstraint, func
 from sqlalchemy.orm import relationship
 
 from app.models.base import Base
 
+logger = logging.getLogger(__name__)
 
 class ActivityFeedReadState(Base):
     __tablename__ = "activity_feed_read_state"
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
 
-    tenant_id = Column(String(50), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=False, index=True)
+    tenant_id = Column(String(512), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=False, index=True)
     conversation_event_id = Column(Integer, ForeignKey("conversation_events.id", ondelete="CASCADE"), nullable=False, unique=True, index=True)
 
     read_at = Column(DateTime(timezone=False), server_default=func.now(), nullable=False)

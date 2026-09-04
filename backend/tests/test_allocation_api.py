@@ -1,5 +1,6 @@
 """
 S-314 — Project Allocation Engine
+import logging
 API integration tests for allocation endpoints.
 
 Test Coverage:
@@ -12,6 +13,7 @@ Test Coverage:
   7. GET /allocations/dropdowns/for-create — Get form dropdowns
 """
 
+import logging
 import pytest
 from datetime import date, timedelta
 from fastapi.testclient import TestClient
@@ -26,12 +28,10 @@ from app.models.client import Client
 from app.models.tenant import Tenant
 from app.models.user import Users
 
-
 @pytest.fixture
 def client():
     """Test client for FastAPI app."""
     return TestClient(app)
-
 
 @pytest.fixture
 def db():
@@ -39,7 +39,6 @@ def db():
     db = SessionLocal()
     yield db
     db.close()
-
 
 @pytest.fixture
 def tenant(db: Session):
@@ -49,7 +48,6 @@ def tenant(db: Session):
     db.commit()
     db.refresh(tenant)
     return tenant
-
 
 @pytest.fixture
 def test_user(db: Session, tenant: Tenant):
@@ -65,14 +63,12 @@ def test_user(db: Session, tenant: Tenant):
     db.refresh(user)
     return user
 
-
 @pytest.fixture
 def mock_token(test_user: Users):
     """Mock JWT token for test user."""
     # In real implementation, this would use JWT encoding
     # For now, return a mock token
     return "mock_jwt_token_test_hr_user"
-
 
 @pytest.fixture
 def client_obj(db: Session, tenant: Tenant):
@@ -89,7 +85,6 @@ def client_obj(db: Session, tenant: Tenant):
     db.commit()
     db.refresh(client_obj)
     return client_obj
-
 
 @pytest.fixture
 def project(db: Session, tenant: Tenant, client_obj: Client):
@@ -108,7 +103,6 @@ def project(db: Session, tenant: Tenant, client_obj: Client):
     db.refresh(project)
     return project
 
-
 @pytest.fixture
 def demand(db: Session, tenant: Tenant, client_obj: Client):
     """Create test demand."""
@@ -125,7 +119,6 @@ def demand(db: Session, tenant: Tenant, client_obj: Client):
     db.commit()
     db.refresh(demand)
     return demand
-
 
 @pytest.fixture
 def employee(db: Session, tenant: Tenant):
@@ -145,6 +138,7 @@ def employee(db: Session, tenant: Tenant):
     db.refresh(employee)
     return employee
 
+logger = logging.getLogger(__name__)
 
 class TestAllocationCreateEndpoint:
     """Tests for POST /allocations endpoint."""
@@ -208,7 +202,6 @@ class TestAllocationCreateEndpoint:
 
         assert response.status_code in (404, 401)
 
-
 class TestAllocationListEndpoint:
     """Tests for GET /allocations endpoint."""
 
@@ -232,7 +225,6 @@ class TestAllocationListEndpoint:
         if response.status_code == 200:
             data = response.json()
             assert "allocations" in data
-
 
 class TestProjectsEndpoint:
     """Tests for GET /allocations/projects endpoint."""
@@ -266,7 +258,6 @@ class TestProjectsEndpoint:
         if response.status_code == 200:
             data = response.json()
             assert "projects" in data
-
 
 class TestCapacityCheckEndpoint:
     """Tests for POST /allocations/check-capacity endpoint."""
@@ -319,7 +310,6 @@ class TestCapacityCheckEndpoint:
         )
 
         assert response.status_code in (404, 401)
-
 
 class TestValidationEndpoint:
     """Tests for POST /allocations/validate endpoint."""
@@ -374,7 +364,6 @@ class TestValidationEndpoint:
 
         assert response.status_code in (404, 401)
 
-
 class TestEndAllocationEndpoint:
     """Tests for POST /allocations/{id}/end endpoint."""
 
@@ -416,7 +405,6 @@ class TestEndAllocationEndpoint:
 
         assert response.status_code in (404, 401)
 
-
 class TestDropdownsEndpoint:
     """Tests for GET /allocations/dropdowns/for-create endpoint."""
 
@@ -449,7 +437,6 @@ class TestDropdownsEndpoint:
             # Just verify structure
             assert isinstance(employee_ids, list)
             assert isinstance(demand_ids, list)
-
 
 class TestAllocationErrorHandling:
     """Tests for error handling and edge cases."""

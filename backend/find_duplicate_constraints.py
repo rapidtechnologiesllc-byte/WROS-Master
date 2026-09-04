@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import logging
 """Find duplicate constraint names across all models"""
 
 import re

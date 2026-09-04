@@ -1,5 +1,6 @@
 """
 HRMS-0207 (Create Opportunity), HRMS-0209 (Forecast Calculation),
+import logging
 HRMS-0215 (Pipeline Coverage Ratio).
 
 calculate_weighted_forecast() is deliberately the ONE shared function
@@ -16,6 +17,7 @@ Stage transition to WON auto-creates a Project (HRMS-0801 BR-0801-01,
 completing the hook this module's own docstring used to defer -- Project
 now exists as of the Projects build round).
 """
+import logging
 from datetime import datetime
 from typing import Iterable, List, Optional
 
@@ -26,15 +28,15 @@ from app.models.demand import Demand
 from app.models.opportunity import CLOSED_STAGES, OPPORTUNITY_STAGES, Opportunity
 from app.services.demand_service import create_demand
 from app.services.project_service import create_project_from_won_opportunity
+from app.core.logging import logger
 
+logger = logging.getLogger(__name__)
 
 class OpportunityValidationError(Exception):
     pass
 
-
 class InvalidStageTransition(Exception):
     pass
-
 
 # 2026-08-12, Avinash: win probability must be system-generated, never a
 # free-text field a user types a number into. Stage-based default is the
@@ -52,10 +54,8 @@ STAGE_PROBABILITY = {
     "LOST": 0,
 }
 
-
 def default_probability_for_stage(stage: str) -> int:
     return STAGE_PROBABILITY.get(stage, 0)
-
 
 def create_opportunity(
     db: Session,
@@ -80,7 +80,6 @@ def create_opportunity(
     )
     db.add(opportunity)
     return opportunity
-
 
 def _update_client_status_from_opportunities(db: Session, client_id: str) -> None:
     """Auto-sync client status to match its most-advanced opportunity stage.
@@ -117,7 +116,6 @@ def _update_client_status_from_opportunities(db: Session, client_id: str) -> Non
         if client and client.status != highest_stage:
             client.status = highest_stage
             db.add(client)
-
 
 def transition_stage(
     db: Session, opportunity: Opportunity, new_stage: str,
@@ -158,12 +156,10 @@ def transition_stage(
 
     return opportunity
 
-
 def calculate_weighted_forecast(opportunity: Opportunity) -> int:
     """HRMS-0209 -- the one shared forecast calculation. Returns USD
     cents. weighted_value = revenue_value_usd_cents * (probability_pct / 100)."""
     return round(opportunity.revenue_value_usd_cents * opportunity.probability_pct / 100)
-
 
 def aggregate_weighted_forecast(opportunities: Iterable[Opportunity]) -> int:
     """Sum of calculate_weighted_forecast() across a set of opportunities
@@ -174,7 +170,6 @@ def aggregate_weighted_forecast(opportunities: Iterable[Opportunity]) -> int:
     aggregation functions."""
     return sum(calculate_weighted_forecast(o) for o in opportunities)
 
-
 def calculate_pipeline_coverage_ratio(total_pipeline_value_usd_cents: int, revenue_target_usd_cents: int) -> Optional[float]:
     """HRMS-0215. Returns None (undefined) rather than raising when the
     target is zero, since a zero target is a data problem for the
@@ -182,7 +177,6 @@ def calculate_pipeline_coverage_ratio(total_pipeline_value_usd_cents: int, reven
     if revenue_target_usd_cents <= 0:
         return None
     return total_pipeline_value_usd_cents / revenue_target_usd_cents
-
 
 def calculate_revenue_potential(demand: Demand) -> Optional[int]:
     """HRMS-0211: bill_rate * duration * quantity, quantity mapping to
@@ -192,14 +186,12 @@ def calculate_revenue_potential(demand: Demand) -> Optional[int]:
         return None
     return demand.billing_rate_usd_cents * demand.duration_hours * demand.headcount
 
-
 def recalculate_revenue_potential(demand: Demand) -> Demand:
     """HRMS-0211 BR-0211-01: never a stale one-time snapshot -- call
     this after any write to billing_rate_usd_cents, duration_hours, or
     headcount."""
     demand.revenue_potential_usd_cents = calculate_revenue_potential(demand)
     return demand
-
 
 def create_role_demand_from_opportunity(
     db: Session,
@@ -239,7 +231,6 @@ def create_role_demand_from_opportunity(
     )
     recalculate_revenue_potential(demand)
     return demand
-
 
 def get_opportunity_revenue_rollup(db: Session, opportunity: Opportunity) -> int:
     """Sum of revenue_potential_usd_cents across every demand linked to

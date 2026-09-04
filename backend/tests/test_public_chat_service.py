@@ -6,6 +6,7 @@ returning visitor (matched by email) resumes the same conversation
 instead of duplicating it, consent is required and captured for real,
 and every message after the opening greeting goes through the same
 governed send_thunder_message() path WhatsApp candidates use -- just
+import logging
 on the "web_chat" channel.
 
 No real Gemini call is made anywhere in this file -- ChatGoogleGenerativeAI
@@ -42,11 +43,9 @@ import app.services.thunder_service as thunder_svc
 import app.services.whatsapp_routing_service as routing
 import app.services.public_chat_service as svc
 
-
 @pytest.fixture(autouse=True)
 def _fake_api_key(monkeypatch):
     monkeypatch.setattr(thunder_svc, "GEMINI_API_KEY", "fake-key-for-test")
-
 
 @pytest.fixture(autouse=True)
 def _mock_gemini(monkeypatch):
@@ -55,7 +54,6 @@ def _mock_gemini(monkeypatch):
     mock_llm = MagicMock()
     mock_llm.invoke.return_value = mock_response
     monkeypatch.setattr(thunder_svc, "ChatGoogleGenerativeAI", MagicMock(return_value=mock_llm))
-
 
 @pytest.fixture(autouse=True)
 def _mock_intent_detection_llm(monkeypatch):
@@ -71,7 +69,6 @@ def _mock_intent_detection_llm(monkeypatch):
     behavior is unchanged (falls through to the normal reply path);
     individual objection-handling tests override this per-test."""
     monkeypatch.setattr(prompt_framework_svc, "_default_llm_call", lambda *a, **k: '{"intent": "unclear", "confidence": 0.0}')
-
 
 @pytest.fixture()
 def db_session():
@@ -94,14 +91,12 @@ def db_session():
         engine.dispose()
         os.remove(db_path)
 
-
 @pytest.fixture()
 def super_user(db_session):
     user = Users(UserID="U-CEO", UserRole="Super User", UserEmail="ceo@blitzenx.com", UserPassword="h")
     db_session.add(user)
     db_session.commit()
     return user
-
 
 def test_start_public_chat_creates_real_candidate_and_conversation(db_session, super_user):
     result = svc.start_public_chat(
@@ -134,7 +129,6 @@ def test_start_public_chat_creates_real_candidate_and_conversation(db_session, s
 
     assert "Jane" in result["message"]
 
-
 def test_start_public_chat_requires_consent(db_session, super_user):
     with pytest.raises(svc.PublicChatConsentRequired):
         svc.start_public_chat(
@@ -142,14 +136,12 @@ def test_start_public_chat_requires_consent(db_session, super_user):
             phone=None, job_id=None, consent=False,
         )
 
-
 def test_start_public_chat_with_no_super_user_raises(db_session):
     with pytest.raises(svc.PublicChatNoTenantAvailable):
         svc.start_public_chat(
             db_session, full_name="Jane Doe", email="jane@example.com",
             phone=None, job_id=None, consent=True,
         )
-
 
 def test_start_public_chat_resumes_existing_candidate_by_email(db_session, super_user):
     first = svc.start_public_chat(
@@ -170,11 +162,9 @@ def test_start_public_chat_resumes_existing_candidate_by_email(db_session, super
         CandidateConversation.candidate_id == first["candidate_id"],
     ).count() == 1
 
-
 def test_send_public_chat_message_unknown_candidate_raises(db_session, super_user):
     with pytest.raises(svc.PublicChatSessionNotFound):
         svc.send_public_chat_message(db_session, candidate_id="CAN-does-not-exist", message="hello")
-
 
 def test_send_public_chat_message_logs_real_events_and_replies(db_session, super_user):
     started = svc.start_public_chat(
@@ -206,7 +196,6 @@ def test_send_public_chat_message_logs_real_events_and_replies(db_session, super
     assert "candidate_reply" in web_chat_event_types
     assert "ai_message_sent" in web_chat_event_types
 
-
 def test_send_public_chat_message_objecting_intent_routes_to_objection_handler(db_session, super_user, monkeypatch):
     """S-072/HRMS-0472: the first live, end-to-end proof that
     detect_intent()'s 'objecting' branch actually reaches
@@ -235,7 +224,6 @@ def test_send_public_chat_message_objecting_intent_routes_to_objection_handler(d
     objection_events = db_session.query(ConversationEvent).filter(ConversationEvent.conversation_id == conversation.id, ConversationEvent.event_type == "OBJECTION_RAISED").all()
     assert len(objection_events) == 1
     assert objection_events[0].event_data["objection_type"] == "LOCATION"
-
 
 def test_send_public_chat_message_third_objection_escalates(db_session, super_user, monkeypatch):
     """BR-01, proven end-to-end through the real public chat entry
@@ -266,7 +254,6 @@ def test_send_public_chat_message_third_objection_escalates(db_session, super_us
 
     conversation = db_session.query(CandidateConversation).filter(CandidateConversation.candidate_id == candidate_id).first()
     assert conversation.escalation_state == "escalated"
-
 
 def test_get_public_chat_history_returns_full_transcript(db_session, super_user):
     started = svc.start_public_chat(

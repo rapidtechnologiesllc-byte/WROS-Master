@@ -1,4 +1,5 @@
 """
+import logging
 Pydantic schemas for the Checklist feature.
 
 Covers:
@@ -7,14 +8,16 @@ Covers:
   - Candidate checklist assignment and progress
 """
 
+import logging
 from datetime import datetime
 from typing import Optional, List
 from pydantic import BaseModel, Field
-
+from app.core.logging import logger
 
 # ---------------------------------------------------------------------------
 # Template Item Schemas
 # ---------------------------------------------------------------------------
+logger = logging.getLogger(__name__)
 
 class ChecklistItemCreate(BaseModel):
     title: str = Field(..., max_length=255)
@@ -23,14 +26,12 @@ class ChecklistItemCreate(BaseModel):
     order_index: int = Field(default=0, ge=0)
     due_days_offset: Optional[int] = Field(default=None, ge=0)
 
-
 class ChecklistItemUpdate(BaseModel):
     title: Optional[str] = Field(default=None, max_length=255)
     description: Optional[str] = None
     item_type: Optional[str] = Field(default=None, pattern="^(todo|queue)$")
     order_index: Optional[int] = Field(default=None, ge=0)
     due_days_offset: Optional[int] = Field(default=None, ge=0)
-
 
 class ChecklistItemResponse(BaseModel):
     id: int
@@ -45,7 +46,6 @@ class ChecklistItemResponse(BaseModel):
     class Config:
         from_attributes = True
 
-
 # ---------------------------------------------------------------------------
 # Template Schemas
 # ---------------------------------------------------------------------------
@@ -55,11 +55,9 @@ class ChecklistTemplateCreate(BaseModel):
     description: Optional[str] = None
     items: Optional[List[ChecklistItemCreate]] = []
 
-
 class ChecklistTemplateUpdate(BaseModel):
     name: Optional[str] = Field(default=None, max_length=255)
     description: Optional[str] = None
-
 
 class ChecklistTemplateResponse(BaseModel):
     id: int
@@ -73,7 +71,6 @@ class ChecklistTemplateResponse(BaseModel):
     class Config:
         from_attributes = True
 
-
 class ChecklistTemplateSummary(BaseModel):
     """Lightweight template response without items — used in list endpoints."""
     id: int
@@ -86,11 +83,9 @@ class ChecklistTemplateSummary(BaseModel):
     class Config:
         from_attributes = True
 
-
 class ChecklistTemplateListResponse(BaseModel):
     total: int
     templates: List[ChecklistTemplateSummary]
-
 
 # ---------------------------------------------------------------------------
 # Candidate Checklist Assignment
@@ -99,7 +94,6 @@ class ChecklistTemplateListResponse(BaseModel):
 class AssignChecklistRequest(BaseModel):
     candidate_id: str
     template_id: int
-
 
 # ---------------------------------------------------------------------------
 # Candidate Checklist Item Response
@@ -121,7 +115,6 @@ class CandidateChecklistItemResponse(BaseModel):
 
     class Config:
         from_attributes = True
-
 
 # ---------------------------------------------------------------------------
 # Candidate Checklist Response
@@ -149,12 +142,10 @@ class CandidateChecklistResponse(BaseModel):
     class Config:
         from_attributes = True
 
-
 class CandidateChecklistListResponse(BaseModel):
     candidate_id: str
     total_checklists: int
     checklists: List[CandidateChecklistResponse]
-
 
 # ---------------------------------------------------------------------------
 # Item Completion Responses
@@ -166,7 +157,6 @@ class CompleteItemResponse(BaseModel):
     completed_item: CandidateChecklistItemResponse
     next_active_item: Optional[CandidateChecklistItemResponse] = None
     checklist_completed: bool = False
-
 
 # ---------------------------------------------------------------------------
 # Generic Response

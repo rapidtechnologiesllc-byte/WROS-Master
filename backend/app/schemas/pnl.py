@@ -1,7 +1,10 @@
+import logging
 from typing import Optional
 
 from pydantic import BaseModel
+from app.core.logging import logger
 
+logger = logging.getLogger(__name__)
 
 class BuPnlResponse(BaseModel):
     business_unit_id: int
@@ -13,10 +16,8 @@ class BuPnlResponse(BaseModel):
     margin_pct: Optional[float]
     cost_data_complete: bool
 
-
 class BuPnlSummaryItem(BuPnlResponse):
     business_unit_name: str
-
 
 class OrgPnlSummaryResponse(BaseModel):
     year: int

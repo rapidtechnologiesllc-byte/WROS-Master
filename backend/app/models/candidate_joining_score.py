@@ -1,4 +1,5 @@
 """
+import logging
 S-058/HRMS-0458 -- Joining Readiness Score.
 
 candidate_joining_scores: genuinely new table -- one row per (tenant,
@@ -15,19 +16,21 @@ question -- "is this candidate's qualification data complete" vs. "is
 this candidate about to actually show up on day one"). Never combined
 or confused here.
 """
+import logging
 from sqlalchemy import Column, DateTime, ForeignKey, Integer, JSON, String, UniqueConstraint, func
 from sqlalchemy.orm import relationship
 
 from app.models.base import Base
 
+logger = logging.getLogger(__name__)
 
 class CandidateJoiningScore(Base):
     __tablename__ = "candidate_joining_scores"
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
 
-    tenant_id = Column(String(50), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=False, index=True)
-    candidate_id = Column(String(36), ForeignKey("candidates.candidateID", ondelete="CASCADE"), nullable=False, index=True)
+    tenant_id = Column(String(512), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=False, index=True)
+    candidate_id = Column(String(512), ForeignKey("candidates.candidateID", ondelete="CASCADE"), nullable=False, index=True)
     offer_id = Column(Integer, ForeignKey("offer_letters.id", ondelete="CASCADE"), nullable=False, index=True)
 
     readiness_score = Column(Integer, nullable=False)

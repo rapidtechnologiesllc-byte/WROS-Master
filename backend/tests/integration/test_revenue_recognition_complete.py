@@ -1,4 +1,5 @@
 """
+import logging
 COMPREHENSIVE REVENUE RECOGNITION TEST SUITE
 
 Complete integration tests for revenue recognition engine:
@@ -13,6 +14,7 @@ Complete integration tests for revenue recognition engine:
 REQUIREMENT: ALL TESTS MUST PASS BEFORE PRODUCTION DEPLOYMENT
 Current Status: Building...
 """
+import logging
 import pytest
 from datetime import datetime, date, timedelta
 from decimal import Decimal
@@ -46,7 +48,6 @@ from app.services.revenue_recognition_service import (
     ValidationError,
 )
 
-
 # ============================================================================
 # FIXTURES & TEST DATA SETUP
 # ============================================================================
@@ -59,7 +60,6 @@ def db_session():
     yield session
     session.close()
 
-
 @pytest.fixture
 def test_tenant(db_session):
     """Create test tenant"""
@@ -68,7 +68,6 @@ def test_tenant(db_session):
     db_session.add(tenant)
     db_session.commit()
     return tenant
-
 
 @pytest.fixture
 def test_business_unit(db_session, test_tenant):
@@ -82,7 +81,6 @@ def test_business_unit(db_session, test_tenant):
     db_session.add(bu)
     db_session.commit()
     return bu
-
 
 @pytest.fixture
 def test_client(db_session, test_tenant, test_business_unit):
@@ -98,7 +96,6 @@ def test_client(db_session, test_tenant, test_business_unit):
     db_session.commit()
     return client
 
-
 @pytest.fixture
 def test_employee(db_session, test_tenant):
     """Create test employee with salary"""
@@ -112,7 +109,6 @@ def test_employee(db_session, test_tenant):
     db_session.add(employee)
     db_session.commit()
     return employee
-
 
 @pytest.fixture
 def test_opportunity(db_session, test_tenant, test_client, test_business_unit):
@@ -139,7 +135,6 @@ def test_opportunity(db_session, test_tenant, test_client, test_business_unit):
     db_session.commit()
     return opp
 
-
 @pytest.fixture
 def test_project(db_session, test_tenant, test_client, test_business_unit, test_opportunity):
     """Create test project"""
@@ -159,7 +154,6 @@ def test_project(db_session, test_tenant, test_client, test_business_unit, test_
     db_session.add(project)
     db_session.commit()
     return project
-
 
 @pytest.fixture
 def test_timesheet_approved(db_session, test_tenant, test_project, test_employee):
@@ -189,7 +183,6 @@ def test_timesheet_approved(db_session, test_tenant, test_project, test_employee
     db_session.commit()
     return timesheet
 
-
 @pytest.fixture
 def test_invoice_draft(db_session, test_tenant, test_project, test_client, test_business_unit, test_opportunity):
     """Create draft invoice"""
@@ -210,7 +203,6 @@ def test_invoice_draft(db_session, test_tenant, test_project, test_client, test_
     db_session.add(invoice)
     db_session.commit()
     return invoice
-
 
 @pytest.fixture
 def test_partner_assignment(db_session, test_tenant, test_business_unit):
@@ -244,10 +236,10 @@ def test_partner_assignment(db_session, test_tenant, test_business_unit):
     db_session.commit()
     return assignment
 
-
 # ============================================================================
 # TEST SUITE 1: REVENUE RECOGNITION ENGINE
 # ============================================================================
+logger = logging.getLogger(__name__)
 
 class TestRevenueRecognitionEngine:
     """Tests for core revenue recognition logic"""
@@ -330,7 +322,6 @@ class TestRevenueRecognitionEngine:
         with pytest.raises(ValidationError):
             recognize_revenue_from_paid_invoice(db_session, test_invoice_draft)
 
-
 # ============================================================================
 # TEST SUITE 2: MARGIN CALCULATIONS
 # ============================================================================
@@ -381,7 +372,6 @@ class TestMarginCalculations:
         # Verify negative margin detected
         assert revenue.gross_margin_usd_cents < 0
         assert revenue.gross_margin_pct < 0
-
 
 # ============================================================================
 # TEST SUITE 3: PARTNER REVENUE SHARE (CORE ONLY)
@@ -474,7 +464,6 @@ class TestPartnerRevenueShare:
         partner_share_data = _calculate_partner_share(db_session, invoice, "SPECIALITY")
         assert partner_share_data['share_amount'] == 0
         assert partner_share_data['share_pct'] is None
-
 
 # ============================================================================
 # TEST SUITE 4: REPORTING QUERIES
@@ -579,7 +568,6 @@ class TestReportingQueries:
         assert current['actual'] == 400000  # $4,000
         assert current['variance'] == current['actual'] - current['forecast']
 
-
 # ============================================================================
 # TEST SUITE 5: EDGE CASES
 # ============================================================================
@@ -601,7 +589,6 @@ class TestEdgeCases:
         # TODO: Implement when multi-currency support added
         test_invoice_draft.currency = "INR"  # Indian Rupees
         assert test_invoice_draft.currency == "INR"
-
 
 # ============================================================================
 # TEST SUITE 6: P&L SUMMARY
@@ -639,7 +626,6 @@ class TestPandLSummary:
         assert summary['revenue'] > 0
         assert summary['margin'] >= 0  # Should be profitable
         assert summary['margin_pct'] >= 0
-
 
 # ============================================================================
 # TEST EXECUTION

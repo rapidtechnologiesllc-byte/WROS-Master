@@ -1,4 +1,5 @@
 """
+import logging
 Agent Pyramid Reporting Endpoints - 6-Level Hierarchical Accountability with Flash Coaching
 
 CRITICAL FLOW:
@@ -20,14 +21,16 @@ Weekly reporting cascade (FRIDAY):
 Notification: Thursday 3PM - Remind all parties of Friday deadlines
 """
 
+import logging
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from datetime import datetime, timedelta
 from typing import Dict, Any, List, Optional
 from pydantic import BaseModel
 
-from app.core.dependencies import get_db, get_current_user
+from app.core.dependencies import get_db, get_current_user, require_resource_permission
 from app.models.user import Users
+from app.core.database import get_db
 from app.services.agent_pyramid_reporting import (
     TechLeadWeeklyReportAgent,
     ManagerWeeklyReportAgent,
@@ -39,6 +42,7 @@ from app.services.agent_pyramid_reporting import (
 
 router = APIRouter(prefix="/agents", tags=["agents-pyramid"])
 
+logger = logging.getLogger(__name__)
 
 class TechLeadReportForm(BaseModel):
     """Tech Lead weekly report form"""
@@ -52,7 +56,6 @@ class TechLeadReportForm(BaseModel):
     risks: List[str] = []
     morale: int  # 1-10
     next_week_focus: str
-
 
 class FlashProgressChallenge(BaseModel):
     """Flash's lifecycle progress analysis against annual goals"""
@@ -72,7 +75,6 @@ class FlashProgressChallenge(BaseModel):
     requires_confirmation: bool
     submit_enabled: bool
 
-
 class FlashValidation(BaseModel):
     """Tech lead confirms data is accurate"""
     tech_lead_id: str
@@ -80,14 +82,15 @@ class FlashValidation(BaseModel):
     confirmation_comment: str = ""
     challenges_addressed: List[str] = []
 
-
 def get_this_week_start():
     """Get Monday of current week"""
     today = datetime.utcnow()
     return today - timedelta(days=today.weekday())
 
-
-@router.get("/tech-lead/{tech_lead_id}/weekly-report")
+@router.get(
+    "/tech-lead/{tech_lead_id}/weekly-report",
+    dependencies=[Depends(require_resource_permission("tech-lead", "view"))]
+)
 async def get_tech_lead_report(
     tech_lead_id: str,
     current_user: Users = Depends(get_current_user),
@@ -115,8 +118,10 @@ async def get_tech_lead_report(
         db, current_user.tenant_id, tech_lead_id, week_start
     )
 
-
-@router.get("/manager/{manager_id}/weekly-report")
+@router.get(
+    "/manager/{manager_id}/weekly-report",
+    dependencies=[Depends(require_resource_permission("manager", "view"))]
+)
 async def get_manager_report(
     manager_id: str,
     current_user: Users = Depends(get_current_user),
@@ -144,8 +149,10 @@ async def get_manager_report(
         db, current_user.tenant_id, manager_id, week_start
     )
 
-
-@router.get("/architect/{architect_id}/weekly-report")
+@router.get(
+    "/architect/{architect_id}/weekly-report",
+    dependencies=[Depends(require_resource_permission("architect", "view"))]
+)
 async def get_architect_report(
     architect_id: str,
     current_user: Users = Depends(get_current_user),
@@ -173,8 +180,10 @@ async def get_architect_report(
         db, current_user.tenant_id, architect_id, week_start
     )
 
-
-@router.get("/bu-head/{bu_head_id}/weekly-report")
+@router.get(
+    "/bu-head/{bu_head_id}/weekly-report",
+    dependencies=[Depends(require_resource_permission("bu-head", "view"))]
+)
 async def get_bu_head_report(
     bu_head_id: str,
     current_user: Users = Depends(get_current_user),
@@ -202,8 +211,10 @@ async def get_bu_head_report(
         db, current_user.tenant_id, bu_head_id, week_start
     )
 
-
-@router.get("/partner/{partner_id}/weekly-consolidation")
+@router.get(
+    "/partner/{partner_id}/weekly-consolidation",
+    dependencies=[Depends(require_resource_permission("partner", "view"))]
+)
 async def get_partner_consolidation(
     partner_id: str,
     current_user: Users = Depends(get_current_user),
@@ -231,8 +242,10 @@ async def get_partner_consolidation(
         db, current_user.tenant_id, partner_id
     )
 
-
-@router.post("/submit-report")
+@router.post(
+    "/submit-report",
+    dependencies=[Depends(require_resource_permission("submit-report", "create"))]
+)
 async def submit_pyramid_report(
     report_data: Dict[str, Any],
     current_user: Users = Depends(get_current_user),
@@ -285,8 +298,10 @@ async def submit_pyramid_report(
         "timestamp": datetime.utcnow().isoformat()
     }
 
-
-@router.get("/ceo/executive-dashboard")
+@router.get(
+    "/ceo/executive-dashboard",
+    dependencies=[Depends(require_resource_permission("ceo", "view"))]
+)
 async def get_ceo_dashboard(
     current_user: Users = Depends(get_current_user),
     db: Session = Depends(get_db)
@@ -312,7 +327,6 @@ async def get_ceo_dashboard(
         raise HTTPException(status_code=403, detail="Only CEO can access executive dashboard")
 
     # Flash provides validated reports only
-    from app.services.agent_orchestration_service import FlashOrchestrator
 
     ceo_dashboard = CEOExecutiveDashboardAgent.generate_ceo_executive_summary(
         db, current_user.tenant_id
@@ -336,8 +350,10 @@ async def get_ceo_dashboard(
 
     return ceo_dashboard
 
-
-@router.post("/tech-lead/{tech_lead_id}/validate-progress")
+@router.post(
+    "/tech-lead/{tech_lead_id}/validate-progress",
+    dependencies=[Depends(require_resource_permission("tech-lead", "create"))]
+)
 async def flash_validate_tech_lead_progress(
     tech_lead_id: str,
     report_form: TechLeadReportForm,
@@ -364,8 +380,6 @@ async def flash_validate_tech_lead_progress(
     - Flash approves
     - Submit button ENABLED
     """
-
-    from app.services.agent_orchestration_service import FlashOrchestrator
 
     # Get tech lead's annual goal and life-to-date progress
     week_num = _get_week_of_year()
@@ -440,8 +454,10 @@ async def flash_validate_tech_lead_progress(
         submit_enabled=submit_enabled
     )
 
-
-@router.post("/tech-lead/{tech_lead_id}/confirm-and-submit")
+@router.post(
+    "/tech-lead/{tech_lead_id}/confirm-and-submit",
+    dependencies=[Depends(require_resource_permission("tech-lead", "create"))]
+)
 async def flash_confirm_and_submit(
     tech_lead_id: str,
     validation: FlashValidation,
@@ -478,11 +494,9 @@ async def flash_confirm_and_submit(
         "confirmation_comment": validation.confirmation_comment
     }
 
-
 def _get_week_of_year() -> int:
     """Get current week number (1-52)"""
     return datetime.utcnow().isocalendar()[1]
-
 
 def _get_cumulative_tech_lead_progress(db: Session, tech_lead_id: str, tenant_id: int) -> int:
     """Get all commits reported from start of year through last week"""
@@ -508,11 +522,8 @@ def _get_cumulative_tech_lead_progress(db: Session, tech_lead_id: str, tenant_id
 
     return total_commits
 
-
 def _get_last_week_report(db: Session, tech_lead_id: str, tenant_id: int) -> Optional[Dict]:
     """Get tech lead's report from last week for comparison"""
-    from app.models.strategic_goal import PyramidReport
-    from datetime import datetime
 
     current_week = datetime.utcnow().isocalendar()[1]
     current_year = datetime.utcnow().year
@@ -537,13 +548,11 @@ def _get_last_week_report(db: Session, tech_lead_id: str, tenant_id: int) -> Opt
         "reported_at": last_report.submitted_at.isoformat() if last_report.submitted_at else None
     }
 
-
 def _calculate_percentage_change(last_value: float, this_value: float) -> float:
     """Calculate percentage change from last week to this week"""
     if last_value == 0:
         return 0 if this_value == 0 else 100  # Can't calculate % from 0
     return ((this_value - last_value) / last_value) * 100
-
 
 def _get_reporting_level(role: str) -> str:
     """Get reporting level for a user role"""
@@ -557,7 +566,6 @@ def _get_reporting_level(role: str) -> str:
     }
     return level_map.get(role, "unknown")
 
-
 def _get_next_reporting_level(current_level: str) -> str:
     """Get next level in reporting hierarchy"""
     hierarchy = {
@@ -570,8 +578,10 @@ def _get_next_reporting_level(current_level: str) -> str:
     }
     return hierarchy.get(current_level)
 
-
-@router.get("/pyramid/schedule")
+@router.get(
+    "/pyramid/schedule",
+    dependencies=[Depends(require_resource_permission("pyramid", "view"))]
+)
 async def get_reporting_schedule(
     current_user: Users = Depends(get_current_user)
 ) -> Dict[str, Any]:
@@ -637,8 +647,10 @@ async def get_reporting_schedule(
         ]
     }
 
-
-@router.post("/pyramid/send-thursday-reminder")
+@router.post(
+    "/pyramid/send-thursday-reminder",
+    dependencies=[Depends(require_resource_permission("pyramid", "create"))]
+)
 async def send_thursday_reminder(
     current_user: Users = Depends(get_current_user),
     db: Session = Depends(get_db)

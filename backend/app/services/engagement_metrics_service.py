@@ -1,4 +1,5 @@
 """
+import logging
 S-070/HRMS-0470 -- Candidate Engagement Health Metrics.
 
 Real architecture adaptations:
@@ -36,14 +37,12 @@ from app.models.candidate_sentiment_log import CandidateSentimentLog
 MAX_RESPONSE_GAP_MINUTES = 7 * 24 * 60  # BR: exclude ghosting-period gaps, "< 7 days"
 SENTIMENT_SCORES = {"NEGATIVE": -1, "NEUTRAL": 0, "POSITIVE": 1}
 
-
 def _ghost_window(db: Session, candidate_id: str):
     """BR-01. Returns (ghosted_at, reactivated_at) or (None, None)."""
     ghosting = db.query(CandidateGhostingStatus).filter(CandidateGhostingStatus.candidate_id == candidate_id).first()
     if ghosting is None:
         return None, None
     return ghosting.ghosted_at, ghosting.reactivated_at
-
 
 def calculate_engagement_health(db: Session, candidate_id: str, tenant_id: str) -> Dict:
     """Step 2. Never raises -- returns {"outcome": "not_found"} if the
@@ -105,6 +104,7 @@ def calculate_engagement_health(db: Session, candidate_id: str, tenant_id: str) 
             if screened and screened["entered_at"] and conversation.created_at:
                 days_to_qualification = (screened["entered_at"] - conversation.created_at).days
         except Exception as exc:
+            logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.warning(f"[EngagementMetrics] Could not resolve qualification stage for {candidate_id!r}: {exc}")
 
         sentiments = db.query(CandidateSentimentLog.sentiment).filter(CandidateSentimentLog.candidate_id == candidate_id).all()
@@ -127,10 +127,10 @@ def calculate_engagement_health(db: Session, candidate_id: str, tenant_id: str) 
 
         return {"outcome": "calculated", **values}
     except Exception as exc:
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.error(f"[EngagementMetrics] Failed calculating engagement health for {candidate_id!r}: {exc}")
         db.rollback()
         return {"outcome": "calculation_failed"}
-
 
 def run_engagement_metrics_job(db: Session) -> Dict:
     """Step 3. Runs every 4 hours. Never lets one bad row abort the batch."""
@@ -155,6 +155,7 @@ def run_engagement_metrics_job(db: Session) -> Dict:
             else:
                 result["skipped"] += 1
         except Exception as exc:
+            logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.error(f"[EngagementMetrics] Failed processing candidate {conversation.candidate_id!r}: {exc}")
             db.rollback()
             result["skipped"] += 1

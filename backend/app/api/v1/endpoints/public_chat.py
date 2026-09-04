@@ -2,6 +2,7 @@
 Public Thunder Chat — API Endpoints
 =====================================
 Prefix: /public/thunder-chat
+import logging
 Tag:    public-thunder-chat
 
 Real, unauthenticated candidate-facing chat widget (careers page / job
@@ -30,6 +31,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.core.dependencies import require_resource_permission
 from app.core.logging import logger
 from app.schemas.public_chat import (
     PublicChatHistoryItem,
@@ -51,7 +53,6 @@ from app.services.thunder_service import ConsentNotGiven, DuplicateMessageSuppre
 from app.services.whatsapp_routing_service import ConversationOwnedByHuman
 
 router = APIRouter(prefix="/public/thunder-chat", tags=["public-thunder-chat"])
-
 
 @router.post(
     "/start",
@@ -87,7 +88,6 @@ def start_chat(body: PublicChatStartRequest, db: Session = Depends(get_db)):
 
     return PublicChatStartResponse(**result)
 
-
 @router.post(
     "/message",
     response_model=PublicChatMessageResponse,
@@ -115,9 +115,9 @@ def send_message(body: PublicChatMessageRequest, background_tasks: BackgroundTas
 
     return PublicChatMessageResponse(**result)
 
-
 @router.get(
     "/history",
+    dependencies=[Depends(require_resource_permission("candidate", "view"))],
     response_model=PublicChatHistoryResponse,
     summary="Get this session's chat history — no auth required",
 )

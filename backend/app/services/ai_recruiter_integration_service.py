@@ -2,7 +2,6 @@
 AI Recruiter Integration Service - Handles AI-based candidate matching and recruitment
 """
 
-
 class AIRecruiterIntegrationService:
     """AI Recruiter service for candidate matching and screening."""
 

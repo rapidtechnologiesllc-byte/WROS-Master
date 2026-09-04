@@ -1,4 +1,5 @@
 """
+import logging
 Personal Intelligence Service - 200+ Data Points for Deep Relationship Building
 
 Captures comprehensive personal profile to make genuine human connection:
@@ -24,6 +25,7 @@ Reports to: Relation Building Agent (for personalization)
 Used by: Thunder, Interview Scheduler, Offer Generator (for authentic engagement)
 """
 
+import logging
 from typing import Dict, Any, Optional, List
 from datetime import datetime
 from sqlalchemy.orm import Session
@@ -33,6 +35,7 @@ from app.core.logging import logger
 from app.models.candidate import Candidate
 from app.services.candidate_memory_service import upsert_fact, get_memory
 
+logger = logging.getLogger(__name__)
 
 class PersonalDataCategory(str, Enum):
     """200+ personal data dimensions"""
@@ -248,7 +251,6 @@ class PersonalDataCategory(str, Enum):
     FEEDBACK_RECEIVING = "feedback_receiving"
     RELATIONSHIP_BUILDING_PACE = "relationship_building_pace"
 
-
 class PersonalIntelligenceService:
     """
     Build 200+ data point personal profile for authentic relationship building.
@@ -331,6 +333,7 @@ class PersonalIntelligenceService:
             }
 
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             logger.error(f"Personal profile extraction error: {str(e)}")
             return {"status": "error", "message": str(e)}
 
@@ -532,6 +535,7 @@ class PersonalIntelligenceService:
             db.commit()
 
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             logger.error(f"Error storing personal facts: {str(e)}")
             db.rollback()
 
@@ -580,7 +584,6 @@ class PersonalIntelligenceService:
             summary.append("Enthusiastic personality")
 
         return " | ".join(summary) if summary else "Personal profile extracted"
-
 
 # ============== PERSONALIZATION ENGINE ==============
 

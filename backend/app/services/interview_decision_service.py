@@ -2,41 +2,44 @@
 S-311 — HRMS-0311: Interview Decision Engine (Phase 3)
 Coordinates hiring manager feedback → panel decision → offer generation pathway.
 """
+import logging
 import uuid
 from datetime import datetime
 from typing import Optional, List, Dict, Any
 from sqlalchemy.orm import Session
 from sqlalchemy import func
-from app.models.user import Interview, InterviewFeedback
-from app.models.interview import InterviewFeedback as IFeedback, InterviewDecisionLog, InterviewPanelDecision
-from app.models.offer import Offer, OfferStatus
-from app.models.user import Jobs, Users
-from app.models.candidate import Candidate
+from app.core.logging import logger
 
+logger = logging.getLogger(__name__)
+from app.models.user import Interview, Jobs, Users
+from app.models.interview import InterviewFeedback, InterviewDecisionLog, InterviewPanelDecision
+from app.models.offer import Offer, OfferStatus
+from app.models.candidate import Candidate
 
 class InterviewDecisionService:
     """Manages the workflow from interview completion to offer decision."""
 
-    def get_interview_status(self, db: Session, interview_id: int, tenant_id: int) -> Optional[Dict[str, Any]]:
+    def get_interview_status(self, db: Session, interview_id: int, tenant_id: int) -> Dict[str, Any]:
         """Get full interview status with all feedback collected."""
         try:
+            if not interview_id:
+                raise ValueError("interview_id is required")
+
             # Query interview
             interview = db.query(Interview).filter(
                 Interview.id == interview_id
             ).first()
 
             if not interview:
-                return None
+                raise ValueError(f"Interview {interview_id} not found")
 
             # Get all feedback from panel
             feedbacks = db.query(InterviewFeedback).filter(
                 InterviewFeedback.interview_id == interview_id
             ).all()
 
-            # Get panel info
-            panel = db.query(Interview).filter(
-                Interview.id == interview_id
-            ).first()
+            if not feedbacks:
+                feedbacks = []
 
             feedback_submitted = len(feedbacks)
             all_feedback_details = []
@@ -61,10 +64,14 @@ class InterviewDecisionService:
                 "feedback_received": feedback_submitted,
                 "feedbacks": all_feedback_details
             }
+        except ValueError:
+            raise
         except Exception as e:
-            return None
+            logger.error(f"Error: {str(e)}", exc_info=True)
+            raise RuntimeError(f"Failed to get interview status: {str(e)}")
 
-    def calculate_panel_decision(self, db: Session, interview_id: int, tenant_id: int) -> Dict[str, Any]:
+            def calculate_panel_decision(self, db: Session, interview_id: int, tenant_id: int) -> Dict[str, Any]:
+                pass
         """Aggregate panel feedback into hiring decision."""
         try:
             feedbacks = db.query(InterviewFeedback).filter(
@@ -164,13 +171,10 @@ class InterviewDecisionService:
                 }
             }
         except Exception as e:
-            return {
-                "decision": "ERROR",
-                "reason": str(e),
-                "voting": {}
-            }
+            logger.error(f"Error: {str(e)}", exc_info=True)
+            raise RuntimeError(f"Failed to calculate panel decision: {str(e)}")
 
-    def move_to_offer(
+            def move_to_offer(
         self,
         db: Session,
         interview_id: int,
@@ -251,12 +255,9 @@ class InterviewDecisionService:
                 "start_date": start_date.isoformat() if isinstance(start_date, datetime) else start_date.isoformat()
             }
         except Exception as e:
+            logger.error(f"Failed to create offer: {str(e)}", exc_info=True)
             db.rollback()
-            return {
-                "status": "error",
-                "message": f"Failed to create offer: {str(e)}",
-                "offer_id": None
-            }
+            raise ValueError(f"Failed to create offer: {str(e)}")
 
     def reject_candidate(
         self,
@@ -305,8 +306,6 @@ class InterviewDecisionService:
                 "rejected_at": datetime.utcnow().isoformat()
             }
         except Exception as e:
+            logger.error(f"Failed to reject candidate: {str(e)}", exc_info=True)
             db.rollback()
-            return {
-                "status": "error",
-                "message": f"Failed to reject candidate: {str(e)}"
-            }
+            raise ValueError(f"Failed to reject candidate: {str(e)}")

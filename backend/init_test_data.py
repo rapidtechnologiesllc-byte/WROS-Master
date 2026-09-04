@@ -4,11 +4,11 @@ from sqlalchemy.orm import Session
 from app.core.database import engine, get_db
 from app.models.base import Base
 from app.models.user import Users, Jobs
-from app.models.rbac import Role, Permission, RolePermission, 
 from app.models.business_unit import BusinessUnit
 from app.models.tenant import Tenant
 from app.models.candidate import Candidate
 from datetime import datetime
+import logging
 import uuid
 
 def init_test_data():
@@ -77,22 +77,14 @@ def init_test_data():
                 db.commit()
                 print("OK: Created test employee user")
 
-            # 3b. Assign Recruiter role with candidate.create permission
-            from app.models.user import UserRole as UserRoleModel
-            recruiter_role = db.query(Role).filter(Role.name == "Recruiter").first()
+            # 3b. Assign Recruiter role template to recruiter user
+            from app.models.role_template import RoleTemplate
+            recruiter_role = db.query(RoleTemplate).filter(RoleTemplate.name == "Recruiter", RoleTemplate.tenant_id == 1).first()
             if recruiter_role:
-                # Check if user already has this role
-                user_role = db.query(UserRoleModel).filter(
-                    UserRoleModel.user_id == recruiter.UserID,
-                    UserRoleModel.role_id == recruiter_role.id
-                ).first()
-                if not user_role:
-                    user_role = UserRoleModel(
-                        id=str(uuid.uuid4()),
-                        user_id=recruiter.UserID,
-                        role_id=recruiter_role.id
-                    )
-                    db.add(user_role)
+                # Check if user already has a role template assigned
+                if not recruiter.role_template_id:
+                    recruiter.role_template_id = recruiter_role.id
+                    db.add(recruiter)
                     db.commit()
                     print("OK: Assigned Recruiter role to recruiter user")
 
@@ -123,6 +115,8 @@ def init_test_data():
             print(f"   Test Job: {job.jobTitle}")
 
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
+            logger.error(f"Error: {str(e)}", exc_info=True)
             print(f"ERROR: {e}")
             db.rollback()
             raise

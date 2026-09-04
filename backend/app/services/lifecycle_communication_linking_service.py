@@ -1,5 +1,6 @@
 """
 EPIC-14/S-435 (HRMS-1408) -- Candidate & Employee Lifecycle
+import logging
 Communication Linking.
 
 Real ask, Avinash 2026-08-05: HR/recruiter emails to a candidate
@@ -37,7 +38,6 @@ from app.services.activity_timeline_service import write_timeline_entry
 
 DIRECTIONS = ("SENT", "RECEIVED")
 
-
 def _resolve_entity(db: Session, email: str):
     """Returns (entity_type, entity_id, display_name) for a verified
     email address, or None if it matches neither a known employee nor
@@ -58,7 +58,6 @@ def _resolve_entity(db: Session, email: str):
         return "candidate", candidate.candidateID, name
 
     return None
-
 
 def link_email_to_lifecycle_record(
     db: Session,
@@ -113,6 +112,7 @@ def link_email_to_lifecycle_record(
             "timeline_entry_id": entry.id,
         }
     except Exception as exc:
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[LifecycleCommunicationLinking] Failed to link email (direction={direction!r}): {exc}")
         db.rollback()
-        return None
+        raise ValueError("Operation failed")

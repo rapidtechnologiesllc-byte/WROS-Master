@@ -1,3 +1,4 @@
+import logging
 """Permission Helper Service - Centralized permission and data scope management.
 
 Core functions for:
@@ -15,10 +16,10 @@ from typing import List, Set
 from dataclasses import dataclass
 from sqlalchemy.orm import Session
 
-from app.models.user import Users, UserRole
+from app.models.user import Users
 from app.models.role_template import RoleTemplate, RoleTemplatePermission, Module, Resource
 from app.services.organization_service import OrganizationService
-
+from app.core.logging import logger
 
 @dataclass
 class DataScope:
@@ -30,6 +31,7 @@ class DataScope:
     subordinates: List[str]  # Reporting chain
     can_see_global_data: bool  # Cross-BU visibility
 
+logger = logging.getLogger(__name__)
 
 class PermissionHelper:
     """Centralized permission and scope checking."""
@@ -45,35 +47,28 @@ class PermissionHelper:
             Users.tenant_id == tenant_id
         ).first()
 
-        if not user:
+        if not user or not user.role_template_id:
             return set()
 
         permissions = set()
 
-        # Get all user's role templates
-        user_roles = db.query(UserRole).filter(
-            UserRole.user_id == user_id,
-            UserRole.tenant_id == tenant_id
+        # Get all permissions for user's role template
+        perms = db.query(RoleTemplatePermission).filter(
+            RoleTemplatePermission.role_template_id == user.role_template_id
         ).all()
 
-        for user_role in user_roles:
-            # Get all permissions for this role template
-            perms = db.query(RoleTemplatePermission).filter(
-                RoleTemplatePermission.role_template_id == user_role.role_template_id
-            ).all()
-
-            for perm in perms:
-                resource = db.query(Resource).filter(Resource.id == perm.resource_id).first()
-                if resource:
-                    # Format: resource_name.action (e.g., 'candidates.view', 'candidates.create')
-                    if perm.can_view:
-                        permissions.add(f"{resource.name}.view")
-                    if perm.can_create:
-                        permissions.add(f"{resource.name}.create")
-                    if perm.can_edit:
-                        permissions.add(f"{resource.name}.edit")
-                    if perm.can_delete:
-                        permissions.add(f"{resource.name}.delete")
+        for perm in perms:
+            resource = db.query(Resource).filter(Resource.id == perm.resource_id).first()
+            if resource:
+                # Format: resource_name.action (e.g., 'candidates.view', 'candidates.create')
+                if perm.can_view:
+                    permissions.add(f"{resource.name}.view")
+                if perm.can_create:
+                    permissions.add(f"{resource.name}.create")
+                if perm.can_edit:
+                    permissions.add(f"{resource.name}.edit")
+                if perm.can_delete:
+                    permissions.add(f"{resource.name}.delete")
 
         return permissions
 
@@ -117,27 +112,22 @@ class PermissionHelper:
             Users.tenant_id == tenant_id
         ).first()
 
-        if not user:
-            return []
+        if not user or not user.role_template_id:
+            # CRITICAL FIX: Raise error instead of returning empty list
+            raise Exception(f"Cannot determine user modules: user not found or missing role template for user_id={user_id}")
 
         modules = set()
 
-        user_roles = db.query(UserRole).filter(
-            UserRole.user_id == user_id,
-            UserRole.tenant_id == tenant_id
+        perms = db.query(RoleTemplatePermission).filter(
+            RoleTemplatePermission.role_template_id == user.role_template_id
         ).all()
 
-        for user_role in user_roles:
-            perms = db.query(RoleTemplatePermission).filter(
-                RoleTemplatePermission.role_template_id == user_role.role_template_id
-            ).all()
-
-            for perm in perms:
-                resource = db.query(Resource).filter(Resource.id == perm.resource_id).first()
-                if resource and resource.module_id:
-                    module = db.query(Module).filter(Module.id == resource.module_id).first()
-                    if module:
-                        modules.add(module)
+        for perm in perms:
+            resource = db.query(Resource).filter(Resource.id == perm.resource_id).first()
+            if resource and resource.module_id:
+                module = db.query(Module).filter(Module.id == resource.module_id).first()
+                if module:
+                    modules.add(module)
 
         return list(modules)
 

@@ -1,5 +1,6 @@
 """
 HRMS-P802 (Submission Form) + HRMS-P806 (FT-Only Gate) + HRMS-P807
+import logging
 (Dedup) + HRMS-P808 (Recruiter Review).
 
 Flow, per the research reconciling P802's own "creates a real
@@ -20,6 +21,7 @@ Field name note: P808's own data-mapping table calls this column
 `status` here since the value space includes PENDING_REVIEW (nothing's
 been decided yet), which "review_decision" implies excludes.
 """
+import logging
 import uuid
 
 from sqlalchemy import (
@@ -30,29 +32,28 @@ from sqlalchemy import (
 from app.models.base import Base
 from app.models.candidate import CANDIDATE_EMPLOYMENT_TYPES
 
-
 def _new_uuid() -> str:
     return str(uuid.uuid4())
-
 
 SUBMISSION_REVIEW_STATUSES = ("PENDING_REVIEW", "ACCEPTED", "REJECTED", "MORE_INFO_REQUESTED")
 SUBVENDOR_VIOLATION_TYPES = ("C2C_NOT_ACCEPTED",)
 
+logger = logging.getLogger(__name__)
 
 class SubVendorSubmission(Base):
     __tablename__ = "sub_vendor_submissions"
 
-    id = Column(String(36), primary_key=True, default=_new_uuid)
-    request_id = Column(String(36), ForeignKey("sub_vendor_requests.id"), nullable=False, index=True)
-    sub_vendor_id = Column(String(36), ForeignKey("sub_vendor_accounts.id"), nullable=False, index=True)
+    id = Column(String(512), primary_key=True, default=_new_uuid)
+    request_id = Column(String(512), ForeignKey("sub_vendor_requests.id"), nullable=False, index=True)
+    sub_vendor_id = Column(String(512), ForeignKey("sub_vendor_accounts.id"), nullable=False, index=True)
 
     candidate_name = Column(String(300), nullable=False)
     candidate_email = Column(String(300), nullable=False)
-    candidate_phone = Column(String(50), nullable=True)
+    candidate_phone = Column(String(512), nullable=True)
     current_employer = Column(String(300), nullable=True)
     total_experience_years = Column(Numeric(4, 1), nullable=True)
-    expected_salary = Column(String(50), nullable=True)
-    notice_period = Column(String(100), nullable=True)
+    expected_salary = Column(String(512), nullable=True)
+    notice_period = Column(String(512), nullable=True)
     resume_url = Column(Text, nullable=True)
 
     # HRMS-P806: server-validated regardless of what the vendor UI's
@@ -72,19 +73,18 @@ class SubVendorSubmission(Base):
 
     # Set only once Accepted via create_candidate_safe() -- never a
     # direct FK to a pre-existing candidate.
-    created_candidate_id = Column(String(36), ForeignKey("candidates.candidateID"), nullable=True)
+    created_candidate_id = Column(String(512), ForeignKey("candidates.candidateID"), nullable=True)
 
     created_at = Column(DateTime, server_default=func.now())
-
 
 class SubVendorViolation(Base):
     """HRMS-P806 BR-0806-03: every FT-only rejection is logged, never
     silently dropped. Separate from dedup rejections (BR-0807-03)."""
     __tablename__ = "sub_vendor_violations"
 
-    id = Column(String(36), primary_key=True, default=_new_uuid)
-    sub_vendor_id = Column(String(36), ForeignKey("sub_vendor_accounts.id"), nullable=False, index=True)
-    submission_id = Column(String(36), ForeignKey("sub_vendor_submissions.id"), nullable=True)
+    id = Column(String(512), primary_key=True, default=_new_uuid)
+    sub_vendor_id = Column(String(512), ForeignKey("sub_vendor_accounts.id"), nullable=False, index=True)
+    submission_id = Column(String(512), ForeignKey("sub_vendor_submissions.id"), nullable=True)
     violation_type = Column(
         Enum(*SUBVENDOR_VIOLATION_TYPES, name="subvendor_violation_type", native_enum=False, create_constraint=True),
         nullable=False,
@@ -92,7 +92,6 @@ class SubVendorViolation(Base):
     employment_type = Column(String(20), nullable=True)
     occurred_at = Column(DateTime, server_default=func.now())
     is_cleared = Column(Boolean, nullable=False, default=False)
-
 
 class SubVendorDedupRejection(Base):
     """HRMS-P807 BR-0807-02/03: tracked separately from FT-only
@@ -102,7 +101,7 @@ class SubVendorDedupRejection(Base):
     field is never surfaced in any vendor-facing response."""
     __tablename__ = "sub_vendor_dedup_rejections"
 
-    id = Column(String(36), primary_key=True, default=_new_uuid)
-    submission_id = Column(String(36), ForeignKey("sub_vendor_submissions.id"), nullable=False, index=True)
-    matched_candidate_id = Column(String(36), ForeignKey("candidates.candidateID"), nullable=True)
+    id = Column(String(512), primary_key=True, default=_new_uuid)
+    submission_id = Column(String(512), ForeignKey("sub_vendor_submissions.id"), nullable=False, index=True)
+    matched_candidate_id = Column(String(512), ForeignKey("candidates.candidateID"), nullable=True)
     occurred_at = Column(DateTime, server_default=func.now())

@@ -1,4 +1,5 @@
 """
+import logging
 S-318/HRMS-0514 - Core-Pull Conflict Resolution Methods Tests
 
 Tests for the three main user-required methods:
@@ -8,6 +9,7 @@ Tests for the three main user-required methods:
 
 These tests use local SQLite to avoid conftest PostgreSQL setup issues.
 """
+import logging
 import os
 import tempfile
 from datetime import date, datetime
@@ -37,7 +39,6 @@ from app.services.core_pull_service import (
     SPECIALTY_POOL_MINIMUM,
 )
 from app.services.orchestration_router_service import seed_default_conflict_rules
-
 
 @pytest.fixture()
 def db_session():
@@ -70,7 +71,6 @@ def db_session():
         session.close()
         engine.dispose()
         os.remove(db_path)
-
 
 @pytest.fixture()
 def fixtures(db_session):
@@ -137,11 +137,11 @@ def fixtures(db_session):
 
     return tenant, client, employee, spec_demand, core_demand, spec_alloc
 
-
 # ============================================================================
 # evaluate_core_vs_specialty Tests
 # ============================================================================
 
+logger = logging.getLogger(__name__)
 
 class TestEvaluateCorePullVsSpecialty:
     """Test evaluate_core_vs_specialty() method."""
@@ -207,11 +207,9 @@ class TestEvaluateCorePullVsSpecialty:
         assert result["status"] == "error"
         assert result["confidence"] == 0
 
-
 # ============================================================================
 # apply_core_pull_rule Tests
 # ============================================================================
-
 
 class TestApplyCorePullRule:
     """Test apply_core_pull_rule() method."""
@@ -269,11 +267,9 @@ class TestApplyCorePullRule:
 
         assert first_count == second_count == 1
 
-
 # ============================================================================
 # resolve_conflict Tests
 # ============================================================================
-
 
 class TestResolveConflict:
     """Test resolve_conflict() method."""
@@ -406,11 +402,9 @@ class TestResolveConflict:
 
         assert result["status"] == "error"
 
-
 # ============================================================================
 # Integration Tests
 # ============================================================================
-
 
 class TestCorePullWorkflow:
     """Test complete Core-Pull workflow using all three methods."""

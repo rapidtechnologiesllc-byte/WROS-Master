@@ -1,4 +1,5 @@
 """
+import logging
 HRMS-0507 -- Employee Allocation Records.
 
 This is deliberately the minimal "allocate employee to project" data
@@ -24,6 +25,7 @@ none) once HRMS-0801 landed. `role`/`utilization_pct` double as HRMS-
 0803's "role"/"allocation_pct" fields -- same concept, no new column
 needed for the latter.
 """
+import logging
 import uuid
 from datetime import date as date_type
 
@@ -35,10 +37,8 @@ from sqlalchemy import (
 from app.models.base import Base
 from app.models.project import SI_PARTNERS
 
-
 def _new_uuid() -> str:
     return str(uuid.uuid4())
-
 
 # CORE_PULLED (S-353/HRMS-0514): distinct from a normal ENDED -- a Specialty
 # allocation that was cut short by a same-day Core-Pull transfer, not a
@@ -47,19 +47,20 @@ def _new_uuid() -> str:
 # start_date.
 ALLOCATION_STATUSES = ("ACTIVE", "ENDED", "CORE_PULLED")
 
+logger = logging.getLogger(__name__)
 
 class EmployeeAllocation(Base):
     __tablename__ = "employee_allocations"
 
-    id = Column(String(36), primary_key=True, default=_new_uuid)
+    id = Column(String(512), primary_key=True, default=_new_uuid)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
 
-    employee_id = Column(String(36), ForeignKey("employees.id"), nullable=False, index=True)
-    demand_id = Column(String(36), ForeignKey("demands.id"), nullable=False, index=True)
-    client_id = Column(String(36), ForeignKey("clients.id"), nullable=False, index=True)
+    employee_id = Column(String(512), ForeignKey("employees.id"), nullable=False, index=True)
+    demand_id = Column(String(512), ForeignKey("demands.id"), nullable=False, index=True)
+    client_id = Column(String(512), ForeignKey("clients.id"), nullable=False, index=True)
     # HRMS-0803 -- nullable: not every allocation is tied to a tracked project.
-    project_id = Column(String(36), ForeignKey("projects.id"), nullable=True, index=True)
-    role = Column(String(200), nullable=True)
+    project_id = Column(String(512), ForeignKey("projects.id"), nullable=True, index=True)
+    role = Column(String(512), nullable=True)
 
     status = Column(
         Enum(*ALLOCATION_STATUSES, name="employee_allocation_status", native_enum=False, create_constraint=True),
@@ -69,7 +70,7 @@ class EmployeeAllocation(Base):
     start_date = Column(Date, nullable=False, default=date_type.today)
     end_date = Column(Date, nullable=True)
 
-    client_reporting_manager_contact_id = Column(String(36), ForeignKey("client_contacts.id"), nullable=True)
+    client_reporting_manager_contact_id = Column(String(512), ForeignKey("client_contacts.id"), nullable=True)
     # HRMS-0902 -- the RM/Admin who approves this allocation's timesheets.
     timesheet_approver_email = Column(String(300), nullable=True)
     billing_rate_usd_cents = Column(Integer, nullable=True)

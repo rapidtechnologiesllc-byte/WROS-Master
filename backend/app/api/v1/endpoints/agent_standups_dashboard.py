@@ -1,3 +1,4 @@
+from app.core.logging import logger
 """Agent Standups Dashboard - Daily aggregated view for CEO."""
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
@@ -5,10 +6,10 @@ from app.core.dependencies import get_current_internal_user, require_resource_pe
 from app.core.database import get_db
 from app.models.user import Users
 from app.services.agent_daily_standup_service import AgentDailyStandup
-from app.services.rbac_service import RBACService
+import logging
+from app.services.permission_helper import PermissionHelper
 
 router = APIRouter(prefix="/admin/agent-standups", tags=["Agent Standups Dashboard"])
-
 
 @router.get("/dashboard", dependencies=[Depends(require_resource_permission("admin-settings", "view"))])
 def get_standups_dashboard(
@@ -26,7 +27,8 @@ def get_standups_dashboard(
     Required: admin.view (CEO/Super User only)
     """
     try:
-        if not RBACService.has_permission(db, current_user.UserID, "admin.manage"):
+        tenant_id = getattr(current_user, 'TenantID', 1)
+        if not PermissionHelper.is_super_admin(current_user.UserID, db, tenant_id):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Only CEO/Super User can view Agent Standups Dashboard"
@@ -60,8 +62,8 @@ def get_standups_dashboard(
     except HTTPException:
         raise
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @router.post("/provide-feedback/{agent_name}", dependencies=[Depends(require_resource_permission("admin-settings", "edit"))])
 async def ceo_provide_feedback(
@@ -85,7 +87,6 @@ async def ceo_provide_feedback(
     """
     try:
         # Check admin permission via RBAC (not hardcoded role name)
-        from app.services.permission_helper import PermissionHelper
         has_admin_perms = PermissionHelper.has_any_permission(
             current_user.UserID,
             ["admin.manage", "admin.edit"],
@@ -130,8 +131,8 @@ async def ceo_provide_feedback(
     except HTTPException:
         raise
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @router.get("/agent/{agent_name}/details", dependencies=[Depends(require_resource_permission("admin-settings", "view"))])
 async def get_agent_details(
@@ -147,7 +148,6 @@ async def get_agent_details(
     - Recent feedback
     """
     try:
-        from app.models.agent_execution_log import AgentExecutionLog
         from datetime import datetime, timedelta
 
         # Get last 7 days of logs
@@ -208,4 +208,5 @@ async def get_agent_details(
         }
 
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))

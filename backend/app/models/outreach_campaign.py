@@ -1,4 +1,5 @@
 """
+import logging
 S-044/HRMS-0444 -- Multi-Touch Outreach Campaign.
 
 outreach_campaigns/campaign_touchpoints: genuinely new tables. Integer-
@@ -27,6 +28,7 @@ escalation). Same explicitly-approved "flag every new addition, don't
 silently compound" posture already established for the four
 "candidate went silent" mechanisms during S-041/042/043.
 """
+import logging
 from sqlalchemy import Column, DateTime, ForeignKey, Index, Integer, String, func
 from sqlalchemy.orm import relationship
 
@@ -38,21 +40,22 @@ CAMPAIGN_STATUSES = ("ACTIVE", "COMPLETED", "CANCELLED")
 TOUCHPOINT_CHANNELS = ("whatsapp", "email")
 TOUCHPOINT_STATUSES = ("PENDING", "SENT", "SKIPPED", "CANCELLED")
 
+logger = logging.getLogger(__name__)
 
 class OutreachCampaign(Base):
     __tablename__ = "outreach_campaigns"
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
 
-    tenant_id = Column(String(50), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=False, index=True)
-    candidate_id = Column(String(36), ForeignKey("candidates.candidateID", ondelete="CASCADE"), nullable=False, index=True)
+    tenant_id = Column(String(512), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=False, index=True)
+    candidate_id = Column(String(512), ForeignKey("candidates.candidateID", ondelete="CASCADE"), nullable=False, index=True)
     conversation_id = Column(Integer, ForeignKey("candidate_conversations.id", ondelete="CASCADE"), nullable=False, index=True)
 
-    campaign_type = Column(String(50), nullable=False, server_default="STANDARD_OUTREACH")
+    campaign_type = Column(String(512), nullable=False, server_default="STANDARD_OUTREACH")
     status = Column(String(20), nullable=False, server_default="ACTIVE")
     started_at = Column(DateTime(timezone=False), nullable=False)
     completed_at = Column(DateTime(timezone=False), nullable=True)
-    stop_reason = Column(String(200), nullable=True)
+    stop_reason = Column(String(512), nullable=True)
 
     created_at = Column(DateTime(timezone=False), server_default=func.now())
 
@@ -64,19 +67,18 @@ class OutreachCampaign(Base):
         Index("ix_outreach_campaigns_active_lookup", "tenant_id", "candidate_id", "status"),
     )
 
-
 class CampaignTouchpoint(Base):
     __tablename__ = "campaign_touchpoints"
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
 
     campaign_id = Column(Integer, ForeignKey("outreach_campaigns.id", ondelete="CASCADE"), nullable=False, index=True)
-    tenant_id = Column(String(50), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=False, index=True)
-    candidate_id = Column(String(36), ForeignKey("candidates.candidateID", ondelete="CASCADE"), nullable=False, index=True)
+    tenant_id = Column(String(512), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=False, index=True)
+    candidate_id = Column(String(512), ForeignKey("candidates.candidateID", ondelete="CASCADE"), nullable=False, index=True)
 
     touchpoint_number = Column(Integer, nullable=False)
     channel = Column(String(20), nullable=False)
-    message_type = Column(String(50), nullable=False)
+    message_type = Column(String(512), nullable=False)
     scheduled_at = Column(DateTime(timezone=False), nullable=False)
     status = Column(String(20), nullable=False, server_default="PENDING")
     sent_at = Column(DateTime(timezone=False), nullable=True)

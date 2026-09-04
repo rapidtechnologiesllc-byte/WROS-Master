@@ -1,3 +1,4 @@
+import logging
 """S-047/HRMS-0447: add candidate_availability_slots table
 
 Revision ID: 2f8b6d4c9a17
@@ -11,7 +12,6 @@ revision = "2f8b6d4c9a17"
 down_revision = "9c3a7f1e2b4d"
 branch_labels = None
 depends_on = None
-
 
 def upgrade():
     op.create_table(
@@ -32,7 +32,6 @@ def upgrade():
     op.create_index("ix_candidate_availability_slots_candidate_id", "candidate_availability_slots", ["candidate_id"])
     op.create_index("ix_candidate_availability_slots_conversation_id", "candidate_availability_slots", ["conversation_id"])
     op.create_index("ix_candidate_availability_slots_candidate_date", "candidate_availability_slots", ["candidate_id", "slot_date"])
-
 
 def downgrade():
     op.drop_index("ix_candidate_availability_slots_candidate_date", table_name="candidate_availability_slots")

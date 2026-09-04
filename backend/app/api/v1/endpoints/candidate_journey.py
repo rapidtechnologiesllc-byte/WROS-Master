@@ -2,6 +2,7 @@
 S-059/HRMS-0459 -- Candidate Journey Dashboard
 ==================================================================
 Prefix: /candidates
+import logging
 Tag:    candidate-journey
 
 GET /candidates/{candidate_id}/journey
@@ -24,7 +25,6 @@ from app.services.candidate_journey_service import CandidateNotFound, get_candid
 
 router = APIRouter(tags=["candidate-journey"])
 
-
 @router.get(
     "/candidates/{candidate_id}/journey",
     response_model=CandidateJourneyResponse,
@@ -38,12 +38,13 @@ router = APIRouter(tags=["candidate-journey"])
     ),
 )
 def get_journey(candidate_id: str, db: Session = Depends(get_db)):
-    tenant_id = resolve_default_tenant_id(db)
+    tenant_id = resolve_default_tenant_id()
     try:
         return get_candidate_journey(db, candidate_id, tenant_id)
     except CandidateNotFound:
         raise HTTPException(status_code=404, detail=f"Candidate {candidate_id!r} not found.")
     except Exception as exc:
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         # 2026-08-05 -- real prod report: candidates were hitting "Unable
         # to load journey" with zero diagnosable detail, because any
         # unexpected exception here (a data-shape edge case in one of

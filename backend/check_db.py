@@ -1,3 +1,4 @@
+import logging
 from sqlalchemy import create_engine, text
 
 # Connect to wros_test and check tables

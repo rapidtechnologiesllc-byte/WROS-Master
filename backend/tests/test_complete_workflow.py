@@ -14,8 +14,10 @@ from app.services.revenue_recognition_service import RevenueRecognitionService
 from app.services.project_allocation_service import ProjectAllocationService
 from app.services.candidate_scoring_service import CandidateScoringService
 from app.services.hiring_manager_validation_service import HiringManagerValidationService
+import logging
 from app.services.core_pull_service import CorePullService
 
+logger = logging.getLogger(__name__)
 
 class TestCompleteWorkflow:
     """Test complete candidate-to-invoice workflow."""

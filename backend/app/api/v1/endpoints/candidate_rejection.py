@@ -1,4 +1,5 @@
 """
+import logging
 Candidate Rejection Workflow Endpoints
 
 Routes for rejecting candidates and managing rejection workflow:
@@ -19,9 +20,10 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_hr_or_admin
+from app.core.dependencies import get_current_internal_user, require_resource_permission
 from app.models.candidate import Candidate
 from app.models.candidate_rejection import CandidateRejection
+from fastapi import Request
 from app.schemas.candidate_rejection import (
     RejectCandidateRequest,
     RejectCandidateResponse,
@@ -48,15 +50,19 @@ from app.core.logging import logger
 
 router = APIRouter(prefix="/rejection", tags=["candidate-rejection"])
 
-
 # ---------------------------------------------------------------------------
 # POST /rejection/reject — Reject a candidate
 # ---------------------------------------------------------------------------
 
-@router.post("/reject", response_model=RejectCandidateResponse, status_code=201)
+@router.post(
+    "/reject",
+    response_model=RejectCandidateResponse,
+    status_code=201,
+    dependencies=[Depends(require_resource_permission("reject", "create"))]
+)
 def api_reject_candidate(
     request: RejectCandidateRequest,
-    current_user = Depends(get_current_hr_or_admin),
+    current_user = Depends(get_current_internal_user),
     db: Session = Depends(get_db),
 ):
     """
@@ -119,19 +125,23 @@ def api_reject_candidate(
         raise HTTPException(status_code=400, detail=str(e))
 
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Unexpected error during rejection: {str(e)}")
         raise HTTPException(status_code=500, detail="Internal server error")
-
 
 # ---------------------------------------------------------------------------
 # POST /rejection/{id}/send-email — Send rejection email
 # ---------------------------------------------------------------------------
 
-@router.post("/{rejection_id}/send-email", response_model=SendRejectionEmailResponse)
+@router.post(
+    "/{rejection_id}/send-email",
+    response_model=SendRejectionEmailResponse,
+    dependencies=[Depends(require_resource_permission("candidate_rejection", "create"))]
+)
 def api_send_rejection_email(
     rejection_id: int,
     request: SendRejectionEmailRequest,
-    current_user = Depends(get_current_hr_or_admin),
+    current_user = Depends(get_current_internal_user),
     db: Session = Depends(get_db),
 ):
     """
@@ -183,19 +193,23 @@ def api_send_rejection_email(
         raise HTTPException(status_code=400, detail=str(e))
 
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Unexpected error sending email: {str(e)}")
         raise HTTPException(status_code=500, detail="Internal server error")
-
 
 # ---------------------------------------------------------------------------
 # POST /rejection/{id}/archive — Archive rejected candidate
 # ---------------------------------------------------------------------------
 
-@router.post("/{rejection_id}/archive", response_model=ArchiveCandidateResponse)
+@router.post(
+    "/{rejection_id}/archive",
+    response_model=ArchiveCandidateResponse,
+    dependencies=[Depends(require_resource_permission("candidate_rejection", "create"))]
+)
 def api_archive_candidate(
     rejection_id: int,
     request: ArchiveCandidateRequest,
-    current_user = Depends(get_current_hr_or_admin),
+    current_user = Depends(get_current_internal_user),
     db: Session = Depends(get_db),
 ):
     """
@@ -253,17 +267,21 @@ def api_archive_candidate(
         raise HTTPException(status_code=400, detail=str(e))
 
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Unexpected error archiving candidate: {str(e)}")
         raise HTTPException(status_code=500, detail="Internal server error")
-
 
 # ---------------------------------------------------------------------------
 # GET /rejection/reasons — Get available rejection reasons
 # ---------------------------------------------------------------------------
 
-@router.get("/reasons", response_model=list[CandidateRejectionReasonResponse])
+@router.get(
+    "/reasons",
+    response_model=list[CandidateRejectionReasonResponse],
+    dependencies=[Depends(require_resource_permission("reason", "view"))]
+)
 def api_get_rejection_reasons(
-    current_user = Depends(get_current_hr_or_admin),
+    current_user = Depends(get_current_internal_user),
     db: Session = Depends(get_db),
 ):
     """
@@ -295,18 +313,22 @@ def api_get_rejection_reasons(
         return reasons
 
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Error fetching rejection reasons: {str(e)}")
         raise HTTPException(status_code=500, detail="Internal server error")
-
 
 # ---------------------------------------------------------------------------
 # GET /rejection/candidate/{candidate_id} — Get candidate rejection status
 # ---------------------------------------------------------------------------
 
-@router.get("/candidate/{candidate_id}", response_model=CandidateRejectionStatusResponse)
+@router.get(
+    "/candidate/{candidate_id}",
+    response_model=CandidateRejectionStatusResponse,
+    dependencies=[Depends(require_resource_permission("candidate", "view"))]
+)
 def api_get_candidate_rejection_status(
     candidate_id: str,
-    current_user = Depends(get_current_hr_or_admin),
+    current_user = Depends(get_current_internal_user),
     db: Session = Depends(get_db),
 ):
     """
@@ -341,18 +363,22 @@ def api_get_candidate_rejection_status(
         )
 
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Error fetching rejection status: {str(e)}")
         raise HTTPException(status_code=500, detail="Internal server error")
-
 
 # ---------------------------------------------------------------------------
 # GET /rejection/{id} — Get specific rejection record
 # ---------------------------------------------------------------------------
 
-@router.get("/{rejection_id}", response_model=CandidateRejectionResponse)
+@router.get(
+    "/{rejection_id}",
+    response_model=CandidateRejectionResponse,
+    dependencies=[Depends(require_resource_permission("candidate_rejection", "view"))]
+)
 def api_get_rejection(
     rejection_id: int,
-    current_user = Depends(get_current_hr_or_admin),
+    current_user = Depends(get_current_internal_user),
     db: Session = Depends(get_db),
 ):
     """
@@ -383,20 +409,24 @@ def api_get_rejection(
         raise
 
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Error fetching rejection record: {str(e)}")
         raise HTTPException(status_code=500, detail="Internal server error")
-
 
 # ---------------------------------------------------------------------------
 # GET /rejection/list — List all rejections (paginated)
 # ---------------------------------------------------------------------------
 
-@router.get("", response_model=ListCandidateRejectionsResponse)
+@router.get(
+    "",
+    response_model=ListCandidateRejectionsResponse,
+    dependencies=[Depends(require_resource_permission("unknown", "view"))]
+)
 def api_list_rejections(
     skip: int = Query(0, ge=0),
     limit: int = Query(10, ge=1, le=100),
     status: Optional[str] = Query(None, description="Filter by status: ACTIVE or ARCHIVED"),
-    current_user = Depends(get_current_hr_or_admin),
+    current_user = Depends(get_current_internal_user),
     db: Session = Depends(get_db),
 ):
     """
@@ -437,5 +467,6 @@ def api_list_rejections(
         )
 
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Error listing rejections: {str(e)}")
         raise HTTPException(status_code=500, detail="Internal server error")

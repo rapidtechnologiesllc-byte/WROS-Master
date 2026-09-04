@@ -5,10 +5,12 @@ Expense Ledger, Reserve Fund, and Intercompany Ledger. Finance records
 what actually cleared the bank; the system matches it against real
 Invoice PAID records and surfaces what doesn't reconcile.
 """
+import logging
 from sqlalchemy import Boolean, Column, Date, DateTime, ForeignKey, Integer, String, Text, func
 
 from app.models.base import Base
 
+logger = logging.getLogger(__name__)
 
 class BankTransaction(Base):
     __tablename__ = "bank_transactions"
@@ -20,8 +22,8 @@ class BankTransaction(Base):
     amount_usd_cents = Column(Integer, nullable=False)
     description = Column(Text, nullable=False)
 
-    matched_invoice_id = Column(String(36), ForeignKey("invoices.id"), nullable=True, index=True)
+    matched_invoice_id = Column(String(512), ForeignKey("invoices.id"), nullable=True, index=True)
     reconciled = Column(Boolean, nullable=False, default=False)
 
-    created_by = Column(String(50), ForeignKey("users.UserID"), nullable=True)
+    created_by = Column(String(512), ForeignKey("users.UserID"), nullable=True)
     created_at = Column(DateTime, server_default=func.now())

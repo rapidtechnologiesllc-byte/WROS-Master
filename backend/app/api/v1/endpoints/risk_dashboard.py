@@ -1,7 +1,8 @@
-﻿"""
+"""
 S-063/HRMS-0463 -- Candidate Risk Dashboard
 ==================================================================
 Prefix: /risk
+import logging
 Tag:    risk-dashboard
 
 GET /risk/dashboard
@@ -26,16 +27,14 @@ from app.services.risk_dashboard_service import get_risk_dashboard
 
 router = APIRouter(prefix="/risk", tags=["risk-dashboard"])
 
-
 @router.get("/dashboard", response_model=RiskDashboardResponse, dependencies=[Depends(require_resource_permission("candidates", "view"))])
 def risk_dashboard(db: Session = Depends(get_db)):
-    tenant_id = resolve_default_tenant_id(db)
+    tenant_id = resolve_default_tenant_id()
     return get_risk_dashboard(db, tenant_id)
-
 
 @router.post("/dashboard/candidates/{candidate_id}/add-to-queue", dependencies=[Depends(require_resource_permission("candidates", "edit"))])
 def add_candidate_to_queue(candidate_id: str, db: Session = Depends(get_db)):
-    tenant_id = resolve_default_tenant_id(db)
+    tenant_id = resolve_default_tenant_id()
     risk = db.query(CandidateDropRisk).filter(CandidateDropRisk.tenant_id == tenant_id, CandidateDropRisk.candidate_id == candidate_id).first()
     if risk is None:
         raise HTTPException(status_code=404, detail=f"No drop risk score for candidate {candidate_id!r}.")

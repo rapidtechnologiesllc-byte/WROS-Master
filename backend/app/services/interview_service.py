@@ -1,4 +1,5 @@
 """
+import logging
 HRMS-0706 -- Interview Panel Assignment, Phase 2 Domain 2.
 
 get_assigned_interviewer() is the helper HRMS-0448 (Calendar Matching
@@ -14,6 +15,7 @@ one hard rule from this domain that's cheap to enforce for real without
 importing HRMS-P608's full auto-reject + BU Head reversal workflow
 (deferred, see app.models.interview_pipeline docstring).
 """
+import logging
 from datetime import datetime
 from typing import Optional
 
@@ -23,23 +25,21 @@ from sqlalchemy.orm import Session
 from app.models.employee import Employee
 from app.models.interview_pipeline import DemandInterviewPanel, SubmissionInterview
 from app.models.submission import Submission
+from app.core.logging import logger
 
+logger = logging.getLogger(__name__)
 
 class InterviewerNotEligible(Exception):
     """BR-01 of HRMS-0706: interviewer must be an ACTIVE employee with WROS access."""
 
-
 class NoEligibleInterviewer(Exception):
     pass
-
 
 class L1NotPassed(Exception):
     """R-05."""
 
-
 class InvalidOutcomeChange(Exception):
     pass
-
 
 def assign_panel_member(
     db: Session,
@@ -75,12 +75,10 @@ def assign_panel_member(
     db.add(panel_member)
     return panel_member
 
-
 def remove_panel_member(db: Session, panel_member: DemandInterviewPanel) -> DemandInterviewPanel:
     panel_member.is_active = False
     db.add(panel_member)
     return panel_member
-
 
 def get_assigned_interviewer(
     db: Session, *, demand_id: str, interview_level: str, tenant_id: Optional[int] = None,
@@ -111,7 +109,6 @@ def get_assigned_interviewer(
         .all()
     }
     return min(candidates, key=lambda c: load.get(c.id, 0))
-
 
 def create_interview(
     db: Session,
@@ -163,7 +160,6 @@ def create_interview(
     )
     db.add(interview)
     return interview
-
 
 def set_outcome(db: Session, interview: SubmissionInterview, outcome: str) -> SubmissionInterview:
     """Outcome is settable exactly once, PENDING -> PASS/FAIL -- no

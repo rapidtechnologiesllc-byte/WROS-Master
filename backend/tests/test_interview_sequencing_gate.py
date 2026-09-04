@@ -4,6 +4,7 @@ R-05 ("L1 must pass before L2 can be scheduled") applied to the legacy
 "Schedule Interview" feature the Development & Review Standard names
 as having "zero enforcement... today." This is separate from the newer
 leveled `submission_interviews` system's own R-05 gate (already covered
+import logging
 by tests/test_submission_interview_pipeline.py).
 
 Throwaway SQLite -- never the real database.
@@ -24,7 +25,6 @@ from app.services.interview_sequencing_service import (
     enforce_interview_sequencing_gate,
 )
 
-
 @pytest.fixture()
 def db_session():
     fd, db_path = tempfile.mkstemp(suffix=".sqlite3")
@@ -42,7 +42,6 @@ def db_session():
         engine.dispose()
         os.remove(db_path)
 
-
 @pytest.fixture()
 def candidate(db_session):
     c = Candidate(candidateID="C-SEQ", candidateEmail="seq@example.com", candidatePassword="h")
@@ -50,13 +49,11 @@ def candidate(db_session):
     db_session.commit()
     return c
 
-
 def _make_panel(db, candidate_id, *, round_name="HR"):
     panel = InterviewPanel(candidate_id=candidate_id, round_name=round_name, created_at=datetime.utcnow())
     db.add(panel)
     db.commit()
     return panel
-
 
 def _make_interview(db, panel_id, candidate_id, *, status="Completed"):
     interview = Interview(panel_id=panel_id, candidate_id=candidate_id, status=status)
@@ -64,23 +61,19 @@ def _make_interview(db, panel_id, candidate_id, *, status="Completed"):
     db.commit()
     return interview
 
-
 def _make_feedback(db, interview_id, *, recommendation):
     feedback = InterviewFeedback(interview_id=interview_id, interviewer_id="U-1", recommendation=recommendation)
     db.add(feedback)
     db.commit()
     return feedback
 
-
 def test_first_round_always_allowed(db_session, candidate):
     enforce_interview_sequencing_gate(db_session, candidate.candidateID)  # must not raise
-
 
 def test_second_round_blocked_when_no_prior_interview_scheduled(db_session, candidate):
     _make_panel(db_session, candidate.candidateID)
     with pytest.raises(PriorRoundNotPassed):
         enforce_interview_sequencing_gate(db_session, candidate.candidateID)
-
 
 def test_second_round_blocked_when_prior_interview_not_completed(db_session, candidate):
     panel = _make_panel(db_session, candidate.candidateID)
@@ -88,13 +81,11 @@ def test_second_round_blocked_when_prior_interview_not_completed(db_session, can
     with pytest.raises(PriorRoundNotPassed):
         enforce_interview_sequencing_gate(db_session, candidate.candidateID)
 
-
 def test_second_round_blocked_when_completed_but_no_feedback_yet(db_session, candidate):
     panel = _make_panel(db_session, candidate.candidateID)
     _make_interview(db_session, panel.id, candidate.candidateID, status="Completed")
     with pytest.raises(PriorRoundNotPassed):
         enforce_interview_sequencing_gate(db_session, candidate.candidateID)
-
 
 def test_second_round_blocked_when_feedback_is_hold_only(db_session, candidate):
     panel = _make_panel(db_session, candidate.candidateID)
@@ -102,7 +93,6 @@ def test_second_round_blocked_when_feedback_is_hold_only(db_session, candidate):
     _make_feedback(db_session, interview.id, recommendation="Hold")
     with pytest.raises(PriorRoundNotPassed):
         enforce_interview_sequencing_gate(db_session, candidate.candidateID)
-
 
 def test_second_round_blocked_when_any_reject_present_even_with_a_hire(db_session, candidate):
     """Fail-closed: one Reject among multiple interviewers blocks
@@ -114,13 +104,11 @@ def test_second_round_blocked_when_any_reject_present_even_with_a_hire(db_sessio
     with pytest.raises(PriorRoundNotPassed):
         enforce_interview_sequencing_gate(db_session, candidate.candidateID)
 
-
 def test_second_round_allowed_when_prior_round_passed(db_session, candidate):
     panel = _make_panel(db_session, candidate.candidateID)
     interview = _make_interview(db_session, panel.id, candidate.candidateID, status="Completed")
     _make_feedback(db_session, interview.id, recommendation="Hire")
     enforce_interview_sequencing_gate(db_session, candidate.candidateID)  # must not raise
-
 
 def test_gate_checks_the_most_recent_panel_not_an_earlier_one(db_session, candidate):
     """If round 1 passed and round 2 was created but hasn't passed yet,
@@ -136,7 +124,6 @@ def test_gate_checks_the_most_recent_panel_not_an_earlier_one(db_session, candid
     with pytest.raises(PriorRoundNotPassed) as exc_info:
         enforce_interview_sequencing_gate(db_session, candidate.candidateID)
     assert str(panel_2.id) in str(exc_info.value) or "Technical" in str(exc_info.value)
-
 
 def test_gate_is_scoped_per_candidate(db_session):
     """Another candidate's unpassed round must not block this candidate."""

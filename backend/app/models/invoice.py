@@ -1,5 +1,6 @@
 """
 HRMS-0907 -- Invoice Generation, Status Tracking & PDF Export. Phase 2
+import logging
 Domain 4.
 
 PDF export and automatic sending are explicitly out of scope for this
@@ -13,6 +14,7 @@ generation") for real -- see app.services.invoice_service.generate_invoice(),
 which also blocks on any open HRMS-0904 timesheet dispute in the
 period, extending that story's own BR-02.
 """
+import logging
 import uuid
 
 from sqlalchemy import (
@@ -23,22 +25,21 @@ from sqlalchemy import (
 from app.models.base import Base
 from app.models.client import BILLING_CURRENCIES
 
-
 def _new_uuid() -> str:
     return str(uuid.uuid4())
 
-
 INVOICE_STATUSES = ("DRAFT", "APPROVED", "SENT", "PAID")
 
+logger = logging.getLogger(__name__)
 
 class Invoice(Base):
     __tablename__ = "invoices"
 
-    id = Column(String(36), primary_key=True, default=_new_uuid)
+    id = Column(String(512), primary_key=True, default=_new_uuid)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
 
-    project_id = Column(String(36), ForeignKey("projects.id"), nullable=False, index=True)
-    client_id = Column(String(36), ForeignKey("clients.id"), nullable=False, index=True)
+    project_id = Column(String(512), ForeignKey("projects.id"), nullable=False, index=True)
+    client_id = Column(String(512), ForeignKey("clients.id"), nullable=False, index=True)
 
     billing_period_start = Column(Date, nullable=False)
     billing_period_end = Column(Date, nullable=False)
@@ -55,7 +56,7 @@ class Invoice(Base):
     )
 
     # HRMS-0907 BR-0907-02: Draft->Approved always an explicit Finance-role action.
-    approved_by = Column(String(50), ForeignKey("users.UserID"), nullable=True)
+    approved_by = Column(String(512), ForeignKey("users.UserID"), nullable=True)
     approved_at = Column(DateTime, nullable=True)
     # "Not In Scope": Sent is always explicit, even after approval -- no auto-send.
     sent_at = Column(DateTime, nullable=True)
@@ -63,17 +64,16 @@ class Invoice(Base):
 
     created_at = Column(DateTime, server_default=func.now())
 
-
 class InvoiceLineItem(Base):
     __tablename__ = "invoice_line_items"
 
-    id = Column(String(36), primary_key=True, default=_new_uuid)
-    invoice_id = Column(String(36), ForeignKey("invoices.id"), nullable=False, index=True)
-    employee_id = Column(String(36), ForeignKey("employees.id"), nullable=False)
+    id = Column(String(512), primary_key=True, default=_new_uuid)
+    invoice_id = Column(String(512), ForeignKey("invoices.id"), nullable=False, index=True)
+    employee_id = Column(String(512), ForeignKey("employees.id"), nullable=False)
     # One line item per employee per timesheet (one work-week) in the
     # billing period -- the timesheet is the audit trail back to the
     # exact approved hours this line item bills for.
-    timesheet_id = Column(String(36), ForeignKey("timesheets.id"), nullable=False)
+    timesheet_id = Column(String(512), ForeignKey("timesheets.id"), nullable=False)
 
     hours = Column(Numeric(6, 2), nullable=False)
     rate_usd_cents = Column(Integer, nullable=False)

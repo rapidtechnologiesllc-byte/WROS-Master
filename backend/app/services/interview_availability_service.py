@@ -1,4 +1,5 @@
 """
+import logging
 S-047/HRMS-0447 -- Interview Availability Collection.
 
 Real architecture adaptations:
@@ -102,7 +103,6 @@ PAST_DATE_REJECTION_MESSAGE = "That date has already passed -- could you share a
 WEEKEND_REJECTION_MESSAGE = "We schedule interviews on weekdays -- could you share a Monday-Friday time instead?"
 OUTSIDE_HOURS_REJECTION_MESSAGE = "That time is outside our interview hours (8 AM-8 PM your time) -- could you share a different time?"
 
-
 def _default_llm_call(prompt: str, api_key: str) -> str:
     import requests
     resp = requests.post(
@@ -115,7 +115,6 @@ def _default_llm_call(prompt: str, api_key: str) -> str:
     text = result.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "")
     return re.sub(r"```(?:json)?", "", text).strip()
 
-
 def _call_llm(prompt: str, llm_call: Optional[Callable[[str], str]]) -> str:
     if llm_call is not None:
         return llm_call(prompt)
@@ -123,7 +122,6 @@ def _call_llm(prompt: str, llm_call: Optional[Callable[[str], str]]) -> str:
     if not api_key:
         raise RuntimeError("GEMINI_API_KEY not set")
     return _default_llm_call(prompt, api_key)
-
 
 def _extract_raw_slots(message_body: str, today: date_cls, llm_call: Optional[Callable[[str], str]]) -> List[Dict]:
     """AC-2/AC-3. Returns a list of {date, start_time, end_time, timezone}
@@ -144,7 +142,6 @@ def _extract_raw_slots(message_body: str, today: date_cls, llm_call: Optional[Ca
     if not isinstance(parsed, list):
         raise ValueError(f"LLM response was not a JSON array: {parsed!r}")
     return parsed
-
 
 def _resolve_timezone(db: Session, candidate: Candidate, tenant_id: str, extracted_tz: Optional[str]) -> str:
     """BR-01 fallback chain -- see module docstring for the honest
@@ -168,7 +165,6 @@ def _resolve_timezone(db: Session, candidate: Candidate, tenant_id: str, extract
 
     return candidate.timezone or "Asia/Kolkata"
 
-
 def _validate_slot(slot_date: date_cls, start_time, end_time, tz_name: str) -> Optional[str]:
     """BR-02, Step 4. Returns None if valid, else a rejection reason:
     'past_date' | 'weekend' | 'outside_business_hours' | 'invalid_range'."""
@@ -183,14 +179,12 @@ def _validate_slot(slot_date: date_cls, start_time, end_time, tz_name: str) -> O
         return "outside_business_hours"
     return None
 
-
 def _count_valid_slots(db: Session, candidate_id: str, tenant_id: str) -> int:
     return (
         db.query(CandidateAvailabilitySlot)
         .filter(CandidateAvailabilitySlot.tenant_id == tenant_id, CandidateAvailabilitySlot.candidate_id == candidate_id, CandidateAvailabilitySlot.is_confirmed == False)
         .count()
     )
-
 
 def send_availability_request(db: Session, conversation: CandidateConversation) -> str:
     """Sends the initial ask (Step 3's prescribed copy). Returns the
@@ -202,7 +196,6 @@ def send_availability_request(db: Session, conversation: CandidateConversation) 
     ))
     db.commit()
     return AVAILABILITY_REQUEST_MESSAGE
-
 
 def parse_availability_response(
     db: Session, conversation: CandidateConversation, candidate: Candidate, tenant_id: str, message_body: str,
@@ -219,6 +212,7 @@ def parse_availability_response(
     try:
         raw_slots = _extract_raw_slots(message_body, today, llm_call)
     except Exception as exc:
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[InterviewAvailability] Parse failed for candidate {candidate.candidateID!r}: {exc}")
         db.add(ConversationEvent(
             conversation_id=conversation.id, event_type="availability_parse_failed",

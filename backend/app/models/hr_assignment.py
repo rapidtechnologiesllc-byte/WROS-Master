@@ -1,6 +1,7 @@
 """
 HR Assignment Model
 ===================
+import logging
 Links a candidate to one or two HR/Recruiter users for the recruitment process.
 
 Fields:
@@ -12,11 +13,13 @@ Fields:
   - updated_at     : timestamp of the last update
 """
 
+import logging
 from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, func
 from sqlalchemy.orm import relationship
 
 from app.models.base import Base
 
+logger = logging.getLogger(__name__)
 
 class HRAssignment(Base):
     __tablename__ = "hr_assignments"
@@ -24,7 +27,7 @@ class HRAssignment(Base):
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
 
     # The candidate being assigned
-    candidate_id = Column(String(36),
+    candidate_id = Column(String(512),
         ForeignKey("candidates.candidateID", ondelete="CASCADE"),
         nullable=False,
         index=True,

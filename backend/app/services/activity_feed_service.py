@@ -1,4 +1,5 @@
 """
+import logging
 S-061/HRMS-0461 -- AI Activity Feed, Recruiter Copilot.
 
 Real architecture adaptation:
@@ -84,14 +85,12 @@ ACTIVITY_EVENT_SEVERITY = {
 }
 ACTIVITY_EVENT_TYPES = tuple(ACTIVITY_EVENT_SEVERITY.keys())
 
-
 def _candidate_display_name(candidate: Optional[Candidate]) -> str:
     if candidate is None:
         return "A candidate"
     parts = [candidate.candidateFirstName, candidate.candidateLastName]
     name = " ".join(p for p in parts if p).strip()
     return name or candidate.candidateEmail
-
 
 def _build_summary(db: Session, event: ConversationEvent, candidate_name: str) -> str:
     data = event.event_data or {}
@@ -157,7 +156,6 @@ def _build_summary(db: Session, event: ConversationEvent, candidate_name: str) -
         return f"Thunder {verb} {channel} to {candidate_name}."
     return f"Thunder activity for {candidate_name}."
 
-
 def _serialize(db: Session, event: ConversationEvent, candidate: Optional[Candidate], is_read: bool) -> Dict:
     candidate_name = _candidate_display_name(candidate)
     return {
@@ -170,7 +168,6 @@ def _serialize(db: Session, event: ConversationEvent, candidate: Optional[Candid
         "is_read": is_read,
         "created_at": event.created_at,
     }
-
 
 def get_activity_feed(
     db: Session, tenant_id: str, *, candidate_id: Optional[str] = None, severity: Optional[str] = None,
@@ -223,7 +220,6 @@ def get_activity_feed(
         "has_more": (page * per_page) < total_count,
     }
 
-
 def mark_read(db: Session, tenant_id: str, activity_id: int) -> bool:
     """Step 3 PATCH /activity-feed/{id}/read. Idempotent."""
     event = db.query(ConversationEvent).filter(ConversationEvent.id == activity_id).first()
@@ -234,7 +230,6 @@ def mark_read(db: Session, tenant_id: str, activity_id: int) -> bool:
         db.add(ActivityFeedReadState(tenant_id=tenant_id, conversation_event_id=activity_id))
         db.commit()
     return True
-
 
 def mark_all_read(db: Session, tenant_id: str, *, candidate_id: Optional[str] = None, since_days: int = DEFAULT_RETENTION_DAYS) -> int:
     """Step 3 PATCH /activity-feed/read-all. BR-01: only INFO/WARNING --

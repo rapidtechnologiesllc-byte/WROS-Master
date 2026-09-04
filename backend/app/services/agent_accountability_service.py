@@ -1,4 +1,5 @@
 """
+import logging
 Agent Accountability Service - Every agent has ONE job: get more people to 2,000 by 2030.
 
 No silos. No "we did great at our stage" when the next agent fails.
@@ -25,17 +26,18 @@ If any link breaks, we escalate to Flash (daily).
 If 2+ links broken, escalate to CEO.
 """
 
+import logging
 from datetime import datetime, timedelta
 from typing import Dict, Any, List
 from sqlalchemy.orm import Session
 from sqlalchemy import func, and_
 
 from app.models.candidate import Candidate
-from app.models.interview import Interview
 from app.models.offer_letter import OfferLetter
 from app.models.employee import Employee
 from app.core.logging import logger
 
+logger = logging.getLogger(__name__)
 
 class AgentAccountabilityService:
     """Track each agent's accountability to the "2,000 by 2030" goal."""

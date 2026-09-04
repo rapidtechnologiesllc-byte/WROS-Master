@@ -2,7 +2,9 @@
 from pydantic import BaseModel, EmailStr, constr
 from typing import Optional, List
 from datetime import datetime, date
+import logging
 from pydantic import Field
+from app.core.logging import logger
 
 # Candidate schemas
 class CandidateCreateRequest(BaseModel):
@@ -44,6 +46,7 @@ class CandidateCreateRequest(BaseModel):
     # Optional pre-filled education and experience details
     education_records: Optional[List["EducationRecord"]] = None
     experience_records: Optional[List["ExperienceRecord"]] = None
+logger = logging.getLogger(__name__)
 
 class CandidateUpdateRequest(BaseModel):
     candidate_first_name: Optional[str] = None
@@ -69,6 +72,7 @@ class CandidateCreateResponse(BaseModel):
     candidate_id: str
     candidate_is_first_time: bool
     candidate_password: str
+    is_new: bool = False
 
 # GET candidate schemas
 class CandidateEducationResponse(BaseModel):
@@ -172,12 +176,6 @@ class AllCandidatesResponse(BaseModel):
     total_candidates: int
     candidates: list[CandidateCompleteResponse]
 
-
-
-
-
-
-
 class candidateFormRequest(BaseModel):
     position: str | None = None
     department: str | None = None
@@ -192,10 +190,6 @@ class candidateFormRequest(BaseModel):
 class candidateFormResponse(BaseModel):
     status: str = "Success"
     message: str = "Form submitted successfully"
-
-
-
-
 
 class CandidateGetRequest(BaseModel):
     candidate_id: int
@@ -296,7 +290,6 @@ class ChangePasswordResponse(BaseModel):
     status: str
     message: str
 
-
 # ---------------------------------------------------------------------------
 # Public Job Application schemas
 # ---------------------------------------------------------------------------
@@ -309,7 +302,6 @@ class EducationEntry(BaseModel):
     end_year: str
     percentage: Optional[str] = None
 
-
 class ExperienceEntry(BaseModel):
     company_name: str
     job_title: str
@@ -317,12 +309,10 @@ class ExperienceEntry(BaseModel):
     end_date: Optional[date] = None
     years_of_experience: Optional[str] = None
 
-
 class JobApplicationResponse(BaseModel):
     status: str
     message: str
     candidate_id: Optional[str] = None
-
 
 # ---------------------------------------------------------------------------
 # Schemas
@@ -341,7 +331,6 @@ class CandidateStatusUpdateRequest(BaseModel):
         ),
     )
 
-
 class CandidateStatusResponse(BaseModel):
     candidate_id: str
     candidate_name: Optional[str] = None
@@ -350,11 +339,9 @@ class CandidateStatusResponse(BaseModel):
     pipeline_status: Optional[str] = None
     updated_at: Optional[datetime] = None
 
-
 class AllCandidateStatusResponse(BaseModel):
     total: int
     candidates: List[CandidateStatusResponse]
-
 
 class StatusActionResponse(BaseModel):
     status: str

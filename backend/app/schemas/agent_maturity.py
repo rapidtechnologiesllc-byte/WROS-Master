@@ -1,12 +1,16 @@
 """
 Agent Maturity Schemas — Admin Dashboard
 ========================================
+import logging
 """
 
+import logging
 from pydantic import BaseModel
 from typing import Optional
 from datetime import datetime
+from app.core.logging import logger
 
+logger = logging.getLogger(__name__)
 
 class AgentMaturityLevelResponse(BaseModel):
     """Current maturity snapshot for an agent."""
@@ -34,7 +38,6 @@ class AgentMaturityLevelResponse(BaseModel):
     class Config:
         from_attributes = True
 
-
 class AgentPerformanceMetricResponse(BaseModel):
     """Weekly performance snapshot."""
     id: int
@@ -60,7 +63,6 @@ class AgentPerformanceMetricResponse(BaseModel):
     class Config:
         from_attributes = True
 
-
 class AgentMaturityDashboardResponse(BaseModel):
     """Complete dashboard view with current status + trend."""
     agent_name: str
@@ -73,19 +75,16 @@ class AgentMaturityDashboardResponse(BaseModel):
     weeks_improving: int  # Consecutive weeks of improvement
     status: str  # "active", "retired", "struggling"
 
-
 class AllAgentsMaturitiesResponse(BaseModel):
     """Dashboard for all agents."""
     agents: list[AgentMaturityLevelResponse]
     last_calculated: datetime
     next_calculation: datetime
 
-
 class RetireAgentRequest(BaseModel):
     """Request to retire an underperforming agent."""
     agent_name: str
     reason: str  # e.g., "Maturity declined for 4+ consecutive weeks"
-
 
 class RetireAgentResponse(BaseModel):
     """Response when agent is retired."""

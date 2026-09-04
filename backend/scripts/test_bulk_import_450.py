@@ -67,7 +67,6 @@ LOCATIONS = [
 
 EXPERIENCE_LEVELS = ["Entry", "Mid", "Senior", "Lead", "Principal"]
 
-
 def generate_test_candidate(index: int) -> dict:
     """Generate a single test candidate with realistic data."""
 
@@ -93,7 +92,6 @@ def generate_test_candidate(index: int) -> dict:
     }
 
     return candidate
-
 
 def create_candidates_in_batch(candidates: list, batch_size: int = 50) -> list:
     """Create candidates in database with batch processing."""
@@ -129,6 +127,7 @@ def create_candidates_in_batch(candidates: list, batch_size: int = 50) -> list:
                     logger.info(f"Committed batch at record {i+1}/{len(candidates)}")
 
             except Exception as e:
+                logger.error(f"Error: {str(e)}", exc_info=True)
                 logger.error(f"Error creating candidate {i+1}: {str(e)}")
                 db.rollback()
                 db.add(candidate)
@@ -138,13 +137,13 @@ def create_candidates_in_batch(candidates: list, batch_size: int = 50) -> list:
         logger.info(f"Final commit: {len(created_ids)} total candidates created")
 
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Database error: {str(e)}")
         db.rollback()
     finally:
         db.close()
 
     return created_ids
-
 
 def queue_tasks(candidate_ids: list) -> list:
     """Queue async tasks for each candidate."""
@@ -165,10 +164,10 @@ def queue_tasks(candidate_ids: list) -> list:
                 logger.info(f"Queued {i+1}/{len(candidate_ids)} tasks")
 
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             logger.error(f"Error queuing task for candidate {i+1}: {str(e)}")
 
     return task_ids
-
 
 def print_summary(total: int, created: int, queued: int, start_time: datetime):
     """Print summary statistics."""
@@ -198,7 +197,6 @@ def print_summary(total: int, created: int, queued: int, start_time: datetime):
     print(f"  3. Execute failure scenarios per test plan")
     print(f"  4. Document results in test_results/ directory")
     print("="*70 + "\n")
-
 
 def main():
     """Main test execution."""
@@ -268,7 +266,6 @@ def main():
         "end_time": end_time.isoformat(),
     }
 
-
 if __name__ == "__main__":
     try:
         result = main()
@@ -276,5 +273,6 @@ if __name__ == "__main__":
         print(f"   Created: {result['created_candidates']} candidates")
         print(f"   Queued:  {result['queued_tasks']} tasks")
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"❌ FAILED: {str(e)}", exc_info=True)
         sys.exit(1)

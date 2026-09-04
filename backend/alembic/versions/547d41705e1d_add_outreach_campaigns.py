@@ -1,3 +1,4 @@
+import logging
 """S-044/HRMS-0444: add outreach_campaigns and campaign_touchpoints tables
 
 Revision ID: 547d41705e1d
@@ -11,7 +12,6 @@ revision = "547d41705e1d"
 down_revision = "f3b6e0e516dd"
 branch_labels = None
 depends_on = None
-
 
 def upgrade():
     op.create_table(
@@ -51,7 +51,6 @@ def upgrade():
     op.create_index("ix_campaign_touchpoints_tenant_id", "campaign_touchpoints", ["tenant_id"])
     op.create_index("ix_campaign_touchpoints_candidate_id", "campaign_touchpoints", ["candidate_id"])
     op.create_index("ix_campaign_touchpoints_job_queue", "campaign_touchpoints", ["tenant_id", "scheduled_at", "status"])
-
 
 def downgrade():
     op.drop_index("ix_campaign_touchpoints_job_queue", table_name="campaign_touchpoints")

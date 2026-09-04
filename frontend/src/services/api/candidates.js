@@ -2,7 +2,7 @@
 import { apiRequest } from "./client";
 
 export const createCandidate = async (payload) => {
-  const { data } = await apiRequest("/onboarding/hr/create_candidate", {
+  const { data } = await apiRequest("/api/v1/candidates/create", {
     method: "POST",
     body: JSON.stringify(payload),
   });
@@ -10,14 +10,14 @@ export const createCandidate = async (payload) => {
 };
 
 export const getAllCandidates = async () => {
-  const { data } = await apiRequest("/onboarding/hr/get_all_candidates", {
+  const { data } = await apiRequest("/api/v1/status/all", {
     method: "GET",
   });
   return data;
 };
 
 export const getCandidateById = async (candidateId) => {
-  const { data } = await apiRequest(`/onboarding/hr/candidate/${candidateId}`, {
+  const { data } = await apiRequest(`/api/v1/candidates/${candidateId}`, {
     method: "GET",
   });
   return data;
@@ -88,9 +88,9 @@ export const updateCandidate = async (candidateId, payload) => {
   if (payload?.candidate_current_salary_type != null)
     body.candidate_current_salary_type = payload.candidate_current_salary_type;
 
-  console.log(`[updateCandidate] Calling PUT /onboarding/hr/update_candidate/${candidateId}`, body);
+  console.log(`[updateCandidate] Calling PUT /api/v1/candidates/${candidateId}`, body);
   const { data } = await apiRequest(
-    `/onboarding/hr/update_candidate/${candidateId}`,
+    `/api/v1/candidates/${candidateId}`,
     {
       method: "PUT",
       body: JSON.stringify(body),
@@ -102,7 +102,7 @@ export const updateCandidate = async (candidateId, payload) => {
 
 export const deleteCandidate = async (candidateId) => {
   const { data } = await apiRequest(
-    `/onboarding/hr/delete_candidate/${candidateId}`,
+    `/api/v1/candidates/${candidateId}`,
     {
       method: "DELETE",
     },
@@ -134,7 +134,7 @@ export const getAssignedCandidates = async () => {
 };
 export const getCandidateContacts = async (candidateId) => {
   const { data } = await apiRequest(
-    `/onboarding/hr/candidate/${candidateId}/contacts`,
+    `/api/v1/candidates/${candidateId}/contacts`,
     {
       method: "GET",
     },

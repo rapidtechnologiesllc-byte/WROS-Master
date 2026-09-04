@@ -1,3 +1,31 @@
+# Backend
+backend/.env
+backend/__pycache__/
+backend/.pytest_cache/
+backend/venv/
+backend/.venv/
+backend/*.pyc
+backend/dist/
+backend/build/
+
+# Frontend
+frontend/.env.local
+frontend/.env.development.local
+frontend/.env.test.local
+frontend/.env.production.local
+frontend/node_modules/
+frontend/build/
+frontend/dist/
+frontend/.next/
+
+# Careers
+careers/.env
+careers/__pycache__/
+careers/.pytest_cache/
+careers/venv/
+careers/.venv/
+careers/*.pyc
+
 # Logs
 logs
 *.log
@@ -7,22 +35,35 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
+# Node modules
 node_modules
 dist
 dist-ssr
 *.local
 
-# Editor directories and files
+# System
+.DS_Store
 .vscode/*
 !.vscode/extensions.json
 .idea
-.DS_Store
+*.swp
+*.swo
+*~
+.env
+/tmp/
+
+# Editor files
 *.suo
 *.ntvs*
 *.njsproj
 *.sln
 *.sw?
 build/
+
+# Backups
+/backups/
+*.backup
+*.bak
 
 # Local dev-server launch wrapper used by the Claude Code preview tooling --
 # machine-local, never part of the app.

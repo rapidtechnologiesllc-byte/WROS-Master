@@ -1,4 +1,5 @@
 """
+import logging
 S-074/HRMS-0474 -- Bulk Candidate Engagement Launch.
 
 Real architecture adaptation: no separate `bulk_import_batches`
@@ -14,6 +15,7 @@ tracking has no existing real substitute) -- Integer/String(36) PK,
 String(50) UserID-as-tenant_id convention, matching every other new
 table this round.
 """
+import logging
 import uuid
 
 from sqlalchemy import Column, DateTime, ForeignKey, Integer, JSON, String, Text, func
@@ -21,20 +23,19 @@ from sqlalchemy.orm import relationship
 
 from app.models.base import Base
 
-
 def _new_uuid() -> str:
     return str(uuid.uuid4())
 
-
 BULK_JOB_STATUSES = ("QUEUED", "PROCESSING", "COMPLETED")
 
+logger = logging.getLogger(__name__)
 
 class BulkEngagementJob(Base):
     __tablename__ = "bulk_engagement_jobs"
 
-    id = Column(String(36), primary_key=True, default=_new_uuid)
-    tenant_id = Column(String(50), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=False, index=True)
-    recruiter_id = Column(String(50), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=False, index=True)
+    id = Column(String(512), primary_key=True, default=_new_uuid)
+    tenant_id = Column(String(512), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=False, index=True)
+    recruiter_id = Column(String(512), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=False, index=True)
 
     candidate_ids = Column(JSON, nullable=False)  # full target list, in order
     total_count = Column(Integer, nullable=False)
@@ -50,12 +51,11 @@ class BulkEngagementJob(Base):
     tenant = relationship("Users", foreign_keys=[tenant_id], lazy="select")
     recruiter = relationship("Users", foreign_keys=[recruiter_id], lazy="select")
 
-
 class BulkEngagementError(Base):
     __tablename__ = "bulk_engagement_errors"
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
-    job_id = Column(String(36), ForeignKey("bulk_engagement_jobs.id", ondelete="CASCADE"), nullable=False, index=True)
-    candidate_id = Column(String(36), ForeignKey("candidates.candidateID", ondelete="CASCADE"), nullable=False)
+    job_id = Column(String(512), ForeignKey("bulk_engagement_jobs.id", ondelete="CASCADE"), nullable=False, index=True)
+    candidate_id = Column(String(512), ForeignKey("candidates.candidateID", ondelete="CASCADE"), nullable=False)
     reason = Column(Text, nullable=False)
     created_at = Column(DateTime(timezone=False), server_default=func.now())

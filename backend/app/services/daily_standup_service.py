@@ -1,4 +1,5 @@
 """
+import logging
 Daily Standup Report - Shows metrics from ALL agents (50+ agents)
 
 Reports per agent:
@@ -15,7 +16,6 @@ from collections import defaultdict
 
 from app.models.candidate_ai import ConversationEvent, CandidateConversation
 from app.models.candidate import Candidate
-
 
 def get_daily_standup(db: Session, days: int = 1, agent_name: str = None) -> dict:
     """

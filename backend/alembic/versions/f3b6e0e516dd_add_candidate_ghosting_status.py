@@ -1,3 +1,4 @@
+import logging
 """S-043/HRMS-0443: add candidate_ghosting_status table
 
 Revision ID: f3b6e0e516dd
@@ -13,7 +14,6 @@ branch_labels = None
 depends_on = None
 
 _DEFAULT_REASON = "No response after 3 follow-up messages"
-
 
 def upgrade():
     op.create_table(
@@ -33,7 +33,6 @@ def upgrade():
     op.create_index("ix_candidate_ghosting_status_tenant_id", "candidate_ghosting_status", ["tenant_id"])
     op.create_index("ix_candidate_ghosting_status_candidate_id", "candidate_ghosting_status", ["candidate_id"])
     op.create_index("ix_candidate_ghosting_status_conversation_id", "candidate_ghosting_status", ["conversation_id"])
-
 
 def downgrade():
     op.drop_index("ix_candidate_ghosting_status_conversation_id", table_name="candidate_ghosting_status")

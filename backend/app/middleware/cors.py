@@ -4,11 +4,11 @@ Handles Cross-Origin Resource Sharing for frontend applications.
 """
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+import logging
 from typing import List
 
 from app.core.config import settings
 from app.core.logging import logger
-
 
 def setup_cors(app: FastAPI) -> None:
     """
@@ -59,7 +59,6 @@ def setup_cors(app: FastAPI) -> None:
     
     logger.info("[OK] CORS middleware configured successfully")
 
-
 def get_cors_config() -> dict:
     """
     Get the current CORS configuration as a dictionary.
@@ -82,6 +81,7 @@ def get_cors_config() -> dict:
         "max_age": 3600
     }
 
+logger = logging.getLogger(__name__)
 
 class CORSConfig:
     """
@@ -140,7 +140,6 @@ class CORSConfig:
         """
         allowed = cls.get_allowed_origins(environment)
         return origin in allowed
-
 
 # Preflight request handler
 def add_cors_headers(response, origin: str = "*"):

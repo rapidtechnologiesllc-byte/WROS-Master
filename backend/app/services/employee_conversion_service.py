@@ -6,9 +6,11 @@ from app.core.logging import logger
 from app.core.security import get_password_hash
 from app.models.candidate import Candidate
 from app.models.employee import Employee, EmployeeEngineHistory
-from app.models.user import Users, UserRole
+from app.models.user import Users
 from app.services.email_service import EmailService
+import logging
 from app.utils.uniq_id_generator import user_id_generator, generate_password
+logger = logging.getLogger(__name__)
 
 class InvalidCandidateState(Exception):
     pass
@@ -22,12 +24,10 @@ class EmployeeConversionService:
         password = generate_password()
         user_id = user_id_generator()
         user = Users(UserID=user_id, UserName=employee_name, UserEmail=employee_email, UserPassword=get_password_hash(password), business_unit_id=business_unit_id, tenant_id=tenant_id, UserRole="Employee")
-        db.add(user)
-        db.flush()
+        # Set role_template_id on user directly (use first role from role_ids, or None if not provided)
         if role_ids:
-            for rid in role_ids:
-                ur = UserRole(id=f"ur_{user.UserID}_{rid}", user_id=user.UserID, role_id=rid, bu_context_id=business_unit_id)
-                db.add(ur)
+            user.role_template_id = role_ids[0]  # Single role per user (first one if multiple provided)
+        db.add(user)
         db.flush()
         return user
 
@@ -40,7 +40,12 @@ class EmployeeConversionService:
         ln = last_name or getattr(candidate, "candidateLastName", "") or ""
         tid = tenant_id or getattr(candidate, "tenant_id", 1) or 1
         ph = phone or getattr(candidate, "candidateMobile", None)
-        user = EmployeeConversionService.create_employee_account(db=db, employee_name=f"{fn} {ln}".strip(), employee_email=email, business_unit_id=business_unit_id or 1, tenant_id=tid, role_ids=role_ids, phone=ph)
+
+        # BU Lifecycle: Preserve candidate's BU assignment on conversion
+        # Use provided business_unit_id, or fall back to candidate's associated_bu_id
+        final_bu_id = business_unit_id or getattr(candidate, "associated_bu_id", None) or 1
+
+        user = EmployeeConversionService.create_employee_account(db=db, employee_name=f"{fn} {ln}".strip(), employee_email=email, business_unit_id=final_bu_id, tenant_id=tid, role_ids=role_ids, phone=ph)
         if job_title:
             user.job_title = job_title
         fields.pop("delivery_engine", None)
@@ -67,5 +72,6 @@ class EmployeeConversionService:
             EmailService.send_email_direct(to_email=employee_user.UserEmail, to_name=employee_user.UserName, subject="Welcome to BlitzenX", html_body=email_html)
             return True
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             logger.error(f"Email failed: {str(e)}")
             return False

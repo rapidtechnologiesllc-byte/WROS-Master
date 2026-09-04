@@ -1,4 +1,5 @@
 """
+import logging
 S-056/HRMS-0456 -- Offer Acceptance Tracking.
 
 Real, major pre-existing feature found: `POST /offer-letter/respond`
@@ -100,7 +101,6 @@ DECLINE_MESSAGE = (
 DECLINE_REASON_ASK_MESSAGE = "If you are comfortable sharing, could you let us know why you decided not to proceed? It helps us improve our process."
 COUNTER_MESSAGE = "Thank you for sharing your thoughts. I am passing your feedback to our recruiting team who will be in touch to discuss. Please hold tight!"
 
-
 def _relevant_offer(db: Session, candidate_id: str) -> Optional[OfferLetter]:
     return (
         db.query(OfferLetter)
@@ -109,7 +109,6 @@ def _relevant_offer(db: Session, candidate_id: str) -> Optional[OfferLetter]:
         .first()
     )
 
-
 def _relevant_submission(db: Session, candidate_id: str) -> Optional[Submission]:
     return (
         db.query(Submission)
@@ -117,7 +116,6 @@ def _relevant_submission(db: Session, candidate_id: str) -> Optional[Submission]
         .order_by(Submission.submitted_at.desc())
         .first()
     )
-
 
 def _upsert_pipeline_status(db: Session, candidate_id: str, new_status: str) -> None:
     """Small, deliberate local duplicate of offer_letters.py's private
@@ -129,7 +127,6 @@ def _upsert_pipeline_status(db: Session, candidate_id: str, new_status: str) -> 
         cs = CandidateStatus(candidateID=candidate_id, status="Active", piplineStatus=new_status)
         db.add(cs)
 
-
 def _notify_recruiter(db: Session, submission: Optional[Submission], message: str, *, priority_tier: str = "P2") -> None:
     if submission is None or not submission.submitted_by_user_id:
         return
@@ -139,8 +136,8 @@ def _notify_recruiter(db: Session, submission: Optional[Submission], message: st
     try:
         send_notification(db, calling_context_tenant_id=recipient.tenant_id, recipient=recipient, priority_tier=priority_tier, channel_preference="IN_APP", message=message)
     except Exception as exc:
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[OfferDecision] Failed to notify recruiter: {exc}")
-
 
 def _notify_hr_by_email(db: Session, offer: OfferLetter, candidate: Candidate, decision: str, response_message: str = "") -> None:
     try:
@@ -155,8 +152,8 @@ def _notify_hr_by_email(db: Session, offer: OfferLetter, candidate: Candidate, d
                 response_message=response_message,
             )
     except Exception as exc:
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[OfferDecision] HR email notification failed: {exc}")
-
 
 def _send_channel_aware(db: Session, conversation: CandidateConversation, candidate: Candidate, message: str) -> bool:
     channel = conversation.channel_preference if conversation.channel_preference in ("whatsapp", "web_chat") else "whatsapp"
@@ -166,7 +163,6 @@ def _send_channel_aware(db: Session, conversation: CandidateConversation, candid
     except (ConsentNotGiven, ConversationOwnedByHuman, DuplicateMessageSuppressed, ThunderPausedError) as exc:
         logger.info(f"[OfferDecision] Message skipped for candidate {candidate.candidateID!r}: {exc}")
         return False
-
 
 def _handle_acceptance(db: Session, candidate: Candidate, conversation: CandidateConversation, offer: OfferLetter) -> Dict:
     offer.offer_status = "Accepted"
@@ -194,7 +190,6 @@ def _handle_acceptance(db: Session, candidate: Candidate, conversation: Candidat
     schedule_onboarding_touchpoints(db, candidate, offer, conversation.tenant_id)  # S-067: entering PREBOARDING
 
     return {"outcome": "accepted", "message": ACCEPTANCE_MESSAGE}
-
 
 def _handle_decline(db: Session, candidate: Candidate, conversation: CandidateConversation, offer: OfferLetter, message_body: str) -> Dict:
     already_asked = db.query(ConversationEvent).filter(ConversationEvent.conversation_id == conversation.id, ConversationEvent.event_type == "DECLINE_REASON_REQUESTED").first() is not None
@@ -240,7 +235,6 @@ def _handle_decline(db: Session, candidate: Candidate, conversation: CandidateCo
 
     return {"outcome": "declined", "message": DECLINE_MESSAGE}
 
-
 def _handle_counter(db: Session, candidate: Candidate, conversation: CandidateConversation, offer: OfferLetter, message_body: str) -> Dict:
     offer.offer_status = "Countered"
     offer.responded_at = datetime.now()
@@ -274,7 +268,6 @@ def _handle_counter(db: Session, candidate: Candidate, conversation: CandidateCo
 
     return {"outcome": "countered", "message": COUNTER_MESSAGE}
 
-
 def handle_offer_decision(db: Session, candidate: Candidate, conversation: CandidateConversation, tenant_id: str, intent: str, message_body: str) -> Dict:
     """Steps 2-4. Never raises. Returns one of:
       {"outcome": "not_active"}
@@ -298,6 +291,7 @@ def handle_offer_decision(db: Session, candidate: Candidate, conversation: Candi
             return _handle_counter(db, candidate, conversation, offer, message_body)
         return {"outcome": "unrecognized_intent"}
     except Exception as exc:
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.error(f"[OfferDecision] Unexpected failure handling '{intent}' for candidate {candidate.candidateID!r}: {exc}")
         db.rollback()
         return {"outcome": "decision_failed"}

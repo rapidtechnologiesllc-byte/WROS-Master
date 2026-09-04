@@ -1,4 +1,5 @@
 """
+import logging
 HRMS-0910 -- AI Time Entry Anomaly Detection (S-229).
 
 BR-0910-01: flags are advisory only and never block anything -- this
@@ -29,7 +30,6 @@ from app.models.timesheet_anomaly import TimesheetAnomalyFlag
 
 OVER_12H_THRESHOLD = 12
 
-
 def _is_duplicate_entry(db: Session, timesheet: Timesheet, entry: TimesheetEntry, project: Project) -> bool:
     """Same employee + project + date, in a DIFFERENT timesheet --
     TimesheetEntry's own UNIQUE constraint already forbids two entries
@@ -46,7 +46,6 @@ def _is_duplicate_entry(db: Session, timesheet: Timesheet, entry: TimesheetEntry
         TimesheetEntry.id != entry.id,
     ).first()
     return other is not None
-
 
 def _is_unlinked_task(db: Session, timesheet: Timesheet) -> bool:
     """Backlog item, 2026-08-05 (Task<->Timesheet tie): "A user must
@@ -72,7 +71,6 @@ def _is_unlinked_task(db: Session, timesheet: Timesheet) -> bool:
     if employee is None or employee.wros_user_id != task.assigned_to_user_id:
         return True
     return False
-
 
 def scan_timesheet_anomalies(db: Session, timesheet: Timesheet) -> List[TimesheetAnomalyFlag]:
     """Idempotent: re-scanning an already-flagged entry returns the
@@ -118,7 +116,6 @@ def scan_timesheet_anomalies(db: Session, timesheet: Timesheet) -> List[Timeshee
             flags.append(flag)
 
     return flags
-
 
 def get_anomaly_flags_for_timesheet(db: Session, timesheet: Timesheet) -> List[TimesheetAnomalyFlag]:
     entry_ids = [row[0] for row in db.query(TimesheetEntry.id).filter(TimesheetEntry.timesheet_id == timesheet.id).all()]

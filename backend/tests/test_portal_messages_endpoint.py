@@ -1,6 +1,7 @@
 """
 POST/GET /portal/conversations/{id}/messages -- proves the HTTP wiring:
 real candidate JWT auth, cross-candidate 403, happy-path 201/200.
+import logging
 Business rules themselves are covered in test_portal_message_service.py.
 
 Throwaway SQLite app, throwaway JWT keys -- never the real database.
@@ -30,11 +31,9 @@ from app.models.candidate_ai import CandidateConversation, ConversationEvent
 from app.models.user import Users
 import app.models  # noqa: F401
 
-
 @pytest.fixture(autouse=True)
 def _fake_api_key(monkeypatch):
     monkeypatch.setattr(thunder_svc, "GEMINI_API_KEY", "fake-key-for-test")
-
 
 @pytest.fixture(autouse=True)
 def _mock_gemini(monkeypatch):
@@ -44,11 +43,9 @@ def _mock_gemini(monkeypatch):
     mock_llm.invoke.return_value = mock_response
     monkeypatch.setattr(thunder_svc, "ChatGoogleGenerativeAI", MagicMock(return_value=mock_llm))
 
-
 @pytest.fixture(autouse=True)
 def _mock_intent_and_escalation_llm(monkeypatch):
     monkeypatch.setattr(prompt_framework_svc, "_default_llm_call", lambda *a, **k: '{"intent": "unclear", "confidence": 0.0}')
-
 
 @pytest.fixture()
 def throwaway_jwt_keys(monkeypatch):
@@ -62,7 +59,6 @@ def throwaway_jwt_keys(monkeypatch):
     ).decode()
     monkeypatch.setattr(security, "PRIVATE_KEY", private_pem)
     monkeypatch.setattr(security, "PUBLIC_KEY", public_pem)
-
 
 @pytest.fixture()
 def client(throwaway_jwt_keys):
@@ -105,10 +101,8 @@ def client(throwaway_jwt_keys):
         engine.dispose()
         os.remove(db_path)
 
-
 def _token_for(candidate_id):
     return security.create_access_token(data={"sub": candidate_id, "type": "candidate", "name": candidate_id})
-
 
 def test_post_message_happy_path_returns_201(client):
     test_client, conv_id = client
@@ -120,7 +114,6 @@ def test_post_message_happy_path_returns_201(client):
     assert resp.status_code == 201
     assert resp.json()["message_id"] is not None
 
-
 def test_post_message_cross_candidate_returns_403(client):
     test_client, conv_id = client
     resp = test_client.post(
@@ -130,12 +123,10 @@ def test_post_message_cross_candidate_returns_403(client):
     )
     assert resp.status_code == 403
 
-
 def test_post_message_no_token_returns_403(client):
     test_client, conv_id = client
     resp = test_client.post(f"/portal/conversations/{conv_id}/messages", json={"message_body": "hi"})
     assert resp.status_code in (401, 403)
-
 
 def test_get_history_after_posting_returns_message(client):
     test_client, conv_id = client

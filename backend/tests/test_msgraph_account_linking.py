@@ -3,6 +3,7 @@ EPIC-14/S-379 (HRMS-1401) -- M365 Launchpad account linking.
 GET /msgraph/link/start, GET /msgraph/link-status, POST /msgraph/unlink,
 and /auth/callback's account-linking branch (an already-logged-in WROS
 user links their M365 account without their WROS session token being
+import logging
 silently swapped out).
 
 Throwaway SQLite app, throwaway JWT keys -- never the real database,
@@ -25,7 +26,6 @@ from app.models.base import Base
 from app.models.user import Users
 import app.models  # noqa: F401
 
-
 @pytest.fixture()
 def throwaway_jwt_keys(monkeypatch):
     key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
@@ -38,7 +38,6 @@ def throwaway_jwt_keys(monkeypatch):
     ).decode()
     monkeypatch.setattr(security, "PRIVATE_KEY", private_pem)
     monkeypatch.setattr(security, "PUBLIC_KEY", public_pem)
-
 
 @pytest.fixture()
 def client(throwaway_jwt_keys, monkeypatch):
@@ -79,14 +78,11 @@ def client(throwaway_jwt_keys, monkeypatch):
         engine.dispose()
         os.remove(db_path)
 
-
 def _token_for(email):
     return security.create_access_token(data={"sub": email})
 
-
 def _auth(email):
     return {"Authorization": f"Bearer {_token_for(email)}"}
-
 
 # ---- /link/start, /link-status, /unlink ----
 
@@ -96,7 +92,6 @@ def test_link_status_false_when_not_linked(client):
     assert resp.status_code == 200
     assert resp.json() == {"linked": False}
 
-
 def test_link_status_true_once_linked(client):
     test_client, msgraph_module = client
     msgraph_module._account_id_by_user_id["U-A"] = "oid-a"
@@ -105,7 +100,6 @@ def test_link_status_true_once_linked(client):
     resp = test_client.get("/msgraph/link-status", headers=_auth("a@blitzenx.com"))
     assert resp.json() == {"linked": True}
 
-
 def test_link_start_returns_auth_url_carrying_a_real_state_token(client):
     test_client, msgraph_module = client
     resp = test_client.get("/msgraph/link/start", headers=_auth("a@blitzenx.com"))
@@ -113,7 +107,6 @@ def test_link_start_returns_auth_url_carrying_a_real_state_token(client):
     auth_url = resp.json()["auth_url"]
     assert auth_url.startswith("https://login.microsoftonline.com/") or "oauth2/v2.0/authorize" in auth_url
     assert "state=" in auth_url
-
 
 def test_unlink_clears_the_mapping_and_token(client):
     test_client, msgraph_module = client
@@ -125,13 +118,11 @@ def test_unlink_clears_the_mapping_and_token(client):
     assert "U-A" not in msgraph_module._account_id_by_user_id
     assert "oid-a" not in msgraph_module.user_tokens
 
-
 def test_unauthenticated_requests_are_rejected(client):
     test_client, _ = client
     assert test_client.get("/msgraph/link-status").status_code in (401, 403)
     assert test_client.get("/msgraph/link/start").status_code in (401, 403)
     assert test_client.post("/msgraph/unlink").status_code in (401, 403)
-
 
 # ---- /auth/callback linking branch ----
 
@@ -154,7 +145,6 @@ def _mock_msal_and_graph_me(monkeypatch, msgraph_module, *, oid="new-ms-oid", em
 
     monkeypatch.setattr(msgraph_module.requests, "get", lambda *a, **k: _FakeGraphMeResponse())
 
-
 def test_callback_with_valid_link_state_links_existing_user_without_new_wros_token(client, monkeypatch):
     test_client, msgraph_module = client
     _mock_msal_and_graph_me(monkeypatch, msgraph_module, oid="oid-for-a", email="a@blitzenx.com")
@@ -173,7 +163,6 @@ def test_callback_with_valid_link_state_links_existing_user_without_new_wros_tok
     assert msgraph_module._account_id_by_user_id["U-A"] == "oid-for-a"
     assert msgraph_module.user_tokens["oid-for-a"]["access_token"] == "fake-access-token"
 
-
 def test_callback_without_link_state_uses_original_login_flow_unchanged(client, monkeypatch):
     """The old hardcoded 'xyz' default (or any non-link state) must
     fall through to byte-for-byte the original behavior: a fresh WROS
@@ -187,7 +176,6 @@ def test_callback_without_link_state_uses_original_login_flow_unchanged(client, 
     assert resp.headers["location"].startswith("https://hrms.example.com/?token=")
     assert msgraph_module._account_id_by_user_id["U-A"] == "oid-plain-login"
 
-
 def test_callback_link_state_for_a_since_deleted_user_falls_back_to_login_flow(client, monkeypatch):
     """A stale/tampered state naming a user row that no longer exists
     must not crash the callback -- fail open to the original login path
@@ -200,7 +188,6 @@ def test_callback_link_state_for_a_since_deleted_user_falls_back_to_login_flow(c
 
     assert resp.status_code == 307
     assert resp.headers["location"].startswith("https://hrms.example.com/?token=")
-
 
 def test_a_full_wros_token_cannot_be_used_as_a_link_state(client, monkeypatch):
     """A normal, already-issued WROS access token must not be accepted

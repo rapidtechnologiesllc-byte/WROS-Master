@@ -2,6 +2,7 @@
 S-078/HRMS-0478 -- Event Emission Layer -- API Endpoints
 ===========================================================
 Prefix: /admin/events
+import logging
 Tag:    event-log
 
 Routes:
@@ -18,13 +19,12 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_hr_or_admin, require_resource_permission
+from app.core.dependencies import get_current_internal_user, require_resource_permission
 from app.models.user import Users
 from app.schemas.event_log import EventLogResponse
 from app.services.event_emitter_service import get_events
 
 router = APIRouter(prefix="/admin/events", tags=["event-log"])
-
 
 @router.get(
     "",
@@ -38,7 +38,7 @@ def list_events(
     since: Optional[str] = Query(None, description="ISO datetime -- only events emitted at or after this time"),
     limit: int = Query(100, ge=1, le=500),
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     since_dt = None
     if since:

@@ -1,3 +1,4 @@
+import logging
 """Agent Registry - All 50+ WROS agents with targets and strategic roles."""
 
 # All 50+ agents organized by tier and domain

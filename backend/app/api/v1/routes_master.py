@@ -1,5 +1,6 @@
 """
 Master API Routes File - Integration Hub for WROS Core Story Endpoints
+import logging
 ========================================================================
 
 This master routes file orchestrates all 15 core WROS story endpoints with:
@@ -140,6 +141,7 @@ Release History:
 - RBAC permission checks
 """
 
+import logging
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 from datetime import datetime
@@ -152,10 +154,8 @@ from app.api.v1.endpoints.candidates import router as candidates_router
 from app.api.v1.endpoints.interviews import router as interviews_router
 from app.api.v1.endpoints.create_job import router as create_job_router
 from app.api.v1.endpoints.offer_letters import router as offer_letters_router
-from app.api.v1.endpoints.onboarding import router as onboarding_router
 from app.api.v1.endpoints.employees import router as employees_router
 from app.api.v1.endpoints.notifications import router as notifications_router
-from app.api.v1.endpoints.rbac import router as rbac_router
 
 # Import middleware components
 from app.core.logging import logger, log_security_event
@@ -163,10 +163,10 @@ from app.core.database import get_db
 from app.core.dependencies import get_current_user
 from app.middleware.auth_middleware import AuthenticationMiddleware
 
-
 # ============================================================================
 # MASTER ROUTER CONFIGURATION
 # ============================================================================
+logger = logging.getLogger(__name__)
 
 class MasterRouterConfig:
     """Configuration for master router setup."""
@@ -214,7 +214,6 @@ class MasterRouterConfig:
         "/webhooks/whatsapp",
     ]
 
-
 # ============================================================================
 # ROUTER GROUPING BY DOMAIN (15 Core Story Endpoints)
 # ============================================================================
@@ -257,27 +256,7 @@ def create_master_router() -> APIRouter:
     # TIER 2: RBAC & USERS
     # =======================
     # Story: HRMS-0114 - Role-Based Access Control
-    # Endpoints: /users/create-with-roles, /users/{id}, /rbac/*
-    # Protected: requires valid JWT + user.manage permission
-    router.include_router(
-        rbac_router,
-        tags=["rbac"],
-        dependencies=[Depends(get_current_user)],
-        responses={
-            403: {
-                "description": "Insufficient permissions",
-                "content": {
-                    "application/json": {
-                        "example": {
-                            "status_code": 403,
-                            "error_type": "forbidden",
-                            "message": "User lacks permission: role.manage"
-                        }
-                    }
-                }
-            }
-        }
-    )
+    # Note: rbac router removed (functionality covered by role_templates, permission_composition, users_access_control)
 
     router.include_router(
         users_router,
@@ -437,28 +416,6 @@ def create_master_router() -> APIRouter:
     # =======================
     # Story: HRMS-0205 - Start Pre-Onboarding
     # Endpoints: /onboarding/start, /onboarding/{id}, /onboarding/{id}/status
-    # Protected: requires valid JWT + onboarding.manage permission
-    # Tenant-isolated: offer must belong to current_user's tenant
-    router.include_router(
-        onboarding_router,
-        tags=["onboarding"],
-        dependencies=[Depends(get_current_user)],
-        responses={
-            400: {
-                "description": "Offer not approved or checklist validation failed",
-                "content": {
-                    "application/json": {
-                        "example": {
-                            "status_code": 400,
-                            "error_type": "invalid_status",
-                            "message": "Cannot start onboarding: offer status is PENDING, not APPROVED"
-                        }
-                    }
-                }
-            }
-        }
-    )
-
     # =======================
     # TIER 8: EMPLOYEE CONVERSION
     # =======================
@@ -526,7 +483,6 @@ def create_master_router() -> APIRouter:
     )
 
     return router
-
 
 # ============================================================================
 # ERROR RESPONSE SCHEMAS (for documentation)
@@ -596,7 +552,6 @@ class ErrorResponse:
             "timestamp": datetime.utcnow().isoformat() + "Z"
         }
 
-
 # ============================================================================
 # TENANT ISOLATION UTILITIES
 # ============================================================================
@@ -636,7 +591,6 @@ class TenantValidator:
                 detail=f"{resource_type} not found"
             )
 
-
 # ============================================================================
 # REQUEST VALIDATION DECORATORS
 # ============================================================================
@@ -646,8 +600,8 @@ def require_permission(permission: str):
     Decorator to require specific permission before route execution.
 
     Usage:
-        @router.post("/candidates")
-        @require_permission("candidate.create")
+    @router.post("/candidates")
+    @require_permission("candidate.create")
         def create_candidate(...):
             pass
     """
@@ -659,7 +613,6 @@ def require_permission(permission: str):
             )
         return current_user
     return Depends(check_permission)
-
 
 # ============================================================================
 # SETUP FUNCTION
@@ -679,7 +632,6 @@ def setup_master_routes(app) -> None:
 
     Example:
         from fastapi import FastAPI
-        from app.api.v1.routes_master import setup_master_routes
 
         app = FastAPI()
         setup_master_routes(app)
@@ -704,7 +656,6 @@ def setup_master_routes(app) -> None:
                 f"Master routes registered but {required} not found in middleware stack. "
                 f"Authentication and rate limiting may not work correctly."
             )
-
 
 if __name__ == "__main__":
     # Display route information when run directly

@@ -1,5 +1,6 @@
 """
 Recruitment Agent for Job Creation — Agentic Workflow
+import logging
 =====================================================
 
 Integrates the Recruitment sub-agent (part of Thunder) into the job creation flow.
@@ -13,12 +14,14 @@ Agent learns from patterns in successful jobs vs. dropped inquiries.
 Logs all actions to agent_execution_log for maturity tracking.
 """
 
+import logging
 from typing import Dict, List, Optional
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_anthropic import ChatAnthropic
 import os
 import json
 from dotenv import load_dotenv
+from app.core.logging import logger
 
 load_dotenv()
 
@@ -34,21 +37,25 @@ def _get_llm_provider():
         try:
             return ChatGoogleGenerativeAI(api_key=GEMINI_API_KEY, model="gemini-3-flash-preview", temperature=0, max_retries=1)
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             print(f"Gemini provider failed: {e}, trying Claude...", flush=True)
 
     # Fall back to Claude (backup) - skip if dummy key
-    if ANTHROPIC_API_KEY and ANTHROPIC_API_KEY not in ["sk-ant-d01-dummy-for-local-dev", ""]:
+            if ANTHROPIC_API_KEY and ANTHROPIC_API_KEY not in ["sk-ant-d01-dummy-for-local-dev", ""]:
+                pass
         try:
             return ChatAnthropic(api_key=ANTHROPIC_API_KEY, model="claude-opus-4-1", temperature=0, max_retries=1)
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             print(f"Claude provider failed: {e}, using fallback responses...", flush=True)
 
     # If all real providers fail/unavailable, return a dummy LLM that will always fail
     # and trigger the _get_fallback_response() in the agent
-    return ChatGoogleGenerativeAI(api_key="dummy", model="gemini-3-flash-preview", temperature=0, max_retries=1)
+            return ChatGoogleGenerativeAI(api_key="dummy", model="gemini-3-flash-preview", temperature=0, max_retries=1)
 
 llm = _get_llm_provider()
 
+logger = logging.getLogger(__name__)
 
 class RecruitmentJobCreationAgent:
     """
@@ -82,7 +89,7 @@ class RecruitmentJobCreationAgent:
             self._validate_response_structure(parsed)
             return parsed
         except (json.JSONDecodeError, ValueError) as e:
-            return None
+            raise ValueError("Operation failed")
 
     # These field names are contractual: generate_complete_job() reads answers
     # back out by these exact keys, so every response must include them.
@@ -222,6 +229,7 @@ Respond with exactly this JSON shape:
             if result:
                 return result
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             import sys
             print(f"LLM call failed, using fallback: {type(e).__name__}", file=sys.stderr)
 
@@ -304,7 +312,6 @@ Respond with exactly this JSON shape:
             "role_type": role_type,
             "client_name": client_name
         }
-
 
 def get_recruitment_job_agent() -> RecruitmentJobCreationAgent:
     """Factory function to get the Recruitment Job Creation Agent."""

@@ -1,6 +1,7 @@
 """
 Task 6 (EPIC-03, "AI Revenue-to-Workforce Conversion"): converts a BU's
 revenue forecast into a projected headcount need, so Demand planning
+import logging
 has a real number to plan against instead of guessing.
 
 No new table, no invented rate card -- the conversion ratio (revenue
@@ -25,10 +26,8 @@ from app.services.forecast_variance_service import (
     get_monthly_actual_revenue, get_monthly_weighted_forecast,
 )
 
-
 def _client_ids_for_bu(db: Session, business_unit_id: int) -> list:
     return [c.id for c in db.query(Client.id).filter(Client.business_unit_id == business_unit_id).all()]
-
 
 def get_current_bu_headcount(db: Session, business_unit_id: int) -> int:
     """Distinct employees with an ACTIVE allocation against one of the
@@ -46,7 +45,6 @@ def get_current_bu_headcount(db: Session, business_unit_id: int) -> int:
     )
     return count
 
-
 def get_open_demand_headcount(db: Session, business_unit_id: int) -> int:
     """Sum of open positions (headcount - positions_filled) on OPEN/
     IN_PROGRESS Demand rows already assigned to this BU -- what's
@@ -56,7 +54,6 @@ def get_open_demand_headcount(db: Session, business_unit_id: int) -> int:
         Demand.assigned_bu_id == business_unit_id, Demand.status.in_(("OPEN", "IN_PROGRESS")),
     ).all()
     return sum(max(d.headcount - d.positions_filled, 0) for d in demands)
-
 
 def get_revenue_to_demand_projection(
     db: Session, *, business_unit_id: int, year: int, month: int, trailing_months: int = 3,

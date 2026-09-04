@@ -1,8 +1,11 @@
 from datetime import date, datetime
+import logging
 from typing import Optional
 
 from pydantic import BaseModel
+from app.core.logging import logger
 
+logger = logging.getLogger(__name__)
 
 class SetCostRateConfigRequest(BaseModel):
     business_unit_id: Optional[int] = None
@@ -10,7 +13,6 @@ class SetCostRateConfigRequest(BaseModel):
     overhead_pct: float
     effective_date: Optional[date] = None
     notes: Optional[str] = None
-
 
 class CostRateConfigResponse(BaseModel):
     id: int
@@ -25,12 +27,10 @@ class CostRateConfigResponse(BaseModel):
     class Config:
         from_attributes = True
 
-
 class FullyLoadedCostResponse(BaseModel):
     employee_id: str
     base_salary_usd_cents: Optional[int]
     fully_loaded_cost_usd_cents: Optional[int]
-
 
 class BlendedDeliveryRateResponse(BaseModel):
     business_unit_id: int

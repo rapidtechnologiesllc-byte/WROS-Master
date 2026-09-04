@@ -1,4 +1,5 @@
 """
+import logging
 S-074/HRMS-0474 -- Bulk Candidate Engagement Launch.
 
 Real architecture adaptations:
@@ -34,6 +35,7 @@ Real architecture adaptations:
   same documented-gap posture as every other missing
   system_configuration need this session.
 """
+import logging
 import csv
 import io
 from datetime import datetime
@@ -55,18 +57,16 @@ BULK_RATE_PER_MINUTE = 20  # BR-01, module constant -- see docstring
 REQUIRED_CSV_COLUMN = "name"
 CSV_COLUMNS = ("name", "email", "phone", "location", "current_employer", "skills")
 
+logger = logging.getLogger(__name__)
 
 class CsvTooLarge(Exception):
     pass
 
-
 class CsvMissingRequiredColumn(Exception):
     pass
 
-
 class BulkTooLarge(Exception):
     pass
-
 
 def import_candidates_from_csv(db: Session, csv_text: str, recruiter_id: str, tenant_id: str) -> Dict:
     """Step 1. Never raises for per-row problems -- those go in
@@ -114,6 +114,7 @@ def import_candidates_from_csv(db: Session, csv_text: str, recruiter_id: str, te
         except DuplicateCandidateError:
             skipped_duplicates += 1
         except Exception as exc:
+            logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.error(f"[BulkEngagement] Row {index} import failed: {exc}")
             errors.append({"row": index, "reason": str(exc)})
 
@@ -122,11 +123,9 @@ def import_candidates_from_csv(db: Session, csv_text: str, recruiter_id: str, te
         "errors": errors, "candidate_ids": imported_candidate_ids,
     }
 
-
 def _already_engaged(db: Session, candidate_id: str) -> bool:
     """BR-02."""
     return db.query(CandidateConversation).filter(CandidateConversation.candidate_id == candidate_id).first() is not None
-
 
 def launch_bulk_engagement(db: Session, candidate_ids: List[str], recruiter_id: str, tenant_id: str) -> Dict:
     """Step 2. Raises BulkTooLarge if over the cap (this story's own
@@ -142,7 +141,6 @@ def launch_bulk_engagement(db: Session, candidate_ids: List[str], recruiter_id: 
     db.commit()
     return {"bulk_job_id": job.id, "total_candidates": job.total_count, "estimated_completion_minutes": round(job.total_count / BULK_RATE_PER_MINUTE, 1)}
 
-
 def _notify_recruiter(db: Session, recruiter_id: str, tenant_id: str, message: str) -> None:
     recipient = db.query(Users).filter(Users.UserID == recruiter_id).first()
     if not recipient:
@@ -150,8 +148,8 @@ def _notify_recruiter(db: Session, recruiter_id: str, tenant_id: str, message: s
     try:
         send_notification(db, calling_context_tenant_id=recipient.tenant_id, recipient=recipient, priority_tier="P2", channel_preference="EMAIL", message=message)
     except Exception as exc:
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[BulkEngagement] Failed to notify recruiter of completion: {exc}")
-
 
 def run_bulk_engagement_worker(db: Session, job_id: str, *, sleep_fn=None, batch_size: int = BULK_RATE_PER_MINUTE) -> Dict:
     """Step 3. BR-01: processes at most `batch_size` (20) candidates,
@@ -186,6 +184,7 @@ def run_bulk_engagement_worker(db: Session, job_id: str, *, sleep_fn=None, batch
                 auto_assign_ai_agent_on_creation(candidate_id, job.tenant_id, db)
                 job.success_count += 1
             except Exception as exc:
+                logger.error(f"Error: {str(exc)}", exc_info=True)
                 logger.error(f"[BulkEngagement] Failed engaging candidate {candidate_id!r} for job {job_id!r}: {exc}")
                 db.rollback()
                 job.failed_count += 1
@@ -204,7 +203,6 @@ def run_bulk_engagement_worker(db: Session, job_id: str, *, sleep_fn=None, batch
     _notify_recruiter(db, job.recruiter_id, job.tenant_id, f"Bulk engagement complete: {job.success_count} success, {job.failed_count} failed, {job.skipped_count} already engaged.")
 
     return {"outcome": "completed", "success_count": job.success_count, "failed_count": job.failed_count, "skipped_count": job.skipped_count}
-
 
 def get_bulk_job_status(db: Session, job_id: str) -> Optional[Dict]:
     job = db.query(BulkEngagementJob).filter(BulkEngagementJob.id == job_id).first()

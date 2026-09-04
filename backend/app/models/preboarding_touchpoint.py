@@ -1,4 +1,5 @@
 """
+import logging
 S-067/HRMS-0467 -- Onboarding Agent.
 
 Real architecture adaptation: D+1 ("D_PLUS_1", check-in the day after
@@ -16,6 +17,7 @@ completion()), which doubles as this table's own idempotency guard:
 its presence means "onboarding.complete has already been handled for
 this candidate," so HR is never notified twice.
 """
+import logging
 from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, func
 from sqlalchemy.orm import relationship
 
@@ -24,13 +26,14 @@ from app.models.base import Base
 TOUCHPOINT_TYPES = ("D7", "D3", "D1", "D_PLUS_1")
 TOUCHPOINT_STATUSES = ("PENDING", "SENT", "CANCELLED")
 
+logger = logging.getLogger(__name__)
 
 class PreboardingTouchpoint(Base):
     __tablename__ = "preboarding_touchpoints"
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
-    tenant_id = Column(String(50), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=False, index=True)
-    candidate_id = Column(String(36), ForeignKey("candidates.candidateID", ondelete="CASCADE"), nullable=False, index=True)
+    tenant_id = Column(String(512), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=False, index=True)
+    candidate_id = Column(String(512), ForeignKey("candidates.candidateID", ondelete="CASCADE"), nullable=False, index=True)
     offer_id = Column(Integer, ForeignKey("offer_letters.id", ondelete="CASCADE"), nullable=False, index=True)
     touchpoint_type = Column(String(20), nullable=False)
     scheduled_at = Column(DateTime(timezone=False), nullable=False)

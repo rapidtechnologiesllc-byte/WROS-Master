@@ -2,6 +2,7 @@
 S-205/HRMS-0107 -- Business Unit Entity & Context Switching.
 ==================================================================
 Prefix: /bu-context
+import logging
 Tag:    bu-context
 
 GET  /bu-context/my-access   -- BUs this user can access (>1 = real
@@ -29,7 +30,7 @@ from fastapi import APIRouter, Depends, Header, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_internal_user
+from app.core.dependencies import get_current_internal_user, require_resource_permission
 from app.models.business_unit import BusinessUnit
 from app.models.user import Users
 from app.schemas.bu_context import BUAccessItem, MyBUAccessResponse, SwitchBURequest
@@ -40,7 +41,6 @@ from app.services.bu_context_service import (
 
 router = APIRouter(prefix="/bu-context", tags=["bu-context"])
 
-
 def _user_can_view_all_bus(db: Session, current_user: Users) -> bool:
     """Check if user has permission to view all business units (not scoped to their BU)."""
     from app.services.permission_helper import PermissionHelper
@@ -50,7 +50,6 @@ def _user_can_view_all_bus(db: Session, current_user: Users) -> bool:
         db,
         current_user.tenant_id
     )
-
 
 async def get_active_business_unit_id(
     x_active_bu_id: Optional[int] = Header(None),
@@ -70,30 +69,56 @@ async def get_active_business_unit_id(
         raise HTTPException(status_code=403, detail=str(exc))
     return x_active_bu_id
 
-
-@router.get("/my-access", response_model=MyBUAccessResponse)
+@router.get(
+    "/my-access",
+    response_model=MyBUAccessResponse,
+    dependencies=[Depends(require_resource_permission("my-acce", "view"))]
+)
 def my_bu_access(current_user: Users = Depends(get_current_internal_user), db: Session = Depends(get_db)):
+    """
+    Get the business units this user has access to.
+
+    BU Scoping Logic (User-Specified):
+    - User sees candidates assigned to their BU
+    - User sees org-wide candidates (those with NULL BU_ID)
+    - User's BU is mandatory and set at creation time
+    - Returns all accessible BUs with their metadata
+    """
     ensure_default_bu_access(db, current_user)  # idempotent -- backfills users who predate this story
     rows = get_user_bu_access(db, current_user.UserID)
     bu_ids = [r.business_unit_id for r in rows]
     bus_by_id = {b.id: b for b in db.query(BusinessUnit).filter(BusinessUnit.id.in_(bu_ids)).all()} if bu_ids else {}
 
+    # Build response with safe field access (handle missing BU records gracefully)
+    access_items = []
+    for r in rows:
+        bu = bus_by_id.get(r.business_unit_id)
+
+        # Get BU name safely (fallback to unknown if BU doesn't exist)
+        bu_name = bu.name if bu else f"(BU #{r.business_unit_id})"
+
+        # Get optional BU fields safely (getattr with None default)
+        bu_continent = getattr(bu, 'continent', None) if bu else None
+        bu_region = getattr(bu, 'region', None) if bu else None
+
+        item = BUAccessItem(
+            business_unit_id=r.business_unit_id,
+            name=bu_name,
+            continent=bu_continent,
+            region=bu_region,
+            is_default=r.is_default,
+        )
+        access_items.append(item)
+
     return MyBUAccessResponse(
-        access=[
-            BUAccessItem(
-                business_unit_id=r.business_unit_id,
-                name=bus_by_id[r.business_unit_id].name if r.business_unit_id in bus_by_id else "(unknown BU)",
-                continent=bus_by_id[r.business_unit_id].continent if r.business_unit_id in bus_by_id else None,
-                region=bus_by_id[r.business_unit_id].region if r.business_unit_id in bus_by_id else None,
-                is_default=r.is_default,
-            )
-            for r in rows
-        ],
+        access=access_items,
         can_view_all_bus=_user_can_view_all_bus(db, current_user),
     )
 
-
-@router.post("/switch")
+@router.post(
+    "/switch",
+    dependencies=[Depends(require_resource_permission("switch", "create"))]
+)
 def switch_bu(body: SwitchBURequest, current_user: Users = Depends(get_current_internal_user), db: Session = Depends(get_db)):
     try:
         switch_active_bu(db, current_user, body.business_unit_id)
@@ -101,8 +126,10 @@ def switch_bu(body: SwitchBURequest, current_user: Users = Depends(get_current_i
         raise HTTPException(status_code=403, detail=str(exc))
     return {"active_business_unit_id": body.business_unit_id}
 
-
-@router.post("/all-bus")
+@router.post(
+    "/all-bus",
+    dependencies=[Depends(require_resource_permission("all-bu", "create"))]
+)
 def all_bus_view(current_user: Users = Depends(get_current_internal_user), db: Session = Depends(get_db)):
     try:
         entry = activate_all_bus_view(db, current_user)

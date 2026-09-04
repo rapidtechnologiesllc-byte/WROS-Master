@@ -1,4 +1,5 @@
 """
+import logging
 Help Desk/IT-HR Ticketing. Throwaway SQLite -- never the real database.
 
 Covers: Impact x Urgency -> Priority derivation, category->department
@@ -31,7 +32,6 @@ from app.models.user import Users
 import app.services.task_escalation_service as escalation_svc
 import app.services.ticket_service as ticket_svc
 
-
 @pytest.fixture()
 def db_session():
     fd, db_path = tempfile.mkstemp(suffix=".sqlite3")
@@ -52,7 +52,6 @@ def db_session():
         os.remove(db_path)
     except PermissionError:
         pass
-
 
 @pytest.fixture()
 def seeded(db_session):
@@ -81,17 +80,14 @@ def seeded(db_session):
     db_session.commit()
     return {"db": db_session, "creator": creator, "dept1_id": dept1_id, "dept2_id": dept2_id}
 
-
 def test_priority_derived_from_impact_urgency_matrix():
     assert ticket_svc.derive_priority_from_impact_urgency("ORG_WIDE", "CRITICAL") == "URGENT"
     assert ticket_svc.derive_priority_from_impact_urgency("INDIVIDUAL", "LOW") == "LOW"
     assert ticket_svc.derive_priority_from_impact_urgency("DEPARTMENT", "MODERATE") == "MEDIUM"
 
-
 def test_priority_never_settable_directly_only_derived():
     with pytest.raises(ValueError):
         ticket_svc.derive_priority_from_impact_urgency("NOT_A_REAL_IMPACT", "CRITICAL")
-
 
 def test_create_ticket_routes_to_configured_department(seeded):
     db = seeded["db"]
@@ -104,7 +100,6 @@ def test_create_ticket_routes_to_configured_department(seeded):
     assert task.task_type == "TICKET"
     assert task.priority == "HIGH"  # INDIVIDUAL+CRITICAL
 
-
 def test_create_ticket_unmatched_category_not_guessed(seeded):
     db = seeded["db"]
     task = ticket_svc.create_ticket(
@@ -112,7 +107,6 @@ def test_create_ticket_unmatched_category_not_guessed(seeded):
         category="Not A Real Category", created_by_user_id="u1",
     )
     assert task.department_id is None  # never guessed -- surfaced for manual triage
-
 
 def test_sla_due_dates_feed_task_due_date(seeded):
     db = seeded["db"]
@@ -129,7 +123,6 @@ def test_sla_due_dates_feed_task_due_date(seeded):
     # existing Task ranking, no ticket-specific ranking needed.
     assert task.due_date == detail.response_due_at
 
-
 def test_first_response_shifts_due_date_to_resolution(seeded):
     db = seeded["db"]
     now = datetime(2026, 8, 4, 9, 0, 0)
@@ -144,7 +137,6 @@ def test_first_response_shifts_due_date_to_resolution(seeded):
     assert detail.first_response_at == responded_at
     assert task.due_date == detail.resolution_due_at
 
-
 def test_sla_breach_flags_response_when_never_responded(seeded):
     db = seeded["db"]
     now = datetime(2026, 8, 4, 9, 0, 0)
@@ -158,7 +150,6 @@ def test_sla_breach_flags_response_when_never_responded(seeded):
     detail = db.query(TicketDetail).filter(TicketDetail.task_id == task.id).first()
     assert detail.response_breached is True
     assert detail.resolution_breached is False
-
 
 def test_sla_breach_flags_resolution_after_response_recorded(seeded):
     db = seeded["db"]

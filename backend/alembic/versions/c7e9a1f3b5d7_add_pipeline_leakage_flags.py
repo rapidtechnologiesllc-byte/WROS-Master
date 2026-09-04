@@ -1,3 +1,4 @@
+import logging
 """add pipeline_leakage_flags (S-243 EPIC-02 Revenue Leakage Detection)
 
 Revision ID: c7e9a1f3b5d7
@@ -17,12 +18,10 @@ from typing import Sequence, Union
 from alembic import op
 import sqlalchemy as sa
 
-
 revision: str = 'c7e9a1f3b5d7'
 down_revision: Union[str, Sequence[str], None] = 'b5d7f9a1c3e5'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
-
 
 def upgrade() -> None:
     """Upgrade schema."""
@@ -60,7 +59,6 @@ def upgrade() -> None:
     op.create_index(op.f('ix_pipeline_leakage_flags_demand_id'), 'pipeline_leakage_flags', ['demand_id'], unique=False)
     op.create_index(op.f('ix_pipeline_leakage_flags_revenue_leakage_flag_id'), 'pipeline_leakage_flags', ['revenue_leakage_flag_id'], unique=False)
     op.create_index(op.f('ix_pipeline_leakage_flags_sub_vendor_request_id'), 'pipeline_leakage_flags', ['sub_vendor_request_id'], unique=False)
-
 
 def downgrade() -> None:
     """Downgrade schema."""

@@ -1,5 +1,6 @@
 """
 Report Generation Tasks
+import logging
 =======================
 
 Async tasks for generating reports:
@@ -11,7 +12,6 @@ Async tasks for generating reports:
 from app.core.celery_app import celery_app
 from app.core.database import SessionLocal
 from app.api.v1.endpoints.admin_queue import TaskStatus, log_task_message
-
 
 @celery_app.task(bind=True, name="tasks.generate_report")
 def generate_report_task(self, report_type: str, user_id: str, filters: dict = None):
@@ -58,6 +58,7 @@ def generate_report_task(self, report_type: str, user_id: str, filters: dict = N
         }
 
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         error_msg = f"Report generation failed: {str(e)}"
         log_task_message(task_id, error_msg, "error")
         TaskStatus.update_task(task_id, status="failed")

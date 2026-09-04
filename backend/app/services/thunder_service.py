@@ -1,4 +1,5 @@
 """
+import logging
 Phase 3 Part A1 -- Thunder Conversation Core.
 
 `03-THUNDER-AGENTIC-LAYER.md` calls for exactly two functions every
@@ -32,6 +33,7 @@ this codebase -- it's EPIC-11 scope (HRMS-1101-1110, Phase 3 Workstream
 desire_profile=None rather than fabricating one, so a caller can tell
 "not built yet" apart from "built and empty."
 """
+import logging
 import os
 import re
 import secrets
@@ -78,15 +80,14 @@ DEBOUNCE_SECONDS = 60
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 THUNDER_REPLY_MODEL = "gemini-3-flash-preview"
 
+logger = logging.getLogger(__name__)
 
 class ConsentNotGiven(Exception):
     """A1: no active whatsapp_outreach ConsentRecord for this candidate."""
 
-
 class DuplicateMessageSuppressed(Exception):
     """A1's debounce guarantee -- the same message body was already sent
     on this conversation within DEBOUNCE_SECONDS."""
-
 
 def has_active_consent(
     db: Session, candidate_id: str, *, consent_type: str = WHATSAPP_OUTREACH_CONSENT_TYPE,
@@ -105,7 +106,6 @@ def has_active_consent(
         .first()
     )
     return bool(record and record.consent_given)
-
 
 def _is_duplicate_send(
     db: Session, conversation: CandidateConversation, message_body: str,
@@ -132,7 +132,6 @@ def _is_duplicate_send(
     )
     return any((event.event_data or {}).get("body") == message_body for event in recent)
 
-
 # Which consent type gates a send on each real channel. 'whatsapp' has
 # an external transport (see send_whatsapp_message); 'web_chat' doesn't
 # need one -- the reply IS the HTTP response the browser is waiting on
@@ -145,7 +144,6 @@ CHANNEL_CONSENT_TYPES = {
     "web_chat": WEB_CHAT_CONSENT_TYPE,
     "email": EMAIL_OUTREACH_CONSENT_TYPE,
 }
-
 
 def send_web_chat_message(
     db: Session,
@@ -192,7 +190,6 @@ def send_web_chat_message(
     conversation.updated_at = datetime.utcnow()
     db.add(conversation)
     return event
-
 
 def send_thunder_message(
     db: Session,
@@ -250,7 +247,6 @@ def send_thunder_message(
         sender_type=sender_type, sender_id=sender_id,
     )
 
-
 def send_outbound_campaign_message(db: Session, conversation: CandidateConversation, candidate: Candidate, message_body: str, channel: str, *, email_subject: str = "Following up on your application") -> None:
     """Shared whatsapp/email send dispatch for the automated outreach
     stack (S-041 follow-ups, S-044 campaign touchpoints, S-045
@@ -278,17 +274,37 @@ def send_outbound_campaign_message(db: Session, conversation: CandidateConversat
         return
 
     from app.services.email_service import EmailService
+    from app.services.message_queue_service import MessageQueueService
+
     try:
         EmailService.send_email(candidate.candidateEmail, email_subject, message_body, is_html=False)
+
+        # Mark candidate_created message as COMPLETED after email sent successfully
+        try:
+            from app.models.message_queue import MessageQueue
+            message = db.query(MessageQueue).filter(
+                MessageQueue.resource_id == candidate.candidateID,
+                MessageQueue.type == "candidate_created",
+                MessageQueue.status != MessageQueueService.STATUS_COMPLETED,
+            ).first()
+
+            if message:
+                MessageQueueService.mark_completed(message.id, db=db)
+                logger.debug(f"[Thunder] Marked candidate_created message as COMPLETED: {message.id}")
+        except Exception as msg_err:
+            logger.error(f"Error: {str(msg_err)}", exc_info=True)
+            logger.error(f"[Thunder] Failed to mark message as completed: {msg_err}", exc_info=True)
+            # Don't fail email sending if message queue update fails
     except Exception as exc:
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.error(f"[Thunder] Email send failed for candidate {candidate.candidateID!r}: {exc}")
+
     db.add(ConversationEvent(
         conversation_id=conversation.id, event_type="ai_message_sent",
         event_data={"channel": "email", "body": message_body, "auto_generated": True},
         triggered_by="ai_agent",
     ))
     db.flush()
-
 
 # Real-world bug, reported directly by Avinash: a candidate asked "what
 # roles do you have" for a Lead Guidewire Business Analyst-shaped
@@ -299,7 +315,6 @@ def send_outbound_campaign_message(db: Session, conversation: CandidateConversat
 # This is the fix: real open jobs, capped and ordered by newest first so
 # the prompt stays a bounded size regardless of how many jobs exist.
 MAX_OPEN_JOBS_IN_CONTEXT = 40
-
 
 def _get_open_jobs_summary(db: Session) -> List[Dict]:
     """Real currently-open jobs (jobStatus != Closed), for Thunder to
@@ -325,7 +340,6 @@ def _get_open_jobs_summary(db: Session) -> List[Dict]:
         }
         for job in jobs
     ]
-
 
 def build_candidate_context(db: Session, candidate: Candidate) -> Dict:
     """
@@ -404,7 +418,6 @@ def build_candidate_context(db: Session, candidate: Candidate) -> Dict:
         "open_jobs": _get_open_jobs_summary(db),
     }
 
-
 # ===========================================================================
 # Reply generation -- the piece that was missing: turning
 # build_candidate_context() + a new inbound message into Thunder's
@@ -415,15 +428,12 @@ class ThunderReplyGenerationFailed(Exception):
     """Raised when Gemini can't be called (no API key) or returns nothing
     usable -- callers must not fall back to a fabricated reply."""
 
-
 def _display_name(candidate: Candidate) -> str:
     parts = [candidate.candidateFirstName, candidate.candidateLastName]
     name = " ".join(p for p in parts if p).strip()
     return name or candidate.candidateEmail
 
-
 CHANNEL_LABELS = {"whatsapp": "WhatsApp", "web_chat": "our website chat widget", "portal": "the candidate portal chat widget"}
-
 
 def generate_thunder_reply(
     db: Session, candidate: Candidate, inbound_message: str, *, channel: str = "whatsapp",
@@ -543,6 +553,7 @@ Write ONLY Thunder's reply text -- no labels, no quotation marks, no explanation
     try:
         response = llm.invoke(prompt)
     except Exception as exc:
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         raise ThunderReplyGenerationFailed(f"Gemini call failed or timed out: {exc}") from exc
     content = response.content
     if isinstance(content, list):
@@ -557,7 +568,6 @@ Write ONLY Thunder's reply text -- no labels, no quotation marks, no explanation
         raise ThunderReplyGenerationFailed("Gemini returned an empty reply.")
 
     return reply_text
-
 
 # ===========================================================================
 # S-034/HRMS-0434 -- response validation + safe fallback.
@@ -582,7 +592,6 @@ MIN_REPLY_LENGTH = 10
 MAX_REPLY_LENGTH = 4096
 _TEMPLATE_VAR_RE = re.compile(r"\{\{.*?\}\}")
 
-
 def validate_thunder_reply(text: Optional[str]) -> bool:
     """AC: minimum 10 chars, maximum 4096 (WhatsApp limit), no un-replaced
     {{...}} template variables."""
@@ -593,7 +602,6 @@ def validate_thunder_reply(text: Optional[str]) -> bool:
     if _TEMPLATE_VAR_RE.search(text):
         return False
     return True
-
 
 def generate_thunder_reply_with_fallback(
     db: Session, candidate: Candidate, inbound_message: str, *, channel: str = "whatsapp",
@@ -639,6 +647,7 @@ def generate_thunder_reply_with_fallback(
             logger.error(f"[Thunder] reply generation failed (attempt {attempt + 1}): {exc}")
             continue
         except Exception as exc:
+            logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.error(f"[Thunder] context build or unexpected failure (attempt {attempt + 1}): {exc}")
             context_build_failed = True
             break
@@ -653,7 +662,6 @@ def generate_thunder_reply_with_fallback(
         db.commit()
 
     return SAFE_FALLBACK_MESSAGE, True
-
 
 # ===========================================================================
 # S-041/HRMS-0441 -- proactive follow-up generation.
@@ -680,7 +688,6 @@ FOLLOWUP_TONE_BY_NUMBER = {
     2: "This is the second follow-up -- be a little more direct than the first, while staying polite and professional.",
     3: "This is the third and FINAL follow-up before we stop reaching out -- make that plain (politely), so they know this is their last chance to respond if they're still interested.",
 }
-
 
 def generate_followup_message(db: Session, candidate: Candidate, follow_up_number: int, *, channel: str = "whatsapp") -> str:
     """Step 3.4's generateThunderResponse(..., 'FOLLOW_UP', {follow_up_number}).
@@ -725,6 +732,7 @@ Rules:
     try:
         response = llm.invoke(instruction)
     except Exception as exc:
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         raise ThunderReplyGenerationFailed(f"Gemini call failed or timed out: {exc}") from exc
     content = response.content
     if isinstance(content, list):
@@ -739,7 +747,6 @@ Rules:
         raise ThunderReplyGenerationFailed("Gemini returned an empty follow-up message.")
 
     return reply_text
-
 
 def generate_followup_message_with_fallback(
     db: Session, candidate: Candidate, follow_up_number: int, *, channel: str = "whatsapp",
@@ -766,6 +773,7 @@ def generate_followup_message_with_fallback(
             logger.error(f"[Thunder] follow-up generation failed (attempt {attempt + 1}): {exc}")
             continue
         except Exception as exc:
+            logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.error(f"[Thunder] follow-up context build or unexpected failure (attempt {attempt + 1}): {exc}")
             break
         if validate_thunder_reply(message):
@@ -773,7 +781,6 @@ def generate_followup_message_with_fallback(
         logger.warning(f"[Thunder] generated follow-up failed validation (attempt {attempt + 1}): {message!r}")
 
     return SAFE_FOLLOWUP_FALLBACK_MESSAGE, True
-
 
 # ===========================================================================
 # S-045/HRMS-0445 -- reactivation message generation.
@@ -791,7 +798,6 @@ SAFE_REACTIVATION_FALLBACK_MESSAGE = (
     "we'd still love to hear from you if you're interested in exploring "
     "opportunities with us. No pressure at all, just let us know!"
 )
-
 
 def generate_reactivation_message(db: Session, candidate: Candidate, days_since_last_contact: int, *, channel: str = "whatsapp") -> str:
     """Step 1's REACTIVATION prompt, adapted to a direct instruction
@@ -828,6 +834,7 @@ Rules:
     try:
         response = llm.invoke(instruction)
     except Exception as exc:
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         raise ThunderReplyGenerationFailed(f"Gemini call failed or timed out: {exc}") from exc
     content = response.content
     if isinstance(content, list):
@@ -842,7 +849,6 @@ Rules:
         raise ThunderReplyGenerationFailed("Gemini returned an empty reactivation message.")
 
     return reply_text
-
 
 def generate_reactivation_message_with_fallback(
     db: Session, candidate: Candidate, days_since_last_contact: int, *, channel: str = "whatsapp",
@@ -865,6 +871,7 @@ def generate_reactivation_message_with_fallback(
             logger.error(f"[Thunder] reactivation generation failed (attempt {attempt + 1}): {exc}")
             continue
         except Exception as exc:
+            logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.error(f"[Thunder] reactivation context build or unexpected failure (attempt {attempt + 1}): {exc}")
             break
         if validate_thunder_reply(message):
@@ -872,7 +879,6 @@ def generate_reactivation_message_with_fallback(
         logger.warning(f"[Thunder] generated reactivation message failed validation (attempt {attempt + 1}): {message!r}")
 
     return SAFE_REACTIVATION_FALLBACK_MESSAGE, True
-
 
 # ===========================================================================
 # "Test Thunder" mode -- lets a real internal user chat with Thunder
@@ -899,10 +905,8 @@ def generate_reactivation_message_with_fallback(
 TEST_CANDIDATE_ID_PREFIX = "THUNDER-TEST-"
 DEFAULT_TEST_MOBILE = "+10005559999"  # used only if the tester has no whatsapp_number registered -- never dialed
 
-
 def test_candidate_id_for(tenant_id: str) -> str:
     return f"{TEST_CANDIDATE_ID_PREFIX}{tenant_id}"[:50]
-
 
 def _split_display_name(name: Optional[str], fallback: str) -> Tuple[str, str]:
     parts = (name or "").split()
@@ -911,7 +915,6 @@ def _split_display_name(name: Optional[str], fallback: str) -> Tuple[str, str]:
     if len(parts) == 1:
         return parts[0], ""
     return parts[0], " ".join(parts[1:])
-
 
 def _unique_test_email(db: Session, current_user: Users, candidate_id: str) -> str:
     """Prefer the tester's own real email, so Thunder addresses them as
@@ -923,7 +926,6 @@ def _unique_test_email(db: Session, current_user: Users, candidate_id: str) -> s
         return current_user.UserEmail
     return f"thunder-test+{current_user.UserID}@blitzenx-internal-test.invalid"
 
-
 def mock_whatsapp_client(to_number: str, from_number: str, body: str) -> bool:
     """
     Honest mock transport for 'Test Thunder' mode: records the send to
@@ -933,7 +935,6 @@ def mock_whatsapp_client(to_number: str, from_number: str, body: str) -> bool:
     """
     logger.info(f"[ThunderTestChat] MOCK send | to={to_number} from={from_number} | {body[:120]!r}")
     return True
-
 
 def get_or_create_test_candidate(db: Session, current_user: Users) -> Candidate:
     """
@@ -974,7 +975,6 @@ def get_or_create_test_candidate(db: Session, current_user: Users) -> Candidate:
     db.flush()
     return candidate
 
-
 def get_or_create_test_conversation(db: Session, tenant_id: str) -> CandidateConversation:
     """One test conversation per internal tester (scoped by tenant_id),
     so different staff testing Thunder don't share a thread."""
@@ -1006,7 +1006,6 @@ def get_or_create_test_conversation(db: Session, tenant_id: str) -> CandidateCon
     db.add(conversation)
     db.flush()
     return conversation
-
 
 def run_test_chat_turn(db: Session, *, current_user: Users, message_body: str) -> Dict:
     """
@@ -1059,7 +1058,6 @@ def run_test_chat_turn(db: Session, *, current_user: Users, message_body: str) -
         "created_at": reply_event.created_at,
     }
 
-
 def get_test_chat_history(db: Session, tenant_id: str) -> List[Dict]:
     """Full message history for this tester's current (non-closed) test
     conversation, in display order. Empty list if none exists yet or
@@ -1098,7 +1096,6 @@ def get_test_chat_history(db: Session, tenant_id: str) -> List[Dict]:
         }
         for event in events
     ]
-
 
 def reset_test_chat(db: Session, tenant_id: str) -> None:
     """Closes this tester's current test conversation so the next

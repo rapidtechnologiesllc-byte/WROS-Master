@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import logging
 """Phase 1 Final Execution: Atomic single-INSERT for all 175 resources"""
 
 from app.core.database import SessionLocal
@@ -27,6 +28,8 @@ try:
     db.commit()
     print('Deletion successful')
 except Exception as e:
+    logger.error(f"Error: {str(e)}", exc_info=True)
+    logger.error(f"Error: {str(e)}", exc_info=True)
     print(f'Deletion error: {e}')
     db.rollback()
 
@@ -54,11 +57,15 @@ try:
             db.execute(text(statement))
             print(f'Statement {i+1}: OK')
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
+            logger.error(f"Error: {str(e)}", exc_info=True)
             print(f'Statement {i+1}: ERROR - {str(e)[:100]}')
 
     db.commit()
     print('Script execution complete')
 except Exception as e:
+    logger.error(f"Error: {str(e)}", exc_info=True)
+    logger.error(f"Error: {str(e)}", exc_info=True)
     print(f'Script error: {e}')
     db.rollback()
 
@@ -117,12 +124,16 @@ try:
         try:
             db.execute(text(statement))
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
+            logger.error(f"Error: {str(e)}", exc_info=True)
             if 'already exists' not in str(e).lower():
                 print(f'Statement {i+1}: Note - {str(e)[:80]}')
 
     db.commit()
     print('Permissions script execution complete')
 except Exception as e:
+    logger.error(f"Error: {str(e)}", exc_info=True)
+    logger.error(f"Error: {str(e)}", exc_info=True)
     print(f'Permissions script error: {e}')
     db.rollback()
 

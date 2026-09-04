@@ -2,6 +2,7 @@
 Partner/BU spend tracking, 2026-08-05. Proves the purpose/client
 tagging rules and the client investment-position ledger (prospect-era
 expense -> conversion -> revenue -> breakeven), reusing ClientHistory's
+import logging
 existing STATUS log rather than a second tracking mechanism.
 
 Throwaway SQLite -- never the real database.
@@ -27,7 +28,6 @@ from app.services.expense_service import (
     ExpenseValidationError, get_client_investment_position, log_expense,
 )
 
-
 @pytest.fixture()
 def db_session():
     fd, db_path = tempfile.mkstemp(suffix=".sqlite3")
@@ -46,20 +46,17 @@ def db_session():
         engine.dispose()
         os.remove(db_path)
 
-
 def _make_user(db, user_id, *, business_unit_id=None):
     user = Users(UserID=user_id, UserRole="Partner", UserEmail=f"{user_id}@blitzenx.com", UserPassword="h", business_unit_id=business_unit_id)
     db.add(user)
     db.commit()
     return user
 
-
 def _make_client(db, name, *, status="PROSPECT"):
     client = Client(company_name=name, status=status)
     db.add(client)
     db.commit()
     return client
-
 
 def test_client_directed_purpose_requires_client_id(db_session):
     curtis = _make_user(db_session, "curtis")
@@ -69,7 +66,6 @@ def test_client_directed_purpose_requires_client_id(db_session):
             expense_category="TRAVEL", amount_usd_cents=50000, expense_date=date(2026, 8, 1),
         )
 
-
 def test_conference_purpose_requires_conference_name(db_session):
     curtis = _make_user(db_session, "curtis")
     with pytest.raises(ExpenseValidationError):
@@ -77,7 +73,6 @@ def test_conference_purpose_requires_conference_name(db_session):
             db_session, logged_by_user=curtis, purpose="CONFERENCE",
             expense_category="TRAVEL", amount_usd_cents=50000, expense_date=date(2026, 8, 1),
         )
-
 
 def test_conference_expense_has_no_client(db_session):
     curtis = _make_user(db_session, "curtis")
@@ -88,7 +83,6 @@ def test_conference_expense_has_no_client(db_session):
     )
     assert expense.client_id is None
     assert expense.conference_name == "NAMIC 2026"
-
 
 def test_expense_bu_derived_from_logger_never_caller_supplied(db_session):
     axion = BusinessUnit(name="Axion")
@@ -104,7 +98,6 @@ def test_expense_bu_derived_from_logger_never_caller_supplied(db_session):
     )
     assert expense.business_unit_id == axion.id
     assert expense.logged_by_user_id == "troy"
-
 
 def test_client_investment_position_prospect_to_breakeven(db_session):
     curtis = _make_user(db_session, "curtis")
@@ -162,7 +155,6 @@ def test_client_investment_position_prospect_to_breakeven(db_session):
     # Running balance: -80000, -120000, -125000, -55000 (after inv1), +35000 (after inv2)
     assert position["breakeven_date"] == date(2026, 6, 15)
     assert position["expense_count"] == 3
-
 
 def test_client_investment_position_never_reaches_breakeven(db_session):
     curtis = _make_user(db_session, "curtis")

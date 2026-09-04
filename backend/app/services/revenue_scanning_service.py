@@ -1,4 +1,5 @@
 """
+import logging
 PRIORITY 2: Revenue Autonomous Scanning Service.
 
 Background job (runs daily) that proactively scans all active allocations
@@ -25,7 +26,6 @@ from app.services.revenue_leakage_service import (
     DEFAULT_LEAKAGE_GRACE_DAYS,
 )
 
-
 def _get_current_billing_period(date_within_period: date) -> tuple:
     """
     Returns the billing period (period_start, period_end) for the month
@@ -40,7 +40,6 @@ def _get_current_billing_period(date_within_period: date) -> tuple:
         period_end = date(period_start.year, period_start.month + 1, 1) - timedelta(days=1)
 
     return period_start, period_end
-
 
 def run_daily_revenue_scan_job(db: Session) -> Dict:
     """
@@ -126,12 +125,13 @@ def run_daily_revenue_scan_job(db: Session) -> Dict:
                     )
 
             except Exception as exc:
+                logger.error(f"Error: {str(exc)}", exc_info=True)
                 error_msg = f"Project {project.id}: {str(exc)}"
                 errors.append(error_msg)
                 logger.warning(f"[RevenueScan] {error_msg}")
 
         # Commit all changes
-        db.commit()
+                db.commit()
 
         logger.info(
             f"[RevenueScan] Daily scan complete: "
@@ -149,6 +149,7 @@ def run_daily_revenue_scan_job(db: Session) -> Dict:
         }
 
     except Exception as exc:
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.error(f"[RevenueScan] Daily scan job failed: {exc}")
         return {
             "scanned_projects": scanned,
@@ -158,7 +159,6 @@ def run_daily_revenue_scan_job(db: Session) -> Dict:
             "errors": [str(exc)],
             "timestamp": datetime.utcnow(),
         }
-
 
 def get_recent_scan_results(db: Session, *, tenant_id: Optional[int] = None, limit: int = 50) -> List[Dict]:
     """
@@ -188,7 +188,6 @@ def get_recent_scan_results(db: Session, *, tenant_id: Optional[int] = None, lim
         }
         for f in flags
     ]
-
 
 def get_scan_statistics(db: Session, *, tenant_id: Optional[int] = None) -> Dict:
     """

@@ -31,7 +31,6 @@ _PATTERNS = [
     ),
 ]
 
-
 def redact(text: str) -> str:
     if not text:
         return text
@@ -40,7 +39,6 @@ def redact(text: str) -> str:
     result = _PATTERNS[1].sub(_REDACTED, result)
     result = _PATTERNS[2].sub(lambda m: f"{m.group(1)}{m.group(2)}{_REDACTED}", result)
     return result
-
 
 class RedactingFilter(logging.Filter):
     """Attach to every handler so redaction can't be bypassed by adding a new one."""

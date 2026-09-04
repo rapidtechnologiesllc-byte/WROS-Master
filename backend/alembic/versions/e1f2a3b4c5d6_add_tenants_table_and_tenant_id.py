@@ -1,3 +1,4 @@
+import logging
 """add tenants table and tenant_id
 
 Revision ID: e1f2a3b4c5d6
@@ -10,13 +11,11 @@ from typing import Sequence, Union
 from alembic import op
 import sqlalchemy as sa
 
-
 # revision identifiers, used by Alembic.
 revision: str = 'e1f2a3b4c5d6'
 down_revision: Union[str, Sequence[str], None] = 'cda1fe43c923'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
-
 
 def upgrade() -> None:
     """Upgrade schema."""
@@ -32,7 +31,6 @@ def upgrade() -> None:
     op.add_column('users', sa.Column('tenant_id', sa.Integer(), nullable=True))
     op.create_index(op.f('ix_users_tenant_id'), 'users', ['tenant_id'], unique=False)
     op.create_foreign_key(None, 'users', 'tenants', ['tenant_id'], ['id'])
-
 
 def downgrade() -> None:
     """Downgrade schema."""

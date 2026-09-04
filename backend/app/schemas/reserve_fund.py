@@ -1,8 +1,11 @@
 from datetime import datetime
+import logging
 from typing import Optional
 
 from pydantic import BaseModel
+from app.core.logging import logger
 
+logger = logging.getLogger(__name__)
 
 class RecordReserveFundEntryRequest(BaseModel):
     entry_type: str
@@ -11,7 +14,6 @@ class RecordReserveFundEntryRequest(BaseModel):
     period_month: int
     business_unit_id: Optional[int] = None
     notes: Optional[str] = None
-
 
 class ReserveFundEntryResponse(BaseModel):
     id: int
@@ -26,7 +28,6 @@ class ReserveFundEntryResponse(BaseModel):
 
     class Config:
         from_attributes = True
-
 
 class ReserveFundStatusResponse(BaseModel):
     business_unit_id: int

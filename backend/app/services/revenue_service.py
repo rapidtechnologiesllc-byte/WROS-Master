@@ -1,4 +1,5 @@
 """
+import logging
 Revenue Recognition & P&L Attribution Service.
 
 Handles:
@@ -8,6 +9,7 @@ Handles:
 - Gross margin tracking
 - Revenue rollup by service/module/client_type/pricing_model
 """
+import logging
 from datetime import datetime
 from typing import Optional, List, Dict
 from sqlalchemy.orm import Session
@@ -19,11 +21,12 @@ from app.models.project import Project
 from app.models.org_structure import PartnerBUAssignment
 from app.models.client import Client
 from app.models.employee import Employee
+from app.core.logging import logger
 
+logger = logging.getLogger(__name__)
 
 class RevenueRecognitionError(Exception):
     pass
-
 
 def recognize_invoice_revenue(db: Session, invoice: Invoice) -> Revenue:
     """
@@ -131,18 +134,15 @@ def recognize_invoice_revenue(db: Session, invoice: Invoice) -> Revenue:
     db.add(revenue)
     return revenue
 
-
 def calculate_partner_share(revenue_usd_cents: int, share_pct: int) -> int:
     """Calculate partner's revenue share in USD cents."""
     if share_pct is None or share_pct <= 0:
         return 0
     return int(revenue_usd_cents * share_pct / 100)
 
-
 def get_revenue_by_opportunity(db: Session, opportunity_id: str) -> List[Revenue]:
     """Get all revenue records linked to an opportunity."""
     return db.query(Revenue).filter(Revenue.opportunity_id == opportunity_id).all()
-
 
 def get_revenue_by_client_owner(db: Session, client_owner_id: str, start_date: Optional[datetime] = None, end_date: Optional[datetime] = None) -> List[Revenue]:
     """
@@ -166,7 +166,6 @@ def get_revenue_by_client_owner(db: Session, client_owner_id: str, start_date: O
 
     return query.all()
 
-
 def get_revenue_by_business_unit(db: Session, business_unit_id: int, business_type: Optional[str] = None) -> List[Revenue]:
     """
     Get revenue for a Business Unit (partner P&L).
@@ -186,7 +185,6 @@ def get_revenue_by_business_unit(db: Session, business_unit_id: int, business_ty
 
     return query.all()
 
-
 def get_revenue_breakdown_by_service(db: Session, business_unit_id: int) -> Dict[str, int]:
     """
     Get revenue breakdown by service type for Partner ROI reporting.
@@ -203,7 +201,6 @@ def get_revenue_breakdown_by_service(db: Session, business_unit_id: int) -> Dict
 
     return breakdown
 
-
 def get_revenue_breakdown_by_module(db: Session, business_unit_id: int) -> Dict[str, int]:
     """Get revenue breakdown by Guidewire module type."""
     revenues = get_revenue_by_business_unit(db, business_unit_id)
@@ -215,7 +212,6 @@ def get_revenue_breakdown_by_module(db: Session, business_unit_id: int) -> Dict[
 
     return breakdown
 
-
 def get_revenue_breakdown_by_pricing(db: Session, business_unit_id: int) -> Dict[str, int]:
     """Get revenue breakdown by pricing model."""
     revenues = get_revenue_by_business_unit(db, business_unit_id)
@@ -226,7 +222,6 @@ def get_revenue_breakdown_by_pricing(db: Session, business_unit_id: int) -> Dict
         breakdown[pricing] = breakdown.get(pricing, 0) + revenue.revenue_usd_cents
 
     return breakdown
-
 
 def get_gross_margin_analysis(db: Session, business_unit_id: int) -> Dict:
     """
@@ -253,7 +248,6 @@ def get_gross_margin_analysis(db: Session, business_unit_id: int) -> Dict:
         'total_margin': total_margin,
         'margin_pct': margin_pct,
     }
-
 
 def get_partner_revenue_share_analysis(db: Session, business_unit_id: int) -> Dict:
     """

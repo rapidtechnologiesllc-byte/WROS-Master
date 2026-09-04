@@ -1,3 +1,4 @@
+import logging
 """Add candidate_documents table
 
 Revision ID: add_candidate_documents
@@ -9,13 +10,11 @@ from alembic import op
 import sqlalchemy as sa
 from datetime import datetime
 
-
 # revision identifiers, used by Alembic.
 revision = 'add_candidate_documents'
 down_revision = None  # Update this to your latest migration
 branch_labels = None
 depends_on = None
-
 
 def upgrade():
     """Create candidate_documents table"""
@@ -73,7 +72,6 @@ def upgrade():
     op.create_index('ix_candidate_documents_document_type', 'candidate_documents', ['document_type'])
     op.create_index('ix_candidate_documents_is_latest', 'candidate_documents', ['is_latest'])
     op.create_index('ix_candidate_documents_is_deleted', 'candidate_documents', ['is_deleted'])
-
 
 def downgrade():
     """Drop candidate_documents table"""

@@ -1,0 +1,328 @@
+================================================================================
+                    COPY-PASTE READY COMMANDS
+                    PostgreSQL Migration
+================================================================================
+
+Your VPS Details:
+  Host: 46.224.149.7
+  Port: 22587
+  User: hrms
+
+
+================================================================================
+COMMAND 1: SSH to VPS
+================================================================================
+
+Copy and paste this:
+
+ssh -v -p 22587 hrms@46.224.149.7
+
+
+================================================================================
+COMMAND 2: Generate Strong Password
+================================================================================
+
+Run this FIRST (before SSH) on your LOCAL machine to get a password:
+
+python3 -c "import secrets; print(secrets.token_urlsafe(32))"
+
+This will output something like: 5t3Hq_Z8kL2mP9xW6nY4vB1jC7dFgH0q
+Copy this password - you'll need it in the next step.
+
+
+================================================================================
+COMMAND 3: Set Password and Run Deployment (on VPS)
+================================================================================
+
+After SSH-ing into the VPS, run this EXACTLY:
+
+export POSTGRES_PASSWORD="PASTE_YOUR_PASSWORD_HERE"
+
+Replace PASTE_YOUR_PASSWORD_HERE with the password from Command 2.
+
+Example:
+  export POSTGRES_PASSWORD="5t3Hq_Z8kL2mP9xW6nY4vB1jC7dFgH0q"
+
+
+================================================================================
+COMMAND 4: Navigate to Backend and Deploy
+================================================================================
+
+After setting the password, run:
+
+cd /home/HRMS/OnboardingModule-Backend && bash DEPLOY_POSTGRES_FINAL.sh
+
+Then WAIT for the script to complete. It will show:
+  ✅ PostgreSQL Migration Complete!
+
+
+================================================================================
+COMMAND 5: Verify Success on VPS
+================================================================================
+
+After the script completes, verify PostgreSQL is working:
+
+PGPASSWORD="5t3Hq_Z8kL2mP9xW6nY4vB1jC7dFgH0q" psql -U app_user -d onboarding_prod -h localhost -c "SELECT COUNT(*) as tables FROM information_schema.tables WHERE table_schema='public';"
+
+Replace the password with your actual password.
+
+Expected output: Should show a number (number of tables).
+
+
+================================================================================
+COMMAND 6: Push Code to GitHub (on LOCAL machine, not VPS)
+================================================================================
+
+Exit SSH first:
+
+exit
+
+Then on your LOCAL machine, run:
+
+cd OnboardingModule-Backend
+git add requirements.txt alembic/versions/2026_08_14_postgresql_migration.py
+git commit -m "Deploy PostgreSQL migration"
+git push origin main
+
+
+================================================================================
+COMMAND 7: Verify Backend is Online
+================================================================================
+
+On LOCAL machine, test the backend API:
+
+curl http://46.224.149.7:8080/candidates/bulk-import/list
+
+Expected: Should return JSON with import jobs (not an error).
+
+
+================================================================================
+COMMAND 8: Watch Backend Logs
+================================================================================
+
+SSH back into VPS:
+
+ssh -v -p 22587 hrms@46.224.149.7
+
+Then watch logs:
+
+pm2 logs onboarding-backend --lines 50
+
+You should see PostgreSQL connection success message.
+
+
+================================================================================
+COMMAND 9: Check for Lock Errors
+================================================================================
+
+On VPS, check if there are any database lock errors:
+
+grep -i "locked" /var/log/PM2.log || echo "No lock errors found"
+
+Expected: "No lock errors found"
+
+
+================================================================================
+FULL SEQUENCE (Copy-Paste Ready)
+================================================================================
+
+LOCAL MACHINE (Step 1-2):
+────────────────────────
+
+# Generate password first
+python3 -c "import secrets; print(secrets.token_urlsafe(32))"
+
+# Copy the output password and use it below
+
+# SSH to VPS
+ssh -v -p 22587 hrms@46.224.149.7
+
+
+ON VPS (Step 3-5):
+──────────────────
+
+# Set password (replace with your actual password from step 1)
+export POSTGRES_PASSWORD="YOUR_PASSWORD_HERE"
+
+# Navigate and deploy
+cd /home/HRMS/OnboardingModule-Backend && bash DEPLOY_POSTGRES_FINAL.sh
+
+# Wait for "✅ PostgreSQL Migration Complete!"
+
+# Verify PostgreSQL
+PGPASSWORD="YOUR_PASSWORD_HERE" psql -U app_user -d onboarding_prod -h localhost -c "SELECT COUNT(*) as tables FROM information_schema.tables WHERE table_schema='public';"
+
+# Exit SSH
+exit
+
+
+LOCAL MACHINE (Step 6-7):
+────────────────────────
+
+# Push code to GitHub
+cd OnboardingModule-Backend
+git add requirements.txt alembic/versions/2026_08_14_postgresql_migration.py
+git commit -m "Deploy PostgreSQL migration"
+git push origin main
+
+# Wait 5-10 minutes for CI/CD to deploy
+
+# Test API
+curl http://46.224.149.7:8080/candidates/bulk-import/list
+
+
+ON VPS (Step 8-9):
+──────────────────
+
+# SSH back in
+ssh -v -p 22587 hrms@46.224.149.7
+
+# Watch backend logs
+pm2 logs onboarding-backend --lines 50
+
+# Check for lock errors
+grep -i "locked" /var/log/PM2.log || echo "No lock errors found"
+
+
+================================================================================
+SAMPLE FULL COMMANDS WITH REAL VALUES
+================================================================================
+
+Using password example: "5t3Hq_Z8kL2mP9xW6nY4vB1jC7dFgH0q"
+
+LOCAL MACHINE:
+──────────────
+
+python3 -c "import secrets; print(secrets.token_urlsafe(32))"
+
+ssh -v -p 22587 hrms@46.224.149.7
+
+
+ON VPS:
+───────
+
+export POSTGRES_PASSWORD="5t3Hq_Z8kL2mP9xW6nY4vB1jC7dFgH0q"
+
+cd /home/HRMS/OnboardingModule-Backend && bash DEPLOY_POSTGRES_FINAL.sh
+
+PGPASSWORD="5t3Hq_Z8kL2mP9xW6nY4vB1jC7dFgH0q" psql -U app_user -d onboarding_prod -h localhost -c "SELECT COUNT(*) as tables FROM information_schema.tables WHERE table_schema='public';"
+
+exit
+
+
+LOCAL MACHINE (after script completes):
+─────────────────────────────────────────
+
+cd OnboardingModule-Backend
+git add requirements.txt alembic/versions/2026_08_14_postgresql_migration.py
+git commit -m "Deploy PostgreSQL migration"
+git push origin main
+
+curl http://46.224.149.7:8080/candidates/bulk-import/list
+
+
+BACK ON VPS:
+────────────
+
+ssh -v -p 22587 hrms@46.224.149.7
+
+pm2 logs onboarding-backend --lines 50
+
+grep -i "locked" /var/log/PM2.log || echo "No lock errors found"
+
+
+================================================================================
+TROUBLESHOOTING COMMANDS
+================================================================================
+
+Check if PostgreSQL is running:
+
+sudo systemctl status postgresql
+
+
+Restart PostgreSQL:
+
+sudo systemctl restart postgresql
+
+
+Check database connection manually:
+
+PGPASSWORD="5t3Hq_Z8kL2mP9xW6nY4vB1jC7dFgH0q" psql -U app_user -d onboarding_prod -h localhost
+
+
+List all databases:
+
+PGPASSWORD="5t3Hq_Z8kL2mP9xW6nY4vB1jC7dFgH0q" psql -U app_user -h localhost -l
+
+
+Check candidate count:
+
+PGPASSWORD="5t3Hq_Z8kL2mP9xW6nY4vB1jC7dFgH0q" psql -U app_user -d onboarding_prod -h localhost -c "SELECT COUNT(*) FROM candidates;"
+
+
+View .env.production:
+
+cat /home/HRMS/OnboardingModule-Backend/.env.production | grep DATABASE_URL
+
+
+Restart backend:
+
+pm2 restart onboarding-backend
+
+
+View all PM2 processes:
+
+pm2 status
+
+
+Kill everything (if needed):
+
+pm2 kill
+
+
+================================================================================
+EXPECTED OUTPUTS
+================================================================================
+
+After DEPLOY_POSTGRES_FINAL.sh completes, you should see:
+
+╔════════════════════════════════════════════════════════════════╗
+║    ✅ PostgreSQL Migration Complete! ✅                  ║
+╚════════════════════════════════════════════════════════════════╝
+
+After curl command:
+
+{"jobs": [...], "total": X}  (JSON response, not an error)
+
+After pm2 logs:
+
+[backend] INFO [DB] PostgreSQL configured  (or similar success message)
+
+After lock check:
+
+No lock errors found
+
+
+================================================================================
+TIMELINE
+================================================================================
+
+Total time: ~30-45 minutes
+
+1. Generate password: 1 minute (LOCAL)
+2. SSH to VPS: 1 minute (LOCAL)
+3. Run deployment script: 10-15 minutes (ON VPS)
+4. Verify PostgreSQL: 1 minute (ON VPS)
+5. Push code: 3 minutes (LOCAL)
+6. CI/CD deploy: 5-10 minutes (AUTOMATIC)
+7. Verify API: 1 minute (LOCAL)
+8. Check logs: 2 minutes (ON VPS)
+
+
+================================================================================
+YOU'RE READY!
+================================================================================
+
+Everything is prepared. Just follow the commands above!
+
+Good luck! 🚀

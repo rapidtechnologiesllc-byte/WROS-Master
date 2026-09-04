@@ -80,6 +80,27 @@ export default function JobCreate({
   });
   const [isJobLocationRemote, setIsJobLocationRemote] = useState(false);
   const [screenError, setScreenError] = useState(null);
+  const [showSkillsModal, setShowSkillsModal] = useState(false);
+  const [selectedSkills, setSelectedSkills] = useState([]);
+
+  // Redirect if user tries to create job without permission
+  useEffect(() => {
+    if (mode !== "view" && !canCreateJobDirectly) {
+      navigate(ROUTES.JOBS);
+    }
+  }, [mode, canCreateJobDirectly, navigate]);
+
+  // Sync skills string to structured format when needed
+  useEffect(() => {
+    if (initialJob?.skills && mode === "view" && initialJob.skills.length > 0) {
+      const structuredSkills = initialJob.skills.map(skill => ({
+        name: typeof skill === 'string' ? skill : skill.name,
+        yearsOfExperience: typeof skill === 'object' ? skill.yearsOfExperience : null,
+        isPrimary: typeof skill === 'object' ? skill.isPrimary : false,
+      }));
+      setSelectedSkills(structuredSkills);
+    }
+  }, [initialJob, mode]);
 
   // Auto-save draft effect
   useEffect(() => {
@@ -103,7 +124,7 @@ export default function JobCreate({
         const payload = {
           job_title: title?.trim() || "Draft Job",
           job_description: internalJD?.trim(),
-          job_skills: skills?.trim(),
+          job_skills: selectedSkills.length > 0 ? selectedSkills.map(s => s.name).join(", ") : skills?.trim(),
           job_experience: String(experienceLevel ?? "1").trim(),
           job_location: locationLabel,
           job_location_country: locationValue?.countryCode || "",
@@ -783,27 +804,14 @@ export default function JobCreate({
 
             {/* Pay Rate Section */}
             <div className="grid gap-3 md:grid-cols-2 mt-6">
-              <div>
-                <label className="block text-sm font-semibold mb-2">Pay Rate *</label>
-                <div className="flex gap-2">
-                  <input
-                    type="number"
-                    value={payAmount}
-                    onChange={(e) => setPayAmount(e.target.value)}
-                    placeholder="Amount"
-                    className="flex-1 px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                  <select
-                    value={payRateType}
-                    onChange={(e) => setPayRateType(e.target.value)}
-                    className="px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    {["$/Hour", "$/Day", "$/Week", "$/Month", "$/Year", "₹/Hour", "₹/Day", "₹/Week", "₹/Month", "₹/Year"].map((rt) => (
-                      <option key={rt} value={rt}>{rt}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
+              <RateField
+                label="Pay Rate *"
+                value={payAmount}
+                onValueChange={setPayAmount}
+                rateType={payRateType}
+                onRateTypeChange={setPayRateType}
+                rateTypeOptions={["$/Hour", "$/Day", "$/Week", "$/Month", "$/Year", "₹/Hour", "₹/Day", "₹/Week", "₹/Month", "₹/Year"]}
+              />
             </div>
           </fieldset>
         );
@@ -899,52 +907,34 @@ export default function JobCreate({
 
             {/* Skills Section */}
             <div className="md:col-span-2 mt-4">
-              <label className="block text-sm font-semibold mb-2">Skills</label>
-              <p className="text-xs text-gray-500 mb-3">Add required skills for 1-to-1 matching with candidate skills</p>
-              <div className="flex flex-wrap gap-2 p-3 border rounded-lg bg-gray-50 min-h-[44px]">
-                {skills
-                  .split(',')
-                  .map((s) => s.trim())
-                  .filter((s) => s)
-                  .map((skill, idx) => (
+              <div className="flex items-center justify-between mb-2">
+                <div>
+                  <label className="block text-sm font-semibold mb-1">Skills</label>
+                  <p className="text-xs text-gray-500">Add required skills for 1-to-1 matching with candidate skills</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowSkillsModal(true)}
+                  className="text-xs text-blue-600 hover:text-blue-700 font-semibold"
+                >
+                  {selectedSkills.length > 0 ? `Edit (${selectedSkills.length})` : "Add Skills"}
+                </button>
+              </div>
+              {selectedSkills.length > 0 ? (
+                <div className="flex flex-wrap gap-2 p-3 border rounded-lg bg-gray-50">
+                  {selectedSkills.map((skill, idx) => (
                     <span
                       key={idx}
                       className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-medium flex items-center gap-2"
                     >
-                      {skill}
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const newSkills = skills
-                            .split(',')
-                            .map((s) => s.trim())
-                            .filter((s) => s)
-                            .filter((_, i) => i !== idx)
-                            .join(', ');
-                          setSkills(newSkills);
-                        }}
-                        className="text-blue-600 hover:text-blue-800 font-bold"
-                      >
-                        ×
-                      </button>
+                      {skill.name}
+                      {skill.isPrimary && <span className="text-xs font-bold">★</span>}
                     </span>
                   ))}
-              </div>
-              <input
-                type="text"
-                placeholder="Type skill and press Enter"
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ',') {
-                    e.preventDefault();
-                    const value = e.currentTarget.value.trim();
-                    if (value) {
-                      setSkills(skills ? `${skills}, ${value}` : value);
-                      e.currentTarget.value = '';
-                    }
-                  }
-                }}
-                className="w-full mt-2 px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
+                </div>
+              ) : (
+                <p className="text-sm text-gray-500 p-3 border rounded-lg bg-gray-50">No skills added. Click "Add Skills" to add required skills.</p>
+              )}
             </div>
           </fieldset>
         );
@@ -981,12 +971,12 @@ export default function JobCreate({
 
         {current === 1 ? (
           <div className="mt-2 flex flex-wrap items-center justify-end gap-2">
-            <Button onClick={handleCreateJob} disabled={isSaving}>
+            <Button onClick={handleCreateJob} disabled={isSaving || !canCreateJobDirectly} title={!canCreateJobDirectly ? "You don't have permission to create jobs directly. Please submit for approval." : ""}>
               {isSaving
                 ? "Creating..."
                 : canCreateJobDirectly
                   ? "Create Job"
-                  : "Submit For Approval"}
+                  : "Submit For Approval (No Permission)"}
             </Button>
             <Button
               variant="secondary"
@@ -1006,6 +996,109 @@ export default function JobCreate({
                 {isGenerating ? "Generating..." : "Next"}
               </Button>
             </div>
+          </div>
+        )}
+
+        {showSkillsModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <Card className="w-full max-w-2xl mx-auto max-h-[90vh] overflow-y-auto">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-semibold">Manage Required Skills</h2>
+                <button
+                  onClick={() => setShowSkillsModal(false)}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="space-y-3 mb-6">
+                {selectedSkills.length > 0 ? (
+                  selectedSkills.map((skill, idx) => (
+                    <div key={idx} className="p-3 bg-gray-50 border border-gray-200 rounded-lg">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <div className="font-semibold text-gray-900">{skill.name}</div>
+                          {skill.yearsOfExperience && (
+                            <div className="text-sm text-gray-600">Required: {skill.yearsOfExperience} years</div>
+                          )}
+                          {skill.isPrimary && (
+                            <div className="text-xs font-semibold text-blue-600 mt-1">Primary Skill</div>
+                          )}
+                        </div>
+                        <button
+                          onClick={() => setSelectedSkills(prev => prev.filter((_, i) => i !== idx))}
+                          className="text-red-600 hover:text-red-700 text-sm font-semibold"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-gray-500 text-center py-4">No skills added yet</p>
+                )}
+              </div>
+
+              <div className="border-t pt-4 space-y-3">
+                <Input
+                  label="Skill Name"
+                  placeholder="e.g., Java, React, Project Management"
+                  id="job-skill-name-modal"
+                />
+                <Input
+                  label="Years Required"
+                  type="number"
+                  placeholder="e.g., 5"
+                  id="job-years-required-modal"
+                />
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id="job-is-primary-skill"
+                    className="w-4 h-4"
+                  />
+                  <label htmlFor="job-is-primary-skill" className="text-sm font-medium">
+                    Mark as Primary Skill
+                  </label>
+                </div>
+                <Button
+                  onClick={() => {
+                    const nameInput = document.getElementById('job-skill-name-modal');
+                    const yearsInput = document.getElementById('job-years-required-modal');
+                    const primaryInput = document.getElementById('job-is-primary-skill');
+
+                    if (nameInput.value.trim()) {
+                      const newSkill = {
+                        name: nameInput.value.trim(),
+                        yearsOfExperience: yearsInput.value ? parseInt(yearsInput.value) : null,
+                        isPrimary: primaryInput.checked,
+                      };
+
+                      setSelectedSkills(prev => {
+                        if (primaryInput.checked) {
+                          return [...prev.map(s => ({ ...s, isPrimary: false })), newSkill];
+                        }
+                        return [...prev, newSkill];
+                      });
+
+                      nameInput.value = '';
+                      yearsInput.value = '';
+                      primaryInput.checked = false;
+                    }
+                  }}
+                  className="w-full"
+                >
+                  Add Skill
+                </Button>
+              </div>
+
+              <div className="mt-6 flex items-center justify-end gap-2 border-t pt-4">
+                <Button variant="secondary" onClick={() => setShowSkillsModal(false)}>
+                  Done
+                </Button>
+              </div>
+            </Card>
           </div>
         )}
       </Card>

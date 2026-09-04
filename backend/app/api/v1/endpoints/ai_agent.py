@@ -2,6 +2,7 @@
 AI Email Conversation Agent — API Endpoints
 ============================================
 Prefix: /ai-agent
+import logging
 Tag:    ai-agent
 
 Routes:
@@ -67,7 +68,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_hr_or_admin, require_resource_permission
+from app.core.dependencies import get_current_internal_user, require_resource_permission, require_resource_permission
 from app.core.webhook_auth import require_webhook_secret_or_internal_user
 from app.models.candidate import Candidate
 from app.models.candidate_ai import (
@@ -120,7 +121,6 @@ from app.services.whatsapp_routing_service import (
 
 router = APIRouter(prefix="/ai-agent", tags=["ai-agent"])
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -136,7 +136,6 @@ def _get_candidate_or_404(candidate_id: str, db: Session) -> Candidate:
         )
     return candidate
 
-
 def _get_conversation_or_404(conversation_id: int, db: Session) -> CandidateConversation:
     conversation = db.query(CandidateConversation).filter(
         CandidateConversation.id == conversation_id
@@ -147,7 +146,6 @@ def _get_conversation_or_404(conversation_id: int, db: Session) -> CandidateConv
             detail=f"Conversation '{conversation_id}' not found.",
         )
     return conversation
-
 
 # ===========================================================================
 # POST /ai-agent/assign
@@ -169,7 +167,7 @@ def _get_conversation_or_404(conversation_id: int, db: Session) -> CandidateConv
 def assign_agent(
     body: AIAgentAssignRequest,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     """
     **Flow:**
@@ -190,12 +188,11 @@ def assign_agent(
     # tenant_id ("which org owns this data," always the same one here).
     result = assign_ai_agent(
         candidate_id=body.candidate_id,
-        tenant_id=resolve_default_tenant_id(db),
+        tenant_id=resolve_default_tenant_id(),
         assigned_by=current_user.UserID,
         db=db,
     )
     return AIAgentAssignResponse(**result)
-
 
 # ===========================================================================
 # GET /ai-agent/missing-fields/{candidate_id}
@@ -215,7 +212,7 @@ def assign_agent(
 def preview_missing_fields(
     candidate_id: str,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     candidate = _get_candidate_or_404(candidate_id, db)
     missing = get_missing_fields(candidate, db)
@@ -224,7 +221,6 @@ def preview_missing_fields(
         total_missing=len(missing),
         missing_fields=[MissingFieldItem(**m) for m in missing],
     )
-
 
 # ===========================================================================
 # GET /ai-agent/portal-link/{candidate_id}
@@ -244,13 +240,12 @@ def preview_missing_fields(
 def get_candidate_portal_link(
     candidate_id: str,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     from app.services.candidate_portal_service import generate_portal_link_url
 
     _get_candidate_or_404(candidate_id, db)
     return {"candidate_id": candidate_id, "portal_url": generate_portal_link_url(candidate_id)}
-
 
 # ===========================================================================
 # GET /ai-agent/memory/{candidate_id}
@@ -272,16 +267,15 @@ def get_candidate_portal_link(
 def get_candidate_memory(
     candidate_id: str,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     from app.services.ai_conversation_service import resolve_default_tenant_id
     from app.services.candidate_memory_service import get_memory
 
     _get_candidate_or_404(candidate_id, db)
-    tenant_id = resolve_default_tenant_id(db)
+    tenant_id = resolve_default_tenant_id()
     memory = get_memory(db, candidate_id, tenant_id)
     return CandidateMemoryResponse(candidate_id=candidate_id, **memory)
-
 
 # ===========================================================================
 # PATCH /ai-agent/memory/{candidate_id}/facts/{fact_id}
@@ -304,13 +298,12 @@ def correct_candidate_memory_fact(
     fact_id: int,
     body: MemoryFactCorrectionRequest,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
-    from app.services.ai_conversation_service import resolve_default_tenant_id
     from app.services.candidate_memory_service import FactNotFound, correct_fact
 
     _get_candidate_or_404(candidate_id, db)
-    tenant_id = resolve_default_tenant_id(db)
+    tenant_id = resolve_default_tenant_id()
     try:
         fact = correct_fact(db, candidate_id, tenant_id, fact_id, body.fact_value, corrected_by=current_user.UserID)
     except FactNotFound as exc:
@@ -320,7 +313,6 @@ def correct_candidate_memory_fact(
         id=fact.id, category=fact.fact_category, key=fact.fact_key, value=fact.fact_value,
         confidence=fact.confidence, is_low_confidence=fact.confidence < 0.7, extracted_at=fact.extracted_at,
     )
-
 
 # ===========================================================================
 # GET /ai-agent/skill-suggestions
@@ -341,16 +333,14 @@ def correct_candidate_memory_fact(
 def get_skill_suggestions(
     since_days: int = 7,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
-    from app.services.ai_conversation_service import resolve_default_tenant_id
     from app.services.skill_extraction_service import get_unknown_skill_suggestions
 
-    tenant_id = resolve_default_tenant_id(db)
+    tenant_id = resolve_default_tenant_id()
     if not tenant_id:
         raise HTTPException(status_code=500, detail="No tenant available.")
     return {"suggestions": get_unknown_skill_suggestions(db, tenant_id, since_days=since_days)}
-
 
 # ===========================================================================
 # GET /ai-agent/resume-completeness/{candidate_id}
@@ -368,11 +358,10 @@ def get_skill_suggestions(
 def get_resume_completeness(
     candidate_id: str,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     candidate = _get_candidate_or_404(candidate_id, db)
     return {"candidate_id": candidate_id, "resume_completeness_score": candidate.resume_completeness_score}
-
 
 # ===========================================================================
 # GET /ai-agent/prompt-templates
@@ -390,12 +379,11 @@ def get_resume_completeness(
     ),
 )
 def get_prompt_templates_endpoint(
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     from app.services.prompt_framework_service import get_prompt_templates
 
     return {"templates": get_prompt_templates()}
-
 
 # ===========================================================================
 # POST /ai-agent/webhook/email-reply
@@ -433,7 +421,6 @@ def webhook_email_reply(
     )
     return ProcessReplyResponse(**result)
 
-
 # ===========================================================================
 # POST /ai-agent/poll/{candidate_id}
 # ===========================================================================
@@ -453,7 +440,7 @@ def webhook_email_reply(
 def poll_and_process(
     candidate_id: str,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     result = process_candidate_reply(
         candidate_id=candidate_id,
@@ -463,7 +450,6 @@ def poll_and_process(
     )
     return ProcessReplyResponse(**result)
 
-
 # ===========================================================================
 # GET /ai-agent/conversations/{candidate_id}
 # ===========================================================================
@@ -472,6 +458,7 @@ def poll_and_process(
     "/conversations/{candidate_id}",
     response_model=ConversationThreadResponse,
     summary="Get full agent–candidate conversation thread",
+    dependencies=[Depends(get_current_internal_user)],
     description=(
         "Returns **all conversations** for a candidate, each containing the full "
         "chronological event log. This is the primary endpoint for the HR UI to "
@@ -489,7 +476,7 @@ def poll_and_process(
 def get_conversations(
     candidate_id: str,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     _get_candidate_or_404(candidate_id, db)
     thread = get_conversation_thread(candidate_id, db)
@@ -500,7 +487,6 @@ def get_conversations(
         conversations=[ConversationThreadItem(**c) for c in thread],
     )
 
-
 # ===========================================================================
 # GET /ai-agent/conversations/{candidate_id}/active
 # ===========================================================================
@@ -509,6 +495,7 @@ def get_conversations(
     "/conversations/{candidate_id}/active",
     response_model=ConversationThreadItem,
     summary="Get the active conversation for a candidate",
+    dependencies=[Depends(get_current_internal_user)],
     description=(
         "Returns the single most-recent open or awaiting conversation for the "
         "candidate, with its full event log. Returns 404 if no active conversation exists."
@@ -517,7 +504,7 @@ def get_conversations(
 def get_active_conversation(
     candidate_id: str,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     _get_candidate_or_404(candidate_id, db)
 
@@ -575,7 +562,6 @@ def get_active_conversation(
         ],
     )
 
-
 # ===========================================================================
 # POST /ai-agent/conversations/{conversation_id}/send
 # ===========================================================================
@@ -597,7 +583,7 @@ def send_manual_message(
     conversation_id: int,
     body: SendMessageRequest,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     conversation = _get_conversation_or_404(conversation_id, db)
     candidate = _get_candidate_or_404(conversation.candidate_id, db)
@@ -638,7 +624,6 @@ def send_manual_message(
         owner_id=conversation.owner_id,
     )
 
-
 # ===========================================================================
 # POST /ai-agent/conversations/{conversation_id}/take-over
 # ===========================================================================
@@ -657,7 +642,7 @@ def send_manual_message(
 def take_over(
     conversation_id: int,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     conversation = _get_conversation_or_404(conversation_id, db)
     before_state = {"owner_type": conversation.owner_type, "owner_id": conversation.owner_id}
@@ -690,7 +675,6 @@ def take_over(
         owner_id=conversation.owner_id,
     )
 
-
 # ===========================================================================
 # POST /ai-agent/conversations/{conversation_id}/hand-back
 # ===========================================================================
@@ -705,7 +689,7 @@ def take_over(
 def hand_back(
     conversation_id: int,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     conversation = _get_conversation_or_404(conversation_id, db)
     before_state = {"owner_type": conversation.owner_type, "owner_id": conversation.owner_id}
@@ -748,7 +732,6 @@ def hand_back(
         owner_id=conversation.owner_id,
     )
 
-
 # ===========================================================================
 # POST /ai-agent/conversations/{conversation_id}/thunder-pause
 # ===========================================================================
@@ -769,9 +752,8 @@ def thunder_pause(
     conversation_id: int,
     body: PauseThunderRequest,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
-    from datetime import datetime as _datetime
 
     conversation = _get_conversation_or_404(conversation_id, db)
     resume_at = None
@@ -802,7 +784,6 @@ def thunder_pause(
         thunder_paused_by=conversation.thunder_paused_by,
     )
 
-
 # ===========================================================================
 # POST /ai-agent/conversations/{conversation_id}/thunder-resume
 # ===========================================================================
@@ -816,7 +797,7 @@ def thunder_pause(
 def thunder_resume(
     conversation_id: int,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     conversation = _get_conversation_or_404(conversation_id, db)
     resume_thunder(db, conversation)
@@ -840,7 +821,6 @@ def thunder_resume(
         thunder_paused_by=conversation.thunder_paused_by,
     )
 
-
 # ===========================================================================
 # GET /ai-agent/assignments/{candidate_id}
 # ===========================================================================
@@ -849,6 +829,7 @@ def thunder_resume(
     "/assignments/{candidate_id}",
     response_model=List[AIAssignmentOut],
     summary="Get all AI agent assignments for a candidate",
+    dependencies=[Depends(get_current_internal_user)],
     description=(
         "Returns the full history of AI agent assignments for a candidate, "
         "ordered newest-first. The active assignment has `is_active = true`."
@@ -857,7 +838,7 @@ def thunder_resume(
 def get_assignments(
     candidate_id: str,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     _get_candidate_or_404(candidate_id, db)
 
@@ -868,7 +849,6 @@ def get_assignments(
         .all()
     )
     return [AIAssignmentOut.model_validate(a) for a in assignments]
-
 
 # ===========================================================================
 # DELETE /ai-agent/assign/{candidate_id}
@@ -887,7 +867,7 @@ def get_assignments(
 def deactivate_agent(
     candidate_id: str,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     _get_candidate_or_404(candidate_id, db)
 
@@ -933,7 +913,6 @@ def deactivate_agent(
         "conversations_closed": len(open_convs),
     }
 
-
 # ===========================================================================
 # GET /ai-agent/inbox
 # ===========================================================================
@@ -955,7 +934,7 @@ def deactivate_agent(
 def list_inbox(
     top: int = 50,
     skip: int = 0,
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     """
     Lists all inbox messages from the service mailbox.
@@ -967,7 +946,6 @@ def list_inbox(
         total_returned=len(messages),
         messages=[InboxMessageItem(**m) for m in messages],
     )
-
 
 # ===========================================================================
 # GET /ai-agent/inbox/by-email
@@ -988,7 +966,7 @@ def list_inbox(
 def list_inbox_by_email(
     email: str,
     top: int = 50,
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     """
     Returns inbox messages filtered by sender email address.
@@ -1000,7 +978,6 @@ def list_inbox_by_email(
         total_returned=len(messages),
         messages=[InboxMessageItem(**m) for m in messages],
     )
-
 
 # ===========================================================================
 # GET /ai-agent/candidates/{candidate_id}/audit-log
@@ -1024,7 +1001,7 @@ def list_inbox_by_email(
 def get_audit_log(
     candidate_id: str,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     _get_candidate_or_404(candidate_id, db)
     entries = (
@@ -1051,7 +1028,6 @@ def get_audit_log(
         ],
     )
 
-
 # ===========================================================================
 # GET /ai-agent/messages/{event_id}/explanation
 # GET /ai-agent/candidates/{candidate_id}/thunder-explanation-log
@@ -1059,7 +1035,6 @@ def get_audit_log(
 
 from app.schemas.thunder_explanation import ExplanationLogResponse, MessageExplanationResponse
 from app.services.thunder_explanation_service import get_explanation_log, get_message_explanation
-
 
 @router.get(
     "/messages/{event_id}/explanation",
@@ -1072,7 +1047,6 @@ def get_thunder_message_explanation(event_id: int, db: Session = Depends(get_db)
     if explanation is None:
         raise HTTPException(status_code=404, detail="Explanation not available for this message.")
     return explanation
-
 
 @router.get(
     "/candidates/{candidate_id}/thunder-explanation-log",

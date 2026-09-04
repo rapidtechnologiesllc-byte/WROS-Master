@@ -3,8 +3,10 @@ Document Service Layer
 Handles all document upload, validation, and management operations.
 Provides secure and scalable document handling with SharePoint integration.
 Uses service account authentication for SharePoint access.
+import logging
 """
 
+import logging
 import os
 import hashlib
 import mimetypes
@@ -17,7 +19,6 @@ import requests
 from app.models.document import CandidateDocument
 from app.core.logging import logger
 from app.core.graph_auth import get_graph_token
-
 
 # SharePoint configuration
 SHAREPOINT_SITE_ID = os.getenv("SHAREPOINT_SITE_ID", "")
@@ -40,6 +41,7 @@ DOCUMENT_TYPES = {
 # For all other types only ONE active document (is_latest=True) is kept per candidate.
 MULTI_UPLOAD_TYPES = {"education", "experience","pan","aadhar","salary_slip","bank_statement","uan_pf"}
 
+logger = logging.getLogger(__name__)
 
 class DocumentService:
     """Service class for handling document operations"""
@@ -88,6 +90,7 @@ class DocumentService:
             return True, None, file_content
             
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             logger.error(f"Error reading file: {str(e)}")
             return False, f"Error reading file: {str(e)}", None
     
@@ -185,6 +188,7 @@ class DocumentService:
             logger.error(f"SharePoint upload failed: {str(e)}")
             raise HTTPException(status_code=500, detail=f"Failed to upload to SharePoint: {str(e)}")
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             logger.error(f"Unexpected error during upload: {str(e)}")
             raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
     

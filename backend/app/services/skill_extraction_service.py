@@ -1,4 +1,5 @@
 """
+import logging
 S-029/HRMS-0429 -- Skill Extraction & Tagging from Resume.
 
 Real architecture adaptations:
@@ -28,7 +29,6 @@ from app.models.candidate import Candidate
 from app.models.candidate_ai import CandidateConversation, ConversationEvent
 from app.models.candidate_skill_tag import CandidateSkillTag
 
-
 def normalize_skills(raw_skills: List[str]) -> List[Dict]:
     """
     Step 3. Returns a deduplicated list of {canonical, raw, confidence}.
@@ -55,13 +55,11 @@ def normalize_skills(raw_skills: List[str]) -> List[Dict]:
         result.append({"canonical": canonical, "raw": raw_str, "confidence": confidence})
     return result
 
-
 def _log_event(db: Session, conversation: Optional[CandidateConversation], event_type: str, event_data: Dict) -> None:
     if conversation is None:
         return
     db.add(ConversationEvent(conversation_id=conversation.id, event_type=event_type, event_data=event_data, triggered_by="system"))
     db.flush()
-
 
 def extract_and_tag_skills(
     db: Session,
@@ -124,7 +122,6 @@ def extract_and_tag_skills(
     recalculate_overall(db, candidate, tenant_id)
 
     return {"skills_count": len(canonical_skills), "canonical_skills": canonical_skills}
-
 
 def get_unknown_skill_suggestions(db: Session, tenant_id: str, since_days: int = 7) -> List[Dict]:
     """Step 5's real equivalent of GET /api/admin/skill-suggestions'

@@ -1,3 +1,4 @@
+import logging
 """S-058/HRMS-0458: add candidate_joining_scores table
 
 Revision ID: 1d5f8b3a70c4
@@ -11,7 +12,6 @@ revision = "1d5f8b3a70c4"
 down_revision = "4c8d1e6a92f7"
 branch_labels = None
 depends_on = None
-
 
 def upgrade():
     op.create_table(
@@ -28,7 +28,6 @@ def upgrade():
     op.create_index("ix_candidate_joining_scores_tenant_id", "candidate_joining_scores", ["tenant_id"])
     op.create_index("ix_candidate_joining_scores_candidate_id", "candidate_joining_scores", ["candidate_id"])
     op.create_index("ix_candidate_joining_scores_offer_id", "candidate_joining_scores", ["offer_id"])
-
 
 def downgrade():
     op.drop_index("ix_candidate_joining_scores_offer_id", table_name="candidate_joining_scores")

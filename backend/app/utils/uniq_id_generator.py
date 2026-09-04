@@ -1,5 +1,6 @@
 import uuid
 from sqlalchemy.orm.strategy_options import _ClassStrategyLoad
+import logging
 import uuid
 
 def candidate_id_generator() -> str:

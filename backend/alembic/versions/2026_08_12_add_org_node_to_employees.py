@@ -1,3 +1,4 @@
+import logging
 """Add org_node_id to employees table
 
 Revision ID: 2026_08_12_add_org_node_to_employees
@@ -9,13 +10,11 @@ Links employees to their org hierarchy node for approval chains and role-based a
 from alembic import op
 import sqlalchemy as sa
 
-
 # revision identifiers, used by Alembic.
 revision = '2026_08_12_add_org_node_to_employees'
 down_revision = '2026_08_12_org_hierarchy'
 branch_labels = None
 depends_on = None
-
 
 def upgrade() -> None:
     # Add org_node_id column to employees table
@@ -38,7 +37,6 @@ def upgrade() -> None:
         'employees', 'org_nodes',
         ['org_node_id'], ['id']
     )
-
 
 def downgrade() -> None:
     # Drop foreign key and index

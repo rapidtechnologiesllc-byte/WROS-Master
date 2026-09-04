@@ -1,5 +1,6 @@
 """
 HRMS-0114 -- "every route has an explicit permission declaration or the
+import logging
 application fails to start."
 
 This module provides the mechanism
@@ -27,7 +28,6 @@ _RBAC_MARKER_ATTRS = ("__wros_permission__", "__wros_attribute__")
 _COARSE_AUTHN_MARKER_ATTRS = ("__wros_authn__",)
 _ALL_MARKER_ATTRS = _RBAC_MARKER_ATTRS + _COARSE_AUTHN_MARKER_ATTRS
 
-
 def _is_public(path: str, public_routes: Iterable[str]) -> bool:
     """
     Exact match only. Deliberately NOT a prefix match against the full
@@ -39,7 +39,6 @@ def _is_public(path: str, public_routes: Iterable[str]) -> bool:
     deliberately the same way PREFIX_ROUTES does in auth_middleware.py.
     """
     return path in public_routes
-
 
 def _route_marker_attrs_present(route: APIRoute) -> set:
     """Returns the set of marker attribute names found anywhere in this
@@ -61,7 +60,6 @@ def _route_marker_attrs_present(route: APIRoute) -> set:
         stack.extend(getattr(current, "dependencies", []) or [])
     return found
 
-
 def _iter_leaf_routes(routes) -> Iterable[APIRoute]:
     """
     Recursively flattens whatever app.routes / router.routes actually
@@ -82,7 +80,6 @@ def _iter_leaf_routes(routes) -> Iterable[APIRoute]:
         elif hasattr(route, "routes"):
             yield from _iter_leaf_routes(route.routes)
 
-
 def _non_public_routes_by_methods(app: FastAPI, public_routes: Iterable[str]):
     for route in _iter_leaf_routes(app.routes):
         if _is_public(route.path, public_routes):
@@ -91,7 +88,6 @@ def _non_public_routes_by_methods(app: FastAPI, public_routes: Iterable[str]):
             if method == "HEAD":
                 continue
             yield f"{method} {route.path}", route
-
 
 def find_routes_missing_permission_declaration(app: FastAPI, public_routes: Iterable[str]) -> List[str]:
     """
@@ -111,7 +107,6 @@ def find_routes_missing_permission_declaration(app: FastAPI, public_routes: Iter
             missing.append(label)
     return sorted(set(missing))
 
-
 def find_routes_with_only_coarse_auth(app: FastAPI, public_routes: Iterable[str]) -> List[str]:
     """
     Routes that have SOME identity check (candidate-self-service, or
@@ -126,7 +121,6 @@ def find_routes_with_only_coarse_auth(app: FastAPI, public_routes: Iterable[str]
         if markers and not (markers & set(_RBAC_MARKER_ATTRS)):
             coarse.append(label)
     return sorted(set(coarse))
-
 
 def assert_all_routes_have_permission_declarations(
     app: FastAPI,

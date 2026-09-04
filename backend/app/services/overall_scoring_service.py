@@ -1,4 +1,5 @@
 """
+import logging
 S-040/HRMS-0440 -- Overall Candidate Score & Ranking.
 
 Real architecture adaptations:
@@ -57,12 +58,10 @@ from app.services.technical_scoring_service import CandidateNotFound, JobNotFoun
 # requires Lead BA written approval + code review, not a config value.
 WEIGHTS = {"technical": 0.40, "compensation": 0.30, "availability": 0.20, "resume_completeness": 0.10}
 
-
 def _candidate_display_name(candidate: Candidate) -> str:
     parts = [candidate.candidateFirstName, candidate.candidateLastName]
     name = " ".join(p for p in parts if p).strip()
     return name or candidate.candidateEmail
-
 
 def calculate_overall_score(db: Session, candidate_id: str, job_id: str, tenant_id: str) -> Dict:
     """Step 1. If any component is missing, calculates it first (each
@@ -114,7 +113,6 @@ def calculate_overall_score(db: Session, candidate_id: str, job_id: str, tenant_
         "score_breakdown": record.score_breakdown, "calculated_at": record.calculated_at,
     }
 
-
 def recalculate_for_candidate(db: Session, candidate: Candidate, tenant_id: str) -> List[Dict]:
     """Recalculates overall_score for every job this candidate is
     actually linked to. Never raises -- same defensive posture as the
@@ -124,10 +122,10 @@ def recalculate_for_candidate(db: Session, candidate: Candidate, tenant_id: str)
         try:
             results.append(calculate_overall_score(db, candidate.candidateID, job_id, tenant_id))
         except Exception as exc:
+            logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.warning(f"[OverallScoring] Failed to recalculate overall score for candidate {candidate.candidateID!r} / job {job_id!r}: {exc}")
     db.commit()
     return results
-
 
 def get_ranked_candidates(db: Session, job_id: str, tenant_id: str) -> List[Dict]:
     """Step 2. BR-03: rank is computed here, in Python, after ordering

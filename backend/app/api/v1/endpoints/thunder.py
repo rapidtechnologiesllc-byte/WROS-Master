@@ -1,13 +1,14 @@
-﻿"""
+"""
 "Test Thunder" â€” API Endpoints
 ================================
 Prefix: /thunder
+import logging
 Tag:    thunder
 
 Internal QA harness, gated behind the "thunder.test" RBAC permission
 (Super User only by default as of 2026-07-23 -- see rbac_service.py's
 PERMISSIONS_SEED/ROLE_PERMISSIONS_SEED) rather than the coarse
-get_current_hr_or_admin check every other internal role used to satisfy.
+get_current_internal_user check every other internal role used to satisfy.
 Tightened after this tool's frontend nav entry ("Test Thunder", first
 item for every role) caused real confusion about account identity --
 removed from Shell.js's nav entirely; this backend gate is defense in
@@ -37,7 +38,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import require_resource_permission
+from app.core.dependencies import require_resource_permission, get_current_internal_user
 from app.models.user import Users
 from app.schemas.thunder import (
     TestChatHistoryItem,
@@ -58,9 +59,9 @@ from app.services.whatsapp_routing_service import ConversationOwnedByHuman
 
 router = APIRouter(prefix="/thunder", tags=["thunder"])
 
-
 @router.post(
     "/test-chat",
+    dependencies=[Depends(require_resource_permission("unknown", "create"))],
     response_model=TestChatMessageResponse,
     summary="Send a message to Thunder as a test candidate and get a real reply",
     description=(
@@ -99,9 +100,9 @@ def send_test_chat_message(
 
     return TestChatMessageResponse(**result)
 
-
 @router.get(
     "/test-chat/history",
+    dependencies=[Depends(require_resource_permission("candidate", "view"))],
     response_model=TestChatHistoryResponse,
     summary="Get the current tester's Test Thunder conversation history",
 )
@@ -115,9 +116,9 @@ def get_test_chat_history_endpoint(
         messages=[TestChatHistoryItem(**m) for m in messages],
     )
 
-
 @router.post(
     "/test-chat/reset",
+    dependencies=[Depends(require_resource_permission("candidate", "view"))],
     status_code=200,
     summary="Start a fresh Test Thunder conversation",
     description=(

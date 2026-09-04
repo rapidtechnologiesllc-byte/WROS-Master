@@ -1,15 +1,17 @@
+from app.core.logging import logger
 """EPIC-16 -- Intercompany Ledger. See app.models.intercompany_ledger
 for why this is manual-entry, not auto-derived."""
+import logging
 from typing import List, Optional
 
 from sqlalchemy.orm import Session
 
 from app.models.intercompany_ledger import IntercompanySettlement
 
+logger = logging.getLogger(__name__)
 
 class IntercompanySettlementError(Exception):
     pass
-
 
 def record_intercompany_settlement(
     db: Session, *, from_entity: str, to_entity: str, amount_usd_cents: int, settlement_date, reason: str,
@@ -28,7 +30,6 @@ def record_intercompany_settlement(
     db.refresh(settlement)
     return settlement
 
-
 def get_entity_net_position(db: Session, *, entity: str, tenant_id: Optional[int] = None) -> int:
     """Positive = this entity has received more than it's sent (owed
     money out), negative = it owes the other side(s)."""
@@ -42,7 +43,6 @@ def get_entity_net_position(db: Session, *, entity: str, tenant_id: Optional[int
         if s.from_entity == entity:
             net -= s.amount_usd_cents
     return net
-
 
 def list_settlements(db: Session, *, tenant_id: Optional[int] = None) -> List[IntercompanySettlement]:
     query = db.query(IntercompanySettlement)

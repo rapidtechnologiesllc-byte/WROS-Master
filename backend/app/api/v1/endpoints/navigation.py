@@ -1,4 +1,5 @@
 """
+import logging
 Navigation API - Returns personalized navigation structure based on user permissions.
 
 Endpoint: GET /hr/me/navigation
@@ -10,13 +11,12 @@ Uses database resources directly (no hardcoding) - supports all 175 resources dy
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app.core.database import get_db
-from app.core.dependencies import get_current_user
+from app.core.dependencies import get_current_user, require_resource_permission
 from app.services.role_template_permission_service import RoleTemplatePermissionService
 from app.models.role_template import Module, Resource
 from app.core.logging import logger
 
 router = APIRouter(prefix="/hr/me", tags=["navigation"])
-
 
 def get_icon_for_resource(resource_name: str) -> str:
     """Simple icon mapping for resource names."""
@@ -48,8 +48,10 @@ def get_icon_for_resource(resource_name: str) -> str:
     }
     return icon_map.get(resource_name, "Briefcase")
 
-
-@router.get("/navigation")
+@router.get(
+    "/navigation",
+    dependencies=[Depends(require_resource_permission("navigation", "view"))]
+)
 def get_user_navigation(db: Session = Depends(get_db), current_user = Depends(get_current_user)):
     """
     Get personalized navigation structure for the logged-in user.
@@ -75,79 +77,74 @@ def get_user_navigation(db: Session = Depends(get_db), current_user = Depends(ge
     }
     """
     try:
-        # Get user ID - handle both Users object and dict formats
+        import sys
+        print("[NAV-ENDPOINT-CALLED]", file=sys.stderr)
+        sys.stderr.flush()
+
+        logger.warning("[NAV-FIX] Starting navigation with resource_name fix active")
+        # Get user ID
         if hasattr(current_user, 'UserID'):
             user_id = current_user.UserID
             tenant_id = getattr(current_user, 'tenant_id', 1)
         else:
-            user_id = current_user.get("sub") or current_user.get("user_id")
+            user_id = current_user.get("sub")
             tenant_id = current_user.get("tenant_id", 1)
 
         if not user_id:
             raise HTTPException(status_code=401, detail="User not identified")
 
-        # Get all resources with module relationship
-        resources = db.query(Resource).join(Module).filter(
-            Resource.tenant_id == tenant_id,
-            Resource.enabled == True
-        ).all()
+        print(f"[NAV-USER-ID] {user_id}", file=sys.stderr)
+        sys.stderr.flush()
 
-        logger.warning(f"[NAV] Building navigation for user_id={user_id}, found {len(resources)} resources")
+        # Load module/resource structure from init_resources.py
+        from app.seeds.init_resources import MODULES_AND_RESOURCES, RESOURCE_ROUTES
+        print(f"[NAV-LOADED] MODULES_AND_RESOURCES has {len(MODULES_AND_RESOURCES)} modules", file=sys.stderr)
+        sys.stderr.flush()
 
-        # Check permissions for each resource and group by module
         navigation_modules = {}
+        module_icons = {
+            "Personal": "LayoutDashboard", "Recruitment": "Users", "Workforce": "Users2",
+            "Finance": "BadgeDollarSign", "Sales": "Briefcase", "Project Management": "FolderKanban",
+            "Reporting": "BarChart3", "System": "Settings", "Executive": "TrendingUp",
+            "Admin": "Shield", "Executive Dashboards": "BarChart3", "AI & Automation": "Bot"
+        }
 
-        for resource in resources:
-            # Check if user can view this resource
-            can_view = RoleTemplatePermissionService.can_view(
-                db, user_id, resource.name, tenant_id
-            )
+        # Build navigation from init_resources
+        import sys
+        for module_name, resource_names in MODULES_AND_RESOURCES.items():
+            module_icon = module_icons.get(module_name, "Briefcase")
+            navigation_modules[module_name] = {"label": module_name, "icon": module_icon, "items": []}
 
-            if can_view:
-                # Use module object (already loaded via join)
-                module = resource.module
-                module_name = module.name
-                module_label = module.display_name
+            for resource_name in resource_names:
+                # Check if user has permission to view this resource
+                try:
+                    can_view = RoleTemplatePermissionService.can_view(db, user_id, resource_name, tenant_id)
+                except Exception as e:
+                    logger.error(f"Error: {str(e)}", exc_info=True)
+                    logger.warning(f"[NAV] Permission check failed for {resource_name}: {e}")
+                    can_view = False
 
-                # Initialize module if needed
-                if module_name not in navigation_modules:
-                    # Get icon for module (use first resource's icon as fallback)
-                    module_icon = "Briefcase"
-                    if module_name == "Recruitment":
-                        module_icon = "Users"
-                    elif module_name == "Workforce":
-                        module_icon = "Users2"
-                    elif module_name == "Finance":
-                        module_icon = "BadgeDollarSign"
-                    elif module_name == "Admin":
-                        module_icon = "Shield"
-                    elif module_name == "System":
-                        module_icon = "Home"
-                    elif module_name == "Executive":
-                        module_icon = "TrendingUp"
-                    elif module_name == "Engagement":
-                        module_icon = "MessageCircle"
+                if can_view:
+                    route = RESOURCE_ROUTES.get(resource_name) or f"/{resource_name}"
+                    if not route.startswith('/'):
+                        route = f"/{route}"
 
-                    navigation_modules[module_name] = {
-                        "label": module_label,
-                        "icon": module_icon,
-                        "items": []
-                    }
+                    navigation_modules[module_name]["items"].append({
+                        "key": resource_name,
+                        "label": resource_name.replace('-', ' ').title(),
+                        "icon": get_icon_for_resource(resource_name),
+                        "route": route
+                    })
 
-                # Add resource to module (use database fields directly)
-                navigation_modules[module_name]["items"].append({
-                    "key": resource.name,
-                    "label": resource.display_name,
-                    "icon": get_icon_for_resource(resource.name),
-                    "route": resource.route_path
-                })
-
-        # Convert to list of groups
-        groups = list(navigation_modules.values())
-
-        logger.warning(f"[NAV] Returning {len(groups)} modules for user_id={user_id}")
-        return {"groups": groups}
+        groups = [m for m in navigation_modules.values() if m["items"]]
+        logger.warning(f"[NAV] Returning {len(groups)} groups")
+        response = {"data": {"groups": groups}}
+        logger.warning(f"[NAV] Response: {response}")
+        return response
 
     except Exception as e:
-        logger.error(f"Error building navigation for user {current_user}: {e}", exc_info=True)
-        return {"groups": []}
+        logger.error(f"Error: {str(e)}", exc_info=True)
+        logger.error(f"Navigation error: {e}", exc_info=True)
+        # Do NOT return fallback empty response - let error propagate
+        # ALL navigation should be fully dynamic, no hardcoded fallbacks
+        raise

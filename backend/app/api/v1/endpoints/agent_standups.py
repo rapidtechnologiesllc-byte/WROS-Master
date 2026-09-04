@@ -1,13 +1,14 @@
+from app.core.logging import logger
 """Daily standup and scrum of scrums endpoints."""
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from app.core.dependencies import get_current_internal_user, require_resource_permission
 from app.core.database import get_db
 from app.models.user import Users
+import logging
 from app.services.agent_standups_service import AgentStandupsCoordinator
 
 router = APIRouter(prefix="/standups", tags=["Agent Standups"])
-
 
 @router.get("/daily-report", dependencies=[Depends(require_resource_permission("admin-settings", "view"))])
 async def get_daily_standup_report(
@@ -31,8 +32,8 @@ async def get_daily_standup_report(
         )
         return report
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @router.get("/scrum-of-scrums", dependencies=[Depends(require_resource_permission("admin-settings", "view"))])
 async def get_scrum_of_scrums(
@@ -60,8 +61,8 @@ async def get_scrum_of_scrums(
     except HTTPException:
         raise
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @router.get("/weekly-feedback", dependencies=[Depends(require_resource_permission("admin-settings", "view"))])
 async def get_weekly_feedback(
@@ -87,4 +88,5 @@ async def get_weekly_feedback(
         )
         return feedback
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))

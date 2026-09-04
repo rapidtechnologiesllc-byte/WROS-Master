@@ -1,6 +1,7 @@
 """
 Candidate Pool Service
 ======================
+import logging
 Central service for all pool ownership transitions.
 
 All four state-changing helpers write a CandidateHistory event automatically,
@@ -23,11 +24,9 @@ from app.core.logging import logger
 from app.models.candidate_ownership import CandidateOwnership, POOL_BU, POOL_ORG
 from app.models.candidate_history import CandidateHistory
 
-
 # ── constants ─────────────────────────────────────────────────────────────────
 
 BU_OWNERSHIP_DAYS = 90   # how long BU owns a candidate after offer release
-
 
 # ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -48,7 +47,6 @@ def _log_history(
         performed_by_name=performed_by_name,
         event_at=datetime.utcnow(),
     ))
-
 
 def _upsert_ownership(
     candidate_id: str,
@@ -78,7 +76,6 @@ def _upsert_ownership(
     row.bu_ownership_expires_at = bu_ownership_expires_at
     return row
 
-
 # ── public API ────────────────────────────────────────────────────────────────
 
 def get_ownership(candidate_id: str, db: Session) -> Optional[CandidateOwnership]:
@@ -88,7 +85,6 @@ def get_ownership(candidate_id: str, db: Session) -> Optional[CandidateOwnership
         .filter(CandidateOwnership.candidateID == candidate_id)
         .first()
     )
-
 
 def set_bu_owned(
     candidate_id: str,
@@ -139,7 +135,6 @@ def set_bu_owned(
     )
     return row
 
-
 def set_org_pool(
     candidate_id: str,
     reason: str,
@@ -181,7 +176,6 @@ def set_org_pool(
     logger.info(f"candidate_pool — '{candidate_id}' → Org Pool. {reason}")
     return row
 
-
 def set_bu_owned_with_expiry(
     candidate_id: str,
     bu_id: int,
@@ -210,7 +204,6 @@ def set_bu_owned_with_expiry(
         f"candidate_pool — '{candidate_id}' BU ownership expires at {expires_at.isoformat()}"
     )
     return row
-
 
 # ── scheduler function ────────────────────────────────────────────────────────
 

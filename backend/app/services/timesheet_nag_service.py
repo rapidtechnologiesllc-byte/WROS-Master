@@ -5,6 +5,7 @@ reminder -> escalation-on-repeated-non-response, tracked against the
 non-responder) -- applied here to timesheet submission.
 """
 from datetime import date, datetime, timedelta
+import logging
 from typing import List, Optional
 
 from sqlalchemy.orm import Session
@@ -17,7 +18,6 @@ from app.models.user import Users
 from app.services.notification_service import ChannelNotConfigured, send_notification
 
 DEFAULT_ESCALATION_DAYS = 3
-
 
 def scan_missing_timesheets(db: Session, *, week_starting_date: date, tenant_id: Optional[int] = None) -> List[Employee]:
     """Employees with an ACTIVE allocation covering this week who have
@@ -37,7 +37,6 @@ def scan_missing_timesheets(db: Session, *, week_starting_date: date, tenant_id:
     if not missing_ids:
         return []
     return db.query(Employee).filter(Employee.id.in_(missing_ids)).all()
-
 
 def trigger_timesheet_nag(
     db: Session, employee: Employee, *, week_starting_date: date,
@@ -94,7 +93,7 @@ def trigger_timesheet_nag(
         return log
 
     if log.resolved:
-        return None
+        raise ValueError("Operation failed")
 
     days_since_last_nag = (now - log.last_nagged_at).days if log.last_nagged_at else escalation_days
     if log.escalation_level == 1 and days_since_last_nag >= escalation_days:
@@ -116,7 +115,6 @@ def trigger_timesheet_nag(
         return log
 
     return log
-
 
 def run_timesheet_nag_job(db: Session) -> dict:
     """Scheduler wrapper, 2026-08-06 -- this logic existed and was fully

@@ -1,3 +1,4 @@
+import logging
 """Candidate query helpers with isolation enforcement.
 
 Provides query functions that automatically apply candidate isolation rules
@@ -15,10 +16,10 @@ from sqlalchemy import or_
 
 from app.models.candidate import Candidate
 from app.models.user import Users
-from app.services.rbac_service import RBACService
 from app.services.organization_service import OrganizationService
 from app.services.candidate_isolation_service import CandidateIsolationService
-
+from app.services.permission_helper import PermissionHelper
+from app.core.logging import logger
 
 def get_candidates_for_user(
     db: Session,
@@ -51,10 +52,10 @@ def get_candidates_for_user(
     base_query = db.query(Candidate).filter(Candidate.tenant_id == tenant_id)
 
     # Apply isolation rules
-    if RBACService.is_super_admin(user_id, db, tenant_id):
+    if PermissionHelper.is_super_admin(user_id, db, tenant_id):
         # Super admin sees all candidates
         pass
-    elif RBACService.has_any_permission(db, user_id, ["recruitment.manage", "employee.manage", "recruitment.view"]):
+    elif PermissionHelper.has_any_permission(user_id, ["recruitment.manage", "employee.manage", "recruitment.view"], db, tenant_id):
         # HR/Recruiter sees:
         # 1. All unassociated candidates
         # 2. Candidates associated to their BU(s)
@@ -78,7 +79,6 @@ def get_candidates_for_user(
         base_query = base_query.filter(Candidate.status == status)
 
     return base_query.all()
-
 
 def get_candidate_by_id(
     db: Session,
@@ -113,7 +113,6 @@ def get_candidate_by_id(
 
     return None
 
-
 def count_candidates_for_user(
     db: Session,
     user_id: str,
@@ -133,7 +132,6 @@ def count_candidates_for_user(
     """
     candidates = get_candidates_for_user(db, user_id, tenant_id, status=status)
     return len(candidates)
-
 
 def get_candidates_by_bu(
     db: Session,
@@ -155,11 +153,11 @@ def get_candidates_by_bu(
         List of Candidate objects in the BU
     """
     # Check permission to view BU data
-    if not RBACService.has_any_permission(db, user_id, ["admin.manage", "business_unit.manage", "employee.manage"]):
+    if not PermissionHelper.has_any_permission(user_id, ["admin.manage", "business_unit.manage", "employee.manage"], db, tenant_id):
         return []
 
     # For non-admin users, verify they have access to this BU
-    if not RBACService.is_super_admin(user_id, db, tenant_id):
+    if not PermissionHelper.is_super_admin(user_id, db, tenant_id):
         user_bus = OrganizationService.get_user_accessible_business_units(user_id, db, tenant_id)
         if bu_id not in user_bus:
             return []
@@ -168,7 +166,6 @@ def get_candidates_by_bu(
         Candidate.associated_bu_id == bu_id,
         Candidate.tenant_id == tenant_id
     ).all()
-
 
 def submit_candidates_to_bu(
     db: Session,
@@ -209,7 +206,8 @@ def submit_candidates_to_bu(
             results["failed"] += 1
             results["errors"].append(f"Candidate {candidate_id}: {str(e)}")
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             results["failed"] += 1
             results["errors"].append(f"Candidate {candidate_id}: Unexpected error: {str(e)}")
 
-    return results
+            return results

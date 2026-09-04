@@ -1,3 +1,4 @@
+import logging
 """Add modules and module_permissions tables - Phase 2B database-driven configuration.
 
 Revision ID: 2026_08_16_add_modules
@@ -122,7 +123,6 @@ VERB_MATRIX_DATA = {
     "executive_signal": ["view"],
 }
 
-
 def upgrade() -> None:
     # Create system_modules table
     op.create_table(
@@ -192,7 +192,6 @@ def upgrade() -> None:
                 ), {"module_id": module_id, "verb": verb})
 
     connection.commit()
-
 
 def downgrade() -> None:
     # Drop foreign key constraint first

@@ -1,4 +1,5 @@
 """
+import logging
 S-050/HRMS-0450 -- Interview Reminder Engine.
 
 Real architecture adaptations:
@@ -65,12 +66,10 @@ SKIP_24H_THRESHOLD_HOURS = 25  # Step 2 -- less than 25h away: skip the 24H remi
 SKIP_BOTH_THRESHOLD_MINUTES = 70  # Step 2 -- less than 70min away: skip both
 JOB_BATCH_SIZE = 100
 
-
 def _as_utc(dt: datetime) -> datetime:
     if dt.tzinfo is None:
         return dt.replace(tzinfo=dt_timezone.utc)
     return dt.astimezone(dt_timezone.utc)
-
 
 def schedule_reminders_for_interview(db: Session, interview_id: str, *, now: Optional[datetime] = None) -> Dict:
     """Step 2. Never raises. Returns:
@@ -108,10 +107,10 @@ def schedule_reminders_for_interview(db: Session, interview_id: str, *, now: Opt
         db.commit()
         return {"outcome": "scheduled", "reminders_created": created}
     except Exception as exc:
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.error(f"[InterviewReminder] Failed scheduling reminders for interview {interview_id!r}: {exc}")
         db.rollback()
         return {"outcome": "scheduling_failed"}
-
 
 def cancel_pending_reminders_for_interview(db: Session, interview_id: str) -> int:
     """Step 4. Real, callable -- no live caller wires this in yet (see
@@ -125,7 +124,6 @@ def cancel_pending_reminders_for_interview(db: Session, interview_id: str) -> in
         db.commit()
     return len(rows)
 
-
 def _resolve_interviewer_name(db: Session, panel_id: Optional[str]) -> str:
     if not panel_id:
         return "our interviewer"
@@ -136,7 +134,6 @@ def _resolve_interviewer_name(db: Session, panel_id: Optional[str]) -> str:
     if employee is None:
         return "our interviewer"
     return f"{employee.first_name} {employee.last_name}".strip() or "our interviewer"
-
 
 def _notify_recruiter(db: Session, submission: Optional[Submission], message: str) -> None:
     if submission is None or not submission.submitted_by_user_id:
@@ -150,8 +147,8 @@ def _notify_recruiter(db: Session, submission: Optional[Submission], message: st
             priority_tier="P1", channel_preference="IN_APP", message=message,
         )
     except Exception as exc:
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[InterviewReminder] Failed to notify recruiter: {exc}")
-
 
 def _build_reminder_message(reminder_type: str, candidate: Candidate, interviewer_name: str, candidate_local: datetime, meeting_detail: str) -> str:
     if reminder_type == "24H_BEFORE":
@@ -164,7 +161,6 @@ def _build_reminder_message(reminder_type: str, candidate: Candidate, interviewe
         f"Hi {candidate.candidateFirstName or 'there'}! Your BlitzenX interview is in 1 hour -- at "
         f"{candidate_local.strftime('%I:%M %p %Z')}. {meeting_detail} Good luck!"
     )
-
 
 def run_reminder_execution_job(db: Session) -> Dict:
     """Step 3. Runs every 10 min. Never lets one bad row abort the
@@ -232,6 +228,7 @@ def run_reminder_execution_job(db: Session) -> Dict:
                     db.add(ConversationEvent(conversation_id=conversation.id, event_type="ai_message_sent", event_data={"channel": "email", "body": message[:500], "auto_generated": True}, triggered_by="ai_agent"))
                 email_sent = True
             except Exception as exc:
+                logger.error(f"Error: {str(exc)}", exc_info=True)
                 logger.error(f"[InterviewReminder] Email reminder failed for candidate {candidate.candidateID!r}: {exc}")
 
             if not whatsapp_sent and not email_sent:  # BR-02's own integrations note: both fail -> escalate
@@ -250,6 +247,7 @@ def run_reminder_execution_job(db: Session) -> Dict:
             db.commit()
             result["sent"] += 1
         except Exception as exc:
+            logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.error(f"[InterviewReminder] Unexpected failure processing reminder id={reminder.id}: {exc}")
             db.rollback()
             result["skipped"] += 1

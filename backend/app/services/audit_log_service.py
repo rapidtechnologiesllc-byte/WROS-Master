@@ -1,4 +1,5 @@
 """
+import logging
 S-076/HRMS-0476 -- AuditLogger service.
 
 A simple INSERT function -- no business logic, no transformations, no
@@ -12,7 +13,6 @@ from typing import Any, Dict, Optional
 from sqlalchemy.orm import Session
 
 from app.models.conversation_audit_log import ConversationAuditLog
-
 
 def log_audit_event(
     db: Session,

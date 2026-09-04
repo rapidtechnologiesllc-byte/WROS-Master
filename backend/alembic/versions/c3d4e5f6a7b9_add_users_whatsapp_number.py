@@ -1,3 +1,4 @@
+import logging
 """add users.whatsapp_number for per-staff WhatsApp conversation routing
 
 Revision ID: c3d4e5f6a7b9
@@ -38,13 +39,11 @@ from typing import Sequence, Union
 from alembic import op
 import sqlalchemy as sa
 
-
 # revision identifiers, used by Alembic.
 revision: str = 'c3d4e5f6a7b9'
 down_revision: Union[str, Sequence[str], None] = 'b2c3d4e5f6a8'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
-
 
 def upgrade() -> None:
     """Upgrade schema."""
@@ -54,7 +53,6 @@ def upgrade() -> None:
         unique=True,
         mssql_where=sa.text('whatsapp_number IS NOT NULL'),
     )
-
 
 def downgrade() -> None:
     """Downgrade schema."""

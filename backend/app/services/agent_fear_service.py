@@ -1,5 +1,6 @@
 """
 Agent Fear State Calculation Service
+import logging
 ====================================
 
 Calculates agent fear levels based on performance metrics.
@@ -18,7 +19,6 @@ from sqlalchemy import func
 
 from app.models.agent_fear_state import AgentFearState, AgentPerformanceCommitment
 from app.models.agent_maturity import AgentMaturityLevel, AgentPerformanceMetric
-
 
 def calculate_fear_level(db: Session, agent_name: str) -> dict:
     """
@@ -155,7 +155,6 @@ def calculate_fear_level(db: Session, agent_name: str) -> dict:
         "quality_variance": 95.0 - (maturity.quality_score or 0)
     }
 
-
 def update_agent_fear_state(db: Session, agent_name: str):
     """Update fear state for an agent."""
     fear_metrics = calculate_fear_level(db, agent_name)
@@ -196,7 +195,6 @@ def update_agent_fear_state(db: Session, agent_name: str):
     db.commit()
     return fear_state
 
-
 def get_agent_fear_dashboard(db: Session, agent_name: str = None) -> dict:
     """Get fear state dashboard for agent(s)."""
     if agent_name:
@@ -225,7 +223,6 @@ def get_agent_fear_dashboard(db: Session, agent_name: str = None) -> dict:
         "count_desperate": len([a for a in agents_under_threat if 60 < a["fear_level"] <= 80]),
         "count_at_risk": len([a for a in agents_under_threat if 50 < a["fear_level"] <= 60])
     }
-
 
 def check_retirement_eligibility(db: Session, agent_name: str) -> dict:
     """Check if agent should be retired based on fear state and poor performance."""
@@ -279,7 +276,6 @@ def check_retirement_eligibility(db: Session, agent_name: str) -> dict:
         "success_rate": maturity.success_rate,
         "quality_score": maturity.quality_score
     }
-
 
 def initialize_default_agents(db: Session) -> None:
     """Initialize database with default agents if none exist."""

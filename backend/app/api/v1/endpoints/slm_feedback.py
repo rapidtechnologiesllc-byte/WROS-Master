@@ -1,8 +1,12 @@
 """
+import logging
 SLM Feedback API - Collect corrections and validation during resume editing
 
 When recruiter edits parsed resume data, capture corrections for learning.
 This is the main feedback loop that trains the model.
+
+Security: All endpoints require authentication + permission check + audit logging.
+No PII linkage: Uses anonymized feedback_session_id instead of candidate_id.
 
 Endpoints:
 - POST /slm/feedback/correction - Record parsing error correction
@@ -11,6 +15,7 @@ Endpoints:
 - GET /slm/feedback/report - Get daily improvement report
 """
 
+import logging
 from datetime import datetime
 from typing import List, Optional
 
@@ -19,30 +24,30 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_hr_or_admin
+from app.core.dependencies import get_current_internal_user, require_resource_permission
 from app.core.logging import logger
 from app.services.slm_feedback_engine import SLMFeedbackEngine, SLMFeedback
 from app.services.slm_daily_improvement import SLMDailyImprovement
+from app.services.audit_log_service import log_audit_event
 
 router = APIRouter(prefix="/slm", tags=["slm-feedback"])
 
+logger = logging.getLogger(__name__)
 
 class CorrectionRequest(BaseModel):
     """Record when recruiter corrects a parsing error"""
-    candidate_id: str
+    feedback_session_id: str
     field_name: str
     parsed_value: str
     corrected_value: str
     confidence_score: float = 0.5
 
-
 class ValidationRequest(BaseModel):
     """Record when recruiter validates a parsed value (doesn't change)"""
-    candidate_id: str
+    feedback_session_id: str
     field_name: str
     value: str
     confidence_score: float = 0.8
-
 
 class FeedbackStats(BaseModel):
     """Response format for feedback statistics"""
@@ -54,12 +59,14 @@ class FeedbackStats(BaseModel):
     ready_to_retrain: bool
     recommendation: str
 
-
-@router.post("/feedback/correction")
+@router.post(
+    "/feedback/correction",
+    dependencies=[Depends(require_resource_permission("feedback", "create"))]
+)
 def record_correction(
     request: CorrectionRequest,
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_hr_or_admin),
+    current_user = Depends(get_current_internal_user),
 ) -> dict:
     """
     Record when recruiter corrects a parsing error.
@@ -72,7 +79,7 @@ def record_correction(
     ```
     POST /slm/feedback/correction
     {
-        "candidate_id": "cand_123",
+        "feedback_session_id": "session_abc123",
         "field_name": "skills",
         "parsed_value": "Python, JavaScript",
         "corrected_value": "Python, JavaScript, AWS",
@@ -89,7 +96,7 @@ def record_correction(
     try:
         SLMFeedbackEngine.record_correction(
             db,
-            candidate_id=request.candidate_id,
+            feedback_session_id=request.feedback_session_id,
             field_name=request.field_name,
             parsed_value=request.parsed_value,
             corrected_value=request.corrected_value,
@@ -98,22 +105,40 @@ def record_correction(
 
         db.commit()
 
+        # Audit log: SLM access
+        log_audit_event(
+            db=db,
+            event_type="SLM_CORRECTION_RECORDED",
+            user_id=current_user.UserID,
+            action="POST_CORRECTION",
+            resource_type="slm_feedback",
+            details={
+                "field_name": request.field_name,
+                "confidence_score": request.confidence_score,
+                "session_id": request.feedback_session_id
+            }
+        )
+
         return {
             "status": "recorded",
             "field": request.field_name,
-            "message": f"Correction recorded: {request.field_name} for candidate {request.candidate_id}"
+            "message": f"Correction recorded: {request.field_name}"
         }
 
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         db.rollback()
+        logger.error(f"[SLM] Failed to record correction: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to record correction: {str(e)}")
 
-
-@router.post("/feedback/validation")
+@router.post(
+    "/feedback/validation",
+    dependencies=[Depends(require_resource_permission("feedback", "create"))]
+)
 def record_validation(
     request: ValidationRequest,
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_hr_or_admin),
+    current_user = Depends(get_current_internal_user),
 ) -> dict:
     """
     Record when recruiter validates a parsed value (leaves it unchanged).
@@ -124,7 +149,7 @@ def record_validation(
     ```
     POST /slm/feedback/validation
     {
-        "candidate_id": "cand_123",
+        "feedback_session_id": "session_abc123",
         "field_name": "title",
         "value": "Senior Software Engineer",
         "confidence_score": 0.92
@@ -134,7 +159,7 @@ def record_validation(
     try:
         SLMFeedbackEngine.record_validation(
             db,
-            candidate_id=request.candidate_id,
+            feedback_session_id=request.feedback_session_id,
             field_name=request.field_name,
             parsed_value=request.value,
             confidence_score=request.confidence_score
@@ -142,22 +167,41 @@ def record_validation(
 
         db.commit()
 
+        # Audit log: SLM access
+        log_audit_event(
+            db=db,
+            event_type="SLM_VALIDATION_RECORDED",
+            user_id=current_user.UserID,
+            action="POST_VALIDATION",
+            resource_type="slm_feedback",
+            details={
+                "field_name": request.field_name,
+                "confidence_score": request.confidence_score,
+                "session_id": request.feedback_session_id
+            }
+        )
+
         return {
             "status": "validated",
             "field": request.field_name,
-            "message": f"Validation recorded: {request.field_name} for candidate {request.candidate_id}"
+            "message": f"Validation recorded: {request.field_name}"
         }
 
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         db.rollback()
+        logger.error(f"[SLM] Failed to record validation: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to record validation: {str(e)}")
 
-
-@router.get("/feedback/stats", response_model=dict)
+@router.get(
+    "/feedback/stats",
+    response_model=dict,
+    dependencies=[Depends(require_resource_permission("feedback", "view"))]
+)
 def get_feedback_stats(
     days: int = 7,
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_hr_or_admin),
+    current_user = Depends(get_current_internal_user),
 ) -> dict:
     """
     Get statistics on parsing feedback (corrections and validations).
@@ -197,13 +241,30 @@ def get_feedback_stats(
     }
     """
     stats = SLMFeedbackEngine.get_feedback_stats(db, days=days)
+
+    # Audit log: SLM stats access
+    log_audit_event(
+        db=db,
+        event_type="SLM_STATS_ACCESSED",
+        user_id=current_user.UserID,
+        action="GET_STATS",
+        resource_type="slm_feedback",
+        details={
+            "days": days,
+            "total_feedback": stats.get("total_feedback"),
+            "ready_to_retrain": stats.get("ready_to_retrain")
+        }
+    )
+
     return stats
 
-
-@router.get("/feedback/report")
+@router.get(
+    "/feedback/report",
+    dependencies=[Depends(require_resource_permission("feedback", "view"))]
+)
 def get_improvement_report(
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_hr_or_admin),
+    current_user = Depends(get_current_internal_user),
 ) -> dict:
     """
     Get today's improvement report from the daily cycle.
@@ -227,11 +288,13 @@ def get_improvement_report(
         "ready_to_deploy": report["ready_to_deploy"]
     }
 
-
-@router.get("/feedback/trajectory")
+@router.get(
+    "/feedback/trajectory",
+    dependencies=[Depends(require_resource_permission("feedback", "view"))]
+)
 def get_improvement_trajectory(
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_hr_or_admin),
+    current_user = Depends(get_current_internal_user),
 ) -> dict:
     """
     Get projected accuracy improvement trajectory.
@@ -252,13 +315,15 @@ def get_improvement_trajectory(
     trajectory = SLMDailyImprovement.simulate_improvement_trajectory(db)
     return trajectory
 
-
-@router.get("/feedback/patterns/{field_name}")
+@router.get(
+    "/feedback/patterns/{field_name}",
+    dependencies=[Depends(require_resource_permission("feedback", "view"))]
+)
 def get_error_patterns(
     field_name: str,
     limit: int = 20,
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_hr_or_admin),
+    current_user = Depends(get_current_internal_user),
 ) -> dict:
     """
     Analyze error patterns for a specific field.
@@ -299,12 +364,14 @@ def get_error_patterns(
         "highest_priority": patterns[0]["pattern"] if patterns else None
     }
 
-
-@router.get("/feedback/training-batch")
+@router.get(
+    "/feedback/training-batch",
+    dependencies=[Depends(require_resource_permission("feedback", "view"))]
+)
 def get_training_batch(
     min_examples: int = 20,
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_hr_or_admin),
+    current_user = Depends(get_current_internal_user),
 ) -> dict:
     """
     Get a training batch ready to send to Claude for model improvement.
@@ -352,12 +419,14 @@ def get_training_batch(
         "instruction": "Send this batch to Claude API to generate improved extraction patterns"
     }
 
-
-@router.post("/feedback/bulk-import")
+@router.post(
+    "/feedback/bulk-import",
+    dependencies=[Depends(require_resource_permission("feedback", "create"))]
+)
 def bulk_import_corrections(
     corrections: List[CorrectionRequest],
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_hr_or_admin),
+    current_user = Depends(get_current_internal_user),
 ) -> dict:
     """
     Bulk import multiple corrections at once.
@@ -383,6 +452,7 @@ def bulk_import_corrections(
                 )
                 imported += 1
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             logger.warning(f"Failed to import correction: {e}")
             failed += 1
 

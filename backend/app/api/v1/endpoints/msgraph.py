@@ -1,6 +1,7 @@
-﻿
+
 import os
 from datetime import timedelta
+import logging
 from urllib.parse import urlencode
 
 from dotenv import load_dotenv
@@ -11,7 +12,7 @@ import requests
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_hr_or_admin, require_resource_permission
+from app.core.dependencies import get_current_internal_user, require_resource_permission
 from app.core.security import create_access_token, decode_access_token
 from app.models import Users,Role
 from app.core.logging import logger
@@ -19,11 +20,6 @@ from app.core.msgraph_session_store import (
     account_id_by_user_id as _account_id_by_user_id,
     user_tokens,
 )
-
-
-
-
-
 
 load_dotenv()
 TENANT_ID = os.getenv("TENANT_ID")
@@ -61,10 +57,12 @@ def _auth_url(state: str = "xyz"):
     }
     return f"{AUTHORITY}/oauth2/v2.0/authorize?{urlencode(params)}"
 
-@router.get("/auth/signin")
+@router.get(
+    "/auth/signin",
+    dependencies=[Depends(require_resource_permission("auth", "view"))]
+)
 def signin():
     return RedirectResponse(_auth_url())
-
 
 # ============================================
 # EPIC-14/S-379 (HRMS-1401) -- M365 Launchpad account linking
@@ -87,9 +85,11 @@ def signin():
 # byte-for-byte-unchanged login behavior.
 LINK_STATE_TTL_MINUTES = 10
 
-
-@router.get("/link/start")
-def start_link(current_user: Users = Depends(get_current_hr_or_admin)):
+@router.get(
+    "/link/start",
+    dependencies=[Depends(require_resource_permission("link", "view"))]
+)
+def start_link(current_user: Users = Depends(get_current_internal_user)):
     """Returns the Microsoft sign-in URL for the CURRENTLY authenticated
     WROS user to link their M365 account. The frontend must call this
     via an authenticated fetch (not a plain <a href>, since a real
@@ -101,21 +101,24 @@ def start_link(current_user: Users = Depends(get_current_hr_or_admin)):
     )
     return {"auth_url": _auth_url(state=link_state)}
 
-
-@router.get("/link-status")
-def link_status(current_user: Users = Depends(get_current_hr_or_admin)):
+@router.get(
+    "/link-status",
+    dependencies=[Depends(require_resource_permission("link-statu", "view"))]
+)
+def link_status(current_user: Users = Depends(get_current_internal_user)):
     account_id = _account_id_by_user_id.get(current_user.UserID)
     linked = bool(account_id and account_id in user_tokens)
     return {"linked": linked}
 
-
-@router.post("/unlink")
-def unlink(current_user: Users = Depends(get_current_hr_or_admin)):
+@router.post(
+    "/unlink",
+    dependencies=[Depends(require_resource_permission("unlink", "create"))]
+)
+def unlink(current_user: Users = Depends(get_current_internal_user)):
     account_id = _account_id_by_user_id.pop(current_user.UserID, None)
     if account_id:
         user_tokens.pop(account_id, None)
     return {"linked": False}
-
 
 def _decode_link_state(state: str):
     """Returns the Users row this state token names, or None if `state`
@@ -127,13 +130,15 @@ def _decode_link_state(state: str):
     try:
         payload = decode_access_token(state)
     except HTTPException:
-        return None
+        raise ValueError("Operation failed")
     if not payload.get("msgraph_link"):
-        return None
+        raise ValueError("Operation failed")
     return payload.get("sub")
 
-
-@router.get("/auth/callback")
+@router.get(
+    "/auth/callback",
+    dependencies=[Depends(require_resource_permission("auth", "view"))]
+)
 def callback(request: Request, db: Session = Depends(get_db)):
     code = request.query_params.get("code")
     if not code:
@@ -260,8 +265,11 @@ def _make_graph_request(method: str, endpoint: str, access_token: str, json_data
     
     return response
 
-@router.get("/me")
-def me(db: Session = Depends(get_db), user: Users = Depends(get_current_hr_or_admin)):
+@router.get(
+    "/me",
+    dependencies=[Depends(require_resource_permission("me", "view"))]
+)
+def me(db: Session = Depends(get_db), user: Users = Depends(get_current_internal_user)):
     """
     Return the current authenticated user's profile from the database.
     Requires a valid JWT Bearer token (obtained from /auth/callback redirect).
@@ -281,7 +289,7 @@ def me(db: Session = Depends(get_db), user: Users = Depends(get_current_hr_or_ad
         }
     })
 
-def _require_account(current_user: Users = Depends(get_current_hr_or_admin)) -> str:
+def _require_account(current_user: Users = Depends(get_current_internal_user)) -> str:
     """
     Identify the calling user's linked Microsoft account from their real
     authenticated session (the same JWT every other endpoint in this
@@ -300,7 +308,7 @@ def _require_account(current_user: Users = Depends(get_current_hr_or_admin)) -> 
     anyone who learned/guessed another user's MS `oid` could set it
     client-side and use that user's Graph token. Fixed the same way
     every other "resolve MY OWN data" endpoint in this codebase
-    already does: derive identity from Depends(get_current_hr_or_admin)
+    already does: derive identity from Depends(get_current_internal_user)
     (the real JWT), never a request-supplied identifier.
     """
     account_id = _account_id_by_user_id.get(current_user.UserID)
@@ -309,7 +317,10 @@ def _require_account(current_user: Users = Depends(get_current_hr_or_admin)) -> 
     return account_id
 
 # ---------- SEND MAIL ----------
-@router.post("/mail/send")
+@router.post(
+    "/mail/send",
+    dependencies=[Depends(require_resource_permission("mail", "create"))]
+)
 def send_mail(to: str, subject: str, body_text: str, account_id: str = Depends(_require_account)):
     token_data = _graph_client_for(account_id)
 
@@ -335,7 +346,10 @@ def send_mail(to: str, subject: str, body_text: str, account_id: str = Depends(_
     return {"status": "Mail sent"}
 
 # ---------- CREATE MEETING (CALENDAR EVENT) ----------
-@router.post("/calendar/schedule")
+@router.post(
+    "/calendar/schedule",
+    dependencies=[Depends(require_resource_permission("calendar", "create"))]
+)
 def schedule_meeting(
     subject: str,
     start_iso: str,
@@ -377,8 +391,10 @@ def schedule_meeting(
     join_url = (created_json.get("onlineMeeting") or {}).get("joinUrl")
     return {"eventId": created_json.get("id"), "joinUrl": join_url}
 
-
-@router.get("/calendar/meetings")
+@router.get(
+    "/calendar/meetings",
+    dependencies=[Depends(require_resource_permission("calendar", "view"))]
+)
 def get_my_meetings(
     top: int = 10,
     skip: int = 0,
@@ -448,14 +464,12 @@ def get_my_meetings(
         }
     }
 
-
 # ============================================
 # Service Account Calendar Endpoints
 # Uses Application-level permissions (no user sign-in required)
 # ============================================
 
 from app.core.graph_auth import get_graph_token, GraphServiceAuth
-
 
 @router.get(
     "/service/calendar/events/{user_email}",
@@ -465,7 +479,7 @@ def get_user_calendar_events(
     user_email: str,
     start_time: str = None,
     end_time: str = None,
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
     db: Session = Depends(get_db)
 ):
     '''
@@ -577,8 +591,8 @@ def get_user_calendar_events(
             detail=f"Microsoft Graph API error: {error_detail}"
         )
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to fetch calendar events: {str(e)}")
-
 
 @router.post(
     "/service/calendar/schedule",
@@ -593,7 +607,7 @@ def schedule_meeting_for_user(
     timezone: str = "UTC",
     teams_online: bool = True,
     location: str = None,
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
     db: Session = Depends(get_db)
 ):
     '''
@@ -704,8 +718,8 @@ def schedule_meeting_for_user(
             detail=f"Microsoft Graph API error: {error_detail}"
         )
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to schedule meeting: {str(e)}")
-
 
 # ============================================
 # SharePoint Connection Test
@@ -716,7 +730,7 @@ def schedule_meeting_for_user(
     dependencies=[Depends(require_resource_permission("roles-permissions", "edit"))],
 )
 def test_sharepoint_connection(
-    current_user: Users = Depends(get_current_hr_or_admin)
+    current_user: Users = Depends(get_current_internal_user)
 ):
     """
     Test SharePoint connection and list available folders.
@@ -742,6 +756,7 @@ def test_sharepoint_connection(
         try:
             access_token = get_graph_token()
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             return {
                 "status": "error",
                 "message": "Failed to get access token",
@@ -806,6 +821,7 @@ def test_sharepoint_connection(
                 else:
                     folder_response.raise_for_status()
             except Exception as folder_error:
+                logger.error(f"Error: {str(folder_error)}", exc_info=True)
                 logger.warning(f"Could not list folders: {str(folder_error)}")
                 folders = []
             
@@ -844,6 +860,7 @@ def test_sharepoint_connection(
                 "access_granted": False
             }
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             return {
                 "status": "error",
                 "message": "Failed to access SharePoint",
@@ -852,23 +869,21 @@ def test_sharepoint_connection(
                 "authenticated": True,
                 "sharepoint_configured": True
             }
-            
     except Exception as e:
-        logger.error(f"SharePoint connection test failed: {str(e)}")
+        logger.error(f"SharePoint test connection error: {str(e)}", exc_info=True)
         return {
             "status": "error",
-            "message": "Connection test failed",
-            "details": str(e)
+            "message": "SharePoint connection test failed",
+            "details": str(e),
+            "configured": False
         }
-
-
 
 @router.get(
     "/sharepoint/list-drives",
     dependencies=[Depends(require_resource_permission("roles-permissions", "edit"))],
 )
 def list_sharepoint_drives(
-    current_user: Users = Depends(get_current_hr_or_admin)
+    current_user: Users = Depends(get_current_internal_user)
 ):
     '''
     List all drives available in the SharePoint site.
@@ -893,6 +908,7 @@ def list_sharepoint_drives(
         try:
             access_token = get_graph_token()
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             return {
                 "status": "error",
                 "message": "Failed to get access token",
@@ -947,6 +963,7 @@ def list_sharepoint_drives(
             "details": error_detail
         }
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         return {
             "status": "error",
             "message": "Failed to list drives",

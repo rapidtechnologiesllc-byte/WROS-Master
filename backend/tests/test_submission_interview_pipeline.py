@@ -1,6 +1,7 @@
 """
 Proves HRMS-0711 (Client Submission Pipeline) and HRMS-0706 (Interview
 Panel Assignment) -- the piece connecting Demand -> Candidate ->
+import logging
 Employee.
 
 Covers the hard-block compliance gates this session decided to build
@@ -53,7 +54,6 @@ from app.services.interview_service import (
     InvalidOutcomeChange,
 )
 
-
 @pytest.fixture()
 def db_session():
     fd, db_path = tempfile.mkstemp(suffix=".sqlite3")
@@ -72,7 +72,6 @@ def db_session():
         session.close()
         engine.dispose()
         os.remove(db_path)
-
 
 @pytest.fixture()
 def base_fixtures(db_session):
@@ -94,7 +93,6 @@ def base_fixtures(db_session):
 
     return tenant, client, demand
 
-
 def _make_candidate(db, tenant, candidate_id="C-001", **overrides):
     defaults = dict(
         candidateID=candidate_id, candidateEmail=f"{candidate_id}@example.com",
@@ -106,7 +104,6 @@ def _make_candidate(db, tenant, candidate_id="C-001", **overrides):
     db.add(candidate)
     db.commit()
     return candidate
-
 
 def _make_employee(db, tenant, candidate, status="BENCH", **overrides):
     defaults = dict(
@@ -120,12 +117,10 @@ def _make_employee(db, tenant, candidate, status="BENCH", **overrides):
     db.commit()
     return emp
 
-
 def _make_eligible_candidate_and_employee(db, tenant, candidate_id="C-001", status="BENCH"):
     candidate = _make_candidate(db, tenant, candidate_id=candidate_id)
     employee = _make_employee(db, tenant, candidate, status=status)
     return candidate, employee
-
 
 # ---------------------------------------------------------------------------
 # checkExperienceEligibility (R-01 / HRMS-P601)
@@ -136,19 +131,16 @@ def test_experience_eligible_at_60_months():
     result = check_experience_eligibility(candidate)
     assert result["is_eligible"] is True
 
-
 def test_experience_ineligible_below_60_months():
     candidate = Candidate(candidateID="X", candidateEmail="x@x.com", candidatePassword="h", total_experience_months=48)
     result = check_experience_eligibility(candidate)
     assert result["is_eligible"] is False
     assert result["deficit_months"] == 12
 
-
 def test_experience_null_is_ineligible_not_exempt():
     candidate = Candidate(candidateID="X", candidateEmail="x@x.com", candidatePassword="h", total_experience_months=None)
     result = check_experience_eligibility(candidate)
     assert result["is_eligible"] is False
-
 
 # ---------------------------------------------------------------------------
 # checkMarketProfileRule (R-02 / HRMS-P605)
@@ -162,7 +154,6 @@ def test_market_profile_blocked_with_no_employee_record(db_session, base_fixture
     assert result["allowed"] is False
     assert result["candidate_status"] == "NO_EMPLOYEE_RECORD"
 
-
 def test_market_profile_blocked_for_disallowed_employee_status(db_session, base_fixtures):
     tenant, client, demand = base_fixtures
     candidate, employee = _make_eligible_candidate_and_employee(db_session, tenant, status="PRE_JOINING")
@@ -171,7 +162,6 @@ def test_market_profile_blocked_for_disallowed_employee_status(db_session, base_
     assert result["allowed"] is False
     assert result["candidate_status"] == "PRE_JOINING"
 
-
 @pytest.mark.parametrize("status", ["BENCH", "ACTIVE", "ALLOCATED"])
 def test_market_profile_allowed_for_bench_active_allocated(db_session, base_fixtures, status):
     tenant, client, demand = base_fixtures
@@ -179,7 +169,6 @@ def test_market_profile_allowed_for_bench_active_allocated(db_session, base_fixt
 
     result = check_market_profile_rule(db_session, candidate.candidateID)
     assert result["allowed"] is True
-
 
 # ---------------------------------------------------------------------------
 # checkEmploymentTypeRule (R-03 / HRMS-P606)
@@ -190,18 +179,15 @@ def test_employment_type_c2c_blocked():
     result = check_employment_type_rule(candidate)
     assert result["allowed"] is False
 
-
 def test_employment_type_unknown_blocked_same_as_c2c():
     candidate = Candidate(candidateID="X", candidateEmail="x@x.com", candidatePassword="h", employment_type="UNKNOWN")
     result = check_employment_type_rule(candidate)
     assert result["allowed"] is False
 
-
 def test_employment_type_w2_fulltime_allowed():
     candidate = Candidate(candidateID="X", candidateEmail="x@x.com", candidatePassword="h", employment_type="W2_FULLTIME")
     result = check_employment_type_rule(candidate)
     assert result["allowed"] is True
-
 
 # ---------------------------------------------------------------------------
 # create_submission -- BR-01: all violations returned together
@@ -225,7 +211,6 @@ def test_all_three_gate_failures_reported_together(db_session, base_fixtures):
     ).all()
     assert len(violations) == 3
 
-
 def test_eligible_candidate_submission_succeeds_and_opens_demand(db_session, base_fixtures):
     tenant, client, demand = base_fixtures
     candidate, employee = _make_eligible_candidate_and_employee(db_session, tenant)
@@ -245,7 +230,6 @@ def test_eligible_candidate_submission_succeeds_and_opens_demand(db_session, bas
     ).count()
     assert no_violations == 0
 
-
 def test_submission_blocked_when_demand_not_open(db_session, base_fixtures):
     tenant, client, demand = base_fixtures
     demand.status = "FILLED"
@@ -253,7 +237,6 @@ def test_submission_blocked_when_demand_not_open(db_session, base_fixtures):
 
     with pytest.raises(DemandNotOpenForSubmission):
         create_submission(db_session, tenant_id=tenant.id, demand=demand, candidate=candidate)
-
 
 def test_duplicate_submission_rejected(db_session, base_fixtures):
     tenant, client, demand = base_fixtures
@@ -264,7 +247,6 @@ def test_duplicate_submission_rejected(db_session, base_fixtures):
 
     with pytest.raises(DuplicateSubmission):
         create_submission(db_session, tenant_id=tenant.id, demand=demand, candidate=candidate)
-
 
 # ---------------------------------------------------------------------------
 # update_client_response -- status machine + record_placement wiring
@@ -283,7 +265,6 @@ def test_client_response_valid_transition(db_session, base_fixtures):
     assert submission.client_feedback == "Strong profile"
     assert submission.client_response_at is not None
 
-
 def test_client_response_invalid_transition_rejected(db_session, base_fixtures):
     tenant, client, demand = base_fixtures
     candidate, employee = _make_eligible_candidate_and_employee(db_session, tenant)
@@ -292,7 +273,6 @@ def test_client_response_invalid_transition_rejected(db_session, base_fixtures):
 
     with pytest.raises(InvalidSubmissionTransition):
         update_client_response(db_session, submission, "PLACED")  # can't skip straight to PLACED
-
 
 def test_placed_status_increments_demand_positions_filled(db_session, base_fixtures):
     tenant, client, demand = base_fixtures
@@ -308,7 +288,6 @@ def test_placed_status_increments_demand_positions_filled(db_session, base_fixtu
 
     assert demand.positions_filled == 1
     assert demand.status == "FILLED"
-
 
 # ---------------------------------------------------------------------------
 # Interview panel assignment (HRMS-0706, BR-01)
@@ -326,7 +305,6 @@ def _make_interviewer(db, tenant, email, wros_user_id="U-INT-1", status="ACTIVE"
     db.commit()
     return emp
 
-
 def test_assign_panel_member_requires_active_employee_with_wros_access(db_session, base_fixtures):
     tenant, client, demand = base_fixtures
     inactive_interviewer = Employee(
@@ -342,7 +320,6 @@ def test_assign_panel_member_requires_active_employee_with_wros_access(db_sessio
             employee=inactive_interviewer, interview_level="L1",
         )
 
-
 def test_assign_panel_member_succeeds_for_active_wros_employee(db_session, base_fixtures):
     tenant, client, demand = base_fixtures
     interviewer = _make_interviewer(db_session, tenant, "tom@blitzenx.com")
@@ -353,7 +330,6 @@ def test_assign_panel_member_succeeds_for_active_wros_employee(db_session, base_
     )
     db_session.commit()
     assert panel.is_active is True
-
 
 def test_get_assigned_interviewer_picks_least_loaded(db_session, base_fixtures):
     tenant, client, demand = base_fixtures
@@ -379,7 +355,6 @@ def test_get_assigned_interviewer_picks_least_loaded(db_session, base_fixtures):
     assigned = get_assigned_interviewer(db_session, demand_id=demand.id, interview_level="L1", tenant_id=tenant.id)
     assert assigned.id == panel_b.id  # B has 0 pending vs A's 1
 
-
 def test_remove_panel_member_soft_deletes(db_session, base_fixtures):
     tenant, client, demand = base_fixtures
     interviewer = _make_interviewer(db_session, tenant, "tom@blitzenx.com")
@@ -392,7 +367,6 @@ def test_remove_panel_member_soft_deletes(db_session, base_fixtures):
 
     assigned = get_assigned_interviewer(db_session, demand_id=demand.id, interview_level="L1", tenant_id=tenant.id)
     assert assigned is None
-
 
 # ---------------------------------------------------------------------------
 # R-05: L1 must pass before L2
@@ -407,14 +381,12 @@ def _submission_with_panel(db, tenant, demand):
     db.commit()
     return submission, panel
 
-
 def test_l2_interview_blocked_without_prior_l1_pass(db_session, base_fixtures):
     tenant, client, demand = base_fixtures
     submission, panel = _submission_with_panel(db_session, tenant, demand)
 
     with pytest.raises(L1NotPassed):
         create_interview(db_session, tenant_id=tenant.id, submission=submission, level="L2", panel=panel)
-
 
 def test_l2_interview_blocked_when_l1_still_pending(db_session, base_fixtures):
     tenant, client, demand = base_fixtures
@@ -424,7 +396,6 @@ def test_l2_interview_blocked_when_l1_still_pending(db_session, base_fixtures):
 
     with pytest.raises(L1NotPassed):
         create_interview(db_session, tenant_id=tenant.id, submission=submission, level="L2", panel=panel)
-
 
 def test_l2_interview_allowed_after_l1_pass(db_session, base_fixtures):
     tenant, client, demand = base_fixtures
@@ -439,7 +410,6 @@ def test_l2_interview_allowed_after_l1_pass(db_session, base_fixtures):
     db_session.commit()
     assert l2.level == "L2"
 
-
 def test_no_eligible_interviewer_raises(db_session, base_fixtures):
     tenant, client, demand = base_fixtures
     candidate, employee = _make_eligible_candidate_and_employee(db_session, tenant)
@@ -448,7 +418,6 @@ def test_no_eligible_interviewer_raises(db_session, base_fixtures):
 
     with pytest.raises(NoEligibleInterviewer):
         create_interview(db_session, tenant_id=tenant.id, submission=submission, level="L1")
-
 
 def test_outcome_settable_only_once(db_session, base_fixtures):
     tenant, client, demand = base_fixtures

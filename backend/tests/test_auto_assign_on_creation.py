@@ -1,6 +1,7 @@
 """
 HRMS-0401 bug fix -- the AI recruiter must assign itself automatically
 when a candidate is created, not only when an HR user clicks "Assign AI
+import logging
 Recruiter" (the only path that existed until now).
 
 Covers app.services.ai_conversation_service.auto_assign_ai_agent_on_creation(),
@@ -23,7 +24,6 @@ from app.models.candidate_ai import CandidateAIAssignment, CandidateConversation
 from app.models.user import Users
 from app.services.ai_conversation_service import assign_ai_agent, auto_assign_ai_agent_on_creation
 
-
 @pytest.fixture()
 def db_session():
     fd, db_path = tempfile.mkstemp(suffix=".sqlite3")
@@ -41,7 +41,6 @@ def db_session():
         engine.dispose()
         os.remove(db_path)
 
-
 @pytest.fixture()
 def fixtures(db_session):
     org_owner = Users(UserID="U-ORG", UserRole="Admin", UserEmail="admin@blitzenx.com", UserPassword="h")
@@ -57,7 +56,6 @@ def fixtures(db_session):
 
     return org_owner, candidate
 
-
 def test_assign_ai_agent_accepts_none_assigned_by(db_session, fixtures):
     """assigned_by is nullable for exactly this system-triggered case."""
     org_owner, candidate = fixtures
@@ -70,7 +68,6 @@ def test_assign_ai_agent_accepts_none_assigned_by(db_session, fixtures):
         CandidateAIAssignment.candidate_id == candidate.candidateID
     ).first()
     assert assignment.assigned_by is None
-
 
 def test_assign_ai_agent_logs_system_triggered_when_no_assigned_by(db_session, fixtures):
     org_owner, candidate = fixtures
@@ -85,7 +82,6 @@ def test_assign_ai_agent_logs_system_triggered_when_no_assigned_by(db_session, f
     ).first()
     assert event.triggered_by == "system"
 
-
 def test_assign_ai_agent_still_logs_hr_user_when_assigned_by_given(db_session, fixtures):
     org_owner, candidate = fixtures
     assign_ai_agent(candidate_id=candidate.candidateID, tenant_id=org_owner.UserID, assigned_by="U-ORG", db=db_session)
@@ -99,7 +95,6 @@ def test_assign_ai_agent_still_logs_hr_user_when_assigned_by_given(db_session, f
     ).first()
     assert event.triggered_by == "hr_user"
 
-
 def test_auto_assign_creates_conversation(db_session, fixtures):
     org_owner, candidate = fixtures
     auto_assign_ai_agent_on_creation(candidate.candidateID, org_owner.UserID, db_session)
@@ -110,7 +105,6 @@ def test_auto_assign_creates_conversation(db_session, fixtures):
     assert conversation is not None
     assert conversation.owner_type == "ai_agent"
 
-
 def test_auto_assign_skips_gracefully_without_tenant_id(db_session, fixtures):
     org_owner, candidate = fixtures
     # Must not raise even though no tenant_id is resolvable.
@@ -120,7 +114,6 @@ def test_auto_assign_skips_gracefully_without_tenant_id(db_session, fixtures):
         CandidateConversation.candidate_id == candidate.candidateID
     ).first()
     assert conversation is None  # nothing created
-
 
 def test_auto_assign_never_raises_on_underlying_failure(db_session):
     # Candidate doesn't exist -- assign_ai_agent() would raise HTTPException(404)

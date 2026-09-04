@@ -2,6 +2,7 @@
 HRMS-1105 (canonical S-320) — Resource Management Agent — API Endpoints
 =========================================================================
 Prefix: /resource-management
+import logging
 Tag:    resource-management
 
 Wires the service layer built earlier this program
@@ -9,7 +10,7 @@ Wires the service layer built earlier this program
 No REST layer previously existed for this story -- see the Definition of
 Done correction in CLAUDE.md.
 
-Auth: same posture as Thunder (get_current_hr_or_admin -- any internal
+Auth: same posture as Thunder (get_current_internal_user -- any internal
 user, any role). No resource-management-specific RBAC permission exists
 yet in this codebase's permission set (see app/core/dependencies.py's
 require_permission() options); adding one is a separate, not-yet-scoped
@@ -46,7 +47,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_hr_or_admin
+from app.core.dependencies import get_current_internal_user
 from app.models.client import Client
 from app.models.demand import Demand
 from app.models.employee import Employee
@@ -75,7 +76,6 @@ from app.services.resource_management_agent_service import (
 )
 
 router = APIRouter(prefix="/resource-management", tags=["resource-management"])
-
 
 def _to_item(db: Session, rec: BenchAllocationRecommendation) -> RecommendationItem:
     employee = db.query(Employee).filter(Employee.id == rec.employee_id).first()
@@ -107,7 +107,6 @@ def _to_item(db: Session, rec: BenchAllocationRecommendation) -> RecommendationI
         client_name=client.company_name if client else None,
     )
 
-
 def _get_recommendation_or_404(db: Session, recommendation_id: str) -> BenchAllocationRecommendation:
     rec = (
         db.query(BenchAllocationRecommendation)
@@ -118,36 +117,36 @@ def _get_recommendation_or_404(db: Session, recommendation_id: str) -> BenchAllo
         raise HTTPException(status_code=404, detail="Recommendation not found.")
     return rec
 
-
 @router.post(
     "/scan",
+    dependencies=[Depends(get_current_internal_user)],
     response_model=ScanTriggerResponse,
     summary="Trigger one Resource Management Agent bench-scan cycle",
 )
 def trigger_scan(
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     result = run_bench_scan(db, tenant_id=current_user.tenant_id, bu_head=current_user)
     db.commit()
     return ScanTriggerResponse(**result)
 
-
 @router.get(
     "/recommendations",
+    dependencies=[Depends(get_current_internal_user)],
     response_model=RecommendationQueueResponse,
     summary="Get the pending bench-allocation recommendation queue",
 )
 def get_queue(
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     recs = get_recommendation_queue(db, tenant_id=current_user.tenant_id)
     return RecommendationQueueResponse(recommendations=[_to_item(db, r) for r in recs])
 
-
 @router.post(
     "/recommendations/{recommendation_id}/pursue",
+    dependencies=[Depends(get_current_internal_user)],
     response_model=RecommendationActionResponse,
     summary="Start actively pursuing a recommendation (interview stage)",
     description=(
@@ -160,7 +159,7 @@ def get_queue(
 def pursue_recommendation(
     recommendation_id: str,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     rec = _get_recommendation_or_404(db, recommendation_id)
     try:
@@ -175,16 +174,16 @@ def pursue_recommendation(
         message="Now pursuing this recommendation.", recommendation=_to_item(db, rec),
     )
 
-
 @router.post(
     "/recommendations/{recommendation_id}/approve",
+    dependencies=[Depends(get_current_internal_user)],
     response_model=ApproveRecommendationResponse,
     summary="Approve a recommendation and create the real allocation",
 )
 def approve_recommendation(
     recommendation_id: str,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     rec = _get_recommendation_or_404(db, recommendation_id)
     try:
@@ -201,16 +200,16 @@ def approve_recommendation(
         allocation_id=allocation.id,
     )
 
-
 @router.post(
     "/recommendations/{recommendation_id}/reject",
+    dependencies=[Depends(get_current_internal_user)],
     response_model=RecommendationActionResponse,
     summary="Reject a recommendation",
 )
 def reject_recommendation(
     recommendation_id: str,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     rec = _get_recommendation_or_404(db, recommendation_id)
     try:
@@ -223,28 +222,28 @@ def reject_recommendation(
         message="Recommendation rejected.", recommendation=_to_item(db, rec),
     )
 
-
 @router.get(
     "/employees/{employee_id}/actively-engaged",
+    dependencies=[Depends(get_current_internal_user)],
     summary="Check whether an employee is currently IN_PROGRESS on another recommendation",
 )
 def check_actively_engaged(
     employee_id: str,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     return {"employee_id": employee_id, "actively_engaged": is_employee_actively_engaged(db, employee_id)}
 
-
 @router.get(
     "/demands/{demand_id}/matching-bench-resources",
+    dependencies=[Depends(get_current_internal_user)],
     response_model=MatchBenchResourcesResponse,
     summary="Top bench candidates for a demand, by skill match (S-253)",
 )
 def matching_bench_resources(
     demand_id: str,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     demand = db.query(Demand).filter(Demand.id == demand_id).first()
     if demand is None:

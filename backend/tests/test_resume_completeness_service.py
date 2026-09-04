@@ -1,4 +1,5 @@
 """
+import logging
 S-030/HRMS-0430 -- Resume Completeness Score.
 
 Real architecture under test: candidate_resume_parsed (S-028) already
@@ -23,7 +24,6 @@ from app.models.user import Users
 
 import app.services.resume_completeness_service as svc
 
-
 @pytest.fixture()
 def db_session():
     fd, db_path = tempfile.mkstemp(suffix=".sqlite3")
@@ -38,7 +38,6 @@ def db_session():
         engine.dispose()
         os.remove(db_path)
 
-
 @pytest.fixture()
 def seeded(db_session):
     owner = Users(UserID="U-ORG", UserRole="Super User", UserEmail="ceo@blitzenx.com", UserPassword="h")
@@ -47,15 +46,12 @@ def seeded(db_session):
     db_session.commit()
     return candidate
 
-
 def test_calculate_resume_completeness_none_returns_zero():
     assert svc.calculate_resume_completeness(None) == 0
-
 
 def test_calculate_resume_completeness_empty_record_returns_zero(db_session, seeded):
     parsed = CandidateResumeParsed(tenant_id="U-ORG", candidate_id="C-1")
     assert svc.calculate_resume_completeness(parsed) == 0
-
 
 def test_calculate_resume_completeness_rich_resume_scores_high():
     """TC-002: name, 3 work entries + descriptions, education, 10 skills, 2 certs, 6yr experience -> >=80."""
@@ -75,7 +71,6 @@ def test_calculate_resume_completeness_rich_resume_scores_high():
     score = svc.calculate_resume_completeness(parsed)
     assert score >= 80
 
-
 def test_calculate_resume_completeness_component_breakdown():
     parsed = CandidateResumeParsed(
         tenant_id="U-ORG", candidate_id="C-1",
@@ -89,13 +84,11 @@ def test_calculate_resume_completeness_component_breakdown():
     # 10 (contact) + 10 (1 work entry) + 5 (1 description) + 0 + 5 (skills) + 0 + 0 = 30
     assert svc.calculate_resume_completeness(parsed) == 30
 
-
 def test_calculate_resume_completeness_experience_bonus_only_at_5_years():
     below = CandidateResumeParsed(tenant_id="U-ORG", candidate_id="C-1", total_experience_months=59)
     at_threshold = CandidateResumeParsed(tenant_id="U-ORG", candidate_id="C-1", total_experience_months=60)
     assert svc.calculate_resume_completeness(below) == 0
     assert svc.calculate_resume_completeness(at_threshold) == 10
-
 
 def test_calculate_resume_completeness_maxes_out_every_component():
     """The spec's own stated component weights (10+20+15+10+15+10+10)
@@ -115,7 +108,6 @@ def test_calculate_resume_completeness_maxes_out_every_component():
     )
     assert svc.calculate_resume_completeness(parsed) == 90
 
-
 def test_update_resume_completeness_score_stores_on_both_tables(db_session, seeded):
     candidate = seeded
     parsed = CandidateResumeParsed(
@@ -133,7 +125,6 @@ def test_update_resume_completeness_score_stores_on_both_tables(db_session, seed
     assert candidate.resume_completeness_score == result["resume_completeness_score"]
     assert parsed.resume_completeness_score == result["resume_completeness_score"]
     assert parsed.score_calculated_at is not None
-
 
 def test_update_resume_completeness_score_no_parsed_record_yet_returns_zero(db_session, seeded):
     candidate = seeded

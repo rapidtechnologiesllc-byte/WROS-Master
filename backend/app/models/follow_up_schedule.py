@@ -1,4 +1,5 @@
 """
+import logging
 S-041/HRMS-0441 -- Follow-Up Scheduler.
 
 follow_up_schedule: genuinely new table -- a real, queryable, job-driven
@@ -27,6 +28,7 @@ inconsistency, not resolved by picking one name globally; each
 reference in code matches whichever spec section it's implementing
 (the DB column vs. the schedule_follow_up() parameter).
 """
+import logging
 from sqlalchemy import Column, DateTime, ForeignKey, Index, Integer, String, func
 from sqlalchemy.orm import relationship
 
@@ -36,14 +38,15 @@ FOLLOWUP_CHANNELS = ("whatsapp", "email")
 FOLLOWUP_STATUSES = ("PENDING", "SENT", "CANCELLED", "SKIPPED")
 MAX_FOLLOWUPS = 3  # BR-01: never a 4th
 
+logger = logging.getLogger(__name__)
 
 class FollowUpSchedule(Base):
     __tablename__ = "follow_up_schedule"
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
 
-    tenant_id = Column(String(50), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=False, index=True)
-    candidate_id = Column(String(36), ForeignKey("candidates.candidateID", ondelete="CASCADE"), nullable=False, index=True)
+    tenant_id = Column(String(512), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=False, index=True)
+    candidate_id = Column(String(512), ForeignKey("candidates.candidateID", ondelete="CASCADE"), nullable=False, index=True)
     conversation_id = Column(Integer, ForeignKey("candidate_conversations.id", ondelete="CASCADE"), nullable=False, index=True)
 
     channel = Column(String(20), nullable=False)

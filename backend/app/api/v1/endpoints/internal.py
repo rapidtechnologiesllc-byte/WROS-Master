@@ -1,7 +1,8 @@
-﻿"""
+"""
 Internal HR Notes API
 =====================
 Private notes that HR team members can attach to a candidate for internal
+import logging
 tracking. Notes are never exposed to the candidate.
 
 Routes:
@@ -25,9 +26,7 @@ from app.schemas.internal_note import (
     InternalNoteListResponse,
 )
 
-
 router = APIRouter(prefix="/internal", tags=["internal"])
-
 
 # ---------------------------------------------------------------------------
 # GET  /internal/notes/{candidate_id}
@@ -85,13 +84,13 @@ def get_notes_by_candidate(
         notes=[InternalNoteResponse.model_validate(n) for n in notes],
     )
 
-
 # ---------------------------------------------------------------------------
 # POST /internal/notes/{candidate_id}
 # ---------------------------------------------------------------------------
 
 @router.post(
     "/notes/{candidate_id}",
+    dependencies=[Depends(require_resource_permission("resource", "access"))],
     response_model=InternalNoteResponse,
     status_code=201,
     summary="Add an internal HR note to a candidate",

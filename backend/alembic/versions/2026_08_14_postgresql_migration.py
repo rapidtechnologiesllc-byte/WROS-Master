@@ -1,3 +1,4 @@
+import logging
 """PostgreSQL database migration - SQLite to PostgreSQL switch.
 
 Revision ID: 2026_08_14_postgresql_migration
@@ -23,7 +24,6 @@ revision = '2026_08_14_postgresql_migration'
 down_revision = '2026_08_12_org_hierarchy'
 branch_labels = None
 depends_on = None
-
 
 def upgrade() -> None:
     """
@@ -95,7 +95,6 @@ def upgrade() -> None:
 
     # For text search:
     # op.execute('CREATE EXTENSION IF NOT EXISTS "pg_trgm"')
-
 
 def downgrade() -> None:
     """

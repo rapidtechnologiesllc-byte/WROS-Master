@@ -1,5 +1,6 @@
 """
 Proves HRMS-0102: BR-01 (no ACTIVE status without a contact) and BR-02
+import logging
 (markup rate hidden from CS/recruiter-facing serialization).
 
 Throwaway SQLite -- never the real database.
@@ -20,7 +21,6 @@ from app.services.client_service import (
     ClientValidationError,
 )
 
-
 @pytest.fixture()
 def db_session():
     fd, db_path = tempfile.mkstemp(suffix=".sqlite3")
@@ -35,7 +35,6 @@ def db_session():
         engine.dispose()
         os.remove(db_path)
 
-
 def _make_client(db, tenant_id, **overrides):
     defaults = dict(tenant_id=tenant_id, company_name="Acme Insurance", status="PROSPECT")
     defaults.update(overrides)
@@ -43,7 +42,6 @@ def _make_client(db, tenant_id, **overrides):
     db.add(client)
     db.commit()
     return client
-
 
 # ---------------------------------------------------------------------------
 # BR-01: ACTIVE requires at least one contact
@@ -60,7 +58,6 @@ def test_negative_case_cannot_activate_without_a_contact(db_session):
 
     assert client.status == "PROSPECT"  # unchanged
     assert db_session.query(ClientHistory).count() == 0
-
 
 def test_positive_case_activation_succeeds_with_a_contact(db_session):
     tenant = Tenant(name="BlitzenX")
@@ -80,7 +77,6 @@ def test_positive_case_activation_succeeds_with_a_contact(db_session):
     history = db_session.query(ClientHistory).filter(ClientHistory.client_id == client.id).all()
     assert len(history) == 1
 
-
 def test_non_active_status_does_not_require_a_contact(db_session):
     tenant = Tenant(name="BlitzenX")
     db_session.add(tenant)
@@ -89,7 +85,6 @@ def test_non_active_status_does_not_require_a_contact(db_session):
 
     set_client_status(db_session, client, "ON_HOLD")  # must not raise
     assert client.status == "ON_HOLD"
-
 
 # ---------------------------------------------------------------------------
 # BR-02: markup rate visibility
@@ -104,7 +99,6 @@ def test_markup_rate_hidden_from_recruiter(db_session):
     serialized = serialize_client_for_role(client, "Recruiter")
     assert "markup_rate_pct" not in serialized
 
-
 def test_markup_rate_visible_to_bu_head(db_session):
     tenant = Tenant(name="BlitzenX")
     db_session.add(tenant)
@@ -113,7 +107,6 @@ def test_markup_rate_visible_to_bu_head(db_session):
 
     serialized = serialize_client_for_role(client, "BU Head")
     assert serialized["markup_rate_pct"] == 35.00
-
 
 def test_markup_rate_hidden_from_cs_role(db_session):
     tenant = Tenant(name="BlitzenX")

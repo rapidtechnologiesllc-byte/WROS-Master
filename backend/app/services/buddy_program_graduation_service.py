@@ -1,4 +1,5 @@
 """
+import logging
 S-365/HRMS-0521 -- Buddy Program Graduation Gate: BU Head Approval.
 
 record_graduation_decision() is the one function that ever moves a
@@ -18,6 +19,7 @@ buddy_program_records for scorecard-ready-but-undecided rows past 48h
 and call send_notification(priority_tier="P0", ...), reusing the real
 notification path already built.
 """
+import logging
 from datetime import date, timedelta
 from typing import Optional
 
@@ -26,27 +28,26 @@ from sqlalchemy.orm import Session
 from app.models.buddy_program import BuddyProgramRecord
 from app.models.employee import Employee
 from app.services.employee_service import transition_employee_status
+from app.core.logging import logger
 
 MAX_EXTENSIONS = 2  # BR: third review is Graduate or Exit only
 EXTENSION_DAYS = 15
 MIN_EXTENSION_NOTE_LENGTH = 50
 DECISIONS = ("GRADUATE", "EXTEND", "EXIT")
 
+logger = logging.getLogger(__name__)
 
 class InvalidGraduationDecision(Exception):
     pass
 
-
 class ExtensionLimitReached(Exception):
     """BR: max 2 extensions -- the third review only offers Graduate or Exit."""
-
 
 def can_extend(record: BuddyProgramRecord) -> bool:
     """AC-5/TC-002: whether the [Extend 15 Days] option should even be
     shown -- hidden entirely on the third review, not just rejected
     after the fact."""
     return record.extension_count < MAX_EXTENSIONS
-
 
 def record_graduation_decision(
     db: Session,

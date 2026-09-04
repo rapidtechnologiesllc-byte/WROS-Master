@@ -1,4 +1,5 @@
 """
+import logging
 Interview Feedback Notification Service - DEFECT-13 (CRITICAL)
 
 When interview feedback is submitted, notify all stakeholders:
@@ -9,6 +10,7 @@ When interview feedback is submitted, notify all stakeholders:
 - Recruiting Manager
 """
 
+import logging
 from sqlalchemy.orm import Session
 from app.models.interview_pipeline import SubmissionInterview
 from app.models.candidate import Candidate
@@ -18,6 +20,7 @@ from app.services.email_service import EmailService
 from app.core.logging import logger
 from datetime import datetime
 
+logger = logging.getLogger(__name__)
 
 class InterviewFeedbackNotificationService:
     """Handle notifications when interview feedback is submitted."""
@@ -132,15 +135,16 @@ class InterviewFeedbackNotificationService:
                     else:
                         logger.warning(f"Failed to send feedback notification to {email} ({stakeholder_role})")
                 except Exception as e:
+                    logger.error(f"Error: {str(e)}", exc_info=True)
                     logger.error(f"Error sending feedback notification to {email}: {str(e)}")
 
             logger.info(f"Interview feedback notification sent to {email_sent_count} stakeholders for interview {interview_id}")
             return email_sent_count > 0
 
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             logger.error(f"Error in notify_feedback_submitted: {str(e)}")
             return False
-
 
 def _format_panel_members(db: Session, panel_ids: list) -> list:
     """Format panel member names."""

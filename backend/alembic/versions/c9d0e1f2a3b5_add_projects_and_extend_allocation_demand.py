@@ -1,3 +1,4 @@
+import logging
 """add projects + project_milestones, extend employee_allocations + demands (HRMS-0801/0803/0804)
 
 Revision ID: c9d0e1f2a3b5
@@ -29,13 +30,11 @@ from typing import Sequence, Union
 from alembic import op
 import sqlalchemy as sa
 
-
 # revision identifiers, used by Alembic.
 revision: str = 'c9d0e1f2a3b5'
 down_revision: Union[str, Sequence[str], None] = 'b8c9d0e1f2a4'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
-
 
 def upgrade() -> None:
     """Upgrade schema."""
@@ -101,7 +100,6 @@ def upgrade() -> None:
     op.add_column('demands', sa.Column('project_id', sa.String(length=36), nullable=True))
     op.create_index(op.f('ix_demands_project_id'), 'demands', ['project_id'], unique=False)
     op.create_foreign_key(None, 'demands', 'projects', ['project_id'], ['id'])
-
 
 def downgrade() -> None:
     """Downgrade schema."""

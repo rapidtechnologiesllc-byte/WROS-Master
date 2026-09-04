@@ -1,4 +1,5 @@
 """
+import logging
 S-058/HRMS-0458 -- Joining Readiness Score.
 
 Real architecture adaptations:
@@ -81,7 +82,6 @@ from app.services.notification_service import send_notification
 
 READINESS_ALERT_THRESHOLD = 50  # BR-01
 
-
 def _document_component(db: Session, tenant_id: str, candidate_id: str, offer_id: int) -> int:
     docs = db.query(PreboardingDocument).filter(PreboardingDocument.tenant_id == tenant_id, PreboardingDocument.candidate_id == candidate_id, PreboardingDocument.offer_id == offer_id, PreboardingDocument.status != "CANCELLED").all()
     if not docs:
@@ -89,14 +89,12 @@ def _document_component(db: Session, tenant_id: str, candidate_id: str, offer_id
     received = sum(1 for d in docs if d.status in ("RECEIVED", "VERIFIED"))
     return round((received / len(docs)) * 40)
 
-
 def _offer_formality_component(offer: OfferLetter) -> int:
     if offer.offer_status != "Accepted":
         return 0
     if offer.joining_date is None:
         return 10  # missing start date confirmation
     return 20  # ACCEPTED + start date confirmed (e-signature vacuously satisfied -- see module docstring)
-
 
 def _timeline_component(offer: OfferLetter) -> int:
     if offer.joining_date is None:
@@ -113,7 +111,6 @@ def _timeline_component(offer: OfferLetter) -> int:
     if days <= 30:
         return 12
     return 15
-
 
 def _responsiveness_component(db: Session, conversation: Optional[CandidateConversation]) -> int:
     if conversation is None:
@@ -142,13 +139,11 @@ def _responsiveness_component(db: Session, conversation: Optional[CandidateConve
         return 10
     return 0
 
-
 def _background_check_component(db: Session, tenant_id: str, candidate_id: str, offer_id: int) -> int:
     doc = db.query(PreboardingDocument).filter(PreboardingDocument.tenant_id == tenant_id, PreboardingDocument.candidate_id == candidate_id, PreboardingDocument.offer_id == offer_id, PreboardingDocument.document_type == "BACKGROUND_CHECK_CONSENT").first()
     if doc is not None and doc.status in ("RECEIVED", "VERIFIED"):
         return 5  # real proxy for IN_PROGRESS -- see module docstring
     return 2  # NOT_STARTED
-
 
 def _relevant_submission(db: Session, candidate_id: str) -> Optional[Submission]:
     return (
@@ -157,7 +152,6 @@ def _relevant_submission(db: Session, candidate_id: str) -> Optional[Submission]
         .order_by(Submission.submitted_at.desc())
         .first()
     )
-
 
 def _notify_recruiter(db: Session, submission: Optional[Submission], message: str) -> None:
     if submission is None or not submission.submitted_by_user_id:
@@ -168,8 +162,8 @@ def _notify_recruiter(db: Session, submission: Optional[Submission], message: st
     try:
         send_notification(db, calling_context_tenant_id=recipient.tenant_id, recipient=recipient, priority_tier="P1", channel_preference="IN_APP", message=message)
     except Exception as exc:
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[JoiningReadiness] Failed to notify recruiter: {exc}")
-
 
 def calculate_joining_readiness(db: Session, candidate_id: str, offer_id: int, tenant_id: str) -> Dict:
     """Step 1. Never raises. Returns
@@ -219,10 +213,10 @@ def calculate_joining_readiness(db: Session, candidate_id: str, offer_id: int, t
 
         return {"readiness_score": readiness_score, "score_breakdown": score_breakdown}
     except Exception as exc:
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.error(f"[JoiningReadiness] Failed calculating readiness for candidate {candidate_id!r}: {exc}")
         db.rollback()
         return {"outcome": "calculation_failed"}
-
 
 def run_joining_readiness_job(db: Session) -> Dict:
     """Step 3. Runs every 6 hours. Never lets one bad row abort the batch."""
@@ -253,6 +247,7 @@ def run_joining_readiness_job(db: Session) -> Dict:
             else:
                 result["skipped"] += 1
         except Exception as exc:
+            logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.error(f"[JoiningReadiness] Failed processing offer id={offer.id}: {exc}")
             db.rollback()
             result["skipped"] += 1

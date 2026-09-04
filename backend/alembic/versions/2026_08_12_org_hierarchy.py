@@ -1,3 +1,4 @@
+import logging
 """Add organizational hierarchy tables
 
 Revision ID: 2026_08_12_org_hierarchy
@@ -10,13 +11,11 @@ Creates: org_positions, org_nodes, approval_chains tables.
 from alembic import op
 import sqlalchemy as sa
 
-
 # revision identifiers, used by Alembic.
 revision = '2026_08_12_org_hierarchy'
 down_revision = '2026_08_12_work_orders'
 branch_labels = None
 depends_on = None
-
 
 def upgrade() -> None:
     # Create org_positions table (named titles like CEO, Partner, BU Head, etc.)
@@ -138,7 +137,6 @@ def upgrade() -> None:
     op.create_index(op.f('ix_approval_chains_to_position_id'), 'approval_chains', ['to_position_id'], unique=False)
     op.create_index(op.f('ix_approval_chains_active'), 'approval_chains', ['active'], unique=False)
     op.create_index('ix_approval_chains_tenant_workflow', 'approval_chains', ['tenant_id', 'workflow'], unique=False)
-
 
 def downgrade() -> None:
     # Drop in reverse order of creation

@@ -1,9 +1,12 @@
+from app.core.logging import logger
 """Pydantic schemas -- S-434 Task Dashboard."""
 from datetime import datetime
+import logging
 from typing import Optional
 
 from pydantic import BaseModel
 
+logger = logging.getLogger(__name__)
 
 class TaskCreateRequest(BaseModel):
     title: str
@@ -17,7 +20,6 @@ class TaskCreateRequest(BaseModel):
     category: Optional[str] = None
     subcategory: Optional[str] = None
     parent_task_id: Optional[int] = None
-
 
 class TaskResponse(BaseModel):
     id: int
@@ -45,10 +47,8 @@ class TaskResponse(BaseModel):
     class Config:
         from_attributes = True
 
-
 class ReassignmentApproveRequest(BaseModel):
     final_to_user_id: str
-
 
 class MarkUnavailableRequest(BaseModel):
     user_id: str

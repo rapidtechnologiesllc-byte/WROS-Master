@@ -1,13 +1,14 @@
+from app.core.logging import logger
 """Agent operations endpoints for KPI, HR, and Employee Mental Health agents."""
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from app.core.dependencies import get_current_internal_user, require_resource_permission
 from app.core.database import get_db
 from app.models.user import Users
+import logging
 from app.services import kpi_agent_service, hr_agent_service, employee_mental_health_agent_service
 
 router = APIRouter(prefix="/agents", tags=["Agent Operations"])
-
 
 # ============================================================================
 # KPI Agent Endpoints
@@ -30,8 +31,8 @@ def get_daily_kpis(
         )
         return {"status": "success", "data": kpis}
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @router.get("/kpi/alerts", dependencies=[Depends(require_resource_permission("admin-settings", "view"))])
 def get_kpi_alerts(
@@ -43,8 +44,8 @@ def get_kpi_alerts(
         alerts = kpi_agent_service.get_kpi_alerts(db=db)
         return {"status": "success", "data": alerts}
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
-
 
 # ============================================================================
 # HR Agent Endpoints
@@ -63,8 +64,8 @@ def get_hr_dashboard(
         )
         return {"status": "success", "data": dashboard}
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @router.get("/hr/attrition-risks", dependencies=[Depends(require_resource_permission("hr", "view"))])
 def detect_attrition_risks(
@@ -79,8 +80,8 @@ def detect_attrition_risks(
         )
         return {"status": "success", "data": at_risk}
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @router.get("/hr/development-needs", dependencies=[Depends(require_resource_permission("hr", "view"))])
 def get_development_needs(
@@ -95,8 +96,8 @@ def get_development_needs(
         )
         return {"status": "success", "data": needs}
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @router.get("/hr/engagement-metrics", dependencies=[Depends(require_resource_permission("hr", "view"))])
 def get_engagement_metrics(
@@ -111,8 +112,8 @@ def get_engagement_metrics(
         )
         return {"status": "success", "data": metrics}
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
-
 
 # ============================================================================
 # Employee Mental Health Agent Endpoints
@@ -131,8 +132,8 @@ def get_wellness_dashboard(
         )
         return {"status": "success", "data": dashboard}
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @router.get("/wellness/team-snapshot", dependencies=[Depends(require_resource_permission("hr", "view"))])
 def get_team_wellbeing(
@@ -147,8 +148,8 @@ def get_team_wellbeing(
         )
         return {"status": "success", "data": snapshot}
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @router.get("/wellness/burnout-risks", dependencies=[Depends(require_resource_permission("hr", "view"))])
 def get_burnout_risks(
@@ -163,8 +164,8 @@ def get_burnout_risks(
         )
         return {"status": "success", "data": risks}
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @router.get("/wellness/employee/{employee_id}", dependencies=[Depends(require_resource_permission("hr", "view"))])
 def get_employee_wellness(
@@ -190,4 +191,5 @@ def get_employee_wellness(
             }
         }
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))

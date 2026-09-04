@@ -2,6 +2,7 @@
 S-216/HRMS-0118 -- Shared Activity Timeline & File Attachment Framework.
 ==================================================================
 Prefix: /activity-timeline, /file-uploads
+import logging
 Tags:   activity-timeline, file-uploads
 
 GET  /activity-timeline/{entity_type}/{entity_id}   -- paginated feed, any entity
@@ -22,7 +23,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_internal_user
+from app.core.dependencies import get_current_internal_user, require_resource_permission
 from app.models.user import Users
 from app.schemas.activity_timeline import (
     FileAccessUrlResponse, FileUploadOut, TimelineResponse, WriteTimelineEntryRequest,
@@ -32,8 +33,11 @@ from app.services.file_upload_service import get_file_access_url, list_files_for
 
 router = APIRouter(tags=["activity-timeline"])
 
-
-@router.get("/activity-timeline/{entity_type}/{entity_id}", response_model=TimelineResponse)
+@router.get(
+    "/activity-timeline/{entity_type}/{entity_id}",
+    response_model=TimelineResponse,
+    dependencies=[Depends(require_resource_permission("activity-timeline", "view"))]
+)
 def get_timeline(
     entity_type: str, entity_id: str, page: int = 1, per_page: int = 25,
     current_user: Users = Depends(get_current_internal_user),
@@ -43,8 +47,11 @@ def get_timeline(
         db, entity_type, entity_id, tenant_id=current_user.tenant_id, page=page, per_page=per_page,
     )
 
-
-@router.post("/activity-timeline/{entity_type}/{entity_id}", response_model=TimelineResponse)
+@router.post(
+    "/activity-timeline/{entity_type}/{entity_id}",
+    response_model=TimelineResponse,
+    dependencies=[Depends(require_resource_permission("activity-timeline", "create"))]
+)
 def post_timeline_entry(
     entity_type: str, entity_id: str, body: WriteTimelineEntryRequest,
     current_user: Users = Depends(get_current_internal_user),
@@ -57,8 +64,11 @@ def post_timeline_entry(
     db.commit()
     return get_timeline_for_entity(db, entity_type, entity_id, tenant_id=current_user.tenant_id)
 
-
-@router.post("/file-uploads/{entity_type}/{entity_id}", response_model=FileUploadOut)
+@router.post(
+    "/file-uploads/{entity_type}/{entity_id}",
+    response_model=FileUploadOut,
+    dependencies=[Depends(require_resource_permission("file-upload", "create"))]
+)
 def post_file_upload(
     entity_type: str, entity_id: str,
     file_category: str = "GENERIC",
@@ -81,8 +91,11 @@ def post_file_upload(
         uploaded_by=row.uploaded_by, created_at=row.created_at.isoformat() if row.created_at else None,
     )
 
-
-@router.get("/file-uploads/{file_id}/access-url", response_model=FileAccessUrlResponse)
+@router.get(
+    "/file-uploads/{file_id}/access-url",
+    response_model=FileAccessUrlResponse,
+    dependencies=[Depends(require_resource_permission("file-upload", "view"))]
+)
 def get_access_url(
     file_id: int,
     current_user: Users = Depends(get_current_internal_user),
@@ -95,8 +108,11 @@ def get_access_url(
     # the more generic route.
     return FileAccessUrlResponse(access_url=get_file_access_url(db, file_id))
 
-
-@router.get("/file-uploads/{entity_type}/{entity_id}", response_model=list[FileUploadOut])
+@router.get(
+    "/file-uploads/{entity_type}/{entity_id}",
+    response_model=list[FileUploadOut],
+    dependencies=[Depends(require_resource_permission("file-upload", "view"))]
+)
 def get_files_for_entity(
     entity_type: str, entity_id: str,
     current_user: Users = Depends(get_current_internal_user),

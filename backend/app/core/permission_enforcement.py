@@ -1,4 +1,5 @@
 """
+import logging
 Permission Enforcement Layer - Middleware and decorators for V, C, E, D permissions.
 
 This module provides:
@@ -22,7 +23,6 @@ from app.models.user import Users
 from app.services.permission_helper import PermissionHelper
 from app.core.logging import logger
 
-
 # ============================================================================
 # PERMISSION CHECK DECORATORS
 # ============================================================================
@@ -32,8 +32,8 @@ def require_permission(permission: str):
     Decorator to enforce a specific permission on an endpoint.
 
     Usage:
-        @router.get("/candidates")
-        @require_permission("candidates.view")
+    @router.get("/candidates")
+    @require_permission("candidates.view")
         async def get_candidates(db: Session = Depends(get_db),
                                 current_user: Users = Depends(get_current_internal_user)):
             ...
@@ -114,14 +114,13 @@ def require_permission(permission: str):
 
     return decorator
 
-
 def require_any_permission(permissions: List[str]):
     """
     Decorator to enforce that user has ANY of the given permissions.
 
     Usage:
-        @router.get("/reports")
-        @require_any_permission(["reports.view", "analytics.view"])
+    @router.get("/reports")
+    @require_any_permission(["reports.view", "analytics.view"])
         async def get_reports(...):
             ...
     """
@@ -184,6 +183,7 @@ def require_any_permission(permissions: List[str]):
 
             return func(*args, **kwargs)
 
+        # Use async wrapper if the function is async, otherwise sync wrapper
         if hasattr(func, '__await__'):
             return async_wrapper
         else:
@@ -191,14 +191,13 @@ def require_any_permission(permissions: List[str]):
 
     return decorator
 
-
 def require_all_permissions(permissions: List[str]):
     """
     Decorator to enforce that user has ALL of the given permissions.
 
     Usage:
-        @router.post("/approve-offer")
-        @require_all_permissions(["offers.view", "offers.approve"])
+    @router.post("/approve-offer")
+    @require_all_permissions(["offers.view", "offers.approve"])
         async def approve_offer(...):
             ...
     """
@@ -261,6 +260,7 @@ def require_all_permissions(permissions: List[str]):
 
             return func(*args, **kwargs)
 
+        # Use async wrapper if the function is async, otherwise sync wrapper
         if hasattr(func, '__await__'):
             return async_wrapper
         else:
@@ -268,29 +268,28 @@ def require_all_permissions(permissions: List[str]):
 
     return decorator
 
-
 def require_action_permission(resource: str, action: str):
     """
     Decorator for V, C, E, D (View, Create, Edit, Delete) permission enforcement.
 
     Usage:
-        @router.get("/candidates")
-        @require_action_permission("administration", "view")
+    @router.get("/candidates")
+    @require_action_permission("administration", "view")
         async def get_users(...):
             ...
 
-        @router.post("/users")
-        @require_action_permission("administration", "create")
+    @router.post("/users")
+    @require_action_permission("administration", "create")
         async def create_user(...):
             ...
 
-        @router.put("/users/{id}")
-        @require_action_permission("administration", "edit")
+    @router.put("/users/{id}")
+    @require_action_permission("administration", "edit")
         async def update_user(...):
             ...
 
-        @router.delete("/users/{id}")
-        @require_action_permission("administration", "delete")
+    @router.delete("/users/{id}")
+    @require_action_permission("administration", "delete")
         async def delete_user(...):
             ...
 
@@ -300,7 +299,6 @@ def require_action_permission(resource: str, action: str):
     """
     permission = f"{resource}.{action}"
     return require_permission(permission)
-
 
 # ============================================================================
 # AUDIT LOGGING
@@ -351,7 +349,6 @@ def _log_permission_check(
         logger.error(f"Failed to log permission check: {str(e)}")
         # Don't raise - audit logging failure shouldn't break the app
 
-
 # ============================================================================
 # FRONTEND HELPER - GET PERMISSIONS FOR A USER
 # ============================================================================
@@ -387,7 +384,6 @@ async def get_user_permissions_response(
         "is_super_admin": is_super_admin
     }
 
-
 # ============================================================================
 # INLINE PERMISSION CHECKS FOR ENDPOINTS
 # ============================================================================
@@ -409,7 +405,6 @@ def check_permission(
     _log_permission_check(user_id, permission, has_perm, "inline", "check_permission", db, tenant_id)
     return has_perm
 
-
 def check_any_permission(
     user_id: str,
     permissions: List[str],
@@ -422,7 +417,6 @@ def check_any_permission(
     has_perm = PermissionHelper.has_any_permission(user_id, permissions, db, tenant_id)
     _log_permission_check(user_id, f"any({permissions})", has_perm, "inline", "check_any_permission", db, tenant_id)
     return has_perm
-
 
 def check_all_permissions(
     user_id: str,

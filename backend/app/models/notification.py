@@ -1,4 +1,5 @@
 """
+import logging
 HRMS-0113 -- Notification Engine Base.
 
 The one shared notification dispatch backbone every other story is
@@ -21,6 +22,7 @@ Not built here, and explicitly out of this story's own scope per its
   - No message templating engine -- message content is the caller's
     responsibility, per the story's own "Not In Scope" note.
 """
+import logging
 import uuid
 
 from sqlalchemy import (
@@ -29,23 +31,22 @@ from sqlalchemy import (
 
 from app.models.base import Base
 
-
 def _new_uuid() -> str:
     return str(uuid.uuid4())
-
 
 NOTIFICATION_CHANNELS = ("IN_APP", "EMAIL", "WHATSAPP", "SMS")
 PRIORITY_TIERS = ("P0", "P1", "P2")
 DELIVERY_STATUSES = ("PENDING", "SENT", "FALLBACK_SENT", "FAILED")
 
+logger = logging.getLogger(__name__)
 
 class Notification(Base):
     __tablename__ = "notifications"
 
-    id = Column(String(36), primary_key=True, default=_new_uuid)
+    id = Column(String(512), primary_key=True, default=_new_uuid)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
 
-    recipient_id = Column(String(50), ForeignKey("users.UserID"), nullable=False, index=True)
+    recipient_id = Column(String(512), ForeignKey("users.UserID"), nullable=False, index=True)
     channel = Column(
         Enum(*NOTIFICATION_CHANNELS, name="notification_channel", native_enum=False, create_constraint=True),
         nullable=False,

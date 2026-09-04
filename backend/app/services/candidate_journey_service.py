@@ -1,4 +1,5 @@
 """
+import logging
 S-059/HRMS-0459 -- Candidate Journey Dashboard.
 
 Real architecture adaptations:
@@ -53,6 +54,7 @@ Real architecture adaptations:
   matching this story's own UI spec (green/blue/gray), and consistent
   with BR-02 since JOINED only lights up on real Employee data.
 """
+import logging
 from datetime import date, datetime
 from typing import Dict, List, Optional
 
@@ -71,10 +73,10 @@ from app.services.ai_conversation_service import CANDIDATE_CORE_FIELDS, INFO_FOR
 
 TOTAL_PROFILE_FIELDS = len(CANDIDATE_CORE_FIELDS) + len(INFO_FORM_FIELDS)
 
+logger = logging.getLogger(__name__)
 
 class CandidateNotFound(Exception):
     pass
-
 
 def _relevant_submission(db: Session, candidate_id: str) -> Optional[Submission]:
     return (
@@ -84,7 +86,6 @@ def _relevant_submission(db: Session, candidate_id: str) -> Optional[Submission]
         .first()
     )
 
-
 def _latest_job_score(db: Session, candidate_id: str) -> Optional[CandidateJobScore]:
     return (
         db.query(CandidateJobScore)
@@ -93,7 +94,6 @@ def _latest_job_score(db: Session, candidate_id: str) -> Optional[CandidateJobSc
         .first()
     )
 
-
 def _earliest_job_score(db: Session, candidate_id: str) -> Optional[CandidateJobScore]:
     return (
         db.query(CandidateJobScore)
@@ -101,7 +101,6 @@ def _earliest_job_score(db: Session, candidate_id: str) -> Optional[CandidateJob
         .order_by(CandidateJobScore.calculated_at.asc())
         .first()
     )
-
 
 def _first_candidate_reply(db: Session, conversation: Optional[CandidateConversation]) -> Optional[ConversationEvent]:
     if conversation is None:
@@ -113,7 +112,6 @@ def _first_candidate_reply(db: Session, conversation: Optional[CandidateConversa
         .first()
     )
 
-
 def _thunder_message_count(db: Session, conversation: Optional[CandidateConversation]) -> int:
     if conversation is None:
         return 0
@@ -122,7 +120,6 @@ def _thunder_message_count(db: Session, conversation: Optional[CandidateConversa
         .filter(ConversationEvent.conversation_id == conversation.id, ConversationEvent.event_type == "ai_message_sent")
         .count()
     )
-
 
 def _stage_status(reached: List[bool]) -> List[str]:
     current_index = -1
@@ -138,7 +135,6 @@ def _stage_status(reached: List[bool]) -> List[str]:
         else:
             statuses.append("pending")
     return statuses
-
 
 def get_candidate_journey(db: Session, candidate_id: str, tenant_id: str) -> Dict:
     candidate = db.query(Candidate).filter(Candidate.candidateID == candidate_id).first()
@@ -218,7 +214,7 @@ def get_candidate_journey(db: Session, candidate_id: str, tenant_id: str) -> Dic
             },
         })
     except Exception as e:
-        from app.core.logging import logger
+        logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"[Journey] Stage 1 (ENGAGED) failed for {candidate_id}: {e}", exc_info=True)
         raise
 
@@ -229,10 +225,8 @@ def get_candidate_journey(db: Session, candidate_id: str, tenant_id: str) -> Dic
             try:
                 profile_completeness_pct = round(100 * (TOTAL_PROFILE_FIELDS - len(missing_fields)) / TOTAL_PROFILE_FIELDS)
             except (ZeroDivisionError, TypeError) as e:
-                from app.core.logging import logger
                 logger.warning(f"[Journey] Stage 2 (QUALIFYING) profile_completeness calc failed for {candidate_id}: TOTAL={TOTAL_PROFILE_FIELDS}, missing={len(missing_fields)}, error={e}")
         else:
-            from app.core.logging import logger
             logger.warning(f"[Journey] Stage 2 (QUALIFYING) TOTAL_PROFILE_FIELDS is 0 for {candidate_id}")
 
         days_in_stage = None
@@ -241,14 +235,13 @@ def get_candidate_journey(db: Session, candidate_id: str, tenant_id: str) -> Dic
                 stage_end_time = earliest_score.calculated_at if earliest_score else datetime.utcnow()
                 days_in_stage = (stage_end_time - first_reply.created_at).days
             except (TypeError, AttributeError) as e:
-                from app.core.logging import logger
                 logger.warning(f"[Journey] Stage 2 (QUALIFYING) days_in_stage calc failed for {candidate_id}: {e}")
 
         thunder_count = None
         try:
             thunder_count = _thunder_message_count(db, conversation)
         except Exception as e:
-            from app.core.logging import logger
+            logger.error(f"Error: {str(e)}", exc_info=True)
             logger.warning(f"[Journey] Stage 2 (QUALIFYING) thunder_message_count failed for {candidate_id}: {e}")
 
         stages.append({
@@ -263,7 +256,7 @@ def get_candidate_journey(db: Session, candidate_id: str, tenant_id: str) -> Dic
             },
         })
     except Exception as e:
-        from app.core.logging import logger
+        logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"[Journey] Stage 2 (QUALIFYING) failed for {candidate_id}: {e}", exc_info=True)
         raise
 
@@ -317,7 +310,6 @@ def get_candidate_journey(db: Session, candidate_id: str, tenant_id: str) -> Dic
             try:
                 days_until_start = (offer.joining_date - date.today()).days
             except (TypeError, AttributeError) as e:
-                from app.core.logging import logger
                 logger.warning(f"[Journey] Stage 6 (PREBOARDING) days_until_start calc failed for {candidate_id}: joining_date={offer.joining_date}, error={e}")
 
         stages.append({
@@ -332,7 +324,7 @@ def get_candidate_journey(db: Session, candidate_id: str, tenant_id: str) -> Dic
             },
         })
     except Exception as e:
-        from app.core.logging import logger
+        logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"[Journey] Stage 6 (PREBOARDING) failed for {candidate_id}: {e}", exc_info=True)
         raise
 

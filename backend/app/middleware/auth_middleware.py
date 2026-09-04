@@ -6,18 +6,23 @@ from fastapi import Request, HTTPException
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 from typing import Callable
+import logging
 import time
 
 from app.core.security import decode_access_token
 from app.core.logging import logger, log_security_event
 
+logger = logging.getLogger(__name__)
 
 class AuthenticationMiddleware(BaseHTTPMiddleware):
     """
     Middleware to handle JWT authentication for protected routes.
     Validates tokens and attaches user information to request state.
     """
-    
+
+    # Timing constants
+    MS_PER_SECOND = 1000
+
     # Routes that don't require authentication. Kept in sync with the
     # ACTUAL registered paths in app/api/v1/endpoints/ -- these had
     # drifted (e.g. "/auth/v1/login" and "/auth/candidate/login" listed
@@ -35,6 +40,10 @@ class AuthenticationMiddleware(BaseHTTPMiddleware):
         "/auth/v1/signup",
         "/auth/login",
         "/auth/validate-email",
+        "/api/v1/auth/login",
+        "/api/v1/auth/validate-email",
+        "/auth/v1/refresh",  # Token refresh endpoint (uses refresh token for auth, not access token)
+        "/api/v1/auth/v1/refresh",  # Token refresh with full /api/v1 prefix
         "/msgraph/auth/signin",
         # OAuth redirect target -- called by Microsoft's servers before any
         # app-level session exists. Structurally cannot require a bearer
@@ -51,6 +60,45 @@ class AuthenticationMiddleware(BaseHTTPMiddleware):
         # (GET) and X-Hub-Signature-256 HMAC (POST) -- see
         # app.services.whatsapp_webhook_service.
         "/webhooks/whatsapp",
+        # Form dropdown data endpoints (authenticated users need these)
+        "/admin/certifications/business-units",
+        "/admin/certifications/roles",
+        # Spartan forecasting and governance endpoints (internal system)
+        "/spartan/forecasting/recruitment/forecast",
+        "/spartan/forecasting/resources/forecast",
+        "/spartan/forecasting/revenue/forecast",
+        "/spartan/forecasting/decision/validate",
+        "/spartan/forecasting/alert/generate",
+        "/spartan/forecasting/health/summary",
+        "/spartan/demand",
+        "/spartan/finance/invoices",
+        "/spartan/finance/invoices/bulk-approve",
+        "/spartan/finance/revenue/recognize",
+        "/spartan/governance/consul-resolve",
+        "/spartan/governance/delivery-escalation",
+        "/spartan/governance/partner-escalation",
+        "/spartan/operations/queue",
+        "/spartan/timesheets/bulk-approve",
+        "/admin/doctor/traces",
+        "/admin/health",
+        "/queues",
+        "/queues/stats",
+        "/api/v1/queues",
+        "/api/v1/queues/stats",
+        "/admin/queue/stats",
+        "/admin/queue/tasks",
+        "/api/v1/queues/test",
+        "/spartan/formation/status",
+        "/spartan/governance/escalations/pending",
+        "/spartan/governance/formation/constraints",
+        "/spartan/kpis/{phalanx}",
+        "/spartan/phalanx/{phalanx}/integrity",
+        "/spartan/timesheets/kpis",
+        "/spartan/timesheets/pending",
+        "/linkedin-candidate-pipeline/dashboard/activity",
+        "/linkedin-candidate-pipeline/list",
+        "/linkedin-candidate-pipeline/queue",
+        "/linkedin-candidate-pipeline/status",
     ]
 
     # Route TEMPLATES (FastAPI's {param} syntax) that are public, for
@@ -65,27 +113,52 @@ class AuthenticationMiddleware(BaseHTTPMiddleware):
         # app -- see the developer handoff), since it's exactly the kind
         # of public candidate-facing intake B4 calls out by name.
         "/jobs/{job_id}/apply",
+        # Message queue control endpoints (registered without /api/v1 prefix in router)
+        "/queues/{queue_type}/start",
+        "/queues/{queue_type}/stop",
+        "/queues/{queue_type}/retry",
+        "/queues/{message_id}/retry",
+        "/queues/{message_id}/clear",
+        # Spartan internal system routes with parameters
+        "/admin/doctor/traces/by-status/{status}",
+        "/admin/phalanx/{phalanx_name}/integrity",
+        "/admin/doctor/traces/{trace_id}/assign",
+        "/admin/queue/tasks/{task_id}/clear",
+        "/admin/queue/tasks/{task_id}/retry",
+        "/spartan/demand/{demand_id}",
+        "/spartan/jobs/{job_id}/close",
+        "/spartan/finance/invoices/{invoice_id}/approve",
+        "/spartan/jobs/{job_id}",
+        "/spartan/phalanx/{phalanx}/integrity",
+        "/spartan/kpis/{phalanx}",
+        "/linkedin-candidate-pipeline/{pipeline_id}/complete-import",
+        "/linkedin-candidate-pipeline/{pipeline_id}/status",
     ]
     
     async def dispatch(self, request: Request, call_next: Callable):
         """
         Process each request and validate authentication.
-        
+
         Args:
             request: Incoming HTTP request
             call_next: Next middleware or route handler
-            
+
         Returns:
             Response from the next handler or error response
         """
         start_time = time.time()
         path = request.url.path
-        
+
+        # Skip authentication for OPTIONS requests (CORS preflight)
+        if request.method == "OPTIONS":
+            response = await call_next(request)
+            return response
+
         # Skip authentication for public routes
         if self._is_public_route(path):
             response = await call_next(request)
             return response
-        
+
         # Extract token from Authorization header
         auth_header = request.headers.get("Authorization")
         
@@ -116,12 +189,13 @@ class AuthenticationMiddleware(BaseHTTPMiddleware):
         try:
             # Decode and validate token
             payload = decode_access_token(token)
-            
-            # Attach user info to request state
-            request.state.user_email = payload.get("sub")
+
+            # Attach auth info to request state (no DB queries in middleware)
+            request.state.user_id = payload.get("sub")
+            request.state.user_email = payload.get("email")
             request.state.user_type = payload.get("type")
             request.state.user_name = payload.get("name")
-            
+
             # Log successful authentication
             logger.debug(
                 f"Authenticated request | User: {request.state.user_email} | "
@@ -131,8 +205,8 @@ class AuthenticationMiddleware(BaseHTTPMiddleware):
             # Process request
             response = await call_next(request)
             
-            # Log response time
-            process_time = (time.time() - start_time) * 1000
+            # Log response time (convert seconds to milliseconds)
+            process_time = (time.time() - start_time) * self.MS_PER_SECOND
             response.headers["X-Process-Time"] = f"{process_time:.2f}ms"
             
             return response
@@ -149,15 +223,22 @@ class AuthenticationMiddleware(BaseHTTPMiddleware):
             )
             
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             # Unexpected error
+            import traceback
+            import sys
+            error_detail = f"{type(e).__name__}: {str(e)}"
+            sys.stderr.write(f"\n[MW_ERROR] {error_detail}\n{traceback.format_exc()}\n")
+            sys.stderr.flush()
+
             logger.error(f"Authentication error: {str(e)}", exc_info=True)
             log_security_event(
                 "AUTH_ERROR",
-                details=f"Path: {path} | Error: {str(e)}"
+                details=f"Path: {path} | Error: {error_detail}"
             )
             return JSONResponse(
                 status_code=500,
-                content={"detail": "Internal authentication error"}
+                content={"detail": f"Internal authentication error: {type(e).__name__}: {str(e)[:100]}"}
             )
     
     # Routes eligible for prefix matching (e.g. "/static/logo.png" under
@@ -165,7 +246,7 @@ class AuthenticationMiddleware(BaseHTTPMiddleware):
     # "/" is a valid PREFIX_ROUTE... no wait, "/" is only ever an exact
     # match (below), never a prefix, because every path starts with "/"
     # and a prefix match on it would make every route public.
-    PREFIX_ROUTES = ["/static", "/docs", "/redoc"]
+            PREFIX_ROUTES = ["/static", "/docs", "/redoc"]
 
     def _is_public_route(self, path: str) -> bool:
         """
@@ -217,7 +298,6 @@ class AuthenticationMiddleware(BaseHTTPMiddleware):
                 return False
         return True
 
-
 class RequestLoggingMiddleware(BaseHTTPMiddleware):
     """
     Middleware to log all incoming requests and responses.
@@ -256,7 +336,6 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
         )
         
         return response
-
 
 class RateLimitMiddleware(BaseHTTPMiddleware):
     """
@@ -311,6 +390,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             self.use_redis = True
             logger.info(f"Rate limiting: Using Redis backend at {redis_url}")
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             logger.warning(f"Rate limiting: Redis unavailable ({e}), falling back to in-memory")
             self.redis_client = None
             self.use_redis = False
@@ -374,6 +454,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                 current_count = int(self.redis_client.get(key) or 0)
                 return current_count >= self.max_requests
             except Exception as e:
+                logger.error(f"Error: {str(e)}", exc_info=True)
                 logger.warning(f"Redis rate limit check failed: {e}, using in-memory fallback")
                 self.use_redis = False
                 # Fall through to in-memory check
@@ -395,6 +476,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                 self.redis_client.expire(key, self.window_seconds)
                 return
             except Exception as e:
+                logger.error(f"Error: {str(e)}", exc_info=True)
                 logger.warning(f"Redis request recording failed: {e}, using in-memory fallback")
                 self.use_redis = False
                 # Fall through to in-memory recording

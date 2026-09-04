@@ -2,14 +2,15 @@
 Microsoft Graph Service Account Authentication
 Provides application-only authentication for SharePoint uploads.
 This allows candidates without Microsoft accounts to upload documents.
+import logging
 """
 
+import logging
 import os
 import requests
 from datetime import datetime, timedelta
 from typing import Optional
 from app.core.logging import logger
-
 
 # Service Account Configuration
 TENANT_ID = os.getenv("AZURE_TENANT_ID", "")
@@ -22,6 +23,7 @@ _token_cache = {
     "expires_at": None
 }
 
+logger = logging.getLogger(__name__)
 
 class GraphServiceAuth:
     """
@@ -117,7 +119,6 @@ class GraphServiceAuth:
             return response.status_code == 200
         except Exception:
             return False
-
 
 # Convenience function
 def get_graph_token() -> str:

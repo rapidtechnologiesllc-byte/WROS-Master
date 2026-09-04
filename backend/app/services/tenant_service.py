@@ -1,4 +1,5 @@
 """
+import logging
 S-219/HRMS-0121 -- Multi-Continent Locale & Currency Config.
 
 Per-tenant timezone, date-display-format, and default display currency.
@@ -10,17 +11,19 @@ a hardcoded FX rate would be guessing at real-world numbers that go
 stale immediately; better to leave it unconverted and flagged than
 silently wrong.
 """
+import logging
 from typing import Optional
 
 from sqlalchemy.orm import Session
 
 from app.models.tenant import TENANT_DATE_FORMATS, Tenant
 from app.models.client import BILLING_CURRENCIES
+from app.core.logging import logger
 
+logger = logging.getLogger(__name__)
 
 class InvalidTenantLocaleField(Exception):
     pass
-
 
 def update_tenant_locale(
     db: Session, tenant: Tenant, *,

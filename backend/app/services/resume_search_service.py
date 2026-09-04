@@ -1,4 +1,5 @@
 """
+import logging
 Resume Search Service - Index and search parsed resumes for candidate-to-job matching
 
 When a candidate resume is parsed, extract and store:
@@ -10,6 +11,7 @@ This enables Thunder to intelligently match candidates to jobs instead of
 contacting all candidates indiscriminately.
 """
 
+import logging
 import json
 import os
 from typing import List, Dict, Optional, Tuple
@@ -22,6 +24,7 @@ from app.core.logging import logger
 from app.models.candidate import Candidate
 from app.models.candidate_resume_parsed import CandidateResumeParsed
 
+logger = logging.getLogger(__name__)
 
 class ResumeSearchService:
     """
@@ -62,8 +65,10 @@ class ResumeSearchService:
             logger.info(f"[ResumeIndex] Indexed resume for candidate {candidate.candidateID}")
 
         except Exception as e:
-            logger.error(f"[ResumeIndex] Failed to index resume for {candidate.candidateID}: {e}")
-            # Don't fail the parsing flow; indexing is secondary
+            logger.error(f"Error: {str(e)}", exc_info=True)
+            logger.error(f"[ResumeIndex] Failed to index resume for {candidate.candidateID}: {e}", exc_info=True)
+            # CRITICAL FIX: Raise exception instead of silent failure
+            raise ValueError(f"Failed to index resume for candidate {candidate.candidateID}: {str(e)}")
 
     @staticmethod
     def _build_searchable_text(resume_parsed: CandidateResumeParsed) -> str:
@@ -158,8 +163,9 @@ class ResumeSearchService:
             return json.dumps(embedding_metadata)
 
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             logger.warning(f"[ResumeIndex] Could not generate embeddings: {e}")
-            return None
+            raise ValueError("Operation failed")
 
     @staticmethod
     def search_candidates_for_job(
@@ -268,6 +274,7 @@ class ResumeSearchService:
                     results.append((candidate_id, score))
 
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             logger.warning(f"[ResumeSearch] Skill matching error: {e}")
 
         return results
@@ -309,6 +316,7 @@ class ResumeSearchService:
                         results.append((candidate_id, score))
 
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             logger.warning(f"[ResumeSearch] Title matching error: {e}")
 
         return results
@@ -341,6 +349,7 @@ class ResumeSearchService:
                     results.append((candidate_id, score))
 
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             logger.warning(f"[ResumeSearch] Experience matching error: {e}")
 
         return results
@@ -383,6 +392,7 @@ class ResumeSearchService:
                     results.append((candidate_id, 0.5))
 
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             logger.warning(f"[ResumeSearch] Description matching error: {e}")
 
         return results

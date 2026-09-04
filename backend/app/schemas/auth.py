@@ -1,7 +1,10 @@
 # login schemas
 from pydantic import BaseModel, EmailStr, constr
 from typing import Optional, List
+import logging
 from datetime import datetime, date
+from app.core.logging import logger
+logger = logging.getLogger(__name__)
 
 class SignupRequest(BaseModel):
     user_name: str
@@ -9,47 +12,22 @@ class SignupRequest(BaseModel):
     user_password: str
     user_role: str
 
-
 class SignupResponse(BaseModel):
     response: str = "User created successfully"
 
-
-class LoginRequest(BaseModel):
-    UserEmail: EmailStr
-    UserPassword: str
-
-class LoginResponse(BaseModel):
-    user_role: str
-    user_name: str
-    user_email: EmailStr
-    is_first_time: bool
-    access_token: str
-
-class CandidateLoginRequest(BaseModel):
-    candidate_email: EmailStr
-    candidate_password: str
-
-class CandidateLoginResponse(BaseModel):
-    candidate_id: str
-    candidate_role: str
-    candidate_name: str
-    candidate_email: EmailStr
-    candidate_mobile: str
-    is_first_time: bool
-    access_token: str
-
-
-# ── Unified login ──────────────────────────────────────────────
+# ── CONSOLIDATED LOGIN FLOW - Step 1: Validate Email, Step 2: Login with Password ────
+# All legacy login models (LoginRequest, LoginResponse, CandidateLoginRequest, CandidateLoginResponse)
+# have been deleted. Use UnifiedLoginRequest + UnifiedLoginResponse for both users and candidates.
 class UnifiedLoginRequest(BaseModel):
     """Single login payload for both users and candidates."""
     email: EmailStr
     password: str
 
-
 class UnifiedLoginResponse(BaseModel):
     """Single login response – entity_type is either 'user' or 'candidate'."""
     entity_type: str            # "user" | "candidate"
     access_token: str
+    refresh_token: Optional[str] = None  # Refresh token (valid for 7 days)
     is_first_time: bool
 
     # Phase 1 B3 -- both default False so existing non-MFA callers see
@@ -68,6 +46,7 @@ class UnifiedLoginResponse(BaseModel):
     # POST /auth/mfa/email/verify with that code against the same
     # access_token (mfa_pending) to complete login.
     email_otp_required: bool = False
+    force_password_reset: bool = False  # User must reset system-generated password on first login
 
     # Backlog item, 2026-08-05 (wros_email_2fa_backlog, candidate half).
     # candidate_otp_required: this candidate has opted in -- a code has

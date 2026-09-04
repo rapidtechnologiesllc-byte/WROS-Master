@@ -1,4 +1,5 @@
 """
+import logging
 S-364/HRMS-0520 -- 30-Day Buddy Program: 35-KPI Framework & Tracking.
 
 KPI_DEFINITIONS is fixed platform config (BU-Head-approved, never
@@ -22,6 +23,7 @@ performance store (HRMS-0515, built alongside S-360 in the same
 session) -- this wiring was originally deferred when the Buddy Program
 was first built, since that table didn't exist yet.
 """
+import logging
 import json
 from datetime import date
 from typing import Dict, List, Optional
@@ -31,6 +33,7 @@ from sqlalchemy.orm import Session
 from app.models.buddy_program import BuddyKPIScore, BuddyProgramRecord
 from app.models.employee import Employee
 from app.services.performance_store_service import write_performance_event
+from app.core.logging import logger
 
 # kpi_number -> (category, name), per S-364's Step 2 seed data.
 KPI_DEFINITIONS: Dict[int, tuple] = {
@@ -76,14 +79,13 @@ LOW_SCORE_THRESHOLD = 2.0
 LOW_SCORE_CONSECUTIVE_WEEKS = 2
 TOTAL_WEEKS = 4
 
+logger = logging.getLogger(__name__)
 
 class SelfBuddyNotAllowed(Exception):
     """A buddy engineer cannot be assigned to their own buddy program record."""
 
-
 class InvalidKPISubmission(Exception):
     pass
-
 
 def create_buddy_program_record(
     db: Session,
@@ -106,7 +108,6 @@ def create_buddy_program_record(
     db.add(record)
     db.flush()
     return record
-
 
 def submit_weekly_scores(
     db: Session,
@@ -176,7 +177,6 @@ def submit_weekly_scores(
 
     return rows
 
-
 def is_week_complete(db: Session, record: BuddyProgramRecord, week_number: int) -> bool:
     """BR: all 35 KPIs must be scored for a week to count -- a partial
     submission stays a draft, per the story's own wording."""
@@ -187,7 +187,6 @@ def is_week_complete(db: Session, record: BuddyProgramRecord, week_number: int) 
         .all()
     }
     return scored_numbers == ALL_KPI_NUMBERS
-
 
 def check_low_kpi_alert(db: Session, record: BuddyProgramRecord, kpi_number: int, *, through_week: int) -> bool:
     """
@@ -213,7 +212,6 @@ def check_low_kpi_alert(db: Session, record: BuddyProgramRecord, kpi_number: int
     if len(scores) < LOW_SCORE_CONSECUTIVE_WEEKS:
         return False  # not yet scored for both weeks -- nothing to alert on
     return all(row.score < LOW_SCORE_THRESHOLD for row in scores)
-
 
 def compute_day30_scorecard(db: Session, record: BuddyProgramRecord) -> dict:
     """

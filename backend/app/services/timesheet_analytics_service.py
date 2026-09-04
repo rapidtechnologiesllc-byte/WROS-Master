@@ -1,4 +1,5 @@
 """
+import logging
 HRMS-0905 -- Timesheet Analytics & Compliance.
 
 Pure reporting layer over the existing Timesheet table -- no new
@@ -22,7 +23,6 @@ from app.models.timesheet_dispute import TimesheetDispute
 SUBMISSION_DEADLINE_DAYS = 7   # BR-01: following Monday 9 AM
 MISSING_CUTOFF_DAYS = 9       # BR-01: following Wednesday EOD
 
-
 def classify_submission_timeliness(timesheet: Timesheet, *, now: Optional[datetime] = None) -> str:
     """HRMS-0905 BR-01. Returns ON_TIME, LATE, MISSING, or NOT_YET_DUE."""
     now = now or datetime.utcnow()
@@ -34,7 +34,6 @@ def classify_submission_timeliness(timesheet: Timesheet, *, now: Optional[dateti
     if timesheet.submitted_at is not None:
         return "ON_TIME" if timesheet.submitted_at <= deadline else "LATE"
     return "MISSING" if now > missing_cutoff else "NOT_YET_DUE"
-
 
 def get_timesheet_compliance_report(
     db: Session, *, tenant_id: Optional[int], date_from, date_to, now: Optional[datetime] = None,
@@ -87,7 +86,6 @@ def get_timesheet_compliance_report(
         "dispute_rate_pct": dispute_rate_pct,
         "by_employee": by_employee,
     }
-
 
 def calculate_utilization_pct_phase2(
     db: Session, employee_id: str, period_start, period_end,

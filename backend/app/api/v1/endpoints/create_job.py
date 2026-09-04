@@ -1,16 +1,18 @@
 import json
 import os
 from datetime import datetime, date
+import logging
 from typing import Optional, List
 
 from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, UploadFile
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_hr_or_admin, require_resource_permission
+from app.core.dependencies import get_current_internal_user, require_resource_permission
 from app.core.logging import logger
 from app.services.ai_conversation_service import run_auto_assign_ai_agent_in_background
 from app.services.candidate_service import create_candidate_safe, find_duplicate_candidate, DuplicateCandidateError
+from app.services.message_queue_service import MessageQueueService
 from app.services.ready_for_opportunity_service import scan_new_job_for_matches
 from app.models.user import Jobs
 from app.models.candidate import (
@@ -49,7 +51,7 @@ router = APIRouter(prefix="/jobs", tags=["jobs"])
 # Auto-approval logic
 # ---------------------------------------------------------------------------
 
-# Roles that can publish jobs immediately — no approval workflow needed
+# Roles that can publish jobs immediately - no approval workflow needed
 AUTO_APPROVE_ROLES = {"super user", "bu head", "hiring manager"}
 
 def _can_auto_approve_job(user) -> bool:
@@ -71,7 +73,7 @@ def _can_auto_approve_job(user) -> bool:
 def generate_job_description(
     request: GenerateJobDescriptionRequest,
     db: Session = Depends(get_db),
-    user = Depends(get_current_hr_or_admin)
+    user = Depends(get_current_internal_user)
 ):
     """
     Generate job description using AI.
@@ -101,7 +103,6 @@ def generate_job_description(
         job_location=result['location']
     )
 
-
 @router.post(
     "/generate-with-agent",
     response_model=GenerateJobWithAgentResponse,
@@ -110,7 +111,7 @@ def generate_job_description(
 def generate_job_with_agent(
     request: GenerateJobWithAgentRequest,
     db: Session = Depends(get_db),
-    user = Depends(get_current_hr_or_admin)
+    user = Depends(get_current_internal_user)
 ):
     """
     Step 1: Recruitment agent analyzes one-liner and generates clarifying questions.
@@ -147,6 +148,7 @@ def generate_job_with_agent(
             questions=result.get("questions", [])
         )
     except Exception as err:
+        logger.error(f"Error: {str(err)}", exc_info=True)
         log_entry = AgentExecutionLog(
             tenant_id=user.UserID,
             agent_name="Recruitment",
@@ -159,7 +161,6 @@ def generate_job_with_agent(
         db.commit()
         raise
 
-
 @router.post(
     "/generate-complete",
     response_model=GenerateJobCompleteResponse,
@@ -168,7 +169,7 @@ def generate_job_with_agent(
 def generate_job_complete(
     request: GenerateJobCompleteRequest,
     db: Session = Depends(get_db),
-    user = Depends(get_current_hr_or_admin)
+    user = Depends(get_current_internal_user)
 ):
     """
     Step 2: Recruitment agent generates complete job with all fields populated.
@@ -205,6 +206,7 @@ def generate_job_complete(
 
         return GenerateJobCompleteResponse(**result)
     except Exception as err:
+        logger.error(f"Error: {str(err)}", exc_info=True)
         log_entry = AgentExecutionLog(
             tenant_id=user.UserID,
             agent_name="Recruitment",
@@ -220,7 +222,6 @@ def generate_job_complete(
         db.commit()
         raise
 
-
 @router.get(
     "/all",
     response_model=AllJobsResponse,
@@ -228,7 +229,7 @@ def generate_job_complete(
 )
 def get_all_jobs(
     db: Session = Depends(get_db),
-    user = Depends(get_current_hr_or_admin)
+    user = Depends(get_current_internal_user)
 ):
     """
     Get all jobs from the system.
@@ -272,7 +273,6 @@ def get_all_jobs(
         total_jobs=len(jobs_data),
         jobs=jobs_data
     )
-
 
 @router.get(
     "/active-jobs",
@@ -326,7 +326,6 @@ def get_active_jobs(
         jobs=jobs_data
     )
 
-
 @router.get(
     "/filter",
     response_model=AllJobsResponse,
@@ -341,7 +340,7 @@ def filter_jobs(
     company_name: Optional[str] = None,
     job_location: Optional[str] = None,
     db: Session = Depends(get_db),
-    user = Depends(get_current_hr_or_admin)
+    user = Depends(get_current_internal_user)
 ):
     """
     Filter jobs by one or more columns. All parameters are optional and combined
@@ -403,7 +402,6 @@ def filter_jobs(
 
     return AllJobsResponse(total_jobs=len(jobs_data), jobs=jobs_data)
 
-
 @router.get(
     "/my-jobs",
     response_model=AllJobsResponse,
@@ -411,7 +409,7 @@ def filter_jobs(
 )
 def get_my_jobs(
     db: Session = Depends(get_db),
-    user = Depends(get_current_hr_or_admin)
+    user = Depends(get_current_internal_user)
 ):
     """
     Get all jobs where the current authenticated user is assigned as:
@@ -419,11 +417,10 @@ def get_my_jobs(
     - **Hiring Manager** (`hiringManagerID`)
     - **Contact Person** (`contactPerson`)
 
-    All three roles are checked with OR logic — a job appears once even if
+    All three roles are checked with OR logic - a job appears once even if
     the user matches more than one column.
     """
     from sqlalchemy import or_
-    from app.models.rbac import Role
 
     my_id = user.UserID
     
@@ -478,7 +475,6 @@ def get_my_jobs(
 
     return AllJobsResponse(total_jobs=len(jobs_data), jobs=jobs_data)
 
-
 @router.get(
     "/job-details/{job_id}",
     response_model=JobResponse,
@@ -487,7 +483,7 @@ def get_my_jobs(
 def get_job_by_id(
     job_id: str,
     db: Session = Depends(get_db),
-    user = Depends(get_current_hr_or_admin)
+    user = Depends(get_current_internal_user)
 ):
     """
     Get whole information of a job by job ID.
@@ -503,7 +499,6 @@ def get_job_by_id(
     Raises:
         HTTPException: If job not found
     """
-    from app.models.user import Users
 
     job = db.query(Jobs).filter(Jobs.jobID == job_id).first()
     if not job:
@@ -550,19 +545,18 @@ def get_job_by_id(
         job_skills_boolean_mode=job.job_skills_boolean_mode
     )
 
-
 @router.post(
     "/create_job",
     response_model=JobCreateResponse,
     dependencies=[Depends(require_resource_permission("jobs", "create"))],
 )
-def create_job(request: JobCreateRequest, background_tasks: BackgroundTasks, db: Session = Depends(get_db), user = Depends(get_current_hr_or_admin)):
+def create_job(request: JobCreateRequest, background_tasks: BackgroundTasks, db: Session = Depends(get_db), user = Depends(get_current_internal_user)):
     """
     Create a new job posting.
 
-    Job status is determined by the creator's role — it is NOT taken from the request body.
-    - Super User / BU Head / Hiring Manager → published immediately (status: active)
-    - All other roles (HR, HRBP, Recruiter, etc.) → saved as draft (status: pending_approval)
+    Job status is determined by the creator's role - it is NOT taken from the request body.
+    - Super User / BU Head / Hiring Manager -> published immediately (status: active)
+    - All other roles (HR, HRBP, Recruiter, etc.) -> saved as draft (status: pending_approval)
 
     Args:
         request: JobCreateRequest containing job details
@@ -580,6 +574,21 @@ def create_job(request: JobCreateRequest, background_tasks: BackgroundTasks, db:
     if request.recuriter_id in ("string", ""):
         request.recuriter_id = None
 
+    # AUTO-DERIVE: If BU is selected but hiring_manager not provided, auto-assign from BU
+    if request.business_unit and not request.hiring_manager_id:
+
+        # Get Hiring Manager role from this BU
+        hiring_manager_role = db.query(Role).filter(Role.name == "Hiring Manager").first()
+        if hiring_manager_role:
+            potential_hm = db.query(Users).filter(
+                Users.business_unit_id == request.business_unit,
+                Users.role_id == hiring_manager_role.id
+            ).first()
+
+            if potential_hm:
+                request.hiring_manager_id = potential_hm.UserID
+                logger.info(f"[JobCreation] Auto-assigned Hiring Manager: {potential_hm.UserEmail} for BU: {request.business_unit}")
+
     # Validate that provided user IDs actually exist
     for user_id, field_name in [
         (request.contact_person, "contact_person"),
@@ -590,8 +599,27 @@ def create_job(request: JobCreateRequest, background_tasks: BackgroundTasks, db:
             existing_user = db.query(Users).filter(Users.UserID == user_id).first()
             if not existing_user:
                 raise HTTPException(
-                    status_code=400, 
+                    status_code=400,
                     detail=f"User '{user_id}' provided for {field_name} does not exist in the system."
+                )
+
+    # VALIDATION: Prevent BU Head from being their own Hiring Manager (separation of duties)
+    if request.hiring_manager_id and request.business_unit:
+        from app.models.bu_access import BUAccess
+
+        # Get BU Head for this business unit
+        bu_head_role = db.query(Role).filter(Role.name == "BU Head").first()
+        if bu_head_role:
+            bu_head = db.query(Users).filter(
+                Users.role_id == bu_head_role.id,
+                Users.business_unit_id == request.business_unit
+            ).first()
+
+            # If hiring_manager_id is same as BU Head, reject (prevent self-approval)
+            if bu_head and request.hiring_manager_id == bu_head.UserID:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"BU Head cannot be their own Hiring Manager (separation of duties). Please assign a different hiring manager for this job."
                 )
 
     # Determine job status based on the creator's role
@@ -603,7 +631,6 @@ def create_job(request: JobCreateRequest, background_tasks: BackgroundTasks, db:
         
         # Check if we can assign approval to the Business Unit Head
         if request.business_unit:
-            from app.models.rbac import Role
             bu_head_role = db.query(Role).filter(Role.name == "BU Head").first()
             if bu_head_role:
                 bu_head = db.query(Users).filter(
@@ -646,8 +673,52 @@ def create_job(request: JobCreateRequest, background_tasks: BackgroundTasks, db:
     )
 
     db.add(job)
+
+    # Queue job_created message (BEFORE commit for atomicity)
+    MessageQueueService.enqueue(
+        message_type="job_created",
+        payload={
+            "job_id": job_id,
+            "job_title": request.job_title,
+            "job_location": request.job_location,
+            "job_description": request.job_description,
+            "job_skills": request.job_skills,
+            "no_of_positions": request.no_of_positions,
+            "hiring_manager_id": request.hiring_manager_id,
+            "business_unit_id": request.business_unit,
+            "job_status": job_status,
+        },
+        resource_id=job_id,
+        queue_type="THUNDER_QUEUE",
+        created_by=user.UserID,
+        db=db,
+    )
+
+    # ATOMIC COMMIT
     db.commit()
     db.refresh(job)
+
+    # Wire SLM: Store job metadata for continuous learning
+    try:
+        from app.services.slm_job_metadata_service import SLMJobMetadataService
+
+        SLMJobMetadataService.store_job_metadata(
+            db=db,
+            job_id=job_id,
+            job_title=request.job_title,
+            job_description=request.job_description,
+            business_unit_id=request.business_unit,
+            department=request.department_id,
+            required_skills=request.job_skills.split(',') if request.job_skills else None,
+            min_experience_months=None,
+            max_experience_months=None,
+            created_by=user.UserID
+        )
+        logger.info(f"[SLM] Stored metadata for job: {job_id} ({request.job_title})")
+    except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
+        logger.error(f"[SLM] Failed to store job metadata: {e}", exc_info=True)
+        # Continue - SLM failure shouldn't block job creation
 
     if job_status == "active":
         # Real trigger, never a scheduled poll -- a newly PUBLISHED job
@@ -662,7 +733,6 @@ def create_job(request: JobCreateRequest, background_tasks: BackgroundTasks, db:
 
     return JobCreateResponse(job_id=job_id, response=response_message)
 
-
 @router.post(
     "/{job_id}/approve",
     response_model=JobApproveResponse,
@@ -672,7 +742,7 @@ def approve_job(
     job_id: str,
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
-    user = Depends(get_current_hr_or_admin)
+    user = Depends(get_current_internal_user)
 ):
     """
     Approve a pending job posting and make it live.
@@ -702,7 +772,7 @@ def approve_job(
     if job.jobStatus != "pending_approval":
         raise HTTPException(
             status_code=400,
-            detail=f"Job cannot be approved — current status is '{job.jobStatus}'. Only 'pending_approval' jobs can be approved."
+            detail=f"Job cannot be approved - current status is '{job.jobStatus}'. Only 'pending_approval' jobs can be approved."
         )
 
     job.jobStatus = "active"
@@ -725,13 +795,12 @@ def approve_job(
         approved_by=approver_name
     )
 
-
 @router.put(
     "/update_job/{job_id}",
     response_model=JobResponse,
     dependencies=[Depends(require_resource_permission("jobs", "edit"))],
 )
-def update_job(job_id: str, request: JobUpdateRequest, db: Session = Depends(get_db), user = Depends(get_current_hr_or_admin)):
+def update_job(job_id: str, request: JobUpdateRequest, db: Session = Depends(get_db), user = Depends(get_current_internal_user)):
     """
     Update an existing job posting.
     
@@ -816,13 +885,12 @@ def update_job(job_id: str, request: JobUpdateRequest, db: Session = Depends(get
         salary_range=job.salaryRange
     )
 
-
 @router.delete(
     "/delete_job/{job_id}",
     response_model=DeleteResponse,
     dependencies=[Depends(require_resource_permission("jobs", "delete"))],
 )
-def delete_job(job_id: str, db: Session = Depends(get_db), user = Depends(get_current_hr_or_admin)):
+def delete_job(job_id: str, db: Session = Depends(get_db), user = Depends(get_current_internal_user)):
     """
     Delete a job posting.
     
@@ -853,7 +921,6 @@ def delete_job(job_id: str, db: Session = Depends(get_db), user = Depends(get_cu
         message=f"Job with ID {job_id} deleted successfully"
     )
 
-
 @router.post(
     "/post-on-linkedin",
     response_model=LinkedInPostResponse,
@@ -862,7 +929,7 @@ def delete_job(job_id: str, db: Session = Depends(get_db), user = Depends(get_cu
 def post_job_on_linkedin(
     request: LinkedInPostRequest,
     db: Session = Depends(get_db),
-    user = Depends(get_current_hr_or_admin)
+    user = Depends(get_current_internal_user)
 ):
     """
     SIMULATES posting a job to LinkedIn -- no real LinkedIn API integration
@@ -934,12 +1001,11 @@ def post_job_on_linkedin(
         job_details=job_details
     )
 
-
 @router.post(
     "/{job_id}/apply",
     response_model=JobApplicationResponse,
     status_code=201,
-    summary="Apply for a job (public — no auth required)",
+    summary="Apply for a job (public - no auth required)",
 )
 async def apply_for_job(
     job_id: str,
@@ -961,7 +1027,7 @@ async def apply_for_job(
     db: Session = Depends(get_db),
 ):
     """
-    Public endpoint — no authentication required.
+    Public endpoint - no authentication required.
 
     Submit a job application for a specific open job.
     Education and experience are provided as JSON-encoded strings in the form body.
@@ -974,7 +1040,7 @@ async def apply_for_job(
         raise HTTPException(status_code=404, detail=f"Job '{job_id}' not found")
     if job.jobStatus.lower() not in ("active", "public"):
         raise HTTPException(status_code=400, detail="This job is not open for applications")
-    # 2. Duplicate-application check — R-07: email/phone/LinkedIn each
+    # 2. Duplicate-application check - R-07: email/phone/LinkedIn each
     # checked independently (createCandidateSafe()'s dedup runs again,
     # redundantly but harmlessly, at actual creation time below).
     existing, _matched_on = find_duplicate_candidate(db, email=email, mobile=phone)
@@ -1082,15 +1148,15 @@ async def apply_for_job(
 
     # 12. Upload resume to SharePoint (if provided)
     #     _upload_document_helper handles validation, Graph token, SP upload,
-    #     and CandidateDocument metadata — exactly like the HR upload endpoint.
+    #     and CandidateDocument metadata - exactly like the HR upload endpoint.
     if resume and resume.filename:
         try:
             await _upload_document_helper(resume, "resume", candidate, db)
         except HTTPException:
-            # If SP upload fails we don't roll back the application — just surface the error
+            # If SP upload fails we don't roll back the application - just surface the error
             raise
 
-    # 13. Fire ATS scoring in the background — does NOT block the response
+    # 13. Fire ATS scoring in the background - does NOT block the response
     # 2026-08-05 real fix: must NOT pass this request's own `db` (or ORM
     # objects bound to it) into a BackgroundTask -- the session is closed
     # before the task runs. See ats.run_ats_scoring_in_background()'s own
@@ -1126,11 +1192,11 @@ def assign_candidate_to_job(
     job_id: str,
     candidate_id: str,
     db: Session = Depends(get_db),
-    user=Depends(get_current_hr_or_admin),
+    user=Depends(get_current_internal_user),
 ):
     """
     Link a candidate to the given job (or switch them to a different job).
-    The operation is idempotent — assigning the same job twice is safe.
+    The operation is idempotent - assigning the same job twice is safe.
     To move a candidate to another job, call this endpoint with the new job_id.
     Raises 404 if either the job or candidate does not exist.
     """
@@ -1142,6 +1208,14 @@ def assign_candidate_to_job(
         raise HTTPException(status_code=404, detail=f"Candidate '{candidate_id}' not found")
     candidate.job_id = job_id
     candidate.candidateJobTitle = job.jobTitle
+
+    # BU Lifecycle: When candidate submitted to job, lock to job's BU
+    if job.business_unit_id:
+        candidate.associated_bu_id = job.business_unit_id
+        # Only set submission_bu_id if not already set (first submission)
+        if candidate.submission_bu_id is None:
+            candidate.submission_bu_id = job.business_unit_id
+
     db.commit()
     db.refresh(candidate)
 
@@ -1161,7 +1235,7 @@ def assign_candidate_to_job(
             performed_by_id=performed_by,
         )
         db.commit()
-    # If no BU on job — candidate stays in Org Pool (no change needed)
+    # If no BU on job - candidate stays in Org Pool (no change needed)
 
     return CandidateJobSummary(
         candidate_id=candidate.candidateID,
@@ -1182,7 +1256,7 @@ def assign_candidate_to_job(
 def unassign_candidate_from_job(
     candidate_id: str,
     db: Session = Depends(get_db),
-    user=Depends(get_current_hr_or_admin),
+    user=Depends(get_current_internal_user),
 ):
     """
     Unlink a candidate from whichever job they are currently assigned to (sets job_id = NULL).
@@ -1196,12 +1270,12 @@ def unassign_candidate_from_job(
     db.commit()
     db.refresh(candidate)
 
-    # ── Pool ownership transition: unassigned → Org Pool ─────────────────────
+    # ── Pool ownership transition: unassigned -> Org Pool ─────────────────────
     from app.services.candidate_pool_service import set_org_pool
     performed_by = getattr(user, 'UserID', None)
     set_org_pool(
         candidate_id=candidate_id,
-        reason="Unassigned from job — returned to Org Pool",
+        reason="Unassigned from job - returned to Org Pool",
         db=db,
         performed_by_id=performed_by,
     )
@@ -1226,7 +1300,7 @@ def unassign_candidate_from_job(
 def get_candidates_by_job(
     job_id: str,
     db: Session = Depends(get_db),
-    user=Depends(get_current_hr_or_admin),
+    user=Depends(get_current_internal_user),
 ):
     """
     Return every candidate whose job_id matches the given job.
@@ -1255,7 +1329,6 @@ def get_candidates_by_job(
         ],
     )
 
-
 # ==============================================================================
 # Multi-Job Assignment Endpoints  (uses candidate_job_applications junction table)
 # ==============================================================================
@@ -1265,7 +1338,6 @@ from app.schemas.user import (
     JobApplicationCreate, JobApplicationStatusUpdate,
     JobApplicationEntry, CandidateJobsResponse, JobCandidatesMultiResponse,
 )
-
 
 @router.post(
     "/{job_id}/applications/{candidate_id}",
@@ -1279,7 +1351,7 @@ def create_job_application(
     candidate_id: str,
     request: JobApplicationCreate,
     db: Session = Depends(get_db),
-    user=Depends(get_current_hr_or_admin),
+    user=Depends(get_current_internal_user),
 ):
     """
     Assign a candidate to a job using the many-to-many junction table.
@@ -1325,7 +1397,6 @@ def create_job_application(
         applied_at=application.applied_at,
     )
 
-
 @router.delete(
     "/{job_id}/applications/{candidate_id}",
     dependencies=[Depends(require_resource_permission("jobs", "edit"))],
@@ -1335,7 +1406,7 @@ def remove_job_application(
     job_id: str,
     candidate_id: str,
     db: Session = Depends(get_db),
-    user=Depends(get_current_hr_or_admin),
+    user=Depends(get_current_internal_user),
 ):
     """
     Remove the assignment between a candidate and a job (many-to-many).
@@ -1355,7 +1426,6 @@ def remove_job_application(
     db.commit()
     return {"status": "Success", "message": f"Candidate '{candidate_id}' removed from job '{job_id}'"}
 
-
 @router.put(
     "/{job_id}/applications/{candidate_id}/status",
     response_model=JobApplicationEntry,
@@ -1367,7 +1437,7 @@ def update_job_application_status(
     candidate_id: str,
     request: JobApplicationStatusUpdate,
     db: Session = Depends(get_db),
-    user=Depends(get_current_hr_or_admin),
+    user=Depends(get_current_internal_user),
 ):
     """
     Update the ``application_status`` of a specific candidate ↔ job assignment.
@@ -1397,7 +1467,6 @@ def update_job_application_status(
         applied_at=application.applied_at,
     )
 
-
 @router.get(
     "/{job_id}/applications",
     response_model=JobCandidatesMultiResponse,
@@ -1408,7 +1477,7 @@ def get_job_applications(
     job_id: str,
     application_status: Optional[str] = None,
     db: Session = Depends(get_db),
-    user=Depends(get_current_hr_or_admin),
+    user=Depends(get_current_internal_user),
 ):
     """
     Return all candidates linked to this job via the many-to-many table.
@@ -1445,7 +1514,6 @@ def get_job_applications(
         applications=entries,
     )
 
-
 @router.get(
     "/candidate-applications/{candidate_id}",
     response_model=CandidateJobsResponse,
@@ -1455,7 +1523,7 @@ def get_job_applications(
 def get_candidate_applications(
     candidate_id: str,
     db: Session = Depends(get_db),
-    user=Depends(get_current_hr_or_admin),
+    user=Depends(get_current_internal_user),
 ):
     """
     Return every job a candidate is linked to via the many-to-many table.
@@ -1498,14 +1566,12 @@ def get_candidate_applications(
         applications=entries,
     )
 
-
 # ==============================================================================
 # Job Statistics Endpoint
 # ==============================================================================
 
 from sqlalchemy import func as sql_func
 from app.schemas.user import JobStatisticsResponse, ApplicationStatusCount
-
 
 @router.get(
     "/{job_id}/statistics",
@@ -1516,15 +1582,15 @@ from app.schemas.user import JobStatisticsResponse, ApplicationStatusCount
 def get_job_statistics(
     job_id: str,
     db: Session = Depends(get_db),
-    user=Depends(get_current_hr_or_admin),
+    user=Depends(get_current_internal_user),
 ):
     """
     Return aggregated application statistics for a specific job.
 
     **Includes:**
-    - `total_applications` — total candidates assigned via the multi-job table
-    - `applied`, `shortlisted`, `interview`, `offered`, `hired`, `rejected` — named counts
-    - `status_breakdown` — full list of every status with its count (covers custom statuses)
+    - `total_applications` - total candidates assigned via the multi-job table
+    - `applied`, `shortlisted`, `interview`, `offered`, `hired`, `rejected` - named counts
+    - `status_breakdown` - full list of every status with its count (covers custom statuses)
 
     Returns **404** if the job does not exist.
     """

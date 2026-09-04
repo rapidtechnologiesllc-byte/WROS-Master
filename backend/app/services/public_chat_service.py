@@ -9,6 +9,7 @@ creation entry point in this codebase uses (see
 app.api.v1.endpoints.create_job.apply_for_job for the other one). No
 shadow data model, no fabricated replies -- every message after the
 opening greeting goes through the real, context-aware
+import logging
 generate_thunder_reply_with_fallback().
 
 Session model: there's no login. The candidate_id returned by
@@ -18,6 +19,7 @@ functionally a bearer token, same trust model as any other opaque
 session id. Nothing about a candidate's real identity is derivable
 from it.
 """
+import logging
 from datetime import datetime
 from typing import Dict, List, Optional
 
@@ -44,21 +46,19 @@ from app.services.thunder_service import (
     send_thunder_message,
 )
 
+logger = logging.getLogger(__name__)
 
 class PublicChatConsentRequired(Exception):
     """The visitor didn't tick the consent checkbox -- fail closed, same
     posture as every other consent gate in this codebase."""
 
-
 class PublicChatSessionNotFound(Exception):
     """candidate_id doesn't correspond to a real chat session -- either
     it was never created, or the client lost/fabricated it."""
 
-
 class PublicChatNoTenantAvailable(Exception):
     """No Super User account exists to own this conversation. Real
     misconfiguration, not something to paper over with a fake tenant."""
-
 
 def _get_or_open_conversation(db: Session, candidate: Candidate, tenant_id: str) -> CandidateConversation:
     conversation = (
@@ -92,7 +92,6 @@ def _get_or_open_conversation(db: Session, candidate: Candidate, tenant_id: str)
     db.add(conversation)
     return conversation
 
-
 def _capture_web_chat_consent(db: Session, candidate_id: str) -> None:
     db.add(ConsentRecord(
         subject_type="candidate",
@@ -101,7 +100,6 @@ def _capture_web_chat_consent(db: Session, candidate_id: str) -> None:
         consent_given=True,
         captured_by="public_web_chat",
     ))
-
 
 def _opening_message(candidate: Candidate, job: Optional[Jobs], resumed: bool) -> str:
     """Deterministic, not LLM-generated -- there's no real inbound
@@ -123,7 +121,6 @@ def _opening_message(candidate: Candidate, job: Optional[Jobs], resumed: bool) -
         f"open roles, or tell me about your background and I'll match you against what's "
         f"currently open."
     )
-
 
 def start_public_chat(
     db: Session,
@@ -165,7 +162,7 @@ def start_public_chat(
     # User") -- neither value was ever read back out by anything
     # downstream, and it diverged from what /activity-feed and every
     # other real reader filter by. Single shared resolver now, always.
-    tenant_id = resolve_default_tenant_id(db)
+    tenant_id = resolve_default_tenant_id()
     if not tenant_id:
         raise PublicChatNoTenantAvailable(
             "No Super User account exists to own this conversation -- Thunder can't be "
@@ -196,7 +193,6 @@ def start_public_chat(
         "message": reply_text,
         "created_at": reply_event.created_at,
     }
-
 
 def send_public_chat_message(db: Session, *, candidate_id: str, message: str, background_tasks: Optional[BackgroundTasks] = None) -> Dict:
     candidate = db.query(Candidate).filter(Candidate.candidateID == candidate_id).first()
@@ -308,7 +304,6 @@ def send_public_chat_message(db: Session, *, candidate_id: str, message: str, ba
         attach_explanation(db, reply_event, candidate, conversation.tenant_id)
 
     return {"reply": reply_text, "created_at": reply_event.created_at}
-
 
 def get_public_chat_history(db: Session, *, candidate_id: str) -> List[Dict]:
     conversation = (

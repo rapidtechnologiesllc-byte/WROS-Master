@@ -18,13 +18,11 @@ load_dotenv()
 
 logger = logging.getLogger(__name__)
 
-
 class LLMProvider(Enum):
     CLAUDE = "claude"
     GEMINI = "gemini"
     GROK = "grok"
     OPENAI = "openai"
-
 
 class RoundRobinLLMProvider:
     def __init__(self):
@@ -55,7 +53,7 @@ class RoundRobinLLMProvider:
             except Exception as e:
                 logger.error(f"Failed to initialize Gemini: {e}")
                 self.llm_instances["gemini"] = None
-        return self.llm_instances["gemini"]
+                return self.llm_instances["gemini"]
 
     def _get_claude(self):
         """Lazy-load Claude"""
@@ -74,7 +72,7 @@ class RoundRobinLLMProvider:
             except Exception as e:
                 logger.error(f"Failed to initialize Claude: {e}")
                 self.llm_instances["claude"] = None
-        return self.llm_instances["claude"]
+                return self.llm_instances["claude"]
 
     def _get_grok(self):
         """Lazy-load Grok"""
@@ -89,7 +87,7 @@ class RoundRobinLLMProvider:
             except Exception as e:
                 logger.error(f"Failed to initialize Grok: {e}")
                 self.llm_instances["grok"] = None
-        return self.llm_instances["grok"]
+                return self.llm_instances["grok"]
 
     def _get_openai(self):
         """Lazy-load OpenAI (ChatGPT)"""
@@ -108,7 +106,7 @@ class RoundRobinLLMProvider:
             except Exception as e:
                 logger.error(f"Failed to initialize OpenAI: {e}")
                 self.llm_instances["openai"] = None
-        return self.llm_instances["openai"]
+                return self.llm_instances["openai"]
 
     def get_next_provider(self):
         """Get next provider in round-robin order"""
@@ -150,10 +148,8 @@ class RoundRobinLLMProvider:
             raise RuntimeError("No LLM providers available")
         return llm, provider
 
-
 # Global instance
 _llm_provider = RoundRobinLLMProvider()
-
 
 def get_llm():
     """Get working LLM with automatic fallback"""
@@ -161,7 +157,6 @@ def get_llm():
     if llm is None:
         raise RuntimeError("No LLM providers available")
     return llm, provider
-
 
 def invoke_llm(prompt: str, provider_hint: Optional[LLMProvider] = None):
     """Invoke LLM with automatic fallback"""
@@ -171,5 +166,6 @@ def invoke_llm(prompt: str, provider_hint: Optional[LLMProvider] = None):
         logger.info(f"LLM invocation successful with {provider.value}")
         return result, provider
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"LLM invocation failed with {provider.value}: {e}")
         raise

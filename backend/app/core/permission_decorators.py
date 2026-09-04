@@ -6,14 +6,15 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.security import get_current_internal_user
 from app.models.user import Users
+import logging
 from app.services.permission_service import PermissionService
 
 def require_permission(permission: str):
     """Decorator to require specific permission before endpoint execution.
 
     Usage:
-        @router.get("/candidates")
-        @require_permission("candidate.view")
+    @router.get("/candidates")
+    @require_permission("candidate.view")
         async def get_candidates(db: Session = Depends(get_db),
                                 current_user: Users = Depends(get_current_internal_user)):
             ...
@@ -54,15 +55,14 @@ def require_permission(permission: str):
 
     return decorator
 
-
 def apply_data_scope(module: str):
     """Decorator to apply data scope filter to endpoint.
 
     Adds 'data_scope' dict to kwargs with scope type and filtering info.
 
     Usage:
-        @router.get("/candidates")
-        @apply_data_scope("candidates")
+    @router.get("/candidates")
+    @apply_data_scope("candidates")
         async def get_candidates(db: Session = Depends(get_db),
                                 current_user: Users = Depends(get_current_internal_user),
                                 data_scope: dict = None):
@@ -70,7 +70,7 @@ def apply_data_scope(module: str):
             ...
     """
     def decorator(func: Callable):
-        @wraps(func)
+    @wraps(func)
         async def wrapper(*args, **kwargs):
             db = kwargs.get("db")
             current_user = kwargs.get("current_user")
@@ -87,7 +87,6 @@ def apply_data_scope(module: str):
         return wrapper
 
     return decorator
-
 
 def mask_field(db: Session, user_id: str, table: str, field: str, value: any, tenant_id: int) -> any:
     """Mask a field value based on field-level permissions.

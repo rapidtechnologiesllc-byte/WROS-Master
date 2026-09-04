@@ -4,6 +4,7 @@ Avinash on 2026-08-05 (see wros_interview_regrouping_and_rehire_guard_priority
 memory): "if there was a nohire in the past then when the next time
 someone is trying to schedule interview to the candidate they need to
 provide a clear justification an agentic bot should review and decide
+import logging
 or take approval from hiring manager before scheduling the interview."
 
 Attaches to the LEGACY interview system (app.models.user.InterviewPanel/
@@ -20,6 +21,7 @@ timestamp/FK-presence convention this codebase uses everywhere else
 (confirmed_at, superseded_at, etc.) rather than a second status flag
 duplicating what the status column already says.
 """
+import logging
 from sqlalchemy import (
     Column, DateTime, Enum, ForeignKey, Integer, JSON, Numeric, String, Text, func,
 )
@@ -30,17 +32,18 @@ from app.models.base import Base
 REHIRE_REVIEW_STATUSES = ("PENDING_HM_APPROVAL", "AI_CLEARED", "APPROVED", "REJECTED")
 AI_DECISIONS = ("CLEAR", "ESCALATE")
 
+logger = logging.getLogger(__name__)
 
 class InterviewRehireReview(Base):
     __tablename__ = "interview_rehire_reviews"
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
 
-    candidate_id = Column(String(36), ForeignKey("candidates.candidateID"), nullable=False, index=True)
-    round_name = Column(String(50), nullable=False)
-    job_id = Column(String(50), ForeignKey("jobs.jobID"), nullable=True)
+    candidate_id = Column(String(512), ForeignKey("candidates.candidateID"), nullable=False, index=True)
+    round_name = Column(String(512), nullable=False)
+    job_id = Column(String(512), ForeignKey("jobs.jobID"), nullable=True)
 
-    requested_by = Column(String(50), ForeignKey("users.UserID"), nullable=True)
+    requested_by = Column(String(512), ForeignKey("users.UserID"), nullable=True)
     justification = Column(Text, nullable=False)
 
     # Panel IDs (app.models.user.InterviewPanel.id) whose feedback carried
@@ -61,7 +64,7 @@ class InterviewRehireReview(Base):
     ai_reasoning = Column(Text, nullable=True)
     ai_confidence = Column(Numeric(3, 2), nullable=True)
 
-    decided_by = Column(String(50), ForeignKey("users.UserID"), nullable=True)
+    decided_by = Column(String(512), ForeignKey("users.UserID"), nullable=True)
     decided_at = Column(DateTime, nullable=True)
     decision_note = Column(Text, nullable=True)
 

@@ -1,4 +1,5 @@
 """
+import logging
 Pipeline Orchestration API - Trigger and monitor 8-agent hiring pipeline.
 
 Endpoints:
@@ -11,7 +12,8 @@ Endpoints:
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from app.core.dependencies import get_db, get_current_recruiter
+from app.core.dependencies import get_db, get_current_user, require_resource_permission
+from app.core.database import get_db
 from app.services.agent_orchestration_service import (
     FlashOrchestrator,
     ThunderAgent,
@@ -29,12 +31,11 @@ from app.core.logging import logger
 
 router = APIRouter(prefix="/pipeline", tags=["pipeline-orchestration"])
 
-
-@router.post("/start/{candidate_id}")
+@router.post("/start/{candidate_id}", dependencies=[Depends(require_resource_permission("agents", "manage"))])
 async def start_candidate_pipeline(
     candidate_id: str,
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_recruiter),
+    current_user = Depends(get_current_user),
 ):
     """
     Start the 8-agent pipeline for a candidate.
@@ -58,14 +59,14 @@ async def start_candidate_pipeline(
         }
 
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Error starting pipeline: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
-
-@router.get("/status")
+@router.get("/status", dependencies=[Depends(require_resource_permission("agents", "view"))])
 async def get_pipeline_status(
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_recruiter),
+    current_user = Depends(get_current_user),
 ):
     """
     Get complete pipeline status - which queues have items, which are clogged.
@@ -90,14 +91,14 @@ async def get_pipeline_status(
         }
 
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Error getting pipeline status: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
-
-@router.post("/execute-agents")
+@router.post("/execute-agents", dependencies=[Depends(require_resource_permission("agents", "manage"))])
 async def execute_all_agents(
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_recruiter),
+    current_user = Depends(get_current_user),
 ):
     """
     Execute all 8 agents for 1 cycle.
@@ -167,15 +168,18 @@ async def execute_all_agents(
         return results
 
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Error executing agents: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
-
-@router.get("/queue/{queue_name}")
+@router.get(
+    "/queue/{queue_name}",
+    dependencies=[Depends(require_resource_permission("queue", "view"))]
+)
 async def peek_queue(
     queue_name: str,
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_recruiter),
+    current_user = Depends(get_current_user),
 ):
     """
     Peek at a specific queue - see what's stuck waiting.
@@ -207,14 +211,17 @@ async def peek_queue(
         }
 
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Error peeking queue {queue_name}: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
-
-@router.get("/run-demo")
+@router.get(
+    "/run-demo",
+    dependencies=[Depends(require_resource_permission("run-demo", "view"))]
+)
 async def run_demo_pipeline(
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_recruiter),
+    current_user = Depends(get_current_user),
 ):
     """
     DEMO: Show the complete pipeline working end-to-end.
@@ -304,5 +311,6 @@ async def run_demo_pipeline(
         return demo_result
 
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Error running demo: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))

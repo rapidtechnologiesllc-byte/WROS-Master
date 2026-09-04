@@ -1,4 +1,5 @@
 """
+import logging
 S-035/HRMS-0435 -- Human Escalation Detection.
 
 Real architecture adaptations:
@@ -88,17 +89,14 @@ ESCALATION_EXIT_MESSAGE = (
     "recruiting team who will be in touch shortly."
 )
 
-
 def _matches_any(message_lower: str, phrases) -> Optional[str]:
     for phrase in phrases:
         if phrase in message_lower:
             return phrase
     return None
 
-
 def _normalize(text: str) -> str:
     return re.sub(r"[^a-z0-9 ]", "", text.lower()).strip()
-
 
 def _is_repeated_question(recent_messages: List[Dict], latest_message_body: str) -> bool:
     """Rule #2. Cheap normalized-substring near-duplicate check over the
@@ -112,7 +110,6 @@ def _is_repeated_question(recent_messages: List[Dict], latest_message_body: str)
     if not all(last_n):
         return False
     return len(set(last_n)) == 1
-
 
 def check_escalation(
     db: Session, tenant_id: str, candidate_id: str, latest_message_body: str, *,
@@ -138,6 +135,7 @@ def check_escalation(
     try:
         context = candidate_context_service.build_candidate_context(db, candidate_id, tenant_id, use_cache=False)
     except Exception as exc:
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[Escalation] Failed to build context for candidate {candidate_id!r}: {exc}")
         return {"needs_escalation": False, "reason": None, "trigger_type": None}
 
@@ -166,6 +164,7 @@ def check_escalation(
         needs_escalation = bool(parsed.get("needs_escalation", False))
         reason = str(parsed.get("reason") or "LLM-detected escalation need")
     except Exception as exc:
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[Escalation] ESCALATION_LLM_FAILED for candidate {candidate_id!r}: {exc}")
         return {"needs_escalation": False, "reason": None, "trigger_type": None}
 
@@ -173,12 +172,10 @@ def check_escalation(
         return {"needs_escalation": False, "reason": None, "trigger_type": None}
     return {"needs_escalation": True, "reason": reason, "trigger_type": "LLM"}
 
-
 def _candidate_display_name(candidate: Candidate) -> str:
     parts = [candidate.candidateFirstName, candidate.candidateLastName]
     name = " ".join(p for p in parts if p).strip()
     return name or candidate.candidateEmail
-
 
 def _assigned_recruiter(db: Session, candidate_id: str) -> Optional[Users]:
     """Mirrors sla_monitoring_service's own tenant-bridging resolver --
@@ -193,7 +190,6 @@ def _assigned_recruiter(db: Session, candidate_id: str) -> Optional[Users]:
     if assignment and assignment.assigned_by:
         return db.query(Users).filter(Users.UserID == assignment.assigned_by).first()
     return None
-
 
 def _notify_escalation(db: Session, conversation: CandidateConversation, candidate: Candidate, *, reason: str, is_legal: bool) -> None:
     name = _candidate_display_name(candidate)
@@ -211,6 +207,7 @@ def _notify_escalation(db: Session, conversation: CandidateConversation, candida
                 priority_tier="P0", channel_preference="IN_APP", message=primary_message,
             )
         except Exception as exc:
+            logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.warning(f"[Escalation] Failed to notify recruiter for conversation {conversation.id}: {exc}")
 
     if is_legal:  # BR-02 -- see module docstring on the "recruiting manager" adaptation
@@ -223,8 +220,8 @@ def _notify_escalation(db: Session, conversation: CandidateConversation, candida
                     message=f"LEGAL/COMPLIANCE escalation for {name}: {reason}. Review immediately (conversation {conversation.id}).",
                 )
             except Exception as exc:
+                logger.error(f"Error: {str(exc)}", exc_info=True)
                 logger.warning(f"[Escalation] Failed to notify manager for conversation {conversation.id}: {exc}")
-
 
 def execute_escalation(
     db: Session, conversation: CandidateConversation, candidate: Candidate, *,
@@ -249,7 +246,6 @@ def execute_escalation(
     _notify_escalation(db, conversation, candidate, reason=reason, is_legal=is_legal)
 
     db.commit()
-
 
 def resolve_and_resume(
     db: Session, conversation: CandidateConversation, candidate: Candidate, tenant_id: str, *,

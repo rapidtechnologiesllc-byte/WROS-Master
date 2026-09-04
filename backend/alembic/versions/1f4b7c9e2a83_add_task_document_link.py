@@ -1,3 +1,4 @@
+import logging
 """add tasks.candidate_id / tasks.document_id (document review linkage)
 
 Revision ID: 1f4b7c9e2a83
@@ -14,13 +15,11 @@ from typing import Sequence, Union
 from alembic import op
 import sqlalchemy as sa
 
-
 # revision identifiers, used by Alembic.
 revision: str = '1f4b7c9e2a83'
 down_revision: Union[str, Sequence[str], None] = '076eb838c5cc'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
-
 
 def upgrade() -> None:
     """Upgrade schema."""
@@ -28,7 +27,6 @@ def upgrade() -> None:
     op.add_column('tasks', sa.Column('document_id', sa.Integer(), nullable=True))
     op.create_index(op.f('ix_tasks_candidate_id'), 'tasks', ['candidate_id'], unique=False)
     op.create_index(op.f('ix_tasks_document_id'), 'tasks', ['document_id'], unique=False)
-
 
 def downgrade() -> None:
     """Downgrade schema."""

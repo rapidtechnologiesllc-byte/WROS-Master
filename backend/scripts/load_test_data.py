@@ -1,3 +1,4 @@
+import logging
 """DEPRECATED: SQLite test data loading is no longer supported.
 
 This script was used to load test data into local SQLite databases.

@@ -1,31 +1,34 @@
 from datetime import datetime
 from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text, Date, func, Boolean, JSON, Enum
 from sqlalchemy.orm import relationship
+import logging
 from app.models.base import Base
 
 # S-039/HRMS-0439 -- real values, no native DB enum (SQL Server, same
 # native_enum=False/create_constraint=True convention Candidate.employment_type
 # and app.models.client's enums already use).
 JOB_URGENCY_LEVELS = ("IMMEDIATE", "HIGH", "NORMAL", "FLEXIBLE")
+logger = logging.getLogger(__name__)
 
 class Users(Base):
     __tablename__ = "users"
-    UserID = Column(String(50), primary_key=True, index=True)
-    UserRole = Column(String(50), nullable=False)
+    UserID = Column(String(512), primary_key=True, index=True)
+    UserRole = Column(String(512), nullable=False)
     UserName = Column(String(150), nullable=True)
-    UserEmail = Column(String(200), unique=True, nullable=False, index=True)
-    UserPassword = Column(String(200), nullable=False)
+    UserEmail = Column(String(512), unique=True, nullable=False, index=True)
+    UserPassword = Column(String(512), nullable=False)
+    password_reset_required = Column(Boolean, nullable=False, default=True, index=True)  # Force password change on first login
     CreatedAt = Column(DateTime(timezone=False), server_default=func.now())
-    # RBAC — nullable so existing users are not broken on upgrade
-    role_id = Column(Integer, ForeignKey("roles.id"), nullable=True, index=True)
+    # RBAC — single role template per user (replaces UserRole junction table)
+    role_template_id = Column(Integer, ForeignKey("role_templates.id"), nullable=True, index=True)
     business_unit_id = Column(Integer, ForeignKey("business_units.id"), nullable=True, index=True)
     job_title = Column(String(150), nullable=True)  # e.g., "CEO", "Developer", "HR Manager"
-    department_id = Column(String(36), ForeignKey("departments.id"), nullable=True, index=True)
-    # HRMS-0109 — nullable for the same reason: existing rows get backfilled
-    # in a follow-up step, not broken by this migration. Every tenant-scoped
-    # query must filter on this column via app.core.tenant_context, never
-    # trust a tenant id supplied by the caller.
-    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
+    department_id = Column(String(512), ForeignKey("departments.id"), nullable=True, index=True)
+    # PRODUCTION SAFETY: tenant_id MUST be set, never allow None. Default to 1
+    # All new users get tenant_id from creator's tenant (fallback to 1)
+    # Every tenant-scoped query must filter on this column via app.core.tenant_context,
+    # never trust a tenant id supplied by the caller.
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False, server_default="1", default=1, index=True)
     # Phase 1 B3 — MFA. mfa_enabled starts False for every existing row;
     # mfa_secret is populated at enrollment, never before. See
     # app.core.mfa -- enforcement itself is behind a separate,
@@ -71,7 +74,7 @@ class Users(Base):
     # Nullable: assign_ai_agent() falls back to the hardcoded
     # AI_AGENT_NAME/AI_AGENT_PERSONA defaults when unset (BR-02 -- an
     # agent name must never reach a candidate blank).
-    ai_agent_name = Column(String(100), nullable=True)
+    ai_agent_name = Column(String(512), nullable=True)
     ai_agent_persona = Column(Text, nullable=True)
     # S-065/HRMS-0465 -- no system_configuration table exists in this
     # codebase (same repeated gap every prior story flagged) -- this is
@@ -88,9 +91,8 @@ class Users(Base):
     thunder_enabled = Column(Boolean, nullable=False, default=True, server_default="1")
     # User Lifecycle Management — termination tracking
     terminated_at = Column(DateTime(timezone=False), nullable=True, index=True)
-    terminated_by_user_id = Column(String(50), ForeignKey("users.UserID"), nullable=True, index=True)
+    terminated_by_user_id = Column(String(512), ForeignKey("users.UserID"), nullable=True, index=True)
 
-    role = relationship("Role", foreign_keys=[role_id], lazy="select")
     business_unit = relationship("BusinessUnit", foreign_keys=[business_unit_id], lazy="select")
     department = relationship("Department", foreign_keys=[department_id], lazy="select")
     terminated_by_user = relationship("Users", foreign_keys=[terminated_by_user_id], remote_side=[UserID], lazy="select")
@@ -101,25 +103,25 @@ class Users(Base):
 
 class Jobs(Base):
     __tablename__ = "jobs"
-    jobID = Column(String(50), primary_key=True, index=True)
-    jobTitle = Column(String(200), nullable=False)
+    jobID = Column(String(512), primary_key=True, index=True)
+    jobTitle = Column(String(512), nullable=False)
     jobDescription = Column(Text, nullable=False)
     jobSkills = Column(Text, nullable=False)
-    jobExperience = Column(String(50), nullable=False)
-    jobLocation = Column(String(50), nullable=False)
-    salaryRange = Column(String(50), nullable=True)
+    jobExperience = Column(String(512), nullable=False)
+    jobLocation = Column(String(512), nullable=False)
+    salaryRange = Column(String(512), nullable=True)
     jobCreatedAt = Column(DateTime(timezone=False), server_default=func.now())
-    companyType = Column(String(50), nullable=True)#full time, part time, contract, temporary, internship
-    companyName = Column(String(50), nullable=True)
-    contactPerson = Column(String(50), ForeignKey("users.UserID"), nullable=True)
-    jobStatus = Column(String(50), nullable=True)
+    companyType = Column(String(512), nullable=True)#full time, part time, contract, temporary, internship
+    companyName = Column(String(512), nullable=True)
+    contactPerson = Column(String(512), ForeignKey("users.UserID"), nullable=True)
+    jobStatus = Column(String(512), nullable=True)
     noOfPositions = Column(Integer, nullable=True)
     startDate = Column(Date, nullable=True)
     endDate = Column(Date, nullable=True)
-    recuriterID = Column(String(50), ForeignKey("users.UserID"), nullable=True)
-    hiringManagerID = Column(String(50), ForeignKey("users.UserID"), nullable=True)
+    recuriterID = Column(String(512), ForeignKey("users.UserID"), nullable=True)
+    hiringManagerID = Column(String(512), ForeignKey("users.UserID"), nullable=True)
     business_unit_id = Column(Integer, ForeignKey("business_units.id"), nullable=True, index=True)
-    department_id = Column(String(36), ForeignKey("departments.id"), nullable=True, index=True)
+    department_id = Column(String(512), ForeignKey("departments.id"), nullable=True, index=True)
     # HRMS-0109 — same nullable-first pattern as Users.tenant_id.
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
     # S-037/HRMS-0437 -- structured requirements with boolean AND/OR matching
@@ -129,7 +131,7 @@ class Jobs(Base):
     # job_skills_boolean_mode: "AND" requires all mandatory skills, "OR" allows any skill
     job_skills_boolean_mode = Column(String(10), nullable=False, server_default="AND", default="AND")
     min_experience_years = Column(Integer, nullable=True)
-    domain = Column(String(100), nullable=True)
+    domain = Column(String(512), nullable=True)
     certifications_preferred = Column(JSON, nullable=True)
     # S-038/HRMS-0438 -- same lazy-parse posture as the S-037 columns
     # above. The real recruiter-entered field is salaryRange (free text,
@@ -157,16 +159,14 @@ class Jobs(Base):
     contact_person_user = relationship("Users", foreign_keys=[contactPerson], lazy="select")
     candidates = relationship("Candidate", foreign_keys="Candidate.job_id", lazy="select", back_populates="job")
 
-
-
 class CandidateAssignment(Base):
     __tablename__ = "candidate_assignments"
 
     id = Column(Integer, primary_key=True, index=True)
-    candidate_id = Column(String(36), ForeignKey("candidates.candidateID"), nullable=False)
+    candidate_id = Column(String(512), ForeignKey("candidates.candidateID"), nullable=False)
 
-    hiring_manager_id = Column(String(50), ForeignKey("users.UserID"))
-    reporting_manager_id = Column(String(50), ForeignKey("users.UserID"))
+    hiring_manager_id = Column(String(512), ForeignKey("users.UserID"))
+    reporting_manager_id = Column(String(512), ForeignKey("users.UserID"))
 
     hiring_manager = relationship("Users", foreign_keys=[hiring_manager_id])
     reporting_manager = relationship("Users", foreign_keys=[reporting_manager_id])
@@ -177,21 +177,20 @@ class InterviewPanel(Base):
     __tablename__ = "interview_panels"
 
     id = Column(Integer, primary_key=True)
-    candidate_id = Column(String(36), ForeignKey("candidates.candidateID"))
-    job_id = Column(String(50), ForeignKey("jobs.jobID"), nullable=True)  # job the candidate is interviewed for
+    candidate_id = Column(String(512), ForeignKey("candidates.candidateID"))
+    job_id = Column(String(512), ForeignKey("jobs.jobID"), nullable=True)  # job the candidate is interviewed for
     round_name = Column(String(50))  # HR, Tech, Manager
 
     created_at = Column(DateTime, default=datetime.utcnow)
 
     job = relationship("Jobs", foreign_keys=[job_id], lazy="select")
 
-
 class PanelMember(Base):
     __tablename__ = "panel_members"
 
     id = Column(Integer, primary_key=True)
     panel_id = Column(Integer, ForeignKey("interview_panels.id"))
-    interviewer_id = Column(String(50), ForeignKey("users.UserID"))
+    interviewer_id = Column(String(512), ForeignKey("users.UserID"))
 
     interviewer = relationship("Users")
 
@@ -200,7 +199,7 @@ class Interview(Base):
 
     id = Column(Integer, primary_key=True)
     panel_id = Column(Integer, ForeignKey("interview_panels.id"))
-    candidate_id = Column(String(36), ForeignKey("candidates.candidateID"))
+    candidate_id = Column(String(512), ForeignKey("candidates.candidateID"))
 
     start_time = Column(DateTime)
     end_time = Column(DateTime)
@@ -209,14 +208,14 @@ class Interview(Base):
  
     status = Column(String(50))  # Scheduled, Completed, Cancelled
 
-    feedback_status = Column(String(50), nullable=False, server_default='Pending')  # Pending, Completed, Cancelled
+    feedback_status = Column(String(512), nullable=False, server_default='Pending')  # Pending, Completed, Cancelled
 
 class InterviewFeedback(Base):
     __tablename__ = "interview_feedback"
 
     id = Column(Integer, primary_key=True)
     interview_id = Column(Integer, ForeignKey("interviews.id"))
-    interviewer_id = Column(String(50), ForeignKey("users.UserID"))
+    interviewer_id = Column(String(512), ForeignKey("users.UserID"))
 
     technical_score = Column(Integer)
     communication_score = Column(Integer)
@@ -228,27 +227,42 @@ class InterviewFeedback(Base):
 
     submitted_at = Column(DateTime, default=datetime.utcnow)
 
-
-class UserRole(Base):
-    """Junction table: Users ↔ RoleTemplates
-
-    Enables multi-role assignment and role template binding.
-    Replaces the single-role UserRole string field for new RBAC system.
-
-    Users can have multiple roles via multiple UserRole records.
-    Each role can be scoped to a specific business unit if needed.
+class UserCustomPermission(Base):
     """
-    __tablename__ = "user_roles"
+    Custom permission override for a user.
+
+    Allows granting or restricting specific permissions to a user,
+    independent of their role template permissions.
+
+    Architecture: Single role + manual overrides
+    - User has one role_template (via users.role_id)
+    - Can have custom permission overrides for specific resources
+    - Permission = role permission OR custom override
+    """
+    __tablename__ = "user_custom_permissions"
 
     id = Column(Integer, primary_key=True)
-    user_id = Column(String(50), ForeignKey("users.UserID"), nullable=False, index=True)
-    role_template_id = Column(Integer, ForeignKey("role_templates.id"), nullable=False, index=True)
-    business_unit_id = Column(Integer, ForeignKey("business_units.id"), nullable=True)
-    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False, index=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    user_id = Column(String(512), ForeignKey("users.UserID"), nullable=False, index=True)
+    resource_id = Column(Integer, ForeignKey("resources.id"), nullable=False, index=True)
+
+    # Permission flags (TRUE = grant, FALSE = restrict)
+    can_view = Column(Boolean, nullable=False, default=False)
+    can_create = Column(Boolean, nullable=False, default=False)
+    can_edit = Column(Boolean, nullable=False, default=False)
+    can_delete = Column(Boolean, nullable=False, default=False)
+
+    # Audit trail
+    override_reason = Column(String(512), nullable=True)  # Why was this override set?
+    created_by = Column(String(512), ForeignKey("users.UserID"), nullable=True)  # Admin who set it
+    created_at = Column(DateTime, default=datetime.utcnow, index=True)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Ensure only one override per user+resource
+    __table_args__ = (
+        {"sqlite_autoincrement": True},
+    )
 
     # Relationships
     user = relationship("Users", foreign_keys=[user_id])
-    role_template = relationship("RoleTemplate", foreign_keys=[role_template_id])
-    business_unit = relationship("BusinessUnit", foreign_keys=[business_unit_id])
+    resource = relationship("Resource", foreign_keys=[resource_id])
+    created_by_user = relationship("Users", foreign_keys=[created_by])

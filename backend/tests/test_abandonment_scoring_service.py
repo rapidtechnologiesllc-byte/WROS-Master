@@ -1,4 +1,5 @@
 """
+import logging
 S-046/HRMS-0446 -- Candidate Abandonment Prediction.
 
 Real architecture under test (see abandonment_scoring_service module
@@ -31,7 +32,6 @@ from app.models.user import Users
 
 import app.services.abandonment_scoring_service as svc
 
-
 @pytest.fixture()
 def db_session():
     fd, db_path = tempfile.mkstemp(suffix=".sqlite3")
@@ -50,7 +50,6 @@ def db_session():
         engine.dispose()
         os.remove(db_path)
 
-
 @pytest.fixture()
 def seeded(db_session):
     owner = Users(UserID="U-ORG", UserRole="Super User", UserEmail="ceo@blitzenx.com", UserPassword="h", tenant_id=None)
@@ -63,7 +62,6 @@ def seeded(db_session):
     db_session.commit()
     return candidate, conv
 
-
 def _add_events(db_session, conv, ai_count, reply_count, *, within_days=7):
     now = datetime.utcnow()
     for i in range(ai_count):
@@ -72,13 +70,11 @@ def _add_events(db_session, conv, ai_count, reply_count, *, within_days=7):
         db_session.add(ConversationEvent(conversation_id=conv.id, event_type="candidate_reply", event_data={}, triggered_by="candidate", created_at=now - timedelta(hours=i + 1)))
     db_session.commit()
 
-
 def _add_sentiments(db_session, sentiments):
     now = datetime.utcnow()
     for i, s in enumerate(sentiments):
         db_session.add(CandidateSentimentLog(tenant_id="U-ORG", candidate_id="C-1", conversation_id=1, sentiment=s, confidence=0.9, analyzed_at=now - timedelta(hours=i)))
     db_session.commit()
-
 
 # ── AC-1: returns 0-100 integer, upserts ─────────────────────────────
 
@@ -92,7 +88,6 @@ def test_returns_score_in_range_and_persists(db_session, seeded):
     assert row is not None
     assert row.abandonment_score == result["abandonment_score"]
 
-
 def test_recalculation_upserts_not_duplicates(db_session, seeded):
     candidate, conv = seeded
     svc.calculate_abandonment_score(db_session, "C-1", "U-ORG", conv)
@@ -100,7 +95,6 @@ def test_recalculation_upserts_not_duplicates(db_session, seeded):
 
     rows = db_session.query(CandidateAbandonmentScore).filter(CandidateAbandonmentScore.candidate_id == "C-1").all()
     assert len(rows) == 1
-
 
 # ── AC-2 / TC-001: worst case -> score >= 70, flagged ─────────────────
 
@@ -119,7 +113,6 @@ def test_worst_case_flags_high_risk(db_session, seeded):
     assert result["abandonment_score"] >= 70
     assert result["is_flagged"] is True
 
-
 # ── AC-3 / TC-002: best case -> score near 0, not flagged ─────────────
 
 def test_best_case_scores_near_zero(db_session, seeded):
@@ -133,7 +126,6 @@ def test_best_case_scores_near_zero(db_session, seeded):
     assert result["abandonment_score"] <= 10
     assert result["is_flagged"] is False
 
-
 # ── Component-level checks ────────────────────────────────────────────
 
 def test_no_outbound_yet_scores_zero_response_rate_points(db_session, seeded):
@@ -141,12 +133,10 @@ def test_no_outbound_yet_scores_zero_response_rate_points(db_session, seeded):
     pts = svc._response_rate_points(db_session, conv.id, datetime.utcnow())
     assert pts == 0
 
-
 def test_no_sentiment_data_treated_as_neutral(db_session, seeded):
     candidate, conv = seeded
     pts = svc._sentiment_trend_points(db_session, "C-1")
     assert pts == 0
-
 
 def test_mixed_sentiment_scores_middle_points(db_session, seeded):
     candidate, conv = seeded
@@ -154,13 +144,11 @@ def test_mixed_sentiment_scores_middle_points(db_session, seeded):
     pts = svc._sentiment_trend_points(db_session, "C-1")
     assert pts == 5
 
-
 def test_three_negatives_not_all_scores_15(db_session, seeded):
     candidate, conv = seeded
     _add_sentiments(db_session, ["NEGATIVE", "NEGATIVE", "NEGATIVE", "POSITIVE", "POSITIVE"])
     pts = svc._sentiment_trend_points(db_session, "C-1")
     assert pts == 15
-
 
 def test_followup_count_points_scale(db_session, seeded):
     candidate, conv = seeded
@@ -178,14 +166,12 @@ def test_followup_count_points_scale(db_session, seeded):
     db_session.commit()
     assert svc._followup_count_points(db_session, "U-ORG", "C-1", conv.id) == 20
 
-
 def test_days_since_last_reply_falls_back_to_conversation_created_at_when_never_replied(db_session, seeded):
     candidate, conv = seeded
     conv.created_at = datetime.utcnow() - timedelta(days=15)
     db_session.commit()
     pts = svc._days_since_last_reply_points(db_session, conv, datetime.utcnow())
     assert pts == 25  # 10+ days
-
 
 def test_days_since_last_reply_uses_most_recent_reply_event(db_session, seeded):
     candidate, conv = seeded
@@ -194,14 +180,12 @@ def test_days_since_last_reply_uses_most_recent_reply_event(db_session, seeded):
     pts = svc._days_since_last_reply_points(db_session, conv, datetime.utcnow())
     assert pts == 15  # 3-5 days
 
-
 # ── AC-5 / TC-003: job scores all eligible conversations ─────────────
 
 def test_job_scores_all_eligible_conversations(db_session, seeded):
     candidate, conv = seeded
     result = svc.run_abandonment_scoring_job(db_session)
     assert result["scored"] == 1
-
 
 def test_job_skips_recruiter_owned_conversation(db_session, seeded):
     candidate, conv = seeded
@@ -212,7 +196,6 @@ def test_job_skips_recruiter_owned_conversation(db_session, seeded):
     result = svc.run_abandonment_scoring_job(db_session)
     assert result["scored"] == 0
 
-
 def test_job_skips_closed_conversation(db_session, seeded):
     candidate, conv = seeded
     conv.status = "closed"
@@ -221,7 +204,6 @@ def test_job_skips_closed_conversation(db_session, seeded):
     result = svc.run_abandonment_scoring_job(db_session)
     assert result["scored"] == 0
 
-
 def test_job_skips_escalated_conversation(db_session, seeded):
     candidate, conv = seeded
     conv.escalation_state = "escalated"
@@ -229,7 +211,6 @@ def test_job_skips_escalated_conversation(db_session, seeded):
 
     result = svc.run_abandonment_scoring_job(db_session)
     assert result["scored"] == 0
-
 
 def test_job_never_raises_on_bad_conversation(db_session, seeded, monkeypatch):
     candidate, conv = seeded
@@ -240,7 +221,6 @@ def test_job_never_raises_on_bad_conversation(db_session, seeded, monkeypatch):
 
     result = svc.run_abandonment_scoring_job(db_session)  # should not raise
     assert result["scored"] == 0
-
 
 # ── BR-01: notification fires once, only on the newly-flagged transition ─
 

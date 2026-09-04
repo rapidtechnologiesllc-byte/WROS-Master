@@ -1,4 +1,5 @@
 """
+import logging
 Permission Audit Service - Tracks all permission checks and denials.
 
 This service logs:
@@ -14,6 +15,7 @@ Used for:
 - Compliance reporting
 """
 
+import logging
 from datetime import datetime
 from typing import Optional
 from sqlalchemy.orm import Session
@@ -22,6 +24,7 @@ from sqlalchemy import func
 from app.core.logging import logger
 from app.models.audit_log import AuditLog
 
+logger = logging.getLogger(__name__)
 
 class PermissionAuditService:
     """Service for logging permission checks and access attempts."""
@@ -272,7 +275,6 @@ class PermissionAuditService:
                 ...
             }
         """
-        from datetime import timedelta
 
         cutoff_date = datetime.utcnow() - timedelta(days=days)
 
@@ -318,7 +320,6 @@ class PermissionAuditService:
         Returns:
             True if user has >= threshold denials in the time window
         """
-        from datetime import timedelta
 
         cutoff_time = datetime.utcnow() - timedelta(minutes=minutes)
 

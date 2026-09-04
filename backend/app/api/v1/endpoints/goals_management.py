@@ -1,21 +1,25 @@
 """
+import logging
 Goals Management Endpoints - CEO Strategic Goals with Auto-Cascade
 
 CEO sets strategic goals. System automatically cascades to all departments.
 Example: CEO sets "150 consultants" → Workforce Ops auto-gets 150/year (37.5/Q, 12.5/month, 2.4/week, 0.34/day)
 """
 
+import logging
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from typing import Dict, List, Any
 from pydantic import BaseModel
 from datetime import datetime
 
-from app.core.dependencies import get_db, get_current_user
+from app.core.dependencies import get_db, get_current_user, require_resource_permission
 from app.models.user import Users
+from app.core.database import get_db
 
 router = APIRouter(prefix="/goals", tags=["goals"])
 
+logger = logging.getLogger(__name__)
 
 class StrategicGoalCreate(BaseModel):
     goal_name: str
@@ -24,13 +28,11 @@ class StrategicGoalCreate(BaseModel):
     unit: str  # "people" | "$" | "logos"
     year: int
 
-
 class CascadeRule(BaseModel):
     formula: str  # "direct_assignment" | "divide_equal" | "divide_weighted"
     target: float = None
     count: int = None
     weights: Dict[str, float] = None
-
 
 class StrategicGoal(BaseModel):
     id: str = None
@@ -42,7 +44,6 @@ class StrategicGoal(BaseModel):
     year: int
     progress_pct: float = 0
 
-
 def calculate_timeframe_targets(annual_target: float) -> Dict[str, float]:
     """Calculate quarterly, monthly, weekly, daily targets from annual goal"""
     return {
@@ -52,7 +53,6 @@ def calculate_timeframe_targets(annual_target: float) -> Dict[str, float]:
         "weekly": round(annual_target / 52, 2),
         "daily": round(annual_target / 365, 4)
     }
-
 
 def cascade_to_departments(goal: StrategicGoal, cascade_rules: Dict[str, Any]) -> Dict[str, Any]:
     """Auto-cascade CEO goal to all departments"""
@@ -104,8 +104,10 @@ def cascade_to_departments(goal: StrategicGoal, cascade_rules: Dict[str, Any]) -
 
     return cascaded
 
-
-@router.post("/strategic")
+@router.post(
+    "/strategic",
+    dependencies=[Depends(require_resource_permission("strategic", "create"))]
+)
 async def create_strategic_goal(
     goal_create: StrategicGoalCreate,
     cascade_rules: Dict[str, Any],
@@ -233,8 +235,10 @@ async def create_strategic_goal(
         "message": f"Goal '{goal_create.goal_name}' created and cascaded to {len(cascaded_records)} departments"
     }
 
-
-@router.get("/strategic")
+@router.get(
+    "/strategic",
+    dependencies=[Depends(require_resource_permission("strategic", "view"))]
+)
 async def list_strategic_goals(
     year: int = 2026,
     current_user: Users = Depends(get_current_user),
@@ -275,8 +279,10 @@ async def list_strategic_goals(
         "source": "database"
     }
 
-
-@router.get("/cascaded")
+@router.get(
+    "/cascaded",
+    dependencies=[Depends(require_resource_permission("cascaded", "view"))]
+)
 async def get_cascaded_goals(
     department: str = None,
     year: int = 2026,
@@ -310,7 +316,6 @@ async def get_cascaded_goals(
         strategic = cascaded.strategic_goal
 
         # Calculate week number and expected pace
-        from datetime import datetime
         week_num = datetime.utcnow().isocalendar()[1]
         expected_by_week = (cascaded.annual / 52) * week_num
         variance = cascaded.current_progress - expected_by_week
@@ -352,8 +357,10 @@ async def get_cascaded_goals(
         "source": "database"
     }
 
-
-@router.put("/strategic/{goal_id}")
+@router.put(
+    "/strategic/{goal_id}",
+    dependencies=[Depends(require_resource_permission("strategic", "update"))]
+)
 async def update_strategic_goal(
     goal_id: str,
     new_target: float,
@@ -380,8 +387,10 @@ async def update_strategic_goal(
         "cascading_to": ["workforce_ops", "sales", "partner", "bu_head"]
     }
 
-
-@router.post("/strategic/validate-cascade")
+@router.post(
+    "/strategic/validate-cascade",
+    dependencies=[Depends(require_resource_permission("strategic", "create"))]
+)
 async def ceo_agent_validates_goal_cascade(
     goal_id: str,
     proposed_cascades: Dict[str, Any],
@@ -453,8 +462,10 @@ async def ceo_agent_validates_goal_cascade(
 
     return validation
 
-
-@router.get("/flash-validation/{department}")
+@router.get(
+    "/flash-validation/{department}",
+    dependencies=[Depends(require_resource_permission("flash-validation", "view"))]
+)
 async def get_flash_validation_goals(
     department: str,
     current_user: Users = Depends(get_current_user),

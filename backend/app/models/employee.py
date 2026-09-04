@@ -24,6 +24,7 @@ existed. That's not true here: this table has zero rows before this
 migration runs, so there's nothing to backfill and no reason to
 replay history that doesn't apply.
 """
+import logging
 import uuid
 from datetime import date, datetime
 
@@ -35,10 +36,8 @@ from sqlalchemy.orm import relationship
 
 from app.models.base import Base
 
-
 def _new_uuid() -> str:
     return str(uuid.uuid4())
-
 
 # INTERN added 2026-07-23: Employment Type collection moved from candidate
 # intake to employee conversion (Avinash's direct instruction -- it's a
@@ -81,34 +80,35 @@ ALLOWED_STATUS_TRANSITIONS = {
     "PERFORMANCE_MANAGED": {"ACTIVE", "NOTICE_PERIOD"},
 }
 
+logger = logging.getLogger(__name__)
 
 class Employee(Base):
     __tablename__ = "employees"
 
-    id = Column(String(36), primary_key=True, default=_new_uuid)
+    id = Column(String(512), primary_key=True, default=_new_uuid)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
     # Nullable + unique: links back to the candidate this employee
     # originated from; null for a direct hire never in the candidate
     # pipeline. UNIQUE enforces BR-04 -- one candidate can only ever
     # become one employee record.
-    candidate_id = Column(String(36), ForeignKey("candidates.candidateID"), nullable=True, unique=True)
+    candidate_id = Column(String(512), ForeignKey("candidates.candidateID"), nullable=True, unique=True)
 
-    employee_number = Column(String(50), nullable=True)  # BR-02: auto-generated, see generate_employee_number()
-    tenant_employee_id = Column(String(100), nullable=True)
+    employee_number = Column(String(512), nullable=True)  # BR-02: auto-generated, see generate_employee_number()
+    tenant_employee_id = Column(String(512), nullable=True)
 
-    first_name = Column(String(100), nullable=False)
-    last_name = Column(String(100), nullable=False)
+    first_name = Column(String(512), nullable=False)
+    last_name = Column(String(512), nullable=False)
     legal_name = Column(String(300), nullable=True)
     email = Column(String(300), nullable=False, index=True)
     personal_email = Column(String(300), nullable=True)
-    phone = Column(String(50), nullable=True)
+    phone = Column(String(512), nullable=True)
     date_of_birth = Column(Date, nullable=True)
-    gender = Column(String(50), nullable=True)
-    nationality = Column(String(100), nullable=True)
+    gender = Column(String(512), nullable=True)
+    nationality = Column(String(512), nullable=True)
     current_address = Column(Text, nullable=True)
     permanent_address = Column(Text, nullable=True)
-    emergency_contact_name = Column(String(200), nullable=True)
-    emergency_contact_phone = Column(String(50), nullable=True)
+    emergency_contact_name = Column(String(512), nullable=True)
+    emergency_contact_phone = Column(String(512), nullable=True)
 
     joining_date = Column(Date, nullable=False)
     confirmation_date = Column(Date, nullable=True)
@@ -118,12 +118,12 @@ class Employee(Base):
     status = Column(Enum(*EMPLOYEE_STATUSES, name="employee_status", native_enum=False, create_constraint=True), nullable=False, default="PRE_JOINING")
 
     bu_id = Column(Integer, ForeignKey("business_units.id"), nullable=True, index=True)
-    manager_id = Column(String(36), ForeignKey("employees.id"), nullable=True, index=True)
+    manager_id = Column(String(512), ForeignKey("employees.id"), nullable=True, index=True)
 
     # Organizational hierarchy position (links to org_nodes for approval chains, role-based access)
-    org_node_id = Column(String(36), ForeignKey("org_nodes.id"), nullable=True, index=True)
+    org_node_id = Column(String(512), ForeignKey("org_nodes.id"), nullable=True, index=True)
 
-    current_title = Column(String(200), nullable=True)
+    current_title = Column(String(512), nullable=True)
     current_skills = Column(Text, nullable=True)  # JSON-encoded array; see current_skills_list()/set_current_skills()
     total_experience_months = Column(Integer, nullable=True)
     blitzenx_experience_months = Column(Integer, nullable=False, default = False)
@@ -133,9 +133,9 @@ class Employee(Base):
     billing_classification = Column(Enum(*BILLING_CLASSIFICATIONS, name="billing_classification", native_enum=False, create_constraint=True), nullable=False, default="BENCH")
     work_location = Column(Enum(*WORK_LOCATIONS, name="work_location", native_enum=False, create_constraint=True), nullable=False, default="REMOTE")
 
-    visa_status = Column(String(100), nullable=True)
-    pan_number = Column(String(50), nullable=True)
-    tax_id = Column(String(100), nullable=True)
+    visa_status = Column(String(512), nullable=True)
+    pan_number = Column(String(512), nullable=True)
+    tax_id = Column(String(512), nullable=True)
     # BR-01: encrypted at the application level, never plaintext. See
     # app.core.field_encryption -- encrypted before assignment, decrypted
     # only by callers with PAYROLL/ADMIN authority (not yet wired to any
@@ -144,7 +144,7 @@ class Employee(Base):
     bank_account_number_encrypted = Column(Text, nullable=True)
     bank_routing_encrypted = Column(Text, nullable=True)
 
-    wros_user_id = Column(String(50), ForeignKey("users.UserID"), nullable=True)
+    wros_user_id = Column(String(512), ForeignKey("users.UserID"), nullable=True)
 
     # HRMS-0101-REV -- delivery engine + buddy program + HTD fields,
     # built in from the start (see module docstring).
@@ -159,11 +159,11 @@ class Employee(Base):
     htd_track = Column(Boolean, nullable=False, default=False)
     htd_start_date = Column(Date, nullable=True)
     htd_phase = Column(Enum(*HTD_PHASES, name="htd_phase", native_enum=False, create_constraint=True), nullable=True)
-    reporting_manager_user_id = Column(String(50), ForeignKey("users.UserID"), nullable=True)
+    reporting_manager_user_id = Column(String(512), ForeignKey("users.UserID"), nullable=True)
 
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
-    created_by = Column(String(50), nullable=True)
+    created_by = Column(String(512), nullable=True)
 
     manager = relationship("Employee", remote_side=[id], foreign_keys=[manager_id])
     # OrgNode relationship for approval chains and role-based access
@@ -180,7 +180,6 @@ class Employee(Base):
         ),
     )
 
-
 class EmployeeEmploymentHistory(Base):
     """BR-03: insert-only. No UPDATE or DELETE ever permitted -- see the
     append-only guard below, same pattern as AuditLog."""
@@ -188,7 +187,7 @@ class EmployeeEmploymentHistory(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
-    employee_id = Column(String(36), ForeignKey("employees.id"), nullable=False, index=True)
+    employee_id = Column(String(512), ForeignKey("employees.id"), nullable=False, index=True)
     change_type = Column(
         Enum("TITLE", "SALARY", "BILLING_RATE", "STATUS", "BU", "MANAGER", "LOCATION", name="employment_change_type", native_enum=False, create_constraint=True),
         nullable=False,
@@ -197,16 +196,15 @@ class EmployeeEmploymentHistory(Base):
     new_value = Column(Text, nullable=True)  # JSON-encoded
     effective_date = Column(Date, nullable=False)
     reason = Column(Text, nullable=True)
-    changed_by = Column(String(50), nullable=True)
+    changed_by = Column(String(512), nullable=True)
     changed_at = Column(DateTime, server_default=func.now())
-
 
 class EmployeeDocuments(Base):
     __tablename__ = "employee_documents"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
-    employee_id = Column(String(36), ForeignKey("employees.id"), nullable=False, index=True)
+    employee_id = Column(String(512), ForeignKey("employees.id"), nullable=False, index=True)
     document_type = Column(
         Enum("OFFER_LETTER", "CONTRACT", "ID_PROOF", "ADDRESS_PROOF", "PAN", "TAX_FORM", "VISA", "NDA", "OTHER",
              name="employee_document_type", native_enum=False, create_constraint=True),
@@ -214,9 +212,8 @@ class EmployeeDocuments(Base):
     )
     document_url = Column(Text, nullable=False)
     uploaded_at = Column(DateTime, server_default=func.now())
-    verified_by = Column(String(50), nullable=True)
+    verified_by = Column(String(512), nullable=True)
     verified_at = Column(DateTime, nullable=True)
-
 
 class EmployeeEngineHistory(Base):
     """HRMS-0101-REV step 4 -- insert-only history of SPECIALITY/CORE
@@ -226,10 +223,10 @@ class EmployeeEngineHistory(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
-    employee_id = Column(String(36), ForeignKey("employees.id"), nullable=False, index=True)
+    employee_id = Column(String(512), ForeignKey("employees.id"), nullable=False, index=True)
     from_engine = Column(Enum(*DELIVERY_ENGINES, name="engine_history_from", native_enum=False, create_constraint=True), nullable=True)
     to_engine = Column(Enum(*DELIVERY_ENGINES, name="engine_history_to", native_enum=False, create_constraint=True), nullable=False)
     changed_at = Column(DateTime, server_default=func.now())
-    changed_by = Column(String(50), nullable=True)
-    approval_reference = Column(String(200), nullable=True)
+    changed_by = Column(String(512), nullable=True)
+    approval_reference = Column(String(512), nullable=True)
     reason = Column(Text, nullable=True)

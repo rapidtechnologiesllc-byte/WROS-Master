@@ -1,4 +1,5 @@
 """
+import logging
 S-075/HRMS-0475 -- AI Recruiter Pause & Resume Controls.
 
 Real architecture adaptation: HRMS-0466 Supervisor Agent (S-066) -- the
@@ -30,6 +31,7 @@ every other Thunder gate) -- pausing Thunder must never block a human
 from messaging a candidate themselves, matching BR-01's "pause is a
 separate flag from ownership" framing.
 """
+import logging
 from datetime import datetime, timedelta
 from typing import Dict, Optional
 
@@ -48,13 +50,13 @@ PAUSE_DURATION_PRESETS = {
     "1_week": timedelta(days=7),
 }
 
+logger = logging.getLogger(__name__)
 
 class ThunderPausedError(Exception):
     """Raised by every real Thunder send choke point when BR-01
     (per-candidate pause) or BR-03 (global tenant pause) applies.
     Callers catch this the same way they already catch ConsentNotGiven /
     DuplicateMessageSuppressed and skip the candidate."""
-
 
 def is_thunder_paused(db: Session) -> bool:
     """Check if Thunder autonomous loop is paused.
@@ -64,7 +66,6 @@ def is_thunder_paused(db: Session) -> bool:
     # Kill switch can be implemented later if needed
     return False
 
-
 def is_thunder_paused_for_conversation(db: Session, conversation: CandidateConversation) -> bool:
     """BR-03: global tenant pause takes precedence over -- i.e. is
     checked in addition to, regardless of -- the per-candidate flag."""
@@ -73,14 +74,12 @@ def is_thunder_paused_for_conversation(db: Session, conversation: CandidateConve
     tenant_user = db.query(Users).filter(Users.UserID == conversation.tenant_id).first()
     return bool(tenant_user is not None and tenant_user.thunder_enabled is False)
 
-
 def raise_if_thunder_paused(db: Session, conversation: CandidateConversation) -> None:
     if is_thunder_paused_for_conversation(db, conversation):
         raise ThunderPausedError(
             f"Thunder is paused for conversation {conversation.id} "
             f"(candidate {conversation.candidate_id!r}) -- send skipped."
         )
-
 
 def pause_thunder(
     db: Session, conversation: CandidateConversation, *, paused_by: str, resume_at: Optional[datetime] = None,
@@ -94,13 +93,11 @@ def pause_thunder(
     db.add(conversation)
     return conversation
 
-
 def resume_thunder(db: Session, conversation: CandidateConversation) -> CandidateConversation:
     conversation.is_thunder_paused = False
     conversation.thunder_resume_at = None
     db.add(conversation)
     return conversation
-
 
 def run_pause_expiry_job(db: Session) -> Dict:
     """Step 3's PauseExpiryJob -- runs every 15 min (see
@@ -135,6 +132,7 @@ def run_pause_expiry_job(db: Session) -> Dict:
             db.commit()
             result["resumed"] += 1
         except Exception as exc:
+            logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.error(f"[ThunderPause] Failed auto-resuming conversation {conversation.id!r}: {exc}")
             db.rollback()
     return result

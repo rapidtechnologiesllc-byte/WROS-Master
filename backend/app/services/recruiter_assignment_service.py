@@ -4,8 +4,8 @@ Recruiter Assignment Service - Round-robin assignment of jobs to recruiters
 from sqlalchemy.orm import Session
 from app.models.user import Users
 from app.models.job import Job
+import logging
 from app.core.logging import logger
-
 
 def assign_to_recruiter_roundrobin(db: Session) -> Users:
     """
@@ -52,5 +52,6 @@ def assign_to_recruiter_roundrobin(db: Session) -> Users:
         return recruiters[0]
 
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"[Recruiter Assignment] Error during round-robin assignment: {e}")
-        return None
+        raise ValueError("Operation failed")

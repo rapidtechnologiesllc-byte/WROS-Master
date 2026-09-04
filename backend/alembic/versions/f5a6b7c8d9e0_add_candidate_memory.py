@@ -1,3 +1,4 @@
+import logging
 """S-021/HRMS-0421: add candidate_memory and candidate_memory_facts tables
 
 Revision ID: f5a6b7c8d9e0
@@ -11,7 +12,6 @@ revision = "f5a6b7c8d9e0"
 down_revision = "e4f5a6b7c8d9"
 branch_labels = None
 depends_on = None
-
 
 def upgrade():
     op.create_table(
@@ -46,7 +46,6 @@ def upgrade():
         "ix_candidate_memory_facts_lookup", "candidate_memory_facts",
         ["candidate_id", "tenant_id", "fact_category", "is_active"],
     )
-
 
 def downgrade():
     op.drop_index("ix_candidate_memory_facts_lookup", table_name="candidate_memory_facts")

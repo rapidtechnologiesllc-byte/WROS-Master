@@ -1,3 +1,4 @@
+import logging
 """S-041/HRMS-0441 + S-042/HRMS-0442: add follow_up_schedule and candidate_no_response_log
 
 Revision ID: 84838a711e64
@@ -11,7 +12,6 @@ revision = "84838a711e64"
 down_revision = "4d8cb154d0b8"
 branch_labels = None
 depends_on = None
-
 
 def upgrade():
     op.create_table(
@@ -47,7 +47,6 @@ def upgrade():
     op.create_index("ix_candidate_no_response_log_tenant_id", "candidate_no_response_log", ["tenant_id"])
     op.create_index("ix_candidate_no_response_log_candidate_id", "candidate_no_response_log", ["candidate_id"])
     op.create_index("ix_candidate_no_response_log_conversation_id", "candidate_no_response_log", ["conversation_id"])
-
 
 def downgrade():
     op.drop_index("ix_candidate_no_response_log_conversation_id", table_name="candidate_no_response_log")

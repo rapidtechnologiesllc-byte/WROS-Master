@@ -2,6 +2,7 @@
 """
 Production Deployment Verification
 Ensures that production code matches what's on main branch
+import logging
 """
 
 import sys
@@ -44,6 +45,7 @@ def verify_navigation_deployment():
         return True
 
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         print(f"ERROR: {e}")
         return False
     finally:

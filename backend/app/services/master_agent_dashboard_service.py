@@ -1,4 +1,5 @@
 """
+import logging
 Master Agent Dashboard - All 75 Agents at a Glance
 
 Shows status of every agent:
@@ -11,6 +12,7 @@ Shows status of every agent:
 This is Flash's control center.
 """
 
+import logging
 from datetime import datetime, timedelta
 from typing import Dict, Any, List
 from sqlalchemy.orm import Session
@@ -20,6 +22,7 @@ from app.services.agent_registry_service import AGENT_REGISTRY
 from app.models.agent_state_target import AgentActualPerformance
 from app.core.logging import logger
 
+logger = logging.getLogger(__name__)
 
 class MasterAgentDashboard:
     """Master dashboard showing all agents."""
@@ -165,6 +168,7 @@ class MasterAgentDashboard:
             }
 
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             logger.error(f"Error getting health for {agent_name}: {str(e)}")
             return {
                 "agent_name": agent_name,

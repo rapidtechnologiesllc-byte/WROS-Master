@@ -1,4 +1,5 @@
 """
+import logging
 Resume Comparison Service - Detect changes between candidate resume versions
 
 Enables detection of:
@@ -10,6 +11,7 @@ Enables detection of:
 Used by Thunder to assess resume authenticity before scheduling interviews.
 """
 
+import logging
 from typing import List, Dict, Optional, Tuple
 from datetime import datetime
 from difflib import SequenceMatcher
@@ -21,6 +23,7 @@ from app.core.logging import logger
 from app.models.candidate import Candidate
 from app.models.candidate_resume_parsed import CandidateResumeParsed
 
+logger = logging.getLogger(__name__)
 
 class ResumeChangeAnalysis:
     """Analysis of changes between two resume versions"""
@@ -230,7 +233,6 @@ class ResumeChangeAnalysis:
             return "OK: Normal resume updates"
         else:
             return "OK: Resume unchanged, no concerns"
-
 
 class ResumeComparisonService:
     """Service for comparing candidate resume versions"""

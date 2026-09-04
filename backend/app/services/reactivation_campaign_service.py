@@ -1,4 +1,5 @@
 """
+import logging
 S-045/HRMS-0445 -- Reactivation Campaign.
 
 *** REAL, EXPLICIT SPEC OVERRIDE FROM AVINASH -- READ BEFORE TOUCHING ***
@@ -69,7 +70,6 @@ from app.models.outreach_campaign import OutreachCampaign
 
 RETRY_INTERVAL_DAYS = int(os.getenv("REACTIVATION_RETRY_INTERVAL_DAYS", "21"))  # longer than the initial 14-day wait
 JOB_BATCH_SIZE = 50
-
 
 def run_reactivation_job(db: Session) -> Dict:
     """Step 2. Runs every 30 min. Sends one reactivation message to
@@ -150,12 +150,12 @@ def run_reactivation_job(db: Session) -> Dict:
             logger.info(f"[Reactivation] Reactivation for candidate {status_row.candidate_id!r} skipped: {exc}")
             result["skipped"] += 1
         except Exception as exc:
+            logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.error(f"[Reactivation] Unexpected failure processing candidate {status_row.candidate_id!r}: {exc}")
             db.rollback()
             result["skipped"] += 1
 
     return result
-
 
 def run_reactivation_reschedule_job(db: Session) -> Dict:
     """No archive, ever -- see module docstring's override. When a
@@ -184,6 +184,7 @@ def run_reactivation_reschedule_job(db: Session) -> Dict:
             db.commit()
             result["rescheduled"] += 1
         except Exception as exc:
+            logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.error(f"[Reactivation] Failed to reschedule candidate {campaign.candidate_id!r}: {exc}")
             db.rollback()
 

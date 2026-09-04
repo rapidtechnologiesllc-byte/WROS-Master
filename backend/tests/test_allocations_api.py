@@ -3,6 +3,7 @@ POST /allocations, GET /allocations, POST /allocations/{id}/end --
 proves S-251 (Allocate Employee to Project) + S-252 (Allocation
 Conflict Detection) end-to-end on real routes. Conflict detection
 (AllocationOverCapacity) is not reimplemented here -- it's the existing
+import logging
 allocate_employee_to_project() gate, surfaced as a 409.
 
 Throwaway SQLite app, throwaway JWT keys -- never the real database or
@@ -30,7 +31,6 @@ from app.models.tenant import Tenant
 from app.models.user import Users
 import app.models  # noqa: F401 -- registers every model on Base.metadata
 
-
 @pytest.fixture()
 def throwaway_jwt_keys(monkeypatch):
     key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
@@ -45,7 +45,6 @@ def throwaway_jwt_keys(monkeypatch):
     ).decode()
     monkeypatch.setattr(security, "PRIVATE_KEY", private_pem)
     monkeypatch.setattr(security, "PUBLIC_KEY", public_pem)
-
 
 @pytest.fixture()
 def client(throwaway_jwt_keys):
@@ -127,19 +126,15 @@ def client(throwaway_jwt_keys):
         engine.dispose()
         os.remove(db_path)
 
-
 def _token_for(email, role="Admin"):
     return security.create_access_token(data={"sub": email, "type": role, "name": email})
-
 
 def _auth():
     return {"Authorization": f"Bearer {_token_for('admin@blitzenx.com')}"}
 
-
 def test_unauthenticated_request_is_rejected(client):
     resp = client.get("/allocations")
     assert resp.status_code in (401, 403)
-
 
 def test_allocate_employee_to_project(client):
     ids = client.wros_ids
@@ -154,7 +149,6 @@ def test_allocate_employee_to_project(client):
     assert body["employee_name"] == "Sam Lee"
     assert body["demand_job_title"] == "Guidewire Dev A"
 
-
 def test_allocate_already_allocated_employee_is_blocked(client):
     ids = client.wros_ids
     client.post(
@@ -164,7 +158,6 @@ def test_allocate_already_allocated_employee_is_blocked(client):
         "/allocations", json={"employee_id": ids["employee_id"], "demand_id": ids["demand_b_id"]}, headers=_auth(),
     )
     assert resp.status_code == 409
-
 
 def test_allow_concurrent_over_capacity_is_blocked(client):
     """S-252: over-100% concurrent allocation is rejected."""
@@ -187,7 +180,6 @@ def test_allow_concurrent_over_capacity_is_blocked(client):
     )
     assert resp.status_code == 409
 
-
 def test_list_allocations_filtered_by_employee(client):
     ids = client.wros_ids
     client.post(
@@ -196,7 +188,6 @@ def test_list_allocations_filtered_by_employee(client):
     resp = client.get(f"/allocations?employee_id={ids['employee_id']}", headers=_auth())
     assert resp.status_code == 200
     assert len(resp.json()["allocations"]) == 1
-
 
 def test_end_allocation_moves_employee_back_to_bench(client):
     ids = client.wros_ids
@@ -209,14 +200,12 @@ def test_end_allocation_moves_employee_back_to_bench(client):
     assert end_resp.status_code == 200
     assert end_resp.json()["status"] == "ENDED"
 
-
 def test_allocate_nonexistent_employee_is_404(client):
     ids = client.wros_ids
     resp = client.post(
         "/allocations", json={"employee_id": "does-not-exist", "demand_id": ids["demand_a_id"]}, headers=_auth(),
     )
     assert resp.status_code == 404
-
 
 def test_allocate_with_project_denormalizes_si_partner(client):
     """S-358/HRMS-0519: si_partner is copied from the project onto the
@@ -233,7 +222,6 @@ def test_allocate_with_project_denormalizes_si_partner(client):
     assert body["project_id"] == ids["project_id"]
     assert body["si_partner"] == "PWC"
 
-
 def test_allocate_with_unknown_project_is_404(client):
     ids = client.wros_ids
     resp = client.post(
@@ -242,7 +230,6 @@ def test_allocate_with_unknown_project_is_404(client):
         headers=_auth(),
     )
     assert resp.status_code == 404
-
 
 def test_allocate_without_project_leaves_si_partner_null(client):
     ids = client.wros_ids

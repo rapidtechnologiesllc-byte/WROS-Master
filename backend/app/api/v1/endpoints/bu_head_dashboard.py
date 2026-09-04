@@ -1,15 +1,16 @@
+import logging
+from app.core.database import get_db
 """BU Head Dashboard Endpoints - Real data for business unit leaders."""
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app.core.database import SessionLocal
-from app.core.dependencies import get_current_user
+from app.core.dependencies import get_current_user, require_resource_permission
 from app.core.visibility import should_bypass_bu_filter, get_user_bu_id
 from app.services.bu_head_dashboard_service import BUHeadDashboardService
 from app.models.user import Users
 
 router = APIRouter(prefix="/dashboards/bu-head", tags=["BU Head Dashboard"])
-
 
 def get_db():
     db = SessionLocal()
@@ -18,8 +19,10 @@ def get_db():
     finally:
         db.close()
 
-
-@router.get("/summary")
+@router.get(
+    "/summary",
+    dependencies=[Depends(require_resource_permission("summary", "view"))]
+)
 async def get_bu_dashboard_summary(
     current_user: Users = Depends(get_current_user),
     db: Session = Depends(get_db)
@@ -46,8 +49,10 @@ async def get_bu_dashboard_summary(
         "data": data
     }
 
-
-@router.get("/team")
+@router.get(
+    "/team",
+    dependencies=[Depends(require_resource_permission("team", "view"))]
+)
 async def get_team_details(
     current_user: Users = Depends(get_current_user),
     db: Session = Depends(get_db)

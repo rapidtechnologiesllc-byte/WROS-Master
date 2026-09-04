@@ -1,6 +1,7 @@
 """
 S-267/S-241/S-244 API-level proof: BU target create/read, PartnerGoal
 CEO-only enforcement, and the Executive Dashboard aggregation, all on
+import logging
 real routes.
 
 Throwaway SQLite app, throwaway JWT keys -- never the real database.
@@ -25,7 +26,6 @@ from app.models.user import Users
 from app.services.rbac_service_template import RBACService
 import app.models  # noqa: F401
 
-
 @pytest.fixture()
 def throwaway_jwt_keys(monkeypatch):
     key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
@@ -40,7 +40,6 @@ def throwaway_jwt_keys(monkeypatch):
     ).decode()
     monkeypatch.setattr(security, "PRIVATE_KEY", private_pem)
     monkeypatch.setattr(security, "PUBLIC_KEY", public_pem)
-
 
 @pytest.fixture()
 def client(throwaway_jwt_keys):
@@ -101,18 +100,14 @@ def client(throwaway_jwt_keys):
         engine.dispose()
         os.remove(db_path)
 
-
 def _token_for(email):
     return security.create_access_token(data={"sub": email, "type": "internal", "name": email})
-
 
 def _troy_auth():
     return {"Authorization": f"Bearer {_token_for('troy@blitzenx.com')}"}
 
-
 def _avinash_auth():
     return {"Authorization": f"Bearer {_token_for('avinash@blitzenx.com')}"}
-
 
 def test_troy_can_set_bu_target(client):
     ids = client.wros_ids
@@ -122,7 +117,6 @@ def test_troy_can_set_bu_target(client):
     )
     assert resp.status_code == 201, resp.text
     assert resp.json()["target_amount_usd_cents"] == 2000000
-
 
 def test_partner_can_set_partner_goal_rejected(client):
     """Partner has revenue.view_pnl (passes the endpoint gate) but the
@@ -135,7 +129,6 @@ def test_partner_can_set_partner_goal_rejected(client):
     )
     assert resp.status_code == 403
 
-
 def test_ceo_can_set_partner_goal(client):
     resp = client.post(
         "/revenue-targets/partner-goals", headers=_avinash_auth(),
@@ -143,7 +136,6 @@ def test_ceo_can_set_partner_goal(client):
     )
     assert resp.status_code == 201, resp.text
     assert resp.json()["created_by"] == "U-AVINASH"
-
 
 def test_executive_dashboard_bu_scoped_for_partner(client):
     resp = client.get("/revenue-targets/dashboard", headers=_troy_auth())

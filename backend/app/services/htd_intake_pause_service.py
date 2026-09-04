@@ -1,4 +1,5 @@
 """
+import logging
 S-359/HRMS-P511 -- HTD Intake Pause Engine: Conversion Rate Breach.
 
 WhatsApp/email notification to "BU Head + Hemant" (AC-3) is NOT wired
@@ -17,6 +18,7 @@ is_htd_intake_paused() below is the real, callable gate a future build
 of it would check, same "real function, deferred wiring" posture as
 every other not-yet-existing consumer this session.
 """
+import logging
 from datetime import date, datetime
 from decimal import Decimal
 from typing import Optional
@@ -25,15 +27,16 @@ from sqlalchemy.orm import Session
 
 from app.models.employee import Employee
 from app.models.htd_intake_pause import HtdIntakeStatus, HtdMonthlyMetric, HtdPauseLogEntry
+from app.core.logging import logger
 
 CONVERSION_RATE_THRESHOLD = Decimal("0.50")
 CORE_CONVERSION_WINDOW_DAYS = 400
 MIN_AUDIT_TEXT_LENGTH = 200
 
+logger = logging.getLogger(__name__)
 
 class ResumeValidationError(Exception):
     pass
-
 
 def _month_bounds(month_start: date) -> tuple:
     first = month_start.replace(day=1)
@@ -42,7 +45,6 @@ def _month_bounds(month_start: date) -> tuple:
     else:
         next_month = first.replace(month=first.month + 1)
     return first, next_month
-
 
 def calculate_monthly_conversion_rate(
     db: Session, *, tenant_id: Optional[int], month_start: date,
@@ -86,14 +88,12 @@ def calculate_monthly_conversion_rate(
     db.add(metric)
     return metric
 
-
 def _get_or_create_status(db: Session, tenant_id: Optional[int]) -> HtdIntakeStatus:
     status = db.query(HtdIntakeStatus).filter(HtdIntakeStatus.tenant_id == tenant_id).first()
     if status is None:
         status = HtdIntakeStatus(tenant_id=tenant_id, is_paused=False)
         db.add(status)
     return status
-
 
 def check_and_apply_breach(db: Session, *, tenant_id: Optional[int], as_of: Optional[date] = None) -> HtdIntakeStatus:
     """
@@ -134,11 +134,9 @@ def check_and_apply_breach(db: Session, *, tenant_id: Optional[int], as_of: Opti
 
     return status
 
-
 def is_htd_intake_paused(db: Session, tenant_id: Optional[int]) -> bool:
     status = db.query(HtdIntakeStatus).filter(HtdIntakeStatus.tenant_id == tenant_id).first()
     return bool(status and status.is_paused)
-
 
 def resume_htd_intake(
     db: Session, *, tenant_id: Optional[int], audit_findings: str, corrective_actions: str, resumed_by: str,

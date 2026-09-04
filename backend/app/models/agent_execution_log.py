@@ -1,4 +1,5 @@
 """
+import logging
 S-066/HRMS-0466 -- Supervisor Agent, agent_execution_log.
 
 Real architecture adaptation (per Avinash's explicit direction,
@@ -19,20 +20,22 @@ Integer autoincrement PK + String(50) UserID-as-tenant_id convention,
 matching every other new table this round, not the spec's UUID
 assumption.
 """
+import logging
 from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, JSON, String, Text, func
 from sqlalchemy.orm import relationship
 
 from app.models.base import Base
 
+logger = logging.getLogger(__name__)
 
 class AgentExecutionLog(Base):
     __tablename__ = "agent_execution_log"
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
-    tenant_id = Column(String(50), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=False, index=True)
-    candidate_id = Column(String(36), ForeignKey("candidates.candidateID", ondelete="CASCADE"), nullable=True, index=True)
-    agent_name = Column(String(100), nullable=False)
-    action_taken = Column(String(200), nullable=False)
+    tenant_id = Column(String(512), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=False, index=True)
+    candidate_id = Column(String(512), ForeignKey("candidates.candidateID", ondelete="CASCADE"), nullable=True, index=True)
+    agent_name = Column(String(512), nullable=False)
+    action_taken = Column(String(512), nullable=False)
     action_data = Column(JSON, nullable=True)
     execution_at = Column(DateTime(timezone=False), server_default=func.now(), index=True)
     duration_ms = Column(Integer, nullable=True)

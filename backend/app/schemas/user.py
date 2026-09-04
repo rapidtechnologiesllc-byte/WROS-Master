@@ -1,13 +1,15 @@
-from pydantic import BaseModel, EmailStr, constr
+from pydantic import BaseModel, EmailStr, constr, Field
 from typing import Optional, List
+import logging
 from datetime import datetime, date
-
+from app.core.logging import logger
 
 # Candidate Assignment Schemas
 class CandidateAssignmentCreate(BaseModel):
     candidate_id: str
     hiring_manager_id: Optional[str] = None
     reporting_manager_id: Optional[str] = None
+logger = logging.getLogger(__name__)
 
 class CandidateAssignmentResponse(BaseModel):
     id: int
@@ -107,6 +109,7 @@ class UserResponse(BaseModel):
     user_email: str
     user_role: str
     job_title: Optional[str] = None
+    role_template_id: Optional[int] = None
     permission_role: Optional[str] = None
     department_id: Optional[int] = None
     department_name: Optional[str] = None
@@ -117,7 +120,6 @@ class UserResponse(BaseModel):
 class AllUsersResponse(BaseModel):
     total_users: int
     users: list[UserResponse]
-
 
 # Job Schemas
 class JobCreateRequest(BaseModel):
@@ -197,7 +199,6 @@ class CandidatesByJobResponse(BaseModel):
     total_candidates: int
     candidates: list[CandidateJobSummary]
 
-
 # ── Multi-Job Application schemas (many-to-many) ──────────────────────────────
 
 class JobApplicationCreate(BaseModel):
@@ -232,7 +233,6 @@ class JobCandidatesMultiResponse(BaseModel):
     total_candidates: int
     applications: List[JobApplicationEntry]
 
-
 # ── Job Statistics schema ─────────────────────────────────────────────────────
 
 class ApplicationStatusCount(BaseModel):
@@ -255,7 +255,6 @@ class JobStatisticsResponse(BaseModel):
     rejected: int
     # Full per-status breakdown (covers any custom statuses too)
     status_breakdown: List[ApplicationStatusCount]
-
 
 class JobApproveResponse(BaseModel):
     job_id: str
@@ -364,11 +363,9 @@ class ChangePasswordRequest(BaseModel):
     current_password: str
     new_password: str
 
-
 class AdminResetPasswordRequest(BaseModel):
     """Admin-only password reset - no current password required"""
     new_password: str
-
 
 class HrMeResponse(BaseModel):
     user_id: str
@@ -377,17 +374,15 @@ class HrMeResponse(BaseModel):
     user_role: str
     job_title: Optional[str] = None
     permission_role: Optional[str] = None
-    role_id: Optional[int] = None
+    role_template_id: Optional[int] = None
     business_unit_id: Optional[int] = None
     created_at: datetime
     access_token: str
     token_type: str = "bearer"
     digest_enabled: bool = True  # S-065/HRMS-0465
 
-
 class DigestPreferenceRequest(BaseModel):
     digest_enabled: bool
-
 
 class DigestPreferenceResponse(BaseModel):
     digest_enabled: bool
@@ -444,7 +439,6 @@ class OfferLetterUpdateRequest(BaseModel):
     approval_status: Optional[str] = None
     approval_notes: Optional[str] = None
 
-
 class OfferLetterResponse(BaseModel):
     id: int
     candidate_id: str
@@ -482,21 +476,132 @@ class OfferLetterResponse(BaseModel):
     signed_offer_path: str | None = None
 
 class CreateUserWithRolesRequest(BaseModel):
-    user_name: str
-    user_email: str
-    user_password: str
-    job_title: Optional[str] = None
-    partner_id: Optional[int] = None
-    business_unit_id: Optional[int] = None
-    role_ids: List[int]
+    """
+    Request schema for creating a new user with RBAC role template and org hierarchy.
+
+    Required Fields:
+    - user_name: User's display name (required)
+    - user_email: User's email address (required, unique within tenant)
+    - user_password: Initial password (required, min 8 chars)
+    - role_template_id: RBAC role template ID (required)
+    - hierarchy_level: Org hierarchy level 1-17 (required) - see ORG_HIERARCHY_LEVELS.md
+    - specialization: Specialization domain (required) - Recruitment, Development, HR, Finance, Project Management, QA, Business Analysis
+
+    Optional Fields:
+    - job_title: User's job position
+    - business_unit_id: Primary business unit assignment
+    - partner_id: Optional partner assignment
+    - parent_node_id: Org hierarchy - who this person reports to (validated against hierarchy rules)
+
+    ❌ DEPRECATED FIELDS (DO NOT USE):
+    - user_role: Use role_template_id instead
+    - password: Misspelling of user_password
+
+    Schema Validation:
+    - extra='forbid': Rejects unknown/deprecated fields with 422 error
+    - validate_default: Validates defaults on assignment
+    - hierarchy_level must be 1-17
+    - specialization must be from approved list
+
+    Example:
+        {
+            "user_name": "John Doe",
+            "user_email": "john@example.com",
+            "user_password": "SecurePassword123!",
+            "job_title": "Senior Consultant",
+            "role_template_id": 3,
+            "business_unit_id": 1,
+            "hierarchy_level": 5,
+            "specialization": "Recruitment",
+            "parent_node_id": "hiring-manager-uuid"
+        }
+    """
+    user_name: str = Field(..., min_length=1, max_length=255, description="User's display name")
+    user_email: str = Field(..., max_length=255, description="User's unique email within tenant")
+    user_password: str = Field(..., min_length=8, max_length=255, description="Initial password (min 8 chars)")
+    role_template_id: int = Field(..., gt=0, description="RBAC role template ID (e.g., 1=SuperUser, 3=Recruiter)")
+    hierarchy_level: int = Field(..., ge=1, le=17, description="Org hierarchy level: 1 (Intern) to 17 (CEO) - MANDATORY")
+    specialization: str = Field(..., min_length=1, max_length=100, description="Specialization domain (Recruitment, Development, HR, Finance, Project Management, QA, Business Analysis) - MANDATORY")
+    job_title: Optional[str] = Field(None, max_length=255, description="User's job position")
+    partner_id: Optional[int] = Field(None, gt=0, description="Optional partner ID")
+    business_unit_id: Optional[int] = Field(None, gt=0, description="Primary business unit ID")
+    parent_node_id: Optional[str] = Field(None, description="Org hierarchy: who this person reports to (validated by org_hierarchy_validator)")
+
+    class Config:
+        extra = 'forbid'  # STRICT: Reject any unknown fields (catches deprecated fields)
+        validate_default = True
+        json_schema_extra = {
+            "version": "1.0",
+            "deprecated_fields": ["user_role (use role_template_id)", "password (use user_password)"],
+            "notes": "Do NOT attempt to pass user_role or password fields - schema will reject with 422 error"
+        }
 
 class UpdateUserWithRolesRequest(BaseModel):
-    user_name: Optional[str] = None
-    job_title: Optional[str] = None
-    partner_id: Optional[int] = None
-    business_unit_id: Optional[int] = None
-    role_ids: Optional[List[int]] = None
-    assigned_at: Optional[str] = None
+    """
+    Request schema for updating user account with RBAC role template.
+
+    THIS SCHEMA USES role_template_id FOR RBAC, NOT DEPRECATED user_role FIELD.
+
+    Optional Fields (all optional, update only what's needed):
+    - user_name: User's display name (max 255 chars)
+    - user_email: User's email (max 255 chars)
+    - job_title: User's job position (max 255 chars)
+    - business_unit_id: Primary business unit (must be > 0)
+    - role_template_id: RBAC role template ID (must be > 0)
+    - partner_id: Partner assignment (must be > 0)
+    - assigned_at: ISO 8601 timestamp for role assignment
+
+    ❌ DEPRECATED FIELDS (DO NOT USE):
+    - user_role: REMOVED - use role_template_id instead
+    - user_password: Use password reset endpoint instead
+    - UserID: Read-only, cannot be updated
+    - CreatedAt: Audit field, immutable
+
+    Schema Validation Rules:
+    - extra='forbid': ANY deprecated field is REJECTED with HTTP 422
+    - Field lengths: Enforced (user_name max 255, job_title max 255)
+    - IDs: Must be positive integers (gt=0)
+    - No empty strings allowed (min_length=1 for strings)
+
+    Example Valid Request:
+        {
+            "job_title": "Senior Consultant",
+            "role_template_id": 3,
+            "business_unit_id": 1
+        }
+
+    Example Invalid Request (will be rejected):
+        {
+            "user_role": "Admin"  ← DEPRECATED, returns 422
+        }
+
+    Endpoint Behavior:
+    - If tenant_id is NULL, auto-assigns current_user.tenant_id
+    - Only provided fields are updated (partial update supported)
+    - Response includes updated UserResponse with all fields
+    """
+    user_name: Optional[str] = Field(None, min_length=1, max_length=255, description="User's display name (1-255 chars)")
+    user_email: Optional[str] = Field(None, max_length=255, description="User's email (unique within tenant)")
+    job_title: Optional[str] = Field(None, max_length=255, description="User's job position/title")
+    partner_id: Optional[int] = Field(None, gt=0, description="Partner ID (must be > 0)")
+    business_unit_id: Optional[int] = Field(None, gt=0, description="Business unit ID (must be > 0)")
+    role_template_id: Optional[int] = Field(None, gt=0, description="RBAC role template ID (must be > 0, e.g., 1=SuperUser, 3=Recruiter)")
+    assigned_at: Optional[str] = Field(None, description="ISO 8601 timestamp for role assignment")
+
+    class Config:
+        extra = 'forbid'  # CRITICAL: Reject ANY unknown fields (catches typos, deprecated fields)
+        validate_default = True  # Validate even None values
+        json_schema_extra = {
+            "version": "2.0",
+            "critical_note": "Do NOT use deprecated user_role field - it will be rejected with HTTP 422",
+            "deprecated_fields": [
+                "user_role (REMOVED - use role_template_id instead)",
+                "user_password (use POST /password-reset instead)",
+                "UserID (read-only)",
+                "CreatedAt (audit field, immutable)"
+            ],
+            "auto_fix": "If user has NULL tenant_id, endpoint auto-assigns current_user.tenant_id"
+        }
 
 class OfferAcceptanceRequest(BaseModel):
     offer_id: int
@@ -517,7 +622,6 @@ class AllOffersResponse(BaseModel):
     total_offers: int
     offers: list[OfferLetterResponse]
 
-
 # ── Offer Approval (Hiring Manager) ──────────────────────────────────────────
 
 class OfferApprovalResponse(BaseModel):
@@ -526,7 +630,6 @@ class OfferApprovalResponse(BaseModel):
     offer_id: int
     approval_status: str
     approved_at: Optional[datetime] = None
-
 
 # ── Offer Release (HR releases to candidate) ──────────────────────────────────
 
@@ -537,7 +640,6 @@ class OfferReleaseResponse(BaseModel):
     offer_status: str
     released_at: datetime
 
-
 # ── Candidate Signature + Acceptance ─────────────────────────────────────────
 
 class CandidateSignedAcceptanceResponse(BaseModel):
@@ -546,9 +648,6 @@ class CandidateSignedAcceptanceResponse(BaseModel):
     offer_id: int
     offer_status: str
     signed_offer_path: Optional[str] = None
-
-
-
 
 # ── User Section ─────────────────────────────────────────────────────────────
 
@@ -560,10 +659,9 @@ class SingleUserResponse(BaseModel):
     user_role: str
     job_title: Optional[str] = None
     permission_role: Optional[str] = None
-    role_id: Optional[int] = None
+    role_template_id: Optional[int] = None
     business_unit_id: Optional[int] = None
     created_at: datetime
-
 
 # ── Hiring Manager Section ────────────────────────────────────────────────────
 

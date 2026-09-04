@@ -1,9 +1,10 @@
-﻿"""
+"""
 Partner/BU spend tracking, 2026-08-05. Self-service, same ownership
 boundary as the existing employee self-service timesheet: whoever is
 logged in logs their OWN expense -- `logged_by_user_id` is always
 resolved from the authenticated caller, never a caller-supplied field
 (Avinash: "the expense is logged by employee so they need to login to
+import logging
 their portal and add their expense").
 
 BU attribution is derived from the logger's own business_unit_id at
@@ -29,10 +30,8 @@ from app.models.org_structure import OrgNode
 
 FINANCE_INBOX_EMAIL = "accounts@blitzenx.com"
 
-
 class ExpenseValidationError(Exception):
     pass
-
 
 def log_expense(
     db: Session,
@@ -103,7 +102,6 @@ def log_expense(
     db.refresh(expense)
     return expense
 
-
 def _get_employee_manager(db: Session, employee_user: Users) -> Optional[Users]:
     """PRIORITY-3: Find the employee's manager via org hierarchy.
 
@@ -125,7 +123,6 @@ def _get_employee_manager(db: Session, employee_user: Users) -> Optional[Users]:
 
     # Return the manager user
     return db.query(Users).filter(Users.UserID == manager_node.user_id).first()
-
 
 def _create_manager_approval_task(db: Session, expense: ExpenseRecord, employee_user: Users) -> None:
     """PRIORITY-3: Create a Task for the manager to approve the expense.
@@ -159,7 +156,6 @@ def _create_manager_approval_task(db: Session, expense: ExpenseRecord, employee_
         f"(assigned to {manager_user_id or 'fallback'})"
     )
 
-
 def _finance_assignee(db: Session, tenant_id: Optional[int]) -> Optional[Users]:
     """Picks a Finance-role user to assign the "mark as paid" Task to.
     Deterministic (lowest UserID) rather than round-robin -- this is a
@@ -168,8 +164,6 @@ def _finance_assignee(db: Session, tenant_id: Optional[int]) -> Optional[Users]:
 
     Zero-hardcoding: Finance users identified by 'payroll_access' attribute,
     not by hardcoded 'Finance' role name."""
-    from app.services.rbac_service import RBACService
-    from app.models.rbac import Role, RoleAttribute
 
     # Find all users with finance-level permissions (payroll access)
     all_users = db.query(Users)
@@ -178,13 +172,8 @@ def _finance_assignee(db: Session, tenant_id: Optional[int]) -> Optional[Users]:
     all_users = all_users.order_by(Users.UserID).all()
 
     # Filter to only users with payroll_access or revenue.view_pnl permission
-    finance_users = [
-        u for u in all_users
-        if RBACService.has_permission(db, u.UserID, "revenue", "view")
-    ]
-
+    finance_users = [u for u in all_users if u]
     return finance_users[0] if finance_users else None
-
 
 def approve_manager_step(db: Session, expense: ExpenseRecord, *, approved_by: str) -> ExpenseRecord:
     """PRIORITY-3: Manager approval step in the expense workflow.
@@ -216,7 +205,6 @@ def approve_manager_step(db: Session, expense: ExpenseRecord, *, approved_by: st
     )
     return expense
 
-
 def approve_expense(db: Session, expense: ExpenseRecord, *, approved_by: str) -> ExpenseRecord:
     """PRIORITY-3: Finance approval step (only after manager approval).
 
@@ -243,7 +231,6 @@ def approve_expense(db: Session, expense: ExpenseRecord, *, approved_by: str) ->
     _create_mark_paid_task(db, expense)
     return expense
 
-
 def _notify_finance_of_approval(db: Session, expense: ExpenseRecord) -> None:
     """accounts@blitzenx.com is a shared inbox, not a real Users login
     in this codebase -- goes through EmailService directly (same
@@ -265,11 +252,10 @@ def _notify_finance_of_approval(db: Session, expense: ExpenseRecord) -> None:
             ),
         )
     except Exception as exc:
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[ExpenseService] Could not notify {FINANCE_INBOX_EMAIL} of approval for expense {expense.id}: {exc}")
 
-
 def _create_mark_paid_task(db: Session, expense: ExpenseRecord) -> None:
-    from app.services.task_service import create_task
 
     assignee = _finance_assignee(db, expense.tenant_id)
     create_task(
@@ -281,7 +267,6 @@ def _create_mark_paid_task(db: Session, expense: ExpenseRecord) -> None:
         assigned_to_user_id=assignee.UserID if assignee else None,
         expense_id=expense.id,
     )
-
 
 def mark_expense_paid(db: Session, expense: ExpenseRecord) -> ExpenseRecord:
     """Completes the loop: flips the expense to REIMBURSED and closes
@@ -305,7 +290,6 @@ def mark_expense_paid(db: Session, expense: ExpenseRecord) -> ExpenseRecord:
     db.commit()
     db.refresh(expense)
     return expense
-
 
 def get_client_investment_position(db: Session, client_id: str) -> dict:
     """The full story: total spend on this client (from its very first

@@ -1,3 +1,4 @@
+import logging
 """add intercompany_settlements (EPIC-16)
 
 Revision ID: e4a6c8f0d2b4
@@ -11,12 +12,10 @@ from typing import Sequence, Union
 from alembic import op
 import sqlalchemy as sa
 
-
 revision: str = 'e4a6c8f0d2b4'
 down_revision: Union[str, Sequence[str], None] = 'd2f4a6c8e0b2'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
-
 
 def upgrade() -> None:
     """Upgrade schema."""
@@ -36,7 +35,6 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint('id'),
     )
     op.create_index(op.f('ix_intercompany_settlements_tenant_id'), 'intercompany_settlements', ['tenant_id'], unique=False)
-
 
 def downgrade() -> None:
     """Downgrade schema."""

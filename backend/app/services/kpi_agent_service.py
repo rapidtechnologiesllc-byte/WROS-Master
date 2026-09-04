@@ -1,4 +1,5 @@
 """
+import logging
 KPI Agent Service - Complete Implementation
 
 Tracks company-wide KPIs and forecasts progress to strategic goals:
@@ -21,13 +22,11 @@ from app.models.invoice import Invoice
 from app.models.candidate import Candidate
 from app.models.project import Project
 
-
 def get_current_headcount(db: Session) -> int:
     """Get current active employee count."""
     return db.query(func.count(Employee.id)).filter(
         Employee.status == "ACTIVE"
     ).scalar() or 0
-
 
 def get_ytd_revenue(db: Session, year: Optional[int] = None) -> int:
     """Get YTD revenue in USD cents."""
@@ -42,7 +41,6 @@ def get_ytd_revenue(db: Session, year: Optional[int] = None) -> int:
         Invoice.created_at <= fy_end,
         Invoice.status.in_(["APPROVED", "SENT", "PAID"])
     ).scalar() or 0
-
 
 def get_monthly_growth_rate(db: Session, months_back: int = 3) -> float:
     """Calculate average monthly employee growth rate (percent)."""
@@ -66,7 +64,6 @@ def get_monthly_growth_rate(db: Session, months_back: int = 3) -> float:
 
     return total_growth / (len(headcounts) - 1)
 
-
 def forecast_2030_headcount(current: int, monthly_growth_rate: float) -> int:
     """Forecast headcount at 2030 based on current growth rate."""
     months_remaining = (
@@ -75,7 +72,6 @@ def forecast_2030_headcount(current: int, monthly_growth_rate: float) -> int:
 
     projected = current * ((1 + monthly_growth_rate / 100) ** months_remaining)
     return int(projected)
-
 
 def forecast_2030_revenue(ytd_revenue: int, current_year: int) -> int:
     """Forecast annual revenue at 2030 based on current trajectory."""
@@ -92,7 +88,6 @@ def forecast_2030_revenue(ytd_revenue: int, current_year: int) -> int:
         return projected
 
     return 0
-
 
 def get_metrics_by_tier(db: Session) -> Dict[str, Any]:
     """Get KPI breakdown by BU (AXION, PRISM)."""
@@ -117,7 +112,6 @@ def get_metrics_by_tier(db: Session) -> Dict[str, Any]:
         }
 
     return tiers
-
 
 def calculate_daily_kpis(db: Session, tenant_id: str = "system") -> Dict[str, Any]:
     """
@@ -194,7 +188,6 @@ def calculate_daily_kpis(db: Session, tenant_id: str = "system") -> Dict[str, An
 
     return result
 
-
 def _calculate_health_score(headcount_pace: float, revenue_pace: float) -> int:
     """Calculate overall organizational health score (0-100)."""
     avg_pace = (headcount_pace + revenue_pace) / 2
@@ -208,7 +201,6 @@ def _calculate_health_score(headcount_pace: float, revenue_pace: float) -> int:
         return 55
     else:
         return 40
-
 
 def get_kpi_alerts(db: Session) -> List[Dict[str, Any]]:
     """Generate alerts for KPIs that are off-track."""

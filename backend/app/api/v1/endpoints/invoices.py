@@ -2,6 +2,7 @@
 HRMS-0907 -- Invoice Generation, Status Tracking -- API Endpoints
 =========================================================================
 Prefix: /invoices
+import logging
 Tag:    invoices
 
 Wires app.services.invoice_service (real, tested backend, pre-existing
@@ -16,7 +17,7 @@ service.py's own docstring (no automatic sending/reconciliation exists
 in this codebase) -- separate endpoints for each transition, not
 folded into approve.
 
-Auth: get_current_hr_or_admin, same posture as every endpoint this
+Auth: get_current_internal_user, same posture as every endpoint this
 program. No dedicated "Finance" role exists in this codebase's RBAC
 (app/services/rbac_service.py) despite HRMS-0907 BR-0907-02 saying
 approval is "always a Finance-role action" -- flagged, not guessed at,
@@ -36,7 +37,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_hr_or_admin
+from app.core.dependencies import get_current_internal_user, require_resource_permission
 from app.models.invoice import Invoice, InvoiceLineItem
 from app.models.project import Project
 from app.models.user import Users
@@ -59,7 +60,6 @@ from app.services.ar_followup_service import scan_overdue_invoices, trigger_ar_f
 
 router = APIRouter(prefix="/invoices", tags=["invoices"])
 
-
 def _to_item(db: Session, invoice: Invoice) -> InvoiceItem:
     line_items = db.query(InvoiceLineItem).filter(InvoiceLineItem.invoice_id == invoice.id).all()
     return InvoiceItem(
@@ -77,19 +77,22 @@ def _to_item(db: Session, invoice: Invoice) -> InvoiceItem:
         ],
     )
 
-
 def _get_invoice_or_404(db: Session, invoice_id: str) -> Invoice:
     invoice = db.query(Invoice).filter(Invoice.id == invoice_id).first()
     if invoice is None:
         raise HTTPException(status_code=404, detail="Invoice not found.")
     return invoice
 
-
-@router.post("/generate", response_model=InvoiceItem, summary="Generate a DRAFT invoice for a project+billing period")
+@router.post(
+    "/generate",
+    response_model=InvoiceItem,
+    summary="Generate a DRAFT invoice for a project+billing period",
+    dependencies=[Depends(require_resource_permission("generate", "create"))]
+)
 def generate_invoice_endpoint(
     body: GenerateInvoiceRequest,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     project = db.query(Project).filter(Project.id == body.project_id).first()
     if project is None:
@@ -108,12 +111,16 @@ def generate_invoice_endpoint(
     db.refresh(invoice)
     return _to_item(db, invoice)
 
-
-@router.post("/{invoice_id}/approve", response_model=InvoiceItem, summary="Approve a DRAFT invoice")
+@router.post(
+    "/{invoice_id}/approve",
+    response_model=InvoiceItem,
+    summary="Approve a DRAFT invoice",
+    dependencies=[Depends(require_resource_permission("invoices", "create"))]
+)
 def approve_invoice_endpoint(
     invoice_id: str,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     invoice = _get_invoice_or_404(db, invoice_id)
     try:
@@ -124,12 +131,16 @@ def approve_invoice_endpoint(
     db.refresh(invoice)
     return _to_item(db, invoice)
 
-
-@router.post("/{invoice_id}/send", response_model=InvoiceItem, summary="Mark an APPROVED invoice as SENT")
+@router.post(
+    "/{invoice_id}/send",
+    response_model=InvoiceItem,
+    summary="Mark an APPROVED invoice as SENT",
+    dependencies=[Depends(require_resource_permission("invoices", "create"))]
+)
 def send_invoice_endpoint(
     invoice_id: str,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     invoice = _get_invoice_or_404(db, invoice_id)
     try:
@@ -140,12 +151,16 @@ def send_invoice_endpoint(
     db.refresh(invoice)
     return _to_item(db, invoice)
 
-
-@router.post("/{invoice_id}/mark-paid", response_model=InvoiceItem, summary="Mark a SENT invoice as PAID")
+@router.post(
+    "/{invoice_id}/mark-paid",
+    response_model=InvoiceItem,
+    summary="Mark a SENT invoice as PAID",
+    dependencies=[Depends(require_resource_permission("invoices", "create"))]
+)
 def mark_invoice_paid_endpoint(
     invoice_id: str,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     invoice = _get_invoice_or_404(db, invoice_id)
     try:
@@ -156,14 +171,18 @@ def mark_invoice_paid_endpoint(
     db.refresh(invoice)
     return _to_item(db, invoice)
 
-
-@router.get("", response_model=InvoiceListResponse, summary="List invoices")
+@router.get(
+    "",
+    response_model=InvoiceListResponse,
+    summary="List invoices",
+    dependencies=[Depends(require_resource_permission("invoices", "view"))]
+)
 def list_invoices(
     project_id: Optional[str] = None,
     client_id: Optional[str] = None,
     status: Optional[str] = None,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     query = db.query(Invoice).filter(Invoice.tenant_id == current_user.tenant_id)
     if project_id:
@@ -175,31 +194,41 @@ def list_invoices(
     invoices = query.order_by(Invoice.created_at.desc()).all()
     return InvoiceListResponse(invoices=[_to_item(db, i) for i in invoices])
 
-
-@router.get("/{invoice_id}", response_model=InvoiceItem, summary="Get one invoice with line items")
+@router.get(
+    "/{invoice_id}",
+    response_model=InvoiceItem,
+    summary="Get one invoice with line items",
+    dependencies=[Depends(require_resource_permission("invoices", "view"))]
+)
 def get_invoice(
     invoice_id: str,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     invoice = _get_invoice_or_404(db, invoice_id)
     return _to_item(db, invoice)
 
-
-@router.get("/ar/aging", summary="EPIC-16 AR Follow-Up: overdue SENT invoices")
+@router.get(
+    "/ar/aging",
+    summary="EPIC-16 AR Follow-Up: overdue SENT invoices",
+    dependencies=[Depends(require_resource_permission("ar", "view"))]
+)
 def ar_aging(
     grace_days: int = 30,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     return {"overdue": scan_overdue_invoices(db, grace_days=grace_days, tenant_id=current_user.tenant_id)}
 
-
-@router.post("/{invoice_id}/ar/follow-up", summary="EPIC-16 AR Follow-Up: create/return the follow-up Task for this invoice")
+@router.post(
+    "/{invoice_id}/ar/follow-up",
+    summary="EPIC-16 AR Follow-Up: create/return the follow-up Task for this invoice",
+    dependencies=[Depends(require_resource_permission("invoices", "create"))]
+)
 def ar_follow_up(
     invoice_id: str,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     invoice = _get_invoice_or_404(db, invoice_id)
     task = trigger_ar_follow_up(db, invoice)

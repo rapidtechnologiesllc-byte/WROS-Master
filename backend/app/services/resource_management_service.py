@@ -1,4 +1,5 @@
 """
+import logging
 Phase 4, Part B -- Resource & Bench Management basics.
 
 See app.models.resource_management for the schema rationale. This
@@ -46,7 +47,6 @@ LOW_UTILIZATION_THRESHOLD_PCT = 50
 # two interpretations of one rule is exactly the kind of drift this
 # project's Core-Pull doc calls a defect, not a stylistic choice.
 _BUDDY_PROGRAM_BLOCKING_STATUSES = ("IN_PROGRESS", "EXTENDED")
-
 
 # ---------------------------------------------------------------------------
 # Bench pool -- "Mark Employee as Bench" + "Bench Duration & Aging"
@@ -102,7 +102,6 @@ def mark_employee_on_bench(
 
     return existing
 
-
 def remove_employee_from_bench(db: Session, employee: Employee) -> None:
     """Called the moment an employee is allocated off the bench. The
     bench_pool row is deleted, not soft-closed -- it only ever
@@ -128,7 +127,6 @@ def remove_employee_from_bench(db: Session, employee: Employee) -> None:
         )
         db.add(open_period)
 
-
 def get_bench_period_history(db: Session, employee_id: str) -> List[BenchPeriod]:
     """Every bench episode for this employee, most recent first --
     S-248's aging/trend reporting and S-255's cumulative cost reporting
@@ -140,7 +138,6 @@ def get_bench_period_history(db: Session, employee_id: str) -> List[BenchPeriod]
         .order_by(BenchPeriod.bench_start_date.desc())
         .all()
     )
-
 
 def check_bench_aging_alerts(db: Session, *, tenant_id: Optional[int] = None) -> List[dict]:
     """S-248 BR: idempotent, directly-callable function (same "real
@@ -163,12 +160,10 @@ def check_bench_aging_alerts(db: Session, *, tenant_id: Optional[int] = None) ->
             })
     return alerts
 
-
 def get_bench_duration_days(entry: BenchPoolEntry, *, as_of: Optional[date] = None) -> int:
     """Always computed from available_from, never trusted as a stale
     stored value -- see the module docstring's note on HRMS-0804 delay_days."""
     return ((as_of or date.today()) - entry.available_from).days
-
 
 # ---------------------------------------------------------------------------
 # Utilization metrics
@@ -227,7 +222,6 @@ def record_weekly_utilization_metric(
     db.flush()
     return metric
 
-
 def get_utilization_history(db: Session, employee_id: str) -> List[EmployeeUtilizationMetric]:
     """S-254: every weekly snapshot for one employee, most recent first."""
     return (
@@ -236,7 +230,6 @@ def get_utilization_history(db: Session, employee_id: str) -> List[EmployeeUtili
         .order_by(EmployeeUtilizationMetric.period_start.desc())
         .all()
     )
-
 
 def get_latest_utilization_by_employee(
     db: Session, *, tenant_id: Optional[int] = None,
@@ -257,7 +250,6 @@ def get_latest_utilization_by_employee(
             latest[metric.employee_id] = metric
     return latest
 
-
 def get_current_bench_pool(db: Session, tenant_id: Optional[int] = None) -> List[BenchPoolEntry]:
     """HRMS-1105's 30-minute scan reads this -- 'near-real-time bench-
     pool composition' per that story's own prerequisite on HRMS-0510."""
@@ -265,7 +257,6 @@ def get_current_bench_pool(db: Session, tenant_id: Optional[int] = None) -> List
     if tenant_id is not None:
         query = query.filter(BenchPoolEntry.tenant_id == tenant_id)
     return query.order_by(BenchPoolEntry.available_from.asc()).all()
-
 
 # ---------------------------------------------------------------------------
 # Allocation conflict log
@@ -293,7 +284,6 @@ def log_allocation_conflict(
     db.add(entry)
     db.flush()
     return entry
-
 
 # ---------------------------------------------------------------------------
 # Staffing Eligibility Engine -- 04-RESOURCE-MANAGEMENT.md Part B item 5

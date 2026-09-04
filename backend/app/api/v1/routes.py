@@ -1,3 +1,4 @@
+import logging
 import fastapi
 
 from app.api.v1.endpoints.auth import router as auth_router
@@ -5,12 +6,10 @@ from app.api.v1.endpoints.users import router as users_router
 from app.api.v1.endpoints.create_job import router as create_job_router
 from app.api.v1.endpoints.candidates import router as candidates_router
 from app.api.v1.endpoints.msgraph import router as msgraph_router
-from app.api.v1.endpoints.onboarding import router as onboarding_router
 from app.api.v1.endpoints.interviews import router as interviews_router
 from app.api.v1.endpoints.documents import router as documents_router
 from app.api.v1.endpoints.offer_letters import router as offer_letters_router
 from app.api.v1.endpoints.newsletter import router as newsletter_router
-from app.api.v1.endpoints.rbac import router as rbac_router
 from app.api.v1.endpoints.checklists import router as checklists_router
 from app.api.v1.endpoints.candidate_status import router as candidate_status_router
 from app.api.v1.endpoints.ats import router as ats_router
@@ -78,6 +77,7 @@ from app.api.v1.endpoints.error_log import router as error_log_router
 from app.api.v1.endpoints.bu_context import router as bu_context_router
 from app.api.v1.endpoints.system_config import router as system_config_router
 from app.api.v1.endpoints.activity_timeline import router as activity_timeline_router
+from app.api.v1.endpoints.certifications_admin import router as certifications_admin_router
 from app.api.v1.endpoints.agents import router as agents_router
 from app.api.v1.endpoints.flash_interview import router as flash_interview_router
 from app.api.v1.endpoints.hiring_workflow import router as hiring_workflow_router
@@ -105,7 +105,6 @@ from app.api.v1.endpoints.role_templates import router as role_templates_router
 from app.api.v1.endpoints.role_template_modules import router as role_template_modules_router
 from app.api.v1.endpoints.navigation import router as navigation_router
 from app.api.v1.endpoints.admin_queue import router as admin_queue_router
-from app.api.v1.endpoints.users_access_control import router as users_access_control_router
 from app.api.v1.endpoints.relation_building import router as relation_building_router
 from app.api.v1.endpoints.recruitment_funnel import router as recruitment_funnel_router
 from app.api.v1.endpoints.agent_accountability import router as agent_accountability_router
@@ -113,21 +112,23 @@ from app.api.v1.endpoints.pipeline_orchestration import router as pipeline_orche
 from app.api.v1.endpoints.finance_monitoring import router as finance_monitoring_router
 from app.api.v1.endpoints.agent_pyramid_reporting import router as agent_pyramid_router
 from app.api.v1.endpoints.goals_management import router as goals_router
+from app.api.v1.endpoints.slm_feedback import router as slm_feedback_router
+from app.api.v1.endpoints.queue_dashboard import router as queue_dashboard_router
+from app.api.v1.endpoints.linkedin_candidate_pipeline import router as linkedin_pipeline_router
 
-router = fastapi.APIRouter()
+router = fastapi.APIRouter(prefix="/api/v1")
 
 router.include_router(router=auth_router)
 router.include_router(router=navigation_router)
-router.include_router(router=rbac_router)
 router.include_router(router=role_templates_router)
 router.include_router(router=role_template_modules_router)
 router.include_router(router=permission_composition_router)
 router.include_router(router=org_structure_router)
 router.include_router(router=users_router)
 router.include_router(router=create_job_router)
-router.include_router(router=onboarding_router)
 router.include_router(router=interviews_router)
 router.include_router(router=candidates_router)
+router.include_router(router=linkedin_pipeline_router)
 router.include_router(router=msgraph_router)
 router.include_router(router=documents_router)
 router.include_router(router=offer_letters_router)
@@ -222,10 +223,12 @@ router.include_router(router=employee_referrals_router)
 router.include_router(router=work_orders_router)
 router.include_router(router=autonomous_job_management_router)
 router.include_router(router=admin_queue_router)
-router.include_router(router=users_access_control_router)
 router.include_router(router=recruitment_funnel_router)
 router.include_router(router=agent_accountability_router)
 router.include_router(router=pipeline_orchestration_router)
 router.include_router(router=finance_monitoring_router)
 router.include_router(router=agent_pyramid_router)
-router.include_router(router=goals_router)
+router.include_router(router=goals_router)
+router.include_router(router=certifications_admin_router)
+router.include_router(router=slm_feedback_router)
+router.include_router(router=queue_dashboard_router)

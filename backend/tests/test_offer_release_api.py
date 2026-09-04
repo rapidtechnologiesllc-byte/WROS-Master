@@ -1,4 +1,5 @@
 """
+import logging
 POST /offer-letter/release/{offer_id} -- S-054/HRMS-0454.
 
 Real HTTP-level proof: BR-01 (readiness re-checked at release, HTTP 409
@@ -28,12 +29,10 @@ from app.models.tenant import Tenant
 from app.models.user import Users
 import app.models  # noqa: F401 -- registers every model on Base.metadata
 
-
 @pytest.fixture(autouse=True)
 def _fake_whatsapp_number(monkeypatch):
     import app.services.whatsapp_routing_service as wr_svc
     monkeypatch.setattr(wr_svc, "DEFAULT_WHATSAPP_NUMBER", "+15550009999")
-
 
 @pytest.fixture()
 def throwaway_jwt_keys(monkeypatch):
@@ -42,7 +41,6 @@ def throwaway_jwt_keys(monkeypatch):
     public_pem = key.public_key().public_bytes(encoding=serialization.Encoding.PEM, format=serialization.PublicFormat.SubjectPublicKeyInfo).decode()
     monkeypatch.setattr(security, "PRIVATE_KEY", private_pem)
     monkeypatch.setattr(security, "PUBLIC_KEY", public_pem)
-
 
 @pytest.fixture()
 def client(throwaway_jwt_keys):
@@ -111,10 +109,8 @@ def client(throwaway_jwt_keys):
         engine.dispose()
         os.remove(db_path)
 
-
 def _token_for(email, role):
     return security.create_access_token(data={"sub": email, "type": role, "name": email})
-
 
 def test_recruiter_gets_403(client):
     resp = client.post(
@@ -122,7 +118,6 @@ def test_recruiter_gets_403(client):
         headers={"Authorization": f"Bearer {_token_for('rec@blitzenx.com', 'Recruiter')}"},
     )
     assert resp.status_code == 403
-
 
 def test_not_ready_candidate_gets_409_with_blockers(client):
     """C-1 has no L1/L2 interviews at all -- BR-01's re-check must
@@ -136,9 +131,7 @@ def test_not_ready_candidate_gets_409_with_blockers(client):
     assert body["blockers"]  # non-empty
     assert any("L1" in b for b in body["blockers"])
 
-
 def test_ready_candidate_release_succeeds_and_notifies(client):
-    from app.core.database import get_db
     db_gen = client.app.dependency_overrides[get_db]()
     db = next(db_gen)
     try:
@@ -146,7 +139,6 @@ def test_ready_candidate_release_succeeds_and_notifies(client):
         from app.models.client import Client
         from app.models.employee import Employee
         from app.models.interview_pipeline import DemandInterviewPanel, SubmissionInterview
-        from app.models.offer_letter import OfferLetter
         from app.services.interview_service import assign_panel_member, create_interview
         from app.services.submission_service import create_submission
 
@@ -157,7 +149,6 @@ def test_ready_candidate_release_succeeds_and_notifies(client):
         db.add(demand)
         db.commit()
 
-        from app.models.candidate import Candidate
         candidate = db.query(Candidate).filter(Candidate.candidateID == "C-1").first()
         employee = Employee(tenant_id=1, candidate_id="C-1", first_name="Priya", last_name="S", email="c1@example.com", joining_date=date(2026, 1, 1), status="BENCH")
         db.add(employee)

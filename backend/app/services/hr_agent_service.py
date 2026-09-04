@@ -1,4 +1,5 @@
 """
+import logging
 HR Agent Service - Complete Implementation
 
 Centralized HR operations and employee tracking. Manages:
@@ -24,7 +25,6 @@ from app.models.employee import Employee
 from app.models.user import Users
 from app.models.project import Project
 
-
 def get_employee_status_summary(db: Session, tenant_id: Optional[str] = None) -> Dict[str, Any]:
     """Get summary of all employees by status."""
     query = db.query(Employee)
@@ -47,7 +47,6 @@ def get_employee_status_summary(db: Session, tenant_id: Optional[str] = None) ->
         "departed": departed,
         "active_pct": round((active / total * 100), 1) if total > 0 else 0
     }
-
 
 def get_employee_kpis(db: Session, employee_id: str) -> Dict[str, Any]:
     """Get KPI tracking for a specific employee."""
@@ -85,7 +84,6 @@ def get_employee_kpis(db: Session, employee_id: str) -> Dict[str, Any]:
         "performance_rating": None  # Performance rating not available in current schema
     }
 
-
 def get_attrition_risks(db: Session, tenant_id: Optional[str] = None) -> List[Dict[str, Any]]:
     """Identify employees at risk of attrition based on engagement and tenure."""
     query = db.query(Employee).filter(Employee.status == "ACTIVE")
@@ -108,7 +106,6 @@ def get_attrition_risks(db: Session, tenant_id: Optional[str] = None) -> List[Di
 
     return sorted(risks, key=lambda x: x["risk_score"], reverse=True)
 
-
 def get_development_needs(db: Session, tenant_id: Optional[str] = None) -> List[Dict[str, Any]]:
     """Identify employees ready for development or promotion."""
     query = db.query(Employee).filter(Employee.status == "ACTIVE")
@@ -130,7 +127,6 @@ def get_development_needs(db: Session, tenant_id: Optional[str] = None) -> List[
             })
 
     return sorted(development_candidates, key=lambda x: x["readiness_score"], reverse=True)
-
 
 def get_engagement_metrics(db: Session, tenant_id: Optional[str] = None) -> Dict[str, Any]:
     """Get org-wide engagement metrics."""
@@ -166,7 +162,6 @@ def get_engagement_metrics(db: Session, tenant_id: Optional[str] = None) -> Dict
         "at_risk_pct": round((at_risk / len(employees) * 100), 1) if employees else 0
     }
 
-
 def get_hr_dashboard(db: Session, tenant_id: Optional[str] = None) -> Dict[str, Any]:
     """Get comprehensive HR dashboard with all metrics."""
     status_summary = get_employee_status_summary(db, tenant_id)
@@ -199,12 +194,10 @@ def get_hr_dashboard(db: Session, tenant_id: Optional[str] = None) -> Dict[str, 
 
     return dashboard
 
-
 # Helper functions
 
 def _calculate_utilization(db: Session, employee_id: str) -> float:
     """Calculate employee utilization percentage."""
-    from app.models.employee_allocation import EmployeeAllocation
 
     allocations = db.query(EmployeeAllocation).filter(
         EmployeeAllocation.employee_id == employee_id,
@@ -216,7 +209,6 @@ def _calculate_utilization(db: Session, employee_id: str) -> float:
 
     total_allocation = sum(alloc.allocation_pct for alloc in allocations)
     return min(100.0, total_allocation)
-
 
 def _calculate_engagement_score(db: Session, employee_id: str) -> float:
     """Calculate engagement score (0-100) based on various factors."""
@@ -241,7 +233,6 @@ def _calculate_engagement_score(db: Session, employee_id: str) -> float:
 
     return min(100.0, max(0.0, score))
 
-
 def _calculate_attrition_risk(db: Session, employee_id: str) -> float:
     """Calculate attrition risk score (0-100, higher = more at-risk)."""
     engagement = _calculate_engagement_score(db, employee_id)
@@ -258,7 +249,6 @@ def _calculate_attrition_risk(db: Session, employee_id: str) -> float:
         risk += 20
 
     return min(100.0, risk)
-
 
 def _calculate_readiness_score(db: Session, employee_id: str) -> float:
     """Calculate readiness for promotion/development (0-100)."""
@@ -292,7 +282,6 @@ def _calculate_readiness_score(db: Session, employee_id: str) -> float:
 
     return min(100.0, readiness)
 
-
 def _get_attrition_factors(db: Session, employee_id: str) -> List[str]:
     """Get specific factors contributing to attrition risk."""
     factors = []
@@ -313,7 +302,6 @@ def _get_attrition_factors(db: Session, employee_id: str) -> List[str]:
 
     return factors
 
-
 def _get_retention_actions(risk_score: float) -> List[str]:
     """Get recommended retention actions."""
     actions = []
@@ -329,7 +317,6 @@ def _get_retention_actions(risk_score: float) -> List[str]:
 
     return actions
 
-
 def _suggest_next_roles(current_role: str) -> List[str]:
     """Suggest next career roles based on current role."""
     role_progression = {
@@ -343,7 +330,6 @@ def _suggest_next_roles(current_role: str) -> List[str]:
 
     return role_progression.get(current_role, ["Senior " + current_role])
 
-
 def _get_development_plan(current_role: str, readiness_score: float) -> Dict[str, Any]:
     """Get personalized development plan."""
     next_roles = _suggest_next_roles(current_role)
@@ -354,7 +340,6 @@ def _get_development_plan(current_role: str, readiness_score: float) -> Dict[str
         "suggested_next_roles": next_roles,
         "development_activities": ["Mentorship", "Stretch assignments", "Training"]
     }
-
 
 def _compile_action_items(status: Dict, engagement: Dict, risks: List, development: List) -> List[str]:
     """Compile prioritized action items for HR focus."""

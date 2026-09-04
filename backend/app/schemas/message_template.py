@@ -2,10 +2,13 @@
 Pydantic Schemas — S-014/HRMS-0414 Message Template Engine.
 """
 from datetime import datetime
+import logging
 from typing import List, Optional
 
 from pydantic import BaseModel, Field
+from app.core.logging import logger
 
+logger = logging.getLogger(__name__)
 
 class CreateTemplateRequest(BaseModel):
     template_key: str
@@ -14,7 +17,6 @@ class CreateTemplateRequest(BaseModel):
     body: str = Field(..., min_length=1, max_length=50000)
     subject: Optional[str] = Field(None, max_length=500)
     language: str = "en"
-
 
 class TemplateResponse(BaseModel):
     id: int
@@ -31,10 +33,8 @@ class TemplateResponse(BaseModel):
     approved_at: Optional[datetime]
     created_at: Optional[datetime]
 
-
 class TemplateListResponse(BaseModel):
     templates: List[TemplateResponse]
-
 
 class TemplatePreviewResponse(BaseModel):
     rendered_body: str

@@ -1,11 +1,13 @@
+from app.core.logging import logger
 """Defect reporting endpoint - logs user-reported issues for QA review."""
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from datetime import datetime
+import logging
 import os
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_internal_user
+from app.core.dependencies import get_current_internal_user, require_resource_permission
 from app.models.user import Users
 from app.schemas.defect import DefectReportRequest, DefectReportResponse
 
@@ -13,15 +15,17 @@ router = APIRouter(tags=["Defect Reporting"])
 
 DEFECT_LOG_FILE = os.path.join(os.path.dirname(__file__), "..", "..", "..", "DEFECTS_LOG.md")
 
-
 def ensure_defect_log_exists():
     """Create DEFECTS_LOG.md if it doesn't exist."""
     if not os.path.exists(DEFECT_LOG_FILE):
         with open(DEFECT_LOG_FILE, "w") as f:
             f.write("# Defect Reports - Production\n\n")
 
-
-@router.post("/defects/report", response_model=DefectReportResponse)
+@router.post(
+    "/defects/report",
+    response_model=DefectReportResponse,
+    dependencies=[Depends(require_resource_permission("defect", "create"))]
+)
 def report_defect(
     report: DefectReportRequest,
     db: Session = Depends(get_db),
@@ -82,6 +86,7 @@ def report_defect(
         )
 
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=500,
             detail=f"Failed to log defect: {str(e)}"

@@ -1,18 +1,8 @@
 // Shared API client helpers (base URL + auth headers).
 //
-// REACT_APP_API_BASE_URL is set explicitly per environment via
-// .env.development (npm start -> localhost) and .env.production
-// (npm run build -> the real backend) -- CRA loads the matching file
-// automatically based on NODE_ENV, no manual setup needed per machine.
-//
-// The fallback below is intentionally NOT the production URL. It used
-// to be, which meant any environment that didn't set the env var --
-// including a bare `npm start` with no .env files present -- silently
-// talked to the real production backend and real candidate/employee
-// PII. Falling back to localhost instead means a misconfigured
-// environment fails loudly and obviously (connection refused) rather
-// than quietly reading/writing real data.
-const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || "http://localhost:8080";
+// Use relative URLs so dev server proxy (setupProxy.js) can forward to backend.
+// In production, REACT_APP_API_BASE_URL can be set to the actual backend URL.
+const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || "";
 
 export const getApiBaseUrl = () => API_BASE_URL;
 
@@ -64,6 +54,7 @@ export const formatApiErrorMessage = (payload) => {
 export const clearAuthSessionAndRedirectToLogin = () => {
   try {
     localStorage.removeItem("hrms_token");
+    localStorage.removeItem("hrms_refresh_token");
     localStorage.removeItem("hrms_role");
     localStorage.removeItem("hrms_user_name");
     localStorage.removeItem("hrms_user_email");
@@ -102,6 +93,50 @@ const withAuthHeaders = (headers = {}) => {
   return result;
 };
 
+// Track if we're already in a refresh attempt to prevent infinite loops
+let isRefreshing = false;
+let refreshPromise = null;
+
+const refreshAccessToken = async () => {
+  const refreshToken = localStorage.getItem("hrms_refresh_token");
+  if (!refreshToken) {
+    clearAuthSessionAndRedirectToLogin();
+    throw new Error("No refresh token available");
+  }
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/v1/auth/v1/refresh`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${refreshToken}`,
+      },
+      credentials: 'omit',
+    });
+
+    if (!response.ok) {
+      console.error("[API] Token refresh failed, redirecting to login");
+      clearAuthSessionAndRedirectToLogin();
+      throw new Error("Token refresh failed");
+    }
+
+    const data = await response.json();
+
+    // Store new tokens
+    localStorage.setItem("hrms_token", data.access_token);
+    if (data.refresh_token) {
+      localStorage.setItem("hrms_refresh_token", data.refresh_token);
+    }
+
+    console.log("[API] ✓ Token refreshed successfully");
+    return data.access_token;
+  } catch (error) {
+    console.error("[API] Token refresh error:", error);
+    clearAuthSessionAndRedirectToLogin();
+    throw error;
+  }
+};
+
 export const apiRequest = async (path, options = {}) => {
   const {
     headers,
@@ -118,8 +153,10 @@ export const apiRequest = async (path, options = {}) => {
   };
 
   const method = rest.method || "GET";
-  const url = `${API_BASE_URL}${path}`;
-  console.log(`[API] ${method} ${path}`);
+  // Automatically add /api/v1 prefix if not already present (backend routes registered with this prefix)
+  const normalizedPath = path.startsWith("/api") ? path : `/api/v1${path}`;
+  const url = `${API_BASE_URL}${normalizedPath}`;
+  console.log(`[API] ${method} ${normalizedPath}`);
 
   let response;
   try {
@@ -130,7 +167,7 @@ export const apiRequest = async (path, options = {}) => {
       ...rest,
     });
   } catch (error) {
-    console.error(`[API] Network error on ${method} ${path}:`, error.message);
+    console.error(`[API] Network error on ${method} ${normalizedPath}:`, error.message);
     console.error('[API] Debugging info:');
     console.error('  URL:', url);
     console.error('  Method:', method);
@@ -145,29 +182,84 @@ export const apiRequest = async (path, options = {}) => {
     data = null;
   }
 
-  console.log(`[API] ${method} ${path} - Status: ${response.status}`, data);
+  console.log(`[API] ${method} ${normalizedPath} - Status: ${response.status}`, data);
 
   if (!response.ok) {
     // Backend often returns 404 when optional candidate form rows do not exist yet.
     if (allow404 && response.status === 404) {
-      console.warn(`[API] 404 allowed for ${path}`);
+      console.warn(`[API] 404 allowed for ${normalizedPath}`);
       return { data: null, response };
     }
     if (
       Array.isArray(allowStatuses) &&
       allowStatuses.includes(response.status)
     ) {
-      console.warn(`[API] Status ${response.status} allowed for ${path}`);
+      console.warn(`[API] Status ${response.status} allowed for ${normalizedPath}`);
       return { data: null, response };
     }
-    // Expired or invalid JWT: redirect to login instead of surfacing "Invalid token" in the UI.
+
+    // Handle 401 with automatic token refresh
     if (response.status === 401 && !skipAuth) {
-      console.error(`[API] 401 Unauthorized - redirecting to login`);
-      clearAuthSessionAndRedirectToLogin();
-      throw new Error("Your session has expired. Please sign in again.");
+      const refreshToken = localStorage.getItem("hrms_refresh_token");
+
+      // Only attempt refresh if we have a refresh token and aren't already refreshing
+      if (refreshToken && !isRefreshing && normalizedPath !== "/auth/v1/refresh") {
+        isRefreshing = true;
+
+        try {
+          if (!refreshPromise) {
+            refreshPromise = refreshAccessToken();
+          }
+
+          const newAccessToken = await refreshPromise;
+          isRefreshing = false;
+          refreshPromise = null;
+
+          // Retry the original request with new token
+          console.log(`[API] Retrying ${method} ${normalizedPath} with refreshed token`);
+          const retryHeaders = withAuthHeaders(baseHeaders);
+          retryHeaders.Authorization = `Bearer ${newAccessToken}`;
+
+          const retryResponse = await fetch(url, {
+            headers: retryHeaders,
+            credentials: 'omit',
+            body,
+            ...rest,
+          });
+
+          let retryData = null;
+          try {
+            retryData = await retryResponse.json();
+          } catch (err) {
+            retryData = null;
+          }
+
+          if (retryResponse.ok) {
+            console.log(`[API] ✓ ${method} ${normalizedPath} (after refresh)`);
+            return { data: retryData, response: retryResponse };
+          } else {
+            // Retry still failed
+            if (retryResponse.status === 401) {
+              clearAuthSessionAndRedirectToLogin();
+            }
+            throw new Error(formatApiErrorMessage(retryData));
+          }
+        } catch (refreshError) {
+          isRefreshing = false;
+          refreshPromise = null;
+          clearAuthSessionAndRedirectToLogin();
+          throw refreshError;
+        }
+      } else {
+        // No refresh token or already refreshing, redirect to login
+        console.error(`[API] 401 Unauthorized - redirecting to login`);
+        clearAuthSessionAndRedirectToLogin();
+        throw new Error("Your session has expired. Please sign in again.");
+      }
     }
+
     const message = formatApiErrorMessage(data);
-    console.error(`[API] Error ${response.status} for ${path}: ${message}`, data);
+    console.error(`[API] Error ${response.status} for ${normalizedPath}: ${message}`, data);
     const error = new Error(message);
     error.status = response.status;
     // Structured 4xx bodies (e.g. { error, review_id, ... }) -- callers that
@@ -177,6 +269,6 @@ export const apiRequest = async (path, options = {}) => {
     throw error;
   }
 
-  console.log(`[API] ✓ ${method} ${path}`);
+  console.log(`[API] ✓ ${method} ${normalizedPath}`);
   return { data, response };
 };

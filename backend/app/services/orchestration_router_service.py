@@ -1,4 +1,5 @@
 """
+import logging
 Phase 3 Part A2 -- HRMS-1101 System Orchestration Router.
 
 Per S-270_HRMS-1101.docx's own "How is Agentic AI Used" section, this
@@ -40,6 +41,7 @@ rate-limiter gap. Every call in this module still executes inside a
 single DB transaction (caller commits), so the window is narrow, not
 absent.
 """
+import logging
 from datetime import datetime, timedelta
 from typing import Callable, Optional
 
@@ -49,6 +51,7 @@ from app.models.candidate_ai import CandidateConversation
 from app.models.orchestration import RESOLUTION_ACTIONS, SEVERITIES, ConflictRule, OrchestrationEvent
 from app.models.user import Users
 from app.services.notification_service import send_notification
+from app.core.logging import logger
 
 NOVEL_PATTERN_WINDOW_MINUTES = 5   # BR-1101 Step 4
 HIGH_SEVERITY_PAGE_SLA_SECONDS = 300  # BR-1101-04
@@ -61,14 +64,13 @@ THUNDER_OWNERSHIP_LOCK_RULE_NAME = "thunder_ownership_lock"
 ANY_SEND_ACTION_TYPE = "any_send"
 CANDIDATE_CONVERSATION_ENTITY_TYPE = "candidate_conversation"
 
+logger = logging.getLogger(__name__)
 
 class RuleEditForbidden(Exception):
     """BR-1101-05: only Admin may create, edit, or deactivate a conflict_rules row."""
 
-
 class InvalidConflictRule(Exception):
     """Rejects a rule definition that can't be evaluated as written."""
-
 
 class ActionBlocked(Exception):
     """BR-1101-01/02: the caller (a future agent) must not proceed. Carries the
@@ -81,7 +83,6 @@ class ActionBlocked(Exception):
             f"{event.entity_type}:{event.entity_id} (agent {event.agent_id})."
         )
 
-
 class ActionDelayed(Exception):
     """BR: the DELAY resolution -- caller must hold the action for
     delay_minutes and re-evaluate, not proceed now and not abandon it."""
@@ -93,7 +94,6 @@ class ActionDelayed(Exception):
             f"Action delayed {delay_minutes} min by rule '{event.matched_rule_id}' on "
             f"{event.entity_type}:{event.entity_id} (agent {event.agent_id})."
         )
-
 
 # ---------------------------------------------------------------------------
 # Rule management -- BR-1101-05
@@ -137,7 +137,6 @@ def create_conflict_rule(
     db.flush()
     return rule
 
-
 def deactivate_conflict_rule(db: Session, rule: ConflictRule, *, actor_role: str) -> ConflictRule:
     """"Deactivate a rule without deleting audit history" (UI field spec) --
     is_active=False, the row and every OrchestrationEvent that ever
@@ -147,7 +146,6 @@ def deactivate_conflict_rule(db: Session, rule: ConflictRule, *, actor_role: str
     rule.is_active = False
     db.add(rule)
     return rule
-
 
 def seed_default_conflict_rules(db: Session, *, tenant_id: Optional[int] = None) -> list:
     """Idempotent -- seeds the two rules the story doc's Business Rules
@@ -187,7 +185,6 @@ def seed_default_conflict_rules(db: Session, *, tenant_id: Optional[int] = None)
 
     return created
 
-
 # ---------------------------------------------------------------------------
 # Matching
 # ---------------------------------------------------------------------------
@@ -202,7 +199,6 @@ def _rule_side_and_counterpart(rule: ConflictRule, entity_type: str, action_type
         return True, rule.entity_type_a, rule.action_type_a
     return False, None, None
 
-
 def _active_rules_for(db: Session, entity_type: str, action_type: str, tenant_id: Optional[int]):
     query = db.query(ConflictRule).filter(ConflictRule.is_active.is_(True))
     if tenant_id is not None:
@@ -211,7 +207,6 @@ def _active_rules_for(db: Session, entity_type: str, action_type: str, tenant_id
         rule for rule in query.all()
         if _rule_side_and_counterpart(rule, entity_type, action_type)[0]
     ]
-
 
 def _find_counterpart_event(
     db: Session, *, entity_id: str, counterpart_entity_type: str, counterpart_action_type: str,
@@ -237,7 +232,6 @@ def _find_counterpart_event(
         .first()
     )
 
-
 def _find_novel_collision(
     db: Session, *, entity_id: str, agent_id: str, proposed_at: datetime,
 ) -> Optional[OrchestrationEvent]:
@@ -257,7 +251,6 @@ def _find_novel_collision(
         .first()
     )
 
-
 def _conversation_is_owned_by_human(db: Session, conversation_id: str) -> bool:
     """BR-1101-02's direct check -- this rule doesn't need a counterpart
     agent event, current ownership state IS the signal."""
@@ -267,7 +260,6 @@ def _conversation_is_owned_by_human(db: Session, conversation_id: str) -> bool:
         .first()
     )
     return bool(conversation and conversation.owner_type == "hr_user")
-
 
 # ---------------------------------------------------------------------------
 # Escalation -- BR-1101-04
@@ -303,7 +295,6 @@ def _escalate(
         db.add(event)
     except Exception:
         pass  # best-effort -- never blocks the underlying agent action
-
 
 # ---------------------------------------------------------------------------
 # The one entry point every future agent must call before acting
@@ -395,7 +386,6 @@ def evaluate_action_intent(
     db.add(plain_event)
     return plain_event
 
-
 def _evaluate_ownership_lock(
     db, *, agent_id, entity_type, entity_id, action_type, risk_tier, tenant_id, proposed_at,
 ) -> Optional[OrchestrationEvent]:
@@ -413,7 +403,6 @@ def _evaluate_ownership_lock(
     )
     db.add(event)
     return event
-
 
 def _evaluate_rule_matches(
     db, *, agent_id, entity_type, entity_id, action_type, risk_tier, tenant_id, proposed_at,
@@ -436,7 +425,6 @@ def _evaluate_rule_matches(
         db.add(event)
         return event
     return None
-
 
 def _evaluate_novel_pattern(
     db, *, agent_id, entity_type, entity_id, action_type, risk_tier, tenant_id, proposed_at, llm_classifier,

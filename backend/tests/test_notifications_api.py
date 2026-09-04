@@ -4,6 +4,7 @@ S-105/HRMS-P210 (Portal Notification Center) end-to-end on real routes.
 Wires the pre-existing, already-shipped HRMS-0113 notification engine
 (send_notification()/get_unread_count()/mark_as_read(), already called
 by other stories this session) whose own model docstring flagged "no
+import logging
 nav-shell UI" as the one real gap.
 
 Throwaway SQLite app, throwaway JWT keys -- never the real database or
@@ -26,7 +27,6 @@ from app.models.tenant import Tenant
 from app.models.user import Users
 import app.models  # noqa: F401 -- registers every model on Base.metadata
 
-
 @pytest.fixture()
 def throwaway_jwt_keys(monkeypatch):
     key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
@@ -41,7 +41,6 @@ def throwaway_jwt_keys(monkeypatch):
     ).decode()
     monkeypatch.setattr(security, "PRIVATE_KEY", private_pem)
     monkeypatch.setattr(security, "PUBLIC_KEY", public_pem)
-
 
 @pytest.fixture()
 def client(throwaway_jwt_keys):
@@ -91,17 +90,13 @@ def client(throwaway_jwt_keys):
         engine.dispose()
         os.remove(db_path)
 
-
 def _token_for(email, role="Admin"):
     return security.create_access_token(data={"sub": email, "type": role, "name": email})
-
 
 def _auth():
     return {"Authorization": f"Bearer {_token_for('admin@blitzenx.com')}"}
 
-
 def _seed_notification(client, *, message="SLA breach on demand X", priority_tier="P0"):
-    from app.models.user import Users
     from app.services.notification_service import send_notification
 
     engine = create_engine(client.db_url)
@@ -117,11 +112,9 @@ def _seed_notification(client, *, message="SLA breach on demand X", priority_tie
     engine.dispose()
     return notification_id
 
-
 def test_unauthenticated_request_is_rejected(client):
     resp = client.get("/notifications")
     assert resp.status_code in (401, 403)
-
 
 def test_list_notifications_empty(client):
     resp = client.get("/notifications", headers=_auth())
@@ -129,7 +122,6 @@ def test_list_notifications_empty(client):
     body = resp.json()
     assert body["notifications"] == []
     assert body["unread_count"] == 0
-
 
 def test_list_notifications_returns_sent_in_app_feed(client):
     _seed_notification(client, message="New interview scheduled")
@@ -141,7 +133,6 @@ def test_list_notifications_returns_sent_in_app_feed(client):
     assert body["notifications"][0]["delivery_status"] == "SENT"
     assert body["unread_count"] == 1
 
-
 def test_mark_read_reduces_unread_count(client):
     notification_id = _seed_notification(client)
     mark_resp = client.post(f"/notifications/{notification_id}/mark-read", headers=_auth())
@@ -150,7 +141,6 @@ def test_mark_read_reduces_unread_count(client):
 
     list_resp = client.get("/notifications", headers=_auth())
     assert list_resp.json()["unread_count"] == 0
-
 
 def test_mark_read_404_for_unknown_id(client):
     resp = client.post("/notifications/does-not-exist/mark-read", headers=_auth())

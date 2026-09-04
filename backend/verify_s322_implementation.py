@@ -2,6 +2,7 @@
 """
 Standalone verification script for S-322: Candidate Rejection Workflow
 Tests the implementation without pytest infrastructure.
+import logging
 """
 
 import sys
@@ -30,7 +31,6 @@ from app.services.candidate_rejection_service import (
     create_default_rejection_reasons,
 )
 
-
 def setup_test_db():
     """Create test database."""
     fd, db_path = tempfile.mkstemp(suffix=".sqlite3")
@@ -51,13 +51,11 @@ def setup_test_db():
     session = sessionmaker(bind=engine)()
     return session, db_path, engine
 
-
 def cleanup_db(session, db_path, engine):
     """Cleanup test database."""
     session.close()
     engine.dispose()
     os.remove(db_path)
-
 
 def test_reject_candidate():
     """Test reject_candidate functionality."""
@@ -102,7 +100,6 @@ def test_reject_candidate():
     finally:
         cleanup_db(session, db_path, engine)
 
-
 def test_candidate_status_updated():
     """Test that candidate status is updated."""
     print("\n[TEST 2] reject_candidate() updates candidate status...")
@@ -142,7 +139,6 @@ def test_candidate_status_updated():
 
     finally:
         cleanup_db(session, db_path, engine)
-
 
 def test_archive_candidate():
     """Test archive_candidate functionality."""
@@ -185,7 +181,6 @@ def test_archive_candidate():
     finally:
         cleanup_db(session, db_path, engine)
 
-
 def test_rejection_reasons():
     """Test rejection reasons functionality."""
     print("\n[TEST 4] get_rejection_reasons() returns predefined reasons...")
@@ -208,7 +203,6 @@ def test_rejection_reasons():
 
     finally:
         cleanup_db(session, db_path, engine)
-
 
 def test_rejection_status_query():
     """Test get_candidate_rejection_status functionality."""
@@ -260,7 +254,6 @@ def test_rejection_status_query():
 
     finally:
         cleanup_db(session, db_path, engine)
-
 
 def test_complete_workflow():
     """Integration test: complete rejection workflow."""
@@ -318,7 +311,6 @@ def test_complete_workflow():
     finally:
         cleanup_db(session, db_path, engine)
 
-
 if __name__ == "__main__":
     print("=" * 80)
     print("S-322: CANDIDATE REJECTION WORKFLOW - VERIFICATION TESTS")
@@ -351,6 +343,8 @@ if __name__ == "__main__":
         print(f"\nTEST FAILED: {str(e)}")
         sys.exit(1)
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
+        logger.error(f"Error: {str(e)}", exc_info=True)
         print(f"\nERROR: {str(e)}")
         import traceback
         traceback.print_exc()

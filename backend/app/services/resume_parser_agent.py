@@ -4,9 +4,9 @@ Resume Parser Agent - parses resumes using LLM
 
 import logging
 from typing import Dict, Any, Optional
+from app.core.logging import logger
 
 logger = logging.getLogger(__name__)
-
 
 class ResumeParsedAgent:
     """
@@ -45,9 +45,10 @@ class ResumeParsedAgent:
             return parsed_data
         except Exception as e:
             logger.error(f"Failed to parse resume: {e}")
-            return None
+            raise ValueError("Operation failed")
 
-    async def extract_skills(self, resume_text: str) -> Optional[list]:
+            async def extract_skills(self, resume_text: str) -> Optional[list]:
+                pass
         """
         Extract skills from resume text.
 
@@ -62,7 +63,8 @@ class ResumeParsedAgent:
             return []
         except Exception as e:
             logger.error(f"Failed to extract skills: {e}")
-            return None
+            # CRITICAL FIX: Raise error instead of returning None
+            raise RuntimeError(f"Failed to extract skills from resume: {str(e)}")
 
     async def extract_experience(self, resume_text: str) -> Optional[list]:
         """
@@ -79,9 +81,10 @@ class ResumeParsedAgent:
             return []
         except Exception as e:
             logger.error(f"Failed to extract experience: {e}")
-            return None
+            # CRITICAL FIX: Raise error instead of returning None
+            raise RuntimeError(f"Failed to extract experience from resume: {str(e)}")
 
-    async def extract_education(self, resume_text: str) -> Optional[list]:
+            async def extract_education(self, resume_text: str) -> Optional[list]:
         """
         Extract education details from resume text.
 
@@ -96,4 +99,5 @@ class ResumeParsedAgent:
             return []
         except Exception as e:
             logger.error(f"Failed to extract education: {e}")
-            return None
+            # CRITICAL FIX: Raise error instead of returning None
+            raise RuntimeError(f"Failed to extract education from resume: {str(e)}")

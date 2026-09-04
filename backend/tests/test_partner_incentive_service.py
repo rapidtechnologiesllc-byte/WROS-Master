@@ -4,6 +4,7 @@ incentive after MSA is signed and first revenue invoice... this is not
 applicable to Curtis... when we add more sales people in the future we
 need to also check if they are eligible." Proves the rule is genuinely
 data-driven -- Curtis stays ineligible for NEW_LOGO_BONUS purely
+import logging
 because he has no rule row, no special-case code anywhere.
 
 Throwaway SQLite -- never the real database.
@@ -25,7 +26,6 @@ from app.models.tenant import Tenant
 from app.models.user import Users
 from app.services.partner_incentive_service import check_new_logo_incentive, create_incentive_rule
 
-
 @pytest.fixture()
 def db_session():
     fd, db_path = tempfile.mkstemp(suffix=".sqlite3")
@@ -39,7 +39,6 @@ def db_session():
         session.close()
         engine.dispose()
         os.remove(db_path)
-
 
 @pytest.fixture()
 def world(db_session):
@@ -66,13 +65,11 @@ def world(db_session):
 
     return {"tenant": tenant, "axion": axion, "prism": prism, "troy": troy, "curtis": curtis}
 
-
 def _make_client(db, name, bu_id, *, contract_start_date=None):
     client = Client(company_name=name, business_unit_id=bu_id, status="ACTIVE", contract_start_date=contract_start_date)
     db.add(client)
     db.commit()
     return client
-
 
 def _make_invoice(db, client):
     project = Project(client_id=client.id, name=f"{client.company_name} Engagement", status="ACTIVE", billing_type="TIME_AND_MATERIALS")
@@ -86,7 +83,6 @@ def _make_invoice(db, client):
     db.commit()
     return invoice
 
-
 def test_no_incentive_without_msa_signed(db_session, world):
     builders = _make_client(db_session, "Builders", world["axion"].id, contract_start_date=None)
     _make_invoice(db_session, builders)
@@ -94,12 +90,10 @@ def test_no_incentive_without_msa_signed(db_session, world):
     event = check_new_logo_incentive(db_session, builders)
     assert event is None
 
-
 def test_no_incentive_without_invoice(db_session, world):
     builders = _make_client(db_session, "Builders", world["axion"].id, contract_start_date=date(2026, 7, 1))
     event = check_new_logo_incentive(db_session, builders)
     assert event is None
-
 
 def test_troy_earns_new_logo_incentive(db_session, world):
     builders = _make_client(db_session, "Builders", world["axion"].id, contract_start_date=date(2026, 7, 1))
@@ -112,7 +106,6 @@ def test_troy_earns_new_logo_incentive(db_session, world):
     assert event.amount_usd_cents == 1000000
     assert event.status == "PENDING"
 
-
 def test_curtis_never_eligible_for_new_logo_no_rule_exists(db_session, world):
     """The real proof of Avinash's rule: Curtis's client goes through
     the exact same MSA+invoice conditions as Troy's and still produces
@@ -123,7 +116,6 @@ def test_curtis_never_eligible_for_new_logo_no_rule_exists(db_session, world):
     event = check_new_logo_incentive(db_session, alfa)
     assert event is None
 
-
 def test_idempotent_never_double_pays(db_session, world):
     builders = _make_client(db_session, "Builders", world["axion"].id, contract_start_date=date(2026, 7, 1))
     _make_invoice(db_session, builders)
@@ -132,7 +124,6 @@ def test_idempotent_never_double_pays(db_session, world):
     second = check_new_logo_incentive(db_session, builders)
 
     assert first.id == second.id
-
 
 def test_idempotency_enforced_at_db_level_not_just_application_check(db_session, world):
     """The real race this closes: two concurrent callers both pass the
@@ -159,7 +150,6 @@ def test_idempotency_enforced_at_db_level_not_just_application_check(db_session,
 
     # First event is untouched.
     assert db_session.query(PartnerIncentiveEvent).filter(PartnerIncentiveEvent.client_id == builders.id).count() == 1
-
 
 def test_future_sales_hire_becomes_eligible_by_getting_a_rule(db_session, world):
     """Avinash: "when we add more sales people in the future we need to
@@ -190,7 +180,6 @@ def test_future_sales_hire_becomes_eligible_by_getting_a_rule(db_session, world)
     assert event.partner_user_id == "newsales"
     assert event.amount_usd_cents == 500000
 
-
 # ---------------------------------------------------------------------------
 # EPIC-16 Partner Incentive Calculator -- calculate_revenue_share_payout()
 # ---------------------------------------------------------------------------
@@ -209,7 +198,6 @@ def _make_invoice_for_month(db, client, year, month, amount_usd_cents):
     db.add(invoice)
     db.commit()
     return invoice
-
 
 def test_calculate_revenue_share_payout_core_only(db_session, world):
     """Curtis's revenue-share mechanism, per Avinash directly. Only
@@ -237,9 +225,7 @@ def test_calculate_revenue_share_payout_core_only(db_session, world):
     assert event.period_year == 2026
     assert event.period_month == 8
 
-
 def test_calculate_revenue_share_payout_idempotent_per_period(db_session, world):
-    from app.services.partner_incentive_service import calculate_revenue_share_payout
 
     create_incentive_rule(
         db_session, partner_user_id="curtis", incentive_type="REVENUE_SHARE", revenue_share_pct=10.0,
@@ -254,9 +240,7 @@ def test_calculate_revenue_share_payout_idempotent_per_period(db_session, world)
 
     assert first.id == second.id
 
-
 def test_calculate_revenue_share_payout_none_without_rule(db_session, world):
-    from app.services.partner_incentive_service import calculate_revenue_share_payout
 
     # Troy only has NEW_LOGO_BONUS configured, not REVENUE_SHARE.
     event = calculate_revenue_share_payout(db_session, partner_user_id="troy", year=2026, month=8)

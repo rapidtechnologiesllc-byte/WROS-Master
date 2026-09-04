@@ -1,5 +1,6 @@
 """
 HRMS-0906 (Revenue Realization & Leakage Detection) + HRMS-0903
+import logging
 (Timesheet-to-Revenue Bridge Validation).
 
 Per BR-0906-01, this is the shared detection source a broader Revenue
@@ -20,7 +21,6 @@ from app.models.timesheet import Timesheet
 
 DEFAULT_LEAKAGE_GRACE_DAYS = 7   # HRMS-0906: configurable via HRMS-0115, hardcoded default here
 DEFAULT_RECONCILIATION_GRACE_DAYS = 1  # HRMS-0903
-
 
 def scan_project_revenue_leakage(
     db: Session, project: Project, *, period_start, period_end,
@@ -79,7 +79,6 @@ def scan_project_revenue_leakage(
     db.add(flag)
     return flag
 
-
 def log_partial_billing_reason(db: Session, flag: RevenueLeakageFlag, *, reason: str) -> RevenueLeakageFlag:
     """HRMS-0906 BR-0906-02: a logged reason (e.g. a client-negotiated
     cap) suppresses this from being counted as real leakage."""
@@ -87,14 +86,12 @@ def log_partial_billing_reason(db: Session, flag: RevenueLeakageFlag, *, reason:
     db.add(flag)
     return flag
 
-
 def get_active_leakage_flags(db: Session, *, tenant_id: Optional[int] = None) -> List[RevenueLeakageFlag]:
     """Only flags with no logged reason count as genuine, unresolved leakage."""
     return db.query(RevenueLeakageFlag).filter(
         RevenueLeakageFlag.tenant_id == tenant_id,
         RevenueLeakageFlag.partial_billing_reason.is_(None),
     ).all()
-
 
 def find_reconciliation_gaps(
     db: Session, *, tenant_id: Optional[int] = None,
@@ -132,7 +129,6 @@ def find_reconciliation_gaps(
             gaps.append(ts)
     return gaps
 
-
 def create_reconciliation_alert(db: Session, timesheet: Timesheet, *, tenant_id: Optional[int] = None) -> ReconciliationAlert:
     existing = db.query(ReconciliationAlert).filter(
         ReconciliationAlert.timesheet_id == timesheet.id, ReconciliationAlert.status == "UNRESOLVED",
@@ -146,7 +142,6 @@ def create_reconciliation_alert(db: Session, timesheet: Timesheet, *, tenant_id:
     )
     db.add(alert)
     return alert
-
 
 def resolve_reconciliation_alert(db: Session, alert: ReconciliationAlert) -> ReconciliationAlert:
     alert.status = "RESOLVED"

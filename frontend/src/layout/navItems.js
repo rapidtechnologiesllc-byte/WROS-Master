@@ -31,6 +31,8 @@ import {
   Gift,
   Zap,
   Database,
+  Cog,
+  Link2,
 } from "lucide-react";
 import { ROUTES } from "../utils/Routes";
 
@@ -57,6 +59,7 @@ export const NAV_ITEMS = {
   submissions: { path: ROUTES.SUBMISSIONS, label: "Submissions", icon: Send },
   employees: { path: ROUTES.EMPLOYEES, label: "Employees", icon: UserPlus },
   employeeConversion: { path: ROUTES.EMPLOYEE_CONVERSION, label: "Convert to Employee", icon: UserPlus },
+  linkedInPipeline: { path: ROUTES.LINKEDIN_PIPELINE, label: "LinkedIn Pipeline", icon: Link2 },
   // HRMS-1105/S-320 -- Resource Management Agent. No dedicated
   // Partner/Resource Manager role exists in this codebase's role set
   // yet, so this is scoped to the roles that already get HR/oversight
@@ -117,10 +120,16 @@ export const NAV_ITEMS = {
   // Message Queue Dashboard -- monitor background tasks, Celery queue status,
   // failed jobs, and retry capabilities. Real-time visibility into async operations.
   messageQueueDashboard: { path: ROUTES.MESSAGE_QUEUE_DASHBOARD, label: "Message Queue", icon: MessageSquareText },
+  // Queue Management -- channel-based message queue with engagement tracking,
+  // retry logic, and email delivery metrics. Real-time visibility into all message channels.
+  queueManagement: { path: '/admin/queue-management', label: "Queue Management", icon: MessageSquareText },
   // S-014/HRMS-0414 -- template.manage-gated activate action lives on
   // the screen itself; the nav entry is visible to anyone who can see
   // the Admin group (recruiters can create/preview, just not activate).
   messageTemplates: { path: ROUTES.MESSAGE_TEMPLATES, label: "Message Templates", icon: MessageSquareText },
+  // Agent Configuration -- manage agent pipeline settings and orchestration
+  // Super User/Admin only. Configure agents, set queue names, manage pipeline order.
+  agentConfig: { path: ROUTES.AGENT_CONFIG, label: "Agent Configuration", icon: Cog },
   // S-028/HRMS-0428 -- Self-Learning Model (SLM) for resume parsing management.
   // Super User only. Monitor parsing accuracy, manage training data, retrain model.
   slmDashboard: { path: ROUTES.SLM_DASHBOARD, label: "Resume Parser (SLM)", icon: Zap },

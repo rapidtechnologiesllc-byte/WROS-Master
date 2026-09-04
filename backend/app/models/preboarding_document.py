@@ -1,4 +1,5 @@
 """
+import logging
 S-057/HRMS-0457 -- Document Collection Agent.
 
 preboarding_documents: genuinely new table -- one row per (tenant,
@@ -26,6 +27,7 @@ inbound document today. `mark_document_received()`
 has no live trigger yet, same honest gap S-027 already flagged for
 the identical missing infrastructure.
 """
+import logging
 from sqlalchemy import Boolean, Column, DateTime, Enum, ForeignKey, Integer, String, Text, UniqueConstraint, func
 from sqlalchemy.orm import relationship
 
@@ -33,18 +35,19 @@ from app.models.base import Base
 
 DOCUMENT_STATUSES = ("PENDING", "RECEIVED", "VERIFIED", "WAIVED", "CANCELLED")
 
+logger = logging.getLogger(__name__)
 
 class PreboardingDocument(Base):
     __tablename__ = "preboarding_documents"
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
 
-    tenant_id = Column(String(50), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=False, index=True)
-    candidate_id = Column(String(36), ForeignKey("candidates.candidateID", ondelete="CASCADE"), nullable=False, index=True)
+    tenant_id = Column(String(512), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=False, index=True)
+    candidate_id = Column(String(512), ForeignKey("candidates.candidateID", ondelete="CASCADE"), nullable=False, index=True)
     offer_id = Column(Integer, ForeignKey("offer_letters.id", ondelete="CASCADE"), nullable=False, index=True)
 
-    document_type = Column(String(100), nullable=False)
-    document_label = Column(String(200), nullable=False)
+    document_type = Column(String(512), nullable=False)
+    document_label = Column(String(512), nullable=False)
     status = Column(
         Enum(*DOCUMENT_STATUSES, name="preboarding_document_status", native_enum=False, create_constraint=True),
         nullable=False, server_default="PENDING",

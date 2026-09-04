@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
 Remove conflicting index=True declarations when explicit Index() exists in __table_args__
+import logging
 """
 
 import re

@@ -2,6 +2,7 @@
 POST /auth/v1/signup -- proves the privilege-escalation fix: this route
 is public (no auth possible, see auth_middleware.PUBLIC_ROUTES), so it
 must never trust a caller-supplied user_role. Every self-signup gets
+import logging
 SELF_SIGNUP_DEFAULT_ROLE regardless of what's in the request body.
 
 Throwaway SQLite app -- never the real database.
@@ -18,7 +19,6 @@ from sqlalchemy.orm import sessionmaker
 from app.models.base import Base
 from app.models.user import Users
 import app.models  # noqa: F401 -- registers every model on Base.metadata
-
 
 @pytest.fixture()
 def client():
@@ -49,7 +49,6 @@ def client():
         engine.dispose()
         os.remove(db_path)
 
-
 def test_signup_ignores_caller_supplied_super_user_role(client):
     test_client, SessionLocal = client
     response = test_client.post("/auth/v1/signup", json={
@@ -69,7 +68,6 @@ def test_signup_ignores_caller_supplied_super_user_role(client):
     assert user is not None
     assert user.UserRole == "Employee"
     assert user.UserRole != "Super User"
-
 
 def test_signup_ignores_caller_supplied_admin_role(client):
     test_client, SessionLocal = client

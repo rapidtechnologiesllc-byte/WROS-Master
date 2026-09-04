@@ -4,11 +4,13 @@ Full CRUD endpoints for interview decision workflow.
 """
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
+import logging
 from typing import Optional
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_user
+from app.core.dependencies import get_current_user, require_resource_permission
 from app.services.interview_decision_service import InterviewDecisionService
+from app.core.logging import logger
 from app.schemas.interview_decision import (
     GetInterviewStatusRequest,
     GetInterviewStatusResponse,
@@ -27,9 +29,9 @@ router = APIRouter(
 
 decision_service = InterviewDecisionService()
 
-
 @router.post(
     "/status",
+    dependencies=[Depends(require_resource_permission("interview", "manage"))],
     response_model=GetInterviewStatusResponse,
     status_code=status.HTTP_200_OK,
     summary="Get Interview Status",
@@ -65,14 +67,15 @@ async def get_interview_status(
     except HTTPException:
         raise
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to get interview status: {str(e)}"
         )
 
-
 @router.post(
     "/calculate-decision",
+    dependencies=[Depends(require_resource_permission("interview", "manage"))],
     response_model=CalculatePanelDecisionResponse,
     status_code=status.HTTP_200_OK,
     summary="Calculate Panel Decision",
@@ -100,14 +103,15 @@ async def calculate_panel_decision(
 
         return decision_data
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to calculate panel decision: {str(e)}"
         )
 
-
 @router.post(
     "/move-to-offer",
+    dependencies=[Depends(require_resource_permission("interview", "manage"))],
     response_model=MoveToOfferResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Move to Offer",
@@ -154,14 +158,15 @@ async def move_to_offer(
     except HTTPException:
         raise
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to create offer: {str(e)}"
         )
 
-
 @router.post(
     "/reject-candidate",
+    dependencies=[Depends(require_resource_permission("interview", "manage"))],
     response_model=RejectCandidateResponse,
     status_code=status.HTTP_200_OK,
     summary="Reject Candidate",
@@ -201,17 +206,21 @@ async def reject_candidate(
     except HTTPException:
         raise
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to reject candidate: {str(e)}"
         )
 
-
 # ────────────────────────────────────────────────────────────────────────────
 # Health Check Endpoint
 # ────────────────────────────────────────────────────────────────────────────
 
-@router.get("/health", status_code=status.HTTP_200_OK)
+@router.get(
+    "/health",
+    status_code=status.HTTP_200_OK,
+    dependencies=[Depends(require_resource_permission("health", "view"))]
+)
 async def health_check():
     """Health check for interview decision service."""
     return {

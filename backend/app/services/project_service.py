@@ -1,5 +1,6 @@
 """
 HRMS-0801 (Project Lifecycle) + HRMS-0804 (Milestones) + HRMS-0805
+import logging
 (Unfilled Roles) + HRMS-0806 (Revenue Estimate & Margin).
 
 HRMS-0807 (Project Risk Flagging) is NOT built -- it's specified to
@@ -8,6 +9,7 @@ doesn't exist), never recompute one; there's nothing to display yet,
 and building a second scoring formula would contradict that story's
 own BR-0807-01.
 """
+import logging
 from datetime import date, datetime
 from typing import List, Optional
 
@@ -18,6 +20,7 @@ from app.models.employee import Employee
 from app.models.employee_allocation import EmployeeAllocation
 from app.models.opportunity import Opportunity
 from app.models.project import Project, ProjectMilestone
+from app.core.logging import logger
 
 PROJECT_STATUS_TRANSITIONS = {
     "PLANNING": {"ACTIVE", "CLOSED"},
@@ -27,14 +30,13 @@ PROJECT_STATUS_TRANSITIONS = {
     "CLOSED": set(),
 }
 
+logger = logging.getLogger(__name__)
 
 class InvalidProjectTransition(Exception):
     pass
 
-
 class MilestoneValidationError(Exception):
     pass
-
 
 class SiPartnerRequired(Exception):
     """S-358/HRMS-0519 BR: SI Partner Mandatory for SPECIALITY Projects.
@@ -55,7 +57,6 @@ class SiPartnerRequired(Exception):
     SI partner, a parallel si_partner field is redundant. The DB column
     is left in place (untouched schema) but every new project leaves it
     null; nothing reads it as authoritative anymore."""
-
 
 def create_project_from_won_opportunity(
     db: Session, opportunity: Opportunity, *, name: str, tenant_id: Optional[int] = None,
@@ -81,7 +82,6 @@ def create_project_from_won_opportunity(
     db.add(project)
     return project
 
-
 def create_project(
     db: Session, *, tenant_id: Optional[int], client_id: str, name: str,
     billing_type: str = "TIME_AND_MATERIALS", currency: str = "USD",
@@ -103,7 +103,6 @@ def create_project(
     db.add(project)
     return project
 
-
 def transition_project_status(db: Session, project: Project, new_status: str) -> Project:
     allowed = PROJECT_STATUS_TRANSITIONS.get(project.status, set())
     if new_status not in allowed:
@@ -116,7 +115,6 @@ def transition_project_status(db: Session, project: Project, new_status: str) ->
     db.add(project)
     return project
 
-
 def create_milestone(
     db: Session, project: Project, *, title: str, due_date: date,
     tenant_id: Optional[int] = None, description: Optional[str] = None, owner_employee_id: Optional[str] = None,
@@ -127,7 +125,6 @@ def create_milestone(
     )
     db.add(milestone)
     return milestone
-
 
 def complete_milestone(db: Session, milestone: ProjectMilestone, *, completion_date: Optional[date] = None) -> ProjectMilestone:
     """HRMS-0804 BR-0804-01: delay_days is always computed here, never
@@ -141,7 +138,6 @@ def complete_milestone(db: Session, milestone: ProjectMilestone, *, completion_d
     milestone.delay_days = max(0, (completion_date - milestone.due_date).days)
     db.add(milestone)
     return milestone
-
 
 def get_unfilled_project_roles(db: Session, project: Project, *, now: Optional[date] = None) -> List[dict]:
     """
@@ -180,7 +176,6 @@ def get_unfilled_project_roles(db: Session, project: Project, *, now: Optional[d
             "gap_status": gap_status,
         })
     return gaps
-
 
 def calculate_project_expected_revenue(db: Session, project: Project, *, now: Optional[date] = None) -> dict:
     """

@@ -1,16 +1,19 @@
 """
+import logging
 S-216/HRMS-0118 -- Shared Activity Timeline & File Attachment Framework.
 
 Polymorphic (entity_type, entity_id) history table -- BR-0118-01's
 sanctioned pattern: any story needing a "what happened" feed writes
 here instead of building its own history table.
 """
+import logging
 from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Text, func
 
 from app.models.base import Base
 
 ACTOR_TYPES = ("USER", "SYSTEM", "AI_AGENT")
 
+logger = logging.getLogger(__name__)
 
 class ActivityTimeline(Base):
     __tablename__ = "activity_timeline"
@@ -20,14 +23,14 @@ class ActivityTimeline(Base):
     # column added this round (safe-upgrade for existing/system rows).
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
 
-    entity_type = Column(String(50), nullable=False, index=True)
-    entity_id = Column(String(50), nullable=False, index=True)
+    entity_type = Column(String(512), nullable=False, index=True)
+    entity_id = Column(String(512), nullable=False, index=True)
 
     actor_type = Column(String(20), nullable=False, default="USER", server_default="USER")
     # Nullable -- a SYSTEM/AI_AGENT-authored entry has no real Users row.
-    actor_id = Column(String(50), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=True)
+    actor_id = Column(String(512), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=True)
 
-    action = Column(String(100), nullable=False)
+    action = Column(String(512), nullable=False)
     description = Column(Text, nullable=True)
 
     created_at = Column(DateTime(timezone=False), server_default=func.now(), index=True)

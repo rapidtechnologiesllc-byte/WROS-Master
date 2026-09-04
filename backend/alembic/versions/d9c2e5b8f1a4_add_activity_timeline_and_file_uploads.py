@@ -1,3 +1,4 @@
+import logging
 """add activity_timeline and file_uploads tables (S-216/HRMS-0118)
 
 Revision ID: d9c2e5b8f1a4
@@ -11,7 +12,6 @@ revision = "d9c2e5b8f1a4"
 down_revision = "b3f8d2a7c4e6"
 branch_labels = None
 depends_on = None
-
 
 def upgrade():
     op.create_table(
@@ -54,7 +54,6 @@ def upgrade():
     op.create_index("ix_file_uploads_tenant_id", "file_uploads", ["tenant_id"])
     op.create_index("ix_file_uploads_entity_type", "file_uploads", ["entity_type"])
     op.create_index("ix_file_uploads_entity_id", "file_uploads", ["entity_id"])
-
 
 def downgrade():
     op.drop_index("ix_file_uploads_entity_id", table_name="file_uploads")

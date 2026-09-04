@@ -1,7 +1,10 @@
+import logging
 from typing import List, Optional
 
 from pydantic import BaseModel
+from app.core.logging import logger
 
+logger = logging.getLogger(__name__)
 
 class TimelineEntryOut(BaseModel):
     id: int
@@ -11,18 +14,15 @@ class TimelineEntryOut(BaseModel):
     description: Optional[str] = None
     created_at: Optional[str] = None
 
-
 class TimelineResponse(BaseModel):
     total: int
     page: int
     per_page: int
     entries: List[TimelineEntryOut]
 
-
 class WriteTimelineEntryRequest(BaseModel):
     action: str
     description: Optional[str] = None
-
 
 class FileUploadOut(BaseModel):
     id: int
@@ -34,7 +34,6 @@ class FileUploadOut(BaseModel):
     scan_status: str
     uploaded_by: Optional[str] = None
     created_at: Optional[str] = None
-
 
 class FileAccessUrlResponse(BaseModel):
     access_url: Optional[str] = None

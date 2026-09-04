@@ -1,8 +1,11 @@
 from datetime import date, datetime
+import logging
 from typing import Optional
 
 from pydantic import BaseModel
+from app.core.logging import logger
 
+logger = logging.getLogger(__name__)
 
 class OpportunityCreateRequest(BaseModel):
     # probability_pct is deliberately NOT client-supplied -- 2026-08-12,
@@ -17,7 +20,6 @@ class OpportunityCreateRequest(BaseModel):
     client_owner_id: Optional[str] = None
     expected_close_date: Optional[date] = None
     stage: str = "QUALIFICATION"
-
 
 class OpportunityItem(BaseModel):
     id: str
@@ -40,10 +42,8 @@ class OpportunityItem(BaseModel):
     class Config:
         from_attributes = True
 
-
 class OpportunityListResponse(BaseModel):
     opportunities: list[OpportunityItem]
-
 
 class OpportunityStageTransitionRequest(BaseModel):
     new_stage: str
@@ -51,11 +51,9 @@ class OpportunityStageTransitionRequest(BaseModel):
     billing_type: str = "TIME_AND_MATERIALS"
     continent: Optional[str] = None
 
-
 class OpportunityStageTransitionResponse(BaseModel):
     opportunity: OpportunityItem
     project_id: Optional[str] = None
-
 
 class PipelineColumn(BaseModel):
     stage: str
@@ -63,10 +61,8 @@ class PipelineColumn(BaseModel):
     total_weighted_forecast_usd_cents: int
     opportunities: list[OpportunityItem]
 
-
 class PipelineResponse(BaseModel):
     columns: list[PipelineColumn]
-
 
 class RoleDemandFromOpportunityRequest(BaseModel):
     job_title: str
@@ -76,7 +72,6 @@ class RoleDemandFromOpportunityRequest(BaseModel):
     quantity: int
     duration_hours: int
     billing_rate_usd_cents: int
-
 
 class RoleDemandFromOpportunityResponse(BaseModel):
     id: str

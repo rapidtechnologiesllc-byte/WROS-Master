@@ -1,4 +1,5 @@
 """
+import logging
 S-037/HRMS-0437 -- Technical Qualification Score.
 
 candidate_job_scores: genuinely new table -- a real, one-row-per-
@@ -12,20 +13,22 @@ per the spec's own table shape (Step 1), but S-037 only ever computes
 technical_score -- left nullable for the later stories that own those
 (HRMS-0440 Overall Candidate Score and friends), not computed here.
 """
+import logging
 from sqlalchemy import Column, DateTime, ForeignKey, Integer, JSON, String, UniqueConstraint, func
 from sqlalchemy.orm import relationship
 
 from app.models.base import Base
 
+logger = logging.getLogger(__name__)
 
 class CandidateJobScore(Base):
     __tablename__ = "candidate_job_scores"
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
 
-    tenant_id = Column(String(50), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=False, index=True)
-    candidate_id = Column(String(36), ForeignKey("candidates.candidateID", ondelete="CASCADE"), nullable=False, index=True)
-    job_id = Column(String(50), ForeignKey("jobs.jobID", ondelete="CASCADE"), nullable=False, index=True)
+    tenant_id = Column(String(512), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=False, index=True)
+    candidate_id = Column(String(512), ForeignKey("candidates.candidateID", ondelete="CASCADE"), nullable=False, index=True)
+    job_id = Column(String(512), ForeignKey("jobs.jobID", ondelete="CASCADE"), nullable=False, index=True)
 
     technical_score = Column(Integer, nullable=True)
     compensation_score = Column(Integer, nullable=True)   # not computed by S-037 -- see module docstring

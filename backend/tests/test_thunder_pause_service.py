@@ -1,4 +1,5 @@
 """
+import logging
 S-075/HRMS-0475 -- AI Recruiter Pause & Resume Controls.
 
 Real architecture under test (see thunder_pause_service module
@@ -28,7 +29,6 @@ from app.models.user import Users
 
 import app.services.thunder_pause_service as svc
 
-
 @pytest.fixture()
 def db_session():
     fd, db_path = tempfile.mkstemp(suffix=".sqlite3")
@@ -47,7 +47,6 @@ def db_session():
         engine.dispose()
         os.remove(db_path)
 
-
 @pytest.fixture()
 def seeded(db_session):
     db_session.add(Users(UserID="U-ORG", UserRole="Super User", UserEmail="org@blitzenx.com", UserPassword="h", tenant_id=None, thunder_enabled=True))
@@ -59,12 +58,10 @@ def seeded(db_session):
     db_session.commit()
     return candidate, conv
 
-
 def test_not_paused_by_default(db_session, seeded):
     _, conv = seeded
     assert svc.is_thunder_paused_for_conversation(db_session, conv) is False
     svc.raise_if_thunder_paused(db_session, conv)  # must not raise
-
 
 def test_pause_thunder_sets_flags_without_touching_ownership(db_session, seeded):
     _, conv = seeded
@@ -79,7 +76,6 @@ def test_pause_thunder_sets_flags_without_touching_ownership(db_session, seeded)
     assert conv.owner_type == "ai_agent"
     assert conv.owner_id == "Thunder"
 
-
 def test_paused_conversation_raises(db_session, seeded):
     _, conv = seeded
     svc.pause_thunder(db_session, conv, paused_by="U-HR")
@@ -87,7 +83,6 @@ def test_paused_conversation_raises(db_session, seeded):
     assert svc.is_thunder_paused_for_conversation(db_session, conv) is True
     with pytest.raises(svc.ThunderPausedError):
         svc.raise_if_thunder_paused(db_session, conv)
-
 
 def test_resume_thunder_clears_pause_and_resume_at(db_session, seeded):
     _, conv = seeded
@@ -97,7 +92,6 @@ def test_resume_thunder_clears_pause_and_resume_at(db_session, seeded):
     db_session.commit()
     assert conv.is_thunder_paused is False
     assert conv.thunder_resume_at is None
-
 
 def test_global_tenant_pause_takes_precedence_br03(db_session, seeded):
     """BR-03: global pause blocks sends even when the conversation's own
@@ -109,7 +103,6 @@ def test_global_tenant_pause_takes_precedence_br03(db_session, seeded):
 
     assert conv.is_thunder_paused is False  # per-candidate flag untouched
     assert svc.is_thunder_paused_for_conversation(db_session, conv) is True
-
 
 def test_run_pause_expiry_job_auto_resumes_and_logs_event(db_session, seeded):
     _, conv = seeded
@@ -125,7 +118,6 @@ def test_run_pause_expiry_job_auto_resumes_and_logs_event(db_session, seeded):
 
     events = db_session.query(ConversationEvent).filter(ConversationEvent.conversation_id == conv.id).all()
     assert any(e.event_type == "THUNDER_AUTO_RESUMED" for e in events)
-
 
 def test_run_pause_expiry_job_ignores_not_yet_due_or_manual_pauses(db_session, seeded):
     _, conv = seeded
@@ -145,7 +137,6 @@ def test_run_pause_expiry_job_ignores_not_yet_due_or_manual_pauses(db_session, s
     assert result["resumed"] == 0
     assert conv.is_thunder_paused is True
 
-
 def test_send_thunder_message_blocked_when_paused(db_session, seeded):
     """The real choke point (thunder_service.send_thunder_message)
     raises ThunderPausedError before it ever reaches consent/debounce/
@@ -159,7 +150,6 @@ def test_send_thunder_message_blocked_when_paused(db_session, seeded):
     assert ReExportedError is svc.ThunderPausedError
     with pytest.raises(svc.ThunderPausedError):
         send_thunder_message(db_session, conv, candidate, "Hi there", sender_type="ai_agent", channel="web_chat")
-
 
 def test_send_thunder_message_blocked_when_globally_disabled(db_session, seeded):
     from app.services.thunder_service import send_thunder_message

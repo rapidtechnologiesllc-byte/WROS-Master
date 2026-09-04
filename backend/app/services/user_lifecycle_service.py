@@ -1,4 +1,5 @@
 """
+import logging
 User Lifecycle Management Service.
 
 Handles:
@@ -7,6 +8,7 @@ Handles:
 - Task redistribution via round-robin when user terminates
 - User audit trail retrieval (all changes: create, terminate, reinstate, permission changes)
 """
+import logging
 from datetime import datetime
 from typing import List, Dict, Any, Optional
 from sqlalchemy.orm import Session
@@ -15,8 +17,9 @@ from sqlalchemy import and_, or_
 from app.models.user import Users
 from app.models.task import Task, TASK_STATUSES
 from app.models.audit_log import AuditLog
-from app.models.rbac import Role, RolePermission
+from app.core.logging import logger
 
+logger = logging.getLogger(__name__)
 
 class UserLifecycleService:
     """Service for managing user lifecycle operations."""

@@ -2,6 +2,7 @@
 Proves HRMS-0109's tenant-isolation guarantee for the smallest possible
 slice: a `tenants` table, a `tenant_id` column on Users, and a dependency
 (app.core.tenant_context) that resolves tenant_id from the authenticated
+import logging
 session only.
 
 Runs entirely against a throwaway SQLite file created and deleted within
@@ -20,7 +21,6 @@ from app.models.tenant import Tenant
 from app.models.user import Users
 from app.core.tenant_context import get_tenant_scoped_query
 
-
 @pytest.fixture()
 def db_session():
     fd, db_path = tempfile.mkstemp(suffix=".sqlite3")
@@ -34,7 +34,6 @@ def db_session():
         session.close()
         engine.dispose()
         os.remove(db_path)
-
 
 def _seed_two_tenants(db):
     blitzenx = Tenant(name="BlitzenX")
@@ -54,7 +53,6 @@ def _seed_two_tenants(db):
     db.commit()
     return blitzenx, other, alice, bob
 
-
 def test_positive_case_user_sees_only_their_own_tenants_data(db_session):
     """A user's scoped query returns rows from their own tenant."""
     blitzenx, other, alice, bob = _seed_two_tenants(db_session)
@@ -64,7 +62,6 @@ def test_positive_case_user_sees_only_their_own_tenants_data(db_session):
 
     assert [u.UserID for u in alice_results] == ["U-ALICE"]
     assert [u.UserID for u in bob_results] == ["U-BOB"]
-
 
 def test_negative_case_no_way_to_pass_a_forged_tenant_id(db_session):
     """
@@ -86,7 +83,6 @@ def test_negative_case_no_way_to_pass_a_forged_tenant_id(db_session):
 
     assert all(u.tenant_id == alice.tenant_id for u in results)
     assert "U-BOB" not in [u.UserID for u in results]
-
 
 def test_user_with_no_tenant_assigned_is_denied_not_shown_everything(db_session):
     """

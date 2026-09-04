@@ -1,4 +1,5 @@
 """
+import logging
 S-067/HRMS-0467 -- Onboarding Agent.
 
 Real architecture adaptation: built standalone (per Avinash's explicit
@@ -26,7 +27,6 @@ scheduled only at completion-detection time, not upfront, and why its
 presence is this module's own idempotency guard for BR-03 (never
 notifies HR / emits onboarding.complete twice).
 """
-from datetime import datetime, timedelta
 from datetime import time as dt_time
 from typing import Dict, List, Optional
 
@@ -70,14 +70,11 @@ D3_CHECKLIST_MESSAGE = (
 D1_MESSAGE = "Hi {name}! Your first day at BlitzenX is tomorrow! We are so excited to have you join! See you tomorrow!"
 D_PLUS_1_MESSAGE = "Hi {name}! Welcome to BlitzenX -- hope your first day went great! Our HR team is here if you need anything."
 
-
 def _candidate_display_name(candidate: Candidate) -> str:
     return candidate.candidateFirstName or candidate.candidateEmail
 
-
 def _relevant_submission(db: Session, candidate_id: str) -> Optional[Submission]:
     return db.query(Submission).filter(Submission.candidate_id == candidate_id).order_by(Submission.id.desc()).first()
-
 
 def _notify_recruiter(db: Session, submission: Optional[Submission], message: str) -> None:
     if submission is None or not submission.submitted_by_user_id:
@@ -88,8 +85,8 @@ def _notify_recruiter(db: Session, submission: Optional[Submission], message: st
     try:
         send_notification(db, calling_context_tenant_id=recipient.tenant_id, recipient=recipient, priority_tier="P2", channel_preference="IN_APP", message=message)
     except Exception as exc:
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[OnboardingAgent] Failed to notify recruiter: {exc}")
-
 
 def schedule_onboarding_touchpoints(db: Session, candidate: Candidate, offer: OfferLetter, tenant_id: str) -> List[PreboardingTouchpoint]:
     """BR-01: only ever called when entering PREBOARDING (offer
@@ -115,7 +112,6 @@ def schedule_onboarding_touchpoints(db: Session, candidate: Candidate, offer: Of
     db.commit()
     return created
 
-
 def cancel_pending_touchpoints_for_candidate(db: Session, candidate_id: str) -> int:
     """BR-01: withdrawal during PREBOARDING cancels all pending
     touchpoints -- wired into offer_decision_service._handle_decline()."""
@@ -127,10 +123,8 @@ def cancel_pending_touchpoints_for_candidate(db: Session, candidate_id: str) -> 
         db.commit()
     return len(rows)
 
-
 def _active_conversation(db: Session, candidate_id: str) -> Optional[CandidateConversation]:
     return db.query(CandidateConversation).filter(CandidateConversation.candidate_id == candidate_id).order_by(CandidateConversation.id.desc()).first()
-
 
 def _send_touchpoint_message(db: Session, conversation: CandidateConversation, candidate: Candidate, message: str, email_subject: str) -> bool:
     """Sends via BOTH whatsapp and email independently, same pattern
@@ -154,10 +148,10 @@ def _send_touchpoint_message(db: Session, conversation: CandidateConversation, c
         db.commit()
         email_sent = True
     except Exception as exc:
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.error(f"[OnboardingAgent] Email touchpoint failed for candidate {candidate.candidateID!r}: {exc}")
 
     return whatsapp_sent or email_sent
-
 
 def _build_message(touchpoint_type: str, candidate: Candidate, offer: OfferLetter, db: Session) -> str:
     name = _candidate_display_name(candidate)
@@ -172,7 +166,6 @@ def _build_message(touchpoint_type: str, candidate: Candidate, offer: OfferLette
     if touchpoint_type == "D1":
         return D1_MESSAGE.format(name=name)
     return D_PLUS_1_MESSAGE.format(name=name)  # D_PLUS_1
-
 
 def check_onboarding_completion(db: Session, candidate_id: str, offer_id: int, tenant_id: str) -> bool:
     """Step 4. Idempotent -- see preboarding_touchpoint.py's own module
@@ -209,6 +202,7 @@ def check_onboarding_completion(db: Session, candidate_id: str, offer_id: int, t
         readiness = calculate_joining_readiness(db, candidate_id, offer_id, tenant_id)
         readiness_score = readiness.get("readiness_score") if isinstance(readiness, dict) else None
     except Exception as exc:
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[OnboardingAgent] Could not compute joining readiness for candidate {candidate_id!r}: {exc}")
 
     submission = _relevant_submission(db, candidate_id)
@@ -228,10 +222,10 @@ def check_onboarding_completion(db: Session, candidate_id: str, offer_id: int, t
             tenant_id, candidate_id,
         )
     except Exception as exc:
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[OnboardingAgent] Failed to emit onboarding.complete for candidate {candidate_id!r}: {exc}")
 
     return True
-
 
 def run_onboarding_touchpoint_job(db: Session) -> Dict:
     """Standalone scheduled job (every 6h, matching document_reminder_
@@ -277,6 +271,7 @@ def run_onboarding_touchpoint_job(db: Session) -> Dict:
             else:
                 result["skipped"] += 1
         except Exception as exc:
+            logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.error(f"[OnboardingAgent] Failed processing touchpoint id={touchpoint.id}: {exc}")
             db.rollback()
             result["skipped"] += 1
@@ -290,6 +285,7 @@ def run_onboarding_touchpoint_job(db: Session) -> Dict:
             if check_onboarding_completion(db, touchpoint.candidate_id, offer_id, touchpoint.tenant_id):
                 result["completions_detected"] += 1
         except Exception as exc:
+            logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.error(f"[OnboardingAgent] Completion check failed for offer_id={offer_id}: {exc}")
 
     return result

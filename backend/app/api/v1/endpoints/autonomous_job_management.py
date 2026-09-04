@@ -2,13 +2,16 @@
 Autonomous Job Management Endpoints
 ====================================
 Endpoints for managing automatic job closure when positions are filled.
+import logging
 """
 
+import logging
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_hr_or_admin
+from app.core.dependencies import get_current_internal_user
+from app.core.logging import logger
 from app.services.autonomous_job_closure_service import (
     check_and_close_job_if_filled,
     get_job_closure_status
@@ -16,6 +19,7 @@ from app.services.autonomous_job_closure_service import (
 from pydantic import BaseModel
 from typing import Optional, Dict
 
+logger = logging.getLogger(__name__)
 
 class JobClosureStatusResponse(BaseModel):
     job_id: str
@@ -27,7 +31,6 @@ class JobClosureStatusResponse(BaseModel):
     eligible_for_closure: bool
     fill_percentage: int
 
-
 class JobClosureActionResponse(BaseModel):
     success: bool
     message: str
@@ -35,14 +38,12 @@ class JobClosureActionResponse(BaseModel):
     action: Optional[str] = None
     closed_at: Optional[str] = None
 
-
 router = APIRouter(prefix="/autonomous-jobs", tags=["autonomous-jobs"])
-
 
 @router.get(
     "/status/{job_id}",
     response_model=JobClosureStatusResponse,
-    dependencies=[Depends(get_current_hr_or_admin)],
+    dependencies=[Depends(get_current_internal_user)],
 )
 def get_job_status(job_id: str, db: Session = Depends(get_db)):
     """
@@ -54,11 +55,10 @@ def get_job_status(job_id: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail=status["error"])
     return status
 
-
 @router.post(
     "/close/{job_id}",
+    dependencies=[Depends(get_current_internal_user)],
     response_model=JobClosureActionResponse,
-    dependencies=[Depends(get_current_hr_or_admin)],
 )
 def close_job_manually(job_id: str, db: Session = Depends(get_db)):
     """

@@ -1,8 +1,10 @@
 """
 Unit Tests for Hiring Manager Validation Service (HRMS-1104 / S-319)
 Focused on business logic without database setup
+import logging
 """
 
+import logging
 import pytest
 from datetime import datetime, timedelta
 from uuid import uuid4
@@ -10,12 +12,12 @@ from unittest.mock import Mock, MagicMock, patch
 
 from app.services.hiring_manager_validation_service import HiringManagerValidationService
 
-
 @pytest.fixture
 def service():
     """Create service instance"""
     return HiringManagerValidationService()
 
+logger = logging.getLogger(__name__)
 
 class TestDetermineDecision:
     """Test decision determination logic (most important business logic)"""
@@ -187,7 +189,6 @@ class TestDetermineDecision:
         )
         assert result["status"].value == "MAYBE"
 
-
 class TestCreateValidationQuestions:
     """Test create_validation_questions service method"""
 
@@ -358,7 +359,6 @@ class TestCreateValidationQuestions:
 
         assert result["auto_schedule_after_approval"] is False
 
-
 class TestRecordHMResponse:
     """Test record_hm_response service method"""
 
@@ -416,7 +416,6 @@ class TestRecordHMResponse:
 
     def test_error_already_responded(self, service):
         """Test error when validation already responded"""
-        from app.models import HMValidationStatus
 
         mock_db = MagicMock()
         validation = Mock()
@@ -434,7 +433,6 @@ class TestRecordHMResponse:
 
     def test_error_no_responses(self, service):
         """Test error when no responses provided"""
-        from app.models import HMValidationStatus
 
         mock_db = MagicMock()
         validation = Mock()
@@ -452,7 +450,6 @@ class TestRecordHMResponse:
 
     def test_response_time_calculation(self, service):
         """Test response time is calculated correctly"""
-        from app.models import HMValidationStatus
 
         mock_db = MagicMock()
         validation = Mock()
@@ -474,7 +471,6 @@ class TestRecordHMResponse:
 
     def test_decision_rejected(self, service):
         """Test decision logic when q_004=no"""
-        from app.models import HMValidationStatus
 
         mock_db = MagicMock()
         validation = Mock()
@@ -496,7 +492,6 @@ class TestRecordHMResponse:
 
     def test_decision_escalated(self, service):
         """Test decision logic when q_004=maybe"""
-        from app.models import HMValidationStatus
 
         mock_db = MagicMock()
         validation = Mock()

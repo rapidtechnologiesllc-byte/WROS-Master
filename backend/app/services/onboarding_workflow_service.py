@@ -1,4 +1,5 @@
 """
+import logging
 S-324/HRMS-ONBOARDING-WORKFLOW -- Onboarding Workflow Service.
 
 Implements complete onboarding lifecycle management:
@@ -36,7 +37,6 @@ from app.models.onboarding_workflow import (
 )
 from app.services.notification_service import send_notification
 from app.services.email_service import EmailService
-
 
 def start_onboarding(
     db: Session,
@@ -135,6 +135,7 @@ def start_onboarding(
         }
 
     except Exception as exc:
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.error(f"[OnboardingWorkflow] start_onboarding failed: {exc}")
         db.rollback()
         return {
@@ -142,7 +143,6 @@ def start_onboarding(
             "message": f"Failed to start onboarding: {str(exc)}",
             "workflow_id": None,
         }
-
 
 def assign_buddy(
     db: Session,
@@ -234,6 +234,7 @@ def assign_buddy(
         }
 
     except Exception as exc:
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.error(f"[OnboardingWorkflow] assign_buddy failed: {exc}")
         db.rollback()
         return {
@@ -241,7 +242,6 @@ def assign_buddy(
             "message": f"Failed to assign buddy: {str(exc)}",
             "buddy_id": None,
         }
-
 
 def send_welcome_kit(
     db: Session,
@@ -331,6 +331,7 @@ def send_welcome_kit(
         }
 
     except Exception as exc:
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.error(f"[OnboardingWorkflow] send_welcome_kit failed: {exc}")
         db.rollback()
         return {
@@ -338,7 +339,6 @@ def send_welcome_kit(
             "message": f"Failed to send welcome kit: {str(exc)}",
             "kit_id": None,
         }
-
 
 def schedule_training(
     db: Session,
@@ -456,6 +456,7 @@ def schedule_training(
         }
 
     except Exception as exc:
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.error(f"[OnboardingWorkflow] schedule_training failed: {exc}")
         db.rollback()
         return {
@@ -463,7 +464,6 @@ def schedule_training(
             "message": f"Failed to schedule training: {str(exc)}",
             "session_id": None,
         }
-
 
 # ============================================================================
 # HELPER FUNCTIONS
@@ -537,7 +537,6 @@ def _create_default_onboarding_tasks(
     db.flush()
     return tasks
 
-
 def _notify_buddy_assignment(
     db: Session,
     buddy_user: Users,
@@ -561,8 +560,8 @@ def _notify_buddy_assignment(
             message=message,
         )
     except Exception as exc:
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[OnboardingWorkflow] Failed to notify buddy: {exc}")
-
 
 def _create_buddy_introduction_task(
     db: Session,
@@ -587,8 +586,8 @@ def _create_buddy_introduction_task(
         db.add(task)
         db.flush()
     except Exception as exc:
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[OnboardingWorkflow] Failed to create buddy task: {exc}")
-
 
 def _send_welcome_kit_by_channel(
     db: Session,
@@ -631,9 +630,9 @@ def _send_welcome_kit_by_channel(
         return True
 
     except Exception as exc:
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.error(f"[OnboardingWorkflow] Failed to send welcome kit: {exc}")
         return False
-
 
 def _send_training_calendar_invite(
     db: Session,
@@ -662,8 +661,8 @@ def _send_training_calendar_invite(
         training_session.calendar_invite_sent = True
 
     except Exception as exc:
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[OnboardingWorkflow] Failed to send calendar invite: {exc}")
-
 
 def _create_training_task(
     db: Session,
@@ -689,4 +688,5 @@ def _create_training_task(
         db.add(task)
         db.flush()
     except Exception as exc:
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[OnboardingWorkflow] Failed to create training task: {exc}")

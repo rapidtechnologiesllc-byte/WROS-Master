@@ -1,4 +1,5 @@
 """
+import logging
 S-205/HRMS-0107 -- Business Unit Entity & Context Switching.
 
 No literal "Director" role exists in this codebase's real RBAC seed
@@ -18,6 +19,7 @@ from client state, even though the client is the one that supplies it
 store -- see module docstring on get_active_business_unit_id in
 app.api.v1.endpoints.bu_context for how a caller wires this in).
 """
+import logging
 from typing import List, Optional
 
 from sqlalchemy.orm import Session
@@ -26,21 +28,20 @@ from app.models.audit_log import AuditLog
 from app.models.bu_access import BUAccess
 from app.models.business_unit import BusinessUnit
 from app.models.user import Users
+from app.core.logging import logger
 
 ALL_BUS_ROLES = ("Super User",)  # see module docstring -- "Director" analog
 
+logger = logging.getLogger(__name__)
 
 class NotYourBusinessUnit(Exception):
     pass
 
-
 class NotAuthorizedForAllBUs(Exception):
     pass
 
-
 def get_user_bu_access(db: Session, user_id: str) -> List[BUAccess]:
     return db.query(BUAccess).filter(BUAccess.user_id == user_id).all()
-
 
 def validate_active_bu(db: Session, user_id: str, business_unit_id: int) -> BUAccess:
     """BR-0107-01/AC-3 -- the real per-request check. Raises if this
@@ -52,16 +53,13 @@ def validate_active_bu(db: Session, user_id: str, business_unit_id: int) -> BUAc
         raise NotYourBusinessUnit(f"User {user_id!r} has no access to business unit {business_unit_id}.")
     return access
 
-
 def switch_active_bu(db: Session, user: Users, business_unit_id: int) -> BUAccess:
     return validate_active_bu(db, user.UserID, business_unit_id)
-
 
 def get_default_bu(db: Session, user_id: str) -> Optional[BUAccess]:
     access_rows = get_user_bu_access(db, user_id)
     default = next((a for a in access_rows if a.is_default), None)
     return default or (access_rows[0] if access_rows else None)
-
 
 def activate_all_bus_view(db: Session, user: Users) -> AuditLog:
     """BR-0107-02/AC-4: privileged, tracked action -- exactly one real
@@ -86,7 +84,6 @@ def activate_all_bus_view(db: Session, user: Users) -> AuditLog:
     db.commit()
     db.refresh(entry)
     return entry
-
 
 def ensure_default_bu_access(db: Session, user: Users) -> Optional[BUAccess]:
     """Seeds the one real default row a user should always have --

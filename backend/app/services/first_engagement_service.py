@@ -1,4 +1,5 @@
 """
+import logging
 S-012/HRMS-0412 -- WhatsApp First Engagement, 60-Second Rule.
 
 Adapted to real architecture: no `message_templates` table exists here
@@ -18,6 +19,7 @@ captured whatsapp_outreach consent at candidate creation. Fixed at the
 source (candidate_service.create_candidate_safe), not worked around
 here.
 """
+import logging
 import time
 from datetime import datetime
 from typing import Dict, Optional
@@ -46,10 +48,8 @@ FALLBACK_GREETING_TEMPLATE = (
 )
 COMPANY_NAME = "BlitzenX"
 
-
 def _first_name(candidate: Candidate) -> str:
     return candidate.candidateFirstName or candidate.candidateEmail
-
 
 def _render_greeting(db: Session, candidate: Candidate, agent_name: str, tenant_id: str) -> str:
     """
@@ -79,16 +79,15 @@ def _render_greeting(db: Session, candidate: Candidate, agent_name: str, tenant_
         raise TemplateRenderFailure(f"Un-replaced template variable in rendered greeting: {rendered!r}")
     return rendered
 
+logger = logging.getLogger(__name__)
 
 class TemplateRenderFailure(Exception):
     pass
-
 
 class FirstEngagementFailed(Exception):
     def __init__(self, reason: str, detail: str = ""):
         self.reason = reason
         super().__init__(f"{reason}: {detail}" if detail else reason)
-
 
 def _already_sent(db: Session, conversation_id: int) -> bool:
     """BR-03: idempotent -- one first message only."""
@@ -98,7 +97,6 @@ def _already_sent(db: Session, conversation_id: int) -> bool:
         .first()
         is not None
     )
-
 
 def _send_first_whatsapp_attempt(
     db: Session, conversation: CandidateConversation, candidate: Candidate, body: str, whatsapp_client,
@@ -128,6 +126,7 @@ def _send_first_whatsapp_attempt(
     try:
         delivered = bool(client(candidate.candidateMobile, from_number, body))
     except Exception as exc:
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[FirstEngagement] WhatsApp send attempt raised: {exc}")
         delivered = False
 
@@ -139,7 +138,6 @@ def _send_first_whatsapp_attempt(
     )
     db.add(event)
     return delivered
-
 
 def send_first_whatsapp_engagement(
     db: Session, candidate_id: str, tenant_id: str, *, whatsapp_client=None, _sleep=time.sleep,

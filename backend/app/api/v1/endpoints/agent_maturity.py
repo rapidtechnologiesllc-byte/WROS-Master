@@ -2,6 +2,7 @@
 Agent Maturity Dashboard API
 =============================
 Prefix: /admin/agents
+import logging
 Tag: admin-agents
 
 Endpoints for viewing and managing agent performance/maturity metrics.
@@ -42,7 +43,6 @@ from app.schemas.agent_fear import (
 
 router = APIRouter(prefix="/admin/agents", tags=["admin-agents"])
 
-
 @router.get(
     "/maturity",
     response_model=AllAgentsMaturitiesResponse,
@@ -77,7 +77,6 @@ def get_all_agents_maturity(
         last_calculated=max([m.last_calculated_at for m in maturity_levels if m.last_calculated_at]),
         next_calculation=datetime.utcnow() + timedelta(days=7)
     )
-
 
 @router.get(
     "/maturity/{agent_name}",
@@ -145,7 +144,6 @@ def get_agent_maturity_dashboard(
         status=status
     )
 
-
 @router.get(
     "/{agent_name}/health",
     dependencies=[Depends(require_resource_permission("admin-settings", "view"))]
@@ -162,7 +160,6 @@ def check_agent_health_status(
     """
     health = check_agent_health(db, agent_name)
     return health
-
 
 @router.post(
     "/{agent_name}/retire",
@@ -186,7 +183,6 @@ def retire_agent(
     """
     result = retire_agent_service(db, agent_name, request.reason)
     return RetireAgentResponse(**result)
-
 
 @router.get(
     "/retired",
@@ -213,7 +209,6 @@ def get_retired_agents(db: Session = Depends(get_db)):
         "total_retired": len(retired)
     }
 
-
 # ====== FEAR STATE ENDPOINTS (Part C: Emotional Coefficient System) ======
 
 @router.get(
@@ -236,7 +231,6 @@ def get_fear_dashboard(db: Session = Depends(get_db)):
     initialize_default_agents(db)
     dashboard = get_agent_fear_dashboard(db)
     return dashboard
-
 
 @router.get(
     "/fear/{agent_name}",
@@ -265,7 +259,6 @@ def get_agent_fear_state(
     update_agent_fear_state(db, agent_name)
 
     return fear_metrics
-
 
 @router.get(
     "/fear/{agent_name}/retirement-check",

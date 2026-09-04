@@ -1,4 +1,5 @@
 """
+import logging
 S-049/HRMS-0449 -- Interview Confirmation via Thunder.
 
 Real architecture adaptations:
@@ -92,7 +93,6 @@ from app.services.thunder_service import ConsentNotGiven, ConversationOwnedByHum
 DEFAULT_ORGANIZER_EMAIL = os.getenv("THUNDER_ORGANIZER_EMAIL", "thunder@blitzenx.com")
 GraphCreateEventCall = Callable[[str, str, str, str, str, str, list], str]
 
-
 def _as_utc(dt: datetime) -> datetime:
     """SubmissionInterview.scheduled_at is a plain DateTime column
     (BR-01 stores it in UTC, but SQLite/older drivers can round-trip it
@@ -101,10 +101,8 @@ def _as_utc(dt: datetime) -> datetime:
         return dt.replace(tzinfo=dt_timezone.utc)
     return dt.astimezone(dt_timezone.utc)
 
-
 def _ics_escape(text: str) -> str:
     return (text or "").replace("\\", "\\\\").replace(",", "\\,").replace(";", "\\;").replace("\n", "\\n")
-
 
 def build_ics_file(*, uid: str, summary: str, description: str, location: str, start_utc: datetime, end_utc: datetime, organizer_email: str = DEFAULT_ORGANIZER_EMAIL) -> bytes:
     """Step 2. Minimal, valid VCALENDAR/VEVENT text -- no icalendar
@@ -128,7 +126,6 @@ def build_ics_file(*, uid: str, summary: str, description: str, location: str, s
     ]
     return ("\r\n".join(lines) + "\r\n").encode("utf-8")
 
-
 def _default_graph_create_event_call(organizer_email: str, subject: str, start_iso: str, end_iso: str, timezone: str, body: str, attendees: list) -> str:
     import requests
     from app.core.graph_auth import get_graph_token
@@ -146,7 +143,6 @@ def _default_graph_create_event_call(organizer_email: str, subject: str, start_i
     resp.raise_for_status()
     return resp.json()["id"]
 
-
 def _resolve_interviewer_user(db: Session, panel: Optional[DemandInterviewPanel]) -> Optional[Users]:
     if panel is None:
         return None
@@ -154,7 +150,6 @@ def _resolve_interviewer_user(db: Session, panel: Optional[DemandInterviewPanel]
     if employee is None or not employee.wros_user_id:
         return None
     return db.query(Users).filter(Users.UserID == employee.wros_user_id).first()
-
 
 def _notify_recruiter(db: Session, submission: Submission, message: str) -> None:
     if not submission.submitted_by_user_id:
@@ -168,8 +163,8 @@ def _notify_recruiter(db: Session, submission: Submission, message: str) -> None
             priority_tier="P1", channel_preference="IN_APP", message=message,
         )
     except Exception as exc:
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[InterviewConfirmation] Failed to notify recruiter for submission {submission.id!r}: {exc}")
-
 
 def confirm_interview(
     db: Session, interview_id: str, candidate: Candidate, conversation: CandidateConversation, *, graph_create_event_call: Optional[GraphCreateEventCall] = None,
@@ -229,6 +224,7 @@ def confirm_interview(
             db.add(ConversationEvent(conversation_id=conversation.id, event_type="ai_message_sent", event_data={"channel": "email", "body": email_body[:500], "auto_generated": True}, triggered_by="ai_agent"))
             email_sent = True
         except Exception as exc:
+            logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.error(f"[InterviewConfirmation] CONFIRMATION_EMAIL_FAILED for candidate {candidate.candidateID!r}: {exc}")
             db.add(ConversationEvent(conversation_id=conversation.id, event_type="CONFIRMATION_EMAIL_FAILED", event_data={"reason": str(exc)}, triggered_by="system"))
 
@@ -249,16 +245,19 @@ def confirm_interview(
                 )
                 interview.scheduled_via_graph_event_id = calendar_event_id
             except Exception as exc:
+                logger.error(f"Error: {str(exc)}", exc_info=True)
                 calendar_invite_failed = True
                 logger.error(f"[InterviewConfirmation] CALENDAR_INVITE_FAILED for interview {interview.id!r}: {exc}")
                 db.add(ConversationEvent(conversation_id=conversation.id, event_type="CALENDAR_INVITE_FAILED", event_data={"reason": str(exc)}, triggered_by="system"))
                 try:
                     EmailService.send_email(interviewer_user.UserEmail, subject, "\n".join(body_lines) + f"\n\nTime: {interviewer_local.strftime('%A, %b %d, %Y %I:%M %p %Z')}", is_html=False)
                 except Exception as email_exc:
+                    logger.error(f"Error: {str(email_exc)}", exc_info=True)
                     logger.error(f"[InterviewConfirmation] Interviewer fallback email also failed: {email_exc}")
                 if submission:
                     _notify_recruiter(db, submission, f"Outlook calendar invite failed for {candidate.candidateFirstName or candidate.candidateID}'s interview -- interviewer was emailed directly as a fallback.")
-        else:
+                else:
+                    pass
             calendar_invite_failed = True
             db.add(ConversationEvent(conversation_id=conversation.id, event_type="CALENDAR_INVITE_FAILED", event_data={"reason": "no_interviewer_user_resolved"}, triggered_by="system"))
 
@@ -275,6 +274,7 @@ def confirm_interview(
             "calendar_event_id": calendar_event_id, "calendar_invite_failed": calendar_invite_failed,
         }
     except Exception as exc:
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.error(f"[InterviewConfirmation] Unexpected failure confirming interview {interview_id!r}: {exc}")
         db.rollback()
         return {"outcome": "confirmation_failed"}

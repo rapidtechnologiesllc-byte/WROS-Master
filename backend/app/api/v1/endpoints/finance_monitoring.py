@@ -1,4 +1,5 @@
 """
+import logging
 Finance Monitoring Endpoints - Real-time P&L Tracking
 
 Provides real-time profitability monitoring with:
@@ -19,13 +20,13 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List, Dict, Any
 
-from app.core.dependencies import get_db, get_current_user
+from app.core.dependencies import get_db, get_current_user, require_resource_permission
 from app.models.user import Users
 from app.models.business_unit import BusinessUnit
 from app.services.finance_agent import FinanceAgent
+from app.core.database import get_db
 
 router = APIRouter(prefix="/finance", tags=["finance"])
-
 
 def get_user_business_units(user_id: str, tenant_id: int, db: Session) -> List[str]:
     """Get all BUs user has access to"""
@@ -42,7 +43,6 @@ def get_user_business_units(user_id: str, tenant_id: int, db: Session) -> List[s
         return [user.business_unit_id]
     return []
 
-
 def check_bu_access(user_id: str, bu_id: str, tenant_id: int, db: Session) -> bool:
     """Verify user has access to this BU"""
     user = db.query(Users).filter(Users.UserID == user_id).first()
@@ -55,8 +55,10 @@ def check_bu_access(user_id: str, bu_id: str, tenant_id: int, db: Session) -> bo
     allowed_bus = get_user_business_units(user_id, tenant_id, db)
     return bu_id in allowed_bus
 
-
-@router.get("/dashboard")
+@router.get(
+    "/dashboard",
+    dependencies=[Depends(require_resource_permission("dashboard", "view"))]
+)
 async def get_finance_dashboard(
     current_user: Users = Depends(get_current_user),
     db: Session = Depends(get_db)
@@ -130,10 +132,13 @@ async def get_finance_dashboard(
             raise HTTPException(status_code=403, detail="No finance dashboard access for your role")
 
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Finance calculation error: {str(e)}")
 
-
-@router.get("/partner/{partner_id}/consolidation")
+@router.get(
+    "/partner/{partner_id}/consolidation",
+    dependencies=[Depends(require_resource_permission("partner", "view"))]
+)
 async def get_partner_consolidated_pl(
     partner_id: str,
     current_user: Users = Depends(get_current_user),
@@ -157,8 +162,10 @@ async def get_partner_consolidated_pl(
         db, current_user.tenant_id, partner_id, annual_goal_usd=5000000
     )
 
-
-@router.get("/bu/{bu_id}/metrics")
+@router.get(
+    "/bu/{bu_id}/metrics",
+    dependencies=[Depends(require_resource_permission("bu", "view"))]
+)
 async def get_bu_pl(
     bu_id: str,
     current_user: Users = Depends(get_current_user),
@@ -184,8 +191,10 @@ async def get_bu_pl(
         db, current_user.tenant_id, bu_id, annual_goal_usd=500000
     )
 
-
-@router.get("/forecast/{partner_id}")
+@router.get(
+    "/forecast/{partner_id}",
+    dependencies=[Depends(require_resource_permission("forecast", "view"))]
+)
 async def forecast_partner_margin(
     partner_id: str,
     days: int = 7,
@@ -206,8 +215,10 @@ async def forecast_partner_margin(
         db, current_user.tenant_id, partner_id, days_ahead=days
     )
 
-
-@router.get("/anomalies/{partner_id}")
+@router.get(
+    "/anomalies/{partner_id}",
+    dependencies=[Depends(require_resource_permission("anomalie", "view"))]
+)
 async def detect_cost_anomalies(
     partner_id: str,
     current_user: Users = Depends(get_current_user),
@@ -236,8 +247,10 @@ async def detect_cost_anomalies(
         "timestamp": __import__('datetime').datetime.utcnow().isoformat()
     }
 
-
-@router.get("/health-check")
+@router.get(
+    "/health-check",
+    dependencies=[Depends(require_resource_permission("health-check", "view"))]
+)
 async def hourly_profitability_check(
     current_user: Users = Depends(get_current_user),
     db: Session = Depends(get_db)

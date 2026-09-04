@@ -1,5 +1,6 @@
 """
 HRMS-0706 -- Interview Panel Assignment, Phase 2 Domain 2 (the interview
+import logging
 half of the piece connecting Demand -> Candidate -> Employee).
 
 New tables, deliberately NOT named `interview_panels` / `interviews` --
@@ -45,6 +46,7 @@ timestamp-presence signal, same convention as `confirmed_at`/
 spec calls for -- there is still no separate literal status enum
 column on this row.
 """
+import logging
 import uuid
 
 from sqlalchemy import (
@@ -54,31 +56,30 @@ from sqlalchemy import (
 
 from app.models.base import Base
 
-
 def _new_uuid() -> str:
     return str(uuid.uuid4())
-
 
 INTERVIEW_LEVELS = ("L1", "L2")
 INTERVIEW_OUTCOMES = ("PENDING", "PASS", "FAIL")
 
+logger = logging.getLogger(__name__)
 
 class DemandInterviewPanel(Base):
     """HRMS-0706 -- the pool of employees eligible to interview for a
     given demand + level. getAssignedInterviewer() picks from here."""
     __tablename__ = "demand_interview_panels"
 
-    id = Column(String(36), primary_key=True, default=_new_uuid)
+    id = Column(String(512), primary_key=True, default=_new_uuid)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
-    demand_id = Column(String(36), ForeignKey("demands.id"), nullable=False, index=True)
-    employee_id = Column(String(36), ForeignKey("employees.id"), nullable=False, index=True)
+    demand_id = Column(String(512), ForeignKey("demands.id"), nullable=False, index=True)
+    employee_id = Column(String(512), ForeignKey("employees.id"), nullable=False, index=True)
     interview_level = Column(
         Enum(*INTERVIEW_LEVELS, name="panel_interview_level", native_enum=False, create_constraint=True),
         nullable=False,
     )
     is_active = Column(Boolean, nullable=False, default=True)
     assigned_at = Column(DateTime, server_default=func.now())
-    assigned_by = Column(String(50), ForeignKey("users.UserID"), nullable=True)
+    assigned_by = Column(String(512), ForeignKey("users.UserID"), nullable=True)
 
     __table_args__ = (
         UniqueConstraint(
@@ -86,7 +87,6 @@ class DemandInterviewPanel(Base):
             name="uq_panel_member_per_demand_level",
         ),
     )
-
 
 class SubmissionInterview(Base):
     """The interview event itself, tied to a submission (not just a
@@ -98,15 +98,15 @@ class SubmissionInterview(Base):
     """
     __tablename__ = "submission_interviews"
 
-    id = Column(String(36), primary_key=True, default=_new_uuid)
+    id = Column(String(512), primary_key=True, default=_new_uuid)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
-    submission_id = Column(String(36), ForeignKey("submissions.id"), nullable=False, index=True)
-    candidate_id = Column(String(36), ForeignKey("candidates.candidateID"), nullable=False, index=True)
+    submission_id = Column(String(512), ForeignKey("submissions.id"), nullable=False, index=True)
+    candidate_id = Column(String(512), ForeignKey("candidates.candidateID"), nullable=False, index=True)
     level = Column(
         Enum(*INTERVIEW_LEVELS, name="submission_interview_level", native_enum=False, create_constraint=True),
         nullable=False,
     )
-    panel_id = Column(String(36), ForeignKey("demand_interview_panels.id"), nullable=True)
+    panel_id = Column(String(512), ForeignKey("demand_interview_panels.id"), nullable=True)
 
     scheduled_at = Column(DateTime, nullable=True)
     outcome = Column(
@@ -118,7 +118,7 @@ class SubmissionInterview(Base):
     # interview_confirmation_service.confirm_interview() successfully
     # creates the interviewer's Outlook invite. This is the exact
     # column HRMS-0448's own docstring already reserved for this.
-    scheduled_via_graph_event_id = Column(String(200), nullable=True)
+    scheduled_via_graph_event_id = Column(String(512), nullable=True)
     # S-049/HRMS-0449 -- presence means "status=CONFIRMED" (spec's own
     # literal status value). No separate status enum column exists on
     # this row (scheduled_at's presence already means "scheduled" the
@@ -132,7 +132,7 @@ class SubmissionInterview(Base):
     # S-051/HRMS-0451 -- BR-03: links a rescheduled interview back to
     # the one it superseded. Null for an interview that has never been
     # rescheduled.
-    rescheduled_from_interview_id = Column(String(36), ForeignKey("submission_interviews.id"), nullable=True)
+    rescheduled_from_interview_id = Column(String(512), ForeignKey("submission_interviews.id"), nullable=True)
     # S-051/HRMS-0451 -- presence means "status=RESCHEDULED" (spec's
     # own literal value) -- same timestamp-presence convention as
     # confirmed_at/scheduled_at, not a new status enum column.

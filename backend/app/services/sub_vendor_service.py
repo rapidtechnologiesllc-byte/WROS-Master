@@ -3,6 +3,7 @@ HRMS-P801 (Registration & Onboarding) + HRMS-P804/P811 (Demand
 assignment / request lifecycle).
 """
 from datetime import datetime
+import logging
 from typing import Optional
 
 from sqlalchemy.orm import Session
@@ -10,11 +11,12 @@ from sqlalchemy.orm import Session
 from app.core.security import get_password_hash
 from app.models.demand import Demand
 from app.models.sub_vendor import SubVendorAccount, SubVendorRequest, SubVendorUser
+from app.core.logging import logger
 
+logger = logging.getLogger(__name__)
 
 class SubVendorNotApproved(Exception):
     """HRMS-P801 BR-01: no submission (or request assignment) until status=APPROVED."""
-
 
 def register_sub_vendor(
     db: Session, *, tenant_id: Optional[int], company_name: str, contact_email: str,
@@ -27,7 +29,6 @@ def register_sub_vendor(
     db.add(account)
     return account
 
-
 def approve_sub_vendor(db: Session, account: SubVendorAccount, *, approved_by: str) -> SubVendorAccount:
     account.status = "APPROVED"
     account.approved_by = approved_by
@@ -35,12 +36,10 @@ def approve_sub_vendor(db: Session, account: SubVendorAccount, *, approved_by: s
     db.add(account)
     return account
 
-
 def suspend_sub_vendor(db: Session, account: SubVendorAccount) -> SubVendorAccount:
     account.status = "SUSPENDED"
     db.add(account)
     return account
-
 
 def is_approved_for_submission(account: SubVendorAccount) -> bool:
     """The actual gate: HRMS-P801 BR-01, no submission until APPROVED,
@@ -48,7 +47,6 @@ def is_approved_for_submission(account: SubVendorAccount) -> bool:
     standing also blocks new submissions even if registration remains
     APPROVED."""
     return account.status == "APPROVED" and account.compliance_status not in ("SUSPENDED", "SUSPENSION_PENDING")
-
 
 def create_sub_vendor_user(
     db: Session, account: SubVendorAccount, *, name: str, email: str, plain_password: str, role: str = "SUBMITTER",
@@ -59,7 +57,6 @@ def create_sub_vendor_user(
     )
     db.add(user)
     return user
-
 
 def create_sub_vendor_request(
     db: Session, *, tenant_id: Optional[int], demand: Demand, sub_vendor: SubVendorAccount,
@@ -80,7 +77,6 @@ def create_sub_vendor_request(
     )
     db.add(request)
     return request
-
 
 def close_expired_requests(db: Session, *, now: Optional[datetime] = None) -> int:
     """

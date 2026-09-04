@@ -1,13 +1,17 @@
 """
 Pydantic schemas — S-251 (Allocate Employee to Project) + S-252
 (Allocation Conflict Detection) API.
+import logging
 """
 
+import logging
 from datetime import date, datetime
 from typing import List, Optional
 
 from pydantic import BaseModel, Field
+from app.core.logging import logger
 
+logger = logging.getLogger(__name__)
 
 class CreateAllocationRequest(BaseModel):
     employee_id: str
@@ -21,7 +25,6 @@ class CreateAllocationRequest(BaseModel):
     utilization_pct: Optional[float] = None
     role: Optional[str] = None
     allow_concurrent: bool = False
-
 
 class AllocationItem(BaseModel):
     id: str
@@ -44,19 +47,15 @@ class AllocationItem(BaseModel):
     business_unit_name: Optional[str] = None
     created_at: datetime
 
-
 class AllocationListResponse(BaseModel):
     allocations: List[AllocationItem]
-
 
 class EndAllocationRequest(BaseModel):
     end_date: Optional[date] = None
 
-
 class DropdownItem(BaseModel):
     id: str
     name: str
-
 
 class AllocationDropdownsResponse(BaseModel):
     employees: List[DropdownItem]

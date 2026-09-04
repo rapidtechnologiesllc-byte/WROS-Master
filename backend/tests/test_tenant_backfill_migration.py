@@ -2,6 +2,7 @@
 Proves the backfill logic in migration d6e7f8a9b0c1: every existing
 NULL-tenant_id row gets pointed at a single seeded "BlitzenX" tenant,
 and re-running is idempotent (doesn't create a second tenant row or
+import logging
 touch rows that already have a real tenant_id).
 
 Exercises the same SQL the migration runs, against a throwaway SQLite
@@ -22,7 +23,6 @@ from app.models.tenant import Tenant
 from app.models.user import Users
 from app.models.candidate import Candidate
 
-
 @pytest.fixture()
 def db_session():
     fd, db_path = tempfile.mkstemp(suffix=".sqlite3")
@@ -36,7 +36,6 @@ def db_session():
         session.close()
         engine.dispose()
         os.remove(db_path)
-
 
 def _run_backfill(conn):
     """The exact logic from migration d6e7f8a9b0c1's upgrade(), run
@@ -52,7 +51,6 @@ def _run_backfill(conn):
     conn.commit()
     return tenant_id
 
-
 def test_existing_null_tenant_rows_get_backfilled(db_session):
     db_session.add(Users(UserID="U-EXISTING", UserRole="Recruiter", UserEmail="existing@blitzenx.com", UserPassword="x"))
     db_session.add(Candidate(candidateID="C-EXISTING", candidateEmail="c@example.com", candidatePassword="x"))
@@ -67,7 +65,6 @@ def test_existing_null_tenant_rows_get_backfilled(db_session):
     assert candidate.tenant_id == tenant_id
     assert db_session.query(Tenant).filter(Tenant.name == "BlitzenX").count() == 1
 
-
 def test_rerunning_is_idempotent_no_duplicate_tenant(db_session):
     db_session.add(Users(UserID="U-A", UserRole="Recruiter", UserEmail="a@blitzenx.com", UserPassword="x"))
     db_session.commit()
@@ -77,7 +74,6 @@ def test_rerunning_is_idempotent_no_duplicate_tenant(db_session):
 
     assert tenant_id_1 == tenant_id_2
     assert db_session.query(Tenant).filter(Tenant.name == "BlitzenX").count() == 1
-
 
 def test_rows_that_already_have_a_tenant_are_not_touched(db_session):
     other_tenant = Tenant(name="Some Other Client")

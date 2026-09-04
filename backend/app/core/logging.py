@@ -10,14 +10,12 @@ import os
 
 from app.core.log_redaction import RedactingFilter
 
-
 # Create logs directory if it doesn't exist
 LOGS_DIR = Path("logs")
 LOGS_DIR.mkdir(exist_ok=True)
 
 # Log retention period (in days)
 LOG_RETENTION_DAYS = 7
-
 
 def cleanup_old_logs(retention_days: int = LOG_RETENTION_DAYS, logger: "logging.Logger | None" = None):
     """
@@ -47,8 +45,7 @@ def cleanup_old_logs(retention_days: int = LOG_RETENTION_DAYS, logger: "logging.
             log.info(f"Cleaned up {deleted_count} old log file(s) older than {retention_days} days")
 
     except Exception as e:
-        log.warning(f"Error cleaning up old logs: {str(e)}")
-
+        logger.error(f"Error cleaning up old logs: {str(e)}", exc_info=True)
 
 class ColoredFormatter(logging.Formatter):
     """Custom formatter with colors for console output."""
@@ -68,7 +65,6 @@ class ColoredFormatter(logging.Formatter):
         log_color = self.COLORS.get(record.levelname, self.COLORS['RESET'])
         record.levelname = f"{log_color}{record.levelname}{self.COLORS['RESET']}"
         return super().format(record)
-
 
 def setup_logging(
     level: str = "INFO",
@@ -138,7 +134,6 @@ def setup_logging(
 
     return logger
 
-
 def get_logger(name: str = "onboarding_app") -> logging.Logger:
     """
     Get a logger instance.
@@ -151,10 +146,8 @@ def get_logger(name: str = "onboarding_app") -> logging.Logger:
     """
     return logging.getLogger(name)
 
-
 # Initialize default logger
 logger = setup_logging()
-
 
 # Example usage functions
 def log_api_request(method: str, endpoint: str, user_id: str = None):
@@ -162,24 +155,20 @@ def log_api_request(method: str, endpoint: str, user_id: str = None):
     user_info = f"User: {user_id}" if user_id else "Anonymous"
     logger.info(f"API Request | {method} {endpoint} | {user_info}")
 
-
 def log_api_response(method: str, endpoint: str, status_code: int, duration_ms: float = None):
     """Log API response."""
     duration_info = f"| {duration_ms:.2f}ms" if duration_ms else ""
     logger.info(f"API Response | {method} {endpoint} | Status: {status_code} {duration_info}")
-
 
 def log_database_query(query_type: str, table: str, duration_ms: float = None):
     """Log database query."""
     duration_info = f"| {duration_ms:.2f}ms" if duration_ms else ""
     logger.debug(f"DB Query | {query_type} on {table} {duration_info}")
 
-
 def log_error(error: Exception, context: str = ""):
     """Log error with context."""
     context_info = f"[{context}] " if context else ""
     logger.error(f"{context_info}{type(error).__name__}: {str(error)}", exc_info=True)
-
 
 def log_security_event(event_type: str, user_id: str = None, details: str = ""):
     """Log security-related events."""

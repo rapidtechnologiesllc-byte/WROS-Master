@@ -1,3 +1,4 @@
+import logging
 """add bank_transactions (EPIC-16 Bank Reconciliation)
 
 Revision ID: b3e5f7a9c1d3
@@ -11,12 +12,10 @@ from typing import Sequence, Union
 from alembic import op
 import sqlalchemy as sa
 
-
 revision: str = 'b3e5f7a9c1d3'
 down_revision: Union[str, Sequence[str], None] = 'a1c3e5f7b9d1'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
-
 
 def upgrade() -> None:
     """Upgrade schema."""
@@ -38,7 +37,6 @@ def upgrade() -> None:
     )
     op.create_index(op.f('ix_bank_transactions_tenant_id'), 'bank_transactions', ['tenant_id'], unique=False)
     op.create_index(op.f('ix_bank_transactions_matched_invoice_id'), 'bank_transactions', ['matched_invoice_id'], unique=False)
-
 
 def downgrade() -> None:
     """Downgrade schema."""

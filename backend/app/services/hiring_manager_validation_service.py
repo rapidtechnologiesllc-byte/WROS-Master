@@ -1,3 +1,4 @@
+from app.core.logging import logger
 """HRMS-1104 -- Hiring Manager Validation Questions (Phase 3, S-319)"""
 import uuid
 import logging
@@ -17,7 +18,6 @@ from app.models import (
 )
 
 logger = logging.getLogger(__name__)
-
 
 class HiringManagerValidationService:
     """Pre-interview validation from hiring manager (HRMS-1104).
@@ -101,11 +101,12 @@ class HiringManagerValidationService:
             }
 
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             db.rollback()
             logger.error(f"Failed to create validation questions: {str(e)}")
             raise
 
-    def send_to_hm(
+            def send_to_hm(
         self,
         db: Session,
         job_id: str,
@@ -227,6 +228,7 @@ class HiringManagerValidationService:
             }
 
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             db.rollback()
             logger.error(f"Failed to send validation to HM: {str(e)}")
             raise
@@ -324,11 +326,12 @@ class HiringManagerValidationService:
             }
 
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             db.rollback()
             logger.error(f"Failed to record HM response: {str(e)}")
             raise
 
-    def determine_decision(
+            def determine_decision(
         self,
         responses: Dict[str, Any],
         decision_score: Optional[int],
@@ -483,9 +486,9 @@ class HiringManagerValidationService:
 
         except Exception as e:
             logger.error(f"Failed to schedule interview: {str(e)}")
-            return None
+            raise ValueError("Operation failed")
 
-    async def return_candidate_to_pool(
+            async def return_candidate_to_pool(
         self,
         validation: HiringManagerValidation,
         db: Session
@@ -511,7 +514,7 @@ class HiringManagerValidationService:
         except Exception as e:
             logger.error(f"Failed to return candidate to pool: {str(e)}")
 
-    async def escalate_validation(
+            async def escalate_validation(
         self,
         validation: HiringManagerValidation,
         reason: str,
@@ -550,10 +553,11 @@ class HiringManagerValidationService:
             # )
 
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             db.rollback()
             logger.error(f"Failed to escalate validation: {str(e)}")
 
-    async def send_validation_email(
+            async def send_validation_email(
         self,
         validation: HiringManagerValidation,
         is_reminder: bool = False,
@@ -595,7 +599,8 @@ class HiringManagerValidationService:
         except Exception as e:
             logger.error(f"Failed to send email: {str(e)}")
 
-    def get_validation_stats(self, db: Session, job_id: Optional[str] = None) -> Dict[str, Any]:
+            def get_validation_stats(self, db: Session, job_id: Optional[str] = None) -> Dict[str, Any]:
+                pass
         """
         Get validation statistics for dashboard.
 
@@ -642,4 +647,4 @@ class HiringManagerValidationService:
 
         except Exception as e:
             logger.error(f"Failed to get validation stats: {str(e)}")
-            return {}
+            raise ValueError("Operation failed")

@@ -3,6 +3,7 @@ EPIC-16 Timesheet Nag Cascade. Throwaway SQLite -- never the real database.
 """
 import os
 import tempfile
+import logging
 from datetime import date, datetime, timedelta
 
 import pytest
@@ -21,7 +22,6 @@ from app.models.user import Users
 from app.services.timesheet_nag_service import scan_missing_timesheets, trigger_timesheet_nag
 import app.models  # noqa: F401
 
-
 @pytest.fixture()
 def db_session():
     fd, db_path = tempfile.mkstemp(suffix=".sqlite3")
@@ -35,7 +35,6 @@ def db_session():
         session.close()
         engine.dispose()
         os.remove(db_path)
-
 
 @pytest.fixture()
 def world(db_session):
@@ -73,13 +72,11 @@ def world(db_session):
 
     return {"tenant": tenant, "employee": employee, "manager_user": manager_user, "allocation": allocation}
 
-
 def test_scan_missing_timesheets_finds_employee_with_no_submission(db_session, world):
     week = date(2026, 8, 3)
     missing = scan_missing_timesheets(db_session, week_starting_date=week)
     assert len(missing) == 1
     assert missing[0].id == world["employee"].id
-
 
 def test_scan_missing_timesheets_excludes_submitted(db_session, world):
     week = date(2026, 8, 3)
@@ -92,14 +89,12 @@ def test_scan_missing_timesheets_excludes_submitted(db_session, world):
     missing = scan_missing_timesheets(db_session, week_starting_date=week)
     assert missing == []
 
-
 def test_first_nag_notifies_employee_at_level_1(db_session, world):
     week = date(2026, 8, 3)
     log = trigger_timesheet_nag(db_session, world["employee"], week_starting_date=week, tenant_id=world["tenant"].id)
 
     assert log is not None
     assert log.escalation_level == 1
-
 
 def test_nag_escalates_to_manager_after_escalation_days(db_session, world):
     week = date(2026, 8, 3)
@@ -110,7 +105,6 @@ def test_nag_escalates_to_manager_after_escalation_days(db_session, world):
 
     assert log.escalation_level == 2
 
-
 def test_nag_does_not_escalate_before_escalation_days(db_session, world):
     week = date(2026, 8, 3)
     trigger_timesheet_nag(db_session, world["employee"], week_starting_date=week, escalation_days=3, tenant_id=world["tenant"].id)
@@ -119,7 +113,6 @@ def test_nag_does_not_escalate_before_escalation_days(db_session, world):
     log = trigger_timesheet_nag(db_session, world["employee"], week_starting_date=week, escalation_days=3, now=soon, tenant_id=world["tenant"].id)
 
     assert log.escalation_level == 1
-
 
 def test_nag_resolves_once_timesheet_submitted(db_session, world):
     week = date(2026, 8, 3)
@@ -138,7 +131,6 @@ def test_nag_resolves_once_timesheet_submitted(db_session, world):
         TimesheetNagLog.employee_id == world["employee"].id, TimesheetNagLog.week_starting_date == week,
     ).first()
     assert log.resolved is True
-
 
 def test_nag_idempotent_unique_constraint_per_employee_week(db_session, world):
     week = date(2026, 8, 3)

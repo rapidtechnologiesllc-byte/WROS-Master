@@ -1,4 +1,5 @@
 """
+import logging
 Data visibility rules for role-based access control.
 
 CEO/SuperUser/CFO should see organization-level data across all BUs.
@@ -6,7 +7,6 @@ Other roles should be scoped to their assigned BU.
 """
 
 from app.models.user import Users
-
 
 def is_org_level_user(user: Users) -> bool:
     """
@@ -29,7 +29,6 @@ def is_org_level_user(user: Users) -> bool:
 
     return False
 
-
 def should_bypass_bu_filter(user: Users) -> bool:
     """
     Determine if BU filtering should be skipped for this user.
@@ -37,7 +36,6 @@ def should_bypass_bu_filter(user: Users) -> bool:
     Returns True for org-level users (CEO, Super User, etc.)
     """
     return is_org_level_user(user)
-
 
 def get_user_bu_id(user: Users) -> int | None:
     """

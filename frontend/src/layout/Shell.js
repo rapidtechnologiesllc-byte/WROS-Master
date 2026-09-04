@@ -34,15 +34,13 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { Outlet } from "react-router-dom";
 import {
   hasPermission,
-  getPermissions,
-  getRoles,
-  isSuperUser,
-  isAdmin,
+  getUserPermissions,
+  isSuperAdmin,
   canViewModule,
   loadRoleTemplateModules,
   filterNavigationByModules,
 } from "../utils/permissionsRbac";
-import { MODULE_CONFIG } from "./moduleConfig";
+// MODULE_CONFIG removed: backend permission system filters navigation items
 
 // Dynamic navigation driven by role template permissions from backend
 // Navigation structure is fetched from /hr/me/navigation endpoint
@@ -99,44 +97,75 @@ const ICON_COMPONENTS_BY_NAME = {
   "Award": UserPlus,
 };
 
+// Map resource keys to their correct admin paths
+const RESOURCE_KEY_TO_PATH = {
+  "users": "/admin/users-access-control/users",
+  "business_units": "/admin/users-access-control/business-units",
+  "delivery_centers": "/admin/users-access-control/delivery-centers",
+  "organizational_hierarchy": "/admin/users-access-control/organizational-hierarchy",
+  "role_templates": "/admin/users-access-control/role-templates",
+  "certifications": "/admin/users-access-control/certifications",
+  "error_log": "/admin/users-access-control/error-log",
+  "message_templates": "/admin/users-access-control/message-templates",
+};
+
 // Fetch pre-built navigation from backend (already filtered by permissions)
 async function fetchNavigationFromBackend() {
-  try {
-    const { apiRequest } = await import("../services/api/client");
-    const response = await apiRequest("/hr/me/navigation", { method: "GET" });
+  const { apiRequest } = await import("../services/api/client");
+  console.debug("Fetching navigation from /hr/me/navigation...");
 
-    // apiRequest returns { data, response } structure - extract the actual data
-    const navData = response?.data || response;
+  const result = await apiRequest("/api/v1/hr/me/navigation", { method: "GET" });
+  console.debug("Navigation API response:", result?.data);
 
-    if (!navData || !navData.groups) {
-      console.warn("Invalid navigation response:", response);
-      return [];
+  // apiRequest returns { data, response } where data is already parsed JSON
+  // Backend returns { data: { groups: [...] } }, which becomes result.data = { data: { groups: [...] } }
+  // So we need result?.data?.data to get the nested structure
+  let navData = result?.data?.data;
+
+  // Fallback: if result.data is already the groups structure, use it directly
+  if (!navData && result?.data?.groups) {
+    navData = result.data;
+  }
+
+  console.debug("Extracted navData:", navData);
+
+  if (!navData) {
+    throw new Error("Navigation response missing data structure");
+  }
+
+  if (!navData.groups || !Array.isArray(navData.groups)) {
+    throw new Error(`Navigation response missing or invalid groups array. navData.groups=${navData.groups}`);
+  }
+
+  console.debug(`Processing ${navData.groups.length} groups...`);
+
+  // Backend returns: { groups: [ { label, icon, items: [{key, label, icon, route}] } ] }
+  // Transform items to use route for navigation - REQUIRES all fields to be present
+  const groups = navData.groups.map(group => {
+    if (!group.items || !Array.isArray(group.items)) {
+      throw new Error(`Navigation group "${group.label}" missing items array`);
     }
 
-    // Backend returns: { groups: [ { label, icon, items: [{key, label, icon, route}] } ] }
-    // Transform items to use route instead of path for navigation
-    const groups = navData.groups.map(group => ({
+    return {
       ...group,
       items: group.items.map(item => ({
         key: item.key,
         label: item.label,
         icon: ICON_MAP_BY_RESOURCE[item.key] || Briefcase,
-        path: item.route || `/${item.key.replace(/_/g, "-")}`, // Fallback path if route not provided
+        path: item.route || RESOURCE_KEY_TO_PATH[item.key] || `/${item.key.replace(/_/g, "-")}`, // Admin path mapping, then fallback
       }))
-    }));
+    };
+  });
 
-    console.debug("Navigation fetched from backend:", {
-      groupCount: groups.length,
-      totalItems: groups.reduce((sum, g) => sum + g.items.length, 0),
-      modules: groups.map(g => `${g.label}(${g.items.length})`).join(", "),
-    });
+  console.debug("Navigation fetched from backend:", {
+    groupCount: groups.length,
+    totalItems: groups.reduce((sum, g) => sum + g.items.length, 0),
+    modules: groups.map(g => `${g.label}(${g.items.length})`).join(", "),
+  });
 
-    return groups;
-  } catch (error) {
-    console.error("Failed to fetch navigation from backend:", error);
-    return [];
-  }
+  return groups;
 }
+
 
 // Permission-based navigation builder (2026-08-12)
 // Maps nav keys to their required permissions
@@ -188,11 +217,6 @@ const NAV_PERMISSIONS = {
 
   // Admin Module
   usersAccessControl: "users",
-  users: "users",
-  businessUnits: "users",
-  deliveryCenters: "users",
-  organizationalHierarchy: "users",
-  roleTemplates: "users",
   certifications: "certifications.view",
   tenantLocale: "locale.view",
   tenantAiConfig: "ai_config.view",
@@ -206,6 +230,12 @@ const NAV_PERMISSIONS = {
   // Dashboard/Agent Screens
   ceoFyProgress: "reports.view",
   cfoDashboard: "reports.view",
+
+  // AI & Automation Module
+  askThunder: "ask-thunder",
+  thunderAnalyticsAI: "thunder-analytics",
+  askFlash: "ask-flash",
+  aiCoaching: "ai-coaching",
 };
 
 export default function Shell({
@@ -248,6 +278,9 @@ export default function Shell({
         }
       } catch (error) {
         console.debug(`Permission refresh attempt ${retryCount + 1} failed:`, error);
+        if (retryCount >= MAX_RETRIES - 1) {
+          throw new Error(`Failed to refresh permissions after ${MAX_RETRIES} attempts: ${error.message}`);
+        }
       }
       return false; // Failed, continue retrying
     };
@@ -280,16 +313,28 @@ export default function Shell({
     };
   }, []); // Run once on mount
 
-  const normalizedRole = String(role || "")
-    .trim()
-    .toUpperCase();
-  const isSuperUser = ["SUPER USER", "SUPER_USER", "SUPERUSER"].includes(
-    normalizedRole,
-  );
-  const isAdmin = normalizedRole === "ADMIN";
-  const isHR_Manager = normalizedRole === "HR MANAGER";
-  const isHiringManager = normalizedRole === "HIRING MANAGER";
-  const isHrOperations = normalizedRole === "HR OPERATIONS";
+  // RBAC-driven: Permission-based checks (no hardcoded role names)
+  // These derive from role template permissions, not legacy role strings
+  const perms = (() => {
+    try {
+      const stored = JSON.parse(localStorage.getItem('hrms_permissions') || '[]');
+      // If stored as object (permission metadata), convert keys to array
+      if (stored && typeof stored === 'object' && !Array.isArray(stored)) {
+        return Object.keys(stored);
+      }
+      return Array.isArray(stored) ? stored : [];
+    } catch (err) {
+      console.error('Failed to parse cached permissions:', err);
+      throw new Error(`Permission cache is corrupted: ${err.message}`);
+    }
+  })();
+
+  // Permission-based feature flags (derived from role template permissions)
+  const isSuperUser = Array.isArray(perms) && perms.includes('*.*');  // Only SuperUser role template gets wildcard
+  const isAdmin = Array.isArray(perms) && perms.includes('administration.manage');  // Only Admin role template gets this
+  const isHR_Manager = Array.isArray(perms) && perms.includes('employees.manage');  // HR Manager role template
+  const isHiringManager = Array.isArray(perms) && perms.includes('recruitment.create');  // Hiring Manager role template
+  const isHrOperations = Array.isArray(perms) && perms.includes('recruitment.edit');  // HR Operations role template
 
   // Fetch navigation structure from backend based on role template permissions (all 175 resources)
   const [nav, setNav] = useState({
@@ -301,32 +346,39 @@ export default function Shell({
   useEffect(() => {
     const loadNavigation = async () => {
       try {
-        // Load role template modules to filter navigation
-        const modules = await loadRoleTemplateModules();
-        setAllowedModules(modules);
-        console.debug("Role template modules loaded:", { moduleCount: modules.length, modules });
-
         // Fetch pre-built navigation from backend (already filtered by user permissions)
+        // Backend returns only items the user has permission to see - no frontend filtering needed
         const navGroups = await fetchNavigationFromBackend();
 
-        // Filter navigation groups based on allowed modules
-        const filteredGroups = navGroups
-          .map(group => ({
-            ...group,
-            items: filterNavigationByModules(group.items, modules)
-          }))
-          .filter(group => group.items && group.items.length > 0); // Remove empty groups
-
-        setNav({ standalone: [], groups: filteredGroups });
-        console.debug("Navigation loaded and filtered:", {
-          groupCount: filteredGroups.length,
-          totalItems: filteredGroups.reduce((sum, g) => sum + g.items.length, 0)
+        setNav({ standalone: [], groups: navGroups });
+        console.debug("Navigation loaded:", {
+          groupCount: navGroups.length,
+          totalItems: navGroups.reduce((sum, g) => sum + g.items.length, 0),
+          groups: navGroups.map(g => `${g.label}(${g.items.length})`).join(", ")
         });
       } catch (error) {
         console.error("Failed to load navigation:", error);
-        // Fallback: load navigation without module filtering
-        const navGroups = await fetchNavigationFromBackend();
-        setNav({ standalone: [], groups: navGroups });
+        // Fallback: try loading again with no special handling
+        try {
+          const navGroups = await fetchNavigationFromBackend();
+          setNav({ standalone: [], groups: navGroups });
+        } catch (retryError) {
+          console.error("Navigation reload failed:", retryError);
+          // CRITICAL FIX: Show error banner instead of empty navigation
+          setNav({
+            standalone: [],
+            groups: [{
+              label: "Error",
+              icon: "AlertCircle",
+              items: [{
+                key: "nav-error",
+                label: `Navigation failed to load: ${retryError.message}. Please refresh the page.`,
+                icon: "AlertOctagon",
+                path: "#"
+              }]
+            }]
+          });
+        }
       }
     };
 
@@ -434,10 +486,6 @@ export default function Shell({
                     {isOpen && group.items && group.items.length > 0 && (
                       <div className="ml-3 mt-1 space-y-1 border-l border-white/10 pl-3">
                         {group.items.map((item, idx) => {
-                          // Only show items that are configured for this module
-                          const moduleKeys = MODULE_CONFIG[group.label] || [];
-                          if (!moduleKeys.includes(item.key)) return null;
-
                           const ItemIcon = typeof item.icon === 'string'
                             ? (ICON_COMPONENTS_BY_NAME[item.icon] || Briefcase)
                             : (item.icon || Briefcase);

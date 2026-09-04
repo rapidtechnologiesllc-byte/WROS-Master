@@ -9,6 +9,7 @@ from uuid import uuid4
 from typing import Optional, Dict, List
 from enum import Enum
 
+from app.core.logging import logger
 from app.models import (
     HiringManagerValidation,
     HMValidationStatus,
@@ -20,7 +21,6 @@ from app.core.email_service import send_email
 from app.core.notification_service import send_dashboard_notification
 
 logger = logging.getLogger(__name__)
-
 
 class HMValidationService:
     """Service for managing HM validation checkpoint"""
@@ -74,6 +74,7 @@ class HMValidationService:
             return validation
 
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             logger.error(f"Error creating validation request: {str(e)}")
             raise
 
@@ -128,6 +129,7 @@ class HMValidationService:
             return True
 
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             logger.error(f"Error sending validation email: {str(e)}")
             return False
 
@@ -176,6 +178,7 @@ class HMValidationService:
                 return {"status": HMValidationStatus.MAYBE}
 
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             logger.error(f"Error determining decision: {str(e)}")
             return {"status": HMValidationStatus.MAYBE}  # Default to uncertain on error
 
@@ -222,8 +225,9 @@ class HMValidationService:
             return interview
 
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             logger.error(f"Error scheduling interview: {str(e)}")
-            return None
+            raise ValueError("Operation failed")
 
     async def return_candidate_to_pool(
         self,
@@ -247,6 +251,7 @@ class HMValidationService:
             return True
 
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             logger.error(f"Error returning candidate to pool: {str(e)}")
             return False
 
@@ -276,6 +281,7 @@ class HMValidationService:
             return True
 
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             logger.error(f"Error escalating validation: {str(e)}")
             return False
 
@@ -304,6 +310,7 @@ class HMValidationService:
             return count
 
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             logger.error(f"Error handling expired validations: {str(e)}")
             return 0
 
@@ -336,8 +343,10 @@ class HMValidationService:
             return briefing
 
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             logger.error(f"Error generating interview briefing: {str(e)}")
-            return {}
+            # CRITICAL FIX: Raise error instead of returning empty dict
+            raise Exception(f"Failed to generate interview briefing: {str(e)}")
 
     async def get_pending_validations(
         self,
@@ -359,5 +368,7 @@ class HMValidationService:
             return query.order_by(HiringManagerValidation.due_at).limit(limit).all()
 
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             logger.error(f"Error fetching pending validations: {str(e)}")
-            return []
+            # CRITICAL FIX: Raise error instead of returning empty list
+            raise Exception(f"Failed to fetch pending validations: {str(e)}")

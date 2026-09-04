@@ -1,4 +1,5 @@
-﻿"""
+"""
+import logging
 Pre-Onboarding API
 
 Endpoints related to the Hiring Manager review and approval workflow,
@@ -16,7 +17,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_hr_or_admin, require_resource_permission
+from app.core.dependencies import get_current_internal_user, require_resource_permission
 from app.core.logging import logger
 from app.models.candidate import Candidate, CandidateStatus
 from app.models.candidate_history import CandidateHistory
@@ -38,9 +39,7 @@ from app.schemas.interview import (
     HMCandidateReviewListResponse,
 )
 
-
 router = APIRouter(prefix="/preonboarding", tags=["pre-onboarding"])
-
 
 # ---------------------------------------------------------------------------
 # Internal Helpers (copied from candidate_status.py / interviews.py)
@@ -54,7 +53,6 @@ def _candidate_display_name(candidate: Candidate) -> str:
         candidate.candidateLastName or "",
     ]
     return " ".join(filter(None, parts)).strip() or "N/A"
-
 
 def _build_status_response(candidate: Candidate, cs: Optional[CandidateStatus]) -> CandidateStatusResponse:
     name_parts = [
@@ -72,7 +70,6 @@ def _build_status_response(candidate: Candidate, cs: Optional[CandidateStatus]) 
         pipeline_status=cs.piplineStatus if cs else None,
         updated_at=cs.updatedAt if cs else None,
     )
-
 
 def _assign_preboarding_checklist(
     candidate: Candidate,
@@ -205,7 +202,6 @@ def _assign_preboarding_checklist(
         f"to candidate '{candidate.candidateID}'."
     )
 
-
 def _send_approval_notifications(
     candidate: Candidate,
     cs: CandidateStatus,
@@ -265,6 +261,7 @@ def _send_approval_notifications(
             )
             logger.info(f"[Approval] Sent approval notification to candidate: {candidate.candidateEmail}")
         except Exception as exc:
+            logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.warning(f"[Approval] Could not email candidate: {exc}")
 
     # â”€â”€ 4. Email to hiring manager â”€â”€
@@ -283,6 +280,7 @@ def _send_approval_notifications(
             )
             logger.info(f"[Approval] Sent approval notification to hiring manager: {hiring_manager_email}")
         except Exception as exc:
+            logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.warning(f"[Approval] Could not email hiring manager: {exc}")
 
     # â”€â”€ 5. Email to recruiter â”€â”€
@@ -301,8 +299,8 @@ def _send_approval_notifications(
             )
             logger.info(f"[Approval] Sent approval notification to recruiter: {recruiter_email}")
         except Exception as exc:
+            logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.warning(f"[Approval] Could not email recruiter: {exc}")
-
 
 # ---------------------------------------------------------------------------
 # Routes
@@ -310,13 +308,14 @@ def _send_approval_notifications(
 
 @router.get(
     "/hiring-manager/review",
+    dependencies=[Depends(get_current_internal_user)],
     response_model=HMCandidateReviewListResponse,
 
     summary="Hiring Manager: list candidates with â‰¥2 completed interviews (ready for approval/rejection)",
 )
 def get_hm_candidate_review(
     db: Session = Depends(get_db),
-    user=Depends(get_current_hr_or_admin),
+    user=Depends(get_current_internal_user),
 ):
     """
     Returns candidates who have **â‰¥ 2 completed interview rounds** across panels
@@ -517,8 +516,6 @@ def get_hm_candidate_review(
         candidates=results,
     )
 
-
-
 @router.post(
     "/{candidate_id}/hiring-manager-approval",
     response_model=StatusActionResponse,
@@ -529,7 +526,7 @@ def hiring_manager_approval(
     candidate_id: str,
     request: ManagerApprovalRequest,
     db: Session = Depends(get_db),
-    user=Depends(get_current_hr_or_admin),
+    user=Depends(get_current_internal_user),
 ):
     """
     Process Hiring Manager Approval for a candidate.
@@ -602,6 +599,7 @@ def hiring_manager_approval(
                 candidate, db, performed_by_id=user.UserID
             )
         except Exception as exc:
+            logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.warning(f"[Approval] Checklist auto-assign failed: {exc}")
 
         db.commit()
@@ -633,6 +631,7 @@ def hiring_manager_approval(
             )
             db.commit()
         except Exception as exc:
+            logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.warning(f"[Approval] Org Pool transfer failed: {exc}")
 
     return StatusActionResponse(

@@ -1,4 +1,5 @@
 """
+import logging
 HRMS-0117: "no raw console logging anywhere in the codebase, CI-enforced."
 
 Parses every .py file under app/ with Python's ast module (not a text
@@ -13,7 +14,6 @@ from pathlib import Path
 
 APP_DIR = Path(__file__).resolve().parent.parent / "app"
 
-
 def _find_print_calls(py_file: Path):
     tree = ast.parse(py_file.read_text(encoding="utf-8"), filename=str(py_file))
     hits = []
@@ -21,7 +21,6 @@ def _find_print_calls(py_file: Path):
         if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id == "print":
             hits.append(node.lineno)
     return hits
-
 
 def test_no_raw_print_calls_anywhere_under_app():
     offenders = {}

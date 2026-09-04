@@ -1,7 +1,6 @@
 // Candidate search/listing and selection screen.
 import { useEffect, useMemo, useState } from "react";
 import { Plus, Search, Users } from "lucide-react";
-import { hasPermission } from "../utils/permissionsRoleTemplate";
 import {
   Button,
   Card,
@@ -29,6 +28,7 @@ import { getEmailBodyHTML } from "../utils/preboardingEmailTemplate";
 import { getRejectionEmailHTML } from "../utils/rejectionEmailTemplate";
 import { useNavigate } from "react-router-dom";
 import CandidateActionMenu from "../components/ui/CandidateActionMenu";
+import { hasPermission } from "../utils/permissionsRbac";
 
 export default function CandidateSearch({
   candidates,
@@ -85,15 +85,16 @@ export default function CandidateSearch({
   const fetchApprovalCandidates = async () => {
     try {
       setLoading(true);
-      const canData = await managerReviewList();
+      const canData = await managerReviewList().catch(e => { throw e; });
       setManagerCandidatesList(canData?.candidates);
       // Also refresh all candidates to show newly created ones
       if (hasPermission("candidates", "view")) {
-        const allData = await getAllCandidates();
+        const allData = await getAllCandidates().catch(e => { throw e; });
         setCandidateList(allData?.candidates || []);
       }
     } catch (err) {
       setScreenError(err?.message || "Failed to fetch candidates");
+      throw err;
     } finally {
       setLoading(false);
     }
@@ -103,20 +104,21 @@ export default function CandidateSearch({
     try {
       setLoading(true);
       // Fetch all candidate lists to ensure UI is in sync
-      const allData = await getAllCandidates();
+      const allData = await getAllCandidates().catch(e => { throw e; });
       setCandidateList(allData?.candidates || []);
       setPreOnboardingCandidates(allData?.candidates || []);
 
-      const approvalData = await managerReviewList();
+      const approvalData = await managerReviewList().catch(e => { throw e; });
       setManagerCandidatesList(approvalData?.candidates || []);
 
-      const offerData = await getAllCandidates();
+      const offerData = await getAllCandidates().catch(e => { throw e; });
       const filteredOffers = offerData?.candidates?.filter(
         (c) => c.pipline_status?.toLowerCase() === "OfferApproval".toLowerCase()
       ) || [];
       setApprovalCandidates(filteredOffers);
     } catch (err) {
       setScreenError(err?.message || "Failed to refresh candidates");
+      throw err;
     } finally {
       setLoading(false);
     }
@@ -125,11 +127,12 @@ export default function CandidateSearch({
   const fetchCandidates = async () => {
     try {
       setLoading(true);
-      const canData = await getAllCandidates();
+      const canData = await getAllCandidates().catch(e => { throw e; });
       const filteredCandidates = canData?.candidates;
       setPreOnboardingCandidates(filteredCandidates);
     } catch (err) {
       console.log(err);
+      throw err;
     } finally {
       setLoading(false);
     }
@@ -138,7 +141,7 @@ export default function CandidateSearch({
   const offerApprovalCandidates = async () => {
     try {
       setLoading(true);
-      const canData = await getAllCandidates();
+      const canData = await getAllCandidates().catch(e => { throw e; });
 
       const filteredCandidates =
         canData?.candidates?.filter(
@@ -149,6 +152,7 @@ export default function CandidateSearch({
       setApprovalCandidates(filteredCandidates);
     } catch (err) {
       console.log(err);
+      throw err;
     } finally {
       setLoading(false);
     }
@@ -207,15 +211,12 @@ export default function CandidateSearch({
 
   const handleCandidateStatus = async (candidateId) => {
     try {
-      const result = await updateCandidateStatus(candidateId, {
-        status: "Active",
-        pipeline_status: "Pre-Onboarding",
-      });
+      const result = await updateCandidateStatus(candidateId, { status: "Active", pipeline_status: "Pre-Onboarding" }).catch(e => { throw e; });
       if (result?.status === "success") {
         toast.success(
           `Candidate ${result?.data?.candidate_name} moved to Pre-Onboarding`,
         );
-        const candidateStatus = await getCandidateStatus(candidateId);
+        const candidateStatus = await getCandidateStatus(candidateId).catch(e => { throw e; });
         setCandidateList((prev) =>
           prev.map((c) =>
             c.id === candidateId
@@ -231,6 +232,7 @@ export default function CandidateSearch({
     } catch (err) {
       setScreenError(err?.message || "Failed to update candidate status");
       console.log(err);
+      throw err;
     }
   };
 
@@ -238,10 +240,10 @@ export default function CandidateSearch({
     try {
       const result = await updateCandidateStatus(candidateId, {
         status: status,
-      });
+      }).catch(e => { throw e; });
       if (result?.status === "success") {
         toast.success(`Candidate ${result?.data?.candidate_name} is Archvied`);
-        const candidateStatus = await getCandidateStatus(candidateId);
+        const candidateStatus = await getCandidateStatus(candidateId).catch(e => { throw e; });
         setCandidateList((prev) =>
           prev.map((c) =>
             c.id === candidateId
@@ -254,12 +256,14 @@ export default function CandidateSearch({
           ),
         );
       }
-    } catch (err) {}
+    } catch (err) {
+      throw err;
+    }
   };
 
   const handlePreOnboardingAction = async (record, action) => {
     try {
-      const res = await managerReviewApprove(record, action);
+      const res = await managerReviewApprove(record, action).catch(e => { throw e; });
       if (res?.status === "success") {
         const updatedCandidate = res?.data;
         setCandidateList((prev) =>
@@ -275,13 +279,8 @@ export default function CandidateSearch({
           ),
         );
         if (action === "Approve") {
-          const emailSend = await sendPlainEmail({
-            toEmail: record?.candidate_email,
-            subject: "Pre-Onboarding Task",
-            bodyContent: getEmailBodyHTML(record?.candidate_name),
-            isHtml: true,
-          });
-          await sendLoginCredentials(record?.candidate_id);
+          const emailSend = await sendPlainEmail({ toEmail: record?.candidate_email, subject: "Pre-Onboarding Task", bodyContent: getEmailBodyHTML(record?.candidate_name), isHtml: true }).catch(e => { throw e; });
+          await sendLoginCredentials(record?.candidate_id).catch(e => { throw e; });
           if (emailSend?.status === "success") {
             toast.success(
               `Candidate ${record?.candidate_name} approved for Pre-Onboarding`,
@@ -299,17 +298,15 @@ export default function CandidateSearch({
           ? "Candidate already moved to Pre-Onboarding"
           : "Failed to reject candidate",
       );
+      throw err;
     }
   };
 
   const managerRejectCandidate = async (record) => {
     try {
-      const result = await updateCandidateStatus(record?.candidate_id, {
-        status: "Active",
-        pipeline_status: "Pre-onboarding-Approval",
-      });
+      const result = await updateCandidateStatus(record?.candidate_id, { status: "Active", pipeline_status: "Pre-onboarding-Approval" }).catch(e => { throw e; });
       if (result?.status === "success") {
-        await fetchCandidates();
+        await fetchCandidates().catch(e => { throw e; });
         const updatedCandidate = result.data;
         setCandidateList((prev) =>
           prev.map((candidate) =>
@@ -324,18 +321,10 @@ export default function CandidateSearch({
         );
 
         try {
-          await sendPlainEmail({
-            toEmail: record?.candidate_email,
-            subject: "Update on Your Application",
-            bodyContent: getRejectionEmailHTML(record?.candidate_name),
-            isHtml: true,
-          });
-
+          await sendPlainEmail({ toEmail: record?.candidate_email, subject: "Update on Your Application", bodyContent: getRejectionEmailHTML(record?.candidate_name), isHtml: true }).catch(emailError => { console.error("Failed to send rejection email", emailError); toast.warning("Candidate rejected, but email could not be sent"); throw emailError; });
           toast.success("Rejection email sent successfully");
         } catch (emailError) {
-          console.error("Failed to send rejection email", emailError);
-
-          toast.warning("Candidate rejected, but email could not be sent");
+          throw emailError;
         }
       }
     } catch (err) {
@@ -477,12 +466,14 @@ export default function CandidateSearch({
               </div>
 
               <div className="flex items-center gap-2">
-                <Button
-                  onClick={onCreateCandidate}
-                  className="h-[46px] shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md"
-                >
-                  <Plus className="h-4 w-4" /> Add Candidate
-                </Button>
+                {hasPermission("candidate.create") && (
+                  <Button
+                    onClick={onCreateCandidate}
+                    className="h-[46px] shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md"
+                  >
+                    <Plus className="h-4 w-4" /> Add Candidate
+                  </Button>
+                )}
               </div>
             </div>
           </div>
@@ -517,21 +508,21 @@ export default function CandidateSearch({
                 <button
                   className="font-semibold text-gray-900 transition-colors hover:text-black hover:underline"
                   onClick={() => {
-                    navigate(`/candidates/${c.id}`);
+                    navigate(`/candidates/${c.candidate_id}`);
                   }}
                 >
-                  {c.name}
+                  {c.candidate_name}
                 </button>
               ),
               contact: (
                 <div className="space-y-1 text-xs text-gray-700">
-                  <div>{c.email}</div>
-                  <div>{c.phone}</div>
+                  <div>{c.candidate_email || c.email}</div>
+                  <div>{c.candidate_mobile || c.phone || "-"}</div>
                 </div>
               ),
-              jobTitle: c.jobTitle || "-",
-              pipeline: c.pipelineStatus ? (
-                <StatusBadge status={c.pipelineStatus} />
+              jobTitle: c.job_title || c.candidateJobTitle || "-",
+              pipeline: c.pipline_status || c.pipelineStatus ? (
+                <StatusBadge status={c.pipline_status || c.pipelineStatus} />
               ) : (
                 <span className="text-xs text-gray-400">—</span>
               ),

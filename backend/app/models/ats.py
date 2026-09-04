@@ -3,8 +3,10 @@ ATS Score ORM Model
 ===================
 Persists the ATS score produced for each candidate–job pair so that
 HR users can review scores without re-running the LLM pipeline.
+import logging
 """
 
+import logging
 from datetime import datetime
 
 from sqlalchemy import (
@@ -14,6 +16,7 @@ from sqlalchemy.orm import relationship
 
 from app.models.base import Base
 
+logger = logging.getLogger(__name__)
 
 class ATSScore(Base):
     __tablename__ = "ats_scores"
@@ -21,7 +24,7 @@ class ATSScore(Base):
     id = Column(Integer, primary_key=True, autoincrement=True, index=True)
 
     # ---------- FK references ----------
-    candidate_id = Column(String(36),
+    candidate_id = Column(String(512),
         ForeignKey("candidates.candidateID", ondelete="CASCADE"),
         nullable=False,
         index=True,

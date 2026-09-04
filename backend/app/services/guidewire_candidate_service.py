@@ -6,6 +6,7 @@ derived boolean, computed on read (no new persisted column) -- reuses
 the real skill-canonicalization infra already built for S-029/HRMS-0429
 (app.constants.skill_synonyms, whose "Guidewire" cluster is the spec's
 own worked example) rather than inventing a second, parallel string-match
+import logging
 rule.
 
 Two real sources, checked in order of authority:
@@ -32,7 +33,6 @@ from app.models.candidate_skill_tag import CandidateSkillTag
 from app.models.user import Jobs
 
 GUIDEWIRE_CANONICAL_SKILL = "Guidewire"
-
 
 def is_guidewire_candidate(db: Session, candidate: Candidate) -> bool:
     tag = (

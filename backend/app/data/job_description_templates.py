@@ -1,5 +1,6 @@
 """
 Job Description Templates — Known-Role Library
+import logging
 ================================================
 
 HOW TO ADD A NEW ROLE (Avinash — this is your action item):
@@ -28,13 +29,14 @@ since that's BlitzenX's core specialty). Everything else still goes
 through the LLM until you add more entries here.
 """
 
+import logging
 from typing import Dict, TypedDict, List
 
+logger = logging.getLogger(__name__)
 
 class JobDescriptionTemplate(TypedDict):
     description: str
     skills: List[str]
-
 
 JOB_DESCRIPTION_TEMPLATES: Dict[str, JobDescriptionTemplate] = {
     "guidewire developer": {

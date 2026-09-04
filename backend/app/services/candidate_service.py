@@ -5,6 +5,7 @@ established non-negotiable in CLAUDE.md, but the function itself was
 never actually built anywhere in this codebase -- confirmed by grep
 (zero hits for `createCandidateSafe` in app/) while researching the
 Sub-Vendor Portal requirements, which assume it exists as a prerequisite
+import logging
 for dozens of stories across the corpus, not just that epic.
 
 Two real, pre-existing direct-insert call sites bypassed this rule
@@ -22,6 +23,7 @@ only matches one field (e.g., email), missing phone/LinkedIn." Fixed
 here: email, phone, and LinkedIn URL are each checked independently, so
 a duplicate caught only by phone (or only by LinkedIn) is still caught.
 """
+import logging
 import re
 from typing import Optional, Tuple
 
@@ -30,19 +32,19 @@ from sqlalchemy.orm import Session
 from app.core.security import get_password_hash
 from app.models.candidate import Candidate
 from app.utils.uniq_id_generator import candidate_id_generator, generate_password
+from app.core.logging import logger
 
+logger = logging.getLogger(__name__)
 
 class DuplicateCandidateError(Exception):
-    """Raised instead of creating a second record for the same person.
-    Callers decide how to translate this into their own response shape
-    (e.g. a 200 "already applied" vs. a 400 error) -- this service layer
-    has one behavior (refuse), not an opinion on HTTP semantics."""
+    """Raised when attempting to create a duplicate candidate.
+    Used for logging/audit only - duplicates are now tracked as multiple applications.
+    Allows Thunder to analyze: is person genuinely interested or randomly applying?"""
 
     def __init__(self, existing: Candidate, matched_on: str):
         self.existing = existing
         self.matched_on = matched_on
-        super().__init__(f"Candidate already exists (matched on {matched_on}): {existing.candidateID}")
-
+        super().__init__(f"Candidate matched existing record (on {matched_on}): {existing.candidateID}")
 
 def find_duplicate_candidate(
     db: Session, *, email: Optional[str] = None, mobile: Optional[str] = None,
@@ -71,7 +73,6 @@ def find_duplicate_candidate(
 
     return None, None
 
-
 def create_candidate_safe(
     db: Session,
     *,
@@ -80,21 +81,25 @@ def create_candidate_safe(
     linkedin_url: Optional[str] = None,
     candidate_id: Optional[str] = None,
     plain_password: Optional[str] = None,
+    tenant_id: Optional[str] = None,
     **fields,
-) -> Candidate:
+) -> Tuple[Candidate, bool]:
     """
-    R-07: the only sanctioned path to create a candidate. Runs dedup
-    first (fail closed -- raises rather than creating a second record);
-    only inserts once no field matches an existing candidate.
+    R-07: the only sanctioned path to create a candidate. Runs dedup check;
+    if duplicate found by email/phone/LinkedIn, returns existing candidate
+    so caller can track as a new job application instead of duplicate rejection.
 
-    `fields` accepts any other Candidate column by name (candidateRole,
-    candidateFirstName, etc.) so this can back every existing candidate-
-    creation call site without those call sites needing to change their
-    own field mapping, only the creation call itself.
+    Enables Thunder to analyze application patterns: is this person genuinely
+    interested (applying to related roles) or randomly applying (unrelated roles)?
+
+    Returns: (Candidate object, is_new: bool)
+      - is_new=True: newly created candidate
+      - is_new=False: existing candidate (duplicate match), caller should create job application
     """
     existing, matched_on = find_duplicate_candidate(db, email=email, mobile=mobile, linkedin_url=linkedin_url)
     if existing:
-        raise DuplicateCandidateError(existing, matched_on)
+        # Duplicate found - return existing candidate, let caller track as multiple application
+        return existing, False
 
     candidate_id = candidate_id or candidate_id_generator()
     plain_password = plain_password or generate_password()
@@ -107,6 +112,8 @@ def create_candidate_safe(
         candidatePassword=get_password_hash(plain_password),
         candidateTempPassword=plain_password,
         candidateIsVerified=False,
+        associated_bu_id=None,  # BU lifecycle: New candidates are org-wide (NULL)
+        tenant_id=tenant_id or "1",  # Default to tenant 1 if not provided
         **fields,
     )
     db.add(candidate)
@@ -128,8 +135,7 @@ def create_candidate_safe(
             captured_by="candidate_creation",
         ))
 
-    return candidate
-
+    return candidate, True  # Return (candidate, is_new=True) for new candidates
 
 # ---------------------------------------------------------------------------
 # R-01 (HRMS-P601) -- 5-year experience floor.
@@ -148,7 +154,6 @@ def create_candidate_safe(
 # ---------------------------------------------------------------------------
 
 _EXPERIENCE_YEARS_PATTERN = re.compile(r"(\d+(?:\.\d+)?)")
-
 
 def parse_experience_to_months(raw: Optional[str]) -> Optional[int]:
     """

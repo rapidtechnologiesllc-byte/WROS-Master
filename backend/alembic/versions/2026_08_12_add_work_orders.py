@@ -1,3 +1,4 @@
+import logging
 """Add WorkOrder model for PO/SOW revenue linkage
 
 Revision ID: 2026_08_12_work_orders
@@ -10,13 +11,11 @@ Links DIRECT-sourced demands to revenue authority (PO/SOW).
 from alembic import op
 import sqlalchemy as sa
 
-
 # revision identifiers, used by Alembic.
 revision = '2026_08_12_work_orders'
 down_revision = None
 branch_labels = None
 depends_on = None
-
 
 def upgrade() -> None:
     op.create_table(
@@ -51,7 +50,6 @@ def upgrade() -> None:
     op.create_index(op.f('ix_work_orders_client_id'), 'work_orders', ['client_id'], unique=False)
     op.create_index(op.f('ix_work_orders_employee_id'), 'work_orders', ['employee_id'], unique=False)
     op.create_index(op.f('ix_work_orders_project_id'), 'work_orders', ['project_id'], unique=False)
-
 
 def downgrade() -> None:
     op.drop_index(op.f('ix_work_orders_project_id'), table_name='work_orders')

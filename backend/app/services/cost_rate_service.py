@@ -3,6 +3,7 @@ EPIC-16 -- Fully Loaded Cost + Blended Delivery Rate. See
 app.models.cost_rate_config for the config-driven design rationale.
 """
 from datetime import date
+import logging
 from typing import Optional
 
 from sqlalchemy.orm import Session
@@ -13,11 +14,12 @@ from app.models.employee import Employee
 from app.models.employee_allocation import EmployeeAllocation
 from app.models.timesheet import Timesheet
 from app.services.forecast_variance_service import get_monthly_actual_revenue
+from app.core.logging import logger
 
+logger = logging.getLogger(__name__)
 
 class CostRateConfigError(Exception):
     pass
-
 
 def set_cost_rate_config(
     db: Session, *, statutory_pct: float, overhead_pct: float, created_by: str,
@@ -35,7 +37,6 @@ def set_cost_rate_config(
     db.commit()
     db.refresh(config)
     return config
-
 
 def get_active_cost_rate_config(db: Session, *, business_unit_id: Optional[int] = None) -> Optional[CostRateConfig]:
     """Most recent row for the BU wins; falls back to the org-wide
@@ -57,7 +58,6 @@ def get_active_cost_rate_config(db: Session, *, business_unit_id: Optional[int] 
         .first()
     )
 
-
 def calculate_fully_loaded_cost_usd_cents(employee: Employee, config: CostRateConfig) -> Optional[int]:
     """Monthly fully-loaded cost = base salary + statutory components +
     admin overhead allocation, matching the real workbook's Roster
@@ -70,7 +70,6 @@ def calculate_fully_loaded_cost_usd_cents(employee: Employee, config: CostRateCo
     statutory = round(base * float(config.statutory_pct) / 100)
     overhead = round(base * float(config.overhead_pct) / 100)
     return base + statutory + overhead
-
 
 def calculate_blended_delivery_rate(
     db: Session, *, business_unit_id: int, year: int, month: int,

@@ -1,4 +1,5 @@
 """
+import logging
 HRMS-0103 — Demand / Job Requisition Management, Phase 2 Domain 2/4.
 
 Same SQL-Server/SQLite-portable translation conventions as
@@ -13,6 +14,7 @@ as its own table rather than retrofitting Jobs -- reconciling the two
 (or migrating Jobs data into demands) is a separate decision, flagged
 in the developer handoff, not resolved by silently picking one here.
 """
+import logging
 import uuid
 
 from sqlalchemy import (
@@ -24,10 +26,8 @@ from sqlalchemy.orm import relationship
 from app.models.base import Base
 from app.models.employee import DELIVERY_ENGINES
 
-
 def _new_uuid() -> str:
     return str(uuid.uuid4())
-
 
 WORK_LOCATIONS = ("REMOTE", "ONSITE", "HYBRID")
 EMPLOYMENT_TYPES = ("W2_FULLTIME",)  # BR-01: the only allowed value, R-03
@@ -49,13 +49,14 @@ ALLOWED_DEMAND_TRANSITIONS = {
     "CANCELLED": set(),   # terminal
 }
 
+logger = logging.getLogger(__name__)
 
 class Demand(Base):
     __tablename__ = "demands"
 
-    id = Column(String(36), primary_key=True, default=_new_uuid)
+    id = Column(String(512), primary_key=True, default=_new_uuid)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
-    client_id = Column(String(36), ForeignKey("clients.id"), nullable=False, index=True)
+    client_id = Column(String(512), ForeignKey("clients.id"), nullable=False, index=True)
 
     job_title = Column(String(300), nullable=False)
     job_description = Column(Text, nullable=True)
@@ -65,8 +66,8 @@ class Demand(Base):
     max_experience_years = Column(Numeric(4, 1), nullable=True)
 
     work_location = Column(Enum(*WORK_LOCATIONS, name="demand_work_location", native_enum=False, create_constraint=True), nullable=False)
-    job_location = Column(String(200), nullable=True)
-    domain = Column(String(100), nullable=True)
+    job_location = Column(String(512), nullable=True)
+    domain = Column(String(512), nullable=True)
 
     # BR-01 / R-03: hardcoded, no other value ever allowed -- see also
     # the CHECK constraint added in the migration for a DB-level guard
@@ -93,7 +94,7 @@ class Demand(Base):
     sourcing_enabled = Column(Boolean, nullable=False, default=False)
     bench_first_checked = Column(Boolean, nullable=False, default=False)
 
-    assigned_recruiter_employee_id = Column(String(36), ForeignKey("employees.id"), nullable=True, index=True)
+    assigned_recruiter_employee_id = Column(String(512), ForeignKey("employees.id"), nullable=True, index=True)
     assigned_bu_id = Column(Integer, ForeignKey("business_units.id"), nullable=True, index=True)
 
     # S-353/HRMS-0514 (Core-Pull) + S-372/HRMS-0528 (Confirmed vs Potential)
@@ -116,17 +117,17 @@ class Demand(Base):
         Enum("POTENTIAL", "CONFIRMED", "CANCELLED", name="demand_confirmation_status", native_enum=False, create_constraint=True),
         nullable=False, default="POTENTIAL",
     )
-    sow_reference = Column(String(200), nullable=True)
+    sow_reference = Column(String(512), nullable=True)
     sow_received_date = Column(Date, nullable=True)
 
     # HRMS-0210/0211 -- opportunity-originated role demands. opportunity_id
     # is nullable: most demands aren't opportunity-sourced.
-    opportunity_id = Column(String(36), ForeignKey("opportunities.id"), nullable=True, index=True)
+    opportunity_id = Column(String(512), ForeignKey("opportunities.id"), nullable=True, index=True)
     # HRMS-0805 -- links this demand's role requirement to the project
     # it's being staffed for, so unfilled-role gaps can be computed by
     # joining this demand against EmployeeAllocation.project_id. Nullable:
     # most demands aren't tied to a specific tracked project.
-    project_id = Column(String(36), ForeignKey("projects.id"), nullable=True, index=True)
+    project_id = Column(String(512), ForeignKey("projects.id"), nullable=True, index=True)
     source_type = Column(
         Enum(*DEMAND_SOURCE_TYPES, name="demand_source_type", native_enum=False, create_constraint=True),
         nullable=False, default="DIRECT",
@@ -142,7 +143,7 @@ class Demand(Base):
     revenue_potential_usd_cents = Column(Integer, nullable=True)
 
     created_at = Column(DateTime, server_default=func.now())
-    created_by = Column(String(50), nullable=True)
+    created_by = Column(String(512), nullable=True)
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
     closed_at = Column(DateTime, nullable=True)
 
@@ -154,14 +155,13 @@ class Demand(Base):
         # layer, checked before insert.
     )
 
-
 class DemandHistory(Base):
     """Insert-only, same immutable pattern as employee/client history."""
     __tablename__ = "demand_history"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
-    demand_id = Column(String(36), ForeignKey("demands.id"), nullable=False, index=True)
+    demand_id = Column(String(512), ForeignKey("demands.id"), nullable=False, index=True)
     change_type = Column(
         Enum("STATUS", "RECRUITER", "URGENCY", "HEADCOUNT", name="demand_change_type", native_enum=False, create_constraint=True),
         nullable=False,
@@ -169,5 +169,5 @@ class DemandHistory(Base):
     old_value = Column(Text, nullable=True)
     new_value = Column(Text, nullable=True)
     reason = Column(Text, nullable=True)
-    changed_by = Column(String(50), nullable=True)
+    changed_by = Column(String(512), nullable=True)
     changed_at = Column(DateTime, server_default=func.now())

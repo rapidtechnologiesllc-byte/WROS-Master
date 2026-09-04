@@ -1,3 +1,4 @@
+import logging
 """add_candidate_job_applications_table
 
 Revision ID: 3084c1245670
@@ -10,13 +11,11 @@ from typing import Sequence, Union
 from alembic import op
 import sqlalchemy as sa
 
-
 # revision identifiers, used by Alembic.
 revision: str = '3084c1245670'
 down_revision: Union[str, Sequence[str], None] = 'd530a35a78f9'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
-
 
 def upgrade() -> None:
     """Upgrade schema."""
@@ -36,7 +35,6 @@ def upgrade() -> None:
     op.create_index(op.f('ix_candidate_job_applications_id'), 'candidate_job_applications', ['id'], unique=False)
     op.create_index(op.f('ix_candidate_job_applications_job_id'), 'candidate_job_applications', ['job_id'], unique=False)
     # ### end Alembic commands ###
-
 
 def downgrade() -> None:
     """Downgrade schema."""

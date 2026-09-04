@@ -1,4 +1,5 @@
 """add interview_rehire_reviews (rehire guard, Part 2 of the interview
+import logging
 regrouping + rehire guard priority)
 
 Revision ID: 076eb838c5cc
@@ -17,13 +18,11 @@ from typing import Sequence, Union
 from alembic import op
 import sqlalchemy as sa
 
-
 # revision identifiers, used by Alembic.
 revision: str = '076eb838c5cc'
 down_revision: Union[str, Sequence[str], None] = 'd9c2e5b8f1a4'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
-
 
 def upgrade() -> None:
     """Upgrade schema."""
@@ -63,7 +62,6 @@ def upgrade() -> None:
     op.create_index(
         op.f('ix_interview_rehire_reviews_candidate_id'), 'interview_rehire_reviews', ['candidate_id'], unique=False,
     )
-
 
 def downgrade() -> None:
     """Downgrade schema."""

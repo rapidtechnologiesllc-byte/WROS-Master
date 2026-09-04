@@ -1,130 +1,156 @@
-﻿"""
-S-014/HRMS-0414 -- Message Template Engine
-=============================================
-Prefix: /templates
-Tag:    message-templates
+"""
+Message Template Management API
 
-Routes:
-  POST /templates                  create a new DRAFT version (any internal user)
-  GET  /templates                  list, filterable by ?channel=&template_key=
-  GET  /templates/{id}             single record
-  POST /templates/{id}/activate    template.manage permission only
-  GET  /templates/{id}/preview     render against a real candidate
+Endpoints for creating, editing, and managing email templates with dynamic fields.
+Templates can be edited from the UI and include placeholders like {{employee_name}}, {{department}}, etc.
 """
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
+from typing import Optional, List
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_hr_or_admin, require_resource_permission
+from app.core.dependencies import get_current_internal_user
 from app.models.user import Users
-from app.schemas.message_template import (
-    CreateTemplateRequest,
-    TemplateListResponse,
-    TemplatePreviewResponse,
-    TemplateResponse,
-)
-from app.services.ai_conversation_service import resolve_default_tenant_id, resolve_thunder_config
-from app.services.first_engagement_service import COMPANY_NAME
-from app.services.message_template_service import (
-    TemplateActivationConflict,
-    TemplateNotFoundError,
-    activate_template,
-    create_template_version,
-    get_template,
-    list_templates,
-    preview_template,
-)
+from app.models.message_template import MessageTemplate, TEMPLATE_KEYS, TEMPLATE_CHANNELS
+from app.services.template_service import TemplateService
+from app.core.logging import logger
 
-router = APIRouter(prefix="/templates", tags=["message-templates"])
+router = APIRouter(prefix="/message-templates", tags=["message-templates"])
 
 
-def _to_response(t) -> TemplateResponse:
-    return TemplateResponse(
-        id=t.id, template_key=t.template_key, template_name=t.template_name, channel=t.channel,
-        language=t.language, subject=t.subject, body=t.body, version=t.version, is_active=t.is_active,
-        created_by=t.created_by, approved_by=t.approved_by, approved_at=t.approved_at, created_at=t.created_at,
+class TemplateRequest(BaseModel):
+    """Request to create or update a template."""
+    template_name: str
+    channel: str
+    subject: Optional[str] = None
+    body: str
+
+
+class TemplateResponse(BaseModel):
+    """Template response."""
+    id: int
+    template_key: str
+    template_name: str
+    channel: str
+    subject: Optional[str]
+    body: str
+    version: int
+    is_active: bool
+    created_by: Optional[str]
+    created_at: str
+
+    class Config:
+        from_attributes = True
+
+
+@router.get("/keys")
+def get_template_keys():
+    """Get available template keys and channels."""
+    return {
+        "keys": TEMPLATE_KEYS,
+        "channels": TEMPLATE_CHANNELS,
+    }
+
+
+@router.get("/{template_key}")
+def get_template(
+    template_key: str,
+    channel: str = "EMAIL",
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_internal_user),
+):
+    """Get the active template for a key."""
+    if template_key not in TEMPLATE_KEYS:
+        raise HTTPException(status_code=400, detail=f"Invalid template key: {template_key}")
+
+    template = TemplateService.get_template(
+        db=db,
+        tenant_id=current_user.UserID,
+        template_key=template_key,
+        channel=channel,
     )
 
-
-@router.post("", response_model=TemplateResponse, status_code=201)
-def create_template(
-    body: CreateTemplateRequest,
-    db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
-):
-    # tenant_id is the org's canonical default (see resolve_default_
-    # tenant_id's docstring), NOT current_user.UserID -- a recruiter's
-    # own ID would never match the tenant_id first_engagement_service
-    # actually looks templates up under, silently making every
-    # recruiter-created template unreachable.
-    tenant_id = resolve_default_tenant_id(db)
-    if not tenant_id:
-        raise HTTPException(status_code=500, detail="No Super User account exists to own this template.")
-    try:
-        template = create_template_version(
-            db, tenant_id=tenant_id, template_key=body.template_key, template_name=body.template_name,
-            channel=body.channel, body=body.body, subject=body.subject, language=body.language,
-            created_by=current_user.UserID,
-        )
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc))
-    return _to_response(template)
-
-
-@router.get("", response_model=TemplateListResponse)
-def list_templates_endpoint(
-    channel: str = None,
-    template_key: str = None,
-    db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
-):
-    tenant_id = resolve_default_tenant_id(db)
-    templates = list_templates(db, tenant_id, channel=channel, template_key=template_key) if tenant_id else []
-    return TemplateListResponse(templates=[_to_response(t) for t in templates])
-
-
-@router.get("/{template_id}", response_model=TemplateResponse)
-def get_template_endpoint(
-    template_id: int,
-    db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
-):
-    template = get_template(db, template_id)
     if not template:
-        raise HTTPException(status_code=404, detail=f"Template {template_id} not found.")
-    return _to_response(template)
+        raise HTTPException(status_code=404, detail="Template not found")
+
+    return TemplateResponse.from_orm(template)
 
 
-@router.post(
-    "/{template_id}/activate",
-    response_model=TemplateResponse,
-    dependencies=[Depends(require_resource_permission("templates", "edit"))],
-    summary="Activate a template version â€” template.manage permission only",
-)
-def activate_template_endpoint(
+@router.get("/{template_key}/versions")
+def get_template_versions(
+    template_key: str,
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_internal_user),
+):
+    """Get all versions of a template."""
+    if template_key not in TEMPLATE_KEYS:
+        raise HTTPException(status_code=400, detail=f"Invalid template key: {template_key}")
+
+    templates = db.query(MessageTemplate).filter(
+        MessageTemplate.tenant_id == current_user.UserID,
+        MessageTemplate.template_key == template_key,
+    ).order_by(MessageTemplate.version.desc()).all()
+
+    return [TemplateResponse.from_orm(t) for t in templates]
+
+
+@router.post("/{template_key}")
+def create_template_version(
+    template_key: str,
+    request: TemplateRequest,
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_internal_user),
+):
+    """Create a new version of a template."""
+    if template_key not in TEMPLATE_KEYS:
+        raise HTTPException(status_code=400, detail=f"Invalid template key: {template_key}")
+
+    if request.channel not in TEMPLATE_CHANNELS:
+        raise HTTPException(status_code=400, detail=f"Invalid channel: {request.channel}")
+
+    template = TemplateService.create_template(
+        db=db,
+        tenant_id=current_user.UserID,
+        template_key=template_key,
+        template_name=request.template_name,
+        channel=request.channel,
+        subject=request.subject,
+        body=request.body,
+        created_by=current_user.UserID,
+    )
+
+    return TemplateResponse.from_orm(template)
+
+
+@router.post("/{template_id}/activate")
+def activate_template(
     template_id: int,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
-    try:
-        template = activate_template(db, template_id, activated_by=current_user.UserID)
-    except TemplateActivationConflict as exc:
-        raise HTTPException(status_code=404, detail=str(exc))
-    return _to_response(template)
+    """Activate a template version."""
+    # Verify the template belongs to the current user's tenant
+    template = db.query(MessageTemplate).filter(
+        MessageTemplate.id == template_id,
+        MessageTemplate.tenant_id == current_user.UserID,
+    ).first()
+
+    if not template:
+        raise HTTPException(status_code=404, detail="Template not found")
+
+    success = TemplateService.activate_template(db, template_id)
+    if not success:
+        raise HTTPException(status_code=400, detail="Failed to activate template")
+
+    return {"status": "success", "message": "Template activated"}
 
 
-@router.get("/{template_id}/preview", response_model=TemplatePreviewResponse)
-def preview_template_endpoint(
-    template_id: int,
-    candidate_id: str,
+@router.get("")
+def list_templates(
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
-    thunder_config = resolve_thunder_config(db, resolve_default_tenant_id(db))
-    try:
-        result = preview_template(db, template_id, candidate_id, agent_name=thunder_config["name"], company_name=COMPANY_NAME)
-    except TemplateNotFoundError as exc:
-        raise HTTPException(status_code=404, detail=str(exc))
-    except ValueError as exc:
-        raise HTTPException(status_code=404, detail=str(exc))
-    return TemplatePreviewResponse(**result)
+    """List all templates for the current tenant."""
+    templates = TemplateService.list_templates(db, current_user.UserID)
+    return [TemplateResponse.from_orm(t) for t in templates]

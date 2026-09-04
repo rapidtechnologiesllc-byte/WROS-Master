@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import logging
 """Create test users with correct passwords for local development."""
 
 import sys
@@ -125,6 +126,8 @@ def setup_test_users():
         print("  Partner: partnertest@blitzenx.com / Partner@123")
 
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
+        logger.error(f"Error: {str(e)}", exc_info=True)
         print(f"\n[ERROR] {e}")
         import traceback
         traceback.print_exc()

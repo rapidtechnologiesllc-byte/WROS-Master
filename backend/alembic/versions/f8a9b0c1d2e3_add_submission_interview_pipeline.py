@@ -1,3 +1,4 @@
+import logging
 """add submission + interview pipeline entities (Phase 2 Domain 2)
 
 Revision ID: f8a9b0c1d2e3
@@ -33,13 +34,11 @@ from typing import Sequence, Union
 from alembic import op
 import sqlalchemy as sa
 
-
 # revision identifiers, used by Alembic.
 revision: str = 'f8a9b0c1d2e3'
 down_revision: Union[str, Sequence[str], None] = 'e7f8a9b0c1d2'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
-
 
 def upgrade() -> None:
     """Upgrade schema."""
@@ -174,7 +173,6 @@ def upgrade() -> None:
     op.create_index(op.f('ix_submission_interviews_tenant_id'), 'submission_interviews', ['tenant_id'], unique=False)
     op.create_index(op.f('ix_submission_interviews_submission_id'), 'submission_interviews', ['submission_id'], unique=False)
     op.create_index(op.f('ix_submission_interviews_candidate_id'), 'submission_interviews', ['candidate_id'], unique=False)
-
 
 def downgrade() -> None:
     """Downgrade schema."""

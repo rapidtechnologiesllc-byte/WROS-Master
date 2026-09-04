@@ -1,4 +1,5 @@
 """
+import logging
 Operational Accountability Agents - Daily Business Health Checks
 
 Three agents that watch the business operations:
@@ -7,6 +8,7 @@ Three agents that watch the business operations:
 3. Employee Health Agent - Monitor wellbeing, engagement, motivation
 """
 
+import logging
 from datetime import datetime, timedelta
 from typing import Dict, Any, List, Optional
 from sqlalchemy.orm import Session
@@ -19,6 +21,7 @@ from app.models.business_unit import BusinessUnit
 from app.models.user import Users
 from app.core.logging import logger
 
+logger = logging.getLogger(__name__)
 
 class PartnerROIAgent:
     """
@@ -182,7 +185,6 @@ class PartnerROIAgent:
             },
             "action": "Partners behind target need immediate support or coaching"
         }
-
 
 class BUHeadAgent:
     """
@@ -356,7 +358,6 @@ class BUHeadAgent:
                 "bus_at_risk": sum(1 for s in summaries if "WARNING" in s["delivery_cadence"]["status"] or "WARNING" in s["utilization"]["status"])
             }
         }
-
 
 class EmployeeHealthAgent:
     """

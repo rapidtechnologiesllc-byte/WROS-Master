@@ -1,3 +1,4 @@
+import logging
 """S-039/HRMS-0439: add jobs.urgency
 
 Revision ID: 4d8cb154d0b8
@@ -14,7 +15,6 @@ depends_on = None
 
 _URGENCY_VALUES = "'IMMEDIATE', 'HIGH', 'NORMAL', 'FLEXIBLE'"
 
-
 def upgrade():
     # batch mode -- portable across the real MSSQL target and the SQLite
     # throwaway DB this migration is verified against in isolation before
@@ -24,7 +24,6 @@ def upgrade():
     with op.batch_alter_table("jobs") as batch_op:
         batch_op.add_column(sa.Column("urgency", sa.String(20), nullable=True))
         batch_op.create_check_constraint("ck_jobs_urgency", f"urgency IN ({_URGENCY_VALUES}) OR urgency IS NULL")
-
 
 def downgrade():
     with op.batch_alter_table("jobs") as batch_op:

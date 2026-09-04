@@ -1,3 +1,4 @@
+import logging
 """add bench_pool, employee_utilization_metrics, allocation_conflict_log (Phase 4 Part B)
 
 Revision ID: ec029402efc6
@@ -18,13 +19,11 @@ from typing import Sequence, Union
 from alembic import op
 import sqlalchemy as sa
 
-
 # revision identifiers, used by Alembic.
 revision: str = 'ec029402efc6'
 down_revision: Union[str, Sequence[str], None] = '2179e135a0ab'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
-
 
 def upgrade() -> None:
     """Upgrade schema."""
@@ -79,7 +78,6 @@ def upgrade() -> None:
     )
     op.create_index(op.f('ix_allocation_conflict_log_tenant_id'), 'allocation_conflict_log', ['tenant_id'], unique=False)
     op.create_index(op.f('ix_allocation_conflict_log_employee_id'), 'allocation_conflict_log', ['employee_id'], unique=False)
-
 
 def downgrade() -> None:
     """Downgrade schema."""

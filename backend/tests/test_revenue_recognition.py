@@ -1,4 +1,5 @@
 """
+import logging
 Comprehensive test suite for Revenue Recognition (HRMS-0316)
 
 Tests all core functionality:
@@ -10,6 +11,7 @@ Tests all core functionality:
 - Error handling and validation
 """
 
+import logging
 import pytest
 from datetime import datetime, date, timedelta
 from decimal import Decimal
@@ -45,7 +47,6 @@ from app.models.client import Client
 from app.models.business_unit_context import BusinessUnitContext
 from app.models.tenant import Tenant
 
-
 # ============================================================================
 # FIXTURES
 # ============================================================================
@@ -57,7 +58,6 @@ def test_tenant(db_session: Session):
     db_session.add(tenant)
     db_session.commit()
     return tenant
-
 
 @pytest.fixture
 def test_bu_context(db_session: Session, test_tenant):
@@ -72,7 +72,6 @@ def test_bu_context(db_session: Session, test_tenant):
     db_session.commit()
     return bu_context
 
-
 @pytest.fixture
 def test_client(db_session: Session, test_tenant):
     """Create test client."""
@@ -86,7 +85,6 @@ def test_client(db_session: Session, test_tenant):
     db_session.add(client)
     db_session.commit()
     return client
-
 
 @pytest.fixture
 def test_opportunity(db_session: Session, test_tenant, test_client, test_bu_context):
@@ -112,7 +110,6 @@ def test_opportunity(db_session: Session, test_tenant, test_client, test_bu_cont
     db_session.commit()
     return opp
 
-
 @pytest.fixture
 def test_project(db_session: Session, test_tenant, test_client, test_opportunity, test_bu_context):
     """Create test project."""
@@ -133,7 +130,6 @@ def test_project(db_session: Session, test_tenant, test_client, test_opportunity
     db_session.add(project)
     db_session.commit()
     return project
-
 
 @pytest.fixture
 def test_invoice_paid(db_session: Session, test_tenant, test_project, test_client, test_bu_context, test_opportunity):
@@ -156,7 +152,6 @@ def test_invoice_paid(db_session: Session, test_tenant, test_project, test_clien
     db_session.commit()
     return invoice
 
-
 @pytest.fixture
 def test_invoice_draft(db_session: Session, test_tenant, test_project, test_client, test_bu_context, test_opportunity):
     """Create DRAFT invoice for testing."""
@@ -177,7 +172,6 @@ def test_invoice_draft(db_session: Session, test_tenant, test_project, test_clie
     db_session.commit()
     return invoice
 
-
 @pytest.fixture
 def test_line_item(db_session: Session, test_invoice_paid):
     """Create test invoice line item."""
@@ -194,10 +188,10 @@ def test_line_item(db_session: Session, test_invoice_paid):
     db_session.commit()
     return item
 
-
 # ============================================================================
 # TEST SUITE 1: REVENUE RECOGNITION
 # ============================================================================
+logger = logging.getLogger(__name__)
 
 class TestRevenueRecognition:
     """Tests for core revenue recognition functionality."""
@@ -259,7 +253,6 @@ class TestRevenueRecognition:
         assert revenue.client_type == test_opportunity.client_type
         assert revenue.pricing_model == test_opportunity.pricing_model
 
-
 # ============================================================================
 # TEST SUITE 2: REVENUE ENTRIES
 # ============================================================================
@@ -298,7 +291,6 @@ class TestRevenueEntries:
             test_invoice_paid.tenant_id
         )
         assert result2["status"] == "already_recognized"
-
 
 # ============================================================================
 # TEST SUITE 3: ASR CALCULATION
@@ -340,7 +332,6 @@ class TestASRCalculation:
         assert result["status"] == "success"
         assert result["arr_usd_cents"] == 0
         assert result["mrr_usd_cents"] == 0
-
 
 # ============================================================================
 # TEST SUITE 4: REPORTING QUERIES
@@ -435,7 +426,6 @@ class TestReportingQueries:
         assert opp_data["forecast_usd_cents"] > 0
         assert opp_data["actual_usd_cents"] > 0
 
-
 # ============================================================================
 # TEST SUITE 5: MARGIN AND P&L
 # ============================================================================
@@ -485,7 +475,6 @@ class TestMarginAndPnL:
         assert result["cost_usd_cents"] == 0
         assert result["margin_usd_cents"] == 0
 
-
 # ============================================================================
 # TEST SUITE 6: HELPERS
 # ============================================================================
@@ -522,7 +511,6 @@ class TestHelperFunctions:
 
         assert share["share_pct"] is None
         assert share["share_amount"] == 0
-
 
 # ============================================================================
 # TEST SUITE 7: EDGE CASES
@@ -579,7 +567,6 @@ class TestEdgeCases:
         # Only returns negative margins
         for alert in alerts:
             assert alert["gross_margin_usd_cents"] < 0
-
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "--tb=short"])

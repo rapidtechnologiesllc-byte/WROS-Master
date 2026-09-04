@@ -34,7 +34,7 @@ import {
 import RejectModal from "../components/ui/RejectModal";
 import { updateCandidateStatus } from "../services/api/candidates";
 import { getRejectionEmailHTML } from "../utils/rejectionEmailTemplate";
-import { mapJobFromApi } from "../routes/Approutes";
+import { mapJobFromApi } from "../utils/jobMappers";
 
 const OfferListing = () => {
   const [jobs, setJobs] = useState([]);
@@ -69,7 +69,8 @@ const OfferListing = () => {
         );
         setJobs(mappedJobs);
       } catch (err) {
-        console.error(err);
+        console.error("Failed to load offer jobs:", err);
+        throw new Error(`Failed to fetch offer letters jobs: ${err.message}`);
       }
     };
     fetchData();

@@ -2,6 +2,7 @@
 Proves HRMS-0201's exactly-one-primary-contact rule (extending the
 existing Client model rather than forking it into a second clients
 table -- see app.models.client's module docstring), and HRMS-0207/0209/
+import logging
 0210/0211/0215's opportunity + revenue-potential calculations.
 
 Throwaway SQLite -- never the real database.
@@ -34,7 +35,6 @@ from app.services.opportunity_service import (
     InvalidStageTransition,
 )
 
-
 @pytest.fixture()
 def db_session():
     fd, db_path = tempfile.mkstemp(suffix=".sqlite3")
@@ -52,7 +52,6 @@ def db_session():
         engine.dispose()
         os.remove(db_path)
 
-
 @pytest.fixture()
 def tenant_and_client(db_session):
     tenant = Tenant(name="BlitzenX")
@@ -62,7 +61,6 @@ def tenant_and_client(db_session):
     db_session.add(client)
     db_session.commit()
     return tenant, client
-
 
 # ---------------------------------------------------------------------------
 # HRMS-0201 BR-0201-02: exactly one primary contact
@@ -83,7 +81,6 @@ def test_set_primary_contact_unsets_previous_primary(db_session, tenant_and_clie
     assert contact_a.is_primary is False
     assert contact_b.is_primary is True
 
-
 def test_set_primary_contact_rejects_contact_from_other_client(db_session, tenant_and_client):
     tenant, client = tenant_and_client
     other_client = Client(tenant_id=tenant.id, company_name="Other Co")
@@ -96,7 +93,6 @@ def test_set_primary_contact_rejects_contact_from_other_client(db_session, tenan
     with pytest.raises(ValueError):
         set_primary_contact(db_session, client, foreign_contact)
 
-
 # ---------------------------------------------------------------------------
 # HRMS-0207: create_opportunity validation
 # ---------------------------------------------------------------------------
@@ -106,12 +102,10 @@ def test_create_opportunity_rejects_non_positive_revenue(db_session, tenant_and_
     with pytest.raises(OpportunityValidationError):
         create_opportunity(db_session, tenant_id=tenant.id, client_id=client.id, revenue_value_usd_cents=0, probability_pct=50)
 
-
 def test_create_opportunity_rejects_out_of_range_probability(db_session, tenant_and_client):
     tenant, client = tenant_and_client
     with pytest.raises(OpportunityValidationError):
         create_opportunity(db_session, tenant_id=tenant.id, client_id=client.id, revenue_value_usd_cents=100000, probability_pct=150)
-
 
 def test_create_opportunity_success(db_session, tenant_and_client):
     tenant, client = tenant_and_client
@@ -121,7 +115,6 @@ def test_create_opportunity_success(db_session, tenant_and_client):
     )
     db_session.commit()
     assert opp.stage == "QUALIFICATION"
-
 
 # ---------------------------------------------------------------------------
 # HRMS-0209: shared weighted forecast calculation
@@ -136,7 +129,6 @@ def test_calculate_weighted_forecast(db_session, tenant_and_client):
     db_session.commit()
     assert calculate_weighted_forecast(opp) == 100_000_00
 
-
 def test_aggregate_weighted_forecast_sums_multiple(db_session, tenant_and_client):
     tenant, client = tenant_and_client
     opp1 = create_opportunity(db_session, tenant_id=tenant.id, client_id=client.id, revenue_value_usd_cents=100_00, probability_pct=50)
@@ -145,7 +137,6 @@ def test_aggregate_weighted_forecast_sums_multiple(db_session, tenant_and_client
     # 50 + 50 = 100
     assert aggregate_weighted_forecast([opp1, opp2]) == 100_00
 
-
 # ---------------------------------------------------------------------------
 # HRMS-0215: pipeline coverage ratio
 # ---------------------------------------------------------------------------
@@ -153,10 +144,8 @@ def test_aggregate_weighted_forecast_sums_multiple(db_session, tenant_and_client
 def test_pipeline_coverage_ratio():
     assert calculate_pipeline_coverage_ratio(300_00, 100_00) == 3.0
 
-
 def test_pipeline_coverage_ratio_none_for_zero_target():
     assert calculate_pipeline_coverage_ratio(300_00, 0) is None
-
 
 # ---------------------------------------------------------------------------
 # Stage transitions
@@ -171,7 +160,6 @@ def test_transition_stage_success(db_session, tenant_and_client):
     db_session.commit()
     assert opp.stage == "PROPOSAL"
 
-
 def test_transition_stage_blocked_once_closed(db_session, tenant_and_client):
     tenant, client = tenant_and_client
     opp = create_opportunity(db_session, tenant_id=tenant.id, client_id=client.id, revenue_value_usd_cents=100_00, probability_pct=50, stage="WON")
@@ -180,7 +168,6 @@ def test_transition_stage_blocked_once_closed(db_session, tenant_and_client):
     with pytest.raises(InvalidStageTransition):
         transition_stage(db_session, opp, "PROPOSAL")
 
-
 def test_transition_stage_rejects_invalid_stage(db_session, tenant_and_client):
     tenant, client = tenant_and_client
     opp = create_opportunity(db_session, tenant_id=tenant.id, client_id=client.id, revenue_value_usd_cents=100_00, probability_pct=50)
@@ -188,7 +175,6 @@ def test_transition_stage_rejects_invalid_stage(db_session, tenant_and_client):
 
     with pytest.raises(InvalidStageTransition):
         transition_stage(db_session, opp, "BOGUS_STAGE")
-
 
 # ---------------------------------------------------------------------------
 # HRMS-0210/0211: role demand creation + revenue potential
@@ -214,7 +200,6 @@ def test_create_role_demand_from_opportunity(db_session, tenant_and_client):
     # bill_rate(12500) * duration(1000) * quantity(3)
     assert demand.revenue_potential_usd_cents == 125_00 * 1000 * 3
 
-
 def test_create_role_demand_rejects_quantity_below_one(db_session, tenant_and_client):
     tenant, client = tenant_and_client
     opp = create_opportunity(db_session, tenant_id=tenant.id, client_id=client.id, revenue_value_usd_cents=100_00, probability_pct=50)
@@ -226,7 +211,6 @@ def test_create_role_demand_rejects_quantity_below_one(db_session, tenant_and_cl
             job_title="QA", required_skills='["QA"]', min_experience_years=2.0,
             work_location="REMOTE", quantity=0, duration_hours=500, billing_rate_usd_cents=80_00,
         )
-
 
 def test_recalculate_revenue_potential_updates_on_change(db_session, tenant_and_client):
     tenant, client = tenant_and_client
@@ -248,7 +232,6 @@ def test_recalculate_revenue_potential_updates_on_change(db_session, tenant_and_
     assert demand.revenue_potential_usd_cents == 200_00 * 1000 * 1
     assert demand.revenue_potential_usd_cents != original
 
-
 def test_calculate_revenue_potential_none_when_missing_inputs(db_session):
     demand = Demand(
         client_id="c1", job_title="x", required_skills="[]",
@@ -256,7 +239,6 @@ def test_calculate_revenue_potential_none_when_missing_inputs(db_session):
         billing_rate_usd_cents=None, duration_hours=1000,
     )
     assert calculate_revenue_potential(demand) is None
-
 
 def test_opportunity_revenue_rollup_sums_linked_demands(db_session, tenant_and_client):
     tenant, client = tenant_and_client

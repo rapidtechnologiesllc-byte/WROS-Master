@@ -6,15 +6,14 @@ import pytest
 import uuid
 from datetime import datetime, timedelta
 from sqlalchemy import create_engine
+import logging
 from sqlalchemy.orm import sessionmaker, Session
 
 from app.models.base import Base
-from app.models.user import Users, Jobs, Interview, InterviewFeedback
+from app.models.user import Users, Jobs, Interview
 from app.models.candidate import Candidate
-from app.models.offer import Offer
-from app.models.interview import InterviewFeedback as IFeedback, InterviewDecisionLog
+from app.models.interview import InterviewFeedback, InterviewDecisionLog
 from app.services.interview_decision_service import InterviewDecisionService
-
 
 # ────────────────────────────────────────────────────────────────────────────
 # Test Fixtures
@@ -30,12 +29,10 @@ def test_db():
     yield db
     db.close()
 
-
 @pytest.fixture
 def service():
     """Create InterviewDecisionService instance."""
     return InterviewDecisionService()
-
 
 def create_test_user(db: Session, user_id: str, email: str) -> Users:
     """Helper to create test user."""
@@ -51,7 +48,6 @@ def create_test_user(db: Session, user_id: str, email: str) -> Users:
     db.commit()
     return user
 
-
 def create_test_candidate(db: Session, candidate_id: str) -> Candidate:
     """Helper to create test candidate."""
     candidate = Candidate(
@@ -66,7 +62,6 @@ def create_test_candidate(db: Session, candidate_id: str) -> Candidate:
     db.add(candidate)
     db.commit()
     return candidate
-
 
 def create_test_job(db: Session, job_id: str) -> Jobs:
     """Helper to create test job."""
@@ -84,7 +79,6 @@ def create_test_job(db: Session, job_id: str) -> Jobs:
     db.commit()
     return job
 
-
 def create_test_interview(db: Session, interview_id: int, candidate_id: str) -> Interview:
     """Helper to create test interview."""
     interview = Interview(
@@ -99,7 +93,6 @@ def create_test_interview(db: Session, interview_id: int, candidate_id: str) -> 
     db.add(interview)
     db.commit()
     return interview
-
 
 def create_test_feedback(
     db: Session,
@@ -126,10 +119,10 @@ def create_test_feedback(
     db.commit()
     return feedback
 
-
 # ────────────────────────────────────────────────────────────────────────────
 # Test: get_interview_status
 # ────────────────────────────────────────────────────────────────────────────
+logger = logging.getLogger(__name__)
 
 class TestGetInterviewStatus:
     """Tests for get_interview_status method."""
@@ -195,7 +188,6 @@ class TestGetInterviewStatus:
         # Assert
         assert result["feedback_received"] == 3
         assert len(result["feedbacks"]) == 3
-
 
 # ────────────────────────────────────────────────────────────────────────────
 # Test: calculate_panel_decision
@@ -315,7 +307,6 @@ class TestCalculatePanelDecision:
         assert result["average_scores"]["problem_solving"] == 4.0
         assert result["average_scores"]["culture_fit"] == 4.0
 
-
 # ────────────────────────────────────────────────────────────────────────────
 # Test: move_to_offer
 # ────────────────────────────────────────────────────────────────────────────
@@ -406,7 +397,6 @@ class TestMoveToOffer:
         assert result["status"] == "error"
         assert "not approved for offer" in result["message"]
 
-
 # ────────────────────────────────────────────────────────────────────────────
 # Test: reject_candidate
 # ────────────────────────────────────────────────────────────────────────────
@@ -474,7 +464,6 @@ class TestRejectCandidate:
 
         assert result["status"] == "success"
         assert updated_interview.status == "REJECTED"
-
 
 # ────────────────────────────────────────────────────────────────────────────
 # Integration Tests
@@ -546,7 +535,6 @@ class TestIntegrationWorkflow:
             rejected_by_user_id="R001"
         )
         assert result["status"] == "success"
-
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

@@ -1,4 +1,5 @@
 """
+import logging
 Tests for S-324/HRMS-ONBOARDING-WORKFLOW service layer.
 
 Test coverage for:
@@ -7,6 +8,7 @@ Test coverage for:
 - send_welcome_kit()
 - schedule_training()
 """
+import logging
 import pytest
 from datetime import date, datetime, timedelta
 from sqlalchemy.orm import Session
@@ -28,6 +30,7 @@ from app.services.onboarding_workflow_service import (
     schedule_training,
 )
 
+logger = logging.getLogger(__name__)
 
 class TestStartOnboarding:
     """Test onboarding workflow initiation."""
@@ -119,7 +122,6 @@ class TestStartOnboarding:
         ).first()
 
         assert workflow.reporting_manager_id == test_user.UserID
-
 
 class TestAssignBuddy:
     """Test buddy assignment."""
@@ -214,7 +216,6 @@ class TestAssignBuddy:
         assert task is not None
         assert task.assigned_to_user_id == test_user.UserID
 
-
 class TestSendWelcomeKit:
     """Test welcome kit delivery."""
 
@@ -308,7 +309,6 @@ class TestSendWelcomeKit:
             WelcomeKit.workflow_id == workflow_id
         ).all()
         assert len(kits) == 2
-
 
 class TestScheduleTraining:
     """Test training session scheduling."""
@@ -449,7 +449,6 @@ class TestScheduleTraining:
         assert "Important Training" in task.task_name
         assert task.is_mandatory is True
 
-
 # ============================================================================
 # FIXTURES
 # ============================================================================
@@ -471,7 +470,6 @@ def test_employee(db: Session):
     db.commit()
     return employee
 
-
 @pytest.fixture
 def test_user(db: Session):
     """Create test user."""
@@ -486,7 +484,6 @@ def test_user(db: Session):
     db.add(user)
     db.commit()
     return user
-
 
 @pytest.fixture
 def setup_onboarding(db: Session):

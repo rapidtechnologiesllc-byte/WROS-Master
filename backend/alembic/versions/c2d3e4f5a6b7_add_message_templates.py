@@ -1,3 +1,4 @@
+import logging
 """S-014/HRMS-0414: add message_templates table
 
 Revision ID: c2d3e4f5a6b7
@@ -11,7 +12,6 @@ revision = "c2d3e4f5a6b7"
 down_revision = "b1c2d3e4f5a6"
 branch_labels = None
 depends_on = None
-
 
 def upgrade():
     op.create_table(
@@ -35,7 +35,6 @@ def upgrade():
     )
     op.create_index("ix_message_templates_tenant_id", "message_templates", ["tenant_id"])
     op.create_index("ix_message_templates_template_key", "message_templates", ["template_key"])
-
 
 def downgrade():
     op.drop_index("ix_message_templates_template_key", table_name="message_templates")

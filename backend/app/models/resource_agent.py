@@ -1,6 +1,7 @@
 """
 HRMS-1105 (canonical S-320, not S-274 as its `.docx` filename says --
 confirmed against `WROS_Canonical_Backlog_S001-401.xlsx`) -- Resource
+import logging
 Management Agent.
 
 bench_allocation_recommendations: the LLM-ranked, advisory-only output of
@@ -23,6 +24,7 @@ employee is already IN_PROGRESS on a different recommendation) ->
 APPROVED (offer/placement, creates the real allocation) or REJECTED
 (declined, from either PENDING_RM_REVIEW or IN_PROGRESS).
 """
+import logging
 import uuid
 
 from sqlalchemy import (
@@ -31,29 +33,28 @@ from sqlalchemy import (
 
 from app.models.base import Base
 
-
 def _new_uuid() -> str:
     return str(uuid.uuid4())
 
-
 BENCH_RECOMMENDATION_STATUSES = ("PENDING_RM_REVIEW", "IN_PROGRESS", "APPROVED", "REJECTED")
 
+logger = logging.getLogger(__name__)
 
 class BenchAllocationRecommendation(Base):
     __tablename__ = "bench_allocation_recommendations"
 
-    id = Column(String(36), primary_key=True, default=_new_uuid)
+    id = Column(String(512), primary_key=True, default=_new_uuid)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
 
-    employee_id = Column(String(36), ForeignKey("employees.id"), nullable=False, index=True)
-    demand_id = Column(String(36), ForeignKey("demands.id"), nullable=False, index=True)
+    employee_id = Column(String(512), ForeignKey("employees.id"), nullable=False, index=True)
+    demand_id = Column(String(512), ForeignKey("demands.id"), nullable=False, index=True)
 
     confidence_pct = Column(Numeric(5, 2), nullable=False)
     rationale = Column(Text, nullable=True)
     status = Column(String(20), nullable=False, default="PENDING_RM_REVIEW")
 
     created_at = Column(DateTime, server_default=func.now())
-    pursued_by = Column(String(50), ForeignKey("users.UserID"), nullable=True)
+    pursued_by = Column(String(512), ForeignKey("users.UserID"), nullable=True)
     pursued_at = Column(DateTime, nullable=True)
-    reviewed_by = Column(String(50), ForeignKey("users.UserID"), nullable=True)
+    reviewed_by = Column(String(512), ForeignKey("users.UserID"), nullable=True)
     reviewed_at = Column(DateTime, nullable=True)

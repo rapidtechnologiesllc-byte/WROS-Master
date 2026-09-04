@@ -1,5 +1,6 @@
 """
 S-314 — Project Allocation Engine
+import logging
 Unit tests for allocation service and API endpoints.
 
 Test Coverage:
@@ -11,6 +12,7 @@ Test Coverage:
   6. Validation — Pre-allocation checks
 """
 
+import logging
 import pytest
 from datetime import date, timedelta
 from sqlalchemy.orm import Session
@@ -31,14 +33,12 @@ from app.services.employee_allocation_service import (
     BuddyProgramNotGraduated,
 )
 
-
 @pytest.fixture
 def db():
     """Test database session."""
     db = SessionLocal()
     yield db
     db.close()
-
 
 @pytest.fixture
 def tenant(db: Session):
@@ -48,7 +48,6 @@ def tenant(db: Session):
     db.commit()
     db.refresh(tenant)
     return tenant
-
 
 @pytest.fixture
 def client(db: Session, tenant: Tenant):
@@ -65,7 +64,6 @@ def client(db: Session, tenant: Tenant):
     db.commit()
     db.refresh(client)
     return client
-
 
 @pytest.fixture
 def demand(db: Session, tenant: Tenant, client: Client):
@@ -84,7 +82,6 @@ def demand(db: Session, tenant: Tenant, client: Client):
     db.refresh(demand)
     return demand
 
-
 @pytest.fixture
 def project(db: Session, tenant: Tenant, client: Client):
     """Create test project."""
@@ -101,7 +98,6 @@ def project(db: Session, tenant: Tenant, client: Client):
     db.commit()
     db.refresh(project)
     return project
-
 
 @pytest.fixture
 def employee(db: Session, tenant: Tenant):
@@ -121,7 +117,6 @@ def employee(db: Session, tenant: Tenant):
     db.refresh(employee)
     return employee
 
-
 @pytest.fixture
 def employee_in_buddy_program(db: Session, tenant: Tenant):
     """Create test employee in active buddy program."""
@@ -140,6 +135,7 @@ def employee_in_buddy_program(db: Session, tenant: Tenant):
     db.refresh(employee)
     return employee
 
+logger = logging.getLogger(__name__)
 
 class TestAllocateEmployeeToProject:
     """Tests for allocate_employee_to_project() method."""
@@ -283,7 +279,6 @@ class TestAllocateEmployeeToProject:
                 changed_by="test_user",
             )
 
-
 class TestGetAvailableProjects:
     """Tests for get_available_projects() method."""
 
@@ -350,7 +345,6 @@ class TestGetAvailableProjects:
 
         projects = get_available_projects(db, tenant_id=tenant.id)
         assert len(projects) == 0
-
 
 class TestCheckCapacity:
     """Tests for check_capacity() method."""
@@ -475,7 +469,6 @@ class TestCheckCapacity:
         assert current_utilization == 0.0  # Allocation ended before proposed start date
         assert available_capacity == 100.0
 
-
 class TestEndAllocation:
     """Tests for ending allocations."""
 
@@ -493,7 +486,6 @@ class TestEndAllocation:
         db.commit()
         assert employee.status == "ALLOCATED"
 
-        from app.services.employee_allocation_service import end_allocation
         end_allocation(db, allocation, employee, changed_by="test_user")
         db.commit()
 
@@ -526,14 +518,12 @@ class TestEndAllocation:
         db.commit()
         assert employee.status == "ALLOCATED"
 
-        from app.services.employee_allocation_service import end_allocation
         end_allocation(db, allocation1, employee, changed_by="test_user")
         db.commit()
 
         db.refresh(employee)
         assert employee.status == "ALLOCATED"  # Still allocated to allocation2
         assert allocation1.status == "ENDED"
-
 
 class TestAllocationValidation:
     """Tests for allocation validation scenarios."""

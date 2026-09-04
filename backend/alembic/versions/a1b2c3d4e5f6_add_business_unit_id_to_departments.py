@@ -1,3 +1,4 @@
+import logging
 """add_business_unit_id_to_departments
 
 Revision ID: a1b2c3d4e5f6
@@ -11,13 +12,11 @@ from alembic import op
 import sqlalchemy as sa
 from sqlalchemy import text
 
-
 # revision identifiers, used by Alembic.
 revision: str = 'a1b2c3d4e5f6'
 down_revision: Union[str, Sequence[str], None] = 'b8a2a9677931'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
-
 
 def _column_exists(conn, table_name: str, column_name: str) -> bool:
     result = conn.execute(
@@ -28,7 +27,6 @@ def _column_exists(conn, table_name: str, column_name: str) -> bool:
         {"t": table_name, "c": column_name},
     )
     return result.scalar() > 0
-
 
 def _fk_exists(conn, table_name: str, column_name: str, ref_table: str) -> bool:
     """Check whether any FK from table_name.column_name -> ref_table already exists."""
@@ -46,14 +44,12 @@ def _fk_exists(conn, table_name: str, column_name: str, ref_table: str) -> bool:
     )
     return result.scalar() > 0
 
-
 def _index_exists(conn, index_name: str) -> bool:
     result = conn.execute(
         text("SELECT COUNT(*) FROM sys.indexes WHERE name = :n"),
         {"n": index_name},
     )
     return result.scalar() > 0
-
 
 def upgrade() -> None:
     """Add business_unit_id FK column to departments table (idempotent)."""
@@ -84,7 +80,6 @@ def upgrade() -> None:
             ['business_unit_id'],
             ['id'],
         )
-
 
 def downgrade() -> None:
     """Remove business_unit_id FK column from departments table."""

@@ -2,6 +2,7 @@
 S-038/HRMS-0438 -- Compensation Fit Score, Step 2's budget-mismatch flag.
 S-053/HRMS-0453 -- Offer Readiness Check reads this table's
 COMPENSATION_MISMATCH flags as a warning (BR-03, non-blocking) and
+import logging
 COMPLIANCE_BLOCK flags as a hard blocker.
 
 candidate_job_flags: genuinely new table -- a real, queryable "warning
@@ -19,6 +20,7 @@ ever creates it, same "built and tested standalone, ready for a future
 producer" posture as follow_up_schedule (S-041)/candidate_field_skips
 (S-024).
 """
+import logging
 from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Index, Integer, String, Text, func
 from sqlalchemy.orm import relationship
 
@@ -27,17 +29,18 @@ from app.models.base import Base
 FLAG_TYPES = ("COMPENSATION_MISMATCH", "COMPLIANCE_BLOCK")
 FLAG_SEVERITIES = ("LOW", "MEDIUM", "HIGH")
 
+logger = logging.getLogger(__name__)
 
 class CandidateJobFlag(Base):
     __tablename__ = "candidate_job_flags"
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
 
-    tenant_id = Column(String(50), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=False, index=True)
-    candidate_id = Column(String(36), ForeignKey("candidates.candidateID", ondelete="CASCADE"), nullable=False, index=True)
-    job_id = Column(String(50), ForeignKey("jobs.jobID", ondelete="CASCADE"), nullable=False, index=True)
+    tenant_id = Column(String(512), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=False, index=True)
+    candidate_id = Column(String(512), ForeignKey("candidates.candidateID", ondelete="CASCADE"), nullable=False, index=True)
+    job_id = Column(String(512), ForeignKey("jobs.jobID", ondelete="CASCADE"), nullable=False, index=True)
 
-    flag_type = Column(String(50), nullable=False)
+    flag_type = Column(String(512), nullable=False)
     message = Column(Text, nullable=False)
     severity = Column(String(20), nullable=False, server_default="MEDIUM")
     is_resolved = Column(Boolean, nullable=False, server_default="0")

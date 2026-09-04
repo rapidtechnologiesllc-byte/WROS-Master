@@ -4,6 +4,7 @@ S-247 (View Bench Pool) + S-248 (Bench Duration & Aging Report) — API
 Endpoints
 =========================================================================
 Prefix: /employees
+import logging
 Tag:    employees
 
 No employee REST API of any kind previously existed in this codebase
@@ -13,7 +14,7 @@ rounds). This closes that gap for the foundational pieces four stories
 in the EPIC-05/Resource & Bench Management cluster need.
 
 Auth: same posture as every Phase 4 endpoint this program
-(get_current_hr_or_admin -- any internal user). No employee-specific
+(get_current_internal_user -- any internal user). No employee-specific
 RBAC permission exists yet.
 
 Routes (static paths registered before the /{employee_id} catch-all,
@@ -36,12 +37,13 @@ from openpyxl import load_workbook
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_hr_or_admin
+from app.core.dependencies import get_current_internal_user, require_resource_permission
 from app.models.candidate import Candidate
 from app.models.employee import Employee, EmployeeEngineHistory
 from app.models.resource_management import BenchPoolEntry
 from app.models.user import Users
 from app.schemas.performance import PerformanceEventItem, PerformanceStoreResponse
+from app.core.logging import logger
 from app.schemas.employee import (
     BenchAgingAlertItem,
     BenchAgingAlertsResponse,
@@ -91,16 +93,14 @@ from app.services.resource_management_service import (
 
 router = APIRouter(prefix="/employees", tags=["employees"])
 
-
 def _skills_list(raw):
     if not raw:
         return []
     try:
         parsed = json.loads(raw)
     except (json.JSONDecodeError, TypeError):
-        return []
+        raise ValueError("Operation failed")
     return parsed if isinstance(parsed, list) else []
-
 
 def _to_item(db: Session, employee: Employee) -> EmployeeItem:
     bench_entry = db.query(BenchPoolEntry).filter(BenchPoolEntry.employee_id == employee.id).first()
@@ -126,19 +126,22 @@ def _to_item(db: Session, employee: Employee) -> EmployeeItem:
         bench_days=get_bench_duration_days(bench_entry) if bench_entry else None,
     )
 
-
 def _get_employee_or_404(db: Session, employee_id: str) -> Employee:
     employee = db.query(Employee).filter(Employee.id == employee_id).first()
     if employee is None:
         raise HTTPException(status_code=404, detail="Employee not found.")
     return employee
 
-
-@router.post("", response_model=EmployeeItem, summary="Create an employee profile")
+@router.post(
+    "",
+    response_model=EmployeeItem,
+    summary="Create an employee profile",
+    dependencies=[Depends(require_resource_permission("employee", "create"))]
+)
 def create_employee(
     body: EmployeeCreateRequest,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     fields = {}
     if body.current_title is not None:
@@ -169,16 +172,16 @@ def create_employee(
     db.refresh(employee)
     return _to_item(db, employee)
 
-
 @router.post(
     "/convert-candidate/{candidate_id}", response_model=EmployeeItem,
+    dependencies=[Depends(get_current_internal_user)],
     summary="Convert a candidate to an employee (HRMS-0708 minimal slice)",
 )
 def convert_candidate(
     candidate_id: str,
     body: ConvertCandidateRequest,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     candidate = db.query(Candidate).filter(Candidate.candidateID == candidate_id).first()
     if candidate is None:
@@ -212,15 +215,51 @@ def convert_candidate(
     )
     db.commit()
     db.refresh(employee)
-    return _to_item(db, employee)
 
+    # Send welcome email to new employee
+    try:
+        from app.services.email_service import EmailService
+        from app.services.template_service import TemplateService
+
+        # Get portal URL and login credentials
+        portal_url = "https://wros.blitzenx.com"  # TODO: Configure from environment
+        employee_name = f"{candidate.candidateFirstName or ''} {candidate.candidateLastName or ''}".strip()
+
+        # Render email template with dynamic fields
+        email_body = TemplateService.render_template(
+            db=db,
+            tenant_id=current_user.tenant_id,
+            template_key="EMPLOYEE_WELCOME_EMAIL",
+            channel="EMAIL",
+            context={
+                "employee_name": employee_name,
+                "department": getattr(employee, 'department', 'Not Set'),
+                "business_unit": getattr(employee, 'business_unit', 'Not Set'),
+                "portal_url": portal_url,
+                "login_email": candidate.candidateEmail,
+                "joining_date": body.joining_date.isoformat() if body.joining_date else "Not Set",
+            }
+        )
+
+        # Send email if template exists
+        if email_body:
+            EmailService.send_event_notification(
+                to_email=candidate.candidateEmail,
+                recipient_name=employee_name,
+                event_type="action_required",
+                heading="Welcome to BlitzenX!",
+                message=email_body,
+            )
+    except Exception as e:
+        logger.warning(f"Failed to send welcome email to {candidate.candidateEmail}: {str(e)}")
+
+    return _to_item(db, employee)
 
 _BULK_IMPORT_COLUMNS = (
     "first_name", "last_name", "email", "joining_date", "current_title",
     "current_skills", "employment_type", "work_location",
     "base_salary_usd_cents", "billing_rate_usd_cents", "nationality",
 )
-
 
 def _parse_bulk_import_date(raw) -> date:
     if isinstance(raw, datetime):
@@ -229,9 +268,9 @@ def _parse_bulk_import_date(raw) -> date:
         return raw
     return datetime.strptime(str(raw).strip(), "%Y-%m-%d").date()
 
-
 @router.post(
     "/bulk-import", response_model=BulkImportResponse,
+    dependencies=[Depends(get_current_internal_user)],
     summary="One-time bulk employee load from an .xlsx file",
     description=(
         "Header row (first row, any casing) must include first_name, last_name, "
@@ -245,12 +284,13 @@ def _parse_bulk_import_date(raw) -> date:
 async def bulk_import_employees(
     file: UploadFile,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     raw = await file.read()
     try:
         wb = load_workbook(io.BytesIO(raw), read_only=True, data_only=True)
     except Exception as exc:
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         raise HTTPException(status_code=422, detail=f"Could not read the uploaded file as .xlsx: {exc}")
     ws = wb.active
 
@@ -330,17 +370,22 @@ async def bulk_import_employees(
             skipped += 1
             errors.append(BulkImportRowError(row=row_num, email=str(email) if email else None, reason=str(exc)))
         except Exception as exc:
+            logger.error(f"Error: {str(exc)}", exc_info=True)
             db.rollback()
             skipped += 1
             errors.append(BulkImportRowError(row=row_num, email=str(email) if email else None, reason=str(exc)))
 
-    return BulkImportResponse(created=created, skipped=skipped, errors=errors)
+            return BulkImportResponse(created=created, skipped=skipped, errors=errors)
 
-
-@router.get("", response_model=EmployeeListResponse, summary="List employees")
+@router.get(
+    "",
+    response_model=EmployeeListResponse,
+    summary="List employees",
+    dependencies=[Depends(require_resource_permission("employee", "view"))]
+)
 def list_employees(
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     employees = (
         db.query(Employee)
@@ -350,14 +395,14 @@ def list_employees(
     )
     return EmployeeListResponse(employees=[_to_item(db, e) for e in employees])
 
-
 @router.get(
     "/bench-pool", response_model=EmployeeListResponse,
+    dependencies=[Depends(get_current_internal_user)],
     summary="View the current bench pool (S-247)",
 )
 def view_bench_pool(
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     entries = get_current_bench_pool(db, tenant_id=current_user.tenant_id)
     employees = []
@@ -367,14 +412,14 @@ def view_bench_pool(
             employees.append(_to_item(db, employee))
     return EmployeeListResponse(employees=employees)
 
-
 @router.get(
     "/bench-aging-alerts", response_model=BenchAgingAlertsResponse,
+    dependencies=[Depends(get_current_internal_user)],
     summary="Employees who just crossed a 30/60/90-day bench milestone (S-248)",
 )
 def bench_aging_alerts(
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     alerts = check_bench_aging_alerts(db, tenant_id=current_user.tenant_id)
     items = []
@@ -384,14 +429,14 @@ def bench_aging_alerts(
         items.append(BenchAgingAlertItem(employee_name=employee_name, **alert))
     return BenchAgingAlertsResponse(alerts=items)
 
-
 @router.get(
     "/utilization-summary", response_model=UtilizationSummaryResponse,
+    dependencies=[Depends(get_current_internal_user)],
     summary="Employee Utilization Dashboard (S-254) -- latest utilization per employee + low-utilization alerts",
 )
 def utilization_summary(
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     latest_by_employee = get_latest_utilization_by_employee(db, tenant_id=current_user.tenant_id)
     items = []
@@ -419,14 +464,14 @@ def utilization_summary(
         employees=items, average_utilization_pct=average, low_utilization_count=low_count,
     )
 
-
 @router.get(
     "/bench-cost-summary", response_model=BenchCostSummaryResponse,
+    dependencies=[Depends(get_current_internal_user)],
     summary="Bench Cost Visibility (S-255) -- daily/monthly/running bench cost per employee + total",
 )
 def bench_cost_summary(
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     entries = get_current_bench_pool(db, tenant_id=current_user.tenant_id)
     items = []
@@ -450,26 +495,30 @@ def bench_cost_summary(
         ))
     return BenchCostSummaryResponse(employees=items, total_running_cost_usd_cents=total_running)
 
-
-@router.get("/{employee_id}", response_model=EmployeeItem, summary="Get one employee")
+@router.get(
+    "/{employee_id}",
+    response_model=EmployeeItem,
+    summary="Get one employee",
+    dependencies=[Depends(require_resource_permission("employee", "view"))]
+)
 def get_employee(
     employee_id: str,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     employee = _get_employee_or_404(db, employee_id)
     return _to_item(db, employee)
 
-
 @router.get(
     "/{employee_id}/staffing-eligibility", response_model=StaffingEligibilityResponse,
+    dependencies=[Depends(get_current_internal_user)],
     summary="Staffing Eligibility Engine (S-250) -- can this employee appear in ranking for a delivery engine?",
 )
 def staffing_eligibility(
     employee_id: str,
     delivery_engine: str,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     employee = _get_employee_or_404(db, employee_id)
     eligible, reason = is_staffing_eligible(employee, delivery_engine)
@@ -477,15 +526,15 @@ def staffing_eligibility(
         employee_id=employee_id, delivery_engine=delivery_engine, eligible=eligible, reason=reason,
     )
 
-
 @router.get(
     "/{employee_id}/engine-history", response_model=EngineHistoryResponse,
+    dependencies=[Depends(get_current_internal_user)],
     summary="S-351/HRMS-0512 -- read-only Speciality/Core engine change audit trail",
 )
 def engine_history(
     employee_id: str,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     """Read-only per the source doc's own 'Not In Scope: do NOT build any
     UI bypass for delivery engine assignment' -- CORE can only ever be
@@ -510,16 +559,16 @@ def engine_history(
         ],
     )
 
-
 @router.post(
     "/{employee_id}/record-utilization", response_model=UtilizationHistoryItem,
+    dependencies=[Depends(get_current_internal_user)],
     summary="Calculate + snapshot one employee's utilization for a week (S-223/HRMS-0904) -- billable hours vs available hours",
 )
 def record_utilization(
     employee_id: str,
     body: RecordUtilizationRequest,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     employee = _get_employee_or_404(db, employee_id)
     metric = record_weekly_utilization_metric(db, employee, body.week_starting_date)
@@ -530,20 +579,20 @@ def record_utilization(
         billable_hours=float(metric.billable_hours), bench_hours=float(metric.bench_hours),
     )
 
-
 @router.get(
     "/{employee_id}/performance", response_model=PerformanceStoreResponse,
+    dependencies=[Depends(get_current_internal_user)],
     summary="HRMS-0515 -- performance event timeline + score averages (BU Head/RM/HR only, never the employee)",
 )
 def get_employee_performance(
     employee_id: str,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     """No dedicated 'employee self-service' login role exists in this
     codebase (only candidates get self-service; employees have no
     portal login yet), so the doc's 'never visible to the employee' BR
-    is naturally satisfied by get_current_hr_or_admin's existing
+    is naturally satisfied by get_current_internal_user's existing
     posture -- flagged, not a new gate invented for this story."""
     _get_employee_or_404(db, employee_id)
     events = get_performance_events(db, employee_id)
@@ -561,15 +610,15 @@ def get_employee_performance(
         score_averages_by_event_type=averages,
     )
 
-
 @router.get(
     "/{employee_id}/utilization-history", response_model=UtilizationHistoryResponse,
+    dependencies=[Depends(get_current_internal_user)],
     summary="Weekly utilization history for one employee (S-254)",
 )
 def utilization_history(
     employee_id: str,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     _get_employee_or_404(db, employee_id)
     metrics = get_utilization_history(db, employee_id)
@@ -584,16 +633,16 @@ def utilization_history(
         ],
     )
 
-
 @router.post(
     "/{employee_id}/mark-bench", response_model=EmployeeItem,
+    dependencies=[Depends(get_current_internal_user)],
     summary="Mark an employee as on the bench (S-246)",
 )
 def mark_bench(
     employee_id: str,
     body: MarkBenchRequest,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     employee = _get_employee_or_404(db, employee_id)
     mark_employee_on_bench(db, employee, reason=body.reason)
@@ -601,15 +650,15 @@ def mark_bench(
     db.refresh(employee)
     return _to_item(db, employee)
 
-
 @router.post(
     "/{employee_id}/remove-from-bench", response_model=EmployeeItem,
+    dependencies=[Depends(get_current_internal_user)],
     summary="Remove an employee from the bench",
 )
 def remove_from_bench(
     employee_id: str,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     employee = _get_employee_or_404(db, employee_id)
     remove_employee_from_bench(db, employee)
@@ -617,15 +666,15 @@ def remove_from_bench(
     db.refresh(employee)
     return _to_item(db, employee)
 
-
 @router.get(
     "/{employee_id}/bench-history", response_model=BenchPeriodHistoryResponse,
+    dependencies=[Depends(get_current_internal_user)],
     summary="Full bench episode history for an employee",
 )
 def bench_history(
     employee_id: str,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     _get_employee_or_404(db, employee_id)
     periods = get_bench_period_history(db, employee_id)

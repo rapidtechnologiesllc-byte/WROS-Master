@@ -3,6 +3,7 @@ Partner incentive eligibility/calculation, 2026-08-05. Avinash's direct
 example: Troy earns a one-time $10K new-logo bonus per new AXION client,
 triggered by MSA signed AND first revenue invoice -- "this is not
 applicable to Curtis" (his incentive is a revenue-share on PRISM Core,
+import logging
 a structurally different mechanism, not just a different amount).
 
 Deliberately data-driven, not hardcoded per-partner logic: eligibility
@@ -18,6 +19,7 @@ has no separate "MSA signed" flag; the contract fields already on
 Client represent exactly this). First revenue invoice: the earliest
 non-DRAFT Invoice for that client.
 """
+import logging
 import uuid
 
 from sqlalchemy import Boolean, Column, DateTime, Enum, ForeignKey, Integer, Numeric, String, Text, UniqueConstraint, func
@@ -25,14 +27,13 @@ from sqlalchemy.orm import relationship
 
 from app.models.base import Base
 
-
 def _new_uuid() -> str:
     return str(uuid.uuid4())
-
 
 INCENTIVE_TYPES = ("NEW_LOGO_BONUS", "REVENUE_SHARE", "DEPLOYMENT_BONUS", "OTHER")
 INCENTIVE_EVENT_STATUSES = ("PENDING", "PAID")
 
+logger = logging.getLogger(__name__)
 
 class PartnerIncentiveRule(Base):
     """Config data, not code -- one row per partner per incentive type
@@ -41,9 +42,9 @@ class PartnerIncentiveRule(Base):
     no special-case exclusion needed, there's simply no rule for him)."""
     __tablename__ = "partner_incentive_rules"
 
-    id = Column(String(36), primary_key=True, default=_new_uuid)
+    id = Column(String(512), primary_key=True, default=_new_uuid)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
-    partner_user_id = Column(String(50), ForeignKey("users.UserID"), nullable=False, index=True)
+    partner_user_id = Column(String(512), ForeignKey("users.UserID"), nullable=False, index=True)
     incentive_type = Column(Enum(*INCENTIVE_TYPES, name="incentive_type", native_enum=False, create_constraint=True), nullable=False)
 
     # Flat one-time bonus (NEW_LOGO_BONUS, DEPLOYMENT_BONUS).
@@ -60,17 +61,16 @@ class PartnerIncentiveRule(Base):
 
     partner = relationship("Users", foreign_keys=[partner_user_id])
 
-
 class PartnerIncentiveEvent(Base):
     """One row per earned incentive -- idempotent per (rule, client) for
     NEW_LOGO_BONUS so re-running the eligibility check never double-pays."""
     __tablename__ = "partner_incentive_events"
 
-    id = Column(String(36), primary_key=True, default=_new_uuid)
+    id = Column(String(512), primary_key=True, default=_new_uuid)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
-    rule_id = Column(String(36), ForeignKey("partner_incentive_rules.id"), nullable=False, index=True)
-    partner_user_id = Column(String(50), ForeignKey("users.UserID"), nullable=False, index=True)
-    client_id = Column(String(36), ForeignKey("clients.id"), nullable=True, index=True)
+    rule_id = Column(String(512), ForeignKey("partner_incentive_rules.id"), nullable=False, index=True)
+    partner_user_id = Column(String(512), ForeignKey("users.UserID"), nullable=False, index=True)
+    client_id = Column(String(512), ForeignKey("clients.id"), nullable=True, index=True)
 
     amount_usd_cents = Column(Integer, nullable=False)
     status = Column(Enum(*INCENTIVE_EVENT_STATUSES, name="incentive_event_status", native_enum=False, create_constraint=True), nullable=False, default="PENDING")

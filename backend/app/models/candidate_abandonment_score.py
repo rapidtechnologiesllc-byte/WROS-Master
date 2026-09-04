@@ -1,4 +1,5 @@
 """
+import logging
 S-046/HRMS-0446 -- Candidate Abandonment Prediction.
 
 candidate_abandonment_scores: genuinely new table -- one row per
@@ -21,19 +22,21 @@ docstring for the full formula/wiring rationale):
   components (response_rate/sentiment_trend/days_silent/followup_count
   points), for the auditability the spec itself calls for.
 """
+import logging
 from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, JSON, String, UniqueConstraint, func
 from sqlalchemy.orm import relationship
 
 from app.models.base import Base
 
+logger = logging.getLogger(__name__)
 
 class CandidateAbandonmentScore(Base):
     __tablename__ = "candidate_abandonment_scores"
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
 
-    tenant_id = Column(String(50), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=False, index=True)
-    candidate_id = Column(String(36), ForeignKey("candidates.candidateID", ondelete="CASCADE"), nullable=False, index=True)
+    tenant_id = Column(String(512), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=False, index=True)
+    candidate_id = Column(String(512), ForeignKey("candidates.candidateID", ondelete="CASCADE"), nullable=False, index=True)
     conversation_id = Column(Integer, ForeignKey("candidate_conversations.id", ondelete="CASCADE"), nullable=False, index=True)
 
     abandonment_score = Column(Integer, nullable=False)

@@ -1,3 +1,4 @@
+import logging
 """Database connection and session management.
 
 Uses PostgreSQL exclusively. Database URL must be provided via DATABASE_URL
@@ -11,6 +12,7 @@ import os
 from dotenv import load_dotenv
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker, Session
+from app.core.database_safety import validate_database_url, ProductionDatabaseError
 
 # Load environment configuration
 # Resolve .env relative to this file to handle different CWD scenarios
@@ -18,7 +20,7 @@ _REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
 load_dotenv(os.path.join(_REPO_ROOT, ".env"))
 load_dotenv(os.path.join(_REPO_ROOT, ".env.local"), override=True)
 
-# Get database URL from environment
+# Get and validate database URL
 DATABASE_URL = os.getenv("DATABASE_URL")
 
 if not DATABASE_URL:
@@ -28,12 +30,42 @@ if not DATABASE_URL:
         "Format: postgresql://username:password@host:port/database_name"
     )
 
-if not DATABASE_URL.startswith("postgresql://"):
+# Log which database we're connecting to
+import sys
+print(f"[STARTUP] DATABASE_URL={DATABASE_URL[:70]}...", file=sys.stderr)
+print(f"[STARTUP] Connecting to database...", file=sys.stderr)
+
+# 🚨 HARD RULE: PostgreSQL ONLY - Never allow SQLite
+if not DATABASE_URL.startswith("postgresql://") and not DATABASE_URL.startswith("postgresql+psycopg2://"):
     raise ValueError(
-        f"Invalid DATABASE_URL: '{DATABASE_URL[:30]}...'. "
-        "Only PostgreSQL is supported. "
-        "Format: postgresql://username:password@host:port/database_name"
+        f"🚨 FATAL: Only PostgreSQL is supported. SQLite is NOT allowed in this codebase.\n"
+        f"Invalid DATABASE_URL: '{DATABASE_URL[:50]}...'\n"
+        f"Detected: {DATABASE_URL.split('://')[0] if '://' in DATABASE_URL else 'unknown'}\n"
+        f"\n"
+        f"REQUIRED FORMAT: postgresql://username:password@host:port/database_name\n"
+        f"EXAMPLE: postgresql://postgres:password@localhost:5432/wros_dev\n"
+        f"\n"
+        f"SQLite causes data corruption and concurrency issues.\n"
+        f"Use PostgreSQL exclusively for ALL environments (dev, test, prod).\n"
+        f"\n"
+        f"Fix: Set DATABASE_URL in .env or .env.local to a PostgreSQL connection string."
     )
+
+# Additional safety check: reject file:// URLs (SQLite file paths)
+if "sqlite://" in DATABASE_URL.lower() or "file://" in DATABASE_URL.lower():
+    raise ValueError(
+        f"🚨 FATAL: SQLite is NOT allowed in this codebase.\n"
+        f"DATABASE_URL contains SQLite: {DATABASE_URL[:50]}...\n"
+        f"\n"
+        f"REQUIRED: Use PostgreSQL only\n"
+        f"Format: postgresql://username:password@host:port/database_name"
+    )
+
+# 🚨 SAFETY CHECK: Prevent production database access from local development
+try:
+    validate_database_url(DATABASE_URL)
+except ProductionDatabaseError as e:
+    raise RuntimeError(str(e)) from e
 
 # PostgreSQL connection pool settings
 _engine_kwargs = {
@@ -47,23 +79,50 @@ _engine_kwargs = {
 # Create SQLAlchemy engine
 engine = create_engine(DATABASE_URL, **_engine_kwargs)
 
-# Configure app_schema for PostgreSQL
+# Configure schema for database
+# PostgreSQL: use app_schema (app_user has privileges there)
+# SQLite: no schema support, skip configuration
 @event.listens_for(engine, "connect")
 def receive_connect(dbapi_conn, connection_record):
-    cursor = dbapi_conn.cursor()
-    cursor.execute("SET search_path TO app_schema")
-    cursor.close()
+    if "sqlite" not in DATABASE_URL.lower():
+        # PostgreSQL only — tables are in public schema, use public first
+        cursor = dbapi_conn.cursor()
+        cursor.execute("SET search_path TO public, app_schema")
+        cursor.close()
 
 # SessionLocal class
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+    """
+    Dependency for database session. Handles connection pooling and error cases.
 
+    Raises:
+        RuntimeError: If database connection or schema setup fails
+    """
+    from app.core.logging import logger
+    from sqlalchemy import text
+    from fastapi import HTTPException
+
+    db = None
+    try:
+        db = SessionLocal()
+        # Test connection immediately - fail fast if database is unreachable
+        db.execute(text("SELECT 1"))
+        logger.debug("Database connection established")
+        yield db
+    except HTTPException:
+        # Don't catch HTTPExceptions - let them propagate (e.g., 401 Unauthorized from login)
+        raise
+    except Exception as e:
+        logger.error(f"Database session creation failed: {str(e)}", exc_info=True)
+        raise RuntimeError(f"Database connection error: {str(e)}")
+    finally:
+        try:
+            if db:
+                db.close()
+        except Exception as e:
+            logger.warning(f"Error closing database session: {str(e)}")
 
 def check_candidate(db: Session, email: str):
     # Import here to avoid circular import
@@ -122,11 +181,11 @@ def authenticate_user(db: Session, email: str, password: str):
         return False
 
     logger.warning(f"[AUTH] === SUCCESS ===")
+    logger.warning(f"[AUTH] Returning user with role_template_id={user.role_template_id}")
     return user
 
 def get_candidate(db: Session, email: str):
     # Import here to avoid circular import
-    from app.models import Candidate
     return db.query(Candidate).filter(Candidate.candidateEmail == email).first()
 
 def hash_candidate_password(password: str) -> str:
@@ -154,7 +213,6 @@ def authenticate_candidate(db: Session, email: str, password: str):
     Returns:
         Candidate object if authentication successful, False otherwise
     """
-    from app.core.security import verify_password
     candidate = get_candidate(db, email)
     if not candidate:
         return False
@@ -174,6 +232,5 @@ def get_candidate_details_by_id(db: Session, candidate_id: str):
         Candidate object if found, None otherwise
     """
     # Import here to avoid circular import
-    from app.models import Candidate
     return db.query(Candidate).filter(Candidate.candidateID == candidate_id).first()
     

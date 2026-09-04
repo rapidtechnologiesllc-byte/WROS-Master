@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import logging
 """Fix all department_id type mismatches: Integer -> String(36)"""
 
 import re

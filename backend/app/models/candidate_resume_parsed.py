@@ -1,4 +1,5 @@
 """
+import logging
 S-028/HRMS-0428 -- Resume Parsing Engine.
 
 candidate_resume_parsed: a genuinely new table (not reusable via
@@ -11,26 +12,28 @@ Integer-autoincrement PK + String(50) UserID-as-tenant_id convention,
 matching every other real table added this round, not the spec's UUID
 assumption.
 """
+import logging
 from sqlalchemy import Column, DateTime, Float, ForeignKey, Integer, JSON, String, Text, func
 
 from app.models.base import Base
 
 PARSER_VERSION = "1.0"
 
+logger = logging.getLogger(__name__)
 
 class CandidateResumeParsed(Base):
     __tablename__ = "candidate_resume_parsed"
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
-    tenant_id = Column(String(50), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=False, index=True)
-    candidate_id = Column(String(36), ForeignKey("candidates.candidateID", ondelete="CASCADE"), nullable=False, unique=True, index=True)
+    tenant_id = Column(String(512), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=False, index=True)
+    candidate_id = Column(String(512), ForeignKey("candidates.candidateID", ondelete="CASCADE"), nullable=False, unique=True, index=True)
 
     raw_text = Column(Text, nullable=True)
-    full_name = Column(String(200), nullable=True)
+    full_name = Column(String(512), nullable=True)
     email = Column(String(300), nullable=True)
-    phone = Column(String(50), nullable=True)
-    current_title = Column(String(200), nullable=True)
-    current_employer = Column(String(200), nullable=True)
+    phone = Column(String(512), nullable=True)
+    current_title = Column(String(512), nullable=True)
+    current_employer = Column(String(512), nullable=True)
 
     work_history = Column(JSON, nullable=True)
     education = Column(JSON, nullable=True)

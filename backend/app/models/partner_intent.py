@@ -1,4 +1,5 @@
 """
+import logging
 HRMS-0527 -- Curtis Rule: Partner Intent ML Engine (NEW-RM, P0).
 
 "Partner" identity is now confirmed (Avinash, 2026-07-22): the org
@@ -25,23 +26,24 @@ math (the part with real business value and real risk of getting
 wrong) is genuinely built and tested regardless of when that follow-up
 lands.
 """
+import logging
 import uuid
 
 from sqlalchemy import Column, DateTime, ForeignKey, Integer, Numeric, String, Text, func
 
 from app.models.base import Base
 
-
 def _new_uuid() -> str:
     return str(uuid.uuid4())
 
+logger = logging.getLogger(__name__)
 
 class PartnerIntentProfile(Base):
     __tablename__ = "partner_intent_profiles"
 
-    id = Column(String(36), primary_key=True, default=_new_uuid)
+    id = Column(String(512), primary_key=True, default=_new_uuid)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
-    partner_user_id = Column(String(50), ForeignKey("users.UserID"), nullable=False, unique=True, index=True)
+    partner_user_id = Column(String(512), ForeignKey("users.UserID"), nullable=False, unique=True, index=True)
 
     demand_count = Column(Integer, nullable=False, default = False)
     core_demand_pct = Column(Numeric(5, 2), nullable=True)

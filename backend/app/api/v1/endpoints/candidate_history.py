@@ -1,6 +1,7 @@
 """
 Candidate History API
 =====================
+import logging
 Provides a chronological audit trail / timeline for every candidate.
 
 Routes:
@@ -17,7 +18,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_hr_or_admin, require_resource_permission
+from app.core.dependencies import get_current_internal_user, require_resource_permission
 from app.core.logging import logger
 from app.models.candidate import Candidate
 from app.models.candidate_history import CandidateHistory
@@ -29,9 +30,7 @@ from app.schemas.candidate_history import (
     CandidateHistoryResponse,
 )
 
-
 router = APIRouter(prefix="/history", tags=["candidate-history"])
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -52,7 +51,6 @@ def _to_response(h: CandidateHistory) -> CandidateHistoryResponse:
         created_at=h.createdAt,
     )
 
-
 def _get_candidate_or_404(candidate_id: str, db: Session) -> Candidate:
     candidate = db.query(Candidate).filter(Candidate.candidateID == candidate_id).first()
     if not candidate:
@@ -61,7 +59,6 @@ def _get_candidate_or_404(candidate_id: str, db: Session) -> Candidate:
             detail=f"Candidate '{candidate_id}' not found.",
         )
     return candidate
-
 
 # ---------------------------------------------------------------------------
 # POST  /history/{candidate_id}  — create a new history event
@@ -78,7 +75,7 @@ def create_candidate_history(
     candidate_id: str,
     request: CandidateHistoryCreateRequest,
     db: Session = Depends(get_db),
-    user=Depends(get_current_hr_or_admin),
+    user=Depends(get_current_internal_user),
 ):
     """
     Record a new event in the candidate's history / timeline.
@@ -163,7 +160,6 @@ def create_candidate_history(
         event=_to_response(history_row),
     )
 
-
 # ---------------------------------------------------------------------------
 # GET  /history/{candidate_id}  — full timeline (paginated)
 # ---------------------------------------------------------------------------
@@ -177,7 +173,7 @@ def create_candidate_history(
 def get_candidate_history(
     candidate_id: str,
     db: Session = Depends(get_db),
-    user=Depends(get_current_hr_or_admin),
+    user=Depends(get_current_internal_user),
     event_type: Optional[str] = Query(
         default=None,
         description="Filter by event type (e.g. 'Interview Scheduled')",
@@ -216,7 +212,6 @@ def get_candidate_history(
         events=[_to_response(e) for e in events],
     )
 
-
 # ---------------------------------------------------------------------------
 # GET  /history/{candidate_id}/latest  — last N events (convenience endpoint)
 # ---------------------------------------------------------------------------
@@ -230,7 +225,7 @@ def get_candidate_history(
 def get_latest_candidate_history(
     candidate_id: str,
     db: Session = Depends(get_db),
-    user=Depends(get_current_hr_or_admin),
+    user=Depends(get_current_internal_user),
     n: int = Query(default=10, ge=1, le=100, description="How many recent events to return (1–100)"),
 ):
     """

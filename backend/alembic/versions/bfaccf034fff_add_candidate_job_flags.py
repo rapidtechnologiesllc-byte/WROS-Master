@@ -1,3 +1,4 @@
+import logging
 """S-038/HRMS-0438: add candidate_job_flags table + job budget columns
 
 Revision ID: bfaccf034fff
@@ -11,7 +12,6 @@ revision = "bfaccf034fff"
 down_revision = "b0ca6cd4abb8"
 branch_labels = None
 depends_on = None
-
 
 def upgrade():
     op.create_table(
@@ -34,7 +34,6 @@ def upgrade():
 
     op.add_column("jobs", sa.Column("budget_min", sa.Integer(), nullable=True))
     op.add_column("jobs", sa.Column("budget_max", sa.Integer(), nullable=True))
-
 
 def downgrade():
     op.drop_column("jobs", "budget_max")

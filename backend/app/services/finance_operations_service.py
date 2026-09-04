@@ -2,12 +2,12 @@
 from datetime import datetime, timedelta
 from typing import List, Dict, Optional
 from sqlalchemy.orm import Session
+import logging
 from sqlalchemy import and_, func
 
 from app.models.invoice import Invoice, InvoiceLineItem
 from app.models.client import Client
 from app.models.user import Users
-
 
 def get_bank_reconciliation_summary(db: Session, as_of_date: Optional[str] = None) -> Dict:
     """
@@ -40,7 +40,6 @@ def get_bank_reconciliation_summary(db: Session, as_of_date: Optional[str] = Non
         "outstanding_items": [],
         "as_of_date": as_of_date or datetime.utcnow().date().isoformat(),
     }
-
 
 def get_ar_aging_breakdown(db: Session, as_of_date: Optional[str] = None) -> Dict:
     """
@@ -103,7 +102,6 @@ def get_ar_aging_breakdown(db: Session, as_of_date: Optional[str] = None) -> Dic
         "aging_buckets": buckets,
         "as_of_date": as_of.date().isoformat(),
     }
-
 
 def get_invoice_detail_drill_down(db: Session, invoice_id: str) -> Dict:
     """

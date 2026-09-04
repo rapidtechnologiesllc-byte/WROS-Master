@@ -4,6 +4,7 @@ SharePoint Service
 Thin wrapper around the Microsoft Graph REST API for SharePoint Drive operations.
 Uses the application-level service-account token (AZURE_* credentials) already
 configured in app/core/graph_auth.py — no user sign-in required.
+import logging
 """
 
 import io
@@ -16,14 +17,12 @@ import requests
 from app.core.graph_auth import get_graph_token
 from app.core.logging import logger
 
-
 # ---------------------------------------------------------------------------
 # Config (read once at import time, same pattern as the rest of the codebase)
 # ---------------------------------------------------------------------------
 SITE_ID = os.getenv("SHAREPOINT_SITE_ID", "")
 DRIVE_ID = os.getenv("SHAREPOINT_DRIVE_ID", "")
 _GRAPH_BASE = "https://graph.microsoft.com/v1.0"
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -35,7 +34,6 @@ def _headers() -> dict:
         "Authorization": f"Bearer {get_graph_token()}",
         "Accept": "application/json",
     }
-
 
 def _drive_path_url(path: str) -> str:
     """
@@ -52,7 +50,6 @@ def _drive_path_url(path: str) -> str:
     encoded = quote(path, safe="/")
     return f"{_GRAPH_BASE}/sites/{SITE_ID}/drives/{DRIVE_ID}/root:/{encoded}"
 
-
 def _get_item_id(path: str) -> Optional[str]:
     """
     Resolve the Graph driveItem ID for a given path.
@@ -64,7 +61,6 @@ def _get_item_id(path: str) -> Optional[str]:
         return None
     resp.raise_for_status()
     return resp.json().get("id")
-
 
 def _create_or_get_sharing_link(item_id: str, scope: str = "organization") -> Optional[str]:
     """
@@ -102,8 +98,7 @@ def _create_or_get_sharing_link(item_id: str, scope: str = "organization") -> Op
         except Exception:
             err = resp.text
         logger.warning(f"SharePoint createLink failed (status={resp.status_code}): {err}")
-        return None
-
+        raise ValueError("Operation failed")
 
 # ---------------------------------------------------------------------------
 # Public API
@@ -148,7 +143,6 @@ def download_file(path: str) -> bytes:
     )
     return resp.content
 
-
 def upload_file(path: str, content: bytes, content_type: str = "application/octet-stream") -> str:
     """
     Upload a file to SharePoint (creates or overwrites).
@@ -182,7 +176,6 @@ def upload_file(path: str, content: bytes, content_type: str = "application/octe
     logger.info(f"SharePoint upload — success: {web_url}")
     return web_url
 
-
 def get_file_download_link(path: str) -> Optional[str]:
     """
     Return a **non-expiring** sharing link for a SharePoint file.
@@ -215,9 +208,9 @@ def get_file_download_link(path: str) -> Optional[str]:
         return resp.json().get("@microsoft.graph.downloadUrl")
 
     except Exception as exc:
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"SharePoint get_file_download_link failed for {path}: {exc}")
-        return None
-
+        raise ValueError("Operation failed")
 
 def list_folder(folder_path: str) -> list[dict]:
     """

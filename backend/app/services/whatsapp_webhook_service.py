@@ -1,4 +1,5 @@
 """
+import logging
 S-002/HRMS-0402 -- Store WhatsApp Messages (inbound webhook).
 
 Adapted from the literal spec to this codebase's real architecture: the
@@ -49,7 +50,6 @@ MESSAGE_TYPE_MAP = {
 # Meta's status.status -> this codebase's delivery_status vocabulary.
 DELIVERY_STATUS_MAP = {"sent": "SENT", "delivered": "DELIVERED", "read": "READ", "failed": "FAILED"}
 
-
 def verify_webhook_challenge(mode: Optional[str], verify_token: Optional[str], challenge: Optional[str]) -> Optional[str]:
     """GET /webhooks/whatsapp -- Meta's one-time verification handshake.
     Returns the challenge string to echo back (HTTP 200), or None if
@@ -60,7 +60,6 @@ def verify_webhook_challenge(mode: Optional[str], verify_token: Optional[str], c
     if mode == "subscribe" and verify_token == settings.WHATSAPP_VERIFY_TOKEN:
         return challenge
     return None
-
 
 def validate_signature(raw_body: bytes, signature_header: Optional[str]) -> bool:
     """Meta's real X-Hub-Signature-256 scheme: 'sha256=<hex hmac>' over
@@ -77,7 +76,6 @@ def validate_signature(raw_body: bytes, signature_header: Optional[str]) -> bool
     provided = signature_header.split("=", 1)[1]
     return hmac.compare_digest(expected, provided)
 
-
 def normalize_e164(phone: str) -> str:
     """BR-04: Meta sends phone numbers with or without a leading '+'.
     Digits only, then re-prefixed -- matches how candidates are stored
@@ -85,10 +83,8 @@ def normalize_e164(phone: str) -> str:
     digits = re.sub(r"\D", "", phone or "")
     return f"+{digits}" if digits else ""
 
-
 def _find_candidate_by_phone(db: Session, phone_e164: str) -> Optional[Candidate]:
     return db.query(Candidate).filter(Candidate.candidateMobile == phone_e164).first()
-
 
 def _find_active_conversation(db: Session, candidate_id: str) -> Optional[CandidateConversation]:
     return (
@@ -97,7 +93,6 @@ def _find_active_conversation(db: Session, candidate_id: str) -> Optional[Candid
         .order_by(CandidateConversation.id.desc())
         .first()
     )
-
 
 def _is_duplicate_inbound(db: Session, conversation_id: int, whatsapp_message_id: str) -> bool:
     """BR-02: Meta uses at-least-once delivery -- the same webhook can
@@ -112,7 +107,6 @@ def _is_duplicate_inbound(db: Session, conversation_id: int, whatsapp_message_id
         .all()
     )
     return any((event.event_data or {}).get("whatsapp_message_id") == whatsapp_message_id for event in events)
-
 
 def store_inbound_whatsapp_message(db: Session, message: Dict) -> Dict:
     """
@@ -217,7 +211,6 @@ def store_inbound_whatsapp_message(db: Session, message: Dict) -> Dict:
         "event_id": event.id,
     }
 
-
 def _find_ai_sent_event_by_wamid(db: Session, wamid: str) -> Optional[ConversationEvent]:
     """O(n) over every ai_message_sent event -- event_data is JSON, no
     index possible on a sub-field portably (Text-backed on SQL Server
@@ -230,7 +223,6 @@ def _find_ai_sent_event_by_wamid(db: Session, wamid: str) -> Optional[Conversati
         if (event.event_data or {}).get("whatsapp_message_id") == wamid:
             return event
     return None
-
 
 def process_delivery_status(db: Session, status: Dict) -> Dict:
     """

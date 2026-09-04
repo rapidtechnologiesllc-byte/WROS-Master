@@ -1,3 +1,4 @@
+import logging
 """add Executive Signal & Culture Agent tables (feedback cycle, recognition drafts, concern intake)
 
 Revision ID: e2f7b4d1a9c3
@@ -11,7 +12,6 @@ revision = "e2f7b4d1a9c3"
 down_revision = "d4e9a1c6f3b8"
 branch_labels = None
 depends_on = None
-
 
 def upgrade():
     op.create_table(
@@ -67,7 +67,6 @@ def upgrade():
         sa.ForeignKeyConstraint(["created_task_id"], ["tasks.id"], name="fk_eci_created_task_id", ondelete="NO ACTION"),
     )
     op.create_index("ix_eci_employee_id", "employee_concern_intakes", ["employee_id"])
-
 
 def downgrade():
     op.drop_index("ix_eci_employee_id", table_name="employee_concern_intakes")

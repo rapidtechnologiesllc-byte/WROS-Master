@@ -11,6 +11,7 @@ import { useState, useEffect, useRef } from "react";
 import { Button, Card, StatusBadge } from "../components/ui";
 import { useNavigate } from "react-router-dom";
 import InterventionQueueWidget from "../components/intervention/InterventionQueueWidget";
+import LinkedInActivityTable from "../components/LinkedInActivityTable";
 import { getRoles } from "../utils/permissions";
 import { getHrMe } from "../services/api/users";
 import { hasPermission } from "../utils/permissionsRoleTemplate";
@@ -43,44 +44,50 @@ export default function Dashboard({
   useEffect(() => {
     if (navigationAttemptedRef.current) return;
 
-    const checkRoleAndRedirect = async () => {
+    const checkPermissionsAndRedirect = async () => {
       try {
-        const user = await getHrMe();
-        const roleTemplate = user?.role_template?.name;  // Get from database, NOT hardcoded
-
+        // RBAC-driven: Check specific permissions instead of hardcoded role names
+        // Each dashboard is gated by specific permission requirements
+        const stored = JSON.parse(localStorage.getItem('hrms_permissions') || '[]');
+        // If stored as object (permission metadata), convert keys to array
+        const perms = (stored && typeof stored === 'object' && !Array.isArray(stored))
+          ? Object.keys(stored)
+          : (Array.isArray(stored) ? stored : []);
         navigationAttemptedRef.current = true;
 
-        // ZERO-HARDCODING: Role name comes from database (role template), not hardcoded
-        // Each role has a specific dashboard - map dynamically
-        const dashboardRoutes = {
-          "CEO": "/ceo-fy-progress",
-          "CFO": "/cfo-dashboard",
-          "Partner": "/partner-dashboard",
-          "BU Head": "/bu-head-dashboard",
-          "Employee": "/employee-dashboard",
-          "HR Manager": "/hr-manager-dashboard",
-          "Hiring Manager": "/recruitment-dashboard",
-          "Recruiter": "/recruitment-dashboard",
-          "Super User": "/ceo-fy-progress"
-        };
-
-        // Get dashboard route based on role template name (from database)
-        const dashboardRoute = dashboardRoutes[roleTemplate];
-        if (dashboardRoute) {
-          console.log(`Redirecting to ${roleTemplate} dashboard: ${dashboardRoute}`);
-          window.location.replace(dashboardRoute);
+        // Permission-based routing (not role-based hardcoding)
+        // If user has CEO/CFO/Partner permissions, redirect to their dashboard
+        // The role template name is NOT used for routing
+        if (Array.isArray(perms) && perms.includes('*.*')) {
+          // Wildcard permission = SuperUser/CEO
+          window.location.replace("/ceo-fy-progress");
+          return;
+        }
+        if (Array.isArray(perms) && perms.includes('finance.manage')) {
+          // Finance management permission
+          window.location.replace("/cfo-dashboard");
+          return;
+        }
+        if (Array.isArray(perms) && perms.includes('business_unit.manage')) {
+          // BU Head permission
+          window.location.replace("/bu-head-dashboard");
+          return;
+        }
+        if (Array.isArray(perms) && perms.includes('recruitment.manage')) {
+          // Recruiter/Hiring Manager permission
+          window.location.replace("/recruitment-dashboard");
           return;
         }
 
-        // Default: stay on general dashboard if no role template assigned
-        console.log("No role template assigned, showing general dashboard");
+        // Default: stay on general dashboard if no special permissions
+        console.log("No special dashboard permissions found, showing general dashboard");
       } catch (err) {
-        console.error("Failed to check role and redirect:", err);
+        console.error("Failed to check permissions and redirect:", err);
         // Default: stay on general dashboard on error
       }
     };
 
-    checkRoleAndRedirect();
+    checkPermissionsAndRedirect();
   }, []);
 
   // Get user's BU for filtering
@@ -147,15 +154,19 @@ export default function Dashboard({
           icon={<LayoutDashboard className="h-4 w-4" />}
         >
           <div className="flex flex-wrap gap-2">
-            <Button onClick={() => navigate("/candidates/create")}>
-              <Plus className="h-4 w-4" /> Add New Candidate
-            </Button>
+            {hasPermission("candidates", "create") && (
+              <Button onClick={() => navigate("/candidates/create")}>
+                <Plus className="h-4 w-4" /> Add New Candidate
+              </Button>
+            )}
             <Button variant="secondary" onClick={() => navigate("/candidates")}>
               <Search className="h-4 w-4" /> Search Candidate
             </Button>
-            <Button variant="secondary" onClick={() => navigate("/jobs/create")}>
-              <Plus className="h-4 w-4" /> Create Job
-            </Button>
+            {hasPermission("jobs", "create") && (
+              <Button variant="secondary" onClick={() => navigate("/jobs/create")}>
+                <Plus className="h-4 w-4" /> Create Job
+              </Button>
+            )}
           </div>
         </Card>
 
@@ -198,6 +209,8 @@ export default function Dashboard({
           </Button>
         </Card>
       </div>
+
+      <LinkedInActivityTable />
     </div>
   );
 }

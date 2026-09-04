@@ -1,5 +1,6 @@
 """
 Message Queue Management Endpoints
+import logging
 ===================================
 
 Admin endpoints for monitoring and managing background tasks (Celery/APScheduler).
@@ -12,15 +13,18 @@ Endpoints:
   POST /admin/queue/tasks/{task_id}/clear - Clear failed task
 """
 
+import logging
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from app.core.database import SessionLocal
-from app.core.dependencies import get_current_hr_or_admin
+from app.core.dependencies import get_current_internal_user, require_resource_permission
 from datetime import datetime, timedelta
 from typing import List, Optional
+from app.core.logging import logger
 
 router = APIRouter(prefix="/admin/queue", tags=["admin"])
 
+logger = logging.getLogger(__name__)
 
 class TaskStatus:
     """In-memory task registry. In production, use Celery results backend or dedicated table."""
@@ -87,10 +91,12 @@ class TaskStatus:
         if task_id in cls._tasks:
             del cls._tasks[task_id]
 
-
-@router.get("/tasks")
+@router.get(
+    "/tasks",
+    dependencies=[Depends(require_resource_permission("task", "view"))]
+)
 async def list_tasks(
-    current_user: dict = Depends(get_current_hr_or_admin),
+    current_user: dict = Depends(get_current_internal_user),
     db: Session = Depends(SessionLocal),
 ):
     """
@@ -117,11 +123,13 @@ async def list_tasks(
         "stats": stats,
     }
 
-
-@router.get("/tasks/{task_id}")
+@router.get(
+    "/tasks/{task_id}",
+    dependencies=[Depends(require_resource_permission("task", "view"))]
+)
 async def get_task(
     task_id: str,
-    current_user: dict = Depends(get_current_hr_or_admin),
+    current_user: dict = Depends(get_current_internal_user),
     db: Session = Depends(SessionLocal),
 ):
     """
@@ -140,11 +148,13 @@ async def get_task(
         "task": task,
     }
 
-
-@router.post("/tasks/{task_id}/retry")
+@router.post(
+    "/tasks/{task_id}/retry",
+    dependencies=[Depends(require_resource_permission("task", "create"))]
+)
 async def retry_task(
     task_id: str,
-    current_user: dict = Depends(get_current_hr_or_admin),
+    current_user: dict = Depends(get_current_internal_user),
     db: Session = Depends(SessionLocal),
 ):
     """
@@ -170,11 +180,13 @@ async def retry_task(
         "message": f"Task {task_id} queued for retry",
     }
 
-
-@router.post("/tasks/{task_id}/clear")
+@router.post(
+    "/tasks/{task_id}/clear",
+    dependencies=[Depends(require_resource_permission("task", "create"))]
+)
 async def clear_task(
     task_id: str,
-    current_user: dict = Depends(get_current_hr_or_admin),
+    current_user: dict = Depends(get_current_internal_user),
     db: Session = Depends(SessionLocal),
 ):
     """
@@ -195,7 +207,6 @@ async def clear_task(
         "status": "success",
         "message": f"Task {task_id} cleared",
     }
-
 
 # Example usage for backend tasks
 def log_task_message(task_id: str, message: str, level: str = "info"):

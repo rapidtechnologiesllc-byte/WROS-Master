@@ -1,4 +1,5 @@
 """
+import logging
 Automatic AI Recruiter Assignment Service
 
 Every candidate automatically gets assigned to the Thunder AI recruiter system
@@ -17,6 +18,7 @@ No recruiter clicks required - Thunder autonomously manages candidates through
 the funnel while recruiters maintain oversight/override capability.
 """
 
+import logging
 from datetime import datetime
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
@@ -29,11 +31,11 @@ from app.services.ai_conversation_service import (
     resolve_thunder_config,
 )
 
+logger = logging.getLogger(__name__)
 
 class CandidateAIAssignmentError(Exception):
     """Raised when automatic AI assignment fails."""
     pass
-
 
 def auto_assign_ai_recruiter(
     db: Session,
@@ -130,10 +132,10 @@ def auto_assign_ai_recruiter(
             f"Failed to assign AI recruiter to candidate {candidate_id}"
         )
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         db.rollback()
         logger.error(f"[AI_ASSIGN] Unexpected error: {e}")
         raise CandidateAIAssignmentError(str(e))
-
 
 def ensure_candidate_has_ai_assignment(
     db: Session,

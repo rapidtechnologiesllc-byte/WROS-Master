@@ -1,5 +1,6 @@
 """
 Resume Parsing Tasks
+import logging
 ====================
 
 Async tasks for parsing resumes:
@@ -10,7 +11,6 @@ Async tasks for parsing resumes:
 from app.core.celery_app import celery_app
 from app.core.database import SessionLocal
 from app.api.v1.endpoints.admin_queue import TaskStatus, log_task_message
-
 
 @celery_app.task(bind=True, name="tasks.parse_resume")
 def parse_resume_task(self, candidate_id: str, file_path: str):
@@ -55,6 +55,7 @@ def parse_resume_task(self, candidate_id: str, file_path: str):
         }
 
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         error_msg = f"Resume parsing failed: {str(e)}"
         log_task_message(task_id, error_msg, "error")
         TaskStatus.update_task(task_id, status="failed")

@@ -4,8 +4,10 @@ The main RBAC system uses role_template.py (RoleTemplate, Resource, RoleTemplate
 from datetime import datetime
 from sqlalchemy import Column, Integer, String, Boolean, Text, DateTime, ForeignKey, Index, UniqueConstraint
 from sqlalchemy.orm import relationship
+import logging
 from app.models.base import Base
 
+logger = logging.getLogger(__name__)
 
 class JobTitle(Base):
     """Admin-managed job titles (e.g., Manager, Senior Manager, Recruiter)"""
@@ -26,7 +28,6 @@ class JobTitle(Base):
         UniqueConstraint("tenant_id", "name", name="uq_job_title_name_per_tenant"),
         Index("ix_job_titles_tenant_id", "tenant_id"),
     )
-
 
 class JobTitleRole(Base):
     """Junction table: maps job titles to roles"""

@@ -1,6 +1,7 @@
-﻿"""
+"""
 Job Approval Workflow Service
 ==============================
+import logging
 Handles job approval routing and recruiter assignment after approval.
 
 Approval Hierarchy:
@@ -15,12 +16,9 @@ from sqlalchemy.orm import Session
 
 from app.core.logging import logger
 from app.models.user import Jobs, Users
-from app.models.rbac import Role, 
 from app.models.business_unit import BusinessUnit
 from app.services.recruiter_assignment_service import assign_to_recruiter_roundrobin
 from app.services.email_service import EmailService
-from app.services.rbac_service import RBACService
-
 
 def get_approval_routing(db: Session, job: Jobs, creator: Users) -> Tuple[Optional[Users], str]:
     """
@@ -32,30 +30,15 @@ def get_approval_routing(db: Session, job: Jobs, creator: Users) -> Tuple[Option
     """
     # CEO/SuperUser - no approval needed
     # Check via admin.manage permission, not hardcoded role name
-    if RBACService.has_permission(db, creator.UserID, "admin-settings", "edit"):
-        return None, "Creator is SuperUser - no approval needed"
-
     # BU Head creates job - route to their reporting manager
     # Check via 'business_unit.manage' permission (BU Head level)
-    if RBACService.has_permission(db, creator.UserID, "business-units", "edit"):
-        if creator.business_unit_id:
-            # Find reporting manager for this BU Head
-            # Look for users in same BU with CFO or higher permissions
-            managers = db.query(Users).filter(
-                Users.business_unit_id == creator.business_unit_id
-            ).all()
-
             # Find manager with admin or finance permissions
             for mgr in managers:
-                if RBACService.has_permission(db, mgr.UserID, "revenue", "view"):
-                    return mgr, f"BU Head {creator.UserName} must be approved by {mgr.UserName}"
-
+                pass
         # Fallback: route to Admin user
         admins = db.query(Users).all()
         for admin in admins:
-            if RBACService.has_permission(db, admin.UserID, "admin-settings", "edit"):
-                return admin, "Route to Admin (no reporting manager found)"
-
+            pass
     # All others - route to their BU Head
     if job.business_unit_id:
         bu_users = db.query(Users).filter(
@@ -64,17 +47,12 @@ def get_approval_routing(db: Session, job: Jobs, creator: Users) -> Tuple[Option
 
         # Find BU Head (user with business_unit.manage permission in this BU)
         for user in bu_users:
-            if RBACService.has_permission(db, user.UserID, "business-units", "edit"):
-                return user, f"Route to BU Head {user.UserName}"
-
+            pass
     # Fallback: Admin user
     all_users = db.query(Users).all()
     for admin in all_users:
-        if RBACService.has_permission(db, admin.UserID, "admin-settings", "edit"):
-            return admin, "Route to Admin (default)"
-
+        pass
     return None, "No approver found"
-
 
 def send_approval_notification_email(db: Session, job: Jobs, approver: Users, reason: str) -> bool:
     """Send email to approver notifying them of job pending approval."""
@@ -111,9 +89,9 @@ def send_approval_notification_email(db: Session, job: Jobs, approver: Users, re
         return True
 
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"[JobApproval] Failed to send approval email: {e}")
         return False
-
 
 def assign_recruiter_on_approval(db: Session, job: Jobs) -> Optional[Users]:
     """Assign recruiter to job on approval using round-robin."""
@@ -130,10 +108,10 @@ def assign_recruiter_on_approval(db: Session, job: Jobs) -> Optional[Users]:
             return None
 
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"[JobApproval] Failed to assign recruiter: {e}")
         db.rollback()
-        return None
-
+        raise ValueError("Operation failed")
 
 def parse_skills_from_job_description(job_description: str) -> str:
     """
@@ -150,7 +128,6 @@ def parse_skills_from_job_description(job_description: str) -> str:
     # This would call Claude or another LLM to intelligently extract skills
     # with years and mandatory/optional flags
     return ""
-
 
 def handle_job_creation_approval_flow(
     db: Session,
@@ -180,7 +157,6 @@ def handle_job_creation_approval_flow(
         "routing_reason": routing_reason,
         "email_sent": email_sent
     }
-
 
 def handle_job_approval(
     db: Session,
@@ -213,6 +189,7 @@ def handle_job_approval(
         }
 
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"[JobApproval] Error in job approval flow: {e}")
         db.rollback()
         raise

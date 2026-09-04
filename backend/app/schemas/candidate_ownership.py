@@ -2,18 +2,21 @@
 Candidate Ownership Schemas
 ===========================
 Pydantic request / response models for the candidate pool ownership API.
+import logging
 """
 
+import logging
 from datetime import datetime
 from typing import List, Optional
 from pydantic import BaseModel, Field
 
 from app.models.candidate_ownership import POOL_BU, POOL_ORG
-
+from app.core.logging import logger
 
 # ---------------------------------------------------------------------------
 # Response schemas
 # ---------------------------------------------------------------------------
+logger = logging.getLogger(__name__)
 
 class CandidateOwnershipResponse(BaseModel):
     """Current ownership state for a candidate."""
@@ -29,7 +32,6 @@ class CandidateOwnershipResponse(BaseModel):
     class Config:
         from_attributes = True
 
-
 class CandidateOwnershipListItem(BaseModel):
     """Summary row for the all-candidates list."""
     candidate_id: str
@@ -43,11 +45,9 @@ class CandidateOwnershipListItem(BaseModel):
     class Config:
         from_attributes = True
 
-
 class CandidateOwnershipListResponse(BaseModel):
     total: int
     candidates: List[CandidateOwnershipListItem]
-
 
 # ---------------------------------------------------------------------------
 # Request schemas

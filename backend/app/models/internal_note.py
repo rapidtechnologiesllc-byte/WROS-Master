@@ -2,6 +2,7 @@
 Internal Note Model
 ===================
 Allows HR team members to attach private, timestamped notes to a candidate
+import logging
 for internal tracking purposes. These notes are NOT visible to the candidate.
 
 Each note records:
@@ -12,11 +13,13 @@ Each note records:
   - When it was created / last updated
 """
 
+import logging
 from datetime import datetime
 from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text, func
 from sqlalchemy.orm import relationship
 from app.models.base import Base
 
+logger = logging.getLogger(__name__)
 
 class InternalNote(Base):
     __tablename__ = "internal_notes"
@@ -24,7 +27,7 @@ class InternalNote(Base):
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
 
     # ── Candidate linkage ─────────────────────────────────────────────────────
-    candidate_id = Column(String(36),
+    candidate_id = Column(String(512),
         ForeignKey("candidates.candidateID", ondelete="CASCADE"),
         nullable=False,
         index=True,
@@ -36,12 +39,12 @@ class InternalNote(Base):
 
     # Optional category to help HR filter / search notes
     # e.g. "General" | "Background Check" | "Salary Negotiation" | "Reference Check"
-    category = Column(String(100), nullable=True, default="General")
+    category = Column(String(512), nullable=True, default="General")
 
     # ── Authorship ────────────────────────────────────────────────────────────
     # HR user who created the note
-    created_by_id   = Column(String(50), nullable=False)       # user ID
-    created_by_name = Column(String(200), nullable=True)       # display name snapshot
+    created_by_id   = Column(String(512), nullable=False)       # user ID
+    created_by_name = Column(String(512), nullable=True)       # display name snapshot
 
     # ── Audit timestamps ──────────────────────────────────────────────────────
     created_at = Column(

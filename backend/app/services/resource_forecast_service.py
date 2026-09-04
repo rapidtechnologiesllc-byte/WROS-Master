@@ -3,6 +3,7 @@ S-256/HRMS-0506 (canonical -- content-matched against `Requirements/
 S-171_HRMS-0506.docx`; that filename's own "S-171" label is the same
 class of ID drift already documented elsewhere in this codebase, e.g.
 BenchPeriod's docstring) -- Resource Demand Planning / Future Demand vs
+import logging
 Bench Forecast.
 
 Turns resource management from reactive to proactive: (1) which
@@ -30,18 +31,16 @@ from app.models.resource_management import BenchPoolEntry
 
 EXPIRY_HORIZON_DAYS = 90  # source doc's own default
 
-
 def _parse_skills(raw: Optional[str]) -> List[str]:
     if not raw:
         return []
     try:
         parsed = json.loads(raw)
     except (ValueError, TypeError):
-        return []
+        raise ValueError("Operation failed")
     if not isinstance(parsed, list):
-        return []
+        raise ValueError("Operation failed")
     return [str(s).strip() for s in parsed if str(s).strip()]
-
 
 def get_expiring_allocations(
     db: Session, *, tenant_id: Optional[int] = None, horizon_days: int = EXPIRY_HORIZON_DAYS,
@@ -87,7 +86,6 @@ def get_expiring_allocations(
             buckets["60_to_90_days"].append(entry)
 
     return buckets
-
 
 def get_skill_gap_analysis(
     db: Session, *, tenant_id: Optional[int] = None, business_unit_id: Optional[int] = None,

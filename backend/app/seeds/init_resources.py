@@ -1,5 +1,9 @@
 """
+import logging
 Initialize all Modules, Resources, and grant Super User role full permissions.
+
+STRICT CONTRACT ENFORCEMENT: This file imports module/resource definitions from api_contract.py
+as the single source of truth. Both frontend and backend use the same definitions.
 
 This script creates:
 1. All Module records
@@ -12,45 +16,97 @@ Run with: python -m app.seeds.init_resources
 from sqlalchemy.orm import Session
 from app.core.database import SessionLocal
 from app.models.role_template import Module, Resource, RoleTemplate, RoleTemplatePermission
+from app.contracts import MODULES_AND_RESOURCES as CONTRACT_MODULES_AND_RESOURCES
 
-# All modules and their resources (with optional route_path for custom routes)
-MODULES_AND_RESOURCES = {
-    "Admin": ["admin-settings", "users", "roles-permissions", "organization"],
-    "Recruitment": [
-        "candidates", "jobs", "submissions", "interviews",
-        "offer-letters", "intervention-queue", "rehire-approval"
-    ],
-    "Workforce": [
-        "employees", "onboarding", "allocations", "timesheets",
-        "leave-management", "performance-management"
-    ],
-    "Sales": [
-        "clients", "opportunities", "proposals", "revenue",
-        "pipeline-management"
-    ],
-    "Project Management": [
-        "projects", "tasks", "resources", "budget", "schedule"
-    ],
-    "Finance": [
-        "invoices", "expenses", "payroll", "reports",
-        "budget-management", "forecasts"
-    ],
-    "Reporting": [
-        "analytics", "kpi-dashboard", "data-export", "scheduled-reports"
-    ],
-    "System": [
-        "configuration", "api-keys", "webhooks", "audit-logs",
-        "error-logs", "system-health", "slm-dashboard", "slm-training-data"
-    ],
-}
+# STRICT: Import from contract, NOT hardcoded here
+# This ensures database always matches the contract
+MODULES_AND_RESOURCES = CONTRACT_MODULES_AND_RESOURCES
 
 # Resource-specific route paths (custom routes for certain resources)
-# Note: Routes should NOT have leading slash (Approutes.jsx pattern matches this)
+# Maps resource name to frontend route path
 RESOURCE_ROUTES = {
-    "slm-dashboard": "admin/slm-dashboard",
-    "slm-training-data": "admin/slm-training-data",
-}
+    # Personal
+    "dashboard": "/",
+    "my-tasks": "/my-tasks",
+    "my-timesheet": "/my-timesheet",
+    "my-expenses": "/my-expenses",
+    "my-referrals": "/my-referrals",
 
+    # Admin
+    "users-access-control": "admin/users-access-control",
+    "roles-permissions": "admin/roles-permissions",
+    "admin-settings": "admin/admin-settings",
+    "business-units": "admin/business-units",
+    "certifications": "admin/certifications",
+    "error-logs": "admin/error-log",
+    "message-queue": "admin/messagequeue",
+    "ticket-routing": "admin/ticket-routing",
+    "ai-config": "admin/ai-config",
+    "locale-currency": "settings/locale",
+    "message-templates": "settings/templates",
+    "slm-dashboard": "admin/slm-dashboard",
+    "slm-training-data": "admin/slm-training",
+
+    # Recruitment
+    "candidate-review": "hm-candidate-review",
+    "risk-dashboard": "recruiter/risk-dashboard",
+    "thunder-analytics": "recruiter/thunder-analytics",
+    "bulk-launch": "recruiter/bulk-launch",
+    "intervention-queue": "recruiter/intervention-queue",
+    "rehire-approval": "recruiter/rehire-approvals",
+    "offer-letters": "offers",
+
+    # Workforce
+    "htd-intake": "htd-intake",
+    "buddy-program": "buddy-program",
+    "convert-to-employee": "employee-conversion",
+    "allocations": "allocations",
+
+    # Sales
+    "clients": "client-management",
+    "opportunities": "opportunity-pipeline",
+    "sales-ops": "revenue",
+    "partner-roi": "partner-roi",
+    "demand-confirmation": "demand-confirmation",
+
+    # Project Management
+    "core-pull": "core-pull",
+    "utilization-dashboard": "utilization-dashboard",
+    "resource-forecast": "forecast",
+    "forecast-vs-actual": "forecast-vs-actual",
+
+    # Finance
+    "invoice-management": "invoice-management",
+    "finance-operations": "finance-operations",
+    "executive-revenue-dashboard": "executive-revenue-dashboard",
+    "revenue": "revenue",
+    "forecasts": "forecast",
+
+    # Reporting
+    "bi-explorer": "bi-explorer",
+
+    # Executive
+    "ceo-dashboard": "ceo-fy-progress",
+    "cfo-dashboard": "cfo-dashboard",
+    "partner-dashboard": "troy-partner-dashboard",
+    "bu-head-dashboard": "bu-head-dashboard",
+    "executive-signal": "executive-signal",
+    "admin-agent-state": "admin/agent-state-dashboard",
+    "admin-weekly-recap": "admin/weekly-recap",
+    "training-certification": "training-certification",
+
+    # Executive Dashboards
+    "ceo-dashboard-view": "ceo-fy-progress",
+    "cfo-dashboard-view": "cfo-dashboard",
+    "partner-dashboard-view": "troy-partner-dashboard",
+    "bu-head-dashboard-view": "bu-head-dashboard",
+
+    # AI & Automation
+    "ask-thunder": "ai/thunder",
+    "thunder-analytics": "ai/thunder-analytics",
+    "ask-flash": "ai/flash",
+    "ai-coaching": "ai/coaching",
+}
 
 def init_modules_and_resources(db: Session, tenant_id: int = 1):
     """Create all Module and Resource records."""
@@ -79,7 +135,7 @@ def init_modules_and_resources(db: Session, tenant_id: int = 1):
             db.flush()  # Get the module ID
             print(f"  + Module: {module_name}")
         else:
-            print(f"  ✓ Module: {module_name} already exists")
+            print(f"  OK Module: {module_name} already exists")
 
         # Create resources for this module
         for resource_name in resource_names:
@@ -90,7 +146,7 @@ def init_modules_and_resources(db: Session, tenant_id: int = 1):
             ).first()
 
             if existing:
-                print(f"    ✓ Resource: {resource_name}")
+                print(f"    OK Resource: {resource_name}")
                 continue
 
             # Use custom route if defined, otherwise use default /{resource_name}
@@ -107,93 +163,102 @@ def init_modules_and_resources(db: Session, tenant_id: int = 1):
             )
             db.add(resource)
             resource_count += 1
-            print(f"    + Resource: {resource_name} → {route_path}")
+            print(f"    + Resource: {resource_name} -> {route_path}")
 
     db.commit()
     print(f"\nCreated {resource_count} resources\n")
     return resource_count
 
+def make_personal_resources_mandatory(db: Session, tenant_id: int = 1):
+    """Make Personal resources (dashboard, my-tasks, etc.) mandatory for all users."""
 
-def grant_super_user_all_permissions(db: Session, tenant_id: int = 1):
-    """Grant Super User role all V/C/E/D permissions on all resources."""
+    print(f"Making Personal resources mandatory for all users...")
 
-    print(f"Granting Super User all permissions...")
+    # Get all role templates
+    all_roles = db.query(RoleTemplate).filter(
+        RoleTemplate.tenant_id == tenant_id,
+        RoleTemplate.enabled == True
+    ).all()
 
-    # Get Super User role template
-    super_user_role = db.query(RoleTemplate).filter(
-        RoleTemplate.name.ilike("super user"),
-        RoleTemplate.tenant_id == tenant_id
+    print(f"  Found {len(all_roles)} role templates")
+
+    # Get Personal module
+    personal_module = db.query(Module).filter(
+        Module.name == "Personal",
+        Module.tenant_id == tenant_id
     ).first()
 
-    if not super_user_role:
-        print("  ERROR: Super User role not found!")
+    if not personal_module:
+        print("  ERROR: Personal module not found!")
         return 0
 
-    print(f"  Found Super User role (id={super_user_role.id})")
-
-    # Get all resources
-    all_resources = db.query(Resource).filter(
+    # Get all Personal resources
+    personal_resources = db.query(Resource).filter(
+        Resource.module_id == personal_module.id,
         Resource.tenant_id == tenant_id,
         Resource.enabled == True
     ).all()
 
-    print(f"  Found {len(all_resources)} resources to grant permissions for")
+    print(f"  Found {len(personal_resources)} Personal resources")
 
-    created_count = 0
+    count = 0
+    for role in all_roles:
+        for resource in personal_resources:
+            # Check if permission exists
+            existing = db.query(RoleTemplatePermission).filter(
+                RoleTemplatePermission.role_template_id == role.id,
+                RoleTemplatePermission.resource_id == resource.id
+            ).first()
 
-    # Grant Super User all permissions for each resource
-    for resource in all_resources:
-        # Check if permission already exists
-        existing = db.query(RoleTemplatePermission).filter(
-            RoleTemplatePermission.role_template_id == super_user_role.id,
-            RoleTemplatePermission.resource_id == resource.id
-        ).first()
-
-        if existing:
-            # Make sure all permissions are enabled
-            existing.can_view = True
-            existing.can_create = True
-            existing.can_edit = True
-            existing.can_delete = True
-        else:
-            # Create new permission record with all V/C/E/D enabled
-            permission = RoleTemplatePermission(
-                role_template_id=super_user_role.id,
-                resource_id=resource.id,
-                can_view=True,
-                can_create=True,
-                can_edit=True,
-                can_delete=True
-            )
-            db.add(permission)
-            created_count += 1
+            if not existing:
+                # Grant at least VIEW permission
+                permission = RoleTemplatePermission(
+                    role_template_id=role.id,
+                    resource_id=resource.id,
+                    can_view=True,
+                    can_create=False,
+                    can_edit=False,
+                    can_delete=False
+                )
+                db.add(permission)
+                count += 1
+            else:
+                # Ensure VIEW is enabled
+                if not existing.can_view:
+                    existing.can_view = True
+                    count += 1
 
     db.commit()
-    print(f"  Granted {created_count} new permissions to Super User\n")
-    return created_count
-
+    print(f"  Granted Personal resource access to all roles ({count} new permissions)\n")
+    return count
 
 def main():
-    """Initialize all modules, resources, and Super User permissions."""
+    """Initialize all modules and resources. Role template permissions are managed separately in the database."""
 
     db = SessionLocal()
     try:
         # Step 1: Create all modules and resources
         resource_count = init_modules_and_resources(db, tenant_id=1)
 
-        # Step 2: Grant Super User all permissions
-        permission_count = grant_super_user_all_permissions(db, tenant_id=1)
+        # Step 2: Make Personal resources mandatory for all users
+        mandatory_count = make_personal_resources_mandatory(db, tenant_id=1)
 
         print("=" * 70)
         print("SUCCESS: Resource Initialization Complete!")
         print("=" * 70)
         print(f"Resources created: {resource_count}")
-        print(f"Permissions granted to Super User: {permission_count}")
-        print("\nSuper User now has FULL access to all modules and resources!")
-        print("All permission errors should be resolved when you refresh the UI.")
+        print(f"Personal resources made mandatory: {mandatory_count}")
+        print("\nAll users now have mandatory access to Personal resources:")
+        print("  - Dashboard")
+        print("  - My Tasks")
+        print("  - My Timesheet")
+        print("  - My Expenses")
+        print("  - My Referrals")
+        print("\nRole template permissions are configured in the database, not seeded here.")
         print("=" * 70)
 
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         print(f"ERROR: {str(e)}")
         db.rollback()
         import traceback
@@ -201,7 +266,6 @@ def main():
         raise
     finally:
         db.close()
-
 
 if __name__ == "__main__":
     main()

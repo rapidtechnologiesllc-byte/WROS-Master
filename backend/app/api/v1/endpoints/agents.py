@@ -1,3 +1,4 @@
+from app.core.logging import logger
 """Agent endpoints for Partner ROI, CFO, and CEO agents."""
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -10,10 +11,11 @@ from app.services.cfo_agent_service import (
     get_org_financial_snapshot, get_cfo_alerts, get_bu_financial_comparison,
     get_expense_breakdown, get_financial_forecast
 )
-from app.services.ceo_fy_progress_service import get_fy_progress, get_fy_executive_summary
+from app.services.ceo_fy_progress_service import get_fy_progress, get_fy_executive_summary, get_fy_executive_dashboard
+import logging
+from app.services.permission_helper import PermissionHelper
 
 router = APIRouter(prefix="/agents", tags=["Agents"])
-
 
 # ============================================================================
 # Partner ROI Agent Endpoints
@@ -34,8 +36,8 @@ def get_partner_roi_kpis(
         kpis = get_partner_kpis(db, partner_id, year_month)
 
         # Scope check: Partner can only see their own KPIs; Finance/CEO see all
-        from app.services.rbac_service import RBACService
-        can_see_all = RBACService.has_any_permission(db, current_user.UserID, ["admin.manage", "revenue.manage"])
+        tenant_id = getattr(current_user, 'TenantID', 1)
+        can_see_all = PermissionHelper.has_any_permission(current_user.UserID, ["admin.manage", "revenue.manage"], db, tenant_id)
         if not can_see_all and current_user.UserID != partner_id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -45,7 +47,6 @@ def get_partner_roi_kpis(
         return {"status": "success", "data": kpis}
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
-
 
 @router.get("/partner-roi/{partner_id}/trend", dependencies=[Depends(require_resource_permission("revenue", "view"))])
 def get_partner_roi_trend(
@@ -57,8 +58,8 @@ def get_partner_roi_trend(
     """Get Partner's KPI trend over last N months."""
     try:
         # Scope check: Partner can only see their own; Finance/CEO see all
-        from app.services.rbac_service import RBACService
-        can_see_all = RBACService.has_any_permission(db, current_user.UserID, ["admin.manage", "revenue.manage"])
+        tenant_id = getattr(current_user, 'TenantID', 1)
+        can_see_all = PermissionHelper.has_any_permission(current_user.UserID, ["admin.manage", "revenue.manage"], db, tenant_id)
         if not can_see_all and current_user.UserID != partner_id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -70,7 +71,6 @@ def get_partner_roi_trend(
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
-
 @router.get("/partner-roi/{partner_id}/actions", dependencies=[Depends(require_resource_permission("revenue", "view"))])
 def get_partner_roi_actions(
     partner_id: str,
@@ -79,8 +79,8 @@ def get_partner_roi_actions(
 ):
     """Get prioritized action items for Partner based on KPIs."""
     try:
-        from app.services.rbac_service import RBACService
-        can_see_all = RBACService.has_any_permission(db, current_user.UserID, ["admin.manage", "revenue.manage"])
+        tenant_id = getattr(current_user, 'TenantID', 1)
+        can_see_all = PermissionHelper.has_any_permission(current_user.UserID, ["admin.manage", "revenue.manage"], db, tenant_id)
         if not can_see_all and current_user.UserID != partner_id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -91,7 +91,6 @@ def get_partner_roi_actions(
         return {"status": "success", "data": actions}
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
-
 
 # ============================================================================
 # CFO Agent Endpoints
@@ -112,8 +111,8 @@ def get_cfo_snapshot(
         snapshot = get_org_financial_snapshot(db, year_month)
         return {"status": "success", "data": snapshot}
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @router.get("/cfo/alerts", dependencies=[Depends(require_resource_permission("revenue", "view"))])
 def get_cfo_critical_alerts(
@@ -125,8 +124,8 @@ def get_cfo_critical_alerts(
         alerts = get_cfo_alerts(db)
         return {"status": "success", "data": alerts}
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @router.get("/cfo/bu-comparison", dependencies=[Depends(require_resource_permission("revenue", "view"))])
 def get_cfo_bu_comparison(
@@ -139,8 +138,8 @@ def get_cfo_bu_comparison(
         comparison = get_bu_financial_comparison(db, year_month)
         return {"status": "success", "data": comparison}
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @router.get("/cfo/expense-breakdown", dependencies=[Depends(require_resource_permission("revenue", "view"))])
 def get_cfo_expenses(
@@ -153,8 +152,8 @@ def get_cfo_expenses(
         breakdown = get_expense_breakdown(db, year_month)
         return {"status": "success", "data": breakdown}
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @router.get("/cfo/forecast", dependencies=[Depends(require_resource_permission("revenue", "view"))])
 def get_cfo_forecast(
@@ -167,8 +166,8 @@ def get_cfo_forecast(
         forecast = get_financial_forecast(db, months_ahead)
         return {"status": "success", "data": forecast}
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
-
 
 # ============================================================================
 # CEO FY Progress Dashboard Endpoints
@@ -189,8 +188,8 @@ def get_ceo_fy_progress(
         progress = get_fy_progress(db, fy_year)
         return {"status": "success", "data": progress}
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @router.get("/ceo/fy-summary", dependencies=[Depends(require_resource_permission("revenue", "view"))])
 def get_ceo_fy_summary(
@@ -202,8 +201,29 @@ def get_ceo_fy_summary(
         summary = get_fy_executive_summary(db)
         return {"status": "success", "data": summary}
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
+@router.get("/ceo/executive-dashboard", dependencies=[Depends(require_resource_permission("revenue", "view"))])
+def get_ceo_executive_dashboard(
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_internal_user)
+):
+    """
+    Get CEO executive dashboard with FY progress + SLM insights.
+
+    Includes:
+    - FY progress against annual targets (headcount, revenue, margin, etc.)
+    - SLM model accuracy and readiness for retraining
+    - Top performing jobs by hire success rate
+    - Key priorities and headline summary
+    """
+    try:
+        dashboard = get_fy_executive_dashboard(db)
+        return {"status": "success", "data": dashboard}
+    except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
 
 # ============================================================================
 # Agent Registry & Discovery Endpoints

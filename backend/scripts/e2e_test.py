@@ -2,13 +2,16 @@
 """
 End-to-End System Test
 Tests complete flow: Login -> Navigation -> Permissions -> Resources
+import logging
 """
 
+import logging
 import requests
 import json
 from datetime import datetime
 
 BASE_URL = "http://localhost:8000"
+logger = logging.getLogger(__name__)
 
 class E2ETest:
     def __init__(self):
@@ -48,9 +51,11 @@ class E2ETest:
                 else:
                     self.log(f"Login {role}", False, f"HTTP {resp.status_code}")
             except Exception as e:
+                logger.error(f"Error: {str(e)}", exc_info=True)
                 self.log(f"Login {role}", False, str(e))
 
-    def test_navigation_all_roles(self):
+                def test_navigation_all_roles(self):
+                    pass
         print("\n=== NAVIGATION TESTS ===")
         expected_modules = {
             "Super User": 10,
@@ -81,9 +86,11 @@ class E2ETest:
                 else:
                     self.log(f"Navigation {role}", False, f"HTTP {resp.status_code}")
             except Exception as e:
+                logger.error(f"Error: {str(e)}", exc_info=True)
                 self.log(f"Navigation {role}", False, str(e))
 
-    def test_resource_access(self):
+                def test_resource_access(self):
+                    pass
         print("\n=== RESOURCE ACCESS TESTS ===")
 
         if "Super User" not in self.tokens:
@@ -108,9 +115,11 @@ class E2ETest:
             else:
                 self.log("Resource Coverage", False, f"HTTP {resp.status_code}")
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             self.log("Resource Coverage", False, str(e))
 
-    def test_permission_enforcement(self):
+            def test_permission_enforcement(self):
+                pass
         print("\n=== PERMISSION ENFORCEMENT TESTS ===")
 
         # Test that Finance Manager doesn't have Recruitment resources
@@ -142,9 +151,11 @@ class E2ETest:
             else:
                 self.log("Permission Enforcement", False, f"HTTP {resp.status_code}")
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             self.log("Permission Enforcement", False, str(e))
 
-    def print_summary(self):
+            def print_summary(self):
+                pass
         print("\n" + "="*60)
         print("END-TO-END TEST SUMMARY")
         print("="*60)

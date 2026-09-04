@@ -2,13 +2,17 @@
 Pydantic schemas -- HRMS-0801 (Project Lifecycle) + HRMS-0804
 (Milestones) + HRMS-0805 (Unfilled Roles) + HRMS-0806 (Revenue
 Estimate & Margin) + S-358/HRMS-0519 (SI Partner Tagging) API.
+import logging
 """
 
+import logging
 from datetime import date, datetime
 from typing import List, Optional
 
 from pydantic import BaseModel, Field
+from app.core.logging import logger
 
+logger = logging.getLogger(__name__)
 
 class CreateProjectRequest(BaseModel):
     client_id: str
@@ -29,7 +33,6 @@ class CreateProjectRequest(BaseModel):
     business_type: Optional[str] = None
     allow_weekend_billing: bool = False
 
-
 class ProjectItem(BaseModel):
     id: str
     client_id: str
@@ -48,21 +51,17 @@ class ProjectItem(BaseModel):
     start_date: Optional[date] = None
     end_date: Optional[date] = None
 
-
 class ProjectListResponse(BaseModel):
     projects: List[ProjectItem]
 
-
 class TransitionProjectStatusRequest(BaseModel):
     status: str
-
 
 class CreateMilestoneRequest(BaseModel):
     title: str = Field(..., min_length=1)
     due_date: date
     description: Optional[str] = None
     owner_employee_id: Optional[str] = None
-
 
 class MilestoneItem(BaseModel):
     id: str
@@ -75,14 +74,11 @@ class MilestoneItem(BaseModel):
     completion_date: Optional[date] = None
     delay_days: Optional[int] = None
 
-
 class MilestoneListResponse(BaseModel):
     milestones: List[MilestoneItem]
 
-
 class CompleteMilestoneRequest(BaseModel):
     completion_date: Optional[date] = None
-
 
 class UnfilledRoleItem(BaseModel):
     demand_id: str
@@ -91,10 +87,8 @@ class UnfilledRoleItem(BaseModel):
     days_until_start: Optional[int] = None
     gap_status: str
 
-
 class UnfilledRolesResponse(BaseModel):
     roles: List[UnfilledRoleItem]
-
 
 class ExpectedRevenueResponse(BaseModel):
     expected_revenue_usd_cents: Optional[int] = None

@@ -1,5 +1,6 @@
 """
 HRMS-0901 -- Timesheet Submission -- and HRMS-0902 -- Timesheet
+import logging
 Approval Workflow.
 
 Scheduled jobs described in both stories (TimesheetCreationJob every
@@ -19,6 +20,7 @@ every other Phase 2 entity built this session (Employee/Client/Demand/
 Submission/Interview). Whoever builds the endpoint must add that check;
 these functions trust the caller.
 """
+import logging
 from datetime import date, datetime
 from typing import List, Optional
 
@@ -36,26 +38,22 @@ from app.models.timesheet import (
 )
 from app.services.email_service import EmailService
 
+logger = logging.getLogger(__name__)
 
 class AllocationNotActive(Exception):
     """BR-04: bench employees (no active allocation) don't get timesheets."""
 
-
 class InvalidTimesheetEntry(Exception):
     pass
-
 
 class TimesheetNotEditable(Exception):
     """BR-03 of HRMS-0902: an APPROVED timesheet's entries are immutable."""
 
-
 class InvalidTimesheetTransition(Exception):
     pass
 
-
 class StaleTimesheetSubmission(Exception):
     """BR-02: no submissions for weeks more than 4 calendar weeks past."""
-
 
 def create_weekly_draft(
     db: Session, allocation: EmployeeAllocation, week_starting_date: date,
@@ -89,7 +87,6 @@ def create_weekly_draft(
     db.add(timesheet)
     return timesheet
 
-
 def create_weekly_draft_for_task(
     db: Session, task: Task, employee_id: str, week_starting_date: date,
     *, tenant_id: Optional[int] = None,
@@ -120,7 +117,6 @@ def create_weekly_draft_for_task(
     )
     db.add(timesheet)
     return timesheet
-
 
 def upsert_entries(db: Session, timesheet: Timesheet, entries: List[dict]) -> Timesheet:
     """
@@ -173,7 +169,6 @@ def upsert_entries(db: Session, timesheet: Timesheet, entries: List[dict]) -> Ti
     db.add(timesheet)
     return timesheet
 
-
 def submit_timesheet(db: Session, timesheet: Timesheet) -> Timesheet:
     if timesheet.status != "DRAFT":
         raise InvalidTimesheetTransition(f"Cannot submit a timesheet in status '{timesheet.status}'.")
@@ -193,7 +188,6 @@ def submit_timesheet(db: Session, timesheet: Timesheet) -> Timesheet:
     timesheet.submitted_at = datetime.utcnow()
     db.add(timesheet)
     return timesheet
-
 
 def approve_timesheet(db: Session, timesheet: Timesheet, approved_by: Optional[str] = None) -> Timesheet:
     if timesheet.status != "SUBMITTED":
@@ -231,11 +225,11 @@ def approve_timesheet(db: Session, timesheet: Timesheet, approved_by: Optional[s
             )
             logger.info(f"[Timesheet] Approval notifications sent for timesheet {timesheet.id}")
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         # Log but don't raise — notifications should never block business logic
         logger.warning(f"[Timesheet] Failed to send approval notifications for {timesheet.id}: {e}")
 
     return timesheet
-
 
 def reject_timesheet(db: Session, timesheet: Timesheet, reason: str) -> Timesheet:
     if timesheet.status != "SUBMITTED":
@@ -248,7 +242,6 @@ def reject_timesheet(db: Session, timesheet: Timesheet, reason: str) -> Timeshee
     db.add(timesheet)
     return timesheet
 
-
 def reopen_for_editing(db: Session, timesheet: Timesheet) -> Timesheet:
     """HRMS-0902 BR-02: a REJECTED timesheet returns to DRAFT so the
     employee can correct and re-submit. rejection_reason is preserved,
@@ -259,7 +252,6 @@ def reopen_for_editing(db: Session, timesheet: Timesheet) -> Timesheet:
     timesheet.status = "DRAFT"
     db.add(timesheet)
     return timesheet
-
 
 def bulk_approve(db: Session, timesheets: List[Timesheet], approved_by: Optional[str] = None) -> dict:
     approved = 0
@@ -272,7 +264,6 @@ def bulk_approve(db: Session, timesheets: List[Timesheet], approved_by: Optional
             failed.append({"id": ts.id, "reason": str(exc)})
     return {"approved": approved, "failed": failed}
 
-
 def create_weekly_draft_batch(db: Session) -> dict:
     """
     Auto-creates weekly timesheet drafts for all active employees.
@@ -282,7 +273,6 @@ def create_weekly_draft_batch(db: Session) -> dict:
     Returns: dict with counts (created, skipped, errors)
     """
     from datetime import datetime, timedelta
-    from app.models.employee import Employee
     from app.models.resource_management import EmployeeAllocation
 
     today = date.today()
@@ -309,13 +299,14 @@ def create_weekly_draft_batch(db: Session) -> dict:
             else:
                 skipped += 1
         except Exception as exc:
+            logger.error(f"Error: {str(exc)}", exc_info=True)
             errors.append({
                 "allocation_id": allocation.id,
                 "employee_id": allocation.employee_id,
                 "error": str(exc)
             })
 
-    db.commit()
+            db.commit()
 
     return {
         "created": created,

@@ -1,4 +1,5 @@
 """
+import logging
 HTD Pipeline Accountability Agent
 
 Tracks SPECIALTY→CORE conversion pipeline for each partner.
@@ -13,6 +14,7 @@ BlitzenX Model:
 Partner Focus: "Here's your CORE conversion forecast. Here's where people are stuck. Here's what you need to do."
 """
 
+import logging
 from typing import Dict, Any, List, Optional
 from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
@@ -24,7 +26,9 @@ from app.models.htd_phase_gate import HTDPhaseGate, HTD_GATE_PHASES
 from app.models.business_unit import BusinessUnit
 from app.models.user import Users
 from app.services.performance_store_service import write_performance_event
+from app.core.logging import logger
 
+logger = logging.getLogger(__name__)
 
 class HTDPipelineAccountabilityAgent:
     """
@@ -277,6 +281,7 @@ class HTDPipelineAccountabilityAgent:
             return result
 
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             raise
 
     @staticmethod
@@ -371,8 +376,8 @@ class HTDPipelineAccountabilityAgent:
             return result
 
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             raise
-
 
 def generate_htd_coaching(bu_name: str, core_count: int, total: int, developing: int, forecast: int) -> str:
     """

@@ -4,6 +4,7 @@ computation revenue_target_service._fy_invoice_total_for_clients()
 already established for the fiscal-year granularity (no
 analytics_fact_revenue ETL table exists anywhere in this codebase).
 Forecast is opportunity_service.calculate_weighted_forecast(), the one
+import logging
 shared calculation per HRMS-0209 BR-0209-01 -- no local recalculation.
 
 Does NOT depend on S-279/HRMS-0313 (Plan vs Execution Variance) despite
@@ -24,12 +25,10 @@ from app.models.opportunity import Opportunity
 from app.services.opportunity_service import calculate_weighted_forecast
 from app.services.revenue_target_service import status_band
 
-
 def _month_bounds(year: int, month: int):
     start = date(year, month, 1)
     end = date(year + 1, 1, 1) if month == 12 else date(year, month + 1, 1)
     return start, end
-
 
 def get_monthly_actual_revenue(db: Session, *, client_ids: Optional[List[str]], year: int, month: int) -> int:
     start, end = _month_bounds(year, month)
@@ -42,7 +41,6 @@ def get_monthly_actual_revenue(db: Session, *, client_ids: Optional[List[str]], 
             return 0
         query = query.filter(Invoice.client_id.in_(client_ids))
     return query.scalar() or 0
-
 
 def get_monthly_weighted_forecast(db: Session, *, client_ids: Optional[List[str]], year: int, month: int) -> int:
     """WON opportunities count at their full realized value (not
@@ -65,7 +63,6 @@ def get_monthly_weighted_forecast(db: Session, *, client_ids: Optional[List[str]
         for o in opportunities
     )
 
-
 def get_forecast_vs_actual(
     db: Session, *, client_ids: Optional[List[str]], year: int, month: int, business_unit_id: Optional[int] = None,
 ) -> dict:
@@ -79,11 +76,9 @@ def get_forecast_vs_actual(
         "status": status_band(actual, forecast) if forecast > 0 else "NO_FORECAST",
     }
 
-
 def get_forecast_vs_actual_by_bu(db: Session, *, business_unit_id: int, year: int, month: int) -> dict:
     client_ids = [c.id for c in db.query(Client.id).filter(Client.business_unit_id == business_unit_id).all()]
     return get_forecast_vs_actual(db, client_ids=client_ids, year=year, month=month, business_unit_id=business_unit_id)
-
 
 def get_forecast_vs_actual_trend(
     db: Session, *, client_ids: Optional[List[str]], year: int, business_unit_id: Optional[int] = None,

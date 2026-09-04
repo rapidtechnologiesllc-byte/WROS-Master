@@ -1,4 +1,5 @@
 """
+import logging
 S-216/HRMS-0118 -- Shared Activity Timeline & File Attachment Framework.
 
 upload_file() is BR-0118-01's one sanctioned file-attachment path for
@@ -13,6 +14,7 @@ Same Microsoft Graph upload mechanics as document_service.upload_to_sharepoint
 (simple PUT under 4MB, resumable session at/above it) -- proven,
 copied rather than awkwardly wrapped through a candidate-specific method.
 """
+import logging
 import hashlib
 import os
 from datetime import datetime
@@ -31,22 +33,20 @@ SHAREPOINT_DRIVE_ID = os.getenv("SHAREPOINT_DRIVE_ID", "")
 SHAREPOINT_BASE_FOLDER = os.getenv("SHAREPOINT_BASE_FOLDER", "CandidateDocuments")
 ATTACHMENTS_FOLDER = "SharedAttachments"
 
+logger = logging.getLogger(__name__)
 
 class VirusScanUnavailable(Exception):
     """Same contract as app.services.virus_scan_service.VirusScanUnavailable
     -- no AV scanning service is provisioned in this codebase yet."""
 
-
 def _scan_unconfigured(file_content: bytes) -> str:
     raise VirusScanUnavailable("No virus-scanning service is provisioned in this codebase yet.")
-
 
 def _generate_unique_filename(original_filename: str, entity_id: str) -> str:
     timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
     file_ext = os.path.splitext(original_filename)[1]
     file_hash = hashlib.md5(f"{entity_id}{timestamp}{original_filename}".encode()).hexdigest()[:8]
     return f"{timestamp}_{file_hash}{file_ext}"
-
 
 def _upload_to_sharepoint(access_token: str, entity_type: str, entity_id: str, file_content: bytes, unique_filename: str) -> dict:
     folder_path = f"{SHAREPOINT_BASE_FOLDER}/{ATTACHMENTS_FOLDER}/{entity_type}/{entity_id}"
@@ -74,7 +74,6 @@ def _upload_to_sharepoint(access_token: str, entity_type: str, entity_id: str, f
     except requests.exceptions.HTTPError as exc:
         logger.error(f"[FileUpload] SharePoint upload failed: {exc}")
         raise HTTPException(status_code=500, detail=f"Failed to upload to SharePoint: {exc}")
-
 
 def upload_file(
     db: Session,
@@ -114,6 +113,7 @@ def upload_file(
     try:
         result = scanner(file_content)
     except Exception as exc:
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[FileUpload] Scan failed for file_upload {file_upload.id}: {exc}")
         result = "error"
     file_upload.scan_status = "CLEAN" if result == "clean" else "QUARANTINED"
@@ -127,7 +127,6 @@ def upload_file(
     )
     return file_upload
 
-
 def get_file_access_url(db: Session, file_upload_id: int) -> Optional[str]:
     """BR-0118-02: the access gate. Only CLEAN issues a URL -- PENDING and
     QUARANTINED both return None, never a URL."""
@@ -135,7 +134,6 @@ def get_file_access_url(db: Session, file_upload_id: int) -> Optional[str]:
     if file_upload is None or file_upload.scan_status != "CLEAN":
         return None
     return file_upload.sharepoint_url
-
 
 def list_files_for_entity(db: Session, entity_type: str, entity_id: str, *, tenant_id: Optional[int] = None):
     query = db.query(FileUpload).filter(FileUpload.entity_type == entity_type, FileUpload.entity_id == entity_id)

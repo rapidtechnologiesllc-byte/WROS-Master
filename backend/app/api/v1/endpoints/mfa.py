@@ -1,4 +1,5 @@
 """
+import logging
 Phase 1 B3 -- MFA enrollment and verification.
 
 Reached only via the mfa_pending short-lived token issued by
@@ -9,6 +10,7 @@ does NOT work on any other route (every other dependency in
 app.core.dependencies rejects it via _reject_if_mfa_pending) -- the two
 token types are deliberately non-interchangeable.
 """
+import logging
 import json
 from datetime import datetime, timedelta
 from typing import List, Optional
@@ -18,10 +20,12 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from fastapi import Request
 from app.core.dependencies import (
     get_current_candidate,
     get_current_candidate_otp_pending,
     get_current_mfa_pending_user,
+    require_resource_permission,
 )
 from app.core.mfa import (
     EMAIL_OTP_TTL_MINUTES,
@@ -42,17 +46,16 @@ from app.services.email_service import EmailService
 
 router = APIRouter(prefix="/auth/mfa", tags=["mfa"])
 
+logger = logging.getLogger(__name__)
 
 class MfaSetupResponse(BaseModel):
     provisioning_uri: str
     secret: str
     backup_codes: List[str]  # shown exactly once -- caller must store these
 
-
 class MfaCodeRequest(BaseModel):
     code: Optional[str] = None
     backup_code: Optional[str] = None
-
 
 class MfaVerifiedResponse(BaseModel):
     access_token: str
@@ -60,8 +63,11 @@ class MfaVerifiedResponse(BaseModel):
     user_name: str
     user_email: str
 
-
-@router.post("/setup", response_model=MfaSetupResponse)
+@router.post(
+    "/setup",
+    response_model=MfaSetupResponse,
+    dependencies=[Depends(require_resource_permission("setup", "create"))]
+)
 def setup_mfa(
     user: Users = Depends(get_current_mfa_pending_user),
     db: Session = Depends(get_db),
@@ -91,8 +97,11 @@ def setup_mfa(
         backup_codes=plain_backup_codes,
     )
 
-
-@router.post("/setup/confirm", response_model=MfaVerifiedResponse)
+@router.post(
+    "/setup/confirm",
+    response_model=MfaVerifiedResponse,
+    dependencies=[Depends(require_resource_permission("setup", "create"))]
+)
 def confirm_mfa_setup(
     body: MfaCodeRequest,
     user: Users = Depends(get_current_mfa_pending_user),
@@ -111,8 +120,11 @@ def confirm_mfa_setup(
 
     return _issue_full_token(user)
 
-
-@router.post("/verify", response_model=MfaVerifiedResponse)
+@router.post(
+    "/verify",
+    response_model=MfaVerifiedResponse,
+    dependencies=[Depends(require_resource_permission("verify", "create"))]
+)
 def verify_mfa(
     body: MfaCodeRequest,
     user: Users = Depends(get_current_mfa_pending_user),
@@ -137,12 +149,14 @@ def verify_mfa(
 
     raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid code")
 
-
 class EmailOtpVerifyRequest(BaseModel):
     code: str
 
-
-@router.post("/email/resend", response_model=dict)
+@router.post(
+    "/email/resend",
+    response_model=dict,
+    dependencies=[Depends(require_resource_permission("email", "create"))]
+)
 def resend_email_otp(
     user: Users = Depends(get_current_mfa_pending_user),
     db: Session = Depends(get_db),
@@ -172,8 +186,11 @@ def resend_email_otp(
 
     return {"sent": True}
 
-
-@router.post("/email/verify", response_model=MfaVerifiedResponse)
+@router.post(
+    "/email/verify",
+    response_model=MfaVerifiedResponse,
+    dependencies=[Depends(require_resource_permission("email", "create"))]
+)
 def verify_email_otp(
     body: EmailOtpVerifyRequest,
     user: Users = Depends(get_current_mfa_pending_user),
@@ -200,7 +217,6 @@ def verify_email_otp(
 
     return _issue_full_token(user)
 
-
 def _issue_full_token(user: Users) -> MfaVerifiedResponse:
     access_token = create_access_token(
         data={
@@ -217,7 +233,6 @@ def _issue_full_token(user: Users) -> MfaVerifiedResponse:
         user_email=user.UserEmail,
     )
 
-
 # ============================================
 # Backlog item, 2026-08-05 (wros_email_2fa_backlog) -- candidate half.
 # Opt-in, not enforced: a candidate chooses via the popup their first
@@ -231,10 +246,8 @@ def _issue_full_token(user: Users) -> MfaVerifiedResponse:
 class CandidateOtpOptInRequest(BaseModel):
     opted_in: bool
 
-
 class CandidateOtpOptInResponse(BaseModel):
     email_2fa_opted_in: bool
-
 
 class CandidateOtpVerifiedResponse(BaseModel):
     access_token: str
@@ -242,11 +255,9 @@ class CandidateOtpVerifiedResponse(BaseModel):
     candidate_role: str
     candidate_email: str
 
-
 def _candidate_name(candidate: Candidate) -> str:
     parts = [candidate.candidateFirstName, candidate.candidateMiddleName, candidate.candidateLastName]
     return " ".join(p for p in parts if p) or candidate.candidateEmail
-
 
 def _issue_full_candidate_token(candidate: Candidate) -> CandidateOtpVerifiedResponse:
     access_token = create_access_token(data={"sub": candidate.candidateID, "type": "candidate"})
@@ -257,8 +268,11 @@ def _issue_full_candidate_token(candidate: Candidate) -> CandidateOtpVerifiedRes
         candidate_email=candidate.candidateEmail,
     )
 
-
-@router.post("/candidate/opt-in", response_model=CandidateOtpOptInResponse)
+@router.post(
+    "/candidate/opt-in",
+    response_model=CandidateOtpOptInResponse,
+    dependencies=[Depends(require_resource_permission("candidate", "create"))]
+)
 def set_candidate_email_2fa_opt_in(
     body: CandidateOtpOptInRequest,
     candidate: Candidate = Depends(get_current_candidate),
@@ -272,8 +286,10 @@ def set_candidate_email_2fa_opt_in(
     db.commit()
     return CandidateOtpOptInResponse(email_2fa_opted_in=candidate.email_2fa_opted_in)
 
-
-@router.post("/candidate/email/resend")
+@router.post(
+    "/candidate/email/resend",
+    dependencies=[Depends(require_resource_permission("candidate", "create"))]
+)
 def resend_candidate_email_otp(
     candidate: Candidate = Depends(get_current_candidate_otp_pending),
     db: Session = Depends(get_db),
@@ -300,8 +316,11 @@ def resend_candidate_email_otp(
 
     return {"sent": True}
 
-
-@router.post("/candidate/email/verify", response_model=CandidateOtpVerifiedResponse)
+@router.post(
+    "/candidate/email/verify",
+    response_model=CandidateOtpVerifiedResponse,
+    dependencies=[Depends(require_resource_permission("candidate", "create"))]
+)
 def verify_candidate_email_otp(
     body: EmailOtpVerifyRequest,
     candidate: Candidate = Depends(get_current_candidate_otp_pending),

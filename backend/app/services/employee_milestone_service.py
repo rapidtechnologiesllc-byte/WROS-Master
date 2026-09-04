@@ -1,4 +1,5 @@
 """
+import logging
 S-356/HRMS-0517 -- Employee Milestone Tracker: Personal, Project & Org.
 
 scan_overdue_milestones() is the idempotent, directly-callable function
@@ -7,11 +8,13 @@ function itself is real" posture as every other scheduled-job story in
 this codebase (e.g. HRMS-0901's weekly draft job, scan_timesheet_
 anomalies()).
 """
+import logging
 from datetime import date
 from typing import List, Optional
 
 from sqlalchemy.orm import Session
 
+from app.core.logging import logger
 from app.models.employee_milestone import (
     OPEN_MILESTONE_STATUSES,
     EmployeeMilestone,
@@ -21,14 +24,13 @@ from app.services.performance_store_service import write_performance_event
 ON_TIME_COMPLETION_SCORE = 100
 LATE_COMPLETION_SCORE = 70
 
+logger = logging.getLogger(__name__)
 
 class MilestoneValidationError(Exception):
     pass
 
-
 class InvalidMilestoneTransition(Exception):
     pass
-
 
 def create_milestone(
     db: Session, *, milestone_type: str, title: str, target_date: date,
@@ -52,7 +54,6 @@ def create_milestone(
     )
     db.add(milestone)
     return milestone
-
 
 def complete_milestone(
     db: Session, milestone: EmployeeMilestone, *, completion_notes: Optional[str] = None,
@@ -95,7 +96,6 @@ def complete_milestone(
 
     return milestone
 
-
 def scan_overdue_milestones(db: Session, *, tenant_id: Optional[int] = None, now: Optional[date] = None) -> List[EmployeeMilestone]:
     """
     AC-2/AC-4: every open (PENDING/IN_PROGRESS) milestone past its
@@ -126,7 +126,6 @@ def scan_overdue_milestones(db: Session, *, tenant_id: Optional[int] = None, now
                 },
             )
     return overdue
-
 
 def get_employee_milestones(db: Session, employee_id: str) -> List[EmployeeMilestone]:
     return (

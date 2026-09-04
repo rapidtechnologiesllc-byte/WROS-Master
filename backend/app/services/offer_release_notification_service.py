@@ -1,4 +1,5 @@
 """
+import logging
 S-054/HRMS-0454 -- Offer Release Notification via Thunder.
 
 Real architecture adaptations:
@@ -63,7 +64,6 @@ from app.services.candidate_portal_service import generate_portal_link_url
 from app.services.email_service import EmailService
 from app.services.thunder_service import ConsentNotGiven, ConversationOwnedByHuman, DuplicateMessageSuppressed, ThunderPausedError, send_thunder_message
 
-
 def _active_conversation(db: Session, candidate_id: str) -> Optional[CandidateConversation]:
     return (
         db.query(CandidateConversation)
@@ -71,7 +71,6 @@ def _active_conversation(db: Session, candidate_id: str) -> Optional[CandidateCo
         .order_by(CandidateConversation.id.desc())
         .first()
     )
-
 
 def _build_whatsapp_message(candidate: Candidate, offer: OfferLetter, portal_link: str) -> str:
     expiry = str(offer.offer_expire_date) if offer.offer_expire_date else "the expiry date"
@@ -81,7 +80,6 @@ def _build_whatsapp_message(candidate: Candidate, offer: OfferLetter, portal_lin
         f"for the {offer.position} position at BlitzenX.{salary_clause} Please review the full offer at {portal_link} "
         f"and let us know your decision by {expiry}. We are excited about the possibility of having you join the team!"
     )
-
 
 def send_offer_release_notification(db: Session, offer: OfferLetter) -> Dict:
     """Steps 3-4. Never raises. Returns

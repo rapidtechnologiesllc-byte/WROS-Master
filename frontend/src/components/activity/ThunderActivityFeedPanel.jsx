@@ -34,7 +34,9 @@ export default function ThunderActivityFeedPanel() {
   const load = async () => {
     try {
       const data = await getActivityFeed({ perPage: 25 });
-      setFeed(data);
+      if (data && typeof data === 'object') {
+        setFeed(data);
+      }
     } catch {
       // Bell badge just won't update this cycle -- never crash the shell.
     }
@@ -94,7 +96,7 @@ export default function ThunderActivityFeedPanel() {
     <div className="relative" ref={panelRef}>
       <button onClick={handleOpen} className="relative" aria-label="Thunder Activity Feed">
         <Zap className="h-5 w-5 cursor-pointer text-gray-500 hover:text-black transition" />
-        {feed.unread_count > 0 ? (
+        {feed?.unread_count > 0 ? (
           <span className="absolute -right-1.5 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-blue-600 px-1 text-[10px] font-semibold text-white">
             {feed.unread_count > 9 ? "9+" : feed.unread_count}
           </span>
@@ -104,9 +106,9 @@ export default function ThunderActivityFeedPanel() {
       {open ? (
         <div className="absolute right-0 top-10 z-[9999] max-h-[28rem] w-96 overflow-y-auto rounded-2xl border bg-white shadow-xl">
           <div className="border-b px-4 py-2 text-xs font-semibold text-gray-500">
-            THUNDER ACTIVITY {feed.unread_count > 0 ? `(${feed.unread_count} unread)` : ""}
+            THUNDER ACTIVITY {feed?.unread_count > 0 ? `(${feed.unread_count} unread)` : ""}
           </div>
-          {feed.activities.length === 0 ? (
+          {feed?.activities?.length === 0 ? (
             <div className="px-4 py-6 text-center text-sm text-gray-500">No recent activity.</div>
           ) : (
             feed.activities.map((activity) => (

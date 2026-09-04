@@ -1,5 +1,6 @@
-﻿from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
+import logging
 from typing import List, Optional
 
 from app.core.database import get_db
@@ -14,11 +15,10 @@ from app.schemas.newsletter import (
 )
 from app.services.newsletter_service import NewsletterService
 from app.core.logging import logger
-from app.core.dependencies import get_current_hr_or_admin, require_resource_permission
+from app.core.dependencies import get_current_internal_user, require_resource_permission
 from app.api.v1.endpoints.msgraph import _require_account, _graph_client_for
 
 router = APIRouter(prefix="/newsletters", tags=["Newsletter"])
-
 
 # ===========================================================================
 # Subscriber Endpoints
@@ -34,7 +34,7 @@ router = APIRouter(prefix="/newsletters", tags=["Newsletter"])
 def subscribe_newsletter(
     subscriber_in: SubscriberCreate,
     db: Session = Depends(get_db),
-    user=Depends(get_current_hr_or_admin),
+    user=Depends(get_current_internal_user),
 ):
     """
     Subscribe an email address to the newsletter.
@@ -47,12 +47,12 @@ def subscribe_newsletter(
     except HTTPException:
         raise
     except Exception as exc:
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.error(f"Error subscribing '{subscriber_in.email}': {exc}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to process subscription",
         )
-
 
 @router.delete(
     "/unsubscribe/{email}",
@@ -63,7 +63,7 @@ def subscribe_newsletter(
 def unsubscribe_newsletter(
     email: str,
     db: Session = Depends(get_db),
-    user=Depends(get_current_hr_or_admin),
+    user=Depends(get_current_internal_user),
 ):
     """
     Deactivate an email address so it no longer receives newsletters.
@@ -74,12 +74,12 @@ def unsubscribe_newsletter(
     except HTTPException:
         raise
     except Exception as exc:
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.error(f"Error unsubscribing '{email}': {exc}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to process unsubscription",
         )
-
 
 @router.get(
     "/subscribers",
@@ -91,11 +91,10 @@ def get_subscribers(
     skip: int = 0,
     limit: int = 100,
     db: Session = Depends(get_db),
-    user=Depends(get_current_hr_or_admin),
+    user=Depends(get_current_internal_user),
 ):
     """Retrieve a paginated list of all newsletter subscribers."""
     return NewsletterService.get_all_subscribers(db, skip=skip, limit=limit)
-
 
 # ===========================================================================
 # Newsletter Endpoints
@@ -111,7 +110,7 @@ def get_subscribers(
 def create_newsletter(
     newsletter_in: NewsletterCreate,
     db: Session = Depends(get_db),
-    user=Depends(get_current_hr_or_admin),
+    user=Depends(get_current_internal_user),
 ):
     """Create a new newsletter in 'draft' status."""
     try:
@@ -119,12 +118,12 @@ def create_newsletter(
     except HTTPException:
         raise
     except Exception as exc:
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.error(f"Error creating newsletter: {exc}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to create newsletter",
         )
-
 
 @router.get(
     "/all",
@@ -137,7 +136,7 @@ def get_newsletters(
     limit: int = 100,
     status: Optional[str] = None,
     db: Session = Depends(get_db),
-    user=Depends(get_current_hr_or_admin),
+    user=Depends(get_current_internal_user),
 ):
     """
     Retrieve a paginated list of all newsletters, newest first.
@@ -150,7 +149,6 @@ def get_newsletters(
     """
     return NewsletterService.get_all_newsletters(db, skip=skip, limit=limit, status_filter=status)
 
-
 @router.get(
     "/dispatched",
     response_model=List[NewsletterResponse],
@@ -161,7 +159,7 @@ def get_dispatched_newsletters(
     skip: int = 0,
     limit: int = 100,
     db: Session = Depends(get_db),
-    user=Depends(get_current_hr_or_admin),
+    user=Depends(get_current_internal_user),
 ):
     """
     Return only newsletters with status `scheduled` or `sent` â€” i.e. every
@@ -169,7 +167,6 @@ def get_dispatched_newsletters(
     Results are ordered newest-first.
     """
     return NewsletterService.get_dispatched_newsletters(db, skip=skip, limit=limit)
-
 
 @router.put(
     "/update/{newsletter_id}",
@@ -181,7 +178,7 @@ def update_newsletter(
     newsletter_id: str,
     newsletter_in: NewsletterUpdate,
     db: Session = Depends(get_db),
-    user=Depends(get_current_hr_or_admin),
+    user=Depends(get_current_internal_user),
 ):
     """Partially update fields on an existing newsletter. Returns 404 if not found."""
     try:
@@ -189,12 +186,12 @@ def update_newsletter(
     except HTTPException:
         raise
     except Exception as exc:
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.error(f"Error updating newsletter '{newsletter_id}': {exc}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to update newsletter",
         )
-
 
 @router.post(
     "/schedule/{newsletter_id}",
@@ -206,7 +203,7 @@ def schedule_newsletter(
     newsletter_id: str,
     schedule_data: NewsletterSchedule,
     db: Session = Depends(get_db),
-    user=Depends(get_current_hr_or_admin),
+    user=Depends(get_current_internal_user),
 ):
     """
     Schedule an existing draft (or reschedule a previously scheduled) newsletter.
@@ -221,12 +218,12 @@ def schedule_newsletter(
     except HTTPException:
         raise
     except Exception as exc:
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.error(f"Error scheduling newsletter '{newsletter_id}': {exc}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to schedule newsletter",
         )
-
 
 @router.post(
     "/send/{newsletter_id}",
@@ -238,7 +235,7 @@ def send_newsletter_now(
     newsletter_id: str,
     request: Request,
     db: Session = Depends(get_db),
-    user=Depends(get_current_hr_or_admin),
+    user=Depends(get_current_internal_user),
 ):
     """
     Immediately send a newsletter to all active subscribers via the
@@ -269,12 +266,12 @@ def send_newsletter_now(
     except HTTPException:
         raise
     except Exception as exc:
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.error(f"Error sending newsletter '{newsletter_id}': {exc}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to send newsletter",
         )
-
 
 @router.delete(
     "/delete/{newsletter_id}",
@@ -285,7 +282,7 @@ def send_newsletter_now(
 def delete_newsletter(
     newsletter_id: str,
     db: Session = Depends(get_db),
-    user=Depends(get_current_hr_or_admin),
+    user=Depends(get_current_internal_user),
 ):
     """
     Permanently delete a newsletter and cancel any associated scheduled job.
@@ -296,6 +293,7 @@ def delete_newsletter(
     except HTTPException:
         raise
     except Exception as exc:
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.error(f"Error deleting newsletter '{newsletter_id}': {exc}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

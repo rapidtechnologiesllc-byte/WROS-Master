@@ -1,4 +1,5 @@
 """
+import logging
 Resume Versioning API - List, view, and compare candidate resume versions
 
 Endpoints:
@@ -7,6 +8,7 @@ Endpoints:
 - GET /candidates/{id}/resume-comparison - Compare two resume versions with analysis
 """
 
+import logging
 from typing import List, Optional
 from datetime import datetime
 
@@ -14,15 +16,17 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_hr_or_admin
+from app.core.dependencies import get_current_internal_user, require_resource_permission
 from app.models.candidate import Candidate
 from app.models.candidate_resume_parsed import CandidateResumeParsed
 from app.schemas.candidate import CandidateResponse
 from app.services.resume_comparison_service import ResumeComparisonService, ResumeChangeAnalysis
 from app.services.resume_search_service import ResumeSearchService
+from app.core.logging import logger
 
 router = APIRouter(prefix="/candidates", tags=["resume-versions"])
 
+logger = logging.getLogger(__name__)
 
 class ResumeVersionResponse:
     """Response format for resume version"""
@@ -68,12 +72,15 @@ class ResumeVersionResponse:
             "parser_version": self.parser_version,
         }
 
-
-@router.get("/{candidate_id}/resume-versions", response_model=List[dict])
+@router.get(
+    "/{candidate_id}/resume-versions",
+    response_model=List[dict],
+    dependencies=[Depends(require_resource_permission("resume_versions", "view"))]
+)
 def list_resume_versions(
     candidate_id: str,
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_hr_or_admin),
+    current_user = Depends(get_current_internal_user),
 ) -> List[dict]:
     """
     Get all resume versions for a candidate, sorted by date (newest first).
@@ -94,13 +101,16 @@ def list_resume_versions(
 
     return [ResumeVersionResponse(v).dict() for v in versions]
 
-
-@router.get("/{candidate_id}/resume-versions/{version_id}", response_model=dict)
+@router.get(
+    "/{candidate_id}/resume-versions/{version_id}",
+    response_model=dict,
+    dependencies=[Depends(require_resource_permission("resume_versions", "view"))]
+)
 def get_resume_version(
     candidate_id: str,
     version_id: int,
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_hr_or_admin),
+    current_user = Depends(get_current_internal_user),
 ) -> dict:
     """
     Get a specific resume version with full details.
@@ -128,14 +138,17 @@ def get_resume_version(
 
     return response
 
-
-@router.get("/{candidate_id}/resume-comparison", response_model=dict)
+@router.get(
+    "/{candidate_id}/resume-comparison",
+    response_model=dict,
+    dependencies=[Depends(require_resource_permission("resume_versions", "view"))]
+)
 def compare_resume_versions(
     candidate_id: str,
     version1_id: Optional[int] = Query(None, description="First version ID (older)"),
     version2_id: Optional[int] = Query(None, description="Second version ID (newer)"),
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_hr_or_admin),
+    current_user = Depends(get_current_internal_user),
 ) -> dict:
     """
     Compare two resume versions and analyze changes.
@@ -205,13 +218,15 @@ def compare_resume_versions(
         "analysis": summary,
     }
 
-
-@router.post("/{candidate_id}/resume-search")
+@router.post(
+    "/{candidate_id}/resume-search",
+    dependencies=[Depends(require_resource_permission("resume_versions", "create"))]
+)
 def search_candidate_resume(
     candidate_id: str,
     query: str = Query(..., min_length=1, description="Search query (skills, companies, roles)"),
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_hr_or_admin),
+    current_user = Depends(get_current_internal_user),
 ) -> dict:
     """
     Full-text search within a candidate's resume.

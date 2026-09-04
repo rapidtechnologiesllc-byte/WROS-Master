@@ -1,9 +1,11 @@
+import logging
 """System Module and Module Permission models for database-driven permission system."""
 
 from sqlalchemy import Column, String, Integer, Boolean, ForeignKey, Text, UniqueConstraint
 from sqlalchemy.orm import relationship
 from app.models.base import Base
 
+logger = logging.getLogger(__name__)
 
 class SystemModule(Base):
     """Represents a system module (Candidates, Jobs, Interviews, etc.)
@@ -15,10 +17,10 @@ class SystemModule(Base):
     __tablename__ = "system_modules"
 
     id = Column(Integer, primary_key=True, index=True)
-    name = Column(String(100), unique=True, nullable=False, index=True)
-    display_name = Column(String(255), nullable=False)
+    name = Column(String(512), unique=True, nullable=False, index=True)
+    display_name = Column(String(512), nullable=False)
     description = Column(Text, nullable=True)
-    category = Column(String(50), nullable=False)  # Recruitment, Sales, Delivery, Finance, Admin
+    category = Column(String(512), nullable=False)  # Recruitment, Sales, Delivery, Finance, Admin
     is_active = Column(Boolean, default=True)
     tenant_id = Column(Integer, nullable=False, default = True)
 
@@ -27,7 +29,6 @@ class SystemModule(Base):
 
     def __repr__(self):
         return f"<SystemModule(id={self.id}, name='{self.name}', category='{self.category}')>"
-
 
 class SystemModulePermission(Base):
     """Represents a verb (action) available for a module: candidates.view, jobs.create, etc.
@@ -39,7 +40,7 @@ class SystemModulePermission(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     module_id = Column(Integer, ForeignKey("system_modules.id"), nullable=False, index=True)
-    verb = Column(String(50), nullable=False)  # view, create, edit, delete, merge, approve, manage, etc.
+    verb = Column(String(512), nullable=False)  # view, create, edit, delete, merge, approve, manage, etc.
     description = Column(Text, nullable=True)
     is_active = Column(Boolean, default=True)
     tenant_id = Column(Integer, nullable=False, default = True)
@@ -57,7 +58,6 @@ class SystemModulePermission(Base):
 
     def __repr__(self):
         return f"<SystemModulePermission(module='{self.module.name}', verb='{self.verb}')>"
-
 
 # For backwards compatibility, export with simpler names
 Module = SystemModule

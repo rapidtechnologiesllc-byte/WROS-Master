@@ -10,6 +10,7 @@ Also extends HRMS-0904's BR-02 (an open dispute blocks the period)
 for real, since TimesheetDispute already exists.
 """
 from datetime import datetime
+import logging
 from typing import List, Optional
 
 from sqlalchemy.orm import Session
@@ -19,19 +20,18 @@ from app.models.invoice import Invoice, InvoiceLineItem
 from app.models.project import Project
 from app.models.timesheet import Timesheet
 from app.services.timesheet_dispute_service import has_open_dispute
+from app.core.logging import logger
 
+logger = logging.getLogger(__name__)
 
 class UnapprovedTimesheetBlocksInvoice(Exception):
     """R-10: no exceptions, no bypass."""
 
-
 class OpenDisputeBlocksInvoice(Exception):
     """HRMS-0904 BR-02."""
 
-
 class InvalidInvoiceTransition(Exception):
     pass
-
 
 def _timesheets_in_period(db: Session, project: Project, period_start, period_end) -> List[Timesheet]:
     return db.query(Timesheet).join(
@@ -41,7 +41,6 @@ def _timesheets_in_period(db: Session, project: Project, period_start, period_en
         Timesheet.week_starting_date >= period_start,
         Timesheet.week_starting_date <= period_end,
     ).all()
-
 
 def generate_invoice(
     db: Session, project: Project, *, period_start, period_end, tenant_id: Optional[int] = None,
@@ -90,7 +89,6 @@ def generate_invoice(
     db.add(invoice)
     return invoice
 
-
 def approve_invoice(db: Session, invoice: Invoice, *, approved_by: str) -> Invoice:
     """BR-0907-02: Draft->Approved is always an explicit Finance-role action."""
     if invoice.status != "DRAFT":
@@ -101,7 +99,6 @@ def approve_invoice(db: Session, invoice: Invoice, *, approved_by: str) -> Invoi
     db.add(invoice)
     return invoice
 
-
 def send_invoice(db: Session, invoice: Invoice) -> Invoice:
     """"Not In Scope": no automatic sending, even after Finance approval --
     always a distinct, deliberate human action."""
@@ -111,7 +108,6 @@ def send_invoice(db: Session, invoice: Invoice) -> Invoice:
     invoice.sent_at = datetime.utcnow()
     db.add(invoice)
     return invoice
-
 
 def mark_invoice_paid(db: Session, invoice: Invoice) -> Invoice:
     if invoice.status != "SENT":

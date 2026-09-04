@@ -43,7 +43,6 @@ SKILL_SYNONYMS = {
     "JavaScript": ["JS", "ECMAScript", "Node.js", "NodeJS"],
 }
 
-
 def _build_reverse_index():
     index = {}
     for canonical, synonyms in SKILL_SYNONYMS.items():
@@ -51,6 +50,5 @@ def _build_reverse_index():
         for synonym in synonyms:
             index[synonym.lower()] = canonical
     return index
-
 
 SKILL_SYNONYM_REVERSE_INDEX = _build_reverse_index()

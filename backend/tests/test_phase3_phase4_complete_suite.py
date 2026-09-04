@@ -1,5 +1,6 @@
 """
 Comprehensive Test Suite for Phase 3 & Phase 4 Stories (15+ stories)
+import logging
 Tests cover: Unit tests, Integration tests, E2E tests, Edge cases
 
 Story Coverage:
@@ -21,6 +22,7 @@ Story Coverage:
 Total: 100+ test cases covering all workflows
 """
 
+import logging
 import pytest
 import json
 from datetime import datetime, date, timedelta
@@ -38,7 +40,7 @@ from app.models.base import Base
 from app.models.candidate import Candidate
 from app.models.offer import Offer, OfferStatus
 from app.models.interview import InterviewDecisionLog, InterviewPanelDecision
-from app.models.user import Users, UserRole, Interview, InterviewFeedback, Jobs
+from app.models.user import Users, Interview, InterviewFeedback, Jobs
 from app.models.employee import Employee, EmployeeEngineHistory
 from app.models.timesheet import Timesheet, TimesheetEntry
 from app.models.invoice import Invoice, InvoiceLineItem
@@ -58,7 +60,6 @@ from app.services.candidate_rejection_service import CandidateRejectionService
 from app.services.core_pull_service import CorePullService
 from app.services.project_allocation_service import ProjectAllocationService
 
-
 # ============================================================================
 # FIXTURES - Database Setup
 # ============================================================================
@@ -75,7 +76,6 @@ def engine():
     yield engine
     Base.metadata.drop_all(engine)
 
-
 @pytest.fixture(scope="function")
 def db(engine):
     """Create a new database session for each test."""
@@ -89,12 +89,10 @@ def db(engine):
     transaction.rollback()
     connection.close()
 
-
 @pytest.fixture
 def mock_tenant(db: Session):
     """Create a test tenant."""
     return 1  # Default tenant_id
-
 
 @pytest.fixture
 def mock_business_unit(db: Session, mock_tenant):
@@ -109,7 +107,6 @@ def mock_business_unit(db: Session, mock_tenant):
     db.add(bu)
     db.commit()
     return bu
-
 
 @pytest.fixture
 def mock_user(db: Session, mock_tenant, mock_business_unit):
@@ -127,7 +124,6 @@ def mock_user(db: Session, mock_tenant, mock_business_unit):
     db.commit()
     return user
 
-
 @pytest.fixture
 def mock_hiring_manager(db: Session, mock_tenant, mock_business_unit):
     """Create a test hiring manager."""
@@ -143,7 +139,6 @@ def mock_hiring_manager(db: Session, mock_tenant, mock_business_unit):
     db.add(hm)
     db.commit()
     return hm
-
 
 @pytest.fixture
 def mock_job(db: Session, mock_tenant, mock_hiring_manager):
@@ -164,7 +159,6 @@ def mock_job(db: Session, mock_tenant, mock_hiring_manager):
     db.commit()
     return job
 
-
 @pytest.fixture
 def mock_candidate(db: Session, mock_tenant, mock_job):
     """Create a test candidate."""
@@ -184,7 +178,6 @@ def mock_candidate(db: Session, mock_tenant, mock_job):
     db.commit()
     return candidate
 
-
 @pytest.fixture
 def mock_interview(db: Session, mock_tenant, mock_candidate, mock_job, mock_hiring_manager):
     """Create a test interview."""
@@ -202,7 +195,6 @@ def mock_interview(db: Session, mock_tenant, mock_candidate, mock_job, mock_hiri
     db.add(interview)
     db.commit()
     return interview
-
 
 @pytest.fixture
 def mock_interview_feedback(db: Session, mock_tenant, mock_interview, mock_hiring_manager):
@@ -224,7 +216,6 @@ def mock_interview_feedback(db: Session, mock_tenant, mock_interview, mock_hirin
     db.commit()
     return feedback
 
-
 @pytest.fixture
 def mock_offer(db: Session, mock_tenant, mock_candidate, mock_job):
     """Create a test offer."""
@@ -242,7 +233,6 @@ def mock_offer(db: Session, mock_tenant, mock_candidate, mock_job):
     db.add(offer)
     db.commit()
     return offer
-
 
 @pytest.fixture
 def mock_employee(db: Session, mock_tenant, mock_candidate, mock_user):
@@ -264,10 +254,10 @@ def mock_employee(db: Session, mock_tenant, mock_candidate, mock_user):
     db.commit()
     return employee
 
-
 # ============================================================================
 # S-311: INTERVIEW DECISION ENGINE - Unit Tests
 # ============================================================================
+logger = logging.getLogger(__name__)
 
 class TestInterviewDecisionService:
     """Tests for Interview Decision Engine (S-311)."""
@@ -349,7 +339,6 @@ class TestInterviewDecisionService:
         assert decision["decision"] == "PENDING"
         assert decision["reason"] == "No feedback submitted"
         assert decision["voting"]["total_panelists"] == 0
-
 
 # ============================================================================
 # S-312: OFFER MANAGEMENT - Unit Tests
@@ -455,7 +444,6 @@ class TestOfferManagementService:
         )
         assert accept_result["status"] == "success"
 
-
 # ============================================================================
 # S-313: EMPLOYEE CONVERSION - Unit Tests
 # ============================================================================
@@ -533,7 +521,6 @@ class TestEmployeeConversionService:
                 business_unit_id=1,
                 tenant_id=mock_tenant
             )
-
 
 # ============================================================================
 # S-315: TIMESHEET MANAGEMENT - Unit Tests
@@ -647,7 +634,6 @@ class TestTimesheetCompleteService:
         assert approve_result["status"] == "success"
         assert approve_result["status_value"] in ["APPROVED", "approved"]
 
-
 # ============================================================================
 # S-316: INVOICE GENERATION - Unit Tests
 # ============================================================================
@@ -746,7 +732,6 @@ class TestInvoiceCompleteService:
         assert payment_result["status"] == "success"
         assert payment_result["amount_paid_usd_cents"] == 50000 * 100
 
-
 # ============================================================================
 # S-317: REVENUE RECOGNITION - Unit Tests
 # ============================================================================
@@ -814,7 +799,6 @@ class TestRevenueRecognitionService:
         assert mrr_result["status"] == "success"
         assert mrr_result["mrr_usd_cents"] > 0
 
-
 # ============================================================================
 # S-318: CANDIDATE SCORING & RANKING - Unit Tests
 # ============================================================================
@@ -881,7 +865,6 @@ class TestCandidateScoringService:
         assert isinstance(components, dict)
         if "technical_score" in components:
             assert components["technical_score"] >= 0
-
 
 # ============================================================================
 # S-319: HIRING MANAGER VALIDATION - Unit Tests
@@ -952,7 +935,6 @@ class TestHiringManagerValidationService:
 
         assert response_result["status"] == "success"
 
-
 # ============================================================================
 # S-320: CANDIDATE SCORING - Advanced Tests
 # ============================================================================
@@ -994,7 +976,6 @@ class TestCandidateScoringAdvanced:
         )
 
         assert score >= 0
-
 
 # ============================================================================
 # S-322: CANDIDATE REJECTION - Unit Tests
@@ -1061,7 +1042,6 @@ class TestCandidateRejectionService:
 
         assert updated_candidate is not None
 
-
 # ============================================================================
 # S-401: CORE-PULL CONFLICT RESOLUTION - Unit Tests
 # ============================================================================
@@ -1101,7 +1081,6 @@ class TestCorePullService:
         )
 
         assert result["status"] == "success"
-
 
 # ============================================================================
 # S-314: PROJECT ALLOCATION - Unit Tests
@@ -1155,7 +1134,6 @@ class TestProjectAllocationService:
 
         assert result1["status"] == "success"
         assert result2["status"] == "success"
-
 
 # ============================================================================
 # INTEGRATION TESTS - Complete Workflows
@@ -1260,7 +1238,6 @@ class TestCompleteHiringWorkflow:
         assert employee is not None
         assert employee.employment_type == "PERMANENT"
 
-
 class TestCompleteTimesheetWorkflow:
     """End-to-end tests for timesheet workflow."""
 
@@ -1311,7 +1288,6 @@ class TestCompleteTimesheetWorkflow:
             approver_id=mock_user.UserID
         )
         assert approve_result["status"] == "success"
-
 
 class TestCompleteInvoiceWorkflow:
     """End-to-end tests for invoice workflow."""
@@ -1364,7 +1340,6 @@ class TestCompleteInvoiceWorkflow:
             payment_date=date.today() + timedelta(days=15)
         )
         assert payment_result["status"] == "success"
-
 
 # ============================================================================
 # EDGE CASE TESTS
@@ -1505,7 +1480,6 @@ class TestEdgeCases:
 
         assert result is not None
 
-
 # ============================================================================
 # VALIDATION & BUSINESS RULES TESTS
 # ============================================================================
@@ -1586,7 +1560,6 @@ class TestBusinessRuleEnforcement:
 
         assert entry_result is not None
 
-
 # ============================================================================
 # PERFORMANCE & LOAD TESTS
 # ============================================================================
@@ -1644,7 +1617,6 @@ class TestPerformance:
 
         # Should handle bulk operations
         assert ts_result["status"] == "success"
-
 
 # ============================================================================
 # RUN TESTS

@@ -1,24 +1,24 @@
+from app.core.logging import logger
 """HRMS-0103 — demand creation, status state machine, and the
 bench-first sourcing gate (R-04)."""
 import json
+import logging
 from typing import Optional
 
 from sqlalchemy.orm import Session
 
 from app.models.demand import ALLOWED_DEMAND_TRANSITIONS, Demand, DemandHistory
 
+logger = logging.getLogger(__name__)
 
 class InvalidDemandTransition(Exception):
     pass
 
-
 class DemandValidationError(Exception):
     pass
 
-
 class BenchFirstNotChecked(Exception):
     """R-04: bench-first must be confirmed before external sourcing."""
-
 
 def create_demand(db: Session, **fields) -> Demand:
     """
@@ -43,7 +43,6 @@ def create_demand(db: Session, **fields) -> Demand:
     demand = Demand(**fields)
     db.add(demand)
     return demand
-
 
 def transition_demand_status(
     db: Session,
@@ -79,7 +78,6 @@ def transition_demand_status(
     db.add(history)
     return demand
 
-
 def enable_sourcing(db: Session, demand: Demand, *, bench_first_override: bool = False, changed_by: Optional[str] = None) -> Demand:
     """
     BR-02 / R-04: sourcing_enabled cannot be set True unless
@@ -101,7 +99,6 @@ def enable_sourcing(db: Session, demand: Demand, *, bench_first_override: bool =
     demand.sourcing_enabled = True
     db.add(demand)
     return demand
-
 
 def record_placement(db: Session, demand: Demand) -> Demand:
     """

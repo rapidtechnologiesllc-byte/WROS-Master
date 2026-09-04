@@ -1,3 +1,4 @@
+import logging
 """Interview → Hire → Onboarding workflow orchestration service.
 
 Coordinates the complete hiring flow:
@@ -22,7 +23,7 @@ from app.models.employee import Employee
 from app.models.user import Users
 from app.services.hiring_affordability_service import check_hiring_affordability
 from app.services.task_service import create_task
-
+from app.core.logging import logger
 
 def suggest_panelists(db: Session, demand_id: str, level: str = "L1") -> List[Dict]:
     """
@@ -67,7 +68,6 @@ def suggest_panelists(db: Session, demand_id: str, level: str = "L1") -> List[Di
 
     return sorted(candidates, key=lambda x: x["overall_score"], reverse=True)[:5]
 
-
 def check_l1_to_l2_auto_trigger(db: Session, demand_id: str, l1_interview_id: str) -> Dict:
     """
     Check if L1 interview results allow L2 auto-creation.
@@ -108,7 +108,6 @@ def check_l1_to_l2_auto_trigger(db: Session, demand_id: str, l1_interview_id: st
         "action": "auto_create_l2" if should_trigger else "hm_decision_needed",
     }
 
-
 def check_affordability_for_hire(db: Session, submission_id: str, bu_id: Optional[int] = None) -> Dict:
     """
     Check BU affordability for hiring this candidate.
@@ -143,8 +142,8 @@ def check_affordability_for_hire(db: Session, submission_id: str, bu_id: Optiona
             "reason": affordability.get("reason", ""),
         }
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         return {"error": str(e)}
-
 
 def create_l2_interview_panel(db: Session, demand_id: str, submission_id: str,
                               panelists: List[str]) -> Dict:
@@ -174,9 +173,9 @@ def create_l2_interview_panel(db: Session, demand_id: str, submission_id: str,
             "status": "L2 panel created, awaiting scheduling",
         }
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         db.rollback()
         return {"error": str(e)}
-
 
 def record_no_show_confirmation(db: Session, interview_id: str) -> Dict:
     """

@@ -1,3 +1,4 @@
+import logging
 """new update
 
 Revision ID: cda1fe43c923
@@ -10,13 +11,11 @@ from typing import Sequence, Union
 from alembic import op
 import sqlalchemy as sa
 
-
 # revision identifiers, used by Alembic.
 revision: str = 'cda1fe43c923'
 down_revision: Union[str, Sequence[str], None] = '062d495fb7f3'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
-
 
 def upgrade() -> None:
     """Upgrade schema."""
@@ -39,7 +38,6 @@ def upgrade() -> None:
                existing_type=sa.VARCHAR(length=50, collation='SQL_Latin1_General_CP1_CI_AS'),
                nullable=True)
     # ### end Alembic commands ###
-
 
 def downgrade() -> None:
     """Downgrade schema."""

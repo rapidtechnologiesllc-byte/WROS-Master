@@ -1,3 +1,4 @@
+import logging
 """add_candidate_ai_agentic_tables
 
 Adds three tables to support the agentic automated hiring process:
@@ -20,7 +21,6 @@ revision: str = 'c7e9a1b3d2f8'
 down_revision: Union[str, Sequence[str], None] = 'a1b2c3d4e5f6'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
-
 
 def upgrade() -> None:
     """Upgrade schema — create AI agentic hiring tables."""
@@ -90,7 +90,6 @@ def upgrade() -> None:
     op.create_index(op.f('ix_conversation_events_id'),              'conversation_events', ['id'],              unique=False)
     op.create_index(op.f('ix_conversation_events_conversation_id'), 'conversation_events', ['conversation_id'], unique=False)
     op.create_index(op.f('ix_conversation_events_event_type'),      'conversation_events', ['event_type'],      unique=False)
-
 
 def downgrade() -> None:
     """Downgrade schema — drop AI agentic hiring tables."""

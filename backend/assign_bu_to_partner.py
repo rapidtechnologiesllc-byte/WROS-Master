@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import logging
 """Assign business unit to Partner test user and create sample data."""
 
 import sys
@@ -105,6 +106,8 @@ def setup_partner_bu():
         print(f"  - Sample Revenue: $500,000")
 
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
+        logger.error(f"Error: {str(e)}", exc_info=True)
         print(f"[ERROR] {e}")
         import traceback
         traceback.print_exc()

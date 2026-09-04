@@ -1,5 +1,6 @@
 """
 HRMS-0316 -- Invoice Generation, Calculation, Sending & Payment Tracking
+import logging
 =========================================================================
 
 Complete invoice lifecycle management with hard enforcement of business rules:
@@ -15,6 +16,7 @@ Four core methods:
 4. track_payment() - Record payment, calculate remaining balance, mark PAID
 """
 
+import logging
 import uuid
 from datetime import datetime, date, timedelta
 from typing import Optional, List, Dict, Tuple
@@ -29,32 +31,29 @@ from app.models.client import Client
 from app.models.project import Project
 from app.models.employee_allocation import EmployeeAllocation
 from app.models.timesheet_dispute import TimesheetDispute
+from app.core.logging import logger
 
+logger = logging.getLogger(__name__)
 
 class InvoiceError(Exception):
     """Base exception for invoice operations."""
     pass
 
-
 class UnapprovedTimesheetBlocksInvoice(InvoiceError):
     """R-10 enforcement: Cannot invoice period with unapproved timesheets."""
     pass
-
 
 class OpenDisputeBlocksInvoice(InvoiceError):
     """BR-02 enforcement: Cannot invoice period with open timesheet disputes."""
     pass
 
-
 class InvalidInvoiceTransition(InvoiceError):
     """Attempted illegal status transition."""
     pass
 
-
 class InvoicePaymentError(InvoiceError):
     """Error during payment tracking."""
     pass
-
 
 class InvoiceS316Service:
     """

@@ -1,6 +1,7 @@
 """
 Proves HRMS-0103: BR-01 (employment_type always W2_FULLTIME), BR-02
 (sourcing gated on bench-first, R-04), BR-03 (auto-fill tracking), the
+import logging
 status state machine, and the duplicate-open-demand guard.
 
 Throwaway SQLite -- never the real database.
@@ -27,7 +28,6 @@ from app.services.demand_service import (
     BenchFirstNotChecked,
 )
 
-
 @pytest.fixture()
 def db_session():
     fd, db_path = tempfile.mkstemp(suffix=".sqlite3")
@@ -42,7 +42,6 @@ def db_session():
         engine.dispose()
         os.remove(db_path)
 
-
 @pytest.fixture()
 def tenant_and_client(db_session):
     tenant = Tenant(name="BlitzenX")
@@ -52,7 +51,6 @@ def tenant_and_client(db_session):
     db_session.add(client)
     db_session.commit()
     return tenant, client
-
 
 def _make_demand(db, tenant, client, **overrides):
     defaults = dict(
@@ -65,7 +63,6 @@ def _make_demand(db, tenant, client, **overrides):
     db.commit()
     return demand
 
-
 # ---------------------------------------------------------------------------
 # BR-01: employment_type always W2_FULLTIME (R-03)
 # ---------------------------------------------------------------------------
@@ -75,7 +72,6 @@ def test_employment_type_defaults_to_w2_fulltime(db_session, tenant_and_client):
     demand = _make_demand(db_session, tenant, client)
     assert demand.employment_type == "W2_FULLTIME"
 
-
 def test_negative_case_only_w2_fulltime_is_a_valid_enum_value(db_session, tenant_and_client):
     """Direct-API-bypass style negative test: even trying to force a
     different value must fail at the column/enum level."""
@@ -83,7 +79,6 @@ def test_negative_case_only_w2_fulltime_is_a_valid_enum_value(db_session, tenant
     with pytest.raises(Exception):
         bad = _make_demand(db_session, tenant, client, employment_type="C2C")
         db_session.flush()
-
 
 # ---------------------------------------------------------------------------
 # BR-02 / R-04: bench-first gate
@@ -97,14 +92,12 @@ def test_negative_case_sourcing_blocked_without_bench_first(db_session, tenant_a
         enable_sourcing(db_session, demand)
     assert demand.sourcing_enabled is False
 
-
 def test_positive_case_sourcing_allowed_after_bench_first_checked(db_session, tenant_and_client):
     tenant, client = tenant_and_client
     demand = _make_demand(db_session, tenant, client, bench_first_checked=True)
 
     enable_sourcing(db_session, demand)
     assert demand.sourcing_enabled is True
-
 
 def test_logged_override_path_sets_both_flags(db_session, tenant_and_client):
     tenant, client = tenant_and_client
@@ -113,7 +106,6 @@ def test_logged_override_path_sets_both_flags(db_session, tenant_and_client):
     enable_sourcing(db_session, demand, bench_first_override=True)
     assert demand.bench_first_checked is True
     assert demand.sourcing_enabled is True
-
 
 # ---------------------------------------------------------------------------
 # Status state machine
@@ -126,7 +118,6 @@ def test_valid_transition_draft_to_open_with_required_fields(db_session, tenant_
     transition_demand_status(db_session, demand, "OPEN")
     db_session.commit()
     assert demand.status == "OPEN"
-
 
 def test_negative_case_cannot_open_demand_missing_required_fields(db_session, tenant_and_client):
     """
@@ -153,14 +144,12 @@ def test_negative_case_cannot_open_demand_missing_required_fields(db_session, te
         with pytest.raises(DemandValidationError):
             transition_demand_status(db_session, demand, "OPEN")
 
-
 def test_negative_case_invalid_transition_rejected(db_session, tenant_and_client):
     tenant, client = tenant_and_client
     demand = _make_demand(db_session, tenant, client, status="FILLED")
 
     with pytest.raises(InvalidDemandTransition):
         transition_demand_status(db_session, demand, "OPEN")
-
 
 def test_cancel_requires_reason_at_least_50_chars(db_session, tenant_and_client):
     tenant, client = tenant_and_client
@@ -174,14 +163,12 @@ def test_cancel_requires_reason_at_least_50_chars(db_session, tenant_and_client)
     transition_demand_status(db_session, demand, "CANCELLED", reason=long_reason)
     assert demand.status == "CANCELLED"
 
-
 def test_duplicate_open_demand_rejected(db_session, tenant_and_client):
     tenant, client = tenant_and_client
     _make_demand(db_session, tenant, client, status="OPEN")
 
     with pytest.raises(DemandValidationError):
         _make_demand(db_session, tenant, client, status="OPEN")
-
 
 # ---------------------------------------------------------------------------
 # BR-03: auto-fill tracking

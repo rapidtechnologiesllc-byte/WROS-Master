@@ -1,3 +1,4 @@
+import logging
 """Add comprehensive permission system with job titles and field-level controls
 
 Revision ID: f7c9d1e3a5b7
@@ -18,12 +19,10 @@ from typing import Sequence, Union
 from alembic import op
 import sqlalchemy as sa
 
-
 revision: str = 'f7c9d1e3a5b7'
 down_revision: Union[str, Sequence[str], None] = '2026_08_12_task_bu'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
-
 
 def upgrade() -> None:
     """Upgrade schema."""
@@ -148,7 +147,6 @@ def upgrade() -> None:
     op.create_foreign_key('fk_users_job_title_id', 'users', 'job_titles', ['job_title_id'], ['id'])
     op.create_foreign_key('fk_users_org_position_id', 'users', 'org_positions', ['org_position_id'], ['id'])
     op.create_foreign_key('fk_users_org_node_id', 'users', 'org_nodes', ['org_node_id'], ['id'])
-
 
 def downgrade() -> None:
     """Downgrade schema."""

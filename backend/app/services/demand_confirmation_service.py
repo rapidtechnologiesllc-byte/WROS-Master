@@ -1,8 +1,10 @@
 """
+import logging
 S-372/HRMS-0528 -- Confirmed vs Potential Demand Workflow.
 
 Built from `Requirements/S-372_HRMS-0528.docx` directly.
 """
+import logging
 from datetime import date, datetime
 from typing import Callable, Optional
 
@@ -13,29 +15,27 @@ from app.models.demand_confirmation import DemandAlignmentCall
 from app.models.employee import Employee
 from app.models.user import Users
 from app.services.notification_service import send_notification
+from app.core.logging import logger
 
 PARTICIPANTS = ("EMPLOYEE", "BU_HEAD")
 
+logger = logging.getLogger(__name__)
 
 class SOWReferenceRequired(Exception):
     """AC-6: SOW reference must be recorded before confirmation_status can flip to CONFIRMED."""
 
-
 class InvalidParticipant(Exception):
     pass
-
 
 class FitConfirmationAlreadyRecorded(Exception):
     """BR: an already-recorded confirmation (especially the employee's) is
     never silently overwritten -- a new alignment call is a new decision,
     not a mutation of a past one."""
 
-
 class SpecialtyClientReleaseNotAllowed(Exception):
     """BR: Specialty client release cannot be triggered until
     confirmation_status=CONFIRMED and both fit confirmations are True --
     no exceptions, no partial sequence."""
-
 
 def confirm_demand_with_sow(
     db: Session, demand: Demand, *, sow_reference: str, sow_received_date: Optional[date] = None,
@@ -52,7 +52,6 @@ def confirm_demand_with_sow(
     demand.confirmation_status = "CONFIRMED"
     db.add(demand)
     return demand
-
 
 def schedule_alignment_call(
     db: Session,
@@ -95,7 +94,6 @@ def schedule_alignment_call(
     db.flush()
     return call
 
-
 def confirm_fit(
     db: Session, call: DemandAlignmentCall, *, participant: str, confirmed: bool, notes: Optional[str] = None,
 ) -> DemandAlignmentCall:
@@ -129,7 +127,6 @@ def confirm_fit(
 
     db.add(call)
     return call
-
 
 def trigger_specialty_client_release(
     db: Session,

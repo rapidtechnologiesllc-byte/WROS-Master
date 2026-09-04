@@ -1,6 +1,7 @@
 """
 GET /candidates/{id}/ai-assignment -- proves the HTTP-level auth
 gating; everything else covered at the service layer in
+import logging
 test_ai_recruiter_assignment.py.
 
 2026-08-06: this file used to also cover GET/PATCH /admin/tenant/ai-
@@ -32,7 +33,6 @@ from app.models.candidate_ai import CandidateAIAssignment
 from app.models.user import Users
 import app.models  # noqa: F401
 
-
 @pytest.fixture()
 def throwaway_jwt_keys(monkeypatch):
     key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
@@ -45,7 +45,6 @@ def throwaway_jwt_keys(monkeypatch):
     ).decode()
     monkeypatch.setattr(security, "PRIVATE_KEY", private_pem)
     monkeypatch.setattr(security, "PUBLIC_KEY", public_pem)
-
 
 @pytest.fixture()
 def client(throwaway_jwt_keys):
@@ -73,8 +72,8 @@ def client(throwaway_jwt_keys):
     db = TestSessionLocal()
     RBACService.seed_roles_and_permissions(db)
 
-    super_user_role = db.query(db.query(RoleTemplate).filter_by(name=).filter_by(name="Super User").first()
-    recruiter_role = db.query(db.query(RoleTemplate).filter_by(name=).filter_by(name="Recruiter").first()
+    super_user_role = db.query(RoleTemplate).filter_by(name="Super User").first()
+    recruiter_role = db.query(RoleTemplate).filter_by(name="Recruiter").first()
 
     super_user = Users(UserID="U-CEO", UserRole="Super User", UserEmail="ceo@blitzenx.com", UserPassword=get_password_hash("x"), role_id=super_user_role.id if super_user_role else None)
     recruiter = Users(UserID="U-REC", UserRole="Recruiter", UserEmail="recruiter@blitzenx.com", UserPassword=get_password_hash("x"), role_id=recruiter_role.id if recruiter_role else None)
@@ -92,10 +91,8 @@ def client(throwaway_jwt_keys):
         engine.dispose()
         os.remove(db_path)
 
-
 def _token_for(email, role):
     return security.create_access_token(data={"sub": email, "type": role, "name": email})
-
 
 def test_get_candidate_assignment_returns_active_record(client):
     resp = client.get(
@@ -105,12 +102,10 @@ def test_get_candidate_assignment_returns_active_record(client):
     assert resp.status_code == 200
     assert resp.json()["ai_agent_name"] == "Thunder"
 
-
 def test_get_candidate_assignment_404_for_unknown_candidate(client):
     resp = client.get(
         "/candidates/C-DOES-NOT-EXIST/ai-assignment",
         headers={"Authorization": f"Bearer {_token_for('recruiter@blitzenx.com', 'Recruiter')}"},
     )
     assert resp.status_code == 404
-
 

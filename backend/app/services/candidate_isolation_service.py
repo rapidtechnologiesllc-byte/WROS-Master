@@ -1,3 +1,5 @@
+import logging
+from app.core.logging import logger
 ﻿"""Candidate Isolation Service - Enforces BU-based candidate visibility and locking.
 
 ZERO-HARDCODING: All visibility rules determined by database-driven role_templates
@@ -21,9 +23,11 @@ from sqlalchemy.orm import Session
 from app.models.candidate import Candidate
 from app.models.user import Users
 from app.models.business_unit import BusinessUnit
-from app.services.rbac_service import RBACService
 from app.services.organization_service import OrganizationService
+from app.services.role_template_permission_service import RoleTemplatePermissionService
+from app.services.permission_helper import PermissionHelper
 
+logger = logging.getLogger(__name__)
 
 class CandidateIsolationService:
     """Manages candidate BU isolation and visibility enforcement."""
@@ -74,14 +78,11 @@ class CandidateIsolationService:
             raise ValueError(f"Submitting user {submitted_by_user_id} not found")
 
         # Check if user has BU management permission and access to this BU
-        if not RBACService.has_permission(db, submitted_by_user_id, "business-units", "edit"):
-            raise ValueError(f"User {submitted_by_user_id} not authorized to submit candidates")
-
         # Check if user has access to this BU
         user_bus = OrganizationService.get_user_accessible_business_units(
             submitted_by_user_id, db, tenant_id
         )
-        if bu_id not in user_bus and not RBACService.is_super_user(db, submitted_by_user_id, tenant_id):
+        if bu_id not in user_bus and not RoleTemplatePermissionService.is_super_user(db, submitted_by_user_id, tenant_id):
             raise ValueError(f"User cannot submit to BU {bu_id} (not accessible)")
 
         # Lock candidate to BU
@@ -119,7 +120,7 @@ class CandidateIsolationService:
             True if user can view candidate, False otherwise
         """
         # Super admin sees all candidates
-        if RBACService.is_super_admin(user_id, db, tenant_id):
+        if PermissionHelper.is_super_admin(user_id, db, tenant_id):
             return True
 
         candidate = db.query(Candidate).filter(
@@ -132,7 +133,7 @@ class CandidateIsolationService:
         # Unassociated candidate (no BU assignment yet)
         if candidate.associated_bu_id is None:
             # Visible to any user with recruitment/HR permissions
-            return RBACService.has_any_permission(
+            return PermissionHelper.has_any_permission(
                 user_id,
                 ["recruitment.manage", "employee.manage", "recruitment.view"],
                 db,
@@ -169,13 +170,13 @@ class CandidateIsolationService:
             List of visible Candidate objects
         """
         # Super admin sees all
-        if RBACService.is_super_admin(user_id, db, tenant_id):
+        if PermissionHelper.is_super_admin(user_id, db, tenant_id):
             return db.query(Candidate).filter(
                 Candidate.tenant_id == tenant_id
             ).all()
 
         # Check if user has HR/recruitment permissions
-        has_hr_perms = RBACService.has_any_permission(
+        has_hr_perms = PermissionHelper.has_any_permission(
             user_id,
             ["recruitment.manage", "employee.manage", "recruitment.view"],
             db,

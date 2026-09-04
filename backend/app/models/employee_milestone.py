@@ -1,4 +1,5 @@
 """
+import logging
 S-356/HRMS-0517 -- Employee Milestone Tracker: Personal, Project & Org.
 
 Named `employee_milestones` (table + model), deliberately distinct from
@@ -18,6 +19,7 @@ already-shipped Projects API (POST/GET /projects/{id}/milestones) is
 built against and tested -- a real, avoidable break for something that
 is conceptually a different feature. Flagged, not guessed at.
 """
+import logging
 import uuid
 
 from sqlalchemy import Column, Date, DateTime, Enum, ForeignKey, Integer, String, Text, func
@@ -28,22 +30,22 @@ MILESTONE_TYPES = ("PERSONAL", "PROJECT", "ORG")
 MILESTONE_STATUSES = ("PENDING", "IN_PROGRESS", "COMPLETED", "OVERDUE", "CANCELLED", "EXTENDED")
 OPEN_MILESTONE_STATUSES = ("PENDING", "IN_PROGRESS")
 
-
 def _new_uuid() -> str:
     return str(uuid.uuid4())
 
+logger = logging.getLogger(__name__)
 
 class EmployeeMilestone(Base):
     __tablename__ = "employee_milestones"
 
-    id = Column(String(36), primary_key=True, default=_new_uuid)
+    id = Column(String(512), primary_key=True, default=_new_uuid)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
 
     # Nullable per the doc's own note: null for PERSONAL/ORG (no project
     # tie), null for PROJECT-level on employee_id (a project checkpoint
     # isn't owned by one person).
-    project_id = Column(String(36), ForeignKey("projects.id"), nullable=True, index=True)
-    employee_id = Column(String(36), ForeignKey("employees.id"), nullable=True, index=True)
+    project_id = Column(String(512), ForeignKey("projects.id"), nullable=True, index=True)
+    employee_id = Column(String(512), ForeignKey("employees.id"), nullable=True, index=True)
 
     milestone_type = Column(
         Enum(*MILESTONE_TYPES, name="employee_milestone_type", native_enum=False, create_constraint=True),
@@ -60,6 +62,6 @@ class EmployeeMilestone(Base):
         nullable=False, default="PENDING",
     )
     completion_notes = Column(Text, nullable=True)
-    set_by = Column(String(50), nullable=True)
+    set_by = Column(String(512), nullable=True)
 
     created_at = Column(DateTime, server_default=func.now())

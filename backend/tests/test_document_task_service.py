@@ -4,6 +4,7 @@ a document reopens/creates a real Task marked pending on the candidate;
 approving it closes that Task. Throwaway SQLite -- never the real database.
 """
 import os
+import logging
 import tempfile
 
 import pytest
@@ -17,7 +18,6 @@ from app.models.task import Task
 from app.models.user import Users
 
 import app.services.document_task_service as svc
-
 
 @pytest.fixture()
 def db_session():
@@ -34,7 +34,6 @@ def db_session():
         session.close()
         engine.dispose()
         os.remove(db_path)
-
 
 @pytest.fixture()
 def candidate_and_document(db_session):
@@ -54,7 +53,6 @@ def candidate_and_document(db_session):
     db_session.commit()
     return candidate, document
 
-
 def test_reject_creates_a_pending_task(db_session, candidate_and_document):
     _, document = candidate_and_document
     svc.sync_task_for_document_decision(db_session, document, "Rejected", "U-HR", reason="Blurry scan")
@@ -66,13 +64,11 @@ def test_reject_creates_a_pending_task(db_session, candidate_and_document):
     assert "PAN Card" in task.title
     assert "Blurry scan" in task.description
 
-
 def test_approve_with_no_prior_rejection_creates_no_task(db_session, candidate_and_document):
     _, document = candidate_and_document
     svc.sync_task_for_document_decision(db_session, document, "Verified", "U-HR")
 
     assert db_session.query(Task).filter(Task.document_id == document.id).count() == 0
-
 
 def test_approve_after_rejection_closes_the_task(db_session, candidate_and_document):
     _, document = candidate_and_document
@@ -82,7 +78,6 @@ def test_approve_after_rejection_closes_the_task(db_session, candidate_and_docum
     task = db_session.query(Task).filter(Task.document_id == document.id).first()
     assert task.status == "COMPLETED"
     assert task.completed_at is not None
-
 
 def test_second_rejection_reopens_the_same_task_not_a_duplicate(db_session, candidate_and_document):
     _, document = candidate_and_document
@@ -99,13 +94,11 @@ def test_second_rejection_reopens_the_same_task_not_a_duplicate(db_session, cand
     assert tasks[0].completed_at is None
     assert "Wrong document type" in tasks[0].description
 
-
 def test_pending_decision_is_a_no_op(db_session, candidate_and_document):
     _, document = candidate_and_document
     svc.sync_task_for_document_decision(db_session, document, "Pending", "U-HR")
 
     assert db_session.query(Task).count() == 0
-
 
 def test_never_raises_on_missing_candidate(db_session, candidate_and_document):
     """Fail-soft, not fail-closed -- the document's own verification

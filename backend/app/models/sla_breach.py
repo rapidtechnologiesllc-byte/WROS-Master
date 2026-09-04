@@ -1,4 +1,5 @@
 """
+import logging
 S-020/HRMS-0420 -- Engagement SLA Monitoring.
 
 candidate_sla_breaches: a real, new, queryable-and-resolvable ledger --
@@ -13,6 +14,7 @@ Uses this codebase's real Integer-autoincrement PK + String(50)
 UserID-as-tenant_id conventions (CandidateConversation, ConversationEvent,
 MessageTemplate all do this), not the spec's UUID assumption.
 """
+import logging
 from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, func
 from sqlalchemy.orm import relationship
 
@@ -20,17 +22,18 @@ from app.models.base import Base
 
 SLA_TYPES = ("FIRST_CONTACT", "RESPONSE_TIME", "NO_CONTACT")
 
+logger = logging.getLogger(__name__)
 
 class CandidateSLABreach(Base):
     __tablename__ = "candidate_sla_breaches"
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
 
-    tenant_id = Column(String(50), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=False, index=True)
-    candidate_id = Column(String(36), ForeignKey("candidates.candidateID", ondelete="CASCADE"), nullable=False, index=True)
+    tenant_id = Column(String(512), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=False, index=True)
+    candidate_id = Column(String(512), ForeignKey("candidates.candidateID", ondelete="CASCADE"), nullable=False, index=True)
     conversation_id = Column(Integer, ForeignKey("candidate_conversations.id", ondelete="CASCADE"), nullable=False, index=True)
 
-    sla_type = Column(String(50), nullable=False)
+    sla_type = Column(String(512), nullable=False)
     breached_at = Column(DateTime(timezone=False), nullable=False)
     resolved_at = Column(DateTime(timezone=False), nullable=True)
     is_resolved = Column(Boolean, nullable=False, server_default="0")

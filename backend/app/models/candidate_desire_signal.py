@@ -1,4 +1,5 @@
 """
+import logging
 S-347/HRMS-P117 -- Candidate Desire Intelligence Engine.
 
 candidate_desire_signals: a real, new, queryable ledger of every
@@ -19,6 +20,7 @@ marked processed=True at insert time by desire_signal_service, never
 queued for the LLM SignalProcessingJob. Every other source is inserted
 unprocessed and picked up by that job.
 """
+import logging
 from sqlalchemy import Column, DateTime, Float, ForeignKey, Index, Integer, String, JSON, Boolean, Text, func
 from sqlalchemy.orm import relationship
 
@@ -34,14 +36,15 @@ DESIRE_CATEGORIES = (
 )
 DESIRE_DIRECTIONS = ("TOWARDS", "AWAY_FROM")
 
+logger = logging.getLogger(__name__)
 
 class CandidateDesireSignal(Base):
     __tablename__ = "candidate_desire_signals"
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
 
-    tenant_id = Column(String(50), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=False, index=True)
-    candidate_id = Column(String(36), ForeignKey("candidates.candidateID", ondelete="CASCADE"), nullable=False, index=True)
+    tenant_id = Column(String(512), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=False, index=True)
+    candidate_id = Column(String(512), ForeignKey("candidates.candidateID", ondelete="CASCADE"), nullable=False, index=True)
 
     signal_source = Column(String(30), nullable=False)  # see SIGNAL_SOURCES
     signal_data = Column(JSON, nullable=False)

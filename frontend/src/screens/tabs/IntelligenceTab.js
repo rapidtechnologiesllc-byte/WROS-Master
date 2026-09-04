@@ -3,14 +3,17 @@
 // to everyone who can see the candidate (candidate.view, same as every
 // other tab) -- NOT the spec's literal "HR/Director only" restriction.
 // Editing (regenerating the narrative/talking points) is restricted to
-// Partner/BU Head/HR Manager/Super User server-side
-// (candidate.desire_intelligence.edit); the Refresh button below is
-// hidden for everyone else as a UX courtesy, the real gate is the API.
+// users with 'candidate.desire_intelligence.edit' permission
+// (assigned by role templates: Partner, BU Head, HR Manager, Super User)
+// The Refresh button below is hidden for everyone else as a UX courtesy,
+// the real gate is the API (permission-driven, not hardcoded role names).
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "react-toastify";
 import { getDesireIntelligence, refreshDesireIntelligence } from "../../services/api/desireIntelligence";
+import { hasPermission } from "../../utils/permissionsRbac";
 
-const CAN_EDIT_ROLES = ["Super User", "Partner", "BU Head", "HR Manager"];
+// REMOVED: CAN_EDIT_ROLES hardcoded list
+// Now using permission-based check: hasPermission('candidate.desire_intelligence.edit')
 
 const CATEGORY_LABELS = {
   CAREER_GROWTH: "Career Growth",
@@ -83,7 +86,8 @@ export default function IntelligenceTab({ candidateId, currentRole }) {
   const [error, setError] = useState("");
   const [refreshing, setRefreshing] = useState(false);
 
-  const canEdit = CAN_EDIT_ROLES.includes(currentRole);
+  // RBAC-driven: Check permission instead of hardcoded role names
+  const canEdit = hasPermission('candidate.desire_intelligence.edit');
 
   const load = useCallback(async () => {
     if (!candidateId) return;
@@ -200,7 +204,7 @@ export default function IntelligenceTab({ candidateId, currentRole }) {
         ) : (
           <div className="text-sm text-gray-500">
             No briefing generated yet.{" "}
-            {canEdit ? "Click Refresh to generate one." : "Ask a BU Head, Partner, HR Manager, or Super User to generate one."}
+            {canEdit ? "Click Refresh to generate one." : "Contact your manager to generate a briefing."}
           </div>
         )}
       </SectionCard>

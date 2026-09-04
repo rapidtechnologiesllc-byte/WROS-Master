@@ -1,3 +1,4 @@
+import logging
 """add bu_revenue_targets + partner_goals (S-267 + CEO-set PartnerGoal)
 
 Revision ID: b5d7f9a1c3e5
@@ -22,12 +23,10 @@ from typing import Sequence, Union
 from alembic import op
 import sqlalchemy as sa
 
-
 revision: str = 'b5d7f9a1c3e5'
 down_revision: Union[str, Sequence[str], None] = 'a3c5e7f9b1d3'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
-
 
 def upgrade() -> None:
     """Upgrade schema."""
@@ -76,7 +75,6 @@ def upgrade() -> None:
     )
     op.create_index(op.f('ix_partner_goals_tenant_id'), 'partner_goals', ['tenant_id'], unique=False)
     op.create_index(op.f('ix_partner_goals_partner_user_id'), 'partner_goals', ['partner_user_id'], unique=False)
-
 
 def downgrade() -> None:
     """Downgrade schema."""

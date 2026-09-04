@@ -1,3 +1,5 @@
+import logging
+from app.core.logging import logger
 ﻿"""BU Head Dashboard Service - Real data aggregation for Business Unit leadership."""
 
 from sqlalchemy.orm import Session
@@ -9,6 +11,7 @@ from app.models.project import Project
 from app.models.business_unit import BusinessUnit
 from datetime import datetime, timedelta
 
+logger = logging.getLogger(__name__)
 
 class BUHeadDashboardService:
     """Aggregates real data for BU Head dashboard visibility."""

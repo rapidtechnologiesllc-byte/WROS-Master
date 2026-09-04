@@ -3,6 +3,7 @@ S-220 (Create Weekly Timesheet) + S-221 (Timesheet Validation &
 Submission Lock) + S-222 (Manager Approval) — API Endpoints
 =========================================================================
 Prefix: /timesheets
+import logging
 Tag:    timesheets
 
 Wires app.services.timesheet_service (HRMS-0901/HRMS-0902 -- real,
@@ -12,7 +13,7 @@ Avinash's stated MVP chain (candidate -> ... -> assign project -> time
 tracking -> resource management) -- without this, an allocated employee
 had no way to log hours through the app.
 
-Auth: get_current_hr_or_admin, same posture as every endpoint this
+Auth: get_current_internal_user, same posture as every endpoint this
 program. Role-gating note, carried over honestly from timesheet_
 service.py's own module docstring rather than silently invented: HRMS-
 0902 BR-01 says "only RM/Admin may approve" a timesheet, but no "RM"
@@ -57,7 +58,11 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_hr_or_admin
+from app.core.dependencies import get_current_internal_user, require_role_template_permission
+from app.core.permission_registry import Permissions
+import logging
+
+logger = logging.getLogger(__name__)
 from app.models.employee import Employee
 from app.models.employee_allocation import EmployeeAllocation
 from app.models.timesheet import Timesheet, TimesheetEntry
@@ -81,6 +86,7 @@ from app.schemas.timesheet import (
     TimesheetListResponse,
     UpsertEntriesRequest,
 )
+from app.services.message_queue_service import MessageQueueService
 from app.services.timesheet_anomaly_service import (
     get_anomaly_flags_for_timesheet,
     scan_timesheet_anomalies,
@@ -108,7 +114,6 @@ from app.services.timesheet_service import (
 )
 
 router = APIRouter(prefix="/timesheets", tags=["timesheets"])
-
 
 def _to_item(db: Session, timesheet: Timesheet) -> TimesheetItem:
     employee = db.query(Employee).filter(Employee.id == timesheet.employee_id).first()
@@ -144,19 +149,22 @@ def _to_item(db: Session, timesheet: Timesheet) -> TimesheetItem:
         ],
     )
 
-
 def _get_timesheet_or_404(db: Session, timesheet_id: str) -> Timesheet:
     timesheet = db.query(Timesheet).filter(Timesheet.id == timesheet_id).first()
     if timesheet is None:
         raise HTTPException(status_code=404, detail="Timesheet not found.")
     return timesheet
 
-
-@router.post("/weekly-draft", response_model=TimesheetItem, summary="Create (or return existing) a weekly timesheet draft")
+@router.post(
+    "/weekly-draft",
+    response_model=TimesheetItem,
+    summary="Create (or return existing) a weekly timesheet draft",
+    dependencies=[Depends(require_role_template_permission(*Permissions.TIMESHEETS_CREATE))]
+)
 def create_draft(
     body: CreateWeeklyDraftRequest,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     allocation = db.query(EmployeeAllocation).filter(EmployeeAllocation.id == body.allocation_id).first()
     if allocation is None:
@@ -170,17 +178,39 @@ def create_draft(
         raise HTTPException(status_code=409, detail=str(exc))
     except InvalidTimesheetEntry as exc:
         raise HTTPException(status_code=422, detail=str(exc))
-    db.commit()
-    db.refresh(timesheet)
+
+    try:
+        MessageQueueService.enqueue(
+            message_type="timesheet_created",
+            payload={
+                "timesheet_id": timesheet.id,
+                "employee_id": timesheet.employee_id,
+                "week_starting": str(timesheet.week_starting_date),
+                "status": timesheet.status,
+            },
+            resource_id=timesheet.id,
+            queue_type="DASHBOARD_QUEUE",
+            created_by=current_user.UserID,
+            db=db,
+        )
+        db.refresh(timesheet)
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Failed to create timesheet {timesheet.id}: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to create timesheet: {str(e)}")
     return _to_item(db, timesheet)
 
-
-@router.put("/{timesheet_id}/entries", response_model=TimesheetItem, summary="Upsert daily entries for a timesheet")
+@router.put(
+    "/{timesheet_id}/entries",
+    response_model=TimesheetItem,
+    summary="Upsert daily entries for a timesheet",
+    dependencies=[Depends(require_role_template_permission(*Permissions.TIMESHEETS_EDIT))]
+)
 def upsert_timesheet_entries(
     timesheet_id: str,
     body: UpsertEntriesRequest,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     timesheet = _get_timesheet_or_404(db, timesheet_id)
     entries = [e.model_dump() for e in body.entries]
@@ -190,16 +220,38 @@ def upsert_timesheet_entries(
         raise HTTPException(status_code=409, detail=str(exc))
     except InvalidTimesheetEntry as exc:
         raise HTTPException(status_code=422, detail=str(exc))
-    db.commit()
-    db.refresh(timesheet)
-    return _to_item(db, timesheet)
 
+    try:
+        MessageQueueService.enqueue(
+            message_type="timesheet_entries_updated",
+            payload={
+                "timesheet_id": timesheet.id,
+                "employee_id": timesheet.employee_id,
+                "entries_count": len(entries),
+                "status": timesheet.status,
+            },
+            resource_id=timesheet.id,
+            queue_type="DASHBOARD_QUEUE",
+            created_by=current_user.UserID,
+            db=db,
+        )
+        db.refresh(timesheet)
+        return _to_item(db, timesheet)
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Failed to update timesheet entries {timesheet.id}: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to update timesheet: {str(e)}")
 
-@router.post("/{timesheet_id}/submit", response_model=TimesheetItem, summary="Submit a draft timesheet")
+@router.post(
+    "/{timesheet_id}/submit",
+    response_model=TimesheetItem,
+    summary="Submit a draft timesheet",
+    dependencies=[Depends(require_role_template_permission(*Permissions.TIMESHEETS_VIEW))]
+)
 def submit(
     timesheet_id: str,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     timesheet = _get_timesheet_or_404(db, timesheet_id)
     try:
@@ -210,33 +262,78 @@ def submit(
         raise HTTPException(status_code=422, detail=str(exc))
     except StaleTimesheetSubmission as exc:
         raise HTTPException(status_code=409, detail=str(exc))
-    db.commit()
-    db.refresh(timesheet)
-    return _to_item(db, timesheet)
 
+    try:
+        # Queue timesheet_submitted for manager dashboard & commission recalculation
+        MessageQueueService.enqueue(
+            message_type="timesheet_submitted",
+            payload={
+                "timesheet_id": timesheet_id,
+                "employee_id": timesheet.employee_id,
+                "week_of": str(timesheet.week_of),
+                "total_hours": sum(e.hours_logged or 0 for e in timesheet.entries) if timesheet.entries else 0,
+                "submitted_by": current_user.UserID,
+            },
+            resource_id=timesheet_id,
+            queue_type="DASHBOARD_QUEUE",
+            created_by=current_user.UserID,
+            db=db,
+        )
+        db.refresh(timesheet)
+        return _to_item(db, timesheet)
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Failed to submit timesheet {timesheet_id}: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to submit timesheet: {str(e)}")
 
-@router.post("/{timesheet_id}/approve", response_model=TimesheetItem, summary="Approve a submitted timesheet")
+@router.post(
+    "/{timesheet_id}/approve",
+    response_model=TimesheetItem,
+    summary="Approve a submitted timesheet",
+    dependencies=[Depends(require_role_template_permission(*Permissions.TIMESHEETS_EDIT))]
+)
 def approve(
     timesheet_id: str,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     timesheet = _get_timesheet_or_404(db, timesheet_id)
     try:
         timesheet = approve_timesheet(db, timesheet, approved_by=current_user.UserID)
     except InvalidTimesheetTransition as exc:
         raise HTTPException(status_code=409, detail=str(exc))
-    db.commit()
-    db.refresh(timesheet)
-    return _to_item(db, timesheet)
 
+    try:
+        MessageQueueService.enqueue(
+            message_type="timesheet_approved",
+            payload={
+                "timesheet_id": timesheet_id,
+                "employee_id": timesheet.employee_id,
+                "approved_by": current_user.UserID,
+            },
+            resource_id=timesheet_id,
+            queue_type="DASHBOARD_QUEUE",
+            created_by=current_user.UserID,
+            db=db,
+        )
+        db.refresh(timesheet)
+        return _to_item(db, timesheet)
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Failed to approve timesheet {timesheet_id}: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to approve timesheet: {str(e)}")
 
-@router.post("/{timesheet_id}/reject", response_model=TimesheetItem, summary="Reject a submitted timesheet")
+@router.post(
+    "/{timesheet_id}/reject",
+    response_model=TimesheetItem,
+    summary="Reject a submitted timesheet",
+    dependencies=[Depends(require_role_template_permission(*Permissions.TIMESHEETS_EDIT))]
+)
 def reject(
     timesheet_id: str,
     body: RejectTimesheetRequest,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     timesheet = _get_timesheet_or_404(db, timesheet_id)
     try:
@@ -245,48 +342,114 @@ def reject(
         raise HTTPException(status_code=409, detail=str(exc))
     except InvalidTimesheetEntry as exc:
         raise HTTPException(status_code=422, detail=str(exc))
-    db.commit()
-    db.refresh(timesheet)
-    return _to_item(db, timesheet)
 
+    try:
+        MessageQueueService.enqueue(
+            message_type="timesheet_rejected",
+            payload={
+                "timesheet_id": timesheet_id,
+                "employee_id": timesheet.employee_id,
+                "rejection_reason": body.reason,
+                "rejected_by": current_user.UserID,
+            },
+            resource_id=timesheet_id,
+            queue_type="DASHBOARD_QUEUE",
+            created_by=current_user.UserID,
+            db=db,
+        )
+        db.refresh(timesheet)
+        return _to_item(db, timesheet)
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Failed to reject timesheet {timesheet_id}: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to reject timesheet: {str(e)}")
 
-@router.post("/{timesheet_id}/reopen", response_model=TimesheetItem, summary="Reopen a rejected timesheet for editing")
+@router.post(
+    "/{timesheet_id}/reopen",
+    response_model=TimesheetItem,
+    summary="Reopen a rejected timesheet for editing",
+    dependencies=[Depends(require_role_template_permission(*Permissions.TIMESHEETS_EDIT))]
+)
 def reopen(
     timesheet_id: str,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     timesheet = _get_timesheet_or_404(db, timesheet_id)
     try:
         timesheet = reopen_for_editing(db, timesheet)
     except InvalidTimesheetTransition as exc:
         raise HTTPException(status_code=409, detail=str(exc))
-    db.commit()
-    db.refresh(timesheet)
-    return _to_item(db, timesheet)
 
+    try:
+        MessageQueueService.enqueue(
+            message_type="timesheet_reopened",
+            payload={
+                "timesheet_id": timesheet_id,
+                "employee_id": timesheet.employee_id,
+                "reopened_by": current_user.UserID,
+            },
+            resource_id=timesheet_id,
+            queue_type="DASHBOARD_QUEUE",
+            created_by=current_user.UserID,
+            db=db,
+        )
+        db.refresh(timesheet)
+        return _to_item(db, timesheet)
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Failed to reopen timesheet {timesheet_id}: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to reopen timesheet: {str(e)}")
 
-@router.post("/bulk-approve", response_model=BulkApproveResponse, summary="Approve multiple submitted timesheets at once")
+@router.post(
+    "/bulk-approve",
+    response_model=BulkApproveResponse,
+    summary="Approve multiple submitted timesheets at once",
+    dependencies=[Depends(require_role_template_permission(*Permissions.TIMESHEETS_EDIT))]
+)
 def bulk_approve_endpoint(
     body: BulkApproveRequest,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     timesheets = db.query(Timesheet).filter(Timesheet.id.in_(body.timesheet_ids)).all()
     result = bulk_approve(db, timesheets, approved_by=current_user.UserID)
-    db.commit()
-    return BulkApproveResponse(
-        approved=result["approved"],
-        failed=[BulkApproveFailure(**f) for f in result["failed"]],
-    )
 
+    try:
+        # Queue approval for each approved timesheet
+        for approved_id in result.get("approved", []):
+            MessageQueueService.enqueue(
+                message_type="timesheet_approved",
+                payload={
+                    "timesheet_id": approved_id,
+                    "approved_by": current_user.UserID,
+                    "bulk_approve": True,
+                },
+                resource_id=approved_id,
+                queue_type="DASHBOARD_QUEUE",
+                created_by=current_user.UserID,
+                db=db,
+            )
+        return BulkApproveResponse(
+            approved=result["approved"],
+            failed=[BulkApproveFailure(**f) for f in result["failed"]],
+        )
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Failed to bulk approve timesheets: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to approve timesheets: {str(e)}")
 
-@router.get("", response_model=TimesheetListResponse, summary="List timesheets")
+@router.get(
+    "",
+    response_model=TimesheetListResponse,
+    summary="List timesheets",
+    dependencies=[Depends(require_role_template_permission(*Permissions.TIMESHEETS_VIEW))]
+)
 def list_timesheets(
     employee_id: Optional[str] = None,
     status: Optional[str] = None,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     query = db.query(Timesheet).filter(Timesheet.tenant_id == current_user.tenant_id)
     if employee_id:
@@ -296,16 +459,19 @@ def list_timesheets(
     timesheets = query.order_by(Timesheet.week_starting_date.desc()).all()
     return TimesheetListResponse(timesheets=[_to_item(db, t) for t in timesheets])
 
-
-@router.get("/{timesheet_id}", response_model=TimesheetItem, summary="Get one timesheet with entries")
+@router.get(
+    "/{timesheet_id}",
+    response_model=TimesheetItem,
+    summary="Get one timesheet with entries",
+    dependencies=[Depends(require_role_template_permission(*Permissions.TIMESHEETS_VIEW))]
+)
 def get_timesheet(
     timesheet_id: str,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     timesheet = _get_timesheet_or_404(db, timesheet_id)
     return _to_item(db, timesheet)
-
 
 # ---------------------------------------------------------------------------
 # S-229/HRMS-0910 -- Anomaly Detection (advisory only, never blocks anything)
@@ -317,35 +483,53 @@ def _flag_to_item(flag: TimesheetAnomalyFlag) -> AnomalyFlagItem:
         anomaly_type=flag.anomaly_type, detected_at=flag.detected_at,
     )
 
-
 @router.post(
-    "/{timesheet_id}/scan-anomalies", response_model=AnomalyFlagsResponse,
+    "/{timesheet_id}/scan-anomalies",
+    response_model=AnomalyFlagsResponse,
+    dependencies=[Depends(require_role_template_permission(*Permissions.TIMESHEETS_VIEW))],
     summary="Run anomaly detection for a timesheet (advisory only, idempotent)",
 )
 def scan_anomalies(
     timesheet_id: str,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     timesheet = _get_timesheet_or_404(db, timesheet_id)
     flags = scan_timesheet_anomalies(db, timesheet)
-    db.commit()
-    return AnomalyFlagsResponse(flags=[_flag_to_item(f) for f in flags])
 
+    try:
+        MessageQueueService.enqueue(
+            message_type="timesheet_anomalies_scanned",
+            payload={
+                "timesheet_id": timesheet_id,
+                "employee_id": timesheet.employee_id,
+                "flags_count": len(flags),
+            },
+            resource_id=timesheet_id,
+            queue_type="DASHBOARD_QUEUE",
+            created_by=current_user.UserID,
+            db=db,
+        )
+        return AnomalyFlagsResponse(flags=[_flag_to_item(f) for f in flags])
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Failed to scan timesheet anomalies {timesheet_id}: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to scan anomalies: {str(e)}")
 
 @router.get(
-    "/{timesheet_id}/anomalies", response_model=AnomalyFlagsResponse,
+    "/{timesheet_id}/anomalies",
+    response_model=AnomalyFlagsResponse,
+    dependencies=[Depends(require_role_template_permission(*Permissions.TIMESHEETS_VIEW))],
     summary="Get existing anomaly flags for a timesheet",
 )
 def get_anomalies(
     timesheet_id: str,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     timesheet = _get_timesheet_or_404(db, timesheet_id)
     flags = get_anomaly_flags_for_timesheet(db, timesheet)
     return AnomalyFlagsResponse(flags=[_flag_to_item(f) for f in flags])
-
 
 # ---------------------------------------------------------------------------
 # Timesheet Dispute Resolution (canonical ID collision -- see module docstring)
@@ -362,16 +546,17 @@ def _dispute_to_item(dispute: TimesheetDispute) -> DisputeItem:
         adjusted_hours=float(dispute.adjusted_hours) if dispute.adjusted_hours is not None else None,
     )
 
-
 @router.post(
-    "/{timesheet_id}/disputes", response_model=DisputeItem,
+    "/{timesheet_id}/disputes",
+    response_model=DisputeItem,
+    dependencies=[Depends(require_role_template_permission(*Permissions.TIMESHEETS_EDIT))],
     summary="Raise a dispute against an approved timesheet",
 )
 def create_dispute(
     timesheet_id: str,
     body: RaiseDisputeRequest,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     timesheet = _get_timesheet_or_404(db, timesheet_id)
     try:
@@ -382,19 +567,39 @@ def create_dispute(
         )
     except DisputeValidationError as exc:
         raise HTTPException(status_code=422, detail=str(exc))
-    db.commit()
-    db.refresh(dispute)
-    return _dispute_to_item(dispute)
 
+    try:
+        MessageQueueService.enqueue(
+            message_type="dispute_raised",
+            payload={
+                "dispute_id": dispute.id,
+                "timesheet_id": timesheet_id,
+                "raised_by": body.raised_by,
+                "reason": body.reason,
+                "disputed_hours": float(body.disputed_hours) if body.disputed_hours else None,
+            },
+            resource_id=dispute.id,
+            queue_type="DASHBOARD_QUEUE",
+            created_by=current_user.UserID,
+            db=db,
+        )
+        db.refresh(dispute)
+        return _dispute_to_item(dispute)
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Failed to create dispute for timesheet {timesheet_id}: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to raise dispute: {str(e)}")
 
 @router.get(
-    "/{timesheet_id}/disputes", response_model=DisputeListResponse,
+    "/{timesheet_id}/disputes",
+    response_model=DisputeListResponse,
+    dependencies=[Depends(require_role_template_permission(*Permissions.TIMESHEETS_VIEW))],
     summary="List disputes for a timesheet",
 )
 def list_disputes(
     timesheet_id: str,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     _get_timesheet_or_404(db, timesheet_id)
     disputes = (
@@ -405,16 +610,17 @@ def list_disputes(
     )
     return DisputeListResponse(disputes=[_dispute_to_item(d) for d in disputes])
 
-
 @router.post(
-    "/disputes/{dispute_id}/resolve", response_model=DisputeItem,
+    "/disputes/{dispute_id}/resolve",
+    response_model=DisputeItem,
+    dependencies=[Depends(require_role_template_permission(*Permissions.TIMESHEETS_EDIT))],
     summary="Resolve a dispute (ADJUSTED or CONFIRMED) -- never mutates the original timesheet",
 )
 def resolve_dispute_endpoint(
     dispute_id: str,
     body: ResolveDisputeRequest,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     dispute = db.query(TimesheetDispute).filter(TimesheetDispute.id == dispute_id).first()
     if dispute is None:
@@ -430,16 +636,38 @@ def resolve_dispute_endpoint(
         raise HTTPException(status_code=422, detail=str(exc))
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc))
-    db.commit()
-    db.refresh(dispute)
-    return _dispute_to_item(dispute)
 
+    try:
+        MessageQueueService.enqueue(
+            message_type="dispute_resolved",
+            payload={
+                "dispute_id": dispute_id,
+                "timesheet_id": dispute.timesheet_id,
+                "resolution": body.resolution,
+                "resolution_notes": body.resolution_notes,
+                "adjusted_hours": float(body.adjusted_hours) if body.adjusted_hours else None,
+            },
+            resource_id=dispute_id,
+            queue_type="DASHBOARD_QUEUE",
+            created_by=current_user.UserID,
+            db=db,
+        )
+        db.refresh(dispute)
+        return _dispute_to_item(dispute)
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Failed to resolve dispute {dispute_id}: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to resolve dispute: {str(e)}")
 
-@router.post("/nag-cascade/run", summary="EPIC-16 Timesheet Nag Cascade: scan + nag for one week")
+@router.post(
+    "/nag-cascade/run",
+    summary="EPIC-16 Timesheet Nag Cascade: scan + nag for one week",
+    dependencies=[Depends(require_role_template_permission(*Permissions.TIMESHEETS_EDIT))]
+)
 def run_timesheet_nag_cascade(
     week_starting_date: str,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     """Not wired to a scheduler -- same posture as every other
     scheduled-job function in this codebase (a cron would call this

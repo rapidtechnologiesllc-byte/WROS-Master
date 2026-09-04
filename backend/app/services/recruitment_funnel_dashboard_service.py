@@ -1,4 +1,5 @@
 """
+import logging
 Recruitment Funnel Dashboard - Real-time visibility into Phase 1 agent effectiveness.
 
 Shows the complete candidate journey through our autonomous hiring pipeline:
@@ -14,17 +15,19 @@ Metrics tracked:
 This is the ONLY dashboard that answers: "Are Phase 1 agents working?"
 """
 
+import logging
 from datetime import datetime, timedelta
 from typing import Dict, Any, List, Optional
 from sqlalchemy.orm import Session
 from sqlalchemy import func, and_, or_
 
 from app.models.candidate import Candidate
-from app.models.interview import Interview
 from app.models.offer_letter import OfferLetter
 from app.models.employee import Employee
 from app.models.business_unit import BusinessUnit
+from app.core.logging import logger
 
+logger = logging.getLogger(__name__)
 
 class RecruitmentFunnelDashboard:
     """Real-time recruitment funnel showing all 5 pillars."""

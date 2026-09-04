@@ -1,3 +1,4 @@
+import logging
 """Service Helper Functions - Shared utilities for service layer.
 
 Provides database-driven helper for getting users by permission.
@@ -7,9 +8,8 @@ Used by all service layer files to replace hardcoded role filters.
 from typing import List
 from sqlalchemy.orm import Session
 
-from app.models.user import Users, UserRole
+from app.models.user import Users
 from app.models.role_template import RoleTemplate, RoleTemplateModuleAccess, Module
-
 
 def get_users_with_permission(permission: str, db: Session, tenant_id: int = 1) -> List[Users]:
     """Get all users who have a specific permission via role templates.
@@ -28,9 +28,7 @@ def get_users_with_permission(permission: str, db: Session, tenant_id: int = 1) 
     resource, action = permission.lower().split('.', 1)
 
     return db.query(Users).join(
-        UserRole, Users.UserID == UserRole.user_id
-    ).join(
-        RoleTemplate, UserRole.role_template_id == RoleTemplate.id
+        RoleTemplate, Users.role_template_id == RoleTemplate.id
     ).join(
         RoleTemplateModuleAccess, RoleTemplate.id == RoleTemplateModuleAccess.role_template_id
     ).join(
@@ -40,7 +38,6 @@ def get_users_with_permission(permission: str, db: Session, tenant_id: int = 1) 
         RoleTemplateModuleAccess.access_level == action,
         Users.tenant_id == tenant_id
     ).distinct().all()
-
 
 def get_users_with_any_permission(permissions: List[str], db: Session, tenant_id: int = 1) -> List[Users]:
     """Get all users who have ANY of the given permissions.

@@ -1,14 +1,17 @@
 """
+import logging
 FOCUSED REGRESSION TEST: Trace Candidate → Invoicing Workflow
 
 This test follows a candidate through the entire hiring pipeline
 and shows exactly what breaks or fails at each stage.
 """
 
+import logging
 import pytest
 from datetime import datetime, date, timedelta
 from sqlalchemy.orm import Session
 
+logger = logging.getLogger(__name__)
 
 class TestCandidateToInvoicingWorkflow:
     """Complete workflow: Candidate → Job → Interview → Offer → Employee → Allocation → Timesheet → Invoice"""
@@ -34,6 +37,7 @@ class TestCandidateToInvoicingWorkflow:
             )
             print(f"✓ Candidate created: {candidate.candidateID}")
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             print(f"✗ FAILED TO CREATE CANDIDATE: {e}")
             print(f"  Issue: createCandidateSafe not properly implemented or missing tenant")
             return
@@ -55,6 +59,7 @@ class TestCandidateToInvoicingWorkflow:
             db.commit()
             print(f"✓ Candidate assigned to job: {job.jobID}")
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             print(f"✗ FAILED TO ASSIGN JOB: {e}")
             return
 
@@ -75,6 +80,7 @@ class TestCandidateToInvoicingWorkflow:
             db.commit()
             print(f"✓ Interview scheduled: {interview.id}")
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             print(f"✗ FAILED TO SCHEDULE INTERVIEW: {e}")
             print(f"  Issue: {type(e).__name__} - {str(e)[:100]}")
 
@@ -95,6 +101,7 @@ class TestCandidateToInvoicingWorkflow:
             db.commit()
             print(f"✓ Offer created: {offer.id}")
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             print(f"✗ FAILED TO CREATE OFFER: {e}")
             print(f"  Issue: {type(e).__name__} - {str(e)[:100]}")
             return
@@ -119,6 +126,7 @@ class TestCandidateToInvoicingWorkflow:
             db.commit()
             print(f"✓ Employee created: {employee.id}")
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             print(f"✗ FAILED TO CREATE EMPLOYEE: {e}")
             print(f"  Issue: {type(e).__name__} - {str(e)[:100]}")
             print(f"  Root cause: bu_context_id may not exist or not nullable")
@@ -156,6 +164,7 @@ class TestCandidateToInvoicingWorkflow:
             db.commit()
             print(f"✓ Allocation created: {allocation.id}")
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             print(f"✗ FAILED TO CREATE ALLOCATION: {e}")
             print(f"  Issue: {type(e).__name__} - {str(e)[:100]}")
             return
@@ -181,6 +190,7 @@ class TestCandidateToInvoicingWorkflow:
             db.commit()
             print(f"✓ Timesheet created: {timesheet.id}")
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             print(f"✗ FAILED TO CREATE TIMESHEET: {e}")
             print(f"  Issue: {type(e).__name__} - {str(e)[:100]}")
             print(f"  Root cause: bu_context_id or allocation_id may not be valid")
@@ -208,6 +218,7 @@ class TestCandidateToInvoicingWorkflow:
             print(f"✓ Invoice created: {invoice.id}")
             print(f"  Amount: ${invoice.total_usd_cents / 100:.2f}")
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             print(f"✗ FAILED TO CREATE INVOICE: {e}")
             print(f"  Issue: {type(e).__name__} - {str(e)[:100]}")
             return
@@ -223,7 +234,6 @@ class TestCandidateToInvoicingWorkflow:
         print(f"  Timesheet ID: {timesheet.id}")
         print(f"  Invoice ID: {invoice.id}")
         print(f"  Invoice Amount: ${invoice.total_usd_cents / 100:.2f}")
-
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "-s"])

@@ -11,8 +11,10 @@ from app.models.offer import Offer, OfferStatus
 from app.models.candidate import Candidate
 from app.models.user import Users, Jobs
 from app.core.logging import logger
+import logging
 import uuid
 
+logger = logging.getLogger(__name__)
 
 class OfferManagementService:
     """Manages offer creation, approval, sending, and acceptance."""
@@ -117,6 +119,7 @@ class OfferManagementService:
             logger.error(f"Database error creating offer: {str(e)}")
             return {"status": "error", "message": f"Database error: {str(e)}"}
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             db.rollback()
             logger.error(f"Unexpected error creating offer: {str(e)}")
             return {"status": "error", "message": f"Unexpected error: {str(e)}"}
@@ -190,11 +193,12 @@ class OfferManagementService:
             logger.error(f"Database error approving offer {offer_id}: {str(e)}")
             return {"status": "error", "message": f"Database error: {str(e)}"}
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             db.rollback()
             logger.error(f"Unexpected error approving offer {offer_id}: {str(e)}")
             return {"status": "error", "message": f"Unexpected error: {str(e)}"}
 
-    def send_offer_to_candidate(
+            def send_offer_to_candidate(
         self,
         db: Session,
         offer_id: str,
@@ -260,11 +264,12 @@ class OfferManagementService:
             logger.error(f"Database error sending offer {offer_id}: {str(e)}")
             return {"status": "error", "message": f"Database error: {str(e)}"}
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             db.rollback()
             logger.error(f"Unexpected error sending offer {offer_id}: {str(e)}")
             return {"status": "error", "message": f"Unexpected error: {str(e)}"}
 
-    def accept_offer(
+            def accept_offer(
         self,
         db: Session,
         offer_id: str,
@@ -369,11 +374,12 @@ class OfferManagementService:
             logger.error(f"Database error rejecting offer {offer_id}: {str(e)}")
             return {"status": "error", "message": f"Database error: {str(e)}"}
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             db.rollback()
             logger.error(f"Unexpected error rejecting offer {offer_id}: {str(e)}")
             return {"status": "error", "message": f"Unexpected error: {str(e)}"}
 
-    def retract_offer(
+            def retract_offer(
         self,
         db: Session,
         offer_id: str,

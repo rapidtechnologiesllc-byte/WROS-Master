@@ -1,6 +1,7 @@
 """
 Flash -- a real, authenticated conversational query surface for
 BlitzenX staff and employees, alongside the candidate-facing agent
+import logging
 Thunder (app.services.thunder_service / app.services.public_chat_service).
 
 2026-08-06, Avinash's explicit product split: "Thunder will have only
@@ -65,6 +66,7 @@ outside the supported intents gets an explicit "I can't answer that
 yet" instead of an invented answer -- "strict mode," per Avinash's own
 words, same "no fake success" principle as the rest of this codebase.
 """
+import logging
 import json
 import re
 from datetime import datetime, timedelta
@@ -150,6 +152,7 @@ _STOPWORDS = {
     "specialty", "speciality", "core", "engine",
 }
 
+logger = logging.getLogger(__name__)
 
 class ThunderQueryClassificationFailed(Exception):
     """Kept as a safety net for a genuinely unexpected internal error in
@@ -157,7 +160,6 @@ class ThunderQueryClassificationFailed(Exception):
     UNSUPPORTED_QUERY_MESSAGE, never guess the intent. Effectively
     unreachable under normal operation since 2026-08-06's rewrite below
     (no external call left to fail)."""
-
 
 # 2026-08-06 -- Avinash's explicit instruction, after directly questioning
 # why Flash called an external Gemini API at all: "why is it calling an
@@ -221,7 +223,6 @@ _PRONOUN_PATTERN = re.compile(r"\b(her|him|them|she|he|they|that\s+(person|candi
 # title/skills, breaking a query that should just be "Java".
 _NOISE_WORD_PATTERN = re.compile(r"\b(right\s+now|currently|today|please|thanks?|now)\b", re.IGNORECASE)
 
-
 def _extract_proper_noun(text: str) -> str:
     for match in _PROPER_NOUN_PATTERN.finditer(text):
         words = match.group(0).split()
@@ -229,7 +230,6 @@ def _extract_proper_noun(text: str) -> str:
             continue
         return match.group(0)
     return ""
-
 
 def _last_candidate_name_from_history(history: Optional[List[Dict]]) -> str:
     """Pronoun fallback ('how is she doing') without an LLM to resolve
@@ -244,7 +244,6 @@ def _last_candidate_name_from_history(history: Optional[List[Dict]]) -> str:
             if name:
                 return name
     return ""
-
 
 def classify_internal_query(message: str, *, history: Optional[List[Dict]] = None) -> Dict:
     """
@@ -296,11 +295,9 @@ def classify_internal_query(message: str, *, history: Optional[List[Dict]] = Non
 
     return {"intent": INTENT_UNKNOWN, "query": ""}
 
-
 def _extract_keywords(text: str) -> List[str]:
     tokens = re.findall(r"[A-Za-z][A-Za-z0-9+.#]*", text or "")
     return [t for t in tokens if len(t) > 1 and t.lower() not in _STOPWORDS]
-
 
 def find_candidates_for_job(db: Session, job_id: str, *, top_n: int = MAX_CANDIDATES_RETURNED) -> List[Dict]:
     """
@@ -368,7 +365,6 @@ def find_candidates_for_job(db: Session, job_id: str, *, top_n: int = MAX_CANDID
 
     return matched[:top_n]
 
-
 def find_matching_candidates(db: Session, query_text: str, *, top_n: int = MAX_CANDIDATES_RETURNED) -> List[Dict]:
     """
     Real keyword-overlap search over the real Candidates table (skills,
@@ -419,7 +415,6 @@ def find_matching_candidates(db: Session, query_text: str, *, top_n: int = MAX_C
         for c, score in scored[:top_n]
     ]
 
-
 def get_candidate_status_summary(db: Session, name_query: str) -> Dict:
     """
     Real lookup by name against the real Candidates + CandidateStatus
@@ -453,7 +448,6 @@ def get_candidate_status_summary(db: Session, name_query: str) -> Dict:
         })
     return {"matches": matches}
 
-
 def find_available_bench_employees(db: Session, query_text: str, *, top_n: int = MAX_CANDIDATES_RETURNED) -> List[Dict]:
     """
     Real read of resource_management_service's own bench pool table --
@@ -477,8 +471,9 @@ def find_available_bench_employees(db: Session, query_text: str, *, top_n: int =
     def _skill_tags(entry: BenchPoolEntry) -> List[str]:
         try:
             return json.loads(entry.skill_tags) if entry.skill_tags else []
-        except (json.JSONDecodeError, TypeError):
-            return []
+        except (json.JSONDecodeError, TypeError) as exc:
+            logger.error(f"[Flash] Failed to parse skill_tags for bench entry {entry.id}: {exc}")
+            raise ValueError(f"Invalid JSON in skill_tags: {exc}")
 
     results = []
     for entry, employee in entries:
@@ -501,7 +496,6 @@ def find_available_bench_employees(db: Session, query_text: str, *, top_n: int =
 
     return results[:top_n]
 
-
 def _format_sourcing_reply(query_text: str, results: List[Dict]) -> str:
     if not results:
         return (
@@ -514,7 +508,6 @@ def _format_sourcing_reply(query_text: str, results: List[Dict]) -> str:
         for r in results
     ]
     return f"Found {len(results)} candidate(s) matching \"{query_text}\":\n" + "\n".join(lines)
-
 
 def _format_status_reply(name_query: str, matches: List[Dict]) -> str:
     if not matches:
@@ -534,7 +527,6 @@ def _format_status_reply(name_query: str, matches: List[Dict]) -> str:
         + (f", linked to job {m['job_id']}" if m["job_id"] else "")
         + "."
     )
-
 
 def get_finance_pnl_answer(db: Session, user: Users, bu_name_query: str) -> Dict:
     """Real read of pnl_service's own BU P&L / org summary -- same
@@ -568,7 +560,6 @@ def get_finance_pnl_answer(db: Session, user: Users, bu_name_query: str) -> Dict
     summary = get_org_pnl_summary(db, year=year, month=month, tenant_id=user.tenant_id)
     return {"denied": False, "scope": "org", "pnl": summary}
 
-
 def _format_finance_pnl_reply(result: Dict) -> str:
     if result.get("denied"):
         return PERMISSION_DENIED_FINANCE_MESSAGE
@@ -601,7 +592,6 @@ def _format_finance_pnl_reply(result: Dict) -> str:
         f"cost ${pnl['total_cost_usd_cents'] / 100:,.2f}, margin {margin}%."
     )
 
-
 def get_ar_aging_answer(db: Session, user: Users) -> Dict:
     """Same permission gate as finance P&L (both are 'financial data'
     per Avinash's 2026-08-06 access rule) -- reuses ar_followup_service's
@@ -616,7 +606,6 @@ def get_ar_aging_answer(db: Session, user: Users) -> Dict:
     overdue = scan_overdue_invoices(db, tenant_id=user.tenant_id)
     return {"denied": False, "overdue": overdue}
 
-
 def _format_ar_aging_reply(result: Dict) -> str:
     if result.get("denied"):
         return PERMISSION_DENIED_FINANCE_MESSAGE
@@ -630,7 +619,6 @@ def _format_ar_aging_reply(result: Dict) -> str:
     more = f"\n(+{len(overdue) - 10} more)" if len(overdue) > 10 else ""
     return f"{len(overdue)} overdue invoice(s):\n" + "\n".join(lines) + more
 
-
 def get_my_tasks_answer(db: Session, user: Users) -> List[Dict]:
     """Self-scoped -- literally the same get_daily_task_list() the My
     Day task dashboard calls for this exact user, so it always matches
@@ -638,7 +626,6 @@ def get_my_tasks_answer(db: Session, user: Users) -> List[Dict]:
     check needed: everyone can see their own tasks."""
     tasks = get_daily_task_list(db, assigned_to_user_id=user.UserID)
     return [{"id": t.id, "title": t.title, "priority": t.priority, "due_date": t.due_date, "status": t.status} for t in tasks]
-
 
 def _format_my_tasks_reply(tasks: List[Dict]) -> str:
     if not tasks:
@@ -648,7 +635,6 @@ def _format_my_tasks_reply(tasks: List[Dict]) -> str:
         for t in tasks
     ]
     return f"{len(tasks)} task(s) due today or overdue:\n" + "\n".join(lines)
-
 
 def _format_bench_reply(query_text: str, results: List[Dict]) -> str:
     label = f"matching \"{query_text}\"" if query_text else "on the bench right now"
@@ -661,7 +647,6 @@ def _format_bench_reply(query_text: str, results: List[Dict]) -> str:
     ]
     return f"{len(results)} available {label}:\n" + "\n".join(lines)
 
-
 def _user_can_create_jobs(db: Session, user: Users) -> bool:
     """Check if user has permission to create jobs (via RBAC)"""
     from app.services.permission_helper import PermissionHelper
@@ -671,7 +656,6 @@ def _user_can_create_jobs(db: Session, user: Users) -> bool:
         db,
         user.tenant_id
     )
-
 
 def _extract_job_details_from_history(history: Optional[List[Dict]]) -> Dict:
     """Extract job creation details from conversation history"""
@@ -711,7 +695,6 @@ def _extract_job_details_from_history(history: Optional[List[Dict]]) -> Dict:
                 details["pay_amount"] = pay_match.group(1)
 
     return details
-
 
 def _get_next_job_question(details: Dict) -> tuple:
     """Determine next question to ask based on collected details
@@ -768,7 +751,6 @@ def _get_next_job_question(details: Dict) -> tuple:
 
     return (None, None, None)
 
-
 def _handle_job_creation(db: Session, user: Users, oneliner: str, history: Optional[List[Dict]], conversation_state: Optional[Dict] = None) -> Dict:
     """Handle conversational job creation flow"""
     # Use conversation state if provided, otherwise extract from history
@@ -798,7 +780,6 @@ def _handle_job_creation(db: Session, user: Users, oneliner: str, history: Optio
         "conversation_state": details
     }
 
-
 def _parse_skills_from_string(skills_str: str) -> list:
     """Parse skills string into structured format
     Input: 'Java:5:yes, Spring Boot:3:yes, Docker:2:no'
@@ -824,15 +805,14 @@ def _parse_skills_from_string(skills_str: str) -> list:
                 except ValueError:
                     continue
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         logger.warning(f"Failed to parse skills string: {e}")
 
     return skills if skills else [{"name": skill_str.strip(), "years": 0, "mandatory": True} for skill_str in skills_str.split(",")]
 
-
 def _create_job_from_details(db: Session, user: Users, details: Dict) -> Dict:
     """Create a job from collected details and assign to recruiter"""
     try:
-        from app.models.user import Jobs
         from app.services.recruiter_assignment_service import assign_to_recruiter_roundrobin
         from app.utils.uniq_id_generator import job_id_generator
         from datetime import datetime
@@ -883,13 +863,13 @@ def _create_job_from_details(db: Session, user: Users, details: Dict) -> Dict:
         }
 
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"[Flash] Job creation failed: {e}")
         db.rollback()
         return {
             "intent": INTENT_JOB_CREATE,
             "reply": f"Sorry, I couldn't create the job. Error: {str(e)[:100]}"
         }
-
 
 def answer_internal_query(
     db: Session, message: str, *, current_user: Optional[Users] = None, history: Optional[List[Dict]] = None, conversation_state: Optional[Dict] = None,

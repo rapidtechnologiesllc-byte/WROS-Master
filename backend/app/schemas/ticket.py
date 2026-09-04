@@ -1,9 +1,12 @@
+from app.core.logging import logger
 """Pydantic schemas -- Help Desk/IT-HR Ticketing."""
 from datetime import datetime
+import logging
 from typing import Optional
 
 from pydantic import BaseModel
 
+logger = logging.getLogger(__name__)
 
 class TicketCreateRequest(BaseModel):
     title: str
@@ -14,7 +17,6 @@ class TicketCreateRequest(BaseModel):
     subcategory: Optional[str] = None
     is_external: bool = False
 
-
 class TicketCategoryResponse(BaseModel):
     category: str
     subcategory: Optional[str]
@@ -23,17 +25,14 @@ class TicketCategoryResponse(BaseModel):
     class Config:
         from_attributes = True
 
-
 class TicketCategoryRouteCreateRequest(BaseModel):
     category: str
     subcategory: Optional[str] = None
     department_id: int
 
-
 class TicketSLAPolicyUpdateRequest(BaseModel):
     response_minutes: int
     resolution_minutes: int
-
 
 class TicketSLAPolicyResponse(BaseModel):
     priority: str
@@ -42,7 +41,6 @@ class TicketSLAPolicyResponse(BaseModel):
 
     class Config:
         from_attributes = True
-
 
 class TicketDetailResponse(BaseModel):
     task_id: int

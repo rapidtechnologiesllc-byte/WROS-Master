@@ -10,7 +10,8 @@ from app.models.opportunity import Opportunity
 from app.models.invoice import Invoice
 from app.services.pnl_service import get_org_pnl_summary
 from app.utils.agent_logger import log_agent_execution
-
+import logging
+from app.core.logging import logger
 
 def get_fy_targets(db: Session) -> dict:
     """Get the FY targets (hardcoded baseline, can be made configurable later)."""
@@ -26,7 +27,6 @@ def get_fy_targets(db: Session) -> dict:
         "utilization_target_pct": 85,
         "margin_target_pct": 20
     }
-
 
 def get_fy_progress(db: Session, fy_year: int = 2026) -> dict:
     """
@@ -193,7 +193,6 @@ def get_fy_progress(db: Session, fy_year: int = 2026) -> dict:
         success=True,
     )
 
-
 def get_fy_executive_summary(db: Session) -> dict:
     """High-level FY progress summary for CEO presentation."""
     progress = get_fy_progress(db)
@@ -232,7 +231,6 @@ def get_fy_executive_summary(db: Session) -> dict:
         "priorities": _get_ceo_priorities(progress)
     }
 
-
 def _get_headline(progress: dict) -> str:
     """Generate executive summary headline."""
     if progress["fy_progress_pct"] < 25:
@@ -243,7 +241,6 @@ def _get_headline(progress: dict) -> str:
         return "Q3 push — accelerating finish"
     else:
         return "Final sprint — delivering FY targets"
-
 
 def _get_ceo_priorities(progress: dict) -> list:
     """Extract top 3 priorities for CEO focus based on progress."""
@@ -289,3 +286,57 @@ def _get_ceo_priorities(progress: dict) -> list:
         })
 
     return priorities
+
+def get_slm_insights(db: Session) -> dict:
+    """Get Smart Learning Model insights for CEO dashboard.
+
+    Returns resume parsing accuracy, model readiness, and recommendations.
+    """
+    try:
+        from app.services.slm_feedback_engine import SLMFeedbackEngine
+        from app.services.slm_job_metadata_service import SLMJobMetadata
+
+        # Get SLM accuracy stats
+        stats = SLMFeedbackEngine.get_feedback_stats(db, days=30)
+
+        # Get top performing jobs by hire rate
+        top_jobs = db.query(SLMJobMetadata).filter(
+            SLMJobMetadata.candidates_hired > 0
+        ).order_by(SLMJobMetadata.candidates_hired.desc()).limit(5).all()
+
+        top_jobs_list = [
+            {
+                "job_title": job.job_title,
+                "candidates_hired": job.candidates_hired,
+                "hire_success_rate": round(job.candidates_hired / max(1, job.candidates_submitted) * 100, 1) if job.candidates_submitted > 0 else 0
+            }
+            for job in top_jobs
+        ]
+
+        return {
+            "status": "active",
+            "resume_parsing_accuracy_pct": round(100 * (1 - stats.get("correction_rate", 0) / 100), 1),
+            "total_feedback_this_month": stats.get("total_feedback", 0),
+            "corrections_this_month": stats.get("corrections", 0),
+            "model_ready_to_retrain": stats.get("ready_to_retrain", False),
+            "low_confidence_fields": [field for field, acc in stats.get("low_confidence_fields", [])],
+            "recommendation": stats.get("recommendation", "No action needed"),
+            "top_performing_jobs": top_jobs_list
+        }
+    except Exception as e:
+        logger.error(f"Failed to get SLM insights: {str(e)}", exc_info=True)
+        return {
+            "status": "error",
+            "message": f"Failed to fetch SLM insights: {str(e)}"
+        }
+
+def get_fy_executive_dashboard(db: Session) -> dict:
+    """Get complete CEO executive dashboard with SLM insights."""
+    progress = get_fy_progress(db)
+    slm_insights = get_slm_insights(db)
+    summary = get_fy_executive_summary(db)
+
+    return {
+        **summary,
+        "slm_insights": slm_insights
+    }

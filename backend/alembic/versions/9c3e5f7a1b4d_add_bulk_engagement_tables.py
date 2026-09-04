@@ -1,3 +1,4 @@
+import logging
 """S-074/HRMS-0474: add bulk_engagement_jobs + bulk_engagement_errors tables
 
 Revision ID: 9c3e5f7a1b4d
@@ -12,7 +13,6 @@ revision = "9c3e5f7a1b4d"
 down_revision = "7a4d29b6c5e1"
 branch_labels = None
 depends_on = None
-
 
 def upgrade():
     op.create_table(
@@ -42,7 +42,6 @@ def upgrade():
         sa.Column("created_at", sa.DateTime(), server_default=sa.func.now()),
     )
     op.create_index("ix_bulk_engagement_errors_job_id", "bulk_engagement_errors", ["job_id"])
-
 
 def downgrade():
     op.drop_index("ix_bulk_engagement_errors_job_id", table_name="bulk_engagement_errors")

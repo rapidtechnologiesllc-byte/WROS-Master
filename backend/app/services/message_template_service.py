@@ -3,6 +3,7 @@ S-014/HRMS-0414 -- Message Template Engine.
 """
 import re
 from datetime import datetime
+import logging
 from typing import Dict, List, Optional
 
 from sqlalchemy.orm import Session
@@ -13,19 +14,17 @@ from app.models.message_template import TEMPLATE_KEYS, MessageTemplate
 
 VARIABLE_RE = re.compile(r"\{\{.*?\}\}")
 
+logger = logging.getLogger(__name__)
 
 class TemplateNotFoundError(Exception):
     """No active template for this key+channel+tenant -- caller falls
     back to its own hardcoded default (S-012/S-013's own fallback)."""
 
-
 class TemplateRenderError(Exception):
     """A {{variable}} survived substitution -- never send this."""
 
-
 class TemplateActivationConflict(Exception):
     pass
-
 
 def create_template_version(
     db: Session, *, tenant_id: str, template_key: str, template_name: str,
@@ -60,7 +59,6 @@ def create_template_version(
     db.refresh(template)
     return template
 
-
 def list_templates(
     db: Session, tenant_id: str, *, channel: Optional[str] = None, template_key: Optional[str] = None,
 ) -> List[MessageTemplate]:
@@ -71,10 +69,8 @@ def list_templates(
         query = query.filter(MessageTemplate.template_key == template_key)
     return query.order_by(MessageTemplate.template_key.asc(), MessageTemplate.channel.asc(), MessageTemplate.version.desc()).all()
 
-
 def get_template(db: Session, template_id: int) -> Optional[MessageTemplate]:
     return db.query(MessageTemplate).filter(MessageTemplate.id == template_id).first()
-
 
 def activate_template(db: Session, template_id: int, *, activated_by: str) -> MessageTemplate:
     """BR-01: atomic -- this version becomes the only is_active=true row
@@ -100,13 +96,11 @@ def activate_template(db: Session, template_id: int, *, activated_by: str) -> Me
     db.refresh(template)
     return template
 
-
 def _substitute(text: str, variables: Dict[str, str]) -> str:
     def replace(match: re.Match) -> str:
         name = match.group(0)[2:-2].strip()
         return str(variables.get(name, match.group(0)))
     return re.sub(r"\{\{(.*?)\}\}", replace, text)
-
 
 def render_template(
     db: Session, template_key: str, channel: str, tenant_id: str, variables: Dict[str, str],
@@ -143,7 +137,6 @@ def render_template(
             raise TemplateRenderError(f"Un-replaced variable(s) in {label}: {remaining}")
 
     return {"rendered_body": rendered_body, "rendered_subject": rendered_subject}
-
 
 def preview_template(db: Session, template_id: int, candidate_id: str, *, agent_name: str, company_name: str) -> Dict:
     template = get_template(db, template_id)

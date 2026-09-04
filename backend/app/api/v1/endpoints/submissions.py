@@ -2,6 +2,7 @@
 HRMS-0711 Client Submission Pipeline — API Endpoints
 =========================================================================
 Prefix: /submissions
+import logging
 Tag:    submissions
 
 No REST layer existed for this at all despite create_submission()/
@@ -12,7 +13,7 @@ Submission") -- check_market_profile_rule() already IS the employee-
 status submission guard that story calls for; it was just unreachable
 over HTTP. No new/duplicate eligibility function was written.
 
-Auth: get_current_hr_or_admin, same posture as every Phase 4 endpoint
+Auth: get_current_internal_user, same posture as every Phase 4 endpoint
 this program.
 
 Routes:
@@ -37,7 +38,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_hr_or_admin
+from app.core.dependencies import get_current_internal_user, require_resource_permission
 from app.models.candidate import Candidate
 from app.models.demand import Demand
 from app.models.submission import Submission, SubmissionViolation
@@ -61,7 +62,6 @@ from app.services.submission_service import (
 
 router = APIRouter(prefix="/submissions", tags=["submissions"])
 
-
 def _to_item(db: Session, submission: Submission) -> SubmissionItem:
     demand = db.query(Demand).filter(Demand.id == submission.demand_id).first()
     candidate = db.query(Candidate).filter(Candidate.candidateID == submission.candidate_id).first()
@@ -83,15 +83,16 @@ def _to_item(db: Session, submission: Submission) -> SubmissionItem:
         source=submission.source,
     )
 
-
 @router.post(
-    "", response_model=SubmissionItem,
+    "",
+    response_model=SubmissionItem,
+    dependencies=[Depends(get_current_internal_user)],
     summary="Submit a candidate to a demand (runs all compliance gates)",
 )
 def submit_candidate(
     body: CreateSubmissionRequest,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     # Try to find as Demand first, then fall back to Job (treat Job as demand)
     demand = db.query(Demand).filter(Demand.id == body.demand_id).first()
@@ -142,12 +143,16 @@ def submit_candidate(
     db.refresh(submission)
     return _to_item(db, submission)
 
-
-@router.get("", response_model=SubmissionListResponse, summary="List submissions")
+@router.get(
+    "",
+    response_model=SubmissionListResponse,
+    summary="List submissions",
+    dependencies=[Depends(require_resource_permission("submission", "view"))]
+)
 def list_submissions(
     demand_id: Optional[str] = None,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     query = db.query(Submission).filter(Submission.tenant_id == current_user.tenant_id)
     if demand_id:
@@ -155,14 +160,15 @@ def list_submissions(
     submissions = query.order_by(Submission.submitted_at.desc()).all()
     return SubmissionListResponse(submissions=[_to_item(db, s) for s in submissions])
 
-
 @router.get(
-    "/violations", response_model=SubmissionViolationListResponse,
+    "/violations",
+    response_model=SubmissionViolationListResponse,
+    dependencies=[Depends(get_current_internal_user)],
     summary="Compliance violation audit log",
 )
 def list_violations(
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     violations = (
         db.query(SubmissionViolation)
@@ -181,16 +187,16 @@ def list_violations(
         ]
     )
 
-
 @router.patch(
     "/{submission_id}/client-response", response_model=SubmissionItem,
+    dependencies=[Depends(get_current_internal_user)],
     summary="Record the client's response to a submission",
 )
 def client_response(
     submission_id: str,
     body: ClientResponseRequest,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     submission = db.query(Submission).filter(Submission.id == submission_id).first()
     if submission is None:

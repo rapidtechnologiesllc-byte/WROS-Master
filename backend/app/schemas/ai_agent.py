@@ -1,19 +1,21 @@
 """
 Pydantic Schemas — AI Conversation Agent
+import logging
 """
 
+import logging
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, Field
-
+from app.core.logging import logger
 
 # ---------------------------------------------------------------------------
 # Assign AI Agent
 # ---------------------------------------------------------------------------
+logger = logging.getLogger(__name__)
 
 class AIAgentAssignRequest(BaseModel):
     candidate_id: str = Field(..., description="The candidate to assign the AI agent to")
-
 
 class AIAgentAssignResponse(BaseModel):
     assignment_id: int
@@ -24,7 +26,6 @@ class AIAgentAssignResponse(BaseModel):
     email_sent: bool
     conversation_status: str
 
-
 # ---------------------------------------------------------------------------
 # Missing Fields Preview
 # ---------------------------------------------------------------------------
@@ -34,12 +35,10 @@ class MissingFieldItem(BaseModel):
     label: str
     source: str   # 'candidate' | 'info_form'
 
-
 class MissingFieldsResponse(BaseModel):
     candidate_id: str
     total_missing: int
     missing_fields: List[MissingFieldItem]
-
 
 # ---------------------------------------------------------------------------
 # Webhook / Poll reply
@@ -59,7 +58,6 @@ class EmailReplyWebhookRequest(BaseModel):
         description="Microsoft Graph message ID (for deduplication).",
     )
 
-
 class ProcessReplyResponse(BaseModel):
     conversation_id: int
     status: str        # completed | partial | no_reply_found | all_fields_complete
@@ -68,7 +66,6 @@ class ProcessReplyResponse(BaseModel):
     still_missing: Optional[List[str]] = None
     followup_email_sent: Optional[bool] = None
     message: Optional[str] = None
-
 
 # ---------------------------------------------------------------------------
 # Conversation thread (for UI)
@@ -83,7 +80,6 @@ class ConversationEventOut(BaseModel):
 
     class Config:
         from_attributes = True
-
 
 class ConversationThreadItem(BaseModel):
     conversation_id: int
@@ -102,12 +98,10 @@ class ConversationThreadItem(BaseModel):
     thunder_resume_at: Optional[str] = None
     events: List[ConversationEventOut]
 
-
 class ConversationThreadResponse(BaseModel):
     candidate_id: str
     total_conversations: int
     conversations: List[ConversationThreadItem]
-
 
 # ---------------------------------------------------------------------------
 # Manual send / ownership (S-009 / S-010)
@@ -116,7 +110,6 @@ class ConversationThreadResponse(BaseModel):
 class SendMessageRequest(BaseModel):
     message: str = Field(..., min_length=1, description="Message body to send to the candidate")
 
-
 class SendMessageResponse(BaseModel):
     conversation_id: int
     event_id: int
@@ -124,12 +117,10 @@ class SendMessageResponse(BaseModel):
     owner_type: Optional[str]
     owner_id: Optional[str]
 
-
 class ConversationOwnershipResponse(BaseModel):
     conversation_id: int
     owner_type: Optional[str]
     owner_id: Optional[str]
-
 
 # ---------------------------------------------------------------------------
 # Pause / resume (S-075/HRMS-0475)
@@ -140,13 +131,11 @@ class PauseThunderRequest(BaseModel):
         None, description="ISO datetime to auto-resume at. Omit for 'until manually resumed'.",
     )
 
-
 class ThunderPauseResponse(BaseModel):
     conversation_id: int
     is_thunder_paused: bool
     thunder_resume_at: Optional[str]
     thunder_paused_by: Optional[str]
-
 
 # ---------------------------------------------------------------------------
 # Audit log (S-076)
@@ -165,12 +154,10 @@ class AuditLogEntryOut(BaseModel):
     class Config:
         from_attributes = True
 
-
 class AuditLogResponse(BaseModel):
     candidate_id: str
     total_count: int
     audit_entries: List[AuditLogEntryOut]
-
 
 # ---------------------------------------------------------------------------
 # AI Assignment list
@@ -189,7 +176,6 @@ class AIAssignmentOut(BaseModel):
     class Config:
         from_attributes = True
 
-
 # ---------------------------------------------------------------------------
 # Inbox message schemas
 # ---------------------------------------------------------------------------
@@ -203,7 +189,6 @@ class InboxMessageItem(BaseModel):
     body_text: Optional[str]
     received_at: Optional[str]
     is_read: bool = False
-
 
 class InboxResponse(BaseModel):
     mailbox: str

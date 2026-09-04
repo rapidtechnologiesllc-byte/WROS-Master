@@ -1,5 +1,6 @@
 """
 HRMS-1103 -- LinkedIn Sourcing Agent Loop (Phase 3 Workstream 1 /
+import logging
 Recruit), EPIC-11.
 
 Consumes OPEN sourcing_alerts (HRMS-1102's output), generates a Boolean
@@ -29,6 +30,7 @@ POSSIBLE_DUPLICATE is modeled (matches the doc's enum) but never
 produced by this implementation; it's reserved for a future fuzzy-
 matching capability this codebase doesn't have.
 """
+import logging
 import json
 from datetime import datetime
 from typing import Callable, List, Optional
@@ -42,13 +44,14 @@ from app.models.sourcing import SourcingAlert, SourcingSearchRun, StagedCandidat
 from app.models.user import Users
 from app.services.candidate_service import create_candidate_safe, find_duplicate_candidate
 from app.services.notification_service import send_notification
+from app.core.logging import logger
 
 CONSECUTIVE_SEARCH_FAILURES_BEFORE_ESCALATION = 2  # AC-6
 
+logger = logging.getLogger(__name__)
 
 class StagedCandidateAlreadyPromoted(Exception):
     """BR-1103-02: a staged_candidates row can only be promoted once."""
-
 
 def claim_alert(db: Session, alert_id: str) -> Optional[SourcingAlert]:
     """
@@ -71,7 +74,6 @@ def claim_alert(db: Session, alert_id: str) -> Optional[SourcingAlert]:
     db.flush()
     return db.query(SourcingAlert).filter(SourcingAlert.id == alert_id).first()
 
-
 def _generate_query(demand: Demand, *, llm_query_generator):
     """Returns (boolean_query, alt_queries_json, rationale, estimated_volume, generation_failed)."""
     if llm_query_generator is None:
@@ -92,8 +94,7 @@ def _generate_query(demand: Demand, *, llm_query_generator):
             False,
         )
     except Exception:
-        return None, None, None, None, True
-
+        raise ValueError("Operation failed"), None, None, None, True
 
 def process_sourcing_alert(
     db: Session,
@@ -217,7 +218,6 @@ def process_sourcing_alert(
     db.add(alert)
 
     return run
-
 
 def promote_staged_candidate(
     db: Session,

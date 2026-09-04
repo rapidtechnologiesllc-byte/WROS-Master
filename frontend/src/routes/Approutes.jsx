@@ -16,10 +16,14 @@ import PreOnboarding from "../screens/PreOnboardingOld";
 import PreOnboardingPage from "../screens/PreOnboarding";
 import ChecklistTemplatesScreen from "../screens/ChecklistTemplatesScreen";
 import UsersAndAccessControl from "../screens/UsersAndAccessControl";
+import UserFormPage from "../screens/UserFormPage";
+import DeliveryCentersAdmin from "../screens/DeliveryCentersAdmin";
 import EmployeesConsolidatedScreen from "../screens/EmployeesConsolidatedScreen";
-import RoleTemplateManager from "../screens/RoleTemplateManager";
+import BusinessUnitFormPage from "../screens/BusinessUnitFormPage";
+import DeliveryCenterFormPage from "../screens/DeliveryCenterFormPage";
 import Verification from "../screens/Verification";
 import MyWorkspace from "../screens/MyWorkspace";
+import QueueManagementScreen from "../screens/QueueManagementScreen";
 import { getAllInterviews, updateInterview } from "../services/api/interviews";
 import {
   getAllCandidates,
@@ -86,16 +90,16 @@ import InvoicesScreen from "../screens/InvoicesScreen";
 import InvoiceManagementScreen from "../screens/InvoiceManagementScreen";
 import RevenueScreen from "../screens/RevenueScreen";
 import TenantLocaleScreen from "../screens/TenantLocaleScreen";
-import SLMDashboard from "../screens/SLMDashboard";
-import SLMTrainingData from "../screens/SLMTrainingData";
 import PublicThunderChatScreen from "../screens/PublicThunderChatScreen";
 import CandidatePortalScreen from "../screens/CandidatePortalScreen";
 import MessageTemplatesScreen from "../screens/MessageTemplatesScreen";
+import EmailTemplatesScreen from "../screens/SettingsScreens/EmailTemplatesScreen";
 import InterventionQueueScreen from "../screens/InterventionQueueScreen";
 import RehireApprovalsScreen from "../screens/RehireApprovalsScreen";
 import RiskDashboardScreen from "../screens/RiskDashboardScreen";
 import ThunderAnalyticsScreen from "../screens/ThunderAnalyticsScreen";
 import BulkLaunchScreen from "../screens/BulkLaunchScreen";
+import AdminAgentConfig from "../screens/AdminAgentConfig";
 import TenantAIConfigScreen from "../screens/TenantAIConfigScreen";
 import MyTasksScreen from "../screens/MyTasksScreen";
 import MyTimesheetScreen from "../screens/MyTimesheetScreen";
@@ -113,6 +117,7 @@ import AdminAgentStateDashboard from "../screens/AdminAgentStateDashboard";
 import AdminWeeklyRecapDashboard from "../screens/AdminWeeklyRecapDashboard";
 import EmployeeConversionScreen from "../screens/EmployeeConversionScreen";
 import BusinessUnitsScreen from "../screens/BusinessUnitsScreen";
+import ForcePasswordReset from "../pages/ForcePasswordReset";
 import CEOExecutiveDashboardScreen from "../screens/CEOExecutiveDashboardScreen";
 import TrainingCertificationDashboard from "../screens/TrainingCertificationDashboard";
 import CertificationManagementScreen from "../screens/CertificationManagementScreen";
@@ -121,39 +126,42 @@ import BIExplorerScreen from "../screens/BIExplorerScreen";
 import BuHeadDashboardScreen from "../screens/BuHeadDashboardScreen";
 import MyReferralsScreen from "../screens/MyReferralsScreen";
 import MessageQueueDashboard from "../screens/MessageQueueDashboard";
+import LinkedInPipelineScreen from "../screens/LinkedInPipelineScreen";
 
 
-// Wrapper component that renders the appropriate dashboard based on user job_title
+// Wrapper component that renders the appropriate dashboard based on user permissions
+// RBAC-driven: Uses permissions from role templates, not hardcoded job titles
 const DashboardRouter = ({ candidates, jobs, interviews, offers, jobTitle }) => {
-  const normalized = String(jobTitle || "").trim().toUpperCase();
+  const perms = (() => {
+    try {
+      const stored = JSON.parse(localStorage.getItem('hrms_permissions') || '[]');
+      // If stored as object (permission metadata), convert keys to array
+      if (stored && typeof stored === 'object' && !Array.isArray(stored)) {
+        return Object.keys(stored);
+      }
+      return Array.isArray(stored) ? stored : [];
+    } catch {
+      return [];
+    }
+  })();
 
-  // CEO gets the CEO dashboard
-  if (normalized === "CEO") {
+  // CEO/SuperUser dashboard (wildcard permission)
+  if (Array.isArray(perms) && perms.includes('*.*')) {
     return <CEOUnifiedDashboard />;
   }
 
-  // CFO gets the CFO dashboard
-  if (normalized === "CFO") {
+  // CFO dashboard (finance.manage permission)
+  if (Array.isArray(perms) && perms.includes('finance.manage')) {
     return <CFOAgentScreen />;
   }
 
-  // Partner gets Partner ROI dashboard
-  if (normalized.includes("PARTNER")) {
+  // Partner dashboard (business_unit.manage permission or partner-specific)
+  if ((Array.isArray(perms) && perms.includes('business_unit.manage')) || (Array.isArray(perms) && perms.includes('reports.manage'))) {
     return <PartnerROIAgentScreen />;
   }
 
-  // HR Manager gets HR dashboard (when built)
-  if (normalized === "HR MANAGER") {
-    return <Dashboard candidates={candidates} jobs={jobs} interviews={interviews} offers={offers} />;
-  }
-
-  // Resource Manager gets resource management dashboard (when built)
-  if (normalized === "RESOURCE MANAGER") {
-    return <Dashboard candidates={candidates} jobs={jobs} interviews={interviews} offers={offers} />;
-  }
-
-  // Admin gets admin dashboard (when built)
-  if (normalized === "ADMIN") {
+  // HR Manager and Resource Manager get standard dashboard
+  if ((Array.isArray(perms) && perms.includes('employees.manage')) || (Array.isArray(perms) && perms.includes('recruitment.create'))) {
     return <Dashboard candidates={candidates} jobs={jobs} interviews={interviews} offers={offers} />;
   }
 
@@ -271,18 +279,9 @@ const normalizeJobStatusForApi = (uiStatus) => {
   return lower;
 };
 
-const normalizeRole = (rawRole) => {
-  const upper = String(rawRole || "")
-    .trim()
-    .toUpperCase();
-  if (["SUPER USER", "SUPER_USER", "SUPERUSER"].includes(upper)) {
-    return "SUPER_USER";
-  }
-  if (["ADMIN", "HR", "RECRUITER", "CANDIDATE"].includes(upper)) {
-    return upper;
-  }
-  return upper || "RECRUITER";
-};
+// NOTE: normalizeRole() REMOVED - role checking is now entirely permission-based
+// Role names from role templates are not hardcoded in frontend
+// Instead, check user's permissions (which come from role template assignments)
 
 export default function AppRoutes() {
   // Public, unauthenticated Thunder chat widget -- a real external
@@ -321,16 +320,28 @@ export default function AppRoutes() {
     return <AuthPage />;
   }
 
+  // ✅ NEW: Force password reset on first login for auto-created users
+  if (window.location.pathname === "/force-password-reset") {
+    return <ForcePasswordReset />;
+  }
+
   const [storedRole, setStoredRole] = useState(localStorage.getItem("permission_role"));
   const [storedJobTitle, setStoredJobTitle] = useState(localStorage.getItem("job_title"));
   const [permissionsLoading, setPermissionsLoading] = useState(true);
   const storedUserType = String(localStorage.getItem("hrms_user_type") || "")
     .trim()
     .toLowerCase();
-  const normalizedRole = normalizeRole(storedRole);
-  const isAdminOrSuperUser =
-    normalizedRole === "ADMIN" || normalizedRole === "SUPER_USER";
-  const isSuperUser = normalizedRole === "SUPER_USER";
+
+  // RBAC-driven: Check permissions instead of hardcoded role names
+  // Import these from permissionsRbac for consistent permission checking
+  const { isSuperAdmin: isSuperUser } = (() => {
+    try {
+      const perms = JSON.parse(localStorage.getItem('hrms_permissions') || '[]');
+      return { isSuperAdmin: Array.isArray(perms) && perms.includes('*.*') };
+    } catch {
+      return { isSuperAdmin: false };
+    }
+  })();
 
   const handleLogout = () => {
     localStorage.removeItem("hrms_token");
@@ -392,7 +403,7 @@ export default function AppRoutes() {
     return <CandidateSelfService onLogout={handleLogout} />;
   }
 
-  const [role, setRole] = useState(normalizedRole);
+  const [role, setRole] = useState(storedRole);
   const [candidateRecord, setCandidateRecord] = useState(null);
   const [candidates, setCandidates] = useState([]);
 
@@ -620,6 +631,7 @@ export default function AppRoutes() {
             <Route path="demand-confirmation" element={<DemandConfirmationScreen />} />
             <Route path="employees" element={<EmployeesConsolidatedScreen />} />
             <Route path="employee-conversion" element={<EmployeeConversionScreen />} />
+            <Route path="linkedin-pipeline" element={<LinkedInPipelineScreen />} />
             <Route path="submissions" element={<SubmissionsScreen />} />
             <Route path="allocations" element={<AllocationsScreen />} />
             <Route path="projects" element={<ProjectsScreen />} />
@@ -639,9 +651,7 @@ export default function AppRoutes() {
             <Route path="ceo-fy-progress" element={<CEOUnifiedDashboard />} />
             <Route path="cfo-dashboard" element={<CFOAgentScreen />} />
             <Route path="settings/locale" element={<TenantLocaleScreen />} />
-            <Route path="settings/templates" element={<MessageTemplatesScreen />} />
-            <Route path="admin/slm-dashboard" element={<SLMDashboard />} />
-            <Route path="admin/slm-training" element={<SLMTrainingData />} />
+            <Route path="settings/templates" element={<EmailTemplatesScreen />} />
             <Route path="recruiter/intervention-queue" element={<InterventionQueueScreen />} />
             <Route path="recruiter/rehire-approvals" element={<RehireApprovalsScreen />} />
             <Route path="ceo-dashboard" element={<CEOUnifiedDashboard />} />
@@ -658,13 +668,20 @@ export default function AppRoutes() {
             <Route path="buddy-program/:recordId" element={<BuddyProgramScreen />} />
             <Route path="executive-signal" element={<ExecutiveSignalScreen />} />
             <Route path="admin/error-log" element={<ErrorLogScreen />} />
+            <Route path="admin/agent-config" element={<AdminAgentConfig />} />
             <Route path="admin/users-access-control" element={<UsersAndAccessControl />} />
             <Route path="admin/users-access-control/:section" element={<UsersAndAccessControl />} />
+            <Route path="admin/users-access-control/users/create" element={<UserFormPage />} />
+            <Route path="admin/users-access-control/users/:userId/edit" element={<UserFormPage />} />
             <Route path="admin/business-units" element={<BusinessUnitsScreen />} />
             <Route path="admin/certifications" element={<CertificationManagementScreen />} />
             <Route path="admin/agent-state-dashboard" element={<AdminAgentStateDashboard />} />
             <Route path="admin/weekly-recap" element={<AdminWeeklyRecapDashboard />} />
+            <Route path="admin/users-access-control/business-units/create" element={<BusinessUnitFormPage />} />
+            <Route path="admin/users-access-control/business-units/:buId/edit" element={<BusinessUnitFormPage />} />
+            <Route path="admin/users-access-control/delivery-centers/create" element={<DeliveryCenterFormPage />} />
             <Route path="admin/messagequeue" element={<MessageQueueDashboard />} />
+            <Route path="admin/queue-management" element={<QueueManagementScreen />} />
             <Route path="training-certification" element={<TrainingCertificationDashboard />} />
             <Route path="troy-partner-dashboard" element={<TroyPartnerDashboard />} />
             <Route path="bi-explorer" element={<BIExplorerScreen />} />
@@ -818,11 +835,6 @@ export default function AppRoutes() {
             />
 
             <Route
-              path="offers"
-              element={<OfferLettersScreen />}
-            />
-
-            <Route
               path="offers-listing"
               element={
                 <OfferListing
@@ -839,222 +851,4 @@ export default function AppRoutes() {
       </>
     );
   }
-
-  return (
-    <>
-      <Routes>
-        <Route
-          path="/"
-          element={
-            <Shell
-              role={role}
-              onLogout={handleLogout}
-              candidates={candidates}
-              jobs={jobs}
-              setSelectedCandidateData={setSelectedCandidateData}
-              setSelectedJobId={setSelectedJobId}
-            />
-          }
-        >
-          <Route
-            index
-            element={
-              <DashboardRouter
-                jobTitle={storedJobTitle}
-                candidates={candidates}
-                jobs={jobs}
-                interviews={interviews}
-                offers={offers}
-              />
-            }
-          />
-          <Route path="thunder" element={<ThunderChatScreen />} />
-          <Route
-            path="resource-management"
-            element={<ResourceManagementScreen />}
-          />
-          <Route path="core-pull" element={<CorePullScreen />} />
-            <Route path="client-management" element={<ClientManagementScreen />} />
-            <Route path="demand-confirmation" element={<DemandConfirmationScreen />} />
-            <Route path="employees" element={<EmployeesConsolidatedScreen />} />
-            <Route path="employee-conversion" element={<EmployeeConversionScreen />} />
-            <Route path="submissions" element={<SubmissionsScreen />} />
-            <Route path="allocations" element={<AllocationsScreen />} />
-            <Route path="projects" element={<ProjectsScreen />} />
-            <Route path="htd-intake" element={<HtdIntakeScreen />} />
-            <Route path="hm-candidate-review" element={<HmCandidateReviewScreen />} />
-            <Route path="utilization-dashboard" element={<UtilizationDashboardScreen />} />
-            <Route path="timesheets" element={<TimesheetsScreen />} />
-            <Route path="forecast" element={<ForecastScreen />} />
-            <Route path="forecast-vs-actual" element={<ForecastVsActualScreen />} />
-            <Route path="invoices" element={<InvoicesScreen />} />
-            <Route path="invoice-management" element={<InvoiceManagementScreen />} />
-            <Route path="revenue" element={<RevenueScreen />} />
-            <Route path="opportunity-pipeline" element={<OpportunityPipelineScreen />} />
-            <Route path="executive-revenue-dashboard" element={<ExecutiveRevenueDashboardScreen />} />
-            <Route path="finance-operations" element={<FinanceOperationsScreen />} />
-            <Route path="partner-roi" element={<PartnerROIAgentScreen />} />
-            <Route path="ceo-fy-progress" element={<CEOUnifiedDashboard />} />
-            <Route path="cfo-dashboard" element={<CFOAgentScreen />} />
-          <Route
-            path="candidates"
-            element={
-              <>
-                <SLABreachBanner />
-                <ConversationSearchBar />
-                <CandidateSearch
-                  candidates={candidates}
-                  jobs={jobs}
-                  setAutoOpenSchedule={setAutoOpenSchedule}
-                  onRefreshCandidates={refreshCandidates}
-                  onCreateCandidate={() => navigate("/candidates/create")}
-                />
-              </>
-            }
-          />
-
-          <Route
-            path="candidates/create"
-            element={
-              <CandidateCreate
-                onSave={async (c) => {
-                  try {
-                    const fullCandidate = await fetchCandidateById(c.id);
-                    setCandidates((prev) => [fullCandidate, ...prev]);
-
-                    // Check if we're coming from referral flow
-                    const isFromReferral = sessionStorage.getItem("referralRedirect");
-                    if (isFromReferral) {
-                      sessionStorage.removeItem("referralRedirect");
-                      navigate(`/my-referrals`);
-                    } else {
-                      navigate(`/candidates/${fullCandidate.id}`);
-                    }
-                  } catch (err) {
-                    console.error("Failed to fetch candidate after creation, adding minimal data:", err);
-                    setCandidates((prev) => [c, ...prev]);
-
-                    // Check if we're coming from referral flow
-                    const isFromReferral = sessionStorage.getItem("referralRedirect");
-                    if (isFromReferral) {
-                      sessionStorage.removeItem("referralRedirect");
-                      navigate(`/my-referrals`);
-                    } else {
-                      navigate(`/candidates/${c.id}`);
-                    }
-                  }
-                }}
-              />
-            }
-          />
-
-          <Route
-            path="candidates/:candidateId"
-            element={
-              <CandidateDetailsWrapper
-                fetchCandidateById={fetchCandidateById}
-                onRefreshCandidates={refreshCandidates}
-                updateCandidate={updateCandidate}
-                notify={notify}
-              />
-            }
-          />
-
-          <Route
-            path="jobs"
-            element={
-              <JobsOverview
-                jobs={jobs}
-                onCreate={() => {
-                  setJobCreateMode("create");
-                }}
-                onViewJob={(jobId) => {
-                  navigate(`/jobs/${jobId}/workspace`);
-                }}
-                onOpenJob={(jobId) => {
-                  navigate(`/jobs/${jobId}`);
-                }}
-                onPostToLinkedIn={async (jobId) => {
-                  try {
-                    const res = await postJobOnLinkedIn(jobId);
-                    notify(
-                      "LinkedIn (Simulated -- not yet integrated)",
-                      res?.message ||
-                        "Simulated only. No LinkedIn integration is connected yet, so nothing was actually posted.",
-                    );
-                  } catch (err) {
-                    notify(
-                      "LinkedIn (Simulated -- not yet integrated)",
-                      err.message || "Failed to simulate LinkedIn post.",
-                    );
-                  }
-                }}
-                onApproveJob={async (jobId) => {
-                  try {
-                    const response = await approveJob(jobId);
-                    await refreshJobs();
-                    notify(
-                      "Job",
-                      response?.message || `Approved job ${jobId}.`,
-                    );
-                  } catch (err) {
-                    notify("Job", err.message || "Failed to approve job.");
-                  }
-                }}
-                onDeleteJob={
-                  isSuperUser
-                    ? async (jobId) => {
-                        const ok = window.confirm(`Delete job ${jobId}?`);
-                        if (!ok) return;
-
-                        try {
-                          await deleteJob(jobId);
-                          await refreshJobs();
-                          notify("Job", `Deleted job ${jobId}.`);
-                        } catch (err) {
-                          notify("Job", err.message || "Failed to delete job.");
-                        }
-                      }
-                    : undefined
-                }
-              />
-            }
-          />
-
-          <Route
-            path="jobs/create"
-            element={
-              <JobCreate
-                onSave={(j) => {
-                  setJobs((prev) => [
-                    {
-                      ...j,
-                      hiringManagerName: j?.hiringManager || "-",
-                    },
-                    ...prev,
-                  ]);
-                  setSelectedJobId(j.id);
-                  toast.success(`Created job ${j.title}`);
-                  navigate(ROUTES.JOBS);
-                }}
-              />
-            }
-          />
-
-          <Route
-            path="jobs/:jobId/workspace"
-            element={
-              <JobWorkspaceWrapper
-                users={users}
-                candidates={candidates}
-                notify={notify}
-              />
-            }
-          />
-          <Route path="offers" element={<OfferLettersScreen />} />
-        </Route>
-      </Routes>
-      <ToastContainer position="top-right" autoClose={3000} />
-    </>
-  );
 }

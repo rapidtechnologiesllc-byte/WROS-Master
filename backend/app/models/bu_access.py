@@ -1,4 +1,5 @@
 """
+import logging
 S-205/HRMS-0107 -- Business Unit Entity & Context Switching.
 
 bu_access is the real junction table the spec asks for (user_id,
@@ -8,16 +9,18 @@ their home BU (Users.business_unit_id); cross-BU users get multiple
 rows, seeded/managed via the API this story adds, not automatically
 inferred beyond that one default row.
 """
+import logging
 from sqlalchemy import Boolean, Column, ForeignKey, Integer, String, UniqueConstraint
 
 from app.models.base import Base
 
+logger = logging.getLogger(__name__)
 
 class BUAccess(Base):
     __tablename__ = "bu_access"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    user_id = Column(String(50), ForeignKey("users.UserID"), nullable=False, index=True)
+    user_id = Column(String(512), ForeignKey("users.UserID"), nullable=False, index=True)
     business_unit_id = Column(Integer, ForeignKey("business_units.id"), nullable=False, index=True)
     is_default = Column(Boolean, nullable=False, default=False)
 

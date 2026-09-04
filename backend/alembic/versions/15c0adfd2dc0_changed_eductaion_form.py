@@ -1,3 +1,4 @@
+import logging
 """changed eductaion form
 
 Revision ID: 15c0adfd2dc0
@@ -10,13 +11,11 @@ from typing import Sequence, Union
 from alembic import op
 import sqlalchemy as sa
 
-
 # revision identifiers, used by Alembic.
 revision: str = '15c0adfd2dc0'
 down_revision: Union[str, Sequence[str], None] = '82934bb0b53e'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
-
 
 def upgrade() -> None:
     """Upgrade schema."""
@@ -34,7 +33,6 @@ def upgrade() -> None:
                type_=sa.String(length=50),
                existing_nullable=True)
     # ### end Alembic commands ###
-
 
 def downgrade() -> None:
     """Downgrade schema."""

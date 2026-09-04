@@ -1,7 +1,9 @@
-﻿"""Opportunity Tracker Agent endpoints for sales pipeline management."""
+from app.core.logging import logger
+"""Opportunity Tracker Agent endpoints for sales pipeline management."""
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from datetime import datetime
+import logging
 from pydantic import BaseModel
 
 from app.core.dependencies import get_current_internal_user, require_resource_permission
@@ -11,6 +13,7 @@ from app.services.opportunity_tracker_agent_service import OpportunityTrackerAge
 
 router = APIRouter(prefix="/opportunities", tags=["Opportunity Tracker"])
 
+logger = logging.getLogger(__name__)
 
 class LogOpportunityRequest(BaseModel):
     """Log new opportunity when partner/sales person identifies target client."""
@@ -18,19 +21,16 @@ class LogOpportunityRequest(BaseModel):
     deal_size_usd_cents: int
     expected_close_date: datetime
 
-
 class UpdateOpportunityStageRequest(BaseModel):
     """Update opportunity as it progresses through sales cycle."""
     new_stage: str
     activity_note: str
-
 
 class LogActivityRequest(BaseModel):
     """Log activity (call, email, meeting, etc.) on opportunity."""
     activity: str  # "call", "email", "meeting", "proposal_sent", etc.
     outcome: str   # "positive", "neutral", "negative"
     next_step: str = None
-
 
 @router.post("/log", dependencies=[Depends(require_resource_permission("opportunities", "create"))])
 async def log_new_opportunity(
@@ -59,8 +59,8 @@ async def log_new_opportunity(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @router.get("/pipeline-health", dependencies=[Depends(require_resource_permission("opportunities", "view"))])
 async def get_pipeline_health(
@@ -87,8 +87,8 @@ async def get_pipeline_health(
         )
         return health
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @router.patch("/opportunities/{opportunity_id}/stage", dependencies=[Depends(require_resource_permission("opportunities", "edit"))])
 async def update_opportunity_stage(
@@ -119,8 +119,8 @@ async def update_opportunity_stage(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @router.post("/opportunities/{opportunity_id}/activity", dependencies=[Depends(require_resource_permission("opportunities", "edit"))])
 async def log_opportunity_activity(
@@ -155,4 +155,5 @@ async def log_opportunity_activity(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))

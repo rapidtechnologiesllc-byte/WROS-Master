@@ -1,4 +1,5 @@
 """
+import logging
 S-032/HRMS-0432 -- Candidate Context Builder.
 
 Real architecture adaptations:
@@ -36,6 +37,7 @@ Real architecture adaptations:
   jobExperience, jobLocation, salaryRange as the closest real
   equivalent to the spec's bill_rate -- no bill_rate field exists).
 """
+import logging
 import time
 from datetime import datetime
 from typing import Dict, Optional, Tuple
@@ -48,22 +50,22 @@ from app.models.user import Jobs
 from app.services.ai_conversation_service import get_conversation_thread, get_missing_fields, resolve_thunder_config
 from app.services.candidate_memory_service import get_memory
 from app.services.qualification_engine_service import QualificationNotApplicable, get_qualification_plan, is_qualifying_state
+from app.core.logging import logger
 
 CACHE_TTL_SECONDS = 30
 
 # Real in-process cache -- see module docstring. {(tenant_id, candidate_id): (expires_at, context)}
 _CONTEXT_CACHE: Dict[Tuple[str, str], Tuple[float, Dict]] = {}
 
+logger = logging.getLogger(__name__)
 
 class CandidateNotFound(Exception):
     pass
-
 
 def invalidate_candidate_context_cache(tenant_id: str, candidate_id: str) -> None:
     """BR-03. Real, callable now; not yet auto-wired into every mutation
     site -- see module docstring."""
     _CONTEXT_CACHE.pop((tenant_id, candidate_id), None)
-
 
 def _get_cached(tenant_id: str, candidate_id: str) -> Optional[Dict]:
     entry = _CONTEXT_CACHE.get((tenant_id, candidate_id))
@@ -75,10 +77,8 @@ def _get_cached(tenant_id: str, candidate_id: str) -> Optional[Dict]:
         return None
     return context
 
-
 def _set_cached(tenant_id: str, candidate_id: str, context: Dict) -> None:
     _CONTEXT_CACHE[(tenant_id, candidate_id)] = (time.monotonic() + CACHE_TTL_SECONDS, context)
-
 
 def _candidate_summary(candidate: Candidate) -> Dict:
     name = " ".join(filter(None, [candidate.candidateFirstName, candidate.candidateLastName])).strip()
@@ -91,7 +91,6 @@ def _candidate_summary(candidate: Candidate) -> Dict:
         "completeness_score": candidate.resume_completeness_score,
     }
 
-
 def _job_summary(db: Session, job_id: Optional[str]) -> Optional[Dict]:
     if not job_id:
         return None
@@ -102,7 +101,6 @@ def _job_summary(db: Session, job_id: Optional[str]) -> Optional[Dict]:
         "id": job.jobID, "title": job.jobTitle, "required_skills": job.jobSkills,
         "experience_required": job.jobExperience, "location": job.jobLocation, "bill_rate": job.salaryRange,
     }
-
 
 def build_candidate_context(db: Session, candidate_id: str, tenant_id: str, *, use_cache: bool = True) -> Dict:
     """
@@ -182,7 +180,6 @@ def build_candidate_context(db: Session, candidate_id: str, tenant_id: str, *, u
 
     _set_cached(tenant_id, candidate_id, context)
     return context
-
 
 def get_context_for_prompt(db: Session, candidate_id: str, tenant_id: str, prompt_type: str, additional_params: Optional[Dict] = None) -> Dict:
     """Step 4 -- the single entry point for every LLM-calling story to

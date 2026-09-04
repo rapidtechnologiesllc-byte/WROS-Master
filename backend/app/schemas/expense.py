@@ -1,8 +1,11 @@
 from datetime import date, datetime
+import logging
 from typing import Optional
 
 from pydantic import BaseModel
+from app.core.logging import logger
 
+logger = logging.getLogger(__name__)
 
 class ExpenseCreateRequest(BaseModel):
     purpose: str
@@ -17,7 +20,6 @@ class ExpenseCreateRequest(BaseModel):
     location: Optional[str] = None
     description: Optional[str] = None
     receipt_ref: Optional[str] = None
-
 
 class ExpenseItem(BaseModel):
     id: str
@@ -42,10 +44,8 @@ class ExpenseItem(BaseModel):
     class Config:
         from_attributes = True
 
-
 class ExpenseListResponse(BaseModel):
     expenses: list[ExpenseItem]
-
 
 class ClientInvestmentPositionResponse(BaseModel):
     client_id: str

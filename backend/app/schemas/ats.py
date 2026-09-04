@@ -1,12 +1,16 @@
 """
 ATS Pydantic Schemas
+import logging
 """
 
+import logging
 from datetime import datetime
 from typing import List, Optional
 
 from pydantic import BaseModel
+from app.core.logging import logger
 
+logger = logging.getLogger(__name__)
 
 class ATSScoreBreakdown(BaseModel):
     """Fine-grained dimension scores."""
@@ -15,7 +19,6 @@ class ATSScoreBreakdown(BaseModel):
     education_score: int    # 0–20
     location_score: int     # 0–15
     culture_fit_score: int  # 0–15
-
 
 class ATSScoreResponse(BaseModel):
     """Full ATS result returned to the caller."""
@@ -35,7 +38,6 @@ class ATSScoreResponse(BaseModel):
 
     scored_at: datetime
 
-
 class CandidateATSListItem(BaseModel):
     """Summary row for HR dashboard listing."""
     ats_score_id: int
@@ -49,11 +51,9 @@ class CandidateATSListItem(BaseModel):
     ats_verdict: Optional[str] = None
     scored_at: datetime
 
-
 class AllATSScoresResponse(BaseModel):
     total: int
     scores: List[CandidateATSListItem]
-
 
 class ATSRescoringRequest(BaseModel):
     """Re-trigger ATS scoring for an existing candidate/job pair."""

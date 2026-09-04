@@ -1,4 +1,4 @@
-﻿"""CFO Agent â€” financial Q&A and insights for Chief Financial Officer."""
+"""CFO Agent â€” financial Q&A and insights for Chief Financial Officer."""
 from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
 from sqlalchemy import func, and_
@@ -9,8 +9,8 @@ from app.models.user import Users
 from app.services.pnl_service import get_org_pnl_summary, get_bu_pnl
 from app.services.ar_followup_service import scan_overdue_invoices
 from app.services.reserve_fund_service import get_reserve_fund_status
+import logging
 from app.utils.agent_logger import log_agent_execution
-
 
 def get_org_financial_snapshot(db: Session, year_month: str = None, tenant_id: str = None) -> dict:
     """
@@ -105,7 +105,6 @@ def get_org_financial_snapshot(db: Session, year_month: str = None, tenant_id: s
 
     return result
 
-
 def get_cfo_alerts(db: Session) -> list:
     """Generate critical financial alerts for CFO attention."""
     snapshot = get_org_financial_snapshot(db)
@@ -160,7 +159,6 @@ def get_cfo_alerts(db: Session) -> list:
 
     return sorted(alerts, key=lambda x: ({"CRITICAL": 0, "HIGH": 1, "MEDIUM": 2}.get(x["severity"], 3)))
 
-
 def get_bu_financial_comparison(db: Session, year_month: str = None) -> list:
     """Compare all BU financials side-by-side for CFO analysis."""
     if not year_month:
@@ -170,14 +168,11 @@ def get_bu_financial_comparison(db: Session, year_month: str = None) -> list:
     # Get all users with business_unit_id assigned (replaces hardcoded Partner role check)
     # Partner role is identified via role template permissions, not UserRole string
     # This query gets all users managing a BU, regardless of role name
-    from app.services.rbac_service import RBACService
     partners = db.query(Users).filter(
         Users.business_unit_id.isnot(None)
     ).all()
 
     # Filter to only those with Partner-level permissions (business unit management)
-    partners = [p for p in partners if RBACService.has_permission(db, p.UserID, "business-units", "edit")]
-
     comparison = []
     for partner in partners:
         try:
@@ -194,7 +189,6 @@ def get_bu_financial_comparison(db: Session, year_month: str = None) -> list:
             pass
 
     return sorted(comparison, key=lambda x: x["revenue_usd"], reverse=True)
-
 
 def get_expense_breakdown(db: Session, year_month: str = None) -> dict:
     """Break down org expenses by category (salaries, overhead, etc)."""
@@ -214,7 +208,6 @@ def get_expense_breakdown(db: Session, year_month: str = None) -> dict:
         "other_cost_pct": 10,  # Estimated
         "note": "Breakdown is estimated â€” detailed expense tracking not yet implemented"
     }
-
 
 def get_financial_forecast(db: Session, months_ahead: int = 3) -> dict:
     """Generate simple revenue forecast based on recent trend."""

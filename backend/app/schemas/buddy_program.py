@@ -1,16 +1,18 @@
+from app.core.logging import logger
 """Pydantic schemas -- S-364 Buddy KPI Tracking + S-365 Graduation Gate."""
 from datetime import date, datetime
+import logging
 from typing import Dict, List, Optional
 
 from pydantic import BaseModel
 
+logger = logging.getLogger(__name__)
 
 class BuddyProgramRecordCreateRequest(BaseModel):
     employee_id: str
     buddy_engineer_user_id: str
     program_start_date: date
     expected_end_date: date
-
 
 class BuddyProgramRecordResponse(BaseModel):
     id: str
@@ -27,11 +29,9 @@ class BuddyProgramRecordResponse(BaseModel):
     class Config:
         from_attributes = True
 
-
 class WeeklyScoresSubmitRequest(BaseModel):
     week_number: int
     scores: Dict[int, int]  # kpi_number -> score (1-5)
-
 
 class ScorecardResponse(BaseModel):
     buddy_record_id: str
@@ -42,7 +42,6 @@ class ScorecardResponse(BaseModel):
     weighted_overall_score: Optional[float]
     trajectory: Optional[str]
     lowest_scoring_kpis: List[dict]
-
 
 class GraduationDecisionRequest(BaseModel):
     notes: Optional[str] = None

@@ -1,4 +1,5 @@
 """
+import logging
 S-360/HRMS-P506-REV -- HTD 4-Phase Gate Structure.
 
 record_phase_gate_decision() is the one function that ever advances
@@ -30,6 +31,7 @@ SLA escalation to BU Head (AC-3) has no scheduler in this codebase --
 same cron-wiring-is-follow-up posture as every other scheduled-job
 story already in this codebase (e.g. S-365's own 48h SLA).
 """
+import logging
 from typing import Optional
 
 from sqlalchemy.orm import Session
@@ -38,6 +40,7 @@ from app.models.employee import Employee
 from app.models.htd_phase_gate import HTD_GATE_DECISIONS, HTD_GATE_PHASES, HTDPhaseGate
 from app.services.employee_service import transition_employee_status
 from app.services.performance_store_service import write_performance_event
+from app.core.logging import logger
 
 PHASE_SEQUENCE = HTD_GATE_PHASES  # INDUCTION -> SHADOW_DELIVERY -> CONTROLLED_OWNERSHIP -> CORE_ELIGIBILITY_REVIEW
 PHASE_GATE_OWNERS = {
@@ -49,24 +52,21 @@ PHASE_GATE_OWNERS = {
 MIN_GATE_NOTE_LENGTH = 50
 MAX_EXTENSIONS_PER_PHASE = 1
 
+logger = logging.getLogger(__name__)
 
 class InvalidPhaseGateDecision(Exception):
     pass
-
 
 class WrongPhaseForGate(Exception):
     """BR: no skipping/backdating -- a gate can only be logged for the
     employee's CURRENT phase."""
 
-
 class WrongGateOwnerForPhase(Exception):
     pass
-
 
 class PhaseExtensionLimitReached(Exception):
     """BR: max 1 extension per phase -- a second EXTEND attempt must be
     PASS or EXIT instead."""
-
 
 def _extension_count(db: Session, employee_id: str, phase: str) -> int:
     return (
@@ -78,7 +78,6 @@ def _extension_count(db: Session, employee_id: str, phase: str) -> int:
         )
         .count()
     )
-
 
 def record_phase_gate_decision(
     db: Session,
@@ -141,7 +140,6 @@ def record_phase_gate_decision(
     # EXTEND itself means "restart this phase," per the doc.
 
     return gate
-
 
 def exit_htd_track(
     db: Session, employee: Employee, *, reason: str, changed_by: str, tenant_id: Optional[int] = None,

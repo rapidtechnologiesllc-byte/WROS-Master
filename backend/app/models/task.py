@@ -4,6 +4,7 @@ resolves to "S-434" (verified against WROS_Canonical_Backlog_S001-401.xlsx
 -- HRMS-0434 is S-034's own WROS ID, referenced only as a "Depends On"
 value elsewhere; there is no real S-434 row). Built as new, greenfield
 scope per Avinash's direct spec (2026-08-04 session), not retrofitted
+import logging
 onto an existing story.
 
 Deliberately NOT tenant-partitioned the way the candidate-engagement
@@ -21,6 +22,7 @@ separate counter table needed; a single Integer IDENTITY/autoincrement
 column is already a real, atomic, monotonic, org-wide sequence in both
 SQLite and SQL Server.
 """
+import logging
 import uuid
 from datetime import datetime
 
@@ -51,10 +53,10 @@ TASK_TYPES = ("GENERAL", "TICKET")
 PRIORITY_BUMP_CEILING = "HIGH"
 PRIORITY_ORDER = {"LOW": 0, "MEDIUM": 1, "HIGH": 2, "URGENT": 3}
 
-
 def _new_uuid() -> str:
     return str(uuid.uuid4())
 
+logger = logging.getLogger(__name__)
 
 class Task(Base):
     __tablename__ = "tasks"
@@ -72,8 +74,8 @@ class Task(Base):
         nullable=False, default="GENERAL",
     )
     # Reserved for the ticketing story -- unused by GENERAL tasks.
-    category = Column(String(100), nullable=True)
-    subcategory = Column(String(100), nullable=True)
+    category = Column(String(512), nullable=True)
+    subcategory = Column(String(512), nullable=True)
 
     priority = Column(
         Enum(*TASK_PRIORITIES, name="task_priority", native_enum=False, create_constraint=True),
@@ -90,9 +92,9 @@ class Task(Base):
         nullable=False, default="NEW",
     )
 
-    department_id = Column(String(36), ForeignKey("departments.id"), nullable=True, index=True)
-    assigned_to_user_id = Column(String(50), ForeignKey("users.UserID"), nullable=True, index=True)
-    created_by_user_id = Column(String(50), ForeignKey("users.UserID"), nullable=True, index=True)
+    department_id = Column(String(512), ForeignKey("departments.id"), nullable=True, index=True)
+    assigned_to_user_id = Column(String(512), ForeignKey("users.UserID"), nullable=True, index=True)
+    created_by_user_id = Column(String(512), ForeignKey("users.UserID"), nullable=True, index=True)
     # Parent-child pattern (Freshdesk/Zendesk precedent) -- one cross-
     # functional request can fan out into per-department child Tasks
     # (e.g. "new hire needs a laptop + badge + desk" -> separate IT/
@@ -109,7 +111,7 @@ class Task(Base):
     # nullable -- every non-document-review Task leaves these null,
     # same "polymorphic-lite, not a forced generic link table" posture
     # as parent_task_id above.
-    candidate_id = Column(String(36), ForeignKey("candidates.candidateID"), nullable=True, index=True)
+    candidate_id = Column(String(512), ForeignKey("candidates.candidateID"), nullable=True, index=True)
     document_id = Column(Integer, ForeignKey("candidate_documents.id"), nullable=True, index=True)
     # 2026-08-05 -- interview feedback/HM-decision linkage (backlog item:
     # distinguish "interviewer hasn't submitted feedback yet" from
@@ -123,12 +125,12 @@ class Task(Base):
     # once paid" (Avinash's explicit rule). Completing this Task is
     # what flips the expense to REIMBURSED -- same polymorphic-lite
     # nullable-link posture as document_id/interview_id above.
-    expense_id = Column(String(36), ForeignKey("expense_records.id"), nullable=True, index=True)
+    expense_id = Column(String(512), ForeignKey("expense_records.id"), nullable=True, index=True)
     # 2026-08-06 -- EPIC-16 AR follow-up: one open Task per overdue
     # invoice, assigned to the client's account manager (or unassigned/
     # flagged if none is set). Same polymorphic-lite nullable-link
     # posture as expense_id/document_id/interview_id above.
-    invoice_id = Column(String(36), ForeignKey("invoices.id"), nullable=True, index=True)
+    invoice_id = Column(String(512), ForeignKey("invoices.id"), nullable=True, index=True)
 
     due_date = Column(DateTime, nullable=True, index=True)
     is_external = Column(Boolean, nullable=False, default=False)
@@ -162,7 +164,6 @@ class Task(Base):
         ),
     )
 
-
 class TaskReassignmentRequest(Base):
     """A manager-approval-gated reassignment, raised when an assignee is
     unavailable (e.g. taking time off) and has tasks due today. Never
@@ -170,25 +171,24 @@ class TaskReassignmentRequest(Base):
     approve_reassignment()."""
     __tablename__ = "task_reassignment_requests"
 
-    id = Column(String(36), primary_key=True, default=_new_uuid)
+    id = Column(String(512), primary_key=True, default=_new_uuid)
     task_id = Column(Integer, ForeignKey("tasks.id"), nullable=False, index=True)
 
-    from_user_id = Column(String(50), ForeignKey("users.UserID"), nullable=False)
-    suggested_to_user_id = Column(String(50), ForeignKey("users.UserID"), nullable=True)
-    reason = Column(String(200), nullable=False, default="ASSIGNEE_UNAVAILABLE")
+    from_user_id = Column(String(512), ForeignKey("users.UserID"), nullable=False)
+    suggested_to_user_id = Column(String(512), ForeignKey("users.UserID"), nullable=True)
+    reason = Column(String(512), nullable=False, default="ASSIGNEE_UNAVAILABLE")
 
     status = Column(
         Enum("PENDING", "APPROVED", "REJECTED", name="task_reassignment_status", native_enum=False, create_constraint=True),
         nullable=False, default="PENDING",
     )
-    approved_by_user_id = Column(String(50), ForeignKey("users.UserID"), nullable=True)
-    final_to_user_id = Column(String(50), ForeignKey("users.UserID"), nullable=True)
+    approved_by_user_id = Column(String(512), ForeignKey("users.UserID"), nullable=True)
+    final_to_user_id = Column(String(512), ForeignKey("users.UserID"), nullable=True)
 
     created_at = Column(DateTime, server_default=func.now())
     resolved_at = Column(DateTime, nullable=True)
 
     task = relationship("Task")
-
 
 class TaskCapacityAlert(Base):
     """Advisory-only signal raised when a user's open-task load looks
@@ -198,9 +198,9 @@ class TaskCapacityAlert(Base):
     existing work."""
     __tablename__ = "task_capacity_alerts"
 
-    id = Column(String(36), primary_key=True, default=_new_uuid)
-    user_id = Column(String(50), ForeignKey("users.UserID"), nullable=False, index=True)
-    department_id = Column(String(36), ForeignKey("departments.id"), nullable=True)
+    id = Column(String(512), primary_key=True, default=_new_uuid)
+    user_id = Column(String(512), ForeignKey("users.UserID"), nullable=False, index=True)
+    department_id = Column(String(512), ForeignKey("departments.id"), nullable=True)
 
     open_task_count = Column(Integer, nullable=False)
     reason = Column(Text, nullable=False)

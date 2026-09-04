@@ -4,6 +4,7 @@ import { Button, Card, StatusBadge, Table } from "../components/ui";
 import TableView from "../components/ui/TableView";
 import { useNavigate } from "react-router-dom";
 import { ROUTES } from "../utils/Routes";
+import { hasPermission } from "../utils/permissionsRoleTemplate";
 
 export default function JobsOverview({
   jobs,
@@ -16,6 +17,7 @@ export default function JobsOverview({
 }) {
   const canDelete = Boolean(onDeleteJob);
   const canApprove = Boolean(onApproveJob);
+  const canCreateJob = hasPermission("jobs", "create");
   const submittedCount = jobs.filter((j) => j.status === "Submitted").length;
   const totalCount = jobs.length;
   const navigate = useNavigate();
@@ -26,9 +28,11 @@ export default function JobsOverview({
         title="Jobs"
         icon={<Briefcase className="h-4 w-4" />}
         right={
-          <Button onClick={() => navigate(ROUTES.JOB_CREATE)}>
-            <Plus className="h-4 w-4" /> Create Job
-          </Button>
+          canCreateJob && (
+            <Button onClick={() => navigate(ROUTES.JOB_CREATE)}>
+              <Plus className="h-4 w-4" /> Create Job
+            </Button>
+          )
         }
       >
         <div className="grid gap-3 md:grid-cols-3">

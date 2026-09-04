@@ -1,3 +1,4 @@
+import logging
 """expand timesheet_anomaly_flags.anomaly_type CHECK to include UNLINKED_TASK
 
 Revision ID: f1a3c5e7b9d2
@@ -20,7 +21,6 @@ from typing import Sequence, Union
 
 from alembic import op
 
-
 revision: str = 'f1a3c5e7b9d2'
 down_revision: Union[str, Sequence[str], None] = 'e7f2a4c6b8d1'
 branch_labels: Union[str, Sequence[str], None] = None
@@ -29,13 +29,11 @@ depends_on: Union[str, Sequence[str], None] = None
 _OLD_TYPES = "'WEEKEND','OVER_12H','COMPLETED_PROJECT','DUPLICATE'"
 _NEW_TYPES = _OLD_TYPES + ",'UNLINKED_TASK'"
 
-
 def upgrade() -> None:
     """Upgrade schema."""
     with op.batch_alter_table('timesheet_anomaly_flags') as batch_op:
         batch_op.drop_constraint('timesheet_anomaly_type', type_='check')
         batch_op.create_check_constraint('timesheet_anomaly_type', f"anomaly_type IN ({_NEW_TYPES})")
-
 
 def downgrade() -> None:
     """Downgrade schema."""

@@ -3,6 +3,7 @@ Shared-secret authentication for webhook-style endpoints that must
 accept calls from non-interactive external callers (a scheduler, an
 email service) alongside manual internal use -- a user-identity check
 like require_permission() would break the external-caller path, since
+import logging
 those callers have no JWT to present.
 
 Pattern: the caller sends the shared secret in a request header
@@ -21,11 +22,9 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 
-
 def _secret_is_valid(provided: str) -> bool:
     expected = os.getenv("WEBHOOK_SHARED_SECRET", "")
     return bool(expected) and bool(provided) and hmac.compare_digest(provided, expected)
-
 
 def require_webhook_secret(x_webhook_secret: str = Header(default="")) -> None:
     """For endpoints that are ONLY ever called by external services --
@@ -40,7 +39,6 @@ def require_webhook_secret(x_webhook_secret: str = Header(default="")) -> None:
         )
     if not _secret_is_valid(x_webhook_secret):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid webhook secret")
-
 
 async def require_webhook_secret_or_internal_user(
     request: Request,
@@ -87,7 +85,6 @@ async def require_webhook_secret_or_internal_user(
     user = db.query(Users).filter(Users.UserEmail == user_id).first()
     if not user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
-
 
 # HRMS-0114 -- marks these as real (if coarse) identity checks so
 # route_security_audit.py doesn't flag routes using them as having zero

@@ -1,4 +1,5 @@
 """
+import logging
 S-029/HRMS-0429 -- Skill Extraction & Tagging from Resume.
 
 candidate_skill_tags: genuinely new table (like S-028's resume-parsed
@@ -7,22 +8,24 @@ dedupe/unique semantics doesn't fit any existing structure. Integer-PK
 + String(50) UserID-as-tenant_id convention, matching every other new
 table this round.
 """
+import logging
 from sqlalchemy import Column, DateTime, Float, ForeignKey, Index, Integer, String, UniqueConstraint, func
 
 from app.models.base import Base
 
 SKILL_TAG_SOURCES = ("RESUME", "CONVERSATION", "MANUAL")
 
+logger = logging.getLogger(__name__)
 
 class CandidateSkillTag(Base):
     __tablename__ = "candidate_skill_tags"
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
-    tenant_id = Column(String(50), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=False, index=True)
-    candidate_id = Column(String(36), ForeignKey("candidates.candidateID", ondelete="CASCADE"), nullable=False, index=True)
+    tenant_id = Column(String(512), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=False, index=True)
+    candidate_id = Column(String(512), ForeignKey("candidates.candidateID", ondelete="CASCADE"), nullable=False, index=True)
 
-    skill_canonical = Column(String(100), nullable=False)
-    skill_raw = Column(String(200), nullable=True)
+    skill_canonical = Column(String(512), nullable=False)
+    skill_raw = Column(String(512), nullable=True)
     source = Column(String(20), nullable=False, server_default="RESUME")
     confidence = Column(Float, nullable=False, server_default="1.0")
 

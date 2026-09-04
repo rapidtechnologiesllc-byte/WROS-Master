@@ -1,4 +1,5 @@
 """
+import logging
 S-073/HRMS-0473 -- Candidate Preference Capture Engine.
 
 Real architecture adaptations:
@@ -52,15 +53,12 @@ PREFERENCE_QUESTIONS: List[Dict[str, str]] = [
 ]
 PREFERENCE_TYPES = [q["preference_type"] for q in PREFERENCE_QUESTIONS]
 
-
 def _profile_complete(candidate: Candidate, db: Session) -> bool:
     return len(get_missing_fields(candidate, db)) == 0
-
 
 def _asked_preference_types(db: Session, candidate_id: str, tenant_id: str) -> set:
     memory = get_memory(db, candidate_id, tenant_id)
     return {f["key"] for f in memory["facts"] if f["category"] == "PREFERENCE"}
-
 
 def ask_preference_question(db: Session, candidate_id: str, tenant_id: str) -> Optional[Dict]:
     """Step 2. BR-01: only once completeness=100%. Returns the next
@@ -76,18 +74,15 @@ def ask_preference_question(db: Session, candidate_id: str, tenant_id: str) -> O
             return dict(item)
     return None
 
-
 def record_preference_answer(db: Session, candidate_id: str, tenant_id: str, preference_type: str, answer: str, *, confidence: float = 1.0) -> None:
     """Integrations table: stores a candidate's real preference answer,
     same real upsert_fact() every other memory-writing story uses."""
     upsert_fact(db, candidate_id, tenant_id, fact_category="PREFERENCE", fact_key=preference_type, fact_value=answer, confidence=confidence)
 
-
 def mark_preference_skipped(db: Session, candidate_id: str, tenant_id: str, preference_type: str) -> None:
     """BR-02: candidate didn't answer or said 'not sure' -- record
     'Not specified' and move on, never repeat the question."""
     upsert_fact(db, candidate_id, tenant_id, fact_category="PREFERENCE", fact_key=preference_type, fact_value=NOT_SPECIFIED, confidence=1.0)
-
 
 def append_preference_question_to_message(message: str, question_item: Optional[Dict]) -> str:
     """Step 3's literal wording: 'That's everything I needed! Just one

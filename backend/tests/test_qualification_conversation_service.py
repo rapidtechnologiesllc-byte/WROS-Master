@@ -1,4 +1,5 @@
 """
+import logging
 S-025/HRMS-0425 -- AI Qualification Conversation Engine.
 
 Real architecture adaptations under test (see
@@ -33,7 +34,6 @@ from app.models.user import Users
 
 import app.services.qualification_conversation_service as svc
 
-
 @pytest.fixture()
 def db_session():
     fd, db_path = tempfile.mkstemp(suffix=".sqlite3")
@@ -52,10 +52,8 @@ def db_session():
         engine.dispose()
         os.remove(db_path)
 
-
 def _no_sleep(seconds):
     pass
-
 
 @pytest.fixture()
 def seeded(db_session):
@@ -81,7 +79,6 @@ def seeded(db_session):
     db_session.commit()
     return candidate, conv
 
-
 def test_recruiter_owned_conversation_thunder_stays_silent(db_session, seeded):
     candidate, conv = seeded
     conv.owner_type = "hr_user"
@@ -94,7 +91,6 @@ def test_recruiter_owned_conversation_thunder_stays_silent(db_session, seeded):
     events = db_session.query(ConversationEvent).filter(ConversationEvent.conversation_id == conv.id).all()
     assert events == []  # BR-03: no message sent at all
 
-
 def test_not_qualifying_state_no_op(db_session, seeded):
     candidate, conv = seeded
     conv.status = "closed"
@@ -102,7 +98,6 @@ def test_not_qualifying_state_no_op(db_session, seeded):
 
     result = svc.run_qualification_turn(db_session, conv, candidate, "U-ORG", "Hi", sleep_fn=_no_sleep)
     assert result["action"] == "not_qualifying"
-
 
 def test_not_interested_transitions_to_closed_and_sends_graceful_message(db_session, seeded):
     candidate, conv = seeded
@@ -119,7 +114,6 @@ def test_not_interested_transitions_to_closed_and_sends_graceful_message(db_sess
     assert len(sent_events) == 1
     assert "no worries" in sent_events[0].event_data["body"].lower()
 
-
 def test_qualification_question_sent_for_missing_field(db_session, seeded):
     candidate, conv = seeded
     result = svc.run_qualification_turn(db_session, conv, candidate, "U-ORG", "Sure, here's some info", llm_call=lambda p: "variation", sleep_fn=_no_sleep)
@@ -130,7 +124,6 @@ def test_qualification_question_sent_for_missing_field(db_session, seeded):
 
     sent_events = db_session.query(ConversationEvent).filter(ConversationEvent.conversation_id == conv.id, ConversationEvent.event_type == "ai_message_sent").all()
     assert len(sent_events) == 1
-
 
 def test_candidate_question_answered_before_next_field(db_session, seeded):
     candidate, conv = seeded
@@ -147,7 +140,6 @@ def test_candidate_question_answered_before_next_field(db_session, seeded):
     assert "BlitzenX places engineers" in result["message"]
     assert "To continue getting to know your background" in result["message"]
 
-
 def test_qualification_complete_transitions_and_sends_completion_message(db_session, seeded):
     candidate, conv = seeded
     candidate.candidateMobile = "+919876543210"  # last missing field now filled
@@ -163,7 +155,6 @@ def test_qualification_complete_transitions_and_sends_completion_message(db_sess
     sent_events = db_session.query(ConversationEvent).filter(ConversationEvent.conversation_id == conv.id, ConversationEvent.event_type == "ai_message_sent").all()
     assert len(sent_events) == 1
     assert "Priya" in sent_events[0].event_data["body"]
-
 
 def test_whatsapp_channel_dispatches_through_send_thunder_message(db_session, seeded, monkeypatch):
     import app.services.whatsapp_routing_service as wr_svc
@@ -185,7 +176,6 @@ def test_whatsapp_channel_dispatches_through_send_thunder_message(db_session, se
     sent_events = db_session.query(ConversationEvent).filter(ConversationEvent.conversation_id == conv.id, ConversationEvent.event_type == "ai_message_sent").all()
     assert len(sent_events) == 1
     assert sent_events[0].event_data["channel"] == "whatsapp"
-
 
 def test_portal_channel_dispatches_through_portal_message_service(db_session, seeded):
     candidate, conv = seeded

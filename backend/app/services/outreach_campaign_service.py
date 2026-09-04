@@ -1,4 +1,5 @@
 """
+import logging
 S-044/HRMS-0444 -- Multi-Touch Outreach Campaign.
 
 Real architecture adaptations:
@@ -69,7 +70,6 @@ STANDARD_OUTREACH_CAMPAIGN = [
 
 JOB_BATCH_SIZE = 50
 
-
 def start_campaign(
     db: Session, candidate_id: str, tenant_id: str, conversation_id: int, *,
     campaign_type: str = "STANDARD_OUTREACH",
@@ -101,7 +101,6 @@ def start_campaign(
     db.commit()
     return campaign
 
-
 def cancel_campaign_on_reply(db: Session, candidate_id: str, tenant_id: str) -> bool:
     """BR-01. Cancels every remaining touchpoint and completes the
     campaign the moment any inbound message arrives. Returns whether an
@@ -126,7 +125,6 @@ def cancel_campaign_on_reply(db: Session, candidate_id: str, tenant_id: str) -> 
     db.commit()
     return True
 
-
 def _has_replied_since(db: Session, conversation_id: int, since: datetime) -> bool:
     reply = (
         db.query(ConversationEvent)
@@ -135,14 +133,12 @@ def _has_replied_since(db: Session, conversation_id: int, since: datetime) -> bo
     )
     return reply is not None
 
-
 def _send_touchpoint(db: Session, conversation: CandidateConversation, candidate: Candidate, message_body: str, channel: str) -> None:
     """Delegates to thunder_service's shared send helper -- see that
     function's own docstring on why this was consolidated (previously
     duplicated identically in follow_up_scheduler_service)."""
     from app.services.thunder_service import send_outbound_campaign_message
     send_outbound_campaign_message(db, conversation, candidate, message_body, channel)
-
 
 def run_campaign_execution_job(db: Session) -> Dict:
     """Step 5. Never lets one bad row abort the batch -- catches
@@ -218,6 +214,7 @@ def run_campaign_execution_job(db: Session) -> Dict:
             db.commit()
             result["skipped"] += 1
         except Exception as exc:
+            logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.error(f"[OutreachCampaign] Unexpected failure processing touchpoint id={touchpoint.id}: {exc}")
             db.rollback()
             touchpoint = db.query(CampaignTouchpoint).filter(CampaignTouchpoint.id == touchpoint.id).first()

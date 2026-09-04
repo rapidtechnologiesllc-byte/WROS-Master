@@ -1,3 +1,5 @@
+import logging
+from app.core.logging import logger
 """Agent Event Service - Inter-agent communication via structured events."""
 
 from sqlalchemy.orm import Session
@@ -7,6 +9,7 @@ from sqlalchemy import Column, String, Integer, DateTime, Text, JSON, Boolean
 from app.models.base import Base
 import uuid
 import json
+logger = logging.getLogger(__name__)
 
 class AgentEvent(Base):
     """Structured event for inter-agent communication."""
@@ -30,7 +33,6 @@ class AgentEvent(Base):
     processed_at = Column(DateTime)
     status = Column(String(50), default="PENDING")  # PENDING, PROCESSED, ESCALATED
     audit_trail = Column(Text)  # JSON array of who consumed/acted
-
 
 class AgentEventService:
     """Service for publishing and consuming structured agent events."""
@@ -125,6 +127,7 @@ class AgentEventService:
             }
 
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             db.rollback()
             return {"status": "error", "message": str(e)}
 
@@ -155,7 +158,9 @@ class AgentEventService:
             ]
 
         except Exception as e:
-            return []
+            logger.error(f"Error: {str(e)}", exc_info=True)
+            # CRITICAL FIX: Raise error instead of returning empty list
+            raise Exception(f"Failed to get pending events for agent {agent_name}: {str(e)}")
 
     @staticmethod
     def consume_event(
@@ -194,6 +199,7 @@ class AgentEventService:
             }
 
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             db.rollback()
             return {"status": "error", "message": str(e)}
 
@@ -226,9 +232,9 @@ class AgentEventService:
             }
 
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             db.rollback()
             return {"status": "error", "message": str(e)}
-
 
 # EXAMPLE AGENT WORKFLOWS (How agents talk to each other)
 
@@ -258,7 +264,6 @@ def example_recruitment_workflow():
     """
     pass
 
-
 def example_resource_workflow():
     """
     How Resource Management + HR + KPI agents coordinate:
@@ -279,7 +284,6 @@ def example_resource_workflow():
        └─ May publish: "resource_reallocation_needed" event
     """
     pass
-
 
 def example_financial_workflow():
     """

@@ -1,5 +1,7 @@
+from app.core.logging import logger
 """EPIC-16 -- Bank Reconciliation. See app.models.bank_reconciliation
 for why this is manual-entry, not a real bank feed."""
+import logging
 from typing import List, Optional
 
 from sqlalchemy.orm import Session
@@ -7,10 +9,10 @@ from sqlalchemy.orm import Session
 from app.models.bank_reconciliation import BankTransaction
 from app.models.invoice import Invoice
 
+logger = logging.getLogger(__name__)
 
 class BankReconciliationError(Exception):
     pass
-
 
 def record_bank_transaction(
     db: Session, *, transaction_date, amount_usd_cents: int, description: str,
@@ -26,7 +28,6 @@ def record_bank_transaction(
     db.commit()
     db.refresh(transaction)
     return transaction
-
 
 def match_transaction_to_invoice(db: Session, transaction: BankTransaction, invoice: Invoice) -> BankTransaction:
     """Real validation, not a blind link: the transaction amount must
@@ -44,13 +45,11 @@ def match_transaction_to_invoice(db: Session, transaction: BankTransaction, invo
     db.refresh(transaction)
     return transaction
 
-
 def get_unreconciled_transactions(db: Session, *, tenant_id: Optional[int] = None) -> List[BankTransaction]:
     query = db.query(BankTransaction).filter(BankTransaction.reconciled.is_(False))
     if tenant_id is not None:
         query = query.filter(BankTransaction.tenant_id == tenant_id)
     return query.order_by(BankTransaction.transaction_date.desc()).all()
-
 
 def get_unmatched_paid_invoices(db: Session, *, tenant_id: Optional[int] = None) -> List[Invoice]:
     """PAID invoices with no reconciled bank transaction pointing at

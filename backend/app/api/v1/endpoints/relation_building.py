@@ -1,23 +1,24 @@
 """
+import logging
 Relation Building Agent API Endpoints
 
 Exposes relation building persona extraction for downstream systems.
 """
 
-from typing import Optional
+from typing import Optional, Dict, Any, List
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
-from app.core.dependencies import get_db, get_current_user
+from app.core.dependencies import get_db, get_current_user, require_resource_permission
 from app.core.logging import logger
 from app.services.relation_building_agent_service import RelationBuildingAgent
 from app.services.relation_building_dashboard_service import RelationBuildingDashboard
 from app.models.user import Users
+from app.core.database import get_db
 
 router = APIRouter(prefix="/relation-building", tags=["relation-building"])
 
-
-@router.post("/extract-persona/{candidate_id}")
+@router.post("/extract-persona/{candidate_id}", dependencies=[Depends(require_resource_permission("agents", "manage"))])
 async def extract_candidate_persona(
     candidate_id: str,
     db: Session = Depends(get_db),
@@ -79,11 +80,11 @@ async def extract_candidate_persona(
     except HTTPException:
         raise
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Relation building persona extraction error: {str(e)}")
         raise HTTPException(status_code=500, detail="Internal server error during persona extraction")
 
-
-@router.get("/candidate-relationship/{candidate_id}")
+@router.get("/candidate-relationship/{candidate_id}", dependencies=[Depends(require_resource_permission("agents", "view"))])
 async def get_candidate_relationship_status(
     candidate_id: str,
     db: Session = Depends(get_db),
@@ -109,11 +110,11 @@ async def get_candidate_relationship_status(
     except HTTPException:
         raise
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Relationship status retrieval error: {str(e)}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
-
-@router.post("/flash-report")
+@router.post("/flash-report", dependencies=[Depends(require_resource_permission("agents", "view"))])
 async def get_flash_candidate_intelligence(
     tenant_id: Optional[str] = Query(None),
     db: Session = Depends(get_db),
@@ -148,8 +149,7 @@ async def get_flash_candidate_intelligence(
         ],
     }
 
-
-@router.get("/dashboard/standup")
+@router.get("/dashboard/standup", dependencies=[Depends(require_resource_permission("agents", "view"))])
 async def get_daily_standup(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_user),
@@ -193,11 +193,11 @@ async def get_daily_standup(
         return result
 
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Standup report generation error: {str(e)}")
         raise HTTPException(status_code=500, detail="Internal server error generating standup report")
 
-
-@router.get("/dashboard/metrics")
+@router.get("/dashboard/metrics", dependencies=[Depends(require_resource_permission("agents", "view"))])
 async def get_agent_metrics(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_user),
@@ -230,11 +230,10 @@ async def get_agent_metrics(
         },
     }
 
-
 # ============== INTERACTION TRACKING ENDPOINTS ==============
 # These are called by other systems to update persona continuously
 
-@router.post("/interactions/email/{candidate_id}")
+@router.post("/interactions/email/{candidate_id}", dependencies=[Depends(require_resource_permission("agents", "manage"))])
 async def capture_email_interaction(
     candidate_id: str,
     email_text: str,
@@ -260,11 +259,11 @@ async def capture_email_interaction(
         )
         return result
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Email interaction capture error: {str(e)}")
         raise HTTPException(status_code=500, detail="Error capturing email interaction")
 
-
-@router.post("/interactions/whatsapp/{candidate_id}")
+@router.post("/interactions/whatsapp/{candidate_id}", dependencies=[Depends(require_resource_permission("agents", "manage"))])
 async def capture_whatsapp_interaction(
     candidate_id: str,
     message_text: str,
@@ -290,11 +289,11 @@ async def capture_whatsapp_interaction(
         )
         return result
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"WhatsApp interaction capture error: {str(e)}")
         raise HTTPException(status_code=500, detail="Error capturing WhatsApp interaction")
 
-
-@router.post("/interactions/ai-recruiter/{candidate_id}")
+@router.post("/interactions/ai-recruiter/{candidate_id}", dependencies=[Depends(require_resource_permission("agents", "manage"))])
 async def capture_ai_recruiter_conversation(
     candidate_id: str,
     conversation_text: str,
@@ -318,11 +317,11 @@ async def capture_ai_recruiter_conversation(
         )
         return result
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"AI Recruiter conversation capture error: {str(e)}")
         raise HTTPException(status_code=500, detail="Error capturing AI Recruiter conversation")
 
-
-@router.post("/interactions/interview/{candidate_id}")
+@router.post("/interactions/interview/{candidate_id}", dependencies=[Depends(require_resource_permission("agents", "manage"))])
 async def capture_interview_feedback(
     candidate_id: str,
     interview_data: Dict[str, Any],
@@ -344,11 +343,11 @@ async def capture_interview_feedback(
         )
         return result
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Interview feedback capture error: {str(e)}")
         raise HTTPException(status_code=500, detail="Error capturing interview feedback")
 
-
-@router.post("/interactions/offer/{candidate_id}")
+@router.post("/interactions/offer/{candidate_id}", dependencies=[Depends(require_resource_permission("agents", "manage"))])
 async def capture_offer_response(
     candidate_id: str,
     offer_response_data: Dict[str, Any],
@@ -370,14 +369,14 @@ async def capture_offer_response(
         )
         return result
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Offer response capture error: {str(e)}")
         raise HTTPException(status_code=500, detail="Error capturing offer response")
-
 
 # ============== PERSONAL INTELLIGENCE ENDPOINTS ==============
 # These extract and use 200+ personal data points for authentic relationship building
 
-@router.post("/personal-intelligence/{candidate_id}")
+@router.post("/personal-intelligence/{candidate_id}", dependencies=[Depends(require_resource_permission("agents", "manage"))])
 async def extract_personal_intelligence(
     candidate_id: str,
     linkedin_profile: Optional[Dict[str, Any]] = None,
@@ -423,11 +422,14 @@ async def extract_personal_intelligence(
         )
         return result
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Personal intelligence extraction error: {str(e)}")
         raise HTTPException(status_code=500, detail="Error extracting personal intelligence")
 
-
-@router.get("/personalization/{candidate_id}")
+@router.get(
+    "/personalization/{candidate_id}",
+    dependencies=[Depends(require_resource_permission("personalization", "view"))]
+)
 async def get_personalization_strategy(
     candidate_id: str,
     stage: str = "initial",
@@ -470,11 +472,14 @@ async def get_personalization_strategy(
         return {"status": "success", "strategy": result}
 
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Personalization strategy error: {str(e)}")
         raise HTTPException(status_code=500, detail="Error generating personalization strategy")
 
-
-@router.post("/customize-offer/{candidate_id}")
+@router.post(
+    "/customize-offer/{candidate_id}",
+    dependencies=[Depends(require_resource_permission("customize-offer", "create"))]
+)
 async def customize_offer(
     candidate_id: str,
     base_offer: Dict[str, Any],
@@ -492,7 +497,6 @@ async def customize_offer(
     - Impact opportunities: If they're impact-driven
     """
     try:
-        from app.services.candidate_memory_service import get_memory
 
         memory = get_memory(db, candidate_id, current_user.UserID)
 
@@ -512,11 +516,14 @@ async def customize_offer(
         return {"status": "success", "customized_offer": customized}
 
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Offer customization error: {str(e)}")
         raise HTTPException(status_code=500, detail="Error customizing offer")
 
-
-@router.post("/interactions/joining/{candidate_id}")
+@router.post(
+    "/interactions/joining/{candidate_id}",
+    dependencies=[Depends(require_resource_permission("interaction", "create"))]
+)
 async def capture_joining_signals(
     candidate_id: str,
     joining_data: Dict[str, Any],
@@ -538,5 +545,6 @@ async def capture_joining_signals(
         )
         return result
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Joining signals capture error: {str(e)}")
         raise HTTPException(status_code=500, detail="Error capturing joining signals")

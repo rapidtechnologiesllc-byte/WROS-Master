@@ -9,7 +9,6 @@ from app.tools.llm_provider import get_llm
 load_dotenv()
 logger = logging.getLogger(__name__)
 
-
 # Define the state structure
 class JobDescriptionState(TypedDict):
     """State for job description generation workflow"""
@@ -19,7 +18,6 @@ class JobDescriptionState(TypedDict):
     location: str
     generated_description: str
     skills_needed: List[str]
-
 
 def generate_description_node(state: JobDescriptionState) -> JobDescriptionState:
     """
@@ -66,7 +64,6 @@ Qualifications:
 
     return state
 
-
 def extract_skills_node(state: JobDescriptionState) -> JobDescriptionState:
     """
     Node to extract required skills from generated description.
@@ -89,7 +86,6 @@ Return ONLY the skills, comma-separated, nothing else."""
         state['skills_needed'] = []
     
     return state
-
 
 def generate_job_description_with_state(
     job_title: str,

@@ -1,5 +1,6 @@
 """
 HRMS-0906 (Revenue Realization & Leakage Detection -- time-tracking
+import logging
 layer) + HRMS-0903 (Timesheet-to-Revenue Bridge Validation).
 
 Both are monitor-and-flag layers over the real Timesheet/Invoice
@@ -9,6 +10,7 @@ build doesn't have (that's HRMS-0605, not built) -- reconciliation
 here goes straight to flagging a gap rather than attempting an
 automatic re-process first, since there's no processor to re-run.
 """
+import logging
 import uuid
 
 from sqlalchemy import (
@@ -18,17 +20,17 @@ from sqlalchemy import (
 
 from app.models.base import Base
 
-
 def _new_uuid() -> str:
     return str(uuid.uuid4())
 
+logger = logging.getLogger(__name__)
 
 class RevenueLeakageFlag(Base):
     __tablename__ = "revenue_leakage_time_layer"
 
-    id = Column(String(36), primary_key=True, default=_new_uuid)
+    id = Column(String(512), primary_key=True, default=_new_uuid)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
-    project_id = Column(String(36), ForeignKey("projects.id"), nullable=False, index=True)
+    project_id = Column(String(512), ForeignKey("projects.id"), nullable=False, index=True)
 
     period_start = Column(Date, nullable=False)
     period_end = Column(Date, nullable=False)
@@ -44,16 +46,15 @@ class RevenueLeakageFlag(Base):
 
     detected_at = Column(DateTime, server_default=func.now())
 
-
 class ReconciliationAlert(Base):
     """HRMS-0903 -- an approved timesheet with no corresponding invoice
     line item past the grace period."""
     __tablename__ = "reconciliation_alerts"
 
-    id = Column(String(36), primary_key=True, default=_new_uuid)
+    id = Column(String(512), primary_key=True, default=_new_uuid)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
-    timesheet_id = Column(String(36), ForeignKey("timesheets.id"), nullable=False, index=True)
-    employee_id = Column(String(36), ForeignKey("employees.id"), nullable=False)
+    timesheet_id = Column(String(512), ForeignKey("timesheets.id"), nullable=False, index=True)
+    employee_id = Column(String(512), ForeignKey("employees.id"), nullable=False)
     billable_hours = Column(Numeric(6, 2), nullable=False)
 
     gap_detected_at = Column(DateTime, server_default=func.now())

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """
+import logging
 Fix duplicate index definitions across all models.
 
 Problem: Models define indexes both via index=True on Column AND via explicit Index()
@@ -45,7 +46,6 @@ def find_duplicate_indexes(model_path):
 
     return duplicates if duplicates else None
 
-
 def fix_duplicate_indexes_in_file(file_path):
     """Remove index=True from columns that have explicit Index() in __table_args__"""
     with open(file_path, 'r') as f:
@@ -80,7 +80,6 @@ def fix_duplicate_indexes_in_file(file_path):
 
     return 0
 
-
 def main():
     models_dir = Path("C:\\Users\\AvinashMukund\\Documents\\Claude\\OnboardingModule-Backend\\app\\models")
 
@@ -114,7 +113,6 @@ def main():
     else:
         print(f"✅ No duplicate indexes found or already fixed")
     print(f"{'='*70}")
-
 
 if __name__ == "__main__":
     main()

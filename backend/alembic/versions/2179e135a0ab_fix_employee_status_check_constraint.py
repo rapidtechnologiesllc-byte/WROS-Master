@@ -1,3 +1,4 @@
+import logging
 """fix employees.status CHECK constraint to include SPECIALITY_READY/PERFORMANCE_MANAGED (S-365/HRMS-0521)
 
 Revision ID: 2179e135a0ab
@@ -35,7 +36,6 @@ from typing import Sequence, Union
 
 from alembic import op
 
-
 # revision identifiers, used by Alembic.
 revision: str = '2179e135a0ab'
 down_revision: Union[str, Sequence[str], None] = 'f3a4b5c6d7e8'
@@ -45,13 +45,11 @@ depends_on: Union[str, Sequence[str], None] = None
 _OLD_STATUSES = "'PRE_JOINING','ACTIVE','ON_LEAVE','BENCH','ALLOCATED','NOTICE_PERIOD','EXITED'"
 _NEW_STATUSES = _OLD_STATUSES + ",'SPECIALITY_READY','PERFORMANCE_MANAGED'"
 
-
 def upgrade() -> None:
     """Upgrade schema."""
     with op.batch_alter_table('employees') as batch_op:
         batch_op.drop_constraint('ck_employees_status', type_='check')
         batch_op.create_check_constraint('ck_employees_status', f"status IN ({_NEW_STATUSES})")
-
 
 def downgrade() -> None:
     """Downgrade schema."""

@@ -2,17 +2,19 @@
 Pydantic Schemas — S-004/HRMS-0404 Web Portal Chat Messages.
 """
 from datetime import datetime
+import logging
 from typing import List, Optional
 
 from pydantic import BaseModel, Field
+from app.core.logging import logger
 
+logger = logging.getLogger(__name__)
 
 class PortalMessageRequest(BaseModel):
     # Real min/max-length business errors (empty / >4000 chars) are
     # raised by the service layer with the spec's exact wording -- this
     # schema only guards against a wildly oversized payload.
     message_body: str = Field(..., max_length=20000)
-
 
 class PortalMessageResponse(BaseModel):
     message_id: int
@@ -26,7 +28,6 @@ class PortalMessageResponse(BaseModel):
     escalated: bool = False
     suppressed: bool = False
 
-
 class PortalMessageItem(BaseModel):
     id: int
     direction: str
@@ -35,7 +36,6 @@ class PortalMessageItem(BaseModel):
     message_body: str
     sent_at: Optional[datetime]
     delivery_status: str
-
 
 class PortalMessageHistoryResponse(BaseModel):
     messages: List[PortalMessageItem]

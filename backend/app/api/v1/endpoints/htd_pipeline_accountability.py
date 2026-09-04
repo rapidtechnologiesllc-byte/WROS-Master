@@ -1,5 +1,7 @@
-﻿"""HTD Pipeline Accountability Agent endpoints."""
+from app.core.logging import logger
+"""HTD Pipeline Accountability Agent endpoints."""
 from fastapi import APIRouter, Depends, HTTPException
+import logging
 from sqlalchemy.orm import Session
 
 from app.core.dependencies import get_current_internal_user, require_resource_permission
@@ -8,7 +10,6 @@ from app.models.user import Users
 from app.services.htd_pipeline_accountability_agent import HTDPipelineAccountabilityAgent
 
 router = APIRouter(prefix="/htd", tags=["HTD Pipeline Accountability"])
-
 
 @router.get(
     "/bu/{bu_id}/pipeline",
@@ -41,8 +42,8 @@ async def get_bu_pipeline(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @router.get(
     "/partners/conversion-health",
@@ -69,4 +70,5 @@ async def get_partners_conversion_health(
         )
         return result
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))

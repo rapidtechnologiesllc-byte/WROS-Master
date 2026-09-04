@@ -1,4 +1,5 @@
 """
+import logging
 S-347/HRMS-P117 -- Candidate Desire Intelligence Engine.
 
 Every candidate touchpoint (chat, WhatsApp, email, objections, response
@@ -46,7 +47,6 @@ OBJECTION_TYPE_TO_DESIRE_CATEGORY = {
 
 BATCH_SIZE = 200
 
-
 def _record(
     db: Session,
     tenant_id: str,
@@ -74,10 +74,10 @@ def _record(
         db.refresh(signal)
         return signal
     except Exception as exc:
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[DesireSignal] Failed to record {signal_source} signal for candidate {candidate_id!r}: {exc}")
         db.rollback()
-        return None
-
+        raise ValueError("Operation failed")
 
 def minutes_since_last_outbound(db: Session, conversation_id: int, *, before: Optional[datetime] = None) -> Optional[float]:
     """Real 'response_time_minutes' input for record_response_speed_signal().
@@ -97,7 +97,6 @@ def minutes_since_last_outbound(db: Session, conversation_id: int, *, before: Op
     arrival = before or datetime.utcnow()
     return max(0.0, (arrival - last_outbound.created_at).total_seconds() / 60.0)
 
-
 def record_message_signal(
     db: Session, tenant_id: str, candidate_id: str, source: str, message_body: str,
     *, portal_page: Optional[str] = None, hour_of_day: Optional[int] = None,
@@ -110,7 +109,6 @@ def record_message_signal(
     if hour_of_day is not None:
         data["hour_of_day"] = hour_of_day
     return _record(db, tenant_id, candidate_id, source, data)
-
 
 def record_response_speed_signal(db: Session, tenant_id: str, candidate_id: str, minutes: float) -> Optional[CandidateDesireSignal]:
     """BR-04: response_time_minutes < 30 => desire_strength=0.8,
@@ -129,7 +127,6 @@ def record_response_speed_signal(db: Session, tenant_id: str, candidate_id: str,
         desire_direction="TOWARDS", desire_strength=strength, processed=True,
     )
 
-
 def record_objection_signal(db: Session, tenant_id: str, candidate_id: str, objection_type: str, key_concern: str) -> Optional[CandidateDesireSignal]:
     """BR-03: objection_type -> desire_category, direction=AWAY_FROM
     always. Deterministic -- processed immediately."""
@@ -142,7 +139,6 @@ def record_objection_signal(db: Session, tenant_id: str, candidate_id: str, obje
         processed=bool(category),  # OTHER (no mapping) stays unprocessed for the LLM pass
     )
 
-
 def record_sentiment_signal(db: Session, tenant_id: str, candidate_id: str, sentiment: str, confidence: float, message_id: Optional[int]) -> Optional[CandidateDesireSignal]:
     """Raw -- sentiment alone doesn't say WHAT the candidate feels that
     way about; left for the SignalProcessingJob (which has the message
@@ -152,13 +148,11 @@ def record_sentiment_signal(db: Session, tenant_id: str, candidate_id: str, sent
         {"sentiment": sentiment, "confidence": confidence, "message_id": message_id},
     )
 
-
 def record_portal_page_view_signal(db: Session, tenant_id: str, candidate_id: str, page: str, time_on_page_seconds: int, scroll_depth_pct: Optional[int] = None) -> Optional[CandidateDesireSignal]:
     data = {"page": page, "time_on_page_seconds": time_on_page_seconds}
     if scroll_depth_pct is not None:
         data["scroll_depth_pct"] = scroll_depth_pct
     return _record(db, tenant_id, candidate_id, "PORTAL_PAGE_VIEW", data)
-
 
 # ---------------------------------------------------------------------------
 # SignalProcessingJob -- LLM extraction for every raw (unprocessed) signal
@@ -176,7 +170,6 @@ def _default_llm_call(prompt: str, api_key: str) -> str:
     text = result.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "")
     return re.sub(r"```(?:json)?", "", text).strip()
 
-
 def _call_llm(prompt: str, llm_call: Optional[Callable[[str], str]]) -> str:
     if llm_call is not None:
         return llm_call(prompt)
@@ -184,7 +177,6 @@ def _call_llm(prompt: str, llm_call: Optional[Callable[[str], str]]) -> str:
     if not api_key:
         raise RuntimeError("GEMINI_API_KEY not set")
     return _default_llm_call(prompt, api_key)
-
 
 def _extraction_prompt(signal: CandidateDesireSignal) -> str:
     return (
@@ -199,7 +191,6 @@ def _extraction_prompt(signal: CandidateDesireSignal) -> str:
         '"TOWARDS" or "AWAY_FROM", "desire_strength": 0.0-1.0, "extracted_insight": string}'
     )
 
-
 def _apply_extraction(signal: CandidateDesireSignal, parsed: Dict) -> None:
     category = parsed.get("desire_category")
     signal.desire_category = category if category in (
@@ -213,7 +204,6 @@ def _apply_extraction(signal: CandidateDesireSignal, parsed: Dict) -> None:
     except (TypeError, ValueError):
         signal.desire_strength = None
     signal.extracted_insight = str(parsed.get("extracted_insight") or "").strip()[:1000] or None
-
 
 def process_unprocessed_signals(db: Session, *, limit: int = BATCH_SIZE, llm_call: Optional[Callable[[str], str]] = None) -> Dict:
     """Step 5 -- SignalProcessingJob. Processes every unprocessed signal
@@ -241,6 +231,7 @@ def process_unprocessed_signals(db: Session, *, limit: int = BATCH_SIZE, llm_cal
             db.commit()
             processed_count += 1
         except Exception as exc:
+            logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.warning(f"[DesireSignal] SignalProcessingJob failed for signal {signal.id}: {exc}")
             db.rollback()
             failed_count += 1

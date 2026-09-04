@@ -1,8 +1,9 @@
-﻿"""
+"""
 HRMS Email Service Endpoints
 Provides production-ready mail & interview scheduling APIs backed by
 Microsoft Graph via helpdesk_hrms@blitzenx.com.
 """
+import logging
 from typing import Any, Dict, List, Literal, Optional
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
@@ -10,18 +11,18 @@ from pydantic import BaseModel, EmailStr
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_hr_or_admin, get_current_user, require_permission
+from app.core.dependencies import get_current_internal_user, get_current_user, require_permission, require_resource_permission
 from app.core.logging import logger
 from app.models import Candidate, Interview, InterviewPanel, PanelMember, Users
 from app.services.email_service import EmailService
+from fastapi import Request
 
 router = APIRouter(prefix="/email", tags=["Email Service"])
-
-
 
 # â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 # Request / Response schemas
 # â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+logger = logging.getLogger(__name__)
 
 class SendMailRequest(BaseModel):
     to_email: EmailStr
@@ -30,13 +31,11 @@ class SendMailRequest(BaseModel):
     is_html: bool = True
     cc_emails: Optional[List[EmailStr]] = None
 
-
 class SendNotificationRequest(BaseModel):
     to_email: EmailStr
     heading: str
     message: str
     cc_emails: Optional[List[EmailStr]] = None
-
 
 # Allowed event type values for the event notification endpoint
 EventType = Literal[
@@ -47,7 +46,6 @@ EventType = Literal[
     "action_required",
     "general",
 ]
-
 
 class SendEventNotificationRequest(BaseModel):
     """
@@ -81,7 +79,6 @@ class SendInterviewInviteRequest(BaseModel):
     timezone: Optional[str] = "Asia/Kolkata"
     create_teams_event: Optional[bool] = True
 
-
 class SendCustomInterviewInviteRequest(BaseModel):
     """
     Ad-hoc invite when you don't have an interview_id yet (free-form).
@@ -96,7 +93,6 @@ class SendCustomInterviewInviteRequest(BaseModel):
     timezone: Optional[str] = "Asia/Kolkata"
     create_teams_event: Optional[bool] = True
 
-
 class SendLoginCredentialsRequest(BaseModel):
     """
     Optional override for the portal link.
@@ -104,19 +100,19 @@ class SendLoginCredentialsRequest(BaseModel):
     """
     portal_link: Optional[str] = "https://hrms.blitzenx.com/"
 
-
 # â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 # Endpoints
 # â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 @router.post(
     "/send",
+    dependencies=[Depends(get_current_internal_user)],
 
     summary="Send a plain or HTML email from the HRMS service mailbox",
 )
 def send_mail(
     request: SendMailRequest,
-    current_user=Depends(get_current_hr_or_admin),
+    current_user=Depends(get_current_internal_user),
 ):
     """
     Send an email from **helpdesk_hrms@blitzenx.com** to any recipient.
@@ -133,9 +129,9 @@ def send_mail(
         cc_emails=request.cc_emails,
     )
 
-
 @router.post(
     "/send-with-attachments",
+    dependencies=[Depends(get_current_internal_user)],
 
     summary="Send an email with one or more file attachments",
 )
@@ -152,7 +148,7 @@ async def send_mail_with_attachments(
         default=[],
         description="One or more files to attach (PDF, DOCX, images, etc.)",
     ),
-    current_user=Depends(get_current_hr_or_admin),
+    current_user=Depends(get_current_internal_user),
 ):
     """
     Send an email **with file attachments** from helpdesk_hrms@blitzenx.com.
@@ -199,15 +195,15 @@ async def send_mail_with_attachments(
         attachments=attachments if attachments else None,
     )
 
-
 @router.post(
     "/notify",
+    dependencies=[Depends(get_current_internal_user)],
 
     summary="Send a styled HRMS notification email",
 )
 def send_notification(
     request: SendNotificationRequest,
-    current_user=Depends(get_current_hr_or_admin),
+    current_user=Depends(get_current_internal_user),
 ):
     """
     Send a branded notification email with a heading and body message.
@@ -223,9 +219,9 @@ def send_notification(
         cc_emails=request.cc_emails,
     )
 
-
 @router.post(
     "/notify/event",
+    dependencies=[Depends(require_resource_permission("message", "send"))],
     summary="Send a rich event notification email (open to any authenticated user)",
     response_description="Email send result",
 )
@@ -299,6 +295,7 @@ def send_event_notification(
 
 @router.post(
     "/interview/invite/{interview_id}",
+    dependencies=[Depends(get_current_internal_user)],
 
     summary="Send interview invite for an existing scheduled interview",
 )
@@ -308,7 +305,7 @@ def send_interview_invite_by_id(
     timezone: str = "Asia/Kolkata",
     create_teams_event: bool = True,
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_hr_or_admin),
+    current_user=Depends(get_current_internal_user),
 ):
     """
     Fetches interview details from the DB (candidate, panel members, times)
@@ -392,9 +389,9 @@ def send_interview_invite_by_id(
 
     return result
 
-
 @router.delete(
     "/interview/cancel/{interview_id}",
+    dependencies=[Depends(get_current_internal_user)],
 
     summary="Cancel a scheduled interview â€” removes the Teams event and notifies everyone",
 )
@@ -402,7 +399,7 @@ def cancel_interview_by_id(
     interview_id: int,
     reason: str = "",
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_hr_or_admin),
+    current_user=Depends(get_current_internal_user),
 ):
     """
     Cancels an existing interview by its ID.
@@ -487,15 +484,15 @@ def cancel_interview_by_id(
 
     return result
 
-
 @router.post(
     "/interview/invite/custom",
+    dependencies=[Depends(get_current_internal_user)],
 
     summary="Send a custom ad-hoc interview invite (no interview_id needed)",
 )
 def send_custom_interview_invite(
     request: SendCustomInterviewInviteRequest,
-    current_user=Depends(get_current_hr_or_admin),
+    current_user=Depends(get_current_internal_user),
 ):
     """
     Ad-hoc interview invite when the interview hasn't been formally
@@ -517,9 +514,9 @@ def send_custom_interview_invite(
         create_teams_event=request.create_teams_event,
     )
 
-
 @router.post(
     "/login-credentials/{candidate_id}",
+    dependencies=[Depends(get_current_internal_user)],
 
     summary="Send login credentials to a candidate via email",
 )
@@ -527,7 +524,7 @@ def send_login_credentials(
     candidate_id: str,
     request: SendLoginCredentialsRequest = SendLoginCredentialsRequest(),
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_hr_or_admin),
+    current_user=Depends(get_current_internal_user),
 ):
     """
     Looks up the candidate by **candidate_id** and sends a branded HTML email

@@ -1,6 +1,7 @@
 """
 POST/GET /templates -- proves the HTTP-level auth gating: activation is
 template.manage-only (Super User by default), create/list/preview are
+import logging
 any internal user. Business rules covered at the service layer.
 
 Throwaway SQLite app, throwaway JWT keys, real RBAC seed.
@@ -22,7 +23,6 @@ from app.models.base import Base
 from app.models.user import Users
 import app.models  # noqa: F401
 
-
 @pytest.fixture()
 def throwaway_jwt_keys(monkeypatch):
     key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
@@ -30,7 +30,6 @@ def throwaway_jwt_keys(monkeypatch):
     public_pem = key.public_key().public_bytes(encoding=serialization.Encoding.PEM, format=serialization.PublicFormat.SubjectPublicKeyInfo).decode()
     monkeypatch.setattr(security, "PRIVATE_KEY", private_pem)
     monkeypatch.setattr(security, "PUBLIC_KEY", public_pem)
-
 
 @pytest.fixture()
 def client(throwaway_jwt_keys):
@@ -75,10 +74,8 @@ def client(throwaway_jwt_keys):
         engine.dispose()
         os.remove(db_path)
 
-
 def _token_for(email, role):
     return security.create_access_token(data={"sub": email, "type": role, "name": email})
-
 
 def test_recruiter_can_create_template(client):
     resp = client.post(
@@ -88,7 +85,6 @@ def test_recruiter_can_create_template(client):
     )
     assert resp.status_code == 201
 
-
 def test_recruiter_created_template_is_findable_by_render_template(client):
     """Regression: a recruiter's own UserID must NOT become the
     template's tenant_id -- it would never match the tenant_id
@@ -96,8 +92,6 @@ def test_recruiter_created_template_is_findable_by_render_template(client):
     making every recruiter-created template unreachable."""
     from app.services.ai_conversation_service import resolve_default_tenant_id
     from app.services.message_template_service import render_template
-    from sqlalchemy.orm import sessionmaker
-    from sqlalchemy import create_engine
 
     resp = client.post(
         "/templates",
@@ -126,7 +120,6 @@ def test_recruiter_created_template_is_findable_by_render_template(client):
         db.close()
     assert resp.json()["is_active"] is False
 
-
 def test_recruiter_cannot_activate(client):
     create_resp = client.post(
         "/templates",
@@ -140,7 +133,6 @@ def test_recruiter_cannot_activate(client):
         headers={"Authorization": f"Bearer {_token_for('rec@blitzenx.com', 'Recruiter')}"},
     )
     assert resp.status_code == 403
-
 
 def test_super_user_can_activate(client):
     create_resp = client.post(
@@ -156,7 +148,6 @@ def test_super_user_can_activate(client):
     )
     assert resp.status_code == 200
     assert resp.json()["is_active"] is True
-
 
 def test_list_templates_returns_created(client):
     client.post(

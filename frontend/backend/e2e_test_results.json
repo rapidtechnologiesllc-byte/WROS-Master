@@ -1,0 +1,46 @@
+{
+  "passed": 8,
+  "failed": 0,
+  "tests": [
+    {
+      "name": "Login Super User",
+      "passed": true,
+      "message": "Token: eyJhbGciOiJIUzI1NiIsInR5cCI6Ik..."
+    },
+    {
+      "name": "Login Finance Manager",
+      "passed": true,
+      "message": "Token: eyJhbGciOiJIUzI1NiIsInR5cCI6Ik..."
+    },
+    {
+      "name": "Login Employee",
+      "passed": true,
+      "message": "Token: eyJhbGciOiJIUzI1NiIsInR5cCI6Ik..."
+    },
+    {
+      "name": "Navigation Super User",
+      "passed": true,
+      "message": "10 modules, 177 resources"
+    },
+    {
+      "name": "Navigation Finance Manager",
+      "passed": true,
+      "message": "6 modules, 76 resources"
+    },
+    {
+      "name": "Navigation Employee",
+      "passed": true,
+      "message": "2 modules, 17 resources"
+    },
+    {
+      "name": "Resource Coverage",
+      "passed": true,
+      "message": "177 resources available"
+    },
+    {
+      "name": "Permission Enforcement",
+      "passed": true,
+      "message": "Finance Manager correctly blocked from recruitment"
+    }
+  ]
+}

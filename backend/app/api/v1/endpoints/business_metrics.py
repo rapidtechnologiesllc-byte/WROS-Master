@@ -1,3 +1,5 @@
+import logging
+from app.core.logging import logger
 """Business Metrics Endpoints - Daily standup business outcomes."""
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -5,11 +7,10 @@ from sqlalchemy.orm import Session
 from app.core.dependencies import get_current_internal_user, require_resource_permission
 from app.core.database import get_db
 from app.models.user import Users
-from app.services.rbac_service import RBACService
 from app.services.business_metrics_service import compile_daily_business_standup
+from app.services.permission_helper import PermissionHelper
 
 router = APIRouter(prefix="/business-metrics", tags=["Business Metrics"])
-
 
 @router.get("/daily-standup", dependencies=[Depends(require_resource_permission("admin-settings", "view"))])
 def get_daily_business_standup(
@@ -29,7 +30,8 @@ def get_daily_business_standup(
     Required: admin.view
     """
     try:
-        if not RBACService.has_permission(db, current_user.UserID, "admin.manage"):
+        tenant_id = getattr(current_user, 'TenantID', 1)
+        if not PermissionHelper.is_super_admin(current_user.UserID, db, tenant_id):
             raise HTTPException(
                 status_code=403,
                 detail="Only CEO/Admin can view business metrics"
@@ -46,8 +48,8 @@ def get_daily_business_standup(
     except HTTPException:
         raise
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @router.get("/recruitment/{days_back}", dependencies=[Depends(require_resource_permission("admin-settings", "view"))])
 def get_recruitment_metrics_period(
@@ -68,8 +70,8 @@ def get_recruitment_metrics_period(
         }
 
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @router.get("/interviews/{days_back}", dependencies=[Depends(require_resource_permission("admin-settings", "view"))])
 def get_interview_metrics_period(
@@ -90,8 +92,8 @@ def get_interview_metrics_period(
         }
 
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @router.get("/offers/{days_back}", dependencies=[Depends(require_resource_permission("admin-settings", "view"))])
 def get_offer_metrics_period(
@@ -112,8 +114,8 @@ def get_offer_metrics_period(
         }
 
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @router.get("/revenue/{days_back}", dependencies=[Depends(require_resource_permission("admin-settings", "view"))])
 def get_revenue_metrics_period(
@@ -134,4 +136,5 @@ def get_revenue_metrics_period(
         }
 
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))

@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import logging
 """Add missing business_unit_id column to bu_revenue_targets table."""
 
 import sys
@@ -57,6 +58,8 @@ try:
     print("\n[SUCCESS] Migration completed successfully")
 
 except Exception as e:
+    logger.error(f"Error: {str(e)}", exc_info=True)
+    logger.error(f"Error: {str(e)}", exc_info=True)
     db.rollback()
     print(f"\n[ERROR] Migration failed:")
     print(f"    {type(e).__name__}: {str(e)}")

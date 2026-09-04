@@ -1,4 +1,5 @@
 """
+import logging
 S-028/HRMS-0428 -- Resume Parsing Engine.
 
 Real architecture facts under test (see resume_parsing_service module
@@ -34,7 +35,6 @@ from app.models.user import Jobs, Users
 
 import app.services.resume_parsing_service as svc
 
-
 @pytest.fixture()
 def db_session():
     fd, db_path = tempfile.mkstemp(suffix=".sqlite3")
@@ -53,7 +53,6 @@ def db_session():
         engine.dispose()
         os.remove(db_path)
 
-
 @pytest.fixture()
 def seeded(db_session):
     owner = Users(UserID="U-ORG", UserRole="Super User", UserEmail="ceo@blitzenx.com", UserPassword="h")
@@ -65,14 +64,12 @@ def seeded(db_session):
     db_session.commit()
     return candidate, conv
 
-
 def _make_real_pdf_bytes(text_lines):
     from pypdf import PdfWriter
     # Build via a minimal reportlab-free approach: pypdf can't author text
     # pages itself, so use pdfminer-free plain approach: write a tiny valid
     # PDF containing the text using the low-level pypdf writer + a simple
     # content stream. This produces a REAL, parseable PDF (not a mock).
-    from pypdf import PdfWriter
     from pypdf.generic import DecodedStreamObject, NameObject, DictionaryObject, ArrayObject, NumberObject
 
     writer = PdfWriter()
@@ -104,7 +101,6 @@ def _make_real_pdf_bytes(text_lines):
     writer.write(buf)
     return buf.getvalue()
 
-
 def _make_real_docx_bytes(text_lines):
     import docx
     document = docx.Document()
@@ -114,7 +110,6 @@ def _make_real_docx_bytes(text_lines):
     document.save(buf)
     return buf.getvalue()
 
-
 RESUME_LINES = [
     "Priya Sharma",
     "Senior Software Engineer with extensive backend experience.",
@@ -123,29 +118,24 @@ RESUME_LINES = [
     "Skilled in Python, SQL, and cloud infrastructure design work.",
 ]
 
-
 def test_extract_text_from_real_pdf():
     pdf_bytes = _make_real_pdf_bytes(RESUME_LINES)
     text = svc.extract_text_from_pdf(pdf_bytes)
     assert "Priya Sharma" in text
-
 
 def test_extract_text_from_real_docx():
     docx_bytes = _make_real_docx_bytes(RESUME_LINES)
     text = svc.extract_text_from_docx(docx_bytes)
     assert "Priya Sharma" in text
 
-
 def test_extract_raw_text_too_short_raises():
     docx_bytes = _make_real_docx_bytes(["Hi"])
     with pytest.raises(svc.TextExtractionFailed):
         svc.extract_raw_text(docx_bytes, ".docx")
 
-
 def test_extract_raw_text_unsupported_extension_raises():
     with pytest.raises(svc.TextExtractionFailed):
         svc.extract_raw_text(b"whatever", ".txt")
-
 
 # ── BR-01/BR-02: overlap calculation ────────────────────────────────
 
@@ -154,7 +144,6 @@ def test_no_overlap_simple_sum():
         {"start_date": "2018-01", "end_date": "2019-12"},  # 24 months inclusive
     ]
     assert svc.calculate_total_experience_months(work_history) == 24
-
 
 def test_overlapping_roles_counted_once_tc002():
     """This story's own worked example: Company A Jan2020-Dec2022,
@@ -168,14 +157,12 @@ def test_overlapping_roles_counted_once_tc002():
     assert months == 42
     assert round(months / 12.0, 1) == 3.5
 
-
 def test_current_role_uses_today_as_end_date():
     work_history = [{"start_date": "2020-01", "end_date": None}]
     months = svc.calculate_total_experience_months(work_history)
     today = date.today()
     expected = (today.year - 2020) * 12 + (today.month - 1) + 1
     assert months == expected
-
 
 def test_malformed_entry_skipped_not_crashed():
     work_history = [
@@ -184,10 +171,8 @@ def test_malformed_entry_skipped_not_crashed():
     ]
     assert svc.calculate_total_experience_months(work_history) == 12
 
-
 def test_empty_work_history_returns_zero():
     assert svc.calculate_total_experience_months([]) == 0
-
 
 # ── parse_resume() integration ──────────────────────────────────────
 
@@ -204,7 +189,6 @@ def _valid_llm_response():
         "certifications": [],
         "languages": ["English"],
     })
-
 
 def test_parse_resume_success_updates_candidate_resume_parsed_and_candidate(db_session, seeded):
     candidate, conv = seeded
@@ -233,7 +217,6 @@ def test_parse_resume_success_updates_candidate_resume_parsed_and_candidate(db_s
     assert events[0].event_data["total_experience_months"] == 42
     assert events[0].event_data["skills_count"] == 3
 
-
 def test_parse_resume_second_parse_updates_existing_row_not_duplicate(db_session, seeded):
     candidate, conv = seeded
     docx_bytes = _make_real_docx_bytes(RESUME_LINES)
@@ -243,7 +226,6 @@ def test_parse_resume_second_parse_updates_existing_row_not_duplicate(db_session
 
     rows = db_session.query(CandidateResumeParsed).filter(CandidateResumeParsed.candidate_id == "C-1").all()
     assert len(rows) == 1  # UNIQUE candidate_id -- upserted, not duplicated
-
 
 def test_parse_resume_text_extraction_failure(db_session, seeded):
     candidate, conv = seeded
@@ -257,7 +239,6 @@ def test_parse_resume_text_extraction_failure(db_session, seeded):
 
     db_session.refresh(candidate)
     assert candidate.total_experience_months is None  # profile untouched
-
 
 def test_parse_resume_llm_failure_retries_once_then_notifies_recruiter(db_session, seeded):
     candidate, conv = seeded

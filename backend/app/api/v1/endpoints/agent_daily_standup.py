@@ -1,13 +1,14 @@
+from app.core.logging import logger
 """Daily standup (8:00 AM EST) and scrum of scrums (8:30 AM EST) endpoints."""
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from app.core.dependencies import get_current_internal_user, require_resource_permission
 from app.core.database import get_db
 from app.models.user import Users
+import logging
 from app.services.agent_daily_standup_service import AgentDailyStandup
 
 router = APIRouter(prefix="/standups", tags=["Daily Standup"])
-
 
 @router.get("/daily", dependencies=[Depends(require_resource_permission("admin-settings", "view"))])
 async def get_daily_standup(
@@ -41,8 +42,8 @@ async def get_daily_standup(
         )
         return report
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @router.get("/scrum-8-30", dependencies=[Depends(require_resource_permission("admin-settings", "view"))])
 async def get_scrum_of_scrums(
@@ -72,4 +73,5 @@ async def get_scrum_of_scrums(
         )
         return scrum
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))

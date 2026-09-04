@@ -5,6 +5,7 @@ Routes:
   GET  /candidate-pool/                        — list all candidates with pool status
   GET  /candidate-pool/{candidate_id}          — pool status for one candidate
   POST /candidate-pool/{candidate_id}/override — HR Admin manual override
+import logging
 """
 
 from typing import Optional
@@ -14,7 +15,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_hr_or_admin, require_resource_permission
+from app.core.dependencies import get_current_internal_user, require_resource_permission
 from app.models.candidate import Candidate
 from app.models.candidate_ownership import CandidateOwnership, POOL_BU, POOL_ORG
 from app.models.business_unit import BusinessUnit
@@ -30,11 +31,9 @@ from app.services.candidate_pool_service import (
     set_org_pool,
 )
 
-
 router = APIRouter(prefix="/candidate-pool", tags=["candidate-pool"])
 
 VALID_POOL_STATUSES = {POOL_ORG, POOL_BU}
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -43,7 +42,6 @@ VALID_POOL_STATUSES = {POOL_ORG, POOL_BU}
 def _candidate_name(c: Candidate) -> Optional[str]:
     parts = [c.candidateFirstName, c.candidateMiddleName, c.candidateLastName]
     return " ".join(p for p in parts if p) or None
-
 
 def _to_response(candidate_id: str, row: Optional[CandidateOwnership]) -> CandidateOwnershipResponse:
     if row is None:
@@ -62,7 +60,6 @@ def _to_response(candidate_id: str, row: Optional[CandidateOwnership]) -> Candid
         updated_at=row.updated_at,
     )
 
-
 # ---------------------------------------------------------------------------
 # GET  /candidate-pool/
 # ---------------------------------------------------------------------------
@@ -75,7 +72,7 @@ def _to_response(candidate_id: str, row: Optional[CandidateOwnership]) -> Candid
 )
 def list_candidate_pool(
     db: Session = Depends(get_db),
-    user=Depends(get_current_hr_or_admin),
+    user=Depends(get_current_internal_user),
     pool_status: Optional[str] = Query(
         default=None,
         description=f"Filter by pool status: '{POOL_ORG}' or '{POOL_BU}'",
@@ -131,7 +128,6 @@ def list_candidate_pool(
 
     return CandidateOwnershipListResponse(total=len(results), candidates=results)
 
-
 # ---------------------------------------------------------------------------
 # GET  /candidate-pool/{candidate_id}
 # ---------------------------------------------------------------------------
@@ -145,7 +141,7 @@ def list_candidate_pool(
 def get_candidate_pool_status(
     candidate_id: str,
     db: Session = Depends(get_db),
-    user=Depends(get_current_hr_or_admin),
+    user=Depends(get_current_internal_user),
 ):
     """
     Returns the current pool ownership state for a single candidate.
@@ -159,7 +155,6 @@ def get_candidate_pool_status(
 
     row = get_ownership(candidate_id, db)
     return _to_response(candidate_id, row)
-
 
 # ---------------------------------------------------------------------------
 # POST  /candidate-pool/{candidate_id}/override
@@ -175,7 +170,7 @@ def override_candidate_pool(
     candidate_id: str,
     request: OwnershipOverrideRequest,
     db: Session = Depends(get_db),
-    user=Depends(get_current_hr_or_admin),
+    user=Depends(get_current_internal_user),
 ):
     """
     Manually change the pool ownership state for a candidate.

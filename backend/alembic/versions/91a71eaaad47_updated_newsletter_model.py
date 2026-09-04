@@ -1,3 +1,4 @@
+import logging
 """updated newsletter model
 
 Revision ID: 91a71eaaad47
@@ -16,7 +17,6 @@ revision: str = '91a71eaaad47'
 down_revision: Union[str, Sequence[str], None] = '0578656e8c8b'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
-
 
 def upgrade() -> None:
     """Upgrade schema."""
@@ -40,7 +40,6 @@ def upgrade() -> None:
                existing_type=sa.DATETIME(),
                nullable=False)
     # ### end Alembic commands ###
-
 
 def downgrade() -> None:
     """Downgrade schema."""

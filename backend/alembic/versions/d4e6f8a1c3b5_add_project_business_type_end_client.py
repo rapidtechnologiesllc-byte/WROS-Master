@@ -1,3 +1,4 @@
+import logging
 """add projects.end_client/client_partner/business_type (delivery-engine-conditional fields)
 
 Revision ID: d4e6f8a1c3b5
@@ -19,12 +20,10 @@ from typing import Sequence, Union
 from alembic import op
 import sqlalchemy as sa
 
-
 revision: str = 'd4e6f8a1c3b5'
 down_revision: Union[str, Sequence[str], None] = 'a8c3f1e6d9b2'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
-
 
 def upgrade() -> None:
     op.add_column('projects', sa.Column('end_client', sa.String(length=300), nullable=True))
@@ -37,7 +36,6 @@ def upgrade() -> None:
             nullable=True,
         ),
     )
-
 
 def downgrade() -> None:
     op.drop_column('projects', 'business_type')

@@ -1,4 +1,5 @@
 """
+import logging
 S-213/HRMS-0115 -- System Configuration & Admin Settings Panel.
 
 Real config keys seeded below are genuinely hardcoded module constants
@@ -16,6 +17,7 @@ app.models.tenant.Tenant). get_settings_panel()/update_locale() read and
 write those columns directly so there's exactly one source of truth,
 never a shadow copy in this table.
 """
+import logging
 import time
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
@@ -26,18 +28,18 @@ from app.core.audit import write_audit_log
 from app.models.client import BILLING_CURRENCIES
 from app.models.system_config import CONFIG_CATEGORIES, SystemConfig
 from app.models.tenant import TENANT_DATE_FORMATS, Tenant
+from app.core.logging import logger
 
 CACHE_TTL_SECONDS = 60  # AC-4 -- a saved change must be visible within 60s
 _CONFIG_CACHE: Dict[Tuple[int, Optional[int], str], Tuple[float, Any]] = {}
 
+logger = logging.getLogger(__name__)
 
 class UnknownConfigKey(Exception):
     pass
 
-
 class InvalidConfigValue(Exception):
     pass
-
 
 @dataclass
 class ConfigKeySpec:
@@ -50,7 +52,6 @@ class ConfigKeySpec:
     enum_values: Optional[Tuple[str, ...]] = None
     min_value: Optional[float] = None
     max_value: Optional[float] = None
-
 
 KNOWN_CONFIG_KEYS: Dict[str, ConfigKeySpec] = {
     "low_confidence_threshold": ConfigKeySpec(
@@ -93,7 +94,6 @@ KNOWN_CONFIG_KEYS: Dict[str, ConfigKeySpec] = {
     ),
 }
 
-
 def _validate_value(spec: ConfigKeySpec, value: Any) -> Any:
     if spec.value_type in ("PERCENT", "INT"):
         try:
@@ -109,10 +109,8 @@ def _validate_value(spec: ConfigKeySpec, value: Any) -> Any:
             raise InvalidConfigValue(f"'{spec.key}' must be one of {spec.enum_values}.")
     return value
 
-
 def _cache_key(tenant_id: int, business_unit_id: Optional[int], key: str) -> Tuple[int, Optional[int], str]:
     return (tenant_id, business_unit_id, key)
-
 
 def invalidate_config_cache(tenant_id: int, key: Optional[str] = None) -> None:
     if key is None:
@@ -123,7 +121,6 @@ def invalidate_config_cache(tenant_id: int, key: Optional[str] = None) -> None:
         for cache_key in list(_CONFIG_CACHE):
             if cache_key[0] == tenant_id and cache_key[2] == key:
                 _CONFIG_CACHE.pop(cache_key, None)
-
 
 def get_config_value(
     db: Session, *, tenant_id: int, key: str, business_unit_id: Optional[int] = None, use_cache: bool = True,
@@ -166,7 +163,6 @@ def get_config_value(
         _CONFIG_CACHE[ck] = (time.monotonic() + CACHE_TTL_SECONDS, value)
     return value
 
-
 def set_config_value(
     db: Session, *, tenant_id: int, key: str, value: Any, updated_by: str, business_unit_id: Optional[int] = None,
 ) -> SystemConfig:
@@ -203,7 +199,6 @@ def set_config_value(
     invalidate_config_cache(tenant_id, key)
     return row
 
-
 def get_locale_config(db: Session, tenant_id: int) -> Dict:
     tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
     if tenant is None:
@@ -213,7 +208,6 @@ def get_locale_config(db: Session, tenant_id: int) -> Dict:
         "default_date_format": tenant.default_date_format,
         "default_currency": tenant.default_currency,
     }
-
 
 def update_locale_config(db: Session, tenant_id: int, updates: Dict, *, updated_by: str) -> Dict:
     tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
@@ -240,7 +234,6 @@ def update_locale_config(db: Session, tenant_id: int, updates: Dict, *, updated_
         )
         db.commit()
     return get_locale_config(db, tenant_id)
-
 
 def get_settings_panel(db: Session, *, tenant_id: int, business_unit_id: Optional[int] = None) -> Dict:
     """One unified read for the Admin Settings screen, grouped by

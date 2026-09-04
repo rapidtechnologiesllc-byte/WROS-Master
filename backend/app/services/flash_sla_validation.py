@@ -1,5 +1,6 @@
 """
 Flash SLA Validation & Appreciation/Punishment System
+import logging
 =====================================================
 
 Flash continuously validates Thunder's 5-second SLA compliance:
@@ -18,11 +19,9 @@ from app.models.candidate_ai import ConversationEvent
 from app.models.agent_logging import AgentExecutionLog
 from app.core.logging import logger
 
-
 SLA_TARGET_SECONDS = 5.0
 CONFIDENCE_APPRECIATION_BOOST = 5  # Confidence +5 for meeting SLA
 CONFIDENCE_PUNISHMENT_REDUCTION = 10  # Confidence -10 for missing SLA
-
 
 def validate_thunder_sla(db: Session, candidate_id: str) -> Dict:
     """
@@ -55,7 +54,6 @@ def validate_thunder_sla(db: Session, candidate_id: str) -> Dict:
         "adjustment": CONFIDENCE_APPRECIATION_BOOST if sla_met else -CONFIDENCE_PUNISHMENT_REDUCTION,
     }
 
-
 def apply_flash_appreciation(db: Session, candidate_id: str, sla_data: Dict) -> None:
     """Apply appreciation to Thunder for meeting SLA."""
     if not sla_data.get("sla_met"):
@@ -74,7 +72,6 @@ def apply_flash_appreciation(db: Session, candidate_id: str, sla_data: Dict) -> 
     ))
     db.commit()
     logger.info(f"✨ Flash appreciation applied: Thunder +{CONFIDENCE_APPRECIATION_BOOST} confidence for candidate {candidate_id}")
-
 
 def apply_flash_punishment(db: Session, candidate_id: str, sla_data: Dict) -> None:
     """Apply punishment to Thunder for missing SLA."""
@@ -95,7 +92,6 @@ def apply_flash_punishment(db: Session, candidate_id: str, sla_data: Dict) -> No
     ))
     db.commit()
     logger.warning(f"🚨 Flash punishment applied: Thunder -{CONFIDENCE_PUNISHMENT_REDUCTION} confidence for candidate {candidate_id} (SLA: {sla_elapsed}s)")
-
 
 def get_daily_standup_report(db: Session, days: int = 1) -> Dict:
     """

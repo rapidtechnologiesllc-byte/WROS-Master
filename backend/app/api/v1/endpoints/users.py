@@ -1,4 +1,5 @@
-﻿from datetime import datetime
+from datetime import datetime
+import logging
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -7,8 +8,11 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db, check_user
 from app.core.security import get_password_hash, create_access_token
-from app.core.dependencies import get_current_hr_or_admin, require_resource_permission, get_current_internal_user
-from app.models import Users, Candidate, CandidateAssignment, Interview, InterviewPanel, InterviewFeedback, PanelMember, Role, BusinessUnit, Department
+from app.core.dependencies import get_current_internal_user, require_resource_permission
+from app.models import Users, Candidate, CandidateAssignment, Interview, InterviewPanel, InterviewFeedback, PanelMember, BusinessUnit, Department
+
+# Alias for backward compatibility
+get_current_user = get_current_internal_user
 from app.models.user import Jobs
 from app.models.offer_letter import OfferLetter
 from app.models.document import CandidateDocument
@@ -31,17 +35,20 @@ from app.schemas.user import (
     UpdateUserWithRolesRequest,
 )
 from app.utils.uniq_id_generator import user_id_generator
+from app.services.org_hierarchy_validator import validate_before_employee_creation
+from app.services.message_queue_service import MessageQueueService
+from app.models.org_structure import OrgNode
 
 router = APIRouter(prefix="/hr", tags=["hr"])
 
-
 @router.get(
     "/me",
+    dependencies=[Depends(get_current_internal_user)],
     summary="Get current HR/Admin user's profile with a fresh access token",
 )
 def get_me(
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     """
     Return the profile of the currently authenticated HR / Admin user
@@ -55,31 +62,20 @@ def get_me(
     """
     from app.services.role_template_permission_service import RoleTemplatePermissionService
 
-    # Resolve the RBAC role name (if any)
-    role = db.query(Role).filter(Role.id == current_user.role_id).first() if current_user.role_id else None
-
     # Get tenant ID (default to 1, handle None case)
     tenant_id = (getattr(current_user, 'tenant_id', None) or 1)
 
-    # Get user's roles from UserRole junction table
-    from app.models.user import UserRole
-    from app.models.role_template import RoleTemplate
-
+    # Get user's assigned role template
     user_roles = []
     roles_list = []
 
-    # Query UserRole junction table for all roles assigned to this user
-    user_role_records = db.query(UserRole).filter(
-        UserRole.user_id == current_user.UserID,
-        UserRole.tenant_id == tenant_id
-    ).all()
-
-    for ur in user_role_records:
-        if ur.role_template:
-            roles_list.append(ur.role_template.name)
+    if current_user.role_template_id:
+        rt = db.query(RoleTemplate).filter(RoleTemplate.id == current_user.role_template_id).first()
+        if rt:
+            roles_list.append(rt.name)
             user_roles.append({
-                "id": ur.role_template.id,
-                "name": ur.role_template.name,
+                "id": rt.id,
+                "name": rt.name,
             })
 
     # Get all permissions for the user based on their role template permissions
@@ -115,8 +111,8 @@ def get_me(
         user_email=current_user.UserEmail,
         user_role=current_user.UserRole,
         job_title=current_user.job_title,
-        permission_role=role.name if role else None,
-        role_id=current_user.role_id,
+        permission_role=roles_list[0] if roles_list else None,
+        role_template_id=current_user.role_template_id,
         business_unit_id=current_user.business_unit_id,
         created_at=current_user.CreatedAt,
         access_token=access_token,
@@ -130,31 +126,33 @@ def get_me(
 
     return response_dict
 
-
 @router.patch(
     "/me/digest-preference",
+    dependencies=[Depends(get_current_internal_user)],
     response_model=DigestPreferenceResponse,
     summary="Enable/disable the recruiter's own Thunder morning digest (S-065/HRMS-0465)",
 )
 def update_digest_preference(
     payload: DigestPreferenceRequest,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     current_user.digest_enabled = payload.digest_enabled
     db.add(current_user)
     db.commit()
     return DigestPreferenceResponse(digest_enabled=current_user.digest_enabled)
 
-
 @router.get(
     "/me/permissions",
+    dependencies=[Depends(get_current_internal_user)],
     summary="Get current user's permissions for frontend access control",
 )
 def get_current_user_permissions(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user),
 ):
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Authentication required")
     """
     Get current user's permissions in a format optimized for frontend use.
 
@@ -189,14 +187,14 @@ def get_current_user_permissions(
         "is_super_admin": is_super_admin
     }
 
-
 @router.get(
     "/users/all",
+    dependencies=[Depends(get_current_internal_user)],
     response_model=AllUsersResponse,
 )
 def get_all_users(
     db: Session = Depends(get_db), 
-    user = Depends(get_current_hr_or_admin)
+    user = Depends(get_current_internal_user)
 ):
     """
     Get all users (HR, Admin, etc.) from the system.
@@ -211,19 +209,20 @@ def get_all_users(
     """
     # HRMS-0109 -- scoped to the caller's own tenant, never all tenants' users.
     users = db.query(Users).all()
-    
+
     # Build response
     users_data = []
     for u in users:
-        role = db.query(Role).filter(Role.id == u.role_id).first()
+        role_template = db.query(RoleTemplate).filter(RoleTemplate.id == u.role_template_id).first() if u.role_template_id else None
         users_data.append(UserResponse(
             user_id=u.UserID,
             user_name=u.UserName or "",
             user_email=u.UserEmail,
             user_role=u.UserRole,
             job_title=u.job_title,
+            role_template_id=u.role_template_id,
             created_at=u.CreatedAt,
-            permission_role=role.name if role else None,
+            permission_role=role_template.name if role_template else None,
             department_id=u.department_id,
             department_name=u.department.name if u.department else None,
             business_unit_id=u.business_unit_id,
@@ -235,15 +234,15 @@ def get_all_users(
         users=users_data
     )
 
-
 @router.get(
     "/users/search",
+    dependencies=[Depends(get_current_internal_user)],
     response_model=AllUsersResponse,
     summary="Search / filter users by name, permission role, or user role",
 )
 def search_users(
     db: Session = Depends(get_db),
-    user=Depends(get_current_hr_or_admin),
+    user=Depends(get_current_internal_user),
     name: Optional[str] = Query(
         default=None,
         description="Partial, case-insensitive search on user name or email",
@@ -304,11 +303,8 @@ def search_users(
             RoleTemplate.name == user_role
         )
 
-    # â”€â”€ RBAC permission role filter â€” join through Role â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-    if permission_role:
-        query = query.join(Role, Role.id == Users.role_id).filter(
-            Role.name == permission_role
-        )
+    # NOTE: permission_role filter removed 2026-08-24 (referenced non-existent Role model and Users.role_id field)
+    # If needed, use RoleTemplate join: query.join(RoleTemplate, RoleTemplate.id == Users.role_template_id)
 
     # â”€â”€ Department filter â€” join through Department â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     if department:
@@ -332,7 +328,7 @@ def search_users(
 
     users_data = []
     for u in matched_users:
-        role = db.query(Role).filter(Role.id == u.role_id).first()
+        role_template = db.query(RoleTemplate).filter(RoleTemplate.id == u.role_template_id).first()
         users_data.append(UserResponse(
             user_id=u.UserID,
             user_name=u.UserName or "",
@@ -340,7 +336,7 @@ def search_users(
             user_role=u.UserRole,
             job_title=u.job_title,
             created_at=u.CreatedAt,
-            permission_role=role.name if role else None,
+            permission_role=role_template.name if role_template else None,
             department_id=u.department_id,
             department_name=u.department.name if u.department else None,
             business_unit_id=u.business_unit_id,
@@ -352,16 +348,16 @@ def search_users(
         users=users_data,
     )
 
-
 @router.get(
     "/users/details/{user_id}",
+    dependencies=[Depends(get_current_internal_user)],
     response_model=UserResponse,
     summary="Get user details by user ID",
 )
 def get_user_details_by_id(
     user_id: str,
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_hr_or_admin),
+    current_user=Depends(get_current_internal_user),
 ):
     """
     Retrieve user details by their User ID, including department and business unit.
@@ -373,7 +369,7 @@ def get_user_details_by_id(
             detail=f"User with ID '{user_id}' not found"
         )
 
-    role = db.query(Role).filter(Role.id == u.role_id).first() if u.role_id else None
+    role_template = db.query(RoleTemplate).filter(RoleTemplate.id == u.role_template_id).first() if u.role_template_id else None
 
     return UserResponse(
         user_id=u.UserID,
@@ -382,14 +378,12 @@ def get_user_details_by_id(
         user_role=u.UserRole,
         job_title=u.job_title,
         created_at=u.CreatedAt,
-        permission_role=role.name if role else None,
+        permission_role=role_template.name if role_template else None,
         department_id=u.department_id,
         department_name=u.department.name if u.department else None,
         business_unit_id=u.business_unit_id,
         business_unit_name=u.business_unit.name if u.business_unit else None,
     )
-
-
 
 @router.post(
     "/assignments/create",
@@ -400,7 +394,7 @@ def get_user_details_by_id(
 def create_candidate_assignment(
     request: CandidateAssignmentCreate,
     db: Session = Depends(get_db),
-    user = Depends(get_current_hr_or_admin)
+    user = Depends(get_current_internal_user)
 ):
     """
     Create a candidate assignment with hiring and reporting managers.
@@ -461,7 +455,6 @@ def create_candidate_assignment(
         created_at=assignment.created_at
     )
 
-
 @router.get(
     "/assignments/candidates",
     response_model=list[AssignedCandidateResponse],
@@ -469,7 +462,7 @@ def create_candidate_assignment(
 )
 def get_assigned_candidates(
     db: Session = Depends(get_db),
-    user = Depends(get_current_hr_or_admin)
+    user = Depends(get_current_internal_user)
 ):
     """
     Get all candidates assigned to the logged-in user (as hiring or reporting manager).
@@ -522,7 +515,6 @@ def get_assigned_candidates(
     
     return results
 
-
 @router.get(
     "/interviews/assigned",
     response_model=list[AssignedInterviewResponse],
@@ -530,7 +522,7 @@ def get_assigned_candidates(
 )
 def get_assigned_interviews(
     db: Session = Depends(get_db),
-    user = Depends(get_current_hr_or_admin)
+    user = Depends(get_current_internal_user)
 ):
     """
     Get all interviews where the logged-in user is a panel member.
@@ -591,8 +583,6 @@ def get_assigned_interviews(
     
     return results
 
-
-
 # ============================================
 # HR User Management Endpoints
 # ============================================
@@ -607,7 +597,7 @@ def get_assigned_interviews(
 def create_user(
     request: SignupRequest,
     db: Session = Depends(get_db),
-    user = Depends(get_current_hr_or_admin)
+    current_user = Depends(get_current_internal_user)
 ):
     """
     Create a new internal user (HR, Admin, etc.).
@@ -618,12 +608,17 @@ def create_user(
     existing = check_user(db, request.user_email)
     if existing:
         raise HTTPException(status_code=400, detail=f"User with email {request.user_email} already exists")
+
+    # PRODUCTION SAFETY: Auto-assign tenant_id from creating user's tenant
+    tenant_id = current_user.tenant_id or 1
+
     new_user = Users(
         UserID=user_id_generator(),
         UserName=request.user_name,
         UserEmail=request.user_email,
         UserPassword=get_password_hash(request.user_password),
-        UserRole=request.user_role
+        UserRole=request.user_role,
+        tenant_id=tenant_id  # PRODUCTION: Always set from creator's tenant or default to 1
     )
     db.add(new_user)
     db.commit()
@@ -635,7 +630,6 @@ def create_user(
         user_role=new_user.UserRole,
         created_at=new_user.CreatedAt
     )
-
 
 @router.post(
     "/users/create-with-roles",
@@ -646,10 +640,17 @@ def create_user(
 def create_user_with_roles(
     request: CreateUserWithRolesRequest,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin)
+    current_user: Users = Depends(get_current_internal_user)
 ):
     """
-    Create a new user with roles and job title.
+    Create a new user with roles and org hierarchy (MANDATORY: hierarchy_level + specialization).
+
+    REQUIRED FIELDS (from request):
+    - user_name, user_email, user_password, role_template_id
+    - hierarchy_level (1-17): MANDATORY - defines org position
+    - specialization: MANDATORY - Recruitment, Development, HR, Finance, Project Management, QA, Business Analysis
+
+    Validates reporting structure before creating OrgNode.
     Requires permission: user.manage
     """
     user_name = request.user_name
@@ -658,7 +659,10 @@ def create_user_with_roles(
     job_title = request.job_title
     partner_id = request.partner_id
     business_unit_id = request.business_unit_id
-    role_ids = request.role_ids
+    role_template_id = request.role_template_id
+    hierarchy_level = request.hierarchy_level  # MANDATORY
+    specialization = request.specialization    # MANDATORY
+    parent_node_id = request.parent_node_id
 
     if not user_name or not user_name.strip():
         raise HTTPException(status_code=400, detail="User name is required")
@@ -666,37 +670,100 @@ def create_user_with_roles(
         raise HTTPException(status_code=400, detail="User email is required")
     if not user_password or not user_password.strip():
         raise HTTPException(status_code=400, detail="Password is required")
-    if not role_ids or len(role_ids) == 0:
-        raise HTTPException(status_code=400, detail="At least one role is required")
+    if not role_template_id:
+        raise HTTPException(status_code=400, detail="Role template is required")
 
-    from app.core.database import check_user
     existing = check_user(db, user_email)
     if existing:
         raise HTTPException(status_code=400, detail=f"User with email {user_email} already exists")
+
+    # PRODUCTION SAFETY: Auto-assign tenant_id from creating user's tenant
+    tenant_id = current_user.tenant_id or 1
+
+    # Validate role template exists
+    role_template = db.query(RoleTemplate).filter(
+        RoleTemplate.id == role_template_id
+    ).first()
+
+    if not role_template:
+        raise HTTPException(status_code=400, detail="Role template not found")
+
+    # CRITICAL: Validate org hierarchy with 17-level system + specialization
+    is_valid, error_msg = validate_before_employee_creation(
+        db,
+        hierarchy_level=hierarchy_level,
+        specialization=specialization,
+        parent_node_id=parent_node_id,
+        business_unit_id=business_unit_id
+    )
+
+    if not is_valid:
+        raise HTTPException(status_code=400, detail=f"Invalid reporting structure: {error_msg}")
 
     new_user = Users(
         UserID=user_id_generator(),
         UserName=user_name,
         UserEmail=user_email,
         UserPassword=get_password_hash(user_password),
-        UserRole="Admin"  # Default role
+        UserRole="Admin",  # Default role
+        tenant_id=tenant_id
     )
 
-    # Set job_title if provided
+    # Set optional fields if provided
     if job_title:
         new_user.job_title = job_title
-
-    # Set partner_id if provided
     if partner_id:
         new_user.partner_id = partner_id
-
-    # Set business_unit_id if provided
     if business_unit_id:
         new_user.business_unit_id = business_unit_id
+
+    new_user.role_template_id = role_template_id
 
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
+
+    # Create OrgNode record with VALIDATED hierarchy_level and specialization
+    try:
+        org_node = OrgNode(
+            name=f"{new_user.UserName} - {specialization}",
+            node_type="PERSON",
+            user_id=new_user.UserID,
+            parent_node_id=parent_node_id,
+            hierarchy_level=hierarchy_level,  # From request (already validated)
+            specialization=specialization,    # From request (already validated)
+            authority_level="INDIVIDUAL",     # Default, can be overridden per role
+            business_unit_id=business_unit_id,
+            email=user_email,
+            tenant_id=tenant_id,
+        )
+        db.add(org_node)
+        db.commit()
+        db.refresh(org_node)
+    except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
+        from app.core.logging import logger
+        logger.error(f"Failed to create OrgNode for new user {user_email}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to create organizational hierarchy: {str(e)}")
+
+    # Queue user_created message for welcome email
+    MessageQueueService.enqueue(
+        message_type="user_created",
+        payload={
+            "user_id": new_user.UserID,
+            "user_name": new_user.UserName,
+            "user_email": new_user.UserEmail,
+            "user_role": new_user.UserRole,
+            "job_title": job_title,
+            "business_unit_id": business_unit_id,
+            "hierarchy_level": hierarchy_level,
+            "specialization": specialization,
+        },
+        resource_id=new_user.UserID,
+        queue_type="EMAIL_QUEUE",
+        created_by=current_user.UserID,
+        db=db,
+    )
 
     return UserResponse(
         user_id=new_user.UserID,
@@ -705,7 +772,6 @@ def create_user_with_roles(
         user_role=new_user.UserRole,
         created_at=new_user.CreatedAt
     )
-
 
 @router.put(
     "/users/{user_id}/update-with-roles",
@@ -717,10 +783,10 @@ def update_user_with_roles(
     user_id: str,
     request: UpdateUserWithRolesRequest,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin)
+    current_user: Users = Depends(get_current_internal_user)
 ):
     """
-    Update a user with roles, job title, partner, and business unit.
+    Update a user with role template (single), job title, partner, and business unit.
     Requires permission: user.manage
     """
     target = db.query(Users).filter(Users.UserID == user_id).first()
@@ -729,6 +795,8 @@ def update_user_with_roles(
 
     if request.user_name is not None:
         target.UserName = request.user_name
+    if request.user_email is not None:
+        target.UserEmail = request.user_email
     if request.job_title is not None:
         target.job_title = request.job_title
     if request.partner_id is not None:
@@ -736,6 +804,10 @@ def update_user_with_roles(
     if request.business_unit_id is not None:
         target.business_unit_id = request.business_unit_id
 
+    # Handle role template update: set single role_template_id on user
+    if request.role_template_id is not None:
+        target.role_template_id = request.role_template_id
+
     db.commit()
     db.refresh(target)
 
@@ -744,44 +816,65 @@ def update_user_with_roles(
         user_name=target.UserName or "",
         user_email=target.UserEmail,
         user_role=target.UserRole,
+        job_title=target.job_title,
+        role_template_id=target.role_template_id,
         created_at=target.CreatedAt
     )
-
 
 @router.put(
     "/users/{user_id}",
     response_model=UserResponse,
-    summary="Update an HR/Admin user's profile or role",
+    summary="Update an HR/Admin user's profile, role, job title, and role template",
     dependencies=[Depends(require_resource_permission("users", "edit"))],
 )
 def update_user(
     user_id: str,
-    user_name: Optional[str] = None,
-    user_role: Optional[str] = None,
+    request: UpdateUserWithRolesRequest,
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_hr_or_admin)
+    current_user = Depends(get_current_internal_user)
 ):
     """
-    Update a user's name or role.
+    Update a user's name, role, job title, role template, and business unit.
+    If user has NULL tenant_id, assigns current user's tenant_id.
     Requires permission: user.manage
     """
     target = db.query(Users).filter(Users.UserID == user_id).first()
     if not target:
         raise HTTPException(status_code=404, detail=f"User {user_id} not found")
-    if user_name is not None:
-        target.UserName = user_name
-    if user_role is not None:
-        target.UserRole = user_role
+
+    # Fix NULL tenant_id by assigning current user's tenant
+    if target.tenant_id is None:
+        target.tenant_id = current_user.tenant_id or 1
+
+    if request.user_name is not None:
+        target.UserName = request.user_name
+    if request.job_title is not None:
+        target.job_title = request.job_title
+    if request.role_template_id is not None:
+        target.role_template_id = request.role_template_id
+    if request.business_unit_id is not None:
+        target.business_unit_id = request.business_unit_id
+
     db.commit()
     db.refresh(target)
+
+    # Build response with all fields
+    role_template = db.query(RoleTemplate).filter(RoleTemplate.id == target.role_template_id).first() if target.role_template_id else None
+
     return UserResponse(
         user_id=target.UserID,
         user_name=target.UserName or "",
         user_email=target.UserEmail,
         user_role=target.UserRole,
+        job_title=target.job_title,
+        role_template_id=target.role_template_id,
+        permission_role=role_template.name if role_template else None,
+        department_id=target.department_id,
+        department_name=target.department.name if target.department else None,
+        business_unit_id=target.business_unit_id,
+        business_unit_name=target.business_unit.name if target.business_unit else None,
         created_at=target.CreatedAt
     )
-
 
 @router.delete(
     "/users/{user_id}",
@@ -792,7 +885,7 @@ def update_user(
 def delete_user(
     user_id: str,
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_hr_or_admin)
+    current_user = Depends(get_current_internal_user)
 ):
     """
     Delete an internal user account.
@@ -872,7 +965,6 @@ def delete_user(
         message=f"User {user_id} deleted successfully"
     )
 
-
 @router.put(
     "/users/me/change-password",
     response_model=DeleteResponse,
@@ -882,7 +974,7 @@ def delete_user(
 def change_password(
     request: ChangePasswordRequest,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     """
     Change the password of the currently logged-in user.
@@ -916,7 +1008,6 @@ def change_password(
         message="Password changed successfully"
     )
 
-
 @router.put(
     "/admin/users/{user_id}/reset-password",
     response_model=DeleteResponse,
@@ -927,7 +1018,7 @@ def admin_reset_password(
     user_id: str,
     request: AdminResetPasswordRequest,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     """
     Admin-only password reset endpoint. No current password required.
@@ -944,7 +1035,6 @@ def admin_reset_password(
         404 if user not found
         400 if new password is invalid
     """
-    from app.core.security import verify_password
 
     # Find target user
     target_user = db.query(Users).filter(Users.UserID == user_id).first()
@@ -970,7 +1060,6 @@ def admin_reset_password(
         message=f"Password reset successfully for user {user_id}"
     )
 
-
 # ============================================================
 # User Section
 # ============================================================
@@ -984,7 +1073,7 @@ def admin_reset_password(
 def get_user_by_id(
     user_id: str,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     """
     Retrieve the full profile of a single internal user (HR, Admin, etc.)
@@ -1001,7 +1090,6 @@ def get_user_by_id(
     Raises:
         HTTPException 404: If the user is not found.
     """
-    from app.models.rbac import Role  # avoid circular if needed
 
     target = db.query(Users).filter(Users.UserID == user_id).first()
     if not target:
@@ -1023,7 +1111,6 @@ def get_user_by_id(
         created_at=target.CreatedAt,
     )
 
-
 # ============================================================
 # Hiring Manager Section
 # ============================================================
@@ -1036,7 +1123,7 @@ def get_user_by_id(
 )
 def get_hiring_manager_assigned_candidates(
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     """
     Retrieve all candidates that are directly assigned to the currently
@@ -1108,15 +1195,15 @@ def get_hiring_manager_assigned_candidates(
 
     return results
 
-
 @router.get(
     "/job-titles",
+    dependencies=[Depends(get_current_internal_user)],
     summary="Get all active job titles for the tenant",
     tags=["reference-data"]
 )
 def get_job_titles(
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     """
     Fetch all active job titles for the current tenant.
@@ -1144,6 +1231,7 @@ def get_job_titles(
             ]
         }
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         # If table doesn't exist or other DB error, return empty list
         # (migration may not have run yet)
         return {"job_titles": []}

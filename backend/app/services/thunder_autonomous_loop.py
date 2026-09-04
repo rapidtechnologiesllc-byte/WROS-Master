@@ -5,6 +5,7 @@ Continuously activates Thunder to:
 1. Contact pending candidates
 2. Advance outreach sequences
 3. Schedule interviews
+import logging
 4. Collect information
 
 Respects pause state (kill switch) via thunder_pause_service.
@@ -12,6 +13,7 @@ Respects pause state (kill switch) via thunder_pause_service.
 Runs in background via APScheduler - starts with app initialization.
 """
 
+import logging
 from datetime import datetime, timedelta
 from typing import List, Optional
 from sqlalchemy.orm import Session
@@ -20,6 +22,7 @@ from sqlalchemy import and_
 from app.models.candidate import Candidate
 from app.models.candidate_ai import CandidateConversation, ConversationEvent
 from app.models.outreach import OutreachSequence
+from app.core.logging import logger
 from app.services.outreach_agent_service import (
     start_outreach_sequence,
     advance_outreach_sequence,
@@ -29,11 +32,11 @@ from app.services.thunder_pause_service import is_thunder_paused
 from app.core.database import SessionLocal
 from app.core.agent_logging import log_agent_execution
 
+logger = logging.getLogger(__name__)
 
 class ThunderAutonomousLoopError(Exception):
     """Raised when Thunder autonomous loop encounters unrecoverable error."""
     pass
-
 
 def run_thunder_autonomous_cycle(db: Session) -> dict:
     """
@@ -130,11 +133,12 @@ def run_thunder_autonomous_cycle(db: Session) -> dict:
                 db.add(event)
                 contacted += 1
             except Exception as e:
+                logger.error(f"Error: {str(e)}", exc_info=True)
                 errors.append(f"Candidate {candidate.candidateID}: {str(e)}")
                 db.rollback()
 
         # Step 3: Advance existing open sequences
-        open_sequences = db.query(OutreachSequence).filter(
+                open_sequences = db.query(OutreachSequence).filter(
             OutreachSequence.status.in_(["SENT", "QUEUED"])
         ).limit(20).all()
 
@@ -153,9 +157,10 @@ def run_thunder_autonomous_cycle(db: Session) -> dict:
                     )
                     advanced += 1
             except Exception as e:
+                logger.error(f"Error: {str(e)}", exc_info=True)
                 errors.append(f"Sequence {sequence.id}: {str(e)}")
 
-        db.commit()
+                db.commit()
 
         return {
             "status": "success",
@@ -167,6 +172,7 @@ def run_thunder_autonomous_cycle(db: Session) -> dict:
         }
 
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         db.rollback()
         return {
             "status": "error",
@@ -174,7 +180,6 @@ def run_thunder_autonomous_cycle(db: Session) -> dict:
             "paused": False,
             "timestamp": datetime.utcnow().isoformat(),
         }
-
 
 def initialize_thunder_autonomous_loop():
     """
@@ -206,9 +211,9 @@ def initialize_thunder_autonomous_loop():
         print("WARNING: APScheduler not installed. Thunder autonomous loop disabled.")
         return False
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         print(f"ERROR: Failed to initialize Thunder autonomous loop: {e}")
         return False
-
 
 def _thunder_cycle_wrapper():
     """Wrapper to handle database session for background task."""

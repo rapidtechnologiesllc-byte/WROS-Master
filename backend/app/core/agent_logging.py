@@ -1,4 +1,5 @@
 """
+import logging
 Unified Agent Execution Logging
 
 Provides decorators and context managers for all agents to log execution
@@ -21,7 +22,6 @@ from typing import Optional, Dict, Any
 from sqlalchemy.orm import Session
 
 from app.models.agent_execution_log import AgentExecutionLog
-
 
 @asynccontextmanager
 async def agent_execution_log(
@@ -48,6 +48,7 @@ async def agent_execution_log(
         yield
         success = True
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         error_message = str(e)
         raise
     finally:
@@ -65,7 +66,6 @@ async def agent_execution_log(
         )
         db.add(log_entry)
         db.commit()
-
 
 def log_agent_execution(agent_name: str, action_taken: str):
     """
@@ -113,6 +113,7 @@ def log_agent_execution(agent_name: str, action_taken: str):
                 success = True
                 return result
             except Exception as e:
+                logger.error(f"Error: {str(e)}", exc_info=True)
                 error_message = str(e)
                 raise
             finally:

@@ -3,6 +3,7 @@ HRMS-0515 -- PerformanceStoreWriter. The one function every story that
 needs to log a performance-relevant event should call, rather than
 inserting into employee_performance_events directly -- same single-
 sanctioned-writer discipline as write_audit_log() and
+import logging
 create_candidate_safe().
 
 Read side (get_performance_events/get_score_summary) added alongside
@@ -33,7 +34,6 @@ from sqlalchemy.orm import Session
 
 from app.models.performance_store import EmployeePerformanceEvent
 
-
 def write_performance_event(
     db: Session,
     *,
@@ -48,7 +48,6 @@ def write_performance_event(
     )
     db.add(event)
     return event
-
 
 def get_performance_events(
     db: Session, employee_id: str, *, since_days: int = 90, now: Optional[date] = None,
@@ -66,7 +65,6 @@ def get_performance_events(
         .order_by(EmployeePerformanceEvent.occurred_at.desc())
         .all()
     )
-
 
 def get_score_averages_by_event_type(db: Session, employee_id: str, *, since_days: int = 90) -> dict:
     """AC-4: score averages -- grouped by event_type (the real

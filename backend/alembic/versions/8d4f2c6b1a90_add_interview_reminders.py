@@ -1,3 +1,4 @@
+import logging
 """S-050/HRMS-0450: add interview_reminders table
 
 Revision ID: 8d4f2c6b1a90
@@ -11,7 +12,6 @@ revision = "8d4f2c6b1a90"
 down_revision = "6b1e9d4a83f2"
 branch_labels = None
 depends_on = None
-
 
 def upgrade():
     op.create_table(
@@ -30,7 +30,6 @@ def upgrade():
     op.create_index("ix_interview_reminders_interview_id", "interview_reminders", ["interview_id"])
     op.create_index("ix_interview_reminders_candidate_id", "interview_reminders", ["candidate_id"])
     op.create_index("ix_interview_reminders_job_queue", "interview_reminders", ["status", "scheduled_at"])
-
 
 def downgrade():
     op.drop_index("ix_interview_reminders_job_queue", table_name="interview_reminders")

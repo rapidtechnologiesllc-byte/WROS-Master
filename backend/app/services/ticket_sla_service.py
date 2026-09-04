@@ -1,4 +1,5 @@
 """
+import logging
 Ticket SLA breach flagging.
 
 Deliberately NOT a second scheduled job -- Task.due_date is kept in
@@ -14,7 +15,6 @@ from sqlalchemy.orm import Session
 
 from app.models.task import Task
 from app.models.ticket import TicketDetail
-
 
 def flag_sla_breach(db: Session, task: Task) -> None:
     if task.task_type != "TICKET":

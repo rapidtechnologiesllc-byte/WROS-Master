@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
 Debug script to test /hr/users/all endpoint
+import logging
 """
 
 import sys
@@ -8,7 +9,6 @@ sys.path.insert(0, '.')
 
 from app.core.database import SessionLocal
 from app.models.user import Users
-from app.models.rbac import Role
 
 db = SessionLocal()
 
@@ -41,6 +41,8 @@ try:
         print("\n[SUCCESS] All relationships accessible")
 
 except Exception as e:
+    logger.error(f"Error: {str(e)}", exc_info=True)
+    logger.error(f"Error: {str(e)}", exc_info=True)
     print(f"\n[ERROR] {type(e).__name__}: {e}")
     import traceback
     traceback.print_exc()

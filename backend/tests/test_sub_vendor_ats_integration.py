@@ -9,6 +9,7 @@ identically to a DIRECT candidate -- zero source_channel branching
 anywhere in the real pipeline (confirmed by grep: submission_service.py
 only carries source/subvendor_id as pass-through data on the Submission
 row, never as a conditional; interview_service.py and
+import logging
 candidate_service.py reference it nowhere at all).
 
 Throwaway SQLite -- never the real database.
@@ -39,7 +40,6 @@ from app.services.submission_service import (
 )
 from app.services.interview_service import create_interview, L1NotPassed
 
-
 @pytest.fixture()
 def db_session():
     fd, db_path = tempfile.mkstemp(suffix=".sqlite3")
@@ -58,7 +58,6 @@ def db_session():
         engine.dispose()
         os.remove(db_path)
 
-
 @pytest.fixture()
 def tenant_client_demand(db_session):
     tenant = Tenant(name="BlitzenX")
@@ -75,7 +74,6 @@ def tenant_client_demand(db_session):
     db_session.add(demand)
     db_session.commit()
     return tenant, client, demand
-
 
 # ---------------------------------------------------------------------------
 # HRMS-P818 BR-0818-01: R-01 experience gate applies identically
@@ -106,7 +104,6 @@ def test_r01_experience_gate_ignores_source_channel(db_session, tenant_client_de
     assert direct_result["is_eligible"] == subvendor_result["is_eligible"] == False
     assert direct_result["deficit_months"] == subvendor_result["deficit_months"]
 
-
 def test_r01_gate_blocks_submission_for_subvendor_sourced_candidate_too(db_session, tenant_client_demand):
     tenant, client, demand = tenant_client_demand
     vendor = SubVendorAccount(tenant_id=tenant.id, company_name="Vendor Co", contact_email="v@vendor.com")
@@ -124,7 +121,6 @@ def test_r01_gate_blocks_submission_for_subvendor_sourced_candidate_too(db_sessi
         create_submission(db_session, tenant_id=tenant.id, demand=demand, candidate=candidate, source="SUBVENDOR", subvendor_id=vendor.id)
 
     assert any(b["error"] == "EXPERIENCE_INELIGIBLE" for b in exc_info.value.blockers)
-
 
 # ---------------------------------------------------------------------------
 # HRMS-P818 BR-0818-02: pipeline stage tracking (R-05) identical

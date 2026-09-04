@@ -26,6 +26,7 @@ mechanism) -- the real surface here is a handful of specific
 candidate/interview/feedback list endpoints, not the ~180-call-site
 scale that justified a global session-level filter for tenant scoping.
 """
+import logging
 from typing import Optional, Set
 
 from sqlalchemy import or_
@@ -34,12 +35,12 @@ from sqlalchemy.orm import Query, Session
 from app.models.candidate import Candidate
 from app.models.candidate_ownership import CandidateOwnership, POOL_ORG
 from app.models.user import Users
-from app.services.rbac_service import RBACService
-
 
 def is_bu_restricted(db: Session, user: Users) -> bool:
-    return RBACService.has_attribute(db, user.UserID, "bu_restricted", expected=True)
-
+    # RoleTemplate-based BU restriction check
+    # Users with business_unit_id set are BU-restricted (can only see their BU's data)
+    # Super users and global roles have no business_unit_id
+    return user.business_unit_id is not None
 
 def apply_bu_scope_to_candidate_query(db: Session, query: Query, current_user: Users) -> Query:
     """Narrows an existing Candidate query to Org Pool candidates plus
@@ -60,7 +61,6 @@ def apply_bu_scope_to_candidate_query(db: Session, query: Query, current_user: U
         return query.filter(org_pool_visible)
     return query.filter(or_(org_pool_visible, CandidateOwnership.owned_by_bu_id == current_user.business_unit_id))
 
-
 def get_bu_scoped_candidate_ids(db: Session, current_user: Users) -> Optional[Set[str]]:
     """Returns the set of candidate IDs visible to current_user under
     BU scoping, or None if the caller is global-access (no
@@ -72,7 +72,6 @@ def get_bu_scoped_candidate_ids(db: Session, current_user: Users) -> Optional[Se
         return None
     query = apply_bu_scope_to_candidate_query(db, db.query(Candidate.candidateID), current_user)
     return {row[0] for row in query.all()}
-
 
 def get_candidate_by_id_with_bu_scope(db: Session, candidate_id: str, current_user: Users) -> Optional[Candidate]:
     """
@@ -113,7 +112,8 @@ def get_candidate_by_id_with_bu_scope(db: Session, candidate_id: str, current_us
         ).first()
         return candidate_scoped
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         import logging
         logger = logging.getLogger(__name__)
         logger.error(f"[BU-Scope] Error fetching candidate {candidate_id}: {e}", exc_info=True)
-        return None
+        raise ValueError("Operation failed")

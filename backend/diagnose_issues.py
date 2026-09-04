@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import logging
 """Diagnose all remaining issues after fixes."""
 
 import sys

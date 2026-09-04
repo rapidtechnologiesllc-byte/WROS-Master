@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from sqlalchemy import text
 from app.core.database import engine
+import logging
 from app.models.base import Base
 
 # Check database state

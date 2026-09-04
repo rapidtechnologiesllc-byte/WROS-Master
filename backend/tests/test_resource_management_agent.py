@@ -1,5 +1,6 @@
 """
 HRMS-1105 (canonical S-320) Resource Management Agent
+import logging
 (app.services.resource_management_agent_service).
 
 No real Gemini call is made -- ChatGoogleGenerativeAI is mocked, same
@@ -39,11 +40,9 @@ from app.services.core_pull_service import SPECIALTY_POOL_MINIMUM
 from app.services.orchestration_router_service import seed_default_conflict_rules
 from app.services.resource_management_service import mark_employee_on_bench
 
-
 @pytest.fixture(autouse=True)
 def _fake_api_key(monkeypatch):
     monkeypatch.setattr(svc, "GEMINI_API_KEY", "fake-key-for-test")
-
 
 @pytest.fixture()
 def db_session():
@@ -68,7 +67,6 @@ def db_session():
         engine.dispose()
         os.remove(db_path)
 
-
 def _make_employee(db, tenant, *, core_certified=False, delivery_engine="SPECIALITY", skills=None, suffix="1", status="BENCH"):
     employee = Employee(
         tenant_id=tenant.id, first_name=f"Sam{suffix}", last_name="Lee",
@@ -80,7 +78,6 @@ def _make_employee(db, tenant, *, core_certified=False, delivery_engine="SPECIAL
     db.commit()
     return employee
 
-
 def _make_demand(db, tenant, client, *, delivery_engine="SPECIALITY", skills=None, suffix="1", status="OPEN"):
     demand = Demand(
         tenant_id=tenant.id, client_id=client.id, job_title=f"Role {suffix}",
@@ -91,7 +88,6 @@ def _make_demand(db, tenant, client, *, delivery_engine="SPECIALITY", skills=Non
     db.add(demand)
     db.commit()
     return demand
-
 
 @pytest.fixture()
 def fixtures(db_session):
@@ -108,14 +104,12 @@ def fixtures(db_session):
 
     return tenant, client
 
-
 def _mock_gemini(response_text):
     mock_response = MagicMock()
     mock_response.content = response_text
     mock_llm = MagicMock()
     mock_llm.invoke.return_value = mock_response
     return patch.object(svc, "ChatGoogleGenerativeAI", return_value=mock_llm)
-
 
 # ---------------------------------------------------------------------------
 # skill_match_score / find_open_demand_matches
@@ -125,15 +119,12 @@ def test_skill_match_score_full_overlap():
     score = svc.skill_match_score('["Java", "Guidewire"]', '["Java", "Guidewire"]')
     assert score == 1.0
 
-
 def test_skill_match_score_partial_overlap():
     score = svc.skill_match_score('["Java"]', '["Java", "Guidewire"]')
     assert score == 0.5
 
-
 def test_skill_match_score_no_requirements_is_zero():
     assert svc.skill_match_score('["Java"]', '[]') == 0.0
-
 
 def test_find_open_demand_matches_respects_threshold(db_session, fixtures):
     tenant, client = fixtures
@@ -142,7 +133,6 @@ def test_find_open_demand_matches_respects_threshold(db_session, fixtures):
 
     matches = svc.find_open_demand_matches(db_session, employee, min_score=0.5)
     assert matches == []
-
 
 def test_find_open_demand_matches_excludes_ineligible_buddy_program(db_session, fixtures):
     tenant, client = fixtures
@@ -155,7 +145,6 @@ def test_find_open_demand_matches_excludes_ineligible_buddy_program(db_session, 
     matches = svc.find_open_demand_matches(db_session, employee)
     assert matches == []
 
-
 def test_find_open_demand_matches_excludes_core_demand_without_certification(db_session, fixtures):
     tenant, client = fixtures
     employee = _make_employee(db_session, tenant, core_certified=False)
@@ -163,7 +152,6 @@ def test_find_open_demand_matches_excludes_core_demand_without_certification(db_
 
     matches = svc.find_open_demand_matches(db_session, employee)
     assert matches == []
-
 
 def test_find_open_demand_matches_returns_sorted_by_score(db_session, fixtures):
     tenant, client = fixtures
@@ -173,7 +161,6 @@ def test_find_open_demand_matches_returns_sorted_by_score(db_session, fixtures):
 
     matches = svc.find_open_demand_matches(db_session, employee, min_score=0.5)
     assert [d.id for d, _ in matches] == [strong.id, weak.id]
-
 
 # ---------------------------------------------------------------------------
 # detect_core_pull_triggers -- delegates to S-353, never a local conditional
@@ -196,7 +183,6 @@ def test_detect_core_pull_triggers_for_speciality_deployed_employee(db_session, 
     assert events[0].employee_id == employee.id
     assert events[0].core_demand_id == core_demand.id
 
-
 def test_detect_core_pull_triggers_empty_for_pure_bench_employee(db_session, fixtures):
     """A bench (unallocated) employee has nothing active to pull FROM --
     detect_core_pull_conflict() correctly no-ops for them even though
@@ -210,7 +196,6 @@ def test_detect_core_pull_triggers_empty_for_pure_bench_employee(db_session, fix
     events = svc.detect_core_pull_triggers(db_session, tenant_id=tenant.id)
     assert events == []
 
-
 def test_detect_core_pull_triggers_none_when_no_open_core_demand(db_session, fixtures):
     tenant, client = fixtures
     employee = _make_employee(db_session, tenant, core_certified=True, status="ALLOCATED")
@@ -223,7 +208,6 @@ def test_detect_core_pull_triggers_none_when_no_open_core_demand(db_session, fix
 
     events = svc.detect_core_pull_triggers(db_session, tenant_id=tenant.id)
     assert events == []
-
 
 # ---------------------------------------------------------------------------
 # run_bench_scan -- full cycle
@@ -249,7 +233,6 @@ def test_run_bench_scan_creates_recommendations_for_bench_employee(db_session, f
     assert rec.rationale == "Strong skill match"
     assert rec.status == "PENDING_RM_REVIEW"
 
-
 def test_run_bench_scan_never_creates_allocation_directly(db_session, fixtures):
     """BR-1105-02 / AC-2."""
     tenant, client = fixtures
@@ -264,7 +247,6 @@ def test_run_bench_scan_never_creates_allocation_directly(db_session, fixtures):
     db_session.commit()
 
     assert db_session.query(EmployeeAllocation).count() == 0
-
 
 def test_run_bench_scan_falls_back_without_api_key(db_session, fixtures, monkeypatch):
     tenant, client = fixtures
@@ -281,7 +263,6 @@ def test_run_bench_scan_falls_back_without_api_key(db_session, fixtures, monkeyp
     rec = db_session.query(BenchAllocationRecommendation).first()
     assert float(rec.confidence_pct) == 100.0  # raw skill-match fallback
     assert rec.rationale is None
-
 
 def test_run_bench_scan_triggers_core_pull_and_ranks_separately(db_session, fixtures):
     tenant, client = fixtures
@@ -314,7 +295,6 @@ def test_run_bench_scan_triggers_core_pull_and_ranks_separately(db_session, fixt
     rec = db_session.query(BenchAllocationRecommendation).first()
     assert rec.employee_id == bench_employee.id
 
-
 # ---------------------------------------------------------------------------
 # RM review queue -- approve/reject
 # ---------------------------------------------------------------------------
@@ -335,7 +315,6 @@ def test_approve_recommendation_requires_in_progress_first(db_session, fixtures)
 
     with pytest.raises(svc.RecommendationNotPending):
         svc.approve_bench_recommendation(db_session, rec, actor_user_id="U-RM")
-
 
 def test_approve_recommendation_creates_allocation_via_real_gate(db_session, fixtures):
     tenant, client = fixtures
@@ -363,7 +342,6 @@ def test_approve_recommendation_creates_allocation_via_real_gate(db_session, fix
     assert rec.reviewed_by == "U-RM"
     assert employee.status == "ALLOCATED"
 
-
 def test_reject_recommendation_creates_no_allocation(db_session, fixtures):
     tenant, client = fixtures
     employee = _make_employee(db_session, tenant, status="BENCH")
@@ -384,7 +362,6 @@ def test_reject_recommendation_creates_no_allocation(db_session, fixtures):
     assert result.status == "REJECTED"
     assert db_session.query(EmployeeAllocation).count() == 0
 
-
 def test_cannot_approve_already_reviewed_recommendation(db_session, fixtures):
     tenant, client = fixtures
     employee = _make_employee(db_session, tenant, status="BENCH")
@@ -404,7 +381,6 @@ def test_cannot_approve_already_reviewed_recommendation(db_session, fixtures):
     with pytest.raises(svc.RecommendationNotPending):
         svc.approve_bench_recommendation(db_session, rec, actor_user_id="U-RM")
 
-
 def test_get_recommendation_queue_sorted_by_confidence_desc(db_session, fixtures):
     tenant, client = fixtures
     employee = _make_employee(db_session, tenant, status="BENCH")
@@ -419,7 +395,6 @@ def test_get_recommendation_queue_sorted_by_confidence_desc(db_session, fixtures
     queue = svc.get_recommendation_queue(db_session, tenant_id=tenant.id)
     assert [float(r.confidence_pct) for r in queue] == [90, 40]
 
-
 # ---------------------------------------------------------------------------
 # Exclusivity: "never pushed to 2 clients at once" -- Avinash's explicit
 # business call, 2026-07-22. An employee IN_PROGRESS on one recommendation
@@ -433,7 +408,6 @@ def test_is_employee_actively_engaged_false_by_default(db_session, fixtures):
     db_session.commit()
 
     assert svc.is_employee_actively_engaged(db_session, employee.id) is False
-
 
 def test_is_employee_actively_engaged_true_once_pursuing(db_session, fixtures):
     tenant, client = fixtures
@@ -451,7 +425,6 @@ def test_is_employee_actively_engaged_true_once_pursuing(db_session, fixtures):
     db_session.commit()
 
     assert svc.is_employee_actively_engaged(db_session, employee.id) is True
-
 
 def test_start_pursuing_hard_blocks_second_recommendation(db_session, fixtures):
     """The exact scenario Avinash described: a Guidewire developer already
@@ -483,7 +456,6 @@ def test_start_pursuing_hard_blocks_second_recommendation(db_session, fixtures):
     assert rec_a.status == "IN_PROGRESS"
     assert rec_b.status == "PENDING_RM_REVIEW"  # untouched
 
-
 def test_rejecting_first_recommendation_releases_the_hold(db_session, fixtures):
     tenant, client = fixtures
     employee = _make_employee(db_session, tenant, status="BENCH")
@@ -510,7 +482,6 @@ def test_rejecting_first_recommendation_releases_the_hold(db_session, fixtures):
     # Now rec_b can be pursued -- the hold from rec_a is released.
     svc.start_pursuing_recommendation(db_session, rec_b, actor_user_id="U-RM")
     assert rec_b.status == "IN_PROGRESS"
-
 
 def test_bench_scan_skips_actively_engaged_employee(db_session, fixtures):
     """The scan itself shouldn't even surface new options for someone

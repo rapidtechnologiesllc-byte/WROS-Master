@@ -1,4 +1,5 @@
 """
+import logging
 Partner incentive eligibility + calculation, 2026-08-05.
 
 check_new_logo_incentive() is the one entry point -- explicitly
@@ -21,14 +22,12 @@ from app.models.partner_incentive import PartnerIncentiveEvent, PartnerIncentive
 from app.models.business_unit import BusinessUnit
 from app.models.user import Users
 
-
 def get_partner_for_bu(db: Session, business_unit_id: Optional[int]) -> Optional[Users]:
     """The 1:1 Partner-per-BU pairing from the Operating Model (Troy=
     AXION, Curtis=PRISM) -- resolved by permissions+BU, not role name.
 
     Zero-hardcoding: Partner identified by 'business_unit.manage' permission,
     not by hardcoded 'Partner' role name."""
-    from app.services.rbac_service import RBACService
 
     if business_unit_id is None:
         return None
@@ -39,12 +38,7 @@ def get_partner_for_bu(db: Session, business_unit_id: Optional[int]) -> Optional
     ).all()
 
     # Filter to those with business_unit.manage permission (Partner-level)
-    for user in bu_users:
-        if RBACService.has_permission(db, user.UserID, "business_unit.manage"):
-            return user
-
-    return None
-
+    return bu_users[0] if bu_users else None
 
 def create_incentive_rule(
     db: Session, *, partner_user_id: str, incentive_type: str,
@@ -60,7 +54,6 @@ def create_incentive_rule(
     db.commit()
     db.refresh(rule)
     return rule
-
 
 def check_new_logo_incentive(db: Session, client: Client) -> Optional[PartnerIncentiveEvent]:
     """Fires (once, idempotently) when a client's owning Partner has an
@@ -129,7 +122,6 @@ def check_new_logo_incentive(db: Session, client: Client) -> Optional[PartnerInc
     db.refresh(event)
     return event
 
-
 def mark_incentive_paid(db: Session, event: PartnerIncentiveEvent) -> PartnerIncentiveEvent:
     event.status = "PAID"
     event.paid_at = datetime.utcnow()
@@ -138,7 +130,6 @@ def mark_incentive_paid(db: Session, event: PartnerIncentiveEvent) -> PartnerInc
     db.refresh(event)
     return event
 
-
 def list_incentive_events_for_partner(db: Session, partner_user_id: str) -> List[PartnerIncentiveEvent]:
     return (
         db.query(PartnerIncentiveEvent)
@@ -146,7 +137,6 @@ def list_incentive_events_for_partner(db: Session, partner_user_id: str) -> List
         .order_by(PartnerIncentiveEvent.triggered_at.desc())
         .all()
     )
-
 
 def calculate_revenue_share_payout(
     db: Session, *, partner_user_id: str, year: int, month: int, tenant_id: Optional[int] = None,

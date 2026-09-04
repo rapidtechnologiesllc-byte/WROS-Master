@@ -1,8 +1,11 @@
 from datetime import datetime
+import logging
 from typing import Optional
 
 from pydantic import BaseModel
+from app.core.logging import logger
 
+logger = logging.getLogger(__name__)
 
 class ForecastVsActualResponse(BaseModel):
     business_unit_id: Optional[int]
@@ -13,12 +16,10 @@ class ForecastVsActualResponse(BaseModel):
     variance_usd_cents: int
     status: str
 
-
 class ForecastVsActualTrendResponse(BaseModel):
     business_unit_id: Optional[int]
     year: int
     months: list[ForecastVsActualResponse]
-
 
 class PipelineLeakageFlagItem(BaseModel):
     id: str
@@ -37,11 +38,9 @@ class PipelineLeakageFlagItem(BaseModel):
     class Config:
         from_attributes = True
 
-
 class PipelineLeakageScanResponse(BaseModel):
     flags: list[PipelineLeakageFlagItem]
     total_estimated_impact_usd_cents: int
-
 
 class ResolveLeakageFlagRequest(BaseModel):
     resolution_note: Optional[str] = None

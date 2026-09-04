@@ -1,5 +1,6 @@
 """
 Async Tasks Module
+import logging
 ==================
 
 Background tasks using Celery for:

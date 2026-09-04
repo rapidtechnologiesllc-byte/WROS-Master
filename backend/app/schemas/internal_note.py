@@ -2,16 +2,19 @@
 Internal Note Schemas
 =====================
 Pydantic models for the Internal HR Note API.
+import logging
 """
 
+import logging
 from pydantic import BaseModel, Field
 from typing import Optional, List
 from datetime import datetime
-
+from app.core.logging import logger
 
 # ---------------------------------------------------------------------------
 # Request schemas
 # ---------------------------------------------------------------------------
+logger = logging.getLogger(__name__)
 
 class InternalNoteCreate(BaseModel):
     """Payload for creating a new internal HR note on a candidate."""
@@ -28,7 +31,6 @@ class InternalNoteCreate(BaseModel):
             "e.g. 'General', 'Background Check', 'Salary Negotiation', 'Reference Check'"
         ),
     )
-
 
 # ---------------------------------------------------------------------------
 # Response schemas
@@ -48,7 +50,6 @@ class InternalNoteResponse(BaseModel):
 
     class Config:
         from_attributes = True
-
 
 class InternalNoteListResponse(BaseModel):
     """Response for listing all internal notes for a candidate."""

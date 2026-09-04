@@ -1,8 +1,11 @@
+from app.core.logging import logger
 """Pydantic Schemas -- S-074/HRMS-0474 Bulk Candidate Engagement Launch."""
+import logging
 from typing import Dict, List, Optional
 
 from pydantic import BaseModel
 
+logger = logging.getLogger(__name__)
 
 class BulkImportResponse(BaseModel):
     imported: int
@@ -10,16 +13,13 @@ class BulkImportResponse(BaseModel):
     errors: List[Dict]
     candidate_ids: List[str]
 
-
 class BulkEngageRequest(BaseModel):
     candidate_ids: List[str]
-
 
 class BulkEngageResponse(BaseModel):
     bulk_job_id: str
     total_candidates: int
     estimated_completion_minutes: float
-
 
 class BulkJobStatusResponse(BaseModel):
     bulk_job_id: str

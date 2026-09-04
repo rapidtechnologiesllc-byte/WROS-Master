@@ -1,5 +1,6 @@
 """
 HRMS-1104 -- Automated Outreach Agent (Phase 3 Workstream 1 / Recruit),
+import logging
 EPIC-11, S-319.
 
 One table: outreach_sequences, per S-319_HRMS-1104.docx's Data Mapping
@@ -8,6 +9,7 @@ goes through app.services.thunder_service.send_thunder_message(), the
 same governed path Thunder itself uses, so R-08 ownership and consent
 are enforced uniformly (BR-1104-01).
 """
+import logging
 from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, Text, func
 
 from app.models.base import Base
@@ -18,14 +20,15 @@ OUTREACH_SEQUENCE_STATUSES = (
 )
 MAX_TOUCHES = 3  # BR-1104-04
 
+logger = logging.getLogger(__name__)
 
 class OutreachSequence(Base):
     __tablename__ = "outreach_sequences"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
-    candidate_id = Column(String(36), ForeignKey("candidates.candidateID"), nullable=False, index=True)
-    demand_id = Column(String(36), ForeignKey("demands.id"), nullable=True, index=True)
+    candidate_id = Column(String(512), ForeignKey("candidates.candidateID"), nullable=False, index=True)
+    demand_id = Column(String(512), ForeignKey("demands.id"), nullable=True, index=True)
 
     message_text = Column(Text, nullable=True)          # max 1000 chars per UI spec
     primary_channel = Column(String(20), nullable=False)  # one of OUTREACH_CHANNELS
@@ -42,7 +45,7 @@ class OutreachSequence(Base):
     # every actual send re-checks thunder_service.has_active_consent().
     consent_given_snapshot = Column(Boolean, nullable=True)
 
-    sent_via = Column(String(50), nullable=True)  # always 'sendThunderMessage' once any send occurs
+    sent_via = Column(String(512), nullable=True)  # always 'sendThunderMessage' once any send occurs
     last_touch_sent_at = Column(DateTime(timezone=False), nullable=True)
     blocked_reason = Column(Text, nullable=True)
 

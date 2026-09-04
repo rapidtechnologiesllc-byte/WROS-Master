@@ -1,4 +1,5 @@
 """
+import logging
 S-053/HRMS-0453 -- Offer Readiness Check.
 
 Real architecture adaptations:
@@ -71,7 +72,6 @@ from app.services.submission_service import check_experience_eligibility
 WITHDRAWN_SUBMISSION_STATUSES = ("WITHDRAWN", "REJECTED_BY_CLIENT")
 REQUIRED_LEVELS = ("L1", "L2")  # BR-01
 
-
 def _resolve_relevant_submission(db: Session, candidate_id: str) -> Optional[Submission]:
     return (
         db.query(Submission)
@@ -80,7 +80,6 @@ def _resolve_relevant_submission(db: Session, candidate_id: str) -> Optional[Sub
         .first()
     )
 
-
 def _current_interview_for_level(db: Session, submission_id: str, level: str) -> Optional[SubmissionInterview]:
     return (
         db.query(SubmissionInterview)
@@ -88,7 +87,6 @@ def _current_interview_for_level(db: Session, submission_id: str, level: str) ->
         .order_by(SubmissionInterview.created_at.desc())
         .first()
     )
-
 
 def check_offer_readiness(db: Session, candidate_id: str, job_id: str, tenant_id: str) -> Dict:
     """Step 2. Never raises internally on missing data -- a missing
@@ -161,6 +159,7 @@ def check_offer_readiness(db: Session, candidate_id: str, job_id: str, tenant_id
             ))
             db.commit()
     except Exception as exc:
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[OfferReadiness] Failed to log OFFER_READINESS_CHECKED for candidate {candidate_id!r}: {exc}")
         db.rollback()
 

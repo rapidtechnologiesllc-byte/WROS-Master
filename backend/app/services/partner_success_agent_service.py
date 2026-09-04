@@ -1,4 +1,5 @@
 """
+import logging
 Partner Success Agent Service
 
 NOT a tracker. A COACH.
@@ -13,6 +14,7 @@ Removes friction: "Your deal with Client X needs Y. I found Z. Done."
 Philosophy: Partners succeed = company succeeds.
 """
 
+import logging
 from typing import Dict, Any, List, Optional
 from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
@@ -21,7 +23,9 @@ from sqlalchemy import func, and_
 from app.core.agent_logging import log_agent_execution
 from app.models.opportunity import Opportunity
 from app.models.user import Users
+from app.core.logging import logger
 
+logger = logging.getLogger(__name__)
 
 class PartnerSuccessAgent:
     """Proactive partner coaching toward revenue targets."""
@@ -198,6 +202,7 @@ class PartnerSuccessAgent:
             }
 
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             raise
 
     @staticmethod
@@ -295,8 +300,8 @@ class PartnerSuccessAgent:
             }
 
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             raise
-
 
 def next_stage(current_stage: str) -> str:
     """Get next stage in sales cycle."""
@@ -307,8 +312,7 @@ def next_stage(current_stage: str) -> str:
     except:
         return "qualified"
 
-
-def should_flag_stalled(opp: Opportunities) -> bool:
+def should_flag_stalled(opp: Opportunity) -> bool:
     """Check if deal is stalled."""
     if not opp.last_activity_at:
         return False
@@ -325,13 +329,11 @@ def should_flag_stalled(opp: Opportunities) -> bool:
     days_without_activity = (datetime.utcnow() - opp.last_activity_at).days
     return days_without_activity > threshold
 
-
-def days_since_activity(opp: Opportunities) -> int:
+def days_since_activity(opp: Opportunity) -> int:
     """Days since last activity."""
     if not opp.last_activity_at:
         return 999
     return (datetime.utcnow() - opp.last_activity_at).days
-
 
 def generate_coaching_message(partner_key: str, pace_pct: float, action_count: int) -> str:
     """Generate daily coaching message."""
@@ -343,7 +345,6 @@ def generate_coaching_message(partner_key: str, pace_pct: float, action_count: i
         return f"⚠️ {partner_key.upper()}: Slightly behind. {pace_pct:.0f}% of pace. {action_count} critical actions TODAY."
     else:
         return f"🚨 {partner_key.upper()}: BEHIND PACE. {pace_pct:.0f}% of target. URGENT: {action_count} actions to restart deals."
-
 
 def generate_weekly_coaching(partner_key: str, weekly_revenue: int, stalled_count: int) -> str:
     """Generate weekly coaching message."""

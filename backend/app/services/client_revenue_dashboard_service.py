@@ -1,4 +1,5 @@
 """
+import logging
 HRMS-0909 -- Client Revenue Realization Dashboard (S-228).
 
 BR-0909-01 (the only numbered rule): internal-only, "distinct from
@@ -36,7 +37,6 @@ from app.models.timesheet import Timesheet
 
 REVENUE_DASHBOARD_NOTE = "Estimate only, not a finance figure."
 
-
 def _calculate_burn_rate_pct(projects, earned_usd_cents: int, planned_usd_cents: Optional[int]) -> Optional[float]:
     if not planned_usd_cents or planned_usd_cents <= 0:
         return None
@@ -62,7 +62,6 @@ def _calculate_burn_rate_pct(projects, earned_usd_cents: int, planned_usd_cents:
     if expected_spend <= 0:
         return None
     return round((earned_usd_cents / expected_spend) * 100, 2)
-
 
 def get_client_revenue_dashboard(db: Session, client: Client, *, tenant_id: Optional[int] = None) -> dict:
     projects = db.query(Project).filter(Project.client_id == client.id).all()

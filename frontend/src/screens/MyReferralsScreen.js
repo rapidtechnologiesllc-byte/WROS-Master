@@ -3,6 +3,7 @@ import { Gift, Briefcase, Clock, CheckCircle2, AlertCircle, TrendingUp, Plus } f
 import { Card, Button } from "../components/ui";
 import { toast } from "react-toastify";
 import { useNavigate } from "react-router-dom";
+import { hasPermission } from "../utils/permissionsRoleTemplate";
 
 const STATUS_COLORS = {
   PENDING: "bg-yellow-100 text-yellow-800",
@@ -67,6 +68,10 @@ export default function MyReferralsScreen() {
   };
 
   const handleReferCandidate = () => {
+    if (!hasPermission("candidates", "create")) {
+      toast.error("You don't have permission to create candidates");
+      return;
+    }
     // Mark that we're coming from referrals so we can redirect back
     sessionStorage.setItem("referralRedirect", "true");
     navigate("/candidates/create");
@@ -81,9 +86,11 @@ export default function MyReferralsScreen() {
           <p className="text-gray-600 mt-1">Track your referrals and potential bonuses</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="primary" onClick={handleReferCandidate}>
-            <Plus className="h-4 w-4 mr-2" /> Refer a Candidate
-          </Button>
+          {hasPermission("candidates", "create") && (
+            <Button variant="primary" onClick={handleReferCandidate}>
+              <Plus className="h-4 w-4 mr-2" /> Refer a Candidate
+            </Button>
+          )}
           <Button variant="ghost" onClick={loadMyReferrals}>
             Refresh
           </Button>

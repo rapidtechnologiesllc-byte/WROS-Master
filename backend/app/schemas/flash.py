@@ -1,14 +1,18 @@
 """
+import logging
 Pydantic Schemas — Flash (internal query agent) surface.
 
 Renamed 2026-08-06 from "Ask Thunder" -- see app.api.v1.endpoints.flash
 module docstring for the Thunder-vs-Flash product split rationale.
 """
 
+import logging
 from typing import List, Optional, Dict, Any
 
 from pydantic import BaseModel, Field
+from app.core.logging import logger
 
+logger = logging.getLogger(__name__)
 
 class FlashHistoryTurn(BaseModel):
     """Backlog item, 2026-08-05 (wros_ask_thunder_bugs_and_memory_backlog):
@@ -20,12 +24,10 @@ class FlashHistoryTurn(BaseModel):
     question: str = Field(..., max_length=1000)
     reply: str = Field(default="", max_length=4000)
 
-
 class FlashRequest(BaseModel):
     message: str = Field(..., min_length=1, max_length=1000)
     history: List[FlashHistoryTurn] = Field(default_factory=list, max_length=10)
     conversation_state: Optional[Dict[str, Any]] = Field(default=None, description="State tracking for multi-turn conversations like job creation")
-
 
 class FlashResponse(BaseModel):
     intent: str

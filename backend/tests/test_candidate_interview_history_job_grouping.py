@@ -6,6 +6,7 @@ Avinash: a candidate can interview for N jobs, N rounds each, and the
 screen needs to show what happened per job (L1/L2/...), which requires
 job info on each interview row. Proves the real route now returns
 job_id/job_title per interview, and that they're correct per round --
+import logging
 not just that the underlying columns exist.
 
 Throwaway SQLite, throwaway JWT keys -- never the real database.
@@ -29,7 +30,6 @@ from app.models.tenant import Tenant
 from app.models.user import Interview, InterviewPanel, Jobs, Users
 import app.models  # noqa: F401
 
-
 @pytest.fixture()
 def throwaway_jwt_keys(monkeypatch):
     key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
@@ -42,7 +42,6 @@ def throwaway_jwt_keys(monkeypatch):
     ).decode()
     monkeypatch.setattr(security, "PRIVATE_KEY", private_pem)
     monkeypatch.setattr(security, "PUBLIC_KEY", public_pem)
-
 
 @pytest.fixture()
 def client(throwaway_jwt_keys):
@@ -105,11 +104,9 @@ def client(throwaway_jwt_keys):
         engine.dispose()
         os.remove(db_path)
 
-
 def _auth():
     token = security.create_access_token(data={"sub": "admin@blitzenx.com", "type": "Super User", "name": "admin@blitzenx.com"})
     return {"Authorization": f"Bearer {token}"}
-
 
 def test_candidate_history_returns_job_id_and_title_per_round(client):
     resp = client.get("/interviews/candidate-history/C-MULTI", headers=_auth())

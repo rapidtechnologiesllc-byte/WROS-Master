@@ -1,18 +1,19 @@
 from datetime import date, datetime
+import logging
 from typing import Optional
 
 from pydantic import BaseModel
+from app.core.logging import logger
 
+logger = logging.getLogger(__name__)
 
 class RecordBankTransactionRequest(BaseModel):
     transaction_date: date
     amount_usd_cents: int
     description: str
 
-
 class MatchTransactionRequest(BaseModel):
     invoice_id: str
-
 
 class BankTransactionResponse(BaseModel):
     id: int
@@ -26,7 +27,6 @@ class BankTransactionResponse(BaseModel):
 
     class Config:
         from_attributes = True
-
 
 class UnmatchedPaidInvoiceResponse(BaseModel):
     invoice_id: str

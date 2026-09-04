@@ -1,4 +1,5 @@
 """
+import logging
 S-065/HRMS-0465 -- Thunder Daily Digest / Morning Report.
 
 Real architecture under test (see daily_digest_service module
@@ -34,7 +35,6 @@ from app.models.user import Users
 
 import app.services.daily_digest_service as svc
 
-
 @pytest.fixture()
 def db_session():
     fd, db_path = tempfile.mkstemp(suffix=".sqlite3")
@@ -53,7 +53,6 @@ def db_session():
         engine.dispose()
         os.remove(db_path)
 
-
 @pytest.fixture()
 def recruiter(db_session):
     r = Users(UserID="U-HR", UserRole="HR Manager", UserEmail="hr@blitzenx.com", UserPassword="h", tenant_id=None, timezone="Asia/Kolkata", digest_enabled=True)
@@ -61,13 +60,11 @@ def recruiter(db_session):
     db_session.commit()
     return r
 
-
 def _candidate(db, cid="C-1", first="Priya"):
     c = Candidate(candidateID=cid, candidateEmail=f"{cid.lower()}@example.com", candidatePassword="h", candidateFirstName=first)
     db.add(c)
     db.commit()
     return c
-
 
 def _owned_submission(db, cid="C-1", recruiter_id="U-HR"):
     sub = Submission(tenant_id=None, demand_id="D-1", client_id="CL-1", candidate_id=cid, submitted_by_user_id=recruiter_id, status="OFFER_EXTENDED")
@@ -75,13 +72,11 @@ def _owned_submission(db, cid="C-1", recruiter_id="U-HR"):
     db.commit()
     return sub
 
-
 def _conversation(db, cid="C-1"):
     conv = CandidateConversation(tenant_id="U-ORG", candidate_id=cid, status="open", owner_type="ai_agent", owner_id="Thunder", escalation_state="none")
     db.add(conv)
     db.commit()
     return conv
-
 
 # ── Core generation ──────────────────────────────────────────────────────
 
@@ -98,7 +93,6 @@ def test_digest_includes_overnight_replies(db_session, recruiter):
     assert len(digest["responded"]) == 1
     assert digest["responded"][0]["name"] == "Priya"
 
-
 def test_digest_includes_needs_attention(db_session, recruiter):
     _candidate(db_session)
     _owned_submission(db_session)
@@ -110,7 +104,6 @@ def test_digest_includes_needs_attention(db_session, recruiter):
     assert len(digest["needs_attention"]) == 1
     assert digest["needs_attention"][0]["reason"] == "ESCALATION"
 
-
 def test_digest_includes_top_risks(db_session, recruiter):
     _candidate(db_session)
     _owned_submission(db_session)
@@ -120,7 +113,6 @@ def test_digest_includes_top_risks(db_session, recruiter):
     digest = svc.generate_daily_digest(db_session, "U-HR", "U-ORG")
     assert len(digest["top_risks"]) == 1
     assert digest["top_risks"][0]["score"] == 82
-
 
 def test_digest_only_includes_own_candidates(db_session, recruiter):
     _candidate(db_session, "C-1")
@@ -133,7 +125,6 @@ def test_digest_only_includes_own_candidates(db_session, recruiter):
     digest = svc.generate_daily_digest(db_session, "U-HR", "U-ORG")
     assert digest["top_risks"] == []  # C-2 belongs to a different recruiter
 
-
 # ── BR-02: no digest if empty ────────────────────────────────────────────
 
 def test_empty_digest_has_no_content(db_session, recruiter):
@@ -143,14 +134,12 @@ def test_empty_digest_has_no_content(db_session, recruiter):
     digest = svc.generate_daily_digest(db_session, "U-HR", "U-ORG")
     assert digest["has_content"] is False
 
-
 def test_send_digest_skips_when_no_content(db_session, recruiter):
     _candidate(db_session)
     _owned_submission(db_session)
 
     result = svc.send_daily_digest(db_session, "U-HR", "U-ORG")
     assert result["outcome"] == "skipped_no_content"
-
 
 def test_send_digest_respects_disabled_preference(db_session, recruiter):
     recruiter.digest_enabled = False
@@ -162,7 +151,6 @@ def test_send_digest_respects_disabled_preference(db_session, recruiter):
 
     result = svc.send_daily_digest(db_session, "U-HR", "U-ORG")
     assert result["outcome"] == "disabled"
-
 
 # ── BR-03: deep links ─────────────────────────────────────────────────────
 
@@ -179,7 +167,6 @@ def test_candidate_links_present_in_whatsapp_and_email_format(db_session, recrui
     assert digest["needs_attention"][0]["link"].endswith("/candidates/C-1?tab=messages")
     assert "Priya" in whatsapp_text
 
-
 # ── Interviews today ──────────────────────────────────────────────────────
 
 def test_interview_today_included_with_local_time(db_session, recruiter):
@@ -192,7 +179,6 @@ def test_interview_today_included_with_local_time(db_session, recruiter):
     digest = svc.generate_daily_digest(db_session, "U-HR", "U-ORG", now=scheduled_utc)
     assert len(digest["interviews_today"]) == 1
     assert digest["interviews_today"][0]["level"] == "L1"
-
 
 # ── Job batch processing ─────────────────────────────────────────────────
 

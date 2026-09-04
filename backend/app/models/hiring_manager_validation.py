@@ -1,14 +1,17 @@
 """
 Hiring Manager Validation Models
 Manages validation of candidates by hiring managers before interviews
+import logging
 """
 
+import logging
 from datetime import datetime
 from sqlalchemy import Column, String, DateTime, Text, Integer, ForeignKey, JSON, func, Enum, Boolean, Index
 from sqlalchemy.orm import relationship
 from app.models.base import Base
 from enum import Enum as PyEnum
 
+logger = logging.getLogger(__name__)
 
 class HMValidationStatus(str, PyEnum):
     """Hiring Manager validation state machine"""
@@ -19,7 +22,6 @@ class HMValidationStatus(str, PyEnum):
     EXPIRED = "EXPIRED"  # Timeout reached, auto-escalated
     ESCALATED = "ESCALATED"  # Escalated to HM's manager
 
-
 class HiringManagerValidation(Base):
     """
     Hiring Manager validation checkpoint.
@@ -28,10 +30,10 @@ class HiringManagerValidation(Base):
     """
     __tablename__ = "hiring_manager_validations"
 
-    id = Column(String(36), primary_key=True, index=True)  # UUID
-    candidate_id = Column(String(36), ForeignKey("candidates.candidateID"), nullable=False, index=True)
-    job_id = Column(String(36), ForeignKey("demands.id"), nullable=False, index=True)  # References Demand (job)
-    hiring_manager_id = Column(String(36), ForeignKey("users.UserID"), nullable=False, index=True)
+    id = Column(String(512), primary_key=True, index=True)  # UUID
+    candidate_id = Column(String(512), ForeignKey("candidates.candidateID"), nullable=False, index=True)
+    job_id = Column(String(512), ForeignKey("demands.id"), nullable=False, index=True)  # References Demand (job)
+    hiring_manager_id = Column(String(512), ForeignKey("users.UserID"), nullable=False, index=True)
 
     # Validation state machine
     status = Column(
@@ -59,16 +61,16 @@ class HiringManagerValidation(Base):
 
     # Downstream impact
     interview_scheduled_at = Column(DateTime(timezone=False), nullable=True)
-    interview_id = Column(String(50), ForeignKey("interviews.interviewID"), nullable=True)
+    interview_id = Column(String(512), ForeignKey("interviews.interviewID"), nullable=True)
     next_candidate_tried = Column(Boolean, nullable=False, server_default="0", default=False)  # If rejected, tried next
 
     # Escalation tracking
-    escalated_to_user_id = Column(String(36), ForeignKey("users.UserID"), nullable=True)  # If escalated to manager
+    escalated_to_user_id = Column(String(512), ForeignKey("users.UserID"), nullable=True)  # If escalated to manager
     escalated_at = Column(DateTime(timezone=False), nullable=True)
-    escalation_reason = Column(String(200), nullable=True)
+    escalation_reason = Column(String(512), nullable=True)
 
     # Audit & metadata
-    created_by = Column(String(36), nullable=True)  # Usually "ai_recruiter" system
+    created_by = Column(String(512), nullable=True)  # Usually "ai_recruiter" system
     last_updated_at = Column(DateTime(timezone=False), server_default=func.now(), onupdate=func.now())
     notes = Column(Text, nullable=True)
 
@@ -103,7 +105,6 @@ class HiringManagerValidation(Base):
             "decision_score": self.decision_score,
         }
 
-
 class HMValidationResponse(Base):
     """
     Individual HM validation Q&A record.
@@ -111,13 +112,13 @@ class HMValidationResponse(Base):
     """
     __tablename__ = "hm_validation_responses"
 
-    id = Column(String(36), primary_key=True, index=True)  # UUID
-    validation_id = Column(String(36), ForeignKey("hiring_manager_validations.id"), nullable=False, index=True)
+    id = Column(String(512), primary_key=True, index=True)  # UUID
+    validation_id = Column(String(512), ForeignKey("hiring_manager_validations.id"), nullable=False, index=True)
 
     # Question metadata
-    question_id = Column(String(100), nullable=False)  # "q_001", "q_002", etc.
+    question_id = Column(String(512), nullable=False)  # "q_001", "q_002", etc.
     question_text = Column(Text, nullable=False)  # Full question text for audit
-    question_type = Column(String(50), nullable=False)  # "yes_no", "yes_no_maybe", "text"
+    question_type = Column(String(512), nullable=False)  # "yes_no", "yes_no_maybe", "text"
 
     # Response
     response_value = Column(Text, nullable=True)  # "yes", "no", "maybe", or text response

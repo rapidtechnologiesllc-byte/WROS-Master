@@ -1,4 +1,5 @@
 """
+import logging
 S-046/HRMS-0446 -- Candidate Abandonment Prediction.
 
 Explicitly NOT ML per the spec's own "What NOT to build" -- a pure,
@@ -75,7 +76,6 @@ from app.services.whatsapp_routing_service import is_ai_owner
 ABANDONMENT_FLAG_THRESHOLD = int(os.getenv("ABANDONMENT_FLAG_THRESHOLD", "70"))  # BR-01 default
 RESPONSE_RATE_WINDOW_DAYS = 7  # Step 2, Component 1
 
-
 def _response_rate_points(db: Session, conversation_id: int, now: datetime) -> int:
     """Component 1 (30% wt): 0% reply over the last 7 days = 30pts,
     100% reply = 0pts. No outbound sent yet -> 0pts (no basis to
@@ -96,7 +96,6 @@ def _response_rate_points(db: Session, conversation_id: int, now: datetime) -> i
     response_rate = min(inbound / outbound, 1.0)
     return round((1 - response_rate) * 30)
 
-
 def _sentiment_trend_points(db: Session, candidate_id: str) -> int:
     """Component 2 (25% wt). No sentiment data -> 0pts (treated as
     neutral, per the spec's own explicit fallback)."""
@@ -110,7 +109,6 @@ def _sentiment_trend_points(db: Session, candidate_id: str) -> int:
     if all(s == "POSITIVE" for s in recent):
         return 0
     return 5  # mixed
-
 
 def _days_since_last_reply_points(db: Session, conversation: CandidateConversation, now: datetime) -> int:
     """Component 3 (25% wt)."""
@@ -133,7 +131,6 @@ def _days_since_last_reply_points(db: Session, conversation: CandidateConversati
         return 20
     return 25
 
-
 def _followup_count_points(db: Session, tenant_id: str, candidate_id: str, conversation_id: int) -> int:
     """Component 4 (20% wt) -- SENT count, capped at MAX_FOLLOWUPS=3."""
     sent = (
@@ -143,7 +140,6 @@ def _followup_count_points(db: Session, tenant_id: str, candidate_id: str, conve
         .count()
     )
     return {0: 0, 1: 5, 2: 12}.get(sent, 20)  # 3+ -> 20
-
 
 def calculate_abandonment_score(db: Session, candidate_id: str, tenant_id: str, conversation: CandidateConversation) -> Dict:
     """AC-1: returns a 0-100 integer score. UPSERTs into
@@ -212,12 +208,10 @@ def calculate_abandonment_score(db: Session, candidate_id: str, tenant_id: str, 
         "calculated_at": now,
     }
 
-
 def _candidate_name(candidate: Candidate) -> str:
     parts = [candidate.candidateFirstName, candidate.candidateLastName]
     name = " ".join(p for p in parts if p).strip()
     return name or candidate.candidateEmail
-
 
 def _assigned_recruiter(db: Session, candidate_id: str) -> Optional[Users]:
     """Mirrors ghosting_detection_service's own resolver -- kept local
@@ -232,7 +226,6 @@ def _assigned_recruiter(db: Session, candidate_id: str) -> Optional[Users]:
         return db.query(Users).filter(Users.UserID == assignment.assigned_by).first()
     return None
 
-
 def _notify_recruiter_of_high_risk(db: Session, tenant_id: str, candidate: Candidate, score: int) -> None:
     recipient = _assigned_recruiter(db, candidate.candidateID) or db.query(Users).filter(Users.UserID == tenant_id).first()
     if not recipient:
@@ -244,8 +237,8 @@ def _notify_recruiter_of_high_risk(db: Session, tenant_id: str, candidate: Candi
             message=f"{_candidate_name(candidate)} has a high abandonment risk score ({score}%) and may need direct outreach.",
         )
     except Exception as exc:
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[AbandonmentScoring] Failed to notify recruiter for candidate {candidate.candidateID!r}: {exc}")
-
 
 def run_abandonment_scoring_job(db: Session) -> Dict:
     """AC-5. AbandonmentScoringJob, runs every 6 hours. Never raises --
@@ -274,6 +267,7 @@ def run_abandonment_scoring_job(db: Session) -> Dict:
             if score_result["newly_flagged"]:
                 _notify_recruiter_of_high_risk(db, conversation.tenant_id, candidate, score_result["abandonment_score"])
         except Exception as exc:
+            logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.error(f"[AbandonmentScoring] Failed processing conversation id={conversation.id}: {exc}")
             db.rollback()
 

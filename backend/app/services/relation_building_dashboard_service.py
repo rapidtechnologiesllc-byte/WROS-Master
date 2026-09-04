@@ -1,4 +1,5 @@
 """
+import logging
 Relation Building Agent Dashboard - Daily Standup & Metrics
 
 Reports to: Flash Orchestration Engine (morning standup)
@@ -10,6 +11,7 @@ Format: SDLC Daily Kanban Standup
 - Metrics: Impact on hiring pipeline
 """
 
+import logging
 from datetime import datetime, timedelta
 from typing import Dict, Any, List
 from sqlalchemy import func
@@ -20,6 +22,7 @@ from app.models.candidate import Candidate
 from app.models.candidate_memory import CandidateMemory, CandidateMemoryFact
 from app.services.performance_store_service import get_performance_events
 
+logger = logging.getLogger(__name__)
 
 class RelationBuildingDashboard:
     """
@@ -105,6 +108,7 @@ class RelationBuildingDashboard:
             }
 
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             logger.error(f"Dashboard generation error: {str(e)}")
             return {
                 "status": "error",

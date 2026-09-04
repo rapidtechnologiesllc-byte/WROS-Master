@@ -1,9 +1,10 @@
+from app.core.logging import logger
 """Business Intelligence Explorer - Dynamic table and column selection."""
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 from typing import List, Optional, Dict, Any
 from app.core.database import get_db
-from app.core.dependencies import get_current_internal_user
+from app.core.dependencies import get_current_internal_user, require_resource_permission
 from app.models.user import Users
 from app.services.bi_service import (
     get_available_tables,
@@ -12,10 +13,14 @@ from app.services.bi_service import (
     get_table_summary,
 )
 
+import logging
+
 router = APIRouter(prefix="/bi", tags=["Business Intelligence"])
 
-
-@router.get("/tables")
+@router.get(
+    "/tables",
+    dependencies=[Depends(require_resource_permission("table", "view"))]
+)
 def list_available_tables(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user)
@@ -31,10 +36,13 @@ def list_available_tables(
             }
         }
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
-
-@router.get("/tables/{table_name}/schema")
+@router.get(
+    "/tables/{table_name}/schema",
+    dependencies=[Depends(require_resource_permission("table", "view"))]
+)
 def get_table_schema_endpoint(
     table_name: str,
     db: Session = Depends(get_db),
@@ -50,10 +58,13 @@ def get_table_schema_endpoint(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
-
-@router.get("/tables/{table_name}/summary")
+@router.get(
+    "/tables/{table_name}/summary",
+    dependencies=[Depends(require_resource_permission("table", "view"))]
+)
 def get_table_summary_endpoint(
     table_name: str,
     db: Session = Depends(get_db),
@@ -69,10 +80,13 @@ def get_table_summary_endpoint(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
-
-@router.post("/query")
+@router.post(
+    "/query",
+    dependencies=[Depends(require_resource_permission("query", "create"))]
+)
 def execute_bi_query(
     table_name: str = Query(...),
     columns: Optional[List[str]] = Query(None),
@@ -110,10 +124,13 @@ def execute_bi_query(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
-
-@router.get("/query/{table_name}")
+@router.get(
+    "/query/{table_name}",
+    dependencies=[Depends(require_resource_permission("query", "view"))]
+)
 def query_table_endpoint(
     table_name: str,
     columns: Optional[List[str]] = Query(None),
@@ -139,4 +156,5 @@ def query_table_endpoint(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))

@@ -1,4 +1,5 @@
 """
+import logging
 Organizational Structure Service — initialize and manage org hierarchy.
 
 Responsibilities:
@@ -13,7 +14,6 @@ from sqlalchemy.orm import Session
 
 from app.models.org_structure import OrgPosition, OrgNode, Department, ApprovalChain, PartnerBUAssignment
 from app.models.business_unit import BusinessUnit
-
 
 # The 10 organizational positions (CEO down to Senior Consultant)
 DEFAULT_POSITIONS = [
@@ -99,7 +99,6 @@ DEFAULT_POSITIONS = [
     },
 ]
 
-
 def init_default_positions(db: Session) -> dict:
     """
     Initialize or update the default organizational positions in the database.
@@ -128,16 +127,13 @@ def init_default_positions(db: Session) -> dict:
     db.commit()
     return {"created": created, "updated": updated}
 
-
 def get_position_by_rank(db: Session, rank: int) -> Optional[OrgPosition]:
     """Fetch a position by its rank (0=CEO, 1=Partner, etc.)"""
     return db.query(OrgPosition).filter(OrgPosition.rank == rank).first()
 
-
 def get_position_by_name(db: Session, name: str) -> Optional[OrgPosition]:
     """Fetch a position by its name"""
     return db.query(OrgPosition).filter(OrgPosition.name == name).first()
-
 
 def create_root_ceo_node(db: Session, tenant_id: int, name: str = "CEO") -> OrgNode:
     """
@@ -167,7 +163,6 @@ def create_root_ceo_node(db: Session, tenant_id: int, name: str = "CEO") -> OrgN
     db.add(ceo_node)
     db.commit()
     return ceo_node
-
 
 def create_partner_node(
     db: Session,
@@ -204,7 +199,6 @@ def create_partner_node(
     db.commit()
     return partner_node
 
-
 def create_bu_head_node(
     db: Session,
     tenant_id: int,
@@ -232,7 +226,6 @@ def create_bu_head_node(
     db.commit()
     return bu_head_node
 
-
 def create_department(
     db: Session,
     tenant_id: int,
@@ -258,7 +251,6 @@ def create_department(
     db.add(department)
     db.commit()
     return department
-
 
 def create_org_node(
     db: Session,
@@ -288,7 +280,6 @@ def create_org_node(
     db.commit()
     return node
 
-
 def assign_partner_to_bu(
     db: Session,
     tenant_id: int,
@@ -307,7 +298,6 @@ def assign_partner_to_bu(
     db.add(assignment)
     db.commit()
     return assignment
-
 
 def setup_approval_chains(db: Session, tenant_id: int) -> dict:
     """
@@ -364,7 +354,6 @@ def setup_approval_chains(db: Session, tenant_id: int) -> dict:
 
     db.commit()
     return {"approval_chains_created": chains_created}
-
 
 def get_employee_approvers(db: Session, org_node_id: str) -> List[dict]:
     """

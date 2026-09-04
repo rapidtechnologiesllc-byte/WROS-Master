@@ -1,6 +1,7 @@
 """
 HRMS-P801 -- Sub-Vendor Portal, Registration & Onboarding. Phase 2
 Domain 5, greenfield (nothing in this codebase to extend/fork, unlike
+import logging
 Client/Demand).
 
 Table name: the corpus itself is inconsistent -- P801's own CREATE
@@ -21,6 +22,7 @@ Login is explicitly email+password, NOT magic link, per P801's own
 "sub-vendors are business accounts, not candidates" note -- SubVendorUser
 is a separate account space from the internal `users` table.
 """
+import logging
 import uuid
 
 from sqlalchemy import (
@@ -30,26 +32,25 @@ from sqlalchemy import (
 
 from app.models.base import Base
 
-
 def _new_uuid() -> str:
     return str(uuid.uuid4())
-
 
 SUBVENDOR_STATUSES = ("PENDING_APPROVAL", "APPROVED", "SUSPENDED", "REJECTED")
 SUBVENDOR_COMPLIANCE_STATUSES = ("GOOD_STANDING", "UNDER_REVIEW", "SUSPENSION_PENDING", "SUSPENDED")
 SUBVENDOR_USER_ROLES = ("ADMIN", "SUBMITTER")
 
+logger = logging.getLogger(__name__)
 
 class SubVendorAccount(Base):
     __tablename__ = "sub_vendor_accounts"
 
-    id = Column(String(36), primary_key=True, default=_new_uuid)
+    id = Column(String(512), primary_key=True, default=_new_uuid)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
 
     company_name = Column(String(300), nullable=False)
-    tax_id = Column(String(100), nullable=True)
+    tax_id = Column(String(512), nullable=True)
     contact_email = Column(String(300), nullable=False)
-    contact_phone = Column(String(50), nullable=True)
+    contact_phone = Column(String(512), nullable=True)
 
     # HRMS-P801 BR-01: registration lifecycle -- no submission until APPROVED.
     status = Column(
@@ -62,11 +63,10 @@ class SubVendorAccount(Base):
         nullable=False, default="GOOD_STANDING",
     )
 
-    approved_by = Column(String(50), ForeignKey("users.UserID"), nullable=True)
+    approved_by = Column(String(512), ForeignKey("users.UserID"), nullable=True)
     approved_at = Column(DateTime, nullable=True)
 
     created_at = Column(DateTime, server_default=func.now())
-
 
 class SubVendorRequest(Base):
     """
@@ -79,13 +79,13 @@ class SubVendorRequest(Base):
     """
     __tablename__ = "sub_vendor_requests"
 
-    id = Column(String(36), primary_key=True, default=_new_uuid)
+    id = Column(String(512), primary_key=True, default=_new_uuid)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
 
-    demand_id = Column(String(36), ForeignKey("demands.id"), nullable=False, index=True)
-    sub_vendor_id = Column(String(36), ForeignKey("sub_vendor_accounts.id"), nullable=False, index=True)
+    demand_id = Column(String(512), ForeignKey("demands.id"), nullable=False, index=True)
+    sub_vendor_id = Column(String(512), ForeignKey("sub_vendor_accounts.id"), nullable=False, index=True)
 
-    assigned_by = Column(String(50), ForeignKey("users.UserID"), nullable=True)
+    assigned_by = Column(String(512), ForeignKey("users.UserID"), nullable=True)
     assigned_at = Column(DateTime, server_default=func.now())
     deadline = Column(DateTime, nullable=True)
     max_candidates = Column(Integer, nullable=True)
@@ -97,7 +97,6 @@ class SubVendorRequest(Base):
         nullable=False, default="OPEN",
     )
 
-
 class ClarificationQA(Base):
     """
     HRMS-P814 -- vendor asks a question against a specific request;
@@ -108,26 +107,25 @@ class ClarificationQA(Base):
     """
     __tablename__ = "clarification_qa"
 
-    id = Column(String(36), primary_key=True, default=_new_uuid)
+    id = Column(String(512), primary_key=True, default=_new_uuid)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
-    request_id = Column(String(36), ForeignKey("sub_vendor_requests.id"), nullable=False, index=True)
-    sub_vendor_id = Column(String(36), ForeignKey("sub_vendor_accounts.id"), nullable=False, index=True)
+    request_id = Column(String(512), ForeignKey("sub_vendor_requests.id"), nullable=False, index=True)
+    sub_vendor_id = Column(String(512), ForeignKey("sub_vendor_accounts.id"), nullable=False, index=True)
 
     question = Column(String(2000), nullable=False)
     asked_at = Column(DateTime, server_default=func.now())
 
     answer = Column(String(2000), nullable=True)
-    answered_by = Column(String(50), ForeignKey("users.UserID"), nullable=True)
+    answered_by = Column(String(512), ForeignKey("users.UserID"), nullable=True)
     answered_at = Column(DateTime, nullable=True)
-
 
 class SubVendorUser(Base):
     __tablename__ = "sub_vendor_users"
 
-    id = Column(String(36), primary_key=True, default=_new_uuid)
-    sub_vendor_id = Column(String(36), ForeignKey("sub_vendor_accounts.id"), nullable=False, index=True)
+    id = Column(String(512), primary_key=True, default=_new_uuid)
+    sub_vendor_id = Column(String(512), ForeignKey("sub_vendor_accounts.id"), nullable=False, index=True)
 
-    name = Column(String(200), nullable=False)
+    name = Column(String(512), nullable=False)
     email = Column(String(300), nullable=False, unique=True, index=True)
     password_hash = Column(String(300), nullable=False)
     role = Column(

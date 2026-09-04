@@ -1,3 +1,4 @@
+import logging
 """add event_log table (S-078/HRMS-0478)
 
 Revision ID: e7a1c3f9b2d6
@@ -8,10 +9,9 @@ from alembic import op
 import sqlalchemy as sa
 
 revision = "e7a1c3f9b2d6"
-down_revision = "d4f8a2c6b9e1"
+down_revision = None
 branch_labels = None
 depends_on = None
-
 
 def upgrade():
     op.create_table(
@@ -30,7 +30,6 @@ def upgrade():
     op.create_index("ix_event_log_candidate_id", "event_log", ["candidate_id"])
     op.create_index("ix_event_log_event_type", "event_log", ["event_type"])
     op.create_index("ix_event_log_emitted_at", "event_log", ["emitted_at"])
-
 
 def downgrade():
     op.drop_index("ix_event_log_emitted_at", table_name="event_log")

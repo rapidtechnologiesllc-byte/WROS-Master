@@ -1,3 +1,4 @@
+import logging
 """add timesheet_disputes (HRMS-0904)
 
 Revision ID: a7b8c9d0e1f3
@@ -22,13 +23,11 @@ from typing import Sequence, Union
 from alembic import op
 import sqlalchemy as sa
 
-
 # revision identifiers, used by Alembic.
 revision: str = 'a7b8c9d0e1f3'
 down_revision: Union[str, Sequence[str], None] = 'f6a7b8c9d0e2'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
-
 
 def upgrade() -> None:
     """Upgrade schema."""
@@ -62,7 +61,6 @@ def upgrade() -> None:
     )
     op.create_index(op.f('ix_timesheet_disputes_tenant_id'), 'timesheet_disputes', ['tenant_id'], unique=False)
     op.create_index(op.f('ix_timesheet_disputes_timesheet_id'), 'timesheet_disputes', ['timesheet_id'], unique=False)
-
 
 def downgrade() -> None:
     """Downgrade schema."""

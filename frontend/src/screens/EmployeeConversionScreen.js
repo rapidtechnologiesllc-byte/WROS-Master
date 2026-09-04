@@ -49,7 +49,7 @@ export default function EmployeeConversionScreen() {
       setCandidates(offerCandidates);
 
       // Load business units
-      const busRes = await apiRequest("/business-units");
+      const busRes = await apiRequest("/api/admin/users-access-control/business-units");
       setBusinessUnits(Array.isArray(busRes) ? busRes : busRes?.data || []);
 
       // Load roles for conversion

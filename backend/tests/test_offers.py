@@ -5,6 +5,7 @@ Comprehensive test coverage for offer creation, approval, sending, and acceptanc
 import pytest
 from datetime import datetime, date, timedelta
 from uuid import uuid4
+import logging
 from sqlalchemy.orm import Session
 
 from app.models.offer import Offer, OfferStatus
@@ -13,12 +14,10 @@ from app.models.user import Users, Jobs
 from app.services.offer_management_service import OfferManagementService
 from app.models.tenant import Tenant
 
-
 @pytest.fixture
 def db_session(db: Session):
     """Database session for tests."""
     return db
-
 
 @pytest.fixture
 def test_tenant(db_session: Session):
@@ -27,7 +26,6 @@ def test_tenant(db_session: Session):
     db_session.add(tenant)
     db_session.commit()
     return tenant
-
 
 @pytest.fixture
 def test_user(db_session: Session, test_tenant):
@@ -43,7 +41,6 @@ def test_user(db_session: Session, test_tenant):
     db_session.commit()
     return user
 
-
 @pytest.fixture
 def test_candidate(db_session: Session, test_tenant):
     """Create a test candidate."""
@@ -58,7 +55,6 @@ def test_candidate(db_session: Session, test_tenant):
     db_session.commit()
     return candidate
 
-
 @pytest.fixture
 def test_job(db_session: Session, test_tenant):
     """Create a test job."""
@@ -72,6 +68,7 @@ def test_job(db_session: Session, test_tenant):
     db_session.commit()
     return job
 
+logger = logging.getLogger(__name__)
 
 class TestOfferCreation:
     """Test offer creation functionality."""
@@ -171,7 +168,6 @@ class TestOfferCreation:
         offer = db_session.query(Offer).filter(Offer.id == result["offer_id"]).first()
         assert offer.status == OfferStatus.DRAFT
 
-
 class TestOfferApproval:
     """Test offer approval functionality."""
 
@@ -250,7 +246,6 @@ class TestOfferApproval:
 
         assert result["status"] == "error"
         assert "not found" in result["message"].lower()
-
 
 class TestOfferSending:
     """Test offer sending functionality."""
@@ -361,7 +356,6 @@ class TestOfferSending:
         days_until_expiry = (offer.expiration_date - datetime.utcnow()).days
         assert days_until_expiry == 6 or days_until_expiry == 7  # Allow 1-day tolerance
 
-
 class TestOfferRejection:
     """Test offer rejection functionality."""
 
@@ -433,7 +427,6 @@ class TestOfferRejection:
 
         assert reject_result["status"] == "error"
         assert "Cannot reject" in reject_result["message"]
-
 
 class TestOfferAcceptance:
     """Test offer acceptance functionality."""
@@ -528,7 +521,6 @@ class TestOfferAcceptance:
         assert accept_result["status"] == "error"
         assert "expired" in accept_result["message"].lower()
 
-
 class TestOfferRetraction:
     """Test offer retraction functionality."""
 
@@ -620,7 +612,6 @@ class TestOfferRetraction:
 
         assert retract_result["status"] == "error"
         assert "Cannot retract accepted offer" in retract_result["message"]
-
 
 class TestOfferWorkflow:
     """Test complete offer workflows."""

@@ -1,3 +1,4 @@
+import logging
 """S-062/HRMS-0462: add recruiter_intervention_queue table
 
 Revision ID: 3c8f1a94d726
@@ -12,7 +13,6 @@ revision = "3c8f1a94d726"
 down_revision = "9d3b7e1c5a26"
 branch_labels = None
 depends_on = None
-
 
 def upgrade():
     op.create_table(
@@ -49,7 +49,6 @@ def upgrade():
         ["tenant_id", "candidate_id", "queue_reason"], unique=True,
         sqlite_where=sa.text("status = 'OPEN'"), mssql_where=sa.text("status = 'OPEN'"),
     )
-
 
 def downgrade():
     op.drop_index("ix_one_open_item_per_candidate_reason", table_name="recruiter_intervention_queue")

@@ -1,4 +1,5 @@
 """
+import logging
 S-213/HRMS-0115 -- System Configuration & Admin Settings Panel.
 
 Generic key/value config, tenant-scoped and optionally BU-scoped (null
@@ -18,6 +19,7 @@ The Admin Settings UI's Locale tab reads/writes those columns directly
 through this same service, so there is exactly one source of truth per
 setting, never two.
 """
+import logging
 from sqlalchemy import Column, DateTime, ForeignKey, Integer, JSON, String, UniqueConstraint, func
 from sqlalchemy.orm import relationship
 
@@ -26,6 +28,7 @@ from app.models.base import Base
 CONFIG_CATEGORIES = ("AI_THRESHOLDS", "SLA", "CHANNELS")
 CONFIG_VALUE_TYPES = ("PERCENT", "INT", "ENUM", "BOOL", "STRING")
 
+logger = logging.getLogger(__name__)
 
 class SystemConfig(Base):
     __tablename__ = "system_config"
@@ -36,11 +39,11 @@ class SystemConfig(Base):
     business_unit_id = Column(Integer, ForeignKey("business_units.id"), nullable=True, index=True)
 
     config_category = Column(String(20), nullable=False)
-    config_key = Column(String(100), nullable=False)
+    config_key = Column(String(512), nullable=False)
     config_value = Column(JSON, nullable=False)
 
     updated_at = Column(DateTime(timezone=False), server_default=func.now(), onupdate=func.now())
-    updated_by = Column(String(50), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=True)
+    updated_by = Column(String(512), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=True)
 
     tenant = relationship("Tenant", foreign_keys=[tenant_id], lazy="select")
     business_unit = relationship("BusinessUnit", foreign_keys=[business_unit_id], lazy="select")

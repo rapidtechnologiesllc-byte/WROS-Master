@@ -1,3 +1,4 @@
+import logging
 """Agent Phalanx Models - Spartan shield wall formation tracking."""
 
 from sqlalchemy import Column, String, Integer, Float, DateTime, Text, JSON, Boolean
@@ -5,18 +6,19 @@ from sqlalchemy.orm import relationship
 from app.models.base import Base
 from datetime import datetime
 
+logger = logging.getLogger(__name__)
 
 class AgentPhalanxFormation(Base):
     """Tracks phalanx formations (Recruitment, Resource, Finance, etc.)."""
 
     __tablename__ = "agent_phalanx_formations"
 
-    formation_id = Column(String(50), primary_key=True)  # "phalanx_recruitment_001"
-    phalanx_name = Column(String(100), nullable=False, unique=True)  # "Recruitment Phalanx"
+    formation_id = Column(String(512), primary_key=True)  # "phalanx_recruitment_001"
+    phalanx_name = Column(String(512), nullable=False, unique=True)  # "Recruitment Phalanx"
     description = Column(Text)
     position_count = Column(Integer)  # How many agents in formation
     formation_strength = Column(Float, default=100.0)  # 0-100% health
-    status = Column(String(50), default="OPERATIONAL")  # OPERATIONAL, WEAKENING, BROKEN
+    status = Column(String(512), default="OPERATIONAL")  # OPERATIONAL, WEAKENING, BROKEN
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -24,17 +26,16 @@ class AgentPhalanxFormation(Base):
     alerts = Column(JSON)  # List of active alerts
     last_alert_at = Column(DateTime)
 
-
 class AgentInFormation(Base):
     """Tracks each agent's position in a phalanx."""
 
     __tablename__ = "agents_in_formations"
 
-    assignment_id = Column(String(50), primary_key=True)  # "aif_thunder_recruitment_001"
+    assignment_id = Column(String(512), primary_key=True)  # "aif_thunder_recruitment_001"
 
     # Phalanx context
-    phalanx_name = Column(String(100), nullable=False)
-    agent_name = Column(String(100), nullable=False)
+    phalanx_name = Column(String(512), nullable=False)
+    agent_name = Column(String(512), nullable=False)
 
     # Position in formation
     position = Column(Integer, nullable=False)  # 1, 2, 3, ...
@@ -45,7 +46,7 @@ class AgentInFormation(Base):
 
     # Shield duty
     shield_sla = Column(String(500))  # "95% success rate, <2s latency"
-    shield_failure_action = Column(String(50), default="KILL_SWITCH")
+    shield_failure_action = Column(String(512), default="KILL_SWITCH")
 
     # Vulnerabilities
     flank_vulnerabilities = Column(JSON)  # ["rate_limited", "false_positives"]
@@ -64,21 +65,20 @@ class AgentInFormation(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
-
 class ShieldWatch(Base):
     """Tracks shield monitoring and neighbor health checks."""
 
     __tablename__ = "shield_watches"
 
-    watch_id = Column(String(50), primary_key=True)  # "watch_recruitment_agent_001"
+    watch_id = Column(String(512), primary_key=True)  # "watch_recruitment_agent_001"
 
     # Who is watching
-    monitor_agent = Column(String(100), nullable=False)
-    phalanx_name = Column(String(100), nullable=False)
+    monitor_agent = Column(String(512), nullable=False)
+    phalanx_name = Column(String(512), nullable=False)
 
     # What they're watching
     watch_type = Column(String(50))  # "monitor_left", "monitor_right"
-    target_agent = Column(String(100), nullable=False)
+    target_agent = Column(String(512), nullable=False)
     target_position = Column(Integer)  # Position of target in formation
 
     # Shield metrics being watched
@@ -99,19 +99,18 @@ class ShieldWatch(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
-
 class PhalanxAlert(Base):
     """Alerts when shield fails or phalanx integrity compromised."""
 
     __tablename__ = "phalanx_alerts"
 
-    alert_id = Column(String(50), primary_key=True)  # "alert_recruitment_001"
+    alert_id = Column(String(512), primary_key=True)  # "alert_recruitment_001"
 
     # Which formation
-    phalanx_name = Column(String(100), nullable=False)
+    phalanx_name = Column(String(512), nullable=False)
 
     # What broke
-    source_agent = Column(String(100), nullable=False)  # Agent whose shield failed
+    source_agent = Column(String(512), nullable=False)  # Agent whose shield failed
     alert_type = Column(String(50))  # "shield_weakening", "shield_failing", "neighbor_down"
     severity = Column(String(50))  # "INFO", "WARNING", "CRITICAL", "EXISTENTIAL"
 
@@ -134,14 +133,13 @@ class PhalanxAlert(Base):
 
     created_at = Column(DateTime, default=datetime.utcnow)
 
-
 class FormationIntegrity(Base):
     """Overall phalanx formation health and integrity."""
 
     __tablename__ = "formation_integrity"
 
-    integrity_id = Column(String(50), primary_key=True)  # "fi_recruitment_001"
-    phalanx_name = Column(String(100), nullable=False)
+    integrity_id = Column(String(512), primary_key=True)  # "fi_recruitment_001"
+    phalanx_name = Column(String(512), nullable=False)
 
     # Overall health
     formation_strength = Column(Float)  # Weighted average of all shields

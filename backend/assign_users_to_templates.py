@@ -1,10 +1,11 @@
 """
 Database migration script to assign existing users to appropriate role templates.
-Run this ONCE to backfill user_roles table with role template assignments.
+Run this ONCE to backfill role_template_id on users table.
+import logging
 """
 
 from app.core.database import SessionLocal
-from app.models.user import Users, UserRole
+from app.models.user import Users
 from app.models.role_template import RoleTemplate
 from app.core.logging import logger
 
@@ -28,13 +29,8 @@ def assign_users_to_templates():
         skipped_count = 0
 
         for user in users:
-            # Check if user already has a role template
-            existing = db.query(UserRole).filter(
-                UserRole.user_id == user.UserID,
-                UserRole.tenant_id == user.tenant_id
-            ).first()
-
-            if existing:
+            # Check if user already has a role template assigned
+            if user.role_template_id:
                 skipped_count += 1
                 continue
 
@@ -53,14 +49,9 @@ def assign_users_to_templates():
                 logger.warning(f"Template not found: {template_name}")
                 continue
 
-            # Assign template to user
-            user_role = UserRole(
-                user_id=user.UserID,
-                role_template_id=template.id,
-                business_unit_id=user.business_unit_id or 1,
-                tenant_id=user.tenant_id
-            )
-            db.add(user_role)
+            # Assign template to user directly (single role per user)
+            user.role_template_id = template.id
+            db.add(user)
             assigned_count += 1
 
         db.commit()
@@ -69,12 +60,13 @@ def assign_users_to_templates():
         print(f"⊘ Skipped {skipped_count} users (already assigned)")
 
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
+        logger.error(f"Error: {str(e)}", exc_info=True)
         db.rollback()
         logger.error(f"Migration failed: {e}")
         print(f"✗ Migration failed: {e}")
     finally:
         db.close()
-
 
 if __name__ == "__main__":
     assign_users_to_templates()

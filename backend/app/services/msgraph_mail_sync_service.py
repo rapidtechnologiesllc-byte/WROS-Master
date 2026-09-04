@@ -9,6 +9,7 @@ lifecycle_communication_linking_service.link_email_to_lifecycle_record()
 one message at a time. Message BODY is never fetched -- the Graph
 $select below only ever requests subject/from/to/timestamps/webLink,
 matching BR-1408-01 (metadata-only) at the source, not just at the
+import logging
 point of storage.
 
 graph_call is injectable (same convention as
@@ -29,14 +30,12 @@ GraphMessagesCall = Callable[[str, str], dict]
 DEFAULT_LOOKBACK = timedelta(hours=24)
 MAX_MESSAGES_PER_FOLDER = 50
 
-
 def _default_graph_messages_call(access_token: str, endpoint: str) -> dict:
     import requests
 
     resp = requests.get(endpoint, headers={"Authorization": f"Bearer {access_token}"}, timeout=15)
     resp.raise_for_status()
     return resp.json()
-
 
 def _fetch_messages(access_token: str, folder: str, since: datetime, *, graph_call: Optional[GraphMessagesCall] = None) -> list:
     call = graph_call or _default_graph_messages_call
@@ -52,7 +51,6 @@ def _fetch_messages(access_token: str, folder: str, since: datetime, *, graph_ca
     data = call(access_token, endpoint)
     return data.get("value", [])
 
-
 def _parse_graph_datetime(raw: Optional[str]) -> datetime:
     if not raw:
         return datetime.utcnow()
@@ -60,7 +58,6 @@ def _parse_graph_datetime(raw: Optional[str]) -> datetime:
         return datetime.fromisoformat(raw.replace("Z", "+00:00")).replace(tzinfo=None)
     except ValueError:
         return datetime.utcnow()
-
 
 def sync_mail_for_user(
     db: Session, user: Users, access_token: str, *,
@@ -98,6 +95,7 @@ def sync_mail_for_user(
                 ):
                     linked_count += 1
     except Exception as exc:
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[MsgraphMailSync] Failed to sync mail for user {user.UserID}: {exc}")
         return {"linked": linked_count, "synced": False}
 
@@ -105,7 +103,6 @@ def sync_mail_for_user(
     db.add(user)
     db.commit()
     return {"linked": linked_count, "synced": True}
-
 
 def run_msgraph_mail_sync_job(db: Session) -> dict:
     """Runs on a schedule (see app.core.scheduler) -- iterates every
@@ -129,6 +126,7 @@ def run_msgraph_mail_sync_job(db: Session) -> dict:
                 synced_users += 1
                 total_linked += result["linked"]
         except Exception as exc:
+            logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.warning(f"[MsgraphMailSync] Unexpected error syncing user {user_id}: {exc}")
 
     return {"synced_users": synced_users, "total_linked": total_linked}

@@ -1,3 +1,4 @@
+import logging
 from sqlalchemy import Boolean, Column, DateTime, Enum, Integer, String, func
 
 from app.models.base import Base
@@ -8,6 +9,7 @@ from app.models.client import BILLING_CURRENCIES
 # tenant's users.
 TENANT_DATE_FORMATS = ("MM/DD/YYYY", "DD/MM/YYYY", "YYYY-MM-DD")
 
+logger = logging.getLogger(__name__)
 
 class Tenant(Base):
     """
@@ -18,7 +20,7 @@ class Tenant(Base):
     __tablename__ = "tenants"
 
     id = Column(Integer, primary_key=True, index=True)
-    name = Column(String(200), nullable=False)
+    name = Column(String(512), nullable=False)
     created_at = Column(DateTime(timezone=False), server_default=func.now())
     is_active = Column(Boolean, nullable=False, default=True)
 
@@ -36,7 +38,7 @@ class Tenant(Base):
     # migration ships alongside, or any other future raw INSERT -- still
     # satisfy the NOT NULL constraint, matching what the migration itself
     # already sets at the DB level.
-    default_timezone = Column(String(50), nullable=False, default="UTC", server_default="UTC")
+    default_timezone = Column(String(512), nullable=False, default="UTC", server_default="UTC")
     default_date_format = Column(
         Enum(*TENANT_DATE_FORMATS, name="tenant_date_format", native_enum=False, create_constraint=True),
         nullable=False, default="MM/DD/YYYY", server_default="MM/DD/YYYY",

@@ -1,3 +1,4 @@
+import logging
 """S-057/HRMS-0457: add preboarding_documents table
 
 Revision ID: 4c8d1e6a92f7
@@ -11,7 +12,6 @@ revision = "4c8d1e6a92f7"
 down_revision = "9b4e7a1f6d23"
 branch_labels = None
 depends_on = None
-
 
 def upgrade():
     op.create_table(
@@ -35,7 +35,6 @@ def upgrade():
     op.create_index("ix_preboarding_documents_candidate_id", "preboarding_documents", ["candidate_id"])
     op.create_index("ix_preboarding_documents_offer_id", "preboarding_documents", ["offer_id"])
     op.create_index("ix_preboarding_documents_job_queue", "preboarding_documents", ["status", "last_reminded_at"])
-
 
 def downgrade():
     op.drop_index("ix_preboarding_documents_job_queue", table_name="preboarding_documents")

@@ -1,7 +1,9 @@
+import logging
 from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, func
 
 from app.models.base import Base
 
+logger = logging.getLogger(__name__)
 
 class ConsentRecord(Base):
     """
@@ -13,9 +15,9 @@ class ConsentRecord(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
-    subject_type = Column(String(50), nullable=False)   # e.g. "candidate", "employee"
-    subject_id = Column(String(50), nullable=False, index=True)
-    consent_type = Column(String(100), nullable=False, index=True)  # e.g. "whatsapp_outreach", "interview_recording"
+    subject_type = Column(String(512), nullable=False)   # e.g. "candidate", "employee"
+    subject_id = Column(String(512), nullable=False, index=True)
+    consent_type = Column(String(512), nullable=False, index=True)  # e.g. "whatsapp_outreach", "interview_recording"
     consent_given = Column(Boolean, nullable=False)
     captured_at = Column(DateTime(timezone=False), server_default=func.now())
-    captured_by = Column(String(50), nullable=True)  # user_id, or "candidate_self_service"
+    captured_by = Column(String(512), nullable=True)  # user_id, or "candidate_self_service"

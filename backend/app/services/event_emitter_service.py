@@ -1,4 +1,5 @@
 """
+import logging
 S-078/HRMS-0478 -- Event Emission Layer for AI Actions.
 
 See app.models.event_log's module docstring for the real architecture
@@ -20,12 +21,14 @@ into the highest-value, safest real trigger points as they're built
 (supervisor.cycle_completed from S-066's SupervisorAgent is the first
 real caller) -- flagged here, not silently claimed complete.
 """
+import logging
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from sqlalchemy.orm import Session
 
 from app.models.event_log import EventLog
+from app.core.logging import logger
 
 # Step 1's literal event catalog. candidate_scoped=True means BR-02
 # requires candidate_id on every emit of that type.
@@ -65,15 +68,14 @@ EVENT_DEFINITIONS: Dict[str, Dict[str, Any]] = {
     "supervisor.cycle_completed": {"version": "v1", "candidate_scoped": False},
 }
 
+logger = logging.getLogger(__name__)
 
 class EventDefinitionNotFoundError(Exception):
     """AC-2: event_type not in EVENT_DEFINITIONS."""
 
-
 class EventValidationError(Exception):
     """AC-3: missing required tenant_id, or missing candidate_id for a
     candidate-scoped event type (BR-02)."""
-
 
 def emit(
     db: Session, event_type: str, payload: Optional[Dict], tenant_id: str, candidate_id: Optional[str] = None,
@@ -98,7 +100,6 @@ def emit(
     db.commit()
     db.refresh(record)
     return record.id
-
 
 def get_events(
     db: Session, tenant_id: str, *, event_type: Optional[str] = None,

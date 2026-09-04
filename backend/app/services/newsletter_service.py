@@ -1,4 +1,5 @@
 from datetime import datetime
+import logging
 from typing import List, Optional
 
 import requests
@@ -16,7 +17,6 @@ from app.core.logging import logger
 from app.core.scheduler import add_job, remove_job
 from app.utils.uniq_id_generator import newsletter_id_generator
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -24,7 +24,6 @@ from app.utils.uniq_id_generator import newsletter_id_generator
 def _now_utc() -> datetime:
     """Return current UTC time as a naive datetime (compatible with SQL Server DATETIME)."""
     return datetime.utcnow()
-
 
 def _send_via_graph(access_token: str, to_email: str, subject: str, body_html: str) -> None:
     """
@@ -54,10 +53,10 @@ def _send_via_graph(access_token: str, to_email: str, subject: str, body_html: s
     )
     response.raise_for_status()
 
-
 # ---------------------------------------------------------------------------
 # NewsletterService
 # ---------------------------------------------------------------------------
+logger = logging.getLogger(__name__)
 
 class NewsletterService:
 
@@ -217,6 +216,7 @@ class NewsletterService:
         try:
             remove_job(job_id)
         except Exception as exc:
+            logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.warning(f"Could not remove scheduler job '{job_id}': {exc}")
 
         db.delete(newsletter)
@@ -260,6 +260,7 @@ class NewsletterService:
                 replace_existing=True,
             )
         except Exception as exc:
+            logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.error(f"Failed to schedule APScheduler job for {newsletter_id}: {exc}")
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -316,6 +317,7 @@ class NewsletterService:
                     graph_access_token, sub.email, newsletter.subject, newsletter.content,
                 )
             except Exception as exc:
+                logger.error(f"Error: {str(exc)}", exc_info=True)
                 logger.error(f"Failed to send to {sub.email}: {exc}")
                 failed += 1
 
@@ -364,7 +366,7 @@ class NewsletterService:
         instead of falsely marking 'sent' -- same principle as the
         LinkedIn mock fix: no fake success, ever.
         """
-        from app.core.database import SessionLocal  # late import to avoid circular deps
+        # to avoid circular deps, import Session locally
 
         db: Session = SessionLocal()
         try:
@@ -389,6 +391,7 @@ class NewsletterService:
             return
 
         except Exception as exc:
+            logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.error(f"[scheduler] Unhandled error for newsletter {newsletter_id}: {exc}")
             db.rollback()
             # Mark as failed so admins can see it

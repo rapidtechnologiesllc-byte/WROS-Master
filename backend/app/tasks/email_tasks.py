@@ -1,5 +1,6 @@
 """
 Email Sending Tasks
+import logging
 ===================
 
 Async email tasks:
@@ -12,7 +13,6 @@ from app.core.celery_app import celery_app
 from app.core.database import SessionLocal
 from app.api.v1.endpoints.admin_queue import TaskStatus, log_task_message
 import uuid
-
 
 @celery_app.task(bind=True, name="tasks.send_email")
 def send_email_task(self, to_email: str, subject: str, body: str, html_body: str = None):
@@ -33,10 +33,10 @@ def send_email_task(self, to_email: str, subject: str, body: str, html_body: str
         return {"status": "success", "to_email": to_email}
 
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         log_task_message(task_id, f"Failed to send email: {str(e)}", "error")
         TaskStatus.update_task(task_id, status="failed")
         return {"status": "error", "error": str(e)}
-
 
 @celery_app.task(bind=True, name="tasks.send_bulk_emails")
 def send_bulk_emails_task(self, recipient_list: list, subject: str, body: str):
@@ -68,10 +68,11 @@ def send_bulk_emails_task(self, recipient_list: list, subject: str, body: str):
                     log_task_message(task_id, f"Sent {sent}/{total} emails", "info")
 
             except Exception as e:
+                logger.error(f"Error: {str(e)}", exc_info=True)
                 failed += 1
                 log_task_message(task_id, f"Failed to send to {recipient}: {str(e)}", "warning")
 
-        TaskStatus.update_task(task_id, status="completed", progress=100)
+                TaskStatus.update_task(task_id, status="completed", progress=100)
         log_task_message(task_id, f"Bulk email complete: {sent} sent, {failed} failed", "info")
 
         return {
@@ -82,6 +83,7 @@ def send_bulk_emails_task(self, recipient_list: list, subject: str, body: str):
         }
 
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         log_task_message(task_id, f"Bulk email task failed: {str(e)}", "error")
         TaskStatus.update_task(task_id, status="failed")
         return {"status": "error", "error": str(e)}

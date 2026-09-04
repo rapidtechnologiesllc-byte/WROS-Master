@@ -1,3 +1,5 @@
+import logging
+from app.core.logging import logger
 """Pydantic schemas -- S-105/HRMS-P210 (Portal Notification Center) API."""
 
 from datetime import datetime
@@ -5,6 +7,7 @@ from typing import List, Optional
 
 from pydantic import BaseModel
 
+logger = logging.getLogger(__name__)
 
 class NotificationItem(BaseModel):
     id: str
@@ -15,7 +18,6 @@ class NotificationItem(BaseModel):
     sent_at: Optional[datetime] = None
     read_at: Optional[datetime] = None
     created_at: Optional[datetime] = None
-
 
 class NotificationListResponse(BaseModel):
     notifications: List[NotificationItem]

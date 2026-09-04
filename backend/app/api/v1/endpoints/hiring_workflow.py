@@ -1,4 +1,5 @@
-﻿"""Interview â†’ Hire â†’ Onboarding workflow API endpoints."""
+from app.core.logging import logger
+"""Interview â†’ Hire â†’ Onboarding workflow API endpoints."""
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app.core.dependencies import get_current_internal_user, require_resource_permission
@@ -12,8 +13,9 @@ from app.services.hiring_workflow_service import (
     record_no_show_confirmation
 )
 
-router = APIRouter(prefix="/hiring-workflow", tags=["Hiring Workflow"])
+import logging
 
+router = APIRouter(prefix="/hiring-workflow", tags=["Hiring Workflow"])
 
 @router.get("/suggestions/{demand_id}/panelists", dependencies=[Depends(require_resource_permission("candidates", "view"))])
 def get_panelist_suggestions(
@@ -27,8 +29,8 @@ def get_panelist_suggestions(
         suggestions = suggest_panelists(db, demand_id, level)
         return {"status": "success", "data": suggestions}
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @router.get("/interviews/{interview_id}/l1-to-l2-trigger", dependencies=[Depends(require_resource_permission("candidates", "view"))])
 def check_l1_l2_trigger(
@@ -45,8 +47,8 @@ def check_l1_l2_trigger(
     except HTTPException:
         raise
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @router.get("/submissions/{submission_id}/affordability", dependencies=[Depends(require_resource_permission("revenue", "view"))])
 def check_affordability(
@@ -64,8 +66,8 @@ def check_affordability(
     except HTTPException:
         raise
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @router.post("/interviews/{demand_id}/create-l2-panel", dependencies=[Depends(require_resource_permission("candidates", "edit"))])
 def create_l2_panel(
@@ -84,8 +86,8 @@ def create_l2_panel(
     except HTTPException:
         raise
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @router.post("/interviews/{interview_id}/no-show", dependencies=[Depends(require_resource_permission("candidates", "edit"))])
 def record_no_show(
@@ -102,4 +104,5 @@ def record_no_show(
     except HTTPException:
         raise
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))

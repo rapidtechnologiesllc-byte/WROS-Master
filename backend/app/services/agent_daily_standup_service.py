@@ -1,4 +1,5 @@
 """
+import logging
 Agent Daily Standup Service
 
 8:00 AM EST: Sequential standup where each sub-agent reports their metrics
@@ -11,6 +12,7 @@ This is an aggressive execution system where Flash drives the build.
 Every update is questioned and validated.
 """
 
+import logging
 from typing import Dict, Any, List, Optional
 from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
@@ -18,7 +20,9 @@ from sqlalchemy import func
 
 from app.utils.agent_logger import log_agent_execution
 from app.models.agent_execution_log import AgentExecutionLog
+from app.core.logging import logger
 
+logger = logging.getLogger(__name__)
 
 class AgentDailyStandup:
     """8:00 AM EST sequential standup with validation for each agent."""
@@ -202,6 +206,7 @@ class AgentDailyStandup:
             }
 
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             raise
 
     @staticmethod
@@ -318,4 +323,5 @@ class AgentDailyStandup:
             }
 
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             raise

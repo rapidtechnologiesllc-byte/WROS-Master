@@ -2,6 +2,7 @@
 Executive Signal & Culture Agent.
 ==================================================================
 Prefix: /executive-signal
+import logging
 Tag:    executive-signal
 
 Advisory-only surface -- watches, drafts, surfaces; never autonomously
@@ -23,7 +24,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_hr_or_admin, get_current_internal_user
+from app.core.dependencies import get_current_internal_user, get_current_internal_user, require_resource_permission
 from app.models.employee import Employee
 from app.models.executive_signal import EmployeeFeedbackCycle, RecognitionMessageDraft
 from app.models.user import Users
@@ -39,33 +40,36 @@ from app.services.org_health_service import get_org_health_snapshot
 
 router = APIRouter(prefix="/executive-signal", tags=["executive-signal"])
 
-
 def _current_employee(db: Session, current_user: Users) -> Employee:
     employee = db.query(Employee).filter(Employee.wros_user_id == current_user.UserID).first()
     if not employee:
         raise HTTPException(status_code=404, detail="No employee record linked to your account.")
     return employee
 
-
-@router.get("/org-health", dependencies=[Depends(get_current_hr_or_admin)])
+@router.get(
+    "/org-health",
+    dependencies=[Depends(get_current_internal_user)],
+)
 def org_health(db: Session = Depends(get_db)):
     return get_org_health_snapshot(db)
 
-
-@router.post("/feedback-cycles", response_model=FeedbackCycleResponse, dependencies=[Depends(get_current_hr_or_admin)])
+@router.post("/feedback-cycles", response_model=FeedbackCycleResponse, dependencies=[Depends(get_current_internal_user)])
 def create_cycle(body: FeedbackCycleCreateRequest, db: Session = Depends(get_db)):
     return start_quarterly_cycle(db, body.quarter_label)
 
-
-@router.post("/feedback-cycles/{cycle_id}/close", dependencies=[Depends(get_current_hr_or_admin)])
-def close_cycle(cycle_id: str, current_user: Users = Depends(get_current_hr_or_admin), db: Session = Depends(get_db)):
+@router.post("/feedback-cycles/{cycle_id}/close", dependencies=[Depends(get_current_internal_user)])
+def close_cycle(cycle_id: str, current_user: Users = Depends(get_current_internal_user), db: Session = Depends(get_db)):
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Authentication required")
     cycle = db.query(EmployeeFeedbackCycle).filter(EmployeeFeedbackCycle.id == cycle_id).first()
     if not cycle:
         raise HTTPException(status_code=404, detail=f"Feedback cycle {cycle_id!r} not found.")
     return close_cycle_and_summarize(db, cycle, closed_by=current_user.UserID)
 
-
-@router.post("/feedback-cycles/{cycle_id}/responses")
+@router.post(
+    "/feedback-cycles/{cycle_id}/responses",
+    dependencies=[Depends(require_resource_permission("feedback-cycle", "create"))]
+)
 def submit_response(
     cycle_id: str, body: FeedbackSubmitRequest,
     current_user: Users = Depends(get_current_internal_user), db: Session = Depends(get_db),
@@ -77,19 +81,20 @@ def submit_response(
     submit_feedback(db, cycle, employee, body.response_text)
     return {"submitted": True}
 
-
-@router.get("/recognition/pending", response_model=list[RecognitionDraftResponse], dependencies=[Depends(get_current_hr_or_admin)])
+@router.get("/recognition/pending", response_model=list[RecognitionDraftResponse], dependencies=[Depends(get_current_internal_user)])
 def pending_recognition(db: Session = Depends(get_db)):
     return db.query(RecognitionMessageDraft).filter(RecognitionMessageDraft.status == "DRAFT").all()
 
-
-@router.post("/recognition/birthday-drafts", response_model=list[RecognitionDraftResponse], dependencies=[Depends(get_current_hr_or_admin)])
+@router.post("/recognition/birthday-drafts", response_model=list[RecognitionDraftResponse], dependencies=[Depends(get_current_internal_user)])
 def birthday_drafts(db: Session = Depends(get_db)):
     return generate_birthday_drafts(db)
 
-
-@router.post("/recognition/{draft_id}/approve", response_model=RecognitionDraftResponse)
-def approve_recognition(draft_id: str, current_user: Users = Depends(get_current_hr_or_admin), db: Session = Depends(get_db)):
+@router.post(
+    "/recognition/{draft_id}/approve",
+    response_model=RecognitionDraftResponse,
+    dependencies=[Depends(require_resource_permission("recognition", "create"))]
+)
+def approve_recognition(draft_id: str, current_user: Users = Depends(get_current_internal_user), db: Session = Depends(get_db)):
     draft = db.query(RecognitionMessageDraft).filter(RecognitionMessageDraft.id == draft_id).first()
     if not draft:
         raise HTTPException(status_code=404, detail=f"Recognition draft {draft_id!r} not found.")
@@ -98,16 +103,18 @@ def approve_recognition(draft_id: str, current_user: Users = Depends(get_current
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc))
 
-
-@router.post("/recognition/{draft_id}/reject", response_model=RecognitionDraftResponse, dependencies=[Depends(get_current_hr_or_admin)])
+@router.post("/recognition/{draft_id}/reject", response_model=RecognitionDraftResponse, dependencies=[Depends(get_current_internal_user)])
 def reject_recognition_endpoint(draft_id: str, db: Session = Depends(get_db)):
     draft = db.query(RecognitionMessageDraft).filter(RecognitionMessageDraft.id == draft_id).first()
     if not draft:
         raise HTTPException(status_code=404, detail=f"Recognition draft {draft_id!r} not found.")
     return reject_recognition(db, draft)
 
-
-@router.post("/concerns", response_model=ConcernResponse)
+@router.post(
+    "/concerns",
+    response_model=ConcernResponse,
+    dependencies=[Depends(require_resource_permission("concern", "create"))]
+)
 def raise_concern(body: ConcernSubmitRequest, current_user: Users = Depends(get_current_internal_user), db: Session = Depends(get_db)):
     employee = _current_employee(db, current_user)
     return submit_concern(db, employee, body.message_text)

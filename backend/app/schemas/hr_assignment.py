@@ -2,16 +2,19 @@
 HR Assignment Schemas
 =====================
 Pydantic request / response models for the HR Assignment API.
+import logging
 """
 
+import logging
 from datetime import datetime
 from typing import Optional
 from pydantic import BaseModel, Field, field_validator
-
+from app.core.logging import logger
 
 # ---------------------------------------------------------------------------
 # Nested user summary (returned inside responses)
 # ---------------------------------------------------------------------------
+logger = logging.getLogger(__name__)
 
 class UserSummary(BaseModel):
     """Lightweight user info embedded in HR assignment responses."""
@@ -21,7 +24,6 @@ class UserSummary(BaseModel):
 
     class Config:
         from_attributes = True
-
 
 # ---------------------------------------------------------------------------
 # Request schemas
@@ -44,7 +46,6 @@ class HRAssignmentCreate(BaseModel):
             return None
         return v
 
-
 class HRAssignmentUpdate(BaseModel):
     """Body for PATCH /hr-assignments/{candidate_id} — update an existing assignment."""
     hr1_id: Optional[str] = Field(default=None, description="New primary HR / Recruiter user ID")
@@ -64,7 +65,6 @@ class HRAssignmentUpdate(BaseModel):
         if isinstance(v, str) and v.strip() == "":
             return None
         return v
-
 
 # ---------------------------------------------------------------------------
 # Response schemas
@@ -86,7 +86,6 @@ class HRAssignmentResponse(BaseModel):
 
     class Config:
         from_attributes = True
-
 
 class HRAssignmentListResponse(BaseModel):
     """Paginated list of HR assignment records."""

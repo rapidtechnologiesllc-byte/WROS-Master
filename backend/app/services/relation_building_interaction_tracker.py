@@ -1,4 +1,5 @@
 """
+import logging
 Relation Building Interaction Tracker - Continuous Persona Learning
 
 Captures and analyzes EVERY candidate interaction to continuously update persona:
@@ -14,6 +15,7 @@ This creates a LIVING relationship profile that evolves with every touchpoint.
 Reports to: Relation Building Agent (for persona updates) + Flash (interaction signals)
 """
 
+import logging
 from typing import Dict, Any, Optional, List
 from datetime import datetime
 from sqlalchemy.orm import Session
@@ -24,6 +26,7 @@ from app.models.candidate import Candidate
 from app.models.candidate_ai import ConversationEvent
 from app.services.candidate_memory_service import upsert_fact
 
+logger = logging.getLogger(__name__)
 
 class InteractionType(str, Enum):
     """Types of interactions to track"""
@@ -44,7 +47,6 @@ class InteractionType(str, Enum):
     DOCUMENT_SUBMITTED = "document_submitted"
     BACKGROUND_CHECK_PASSED = "background_check_passed"
 
-
 class SentimentScore(str, Enum):
     """Sentiment analysis of interactions"""
     VERY_POSITIVE = "very_positive"  # 1.0
@@ -52,7 +54,6 @@ class SentimentScore(str, Enum):
     NEUTRAL = "neutral"                # 0.5
     NEGATIVE = "negative"              # 0.25
     VERY_NEGATIVE = "very_negative"   # 0.0
-
 
 class InteractionTracker:
     """
@@ -173,6 +174,7 @@ class InteractionTracker:
             }
 
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             logger.error(f"Email interaction tracking error: {str(e)}")
             return {"status": "error", "message": str(e)}
 
@@ -269,6 +271,7 @@ class InteractionTracker:
             }
 
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             logger.error(f"WhatsApp interaction tracking error: {str(e)}")
             return {"status": "error", "message": str(e)}
 
@@ -359,6 +362,7 @@ class InteractionTracker:
             }
 
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             logger.error(f"AI Recruiter conversation tracking error: {str(e)}")
             return {"status": "error", "message": str(e)}
 
@@ -459,6 +463,7 @@ class InteractionTracker:
             }
 
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             logger.error(f"Interview feedback tracking error: {str(e)}")
             return {"status": "error", "message": str(e)}
 
@@ -559,6 +564,7 @@ class InteractionTracker:
             }
 
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             logger.error(f"Offer response tracking error: {str(e)}")
             return {"status": "error", "message": str(e)}
 
@@ -640,6 +646,7 @@ class InteractionTracker:
             }
 
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             logger.error(f"Joining signals tracking error: {str(e)}")
             return {"status": "error", "message": str(e)}
 

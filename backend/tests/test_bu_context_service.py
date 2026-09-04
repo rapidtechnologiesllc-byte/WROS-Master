@@ -1,4 +1,5 @@
 """
+import logging
 S-205/HRMS-0107 -- Business Unit Entity & Context Switching.
 
 Proves: switching to a BU the user actually has access to succeeds
@@ -26,7 +27,6 @@ from app.models.user import Users
 
 import app.services.bu_context_service as svc
 
-
 @pytest.fixture()
 def db_session():
     fd, db_path = tempfile.mkstemp(suffix=".sqlite3")
@@ -42,7 +42,6 @@ def db_session():
         session.close()
         engine.dispose()
         os.remove(db_path)
-
 
 @pytest.fixture()
 def seeded(db_session):
@@ -69,12 +68,10 @@ def seeded(db_session):
 
     return {"tenant": tenant, "bu_east": bu_east, "bu_west": bu_west, "single": single_bu_user, "multi": multi_bu_user, "director": director}
 
-
 def test_ensure_default_bu_access_seeds_home_bu(db_session, seeded):
     access = svc.ensure_default_bu_access(db_session, seeded["single"])
     assert access.business_unit_id == seeded["bu_east"].id
     assert access.is_default is True
-
 
 def test_ensure_default_bu_access_is_idempotent(db_session, seeded):
     svc.ensure_default_bu_access(db_session, seeded["single"])
@@ -82,32 +79,26 @@ def test_ensure_default_bu_access_is_idempotent(db_session, seeded):
     rows = svc.get_user_bu_access(db_session, "U1")
     assert len(rows) == 1
 
-
 def test_multi_bu_user_has_real_multiple_access_rows(db_session, seeded):
     rows = svc.get_user_bu_access(db_session, "U2")
     assert len(rows) == 2
     assert {r.business_unit_id for r in rows} == {seeded["bu_east"].id, seeded["bu_west"].id}
 
-
 def test_switch_to_accessible_bu_succeeds(db_session, seeded):
     result = svc.switch_active_bu(db_session, seeded["multi"], seeded["bu_west"].id)
     assert result.business_unit_id == seeded["bu_west"].id
-
 
 def test_switch_to_unauthorized_bu_rejected(db_session, seeded):
     with pytest.raises(svc.NotYourBusinessUnit):
         svc.switch_active_bu(db_session, seeded["single"], seeded["bu_west"].id)
 
-
 def test_validate_active_bu_rejects_tampered_id(db_session, seeded):
     with pytest.raises(svc.NotYourBusinessUnit):
         svc.validate_active_bu(db_session, "U1", 99999)
 
-
 def test_only_all_bus_role_can_activate_unscoped_view(db_session, seeded):
     with pytest.raises(svc.NotAuthorizedForAllBUs):
         svc.activate_all_bus_view(db_session, seeded["multi"])
-
 
 def test_all_bus_activation_writes_exactly_one_audit_row(db_session, seeded):
     svc.activate_all_bus_view(db_session, seeded["director"])

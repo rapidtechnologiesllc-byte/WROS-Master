@@ -6,6 +6,7 @@ module docstring for why this extends HRMS-0102 rather than forking it).
 """
 import json
 from datetime import datetime
+import logging
 from typing import List, Optional
 
 from sqlalchemy.orm import Session
@@ -26,14 +27,13 @@ from app.services.notification_service import send_notification
 # deliberately excluded -- margin data is not their business to see.
 MARKUP_VISIBLE_ROLES = {"Super User", "BU Head", "Recruitment Manager", "Director"}
 
+logger = logging.getLogger(__name__)
 
 class ClientValidationError(Exception):
     pass
 
-
 class DuplicateClientError(Exception):
     pass
-
 
 def _normalize_website(website: Optional[str]) -> Optional[str]:
     """Bare domain, lowercased, no scheme/www/trailing slash -- so
@@ -47,7 +47,6 @@ def _normalize_website(website: Optional[str]) -> Optional[str]:
     if value.startswith("www."):
         value = value[4:]
     return value.rstrip("/") or None
-
 
 def create_client(
     db: Session,
@@ -143,7 +142,6 @@ def create_client(
 
     return client
 
-
 def add_client_contact(
     db: Session,
     client: Client,
@@ -184,14 +182,12 @@ def add_client_contact(
     db.refresh(contact)
     return contact
 
-
 EDITABLE_CLIENT_FIELDS = {
     "company_name", "company_short_name", "industry", "country", "client_type", "line_type",
     "website", "tier", "billing_address", "billing_currency", "payment_terms_days",
     "tax_id_client", "contract_start_date", "contract_end_date",
     "contract_url", "nda_signed", "nda_url", "notes",
 }
-
 
 def update_client_details(db: Session, client: Client, updates: dict) -> Client:
     """General "edit client details" path (the gap Avinash flagged
@@ -229,7 +225,6 @@ def update_client_details(db: Session, client: Client, updates: dict) -> Client:
     db.refresh(client)
     return client
 
-
 def set_client_status(
     db: Session,
     client: Client,
@@ -263,7 +258,6 @@ def set_client_status(
     db.add(history)
     return client
 
-
 def serialize_client_for_role(client: Client, role_name: str) -> dict:
     """
     BR-02: markup_rate_pct is confidential -- included only for roles in
@@ -287,7 +281,6 @@ def serialize_client_for_role(client: Client, role_name: str) -> dict:
         data["markup_rate_pct"] = float(client.markup_rate_pct) if client.markup_rate_pct is not None else None
     return data
 
-
 def set_primary_contact(db: Session, client: Client, contact: ClientContact) -> ClientContact:
     """
     HRMS-0201 BR-0201-02: exactly one contact per client is Primary at
@@ -307,7 +300,6 @@ def set_primary_contact(db: Session, client: Client, contact: ClientContact) -> 
     contact.is_primary = True
     db.add(contact)
     return contact
-
 
 def assign_account_manager(
     db: Session,
@@ -375,10 +367,10 @@ def assign_account_manager(
                     ),
                 )
             except Exception as exc:
+                logger.error(f"Error: {str(exc)}", exc_info=True)
                 logger.warning(f"[ClientService] Could not send AM assignment notification: {exc}")
 
     return client
-
 
 def get_client_activity_timeline(db: Session, client_id: str) -> List[dict]:
     """

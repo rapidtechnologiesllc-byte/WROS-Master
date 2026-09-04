@@ -1,3 +1,4 @@
+import logging
 """Help Desk/IT-HR ticketing: widen tasks.task_type, add ticket_category_routes / ticket_sla_policies / ticket_details
 
 Revision ID: c8d5f3a9b2e7
@@ -11,7 +12,6 @@ revision = "c8d5f3a9b2e7"
 down_revision = "b7c4e2f8a1d9"
 branch_labels = None
 depends_on = None
-
 
 def upgrade():
     with op.batch_alter_table("tasks") as batch_op:
@@ -64,7 +64,6 @@ def upgrade():
         sa.Column("resolution_breached", sa.Boolean(), nullable=False, server_default="0"),
         sa.ForeignKeyConstraint(["task_id"], ["tasks.id"], name="fk_ticket_details_task_id", ondelete="CASCADE"),
     )
-
 
 def downgrade():
     op.drop_table("ticket_details")

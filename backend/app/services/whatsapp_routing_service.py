@@ -1,6 +1,7 @@
 """
 Per-staff WhatsApp number routing for candidate conversations, extending
 HRMS-0410's ownership model (app.models.candidate_ai.CandidateConversation
+import logging
 .owner_type/.owner_id).
 
 Background: the 357 requirements docs describe a SINGLE shared tenant-
@@ -33,6 +34,7 @@ and the gate in send_whatsapp_message() below are that enforcement,
 built for real now that a competing send path (per-recruiter WhatsApp)
 exists.
 """
+import logging
 import os
 from datetime import datetime
 from typing import Callable, Optional
@@ -44,6 +46,7 @@ from app.models.candidate_ai import CandidateConversation, ConversationEvent
 from app.models.user import Users
 from app.services.ai_conversation_service import AI_AGENT_NAME
 from app.services.notification_service import ChannelNotConfigured
+from app.core.logging import logger
 
 # The shared/Thunder number -- used when the AI owns the conversation, or
 # as a fallback for a human owner with no personal number registered.
@@ -54,25 +57,22 @@ from app.services.notification_service import ChannelNotConfigured
 # inconsistency rather than fix it.
 DEFAULT_WHATSAPP_NUMBER = os.getenv("THUNDER_WHATSAPP_NUMBER")
 
+logger = logging.getLogger(__name__)
 
 class ConversationOwnedByHuman(Exception):
     """HRMS-0410 BR-01 / R-08: Thunder may not send while a recruiter/HR
     user owns the conversation."""
 
-
 class NoWhatsAppNumberAvailable(Exception):
     pass
 
-
 def _send_whatsapp_unconfigured(to_number: str, from_number: str, body: str) -> bool:
     raise ChannelNotConfigured("WhatsApp Business API is not provisioned in this codebase yet.")
-
 
 def is_ai_owner(conversation: CandidateConversation) -> bool:
     """HRMS-0410's isAIOwner() -- the gate that was specified but never
     actually implemented anywhere in this codebase before this module."""
     return conversation.owner_type == "ai_agent"
-
 
 def resolve_outbound_whatsapp_number(db: Session, conversation: CandidateConversation) -> Optional[str]:
     """
@@ -89,7 +89,6 @@ def resolve_outbound_whatsapp_number(db: Session, conversation: CandidateConvers
 
     return DEFAULT_WHATSAPP_NUMBER
 
-
 def take_over_conversation(db: Session, conversation: CandidateConversation, hr_user_id: str) -> CandidateConversation:
     """HRMS-0410 BR-03: any recruiter/HR user can take over from anyone
     else (or from AI), no permission check, no lock."""
@@ -98,14 +97,12 @@ def take_over_conversation(db: Session, conversation: CandidateConversation, hr_
     db.add(conversation)
     return conversation
 
-
 def hand_back_conversation(db: Session, conversation: CandidateConversation) -> CandidateConversation:
     """HRMS-0410 HAND_BACK: returns the conversation to Thunder."""
     conversation.owner_type = "ai_agent"
     conversation.owner_id = AI_AGENT_NAME
     db.add(conversation)
     return conversation
-
 
 def send_whatsapp_message(
     db: Session,

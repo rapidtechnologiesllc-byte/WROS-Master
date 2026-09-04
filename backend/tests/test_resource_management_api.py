@@ -3,6 +3,7 @@ POST /resource-management/scan, GET /resource-management/recommendations,
 POST .../pursue|approve|reject -- proves HRMS-1105 (canonical S-320)
 Resource Management Agent end-to-end on real routes, not just the
 service layer (see the Definition of Done correction in CLAUDE.md --
+import logging
 service-only was never sufficient).
 
 No real Gemini call -- ChatGoogleGenerativeAI is mocked.
@@ -34,11 +35,9 @@ from app.models.tenant import Tenant
 from app.models.user import Users
 import app.models  # noqa: F401 -- registers every model on Base.metadata
 
-
 @pytest.fixture(autouse=True)
 def _fake_api_key(monkeypatch):
     monkeypatch.setattr(svc, "GEMINI_API_KEY", "fake-key-for-test")
-
 
 @pytest.fixture()
 def throwaway_jwt_keys(monkeypatch):
@@ -54,7 +53,6 @@ def throwaway_jwt_keys(monkeypatch):
     ).decode()
     monkeypatch.setattr(security, "PRIVATE_KEY", private_pem)
     monkeypatch.setattr(security, "PUBLIC_KEY", public_pem)
-
 
 @pytest.fixture()
 def client(throwaway_jwt_keys):
@@ -148,15 +146,12 @@ def client(throwaway_jwt_keys):
         engine.dispose()
         os.remove(db_path)
 
-
 def _token_for(email, role="Admin"):
     return security.create_access_token(data={"sub": email, "type": role, "name": email})
-
 
 def _auth(client):
     token = _token_for("rm@blitzenx.com")
     return {"Authorization": f"Bearer {token}"}
-
 
 def _mock_gemini(response_text):
     mock_response = MagicMock()
@@ -165,11 +160,9 @@ def _mock_gemini(response_text):
     mock_llm.invoke.return_value = mock_response
     return patch.object(svc, "ChatGoogleGenerativeAI", return_value=mock_llm)
 
-
 def test_unauthenticated_scan_is_rejected(client):
     resp = client.post("/resource-management/scan")
     assert resp.status_code in (401, 403)
-
 
 def test_scan_creates_recommendations(client):
     ids = client.wros_ids
@@ -180,7 +173,6 @@ def test_scan_creates_recommendations(client):
     assert resp.status_code == 200
     body = resp.json()
     assert body["recommendations_created"] >= 1
-
 
 def test_get_queue_returns_enriched_recommendations(client):
     resp = client.get("/resource-management/recommendations", headers=_auth(client))
@@ -195,7 +187,6 @@ def test_get_queue_returns_enriched_recommendations(client):
     assert rec_a["client_name"] == "Acme Insurance"
     assert rec_a["confidence_pct"] == 82.0
 
-
 def test_pursue_moves_to_in_progress(client):
     ids = client.wros_ids
     resp = client.post(
@@ -203,7 +194,6 @@ def test_pursue_moves_to_in_progress(client):
     )
     assert resp.status_code == 200
     assert resp.json()["recommendation"]["status"] == "IN_PROGRESS"
-
 
 def test_pursuing_second_client_for_same_employee_is_hard_blocked(client):
     """The exact scenario Avinash described: an employee already in play
@@ -220,7 +210,6 @@ def test_pursuing_second_client_for_same_employee_is_hard_blocked(client):
     assert second.status_code == 409
     assert "already" in second.json()["detail"].lower()
 
-
 def test_approve_creates_allocation(client):
     ids = client.wros_ids
     client.post(f"/resource-management/recommendations/{ids['rec_a_id']}/pursue", headers=_auth(client))
@@ -233,14 +222,12 @@ def test_approve_creates_allocation(client):
     assert body["recommendation"]["status"] == "APPROVED"
     assert body["allocation_id"]
 
-
 def test_approve_without_pursuing_first_is_rejected(client):
     ids = client.wros_ids
     resp = client.post(
         f"/resource-management/recommendations/{ids['rec_a_id']}/approve", headers=_auth(client),
     )
     assert resp.status_code == 409
-
 
 def test_reject_releases_exclusivity_hold(client):
     ids = client.wros_ids
@@ -257,7 +244,6 @@ def test_reject_releases_exclusivity_hold(client):
     )
     assert pursue_b.status_code == 200
 
-
 def test_actively_engaged_check_reflects_pursue_state(client):
     ids = client.wros_ids
     before = client.get(
@@ -271,7 +257,6 @@ def test_actively_engaged_check_reflects_pursue_state(client):
         f"/resource-management/employees/{ids['employee_id']}/actively-engaged", headers=_auth(client),
     )
     assert after.json()["actively_engaged"] is True
-
 
 def test_matching_bench_resources_finds_skill_matched_employee(client):
     """S-253: fixture employee (Guidewire PolicyCenter + Java skills, on
@@ -287,7 +272,6 @@ def test_matching_bench_resources_finds_skill_matched_employee(client):
     assert len(body["candidates"]) == 1
     assert body["candidates"][0]["employee_id"] == ids["employee_id"]
     assert body["candidates"][0]["score_pct"] == 100.0
-
 
 def test_matching_bench_resources_404_for_unknown_demand(client):
     resp = client.get(

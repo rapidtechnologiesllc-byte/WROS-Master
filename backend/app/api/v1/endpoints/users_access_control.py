@@ -5,6 +5,7 @@ Handles management of:
 - Business Units (CRUD operations)
 - Delivery Centers (CRUD operations)
 - Organizational Hierarchy (Get/Update)
+import logging
 - Role Templates (CRUD operations)
 
 All endpoints require appropriate role-based permissions.
@@ -19,16 +20,19 @@ Permission Model:
 Same pattern applied to all other resources (business_units, role_templates, etc.).
 """
 
+import logging
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import or_
 from typing import List, Optional
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_internal_user, require_resource_permission
-from app.core.permission_enforcement import (
-    require_action_permission, check_permission, check_any_permission
+from app.core.dependencies import (
+    get_current_internal_user,
+    require_role_template_permission,
+    require_resource_permission,
 )
+from app.core.permission_registry import Permissions
 from app.models.user import Users
 from app.models.business_unit import BusinessUnit
 from app.models.location import Location
@@ -42,6 +46,7 @@ router = APIRouter(prefix="/api/admin/users-access-control", tags=["Users Access
 # ============================================================================
 # USERS ENDPOINTS
 # ============================================================================
+logger = logging.getLogger(__name__)
 
 class UserCreateRequest(BaseModel):
     user_name: str
@@ -49,15 +54,20 @@ class UserCreateRequest(BaseModel):
     user_password: str
     job_title: Optional[str] = None
     business_unit_id: Optional[int] = None
-    role_ids: List[int] = []
+    role_template_id: int
 
 class UserUpdateRequest(BaseModel):
     user_name: Optional[str] = None
     job_title: Optional[str] = None
     business_unit_id: Optional[int] = None
 
-@router.get("/users")
-@require_action_permission("administration", "view")
+@router.get(
+    "/users",
+    dependencies=[
+        Depends(get_current_internal_user),
+        Depends(require_role_template_permission(*Permissions.USERS_VIEW))
+    ]
+)
 def list_users(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user),
@@ -113,8 +123,13 @@ def list_users(
         "limit": limit
     }
 
-@router.post("/users")
-@require_action_permission("administration", "create")
+@router.post(
+    "/users",
+    dependencies=[
+        Depends(get_current_internal_user),
+        Depends(require_role_template_permission(*Permissions.USERS_CREATE))
+    ]
+)
 def create_user(
     req: UserCreateRequest,
     db: Session = Depends(get_db),
@@ -131,12 +146,15 @@ def create_user(
     - user_password: User's password (required)
     - job_title: User's job title (optional)
     - business_unit_id: Business unit to assign user to (optional)
-    - role_ids: List of role IDs to assign to user (optional)
+    - role_template_id: Role template ID to assign to user (required)
     """
 
     # Validate input
     if not req.user_name or not req.user_email or not req.user_password:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Name, email, and password are required")
+
+    if not req.role_template_id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Role template is required")
 
     # Check if user already exists
     existing = db.query(Users).filter(Users.UserEmail == req.user_email).first()
@@ -152,9 +170,10 @@ def create_user(
         UserName=req.user_name,
         UserEmail=req.user_email,
         UserPassword=get_password_hash(req.user_password),
-        UserRole=req.role_ids[0] if req.role_ids else "RECRUITER",  # Set default role
+        UserRole="User",  # Default legacy role
         job_title=req.job_title,
         business_unit_id=req.business_unit_id,
+        role_template_id=req.role_template_id,  # Assign role template
         is_active=True,
         tenant_id=current_user.tenant_id if hasattr(current_user, 'tenant_id') else 1
     )
@@ -173,8 +192,13 @@ def create_user(
         "status": "created"
     }
 
-@router.put("/users/{user_id}")
-@require_action_permission("administration", "edit")
+@router.put(
+    "/users/{user_id}",
+    dependencies=[
+        Depends(get_current_internal_user),
+        Depends(require_role_template_permission(*Permissions.USERS_EDIT))
+    ]
+)
 def update_user(
     user_id: str,
     req: UserUpdateRequest,
@@ -217,8 +241,13 @@ def update_user(
         "status": "updated"
     }
 
-@router.delete("/users/{user_id}")
-@require_action_permission("administration", "delete")
+@router.delete(
+    "/users/{user_id}",
+    dependencies=[
+        Depends(get_current_internal_user),
+        Depends(require_role_template_permission(*Permissions.USERS_DELETE))
+    ]
+)
 def delete_user(
     user_id: str,
     db: Session = Depends(get_db),
@@ -254,65 +283,92 @@ def delete_user(
 
 class BusinessUnitCreateRequest(BaseModel):
     name: str
+    display_name: str
+    bu_code: Optional[str] = None
     description: Optional[str] = None
-    region: Optional[str] = None
-    continent: Optional[str] = None
 
-@router.get("/business-units")
+@router.get(
+    "/business-units",
+    dependencies=[Depends(require_resource_permission("business-unit", "view"))]
+)
 def list_business_units(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user),
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=500)
 ):
-    """List all business units."""
-    query = db.query(BusinessUnit)
+    """
+    List business units accessible to current user.
+    - Super users see all BUs in their tenant
+    - Other users see only their assigned BU
+    """
+    try:
+        query = db.query(BusinessUnit)
 
-    if hasattr(current_user, 'tenant_id'):
-        query = query.filter(BusinessUnit.tenant_id == current_user.tenant_id)
+        # Super users see all BUs, others see only their assigned BU
+        is_super = current_user.UserRole and "super" in current_user.UserRole.lower()
+        if not is_super and current_user.business_unit_id:
+            query = query.filter(BusinessUnit.id == current_user.business_unit_id)
 
-    total = query.count()
-    bus = query.offset(skip).limit(limit).all()
+        if hasattr(current_user, 'tenant_id'):
+            query = query.filter(BusinessUnit.tenant_id == current_user.tenant_id)
 
-    return {
-        "business_units": [
-            {
-                "id": b.id,
-                "name": b.bu_name or b.name,
-                "description": getattr(b, 'description', None),
-                "region": getattr(b, 'region', None),
-                "continent": getattr(b, 'continent', None),
-                "created_at": getattr(b, 'created_at', None),
-            }
-            for b in bus
-        ],
-        "total": total,
-        "skip": skip,
-        "limit": limit
-    }
+        total = query.count()
+        bus = query.offset(skip).limit(limit).all()
 
-@router.post("/business-units")
+        return {
+            "business_units": [
+                {
+                    "id": b.id,
+                    "name": b.name,
+                    "display_name": b.display_name,
+                    "bu_code": b.bu_code,
+                    "description": b.description,
+                    "created_at": b.created_at,
+                }
+                for b in bus
+            ],
+            "total": total,
+            "skip": skip,
+            "limit": limit
+        }
+    except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
+        print(f"[ERROR] list_business_units failed: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+
+@router.post(
+    "/business-units",
+    dependencies=[Depends(require_resource_permission("business-unit", "create"))]
+)
 def create_business_unit(
     req: BusinessUnitCreateRequest,
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user)
 ):
     """Create a new business unit (Admin and Super User only)."""
-    # Check permissions
-    if not (current_user.UserRole and current_user.UserRole.lower() in ["super user", "admin"]):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions")
+    # Check permissions (RBAC-aware)
+    is_super_user = (current_user.UserRole and current_user.UserRole.lower() == "super user") or \
+                    (hasattr(current_user, 'roles') and any(r.name.lower() == "super user" for r in current_user.roles))
+
+    if not is_super_user:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions - Super User access required")
 
     # Validate input
-    if not req.name:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Business Unit name is required")
+    if not req.name or not req.display_name:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Business Unit name and display name are required")
+
+    # Determine tenant_id (default to 1 if None)
+    tenant_id = current_user.tenant_id if hasattr(current_user, 'tenant_id') and current_user.tenant_id else 1
 
     new_bu = BusinessUnit(
-        bu_name=req.name,
         name=req.name,
+        display_name=req.display_name,
+        bu_code=req.bu_code or req.name.upper().replace(" ", ""),
         description=req.description,
-        region=req.region,
-        continent=req.continent,
-        tenant_id=current_user.tenant_id if hasattr(current_user, 'tenant_id') else 1
+        tenant_id=tenant_id
     )
 
     db.add(new_bu)
@@ -321,11 +377,16 @@ def create_business_unit(
 
     return {
         "id": new_bu.id,
-        "name": new_bu.bu_name or new_bu.name,
+        "name": new_bu.name,
+        "display_name": new_bu.display_name,
+        "bu_code": new_bu.bu_code,
         "status": "created"
     }
 
-@router.put("/business-units/{bu_id}")
+@router.put(
+    "/business-units/{bu_id}",
+    dependencies=[Depends(require_resource_permission("business-unit", "update"))]
+)
 def update_business_unit(
     bu_id: int,
     req: BusinessUnitCreateRequest,
@@ -333,9 +394,12 @@ def update_business_unit(
     current_user: Users = Depends(get_current_internal_user)
 ):
     """Update business unit (Admin and Super User only)."""
-    # Check permissions
-    if not (current_user.UserRole and current_user.UserRole.lower() in ["super user", "admin"]):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions")
+    # Check permissions (RBAC-aware)
+    is_super_user = (current_user.UserRole and current_user.UserRole.lower() == "super user") or \
+                    (hasattr(current_user, 'roles') and any(r.name.lower() == "super user" for r in current_user.roles))
+
+    if not is_super_user:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions - Super User access required")
 
     bu = db.query(BusinessUnit).filter(BusinessUnit.id == bu_id).first()
     if not bu:
@@ -343,33 +407,40 @@ def update_business_unit(
 
     # Update fields
     if req.name:
-        bu.bu_name = req.name
         bu.name = req.name
+    if req.display_name:
+        bu.display_name = req.display_name
+    if req.bu_code:
+        bu.bu_code = req.bu_code
     if req.description is not None:
         bu.description = req.description
-    if req.region:
-        bu.region = req.region
-    if req.continent:
-        bu.continent = req.continent
 
     db.commit()
     db.refresh(bu)
 
     return {
         "id": bu.id,
-        "name": bu.bu_name or bu.name,
+        "name": bu.name,
+        "display_name": bu.display_name,
+        "bu_code": bu.bu_code,
         "status": "updated"
     }
 
-@router.delete("/business-units/{bu_id}")
+@router.delete(
+    "/business-units/{bu_id}",
+    dependencies=[Depends(require_resource_permission("business-unit", "delete"))]
+)
 def delete_business_unit(
     bu_id: int,
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user)
 ):
     """Delete business unit (Super User only)."""
-    # Check permissions - Super User only
-    if not (current_user.UserRole and current_user.UserRole.lower() == "super user"):
+    # Check permissions - Super User only (RBAC-aware)
+    is_super_user = (current_user.UserRole and current_user.UserRole.lower() == "super user") or \
+                    (hasattr(current_user, 'roles') and any(r.name.lower() == "super user" for r in current_user.roles))
+
+    if not is_super_user:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Super User access required")
 
     bu = db.query(BusinessUnit).filter(BusinessUnit.id == bu_id).first()
@@ -392,7 +463,10 @@ class DeliveryCenterCreateRequest(BaseModel):
     center_type: Optional[str] = "Delivery"  # HQ, Delivery, etc.
     headcount: Optional[int] = 0
 
-@router.get("/delivery-centers")
+@router.get(
+    "/delivery-centers",
+    dependencies=[Depends(require_resource_permission("delivery-center", "view"))]
+)
 def list_delivery_centers(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user),
@@ -426,7 +500,10 @@ def list_delivery_centers(
         "limit": limit
     }
 
-@router.post("/delivery-centers")
+@router.post(
+    "/delivery-centers",
+    dependencies=[Depends(require_resource_permission("delivery-center", "create"))]
+)
 def create_delivery_center(
     req: DeliveryCenterCreateRequest,
     db: Session = Depends(get_db),
@@ -460,7 +537,10 @@ def create_delivery_center(
         "status": "created"
     }
 
-@router.put("/delivery-centers/{dc_id}")
+@router.put(
+    "/delivery-centers/{dc_id}",
+    dependencies=[Depends(require_resource_permission("delivery-center", "update"))]
+)
 def update_delivery_center(
     dc_id: int,
     req: DeliveryCenterCreateRequest,
@@ -497,7 +577,10 @@ def update_delivery_center(
         "status": "updated"
     }
 
-@router.delete("/delivery-centers/{dc_id}")
+@router.delete(
+    "/delivery-centers/{dc_id}",
+    dependencies=[Depends(require_resource_permission("delivery-center", "delete"))]
+)
 def delete_delivery_center(
     dc_id: int,
     db: Session = Depends(get_db),
@@ -535,7 +618,10 @@ class OrgNodeUpdateRequest(BaseModel):
     business_unit_id: Optional[int] = None
     location: Optional[str] = None
 
-@router.get("/organizational-hierarchy")
+@router.get(
+    "/organizational-hierarchy",
+    dependencies=[Depends(require_resource_permission("organizational-hierarchy", "view"))]
+)
 def get_organizational_hierarchy(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user),
@@ -569,7 +655,10 @@ def get_organizational_hierarchy(
         "limit": limit
     }
 
-@router.post("/organizational-hierarchy")
+@router.post(
+    "/organizational-hierarchy",
+    dependencies=[Depends(require_resource_permission("organizational-hierarchy", "create"))]
+)
 def create_org_node(
     req: OrgNodeCreateRequest,
     db: Session = Depends(get_db),
@@ -603,7 +692,10 @@ def create_org_node(
         "status": "created"
     }
 
-@router.put("/organizational-hierarchy/{node_id}")
+@router.put(
+    "/organizational-hierarchy/{node_id}",
+    dependencies=[Depends(require_resource_permission("organizational-hierarchy", "update"))]
+)
 def update_org_node(
     node_id: int,
     req: OrgNodeUpdateRequest,
@@ -640,7 +732,10 @@ def update_org_node(
         "status": "updated"
     }
 
-@router.delete("/organizational-hierarchy/{node_id}")
+@router.delete(
+    "/organizational-hierarchy/{node_id}",
+    dependencies=[Depends(require_resource_permission("organizational-hierarchy", "delete"))]
+)
 def delete_org_node(
     node_id: int,
     db: Session = Depends(get_db),
@@ -670,7 +765,10 @@ class RoleTemplateCreateRequest(BaseModel):
     description: Optional[str] = None
     permissions: Optional[list] = []
 
-@router.get("/role-templates")
+@router.get(
+    "/role-templates",
+    dependencies=[Depends(require_resource_permission("role-template", "view"))]
+)
 def list_role_templates(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user),
@@ -703,7 +801,59 @@ def list_role_templates(
         "limit": limit
     }
 
-@router.post("/role-templates")
+@router.get(
+    "/role-templates/{template_id}",
+    dependencies=[Depends(require_resource_permission("role-template", "view"))]
+)
+def get_role_template(
+    template_id: int,
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_internal_user)
+):
+    """Get a single role template with all permissions."""
+    from app.models.role_template import RoleTemplatePermission, Resource
+
+    template = db.query(RoleTemplate).filter(
+        RoleTemplate.id == template_id,
+        RoleTemplate.tenant_id == current_user.tenant_id
+    ).first()
+
+    if not template:
+        raise HTTPException(status_code=404, detail="Role template not found")
+
+    # Load all permissions for this template
+    permissions = db.query(RoleTemplatePermission).filter(
+        RoleTemplatePermission.role_template_id == template.id
+    ).all()
+
+    perm_list = []
+    for perm in permissions:
+        resource = db.query(Resource).filter(Resource.id == perm.resource_id).first()
+        if resource:
+            perm_list.append({
+                "resource_id": perm.resource_id,
+                "resource_name": resource.name,
+                "resource_display": resource.display_name,
+                "can_view": perm.can_view,
+                "can_create": perm.can_create,
+                "can_edit": perm.can_edit,
+                "can_delete": perm.can_delete,
+            })
+
+    return {
+        "id": template.id,
+        "name": template.name,
+        "display_name": template.display_name,
+        "description": template.description,
+        "is_system": getattr(template, 'is_system', False),
+        "is_active": getattr(template, 'is_active', True),
+        "permissions": perm_list,
+    }
+
+@router.post(
+    "/role-templates",
+    dependencies=[Depends(require_resource_permission("role-template", "create"))]
+)
 def create_role_template(
     req: RoleTemplateCreateRequest,
     db: Session = Depends(get_db),
@@ -737,7 +887,10 @@ def create_role_template(
         "status": "created"
     }
 
-@router.put("/role-templates/{template_id}")
+@router.put(
+    "/role-templates/{template_id}",
+    dependencies=[Depends(require_resource_permission("role-template", "update"))]
+)
 def update_role_template(
     template_id: int,
     req: RoleTemplateCreateRequest,
@@ -770,7 +923,10 @@ def update_role_template(
         "status": "updated"
     }
 
-@router.delete("/role-templates/{template_id}")
+@router.delete(
+    "/role-templates/{template_id}",
+    dependencies=[Depends(require_resource_permission("role-template", "delete"))]
+)
 def delete_role_template(
     template_id: int,
     db: Session = Depends(get_db),
@@ -786,8 +942,7 @@ def delete_role_template(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Role template not found")
 
     # Check if template is in use
-    from app.models.user import UserRole
-    in_use = db.query(UserRole).filter(UserRole.role_template_id == template_id).first()
+    in_use = db.query(Users).filter(Users.role_template_id == template_id).first()
     if in_use:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot delete role template in use")
 

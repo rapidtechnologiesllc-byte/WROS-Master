@@ -2,14 +2,16 @@
 Candidate History Schemas
 =========================
 Pydantic request / response models for the candidate history (timeline) API.
+import logging
 """
 
+import logging
 from app.models.user import Interview
 from docx import Document
 from datetime import datetime
 from typing import List, Optional
 from pydantic import BaseModel, Field
-
+from app.core.logging import logger
 
 # ---------------------------------------------------------------------------
 # Allowed event types — validated on creation
@@ -42,10 +44,10 @@ VALID_EVENT_TYPES = {
     "Custom",
 }
 
-
 # ---------------------------------------------------------------------------
 # Request schemas
 # ---------------------------------------------------------------------------
+logger = logging.getLogger(__name__)
 
 class CandidateHistoryCreateRequest(BaseModel):
     """Body for POST /history/{candidate_id}"""
@@ -91,7 +93,6 @@ class CandidateHistoryCreateRequest(BaseModel):
         ),
     )
 
-
 # ---------------------------------------------------------------------------
 # Response schemas
 # ---------------------------------------------------------------------------
@@ -114,14 +115,12 @@ class CandidateHistoryResponse(BaseModel):
     class Config:
         from_attributes = True
 
-
 class CandidateHistoryListResponse(BaseModel):
     """Paginated list of history events for one candidate."""
 
     candidate_id: str
     total: int
     events: List[CandidateHistoryResponse]
-
 
 class CandidateHistoryCreateResponse(BaseModel):
     """Returned after successfully creating a history event."""

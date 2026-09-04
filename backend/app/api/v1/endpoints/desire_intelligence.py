@@ -2,6 +2,7 @@
 S-350/HRMS-P120 -- HR Intelligence Briefing (Candidate Desire Dashboard)
 ==================================================================
 Prefix: /candidates
+import logging
 Tag:    desire-intelligence
 
 GET  /candidates/{candidate_id}/desire-intelligence
@@ -37,7 +38,6 @@ from app.services.ai_conversation_service import resolve_default_tenant_id
 from app.services.desire_profile_service import build_and_narrate
 
 router = APIRouter(tags=["desire-intelligence"])
-
 
 def _build_response(db: Session, candidate_id: str) -> DesireIntelligenceResponse:
     profile = db.query(CandidateDesireProfile).filter(CandidateDesireProfile.candidate_id == candidate_id).first()
@@ -79,7 +79,6 @@ def _build_response(db: Session, candidate_id: str) -> DesireIntelligenceRespons
         motivation_history=motivation_history,
     )
 
-
 @router.get(
     "/candidates/{candidate_id}/desire-intelligence",
     response_model=DesireIntelligenceResponse,
@@ -92,7 +91,6 @@ def get_desire_intelligence(candidate_id: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail=f"Candidate '{candidate_id}' not found.")
     return _build_response(db, candidate_id)
 
-
 @router.post(
     "/candidates/{candidate_id}/desire-intelligence/refresh",
     response_model=DesireIntelligenceResponse,
@@ -104,6 +102,6 @@ def refresh_desire_intelligence(candidate_id: str, db: Session = Depends(get_db)
     if not candidate:
         raise HTTPException(status_code=404, detail=f"Candidate '{candidate_id}' not found.")
 
-    tenant_id = resolve_default_tenant_id(db)
+    tenant_id = resolve_default_tenant_id()
     build_and_narrate(db, tenant_id, candidate_id)
     return _build_response(db, candidate_id)

@@ -2,6 +2,7 @@
 S-002/HRMS-0402 -- WhatsApp Webhook (Meta Cloud API)
 =======================================================
 Prefix: /webhooks
+import logging
 Tag:    whatsapp-webhook
 
 Public (no auth possible -- Meta calls this, not a logged-in user).
@@ -18,11 +19,13 @@ Routes:
 """
 import json
 
-from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from fastapi.responses import PlainTextResponse
 
 from app.core.database import SessionLocal
+from app.core.dependencies import get_current_internal_user
 from app.core.logging import logger
+from app.core.database import get_db
 from app.services.whatsapp_webhook_service import (
     process_delivery_status,
     store_inbound_whatsapp_message,
@@ -32,9 +35,9 @@ from app.services.whatsapp_webhook_service import (
 
 router = APIRouter(prefix="/webhooks", tags=["whatsapp-webhook"])
 
-
 @router.get(
     "/whatsapp",
+    dependencies=[Depends(get_current_internal_user)],
     summary="Meta WhatsApp Cloud API webhook verification handshake",
 )
 def whatsapp_webhook_verify(request: Request):
@@ -46,7 +49,6 @@ def whatsapp_webhook_verify(request: Request):
     if result is None:
         raise HTTPException(status_code=403, detail="Verification failed")
     return PlainTextResponse(result)
-
 
 def _process_webhook_payload(payload: dict) -> None:
     """Runs after the HTTP response is already sent (BR-03). Uses its
@@ -63,13 +65,14 @@ def _process_webhook_payload(payload: dict) -> None:
                 for status in value.get("statuses") or []:
                     process_delivery_status(db, status)
     except Exception as exc:
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.error(f"[WhatsAppWebhook] Failed processing payload: {exc}", exc_info=True)
     finally:
         db.close()
 
-
 @router.post(
     "/whatsapp",
+    dependencies=[Depends(get_current_internal_user)],
     status_code=200,
     summary="Receive inbound WhatsApp messages and delivery status updates",
 )

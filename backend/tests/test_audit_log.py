@@ -1,5 +1,6 @@
 """
 Proves HRMS-0110's append-only guarantee at the layer this codebase can
+import logging
 actually test locally: the ORM-level guard in app.models.audit_log.
 
 The database-grant-level enforcement (DENY UPDATE, DELETE at the SQL
@@ -23,7 +24,6 @@ from app.models.tenant import Tenant
 from app.models.audit_log import AuditLog, AppendOnlyViolation
 from app.core.audit import write_audit_log
 
-
 @pytest.fixture()
 def db_session():
     fd, db_path = tempfile.mkstemp(suffix=".sqlite3")
@@ -38,7 +38,6 @@ def db_session():
         engine.dispose()
         os.remove(db_path)
 
-
 def test_positive_case_write_audit_log_persists_a_row(db_session):
     write_audit_log(
         db_session, entity_type="candidate", entity_id="C-AISHA",
@@ -51,7 +50,6 @@ def test_positive_case_write_audit_log_persists_a_row(db_session):
     assert len(rows) == 1
     assert rows[0].entity_id == "C-AISHA"
     assert rows[0].action == "hard_rule_override"
-
 
 def test_write_audit_log_does_not_commit_itself(db_session):
     """
@@ -66,7 +64,6 @@ def test_write_audit_log_does_not_commit_itself(db_session):
     db_session.rollback()
 
     assert db_session.query(AuditLog).count() == 0
-
 
 def test_negative_case_update_is_rejected_even_for_admin_role(db_session):
     """
@@ -83,7 +80,6 @@ def test_negative_case_update_is_rejected_even_for_admin_role(db_session):
     row.new_value = "tampered by admin"
     with pytest.raises(AppendOnlyViolation):
         db_session.commit()
-
 
 def test_negative_case_delete_is_rejected_even_for_admin_role(db_session):
     row = write_audit_log(

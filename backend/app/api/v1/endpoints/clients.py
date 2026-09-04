@@ -1,4 +1,5 @@
 """
+import logging
 Client list + create.
 
 The GET here originally powered filter dropdowns only, on the
@@ -12,7 +13,7 @@ enforces (Avinash's 2026-08-05 "client attribution locking" law: a
 client's BU is derived from the creating user's own BU, never a
 caller-supplied field).
 
-Gated the same way as GET /users/all (get_current_hr_or_admin): any
+Gated the same way as GET /users/all (get_current_internal_user): any
 internal user needs to see real client names to filter by them, this
 isn't sensitive data on its own the way markup_rate_pct etc. are.
 """
@@ -22,7 +23,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_hr_or_admin
+from app.core.dependencies import get_current_internal_user, require_resource_permission
 from app.models.client import Client, ClientContact
 from app.models.employee import Employee
 from app.models.business_unit import BusinessUnit
@@ -39,13 +40,11 @@ from app.services.client_service import (
 
 router = APIRouter(prefix="/clients", tags=["clients"])
 
-
 def _bu_name_map(db: Session, bu_ids) -> dict:
     ids = {i for i in bu_ids if i is not None}
     if not ids:
         return {}
     return {b.id: b.name for b in db.query(BusinessUnit).filter(BusinessUnit.id.in_(ids)).all()}
-
 
 def _employee_name_map(db: Session, employee_ids) -> dict:
     ids = {i for i in employee_ids if i is not None}
@@ -56,12 +55,15 @@ def _employee_name_map(db: Session, employee_ids) -> dict:
         for e in db.query(Employee).filter(Employee.id.in_(ids)).all()
     }
 
-
-@router.get("", response_model=ClientListResponse)
+@router.get(
+    "",
+    response_model=ClientListResponse,
+    dependencies=[Depends(require_resource_permission("unknown", "view"))]
+)
 def list_clients(
     active_only: bool = True,
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_hr_or_admin),
+    current_user=Depends(get_current_internal_user),
 ):
     query = db.query(Client)
     if active_only:
@@ -87,12 +89,14 @@ def list_clients(
         ]
     )
 
-
-@router.get("/business-units/{business_unit_id}/assignments")
+@router.get(
+    "/business-units/{business_unit_id}/assignments",
+    dependencies=[Depends(require_resource_permission("business-unit", "view"))]
+)
 def get_business_unit_assignments(
     business_unit_id: int,
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_hr_or_admin),
+    current_user=Depends(get_current_internal_user),
 ):
     """Resolves a BU's designated BU Head + HR Manager for Job-creation
     auto-assignment (agentic-first mandate -- the agent resolves what it
@@ -102,8 +106,6 @@ def get_business_unit_assignments(
     user_id is None if no matching Users row exists for that email, so
     the caller can fall back to manual assignment rather than silently
     failing."""
-    from app.models.employee import Employee
-    from app.models.business_unit import BusinessUnit
 
     bu = db.query(BusinessUnit).filter(BusinessUnit.id == business_unit_id).first()
     if bu is None:
@@ -127,12 +129,16 @@ def get_business_unit_assignments(
         "hr_manager": _resolve(bu.hr_manager_employee_id),
     }
 
-
-@router.post("", response_model=ClientCreateResponse, status_code=201)
+@router.post(
+    "",
+    response_model=ClientCreateResponse,
+    status_code=201,
+    dependencies=[Depends(require_resource_permission("unknown", "create"))]
+)
 def create_client_endpoint(
     body: ClientCreateRequest,
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_hr_or_admin),
+    current_user=Depends(get_current_internal_user),
 ):
     try:
         client = create_client(
@@ -152,7 +158,6 @@ def create_client_endpoint(
         raise HTTPException(status_code=400, detail=str(exc))
     return client
 
-
 def _to_detail_response(db: Session, client: Client) -> ClientDetailResponse:
     bu_name = None
     if client.business_unit_id is not None:
@@ -167,24 +172,30 @@ def _to_detail_response(db: Session, client: Client) -> ClientDetailResponse:
         business_unit_name=bu_name, account_manager_name=am_name,
     )
 
-
-@router.get("/{client_id}", response_model=ClientDetailResponse)
+@router.get(
+    "/{client_id}",
+    response_model=ClientDetailResponse,
+    dependencies=[Depends(require_resource_permission("clients", "view"))]
+)
 def get_client_endpoint(
     client_id: str,
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_hr_or_admin),
+    current_user=Depends(get_current_internal_user),
 ):
     client = db.query(Client).filter(Client.id == client_id).first()
     if not client:
         raise HTTPException(status_code=404, detail=f"Client {client_id!r} not found.")
     return _to_detail_response(db, client)
 
-
-@router.get("/{client_id}/contacts", response_model=ClientContactsListResponse)
+@router.get(
+    "/{client_id}/contacts",
+    response_model=ClientContactsListResponse,
+    dependencies=[Depends(require_resource_permission("clients", "view"))]
+)
 def list_client_contacts_endpoint(
     client_id: str,
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_hr_or_admin),
+    current_user=Depends(get_current_internal_user),
 ):
     client = db.query(Client).filter(Client.id == client_id).first()
     if not client:
@@ -192,13 +203,17 @@ def list_client_contacts_endpoint(
     contacts = db.query(ClientContact).filter(ClientContact.client_id == client_id).all()
     return ClientContactsListResponse(contacts=contacts)
 
-
-@router.post("/{client_id}/contacts", response_model=ClientContactResponse, status_code=201)
+@router.post(
+    "/{client_id}/contacts",
+    response_model=ClientContactResponse,
+    status_code=201,
+    dependencies=[Depends(require_resource_permission("clients", "create"))]
+)
 def add_client_contact_endpoint(
     client_id: str,
     body: ClientContactAddRequest,
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_hr_or_admin),
+    current_user=Depends(get_current_internal_user),
 ):
     client = db.query(Client).filter(Client.id == client_id).first()
     if not client:
@@ -213,13 +228,16 @@ def add_client_contact_endpoint(
         raise HTTPException(status_code=400, detail=str(exc))
     return contact
 
-
-@router.patch("/{client_id}", response_model=ClientDetailResponse)
+@router.patch(
+    "/{client_id}",
+    response_model=ClientDetailResponse,
+    dependencies=[Depends(require_resource_permission("clients", "update"))]
+)
 def update_client_endpoint(
     client_id: str,
     body: ClientUpdateRequest,
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_hr_or_admin),
+    current_user=Depends(get_current_internal_user),
 ):
     client = db.query(Client).filter(Client.id == client_id).first()
     if not client:

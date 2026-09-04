@@ -1,4 +1,5 @@
 """
+import logging
 Agent Orchestration Service - Flash Orchestrator
 
 The ONLY thing that decides what runs when.
@@ -35,6 +36,7 @@ Message format:
 }
 """
 
+import logging
 from datetime import datetime, timedelta
 from typing import Dict, Any, List, Optional
 from sqlalchemy.orm import Session
@@ -43,11 +45,11 @@ import uuid
 
 from app.core.logging import logger
 from app.models.candidate import Candidate
-from app.models.interview import Interview
 from app.models.offer_letter import OfferLetter
 from app.models.employee import Employee
 from app.api.v1.endpoints.admin_queue import TaskStatus
 
+logger = logging.getLogger(__name__)
 
 class AgentQueue:
     """Message queue for agent input/output."""
@@ -97,7 +99,6 @@ class AgentQueue:
     def get_all_queues(cls) -> Dict[str, int]:
         """Get all queue depths."""
         return {name: len(msgs) for name, msgs in cls._queues.items()}
-
 
 class FlashOrchestrator:
     """
@@ -257,7 +258,6 @@ class FlashOrchestrator:
             return messages[index]
         return None
 
-
 class ThunderAgent:
     """
     Thunder AI Recruiter - Stage 1
@@ -309,7 +309,6 @@ class ThunderAgent:
             "messages_moved": f"{FlashOrchestrator.QUEUES['thunder_input']} → {FlashOrchestrator.QUEUES['recruitment_input']}"
         }
 
-
 class RecruitmentScreenerAgent:
     """
     Recruitment Screener - Stage 2
@@ -358,7 +357,6 @@ class RecruitmentScreenerAgent:
             "conversion_rate": f"{(qualified / max(qualified + rejected, 1) * 100):.0f}%"
         }
 
-
 class InterviewSchedulerAgent:
     """
     Interview Scheduler - Stage 3
@@ -405,7 +403,6 @@ class InterviewSchedulerAgent:
             "interviews_scheduled": scheduled
         }
 
-
 class HiringPanelAgent:
     """
     Hiring Panel - Stage 4
@@ -450,7 +447,6 @@ class HiringPanelAgent:
             "agent": "Hiring Panel",
             "interviews_completed": interviewed
         }
-
 
 class OfferGeneratorAgent:
     """
@@ -497,7 +493,6 @@ class OfferGeneratorAgent:
             "offers_created": offers_created
         }
 
-
 class ThunderNegotiationAgent:
     """
     Thunder Negotiation - Stage 6
@@ -542,7 +537,6 @@ class ThunderNegotiationAgent:
             "rejected": rejected
         }
 
-
 class HRAgent:
     """
     HR Agent - Stage 7
@@ -582,7 +576,6 @@ class HRAgent:
             "employees_created": created
         }
 
-
 class OnboardingAgent:
     """
     Onboarding Agent - Stage 8
@@ -621,7 +614,6 @@ class OnboardingAgent:
             "agent": "Onboarding Agent",
             "onboarded": onboarded
         }
-
 
 class ResourceManagerAgent:
     """

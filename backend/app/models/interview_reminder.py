@@ -1,4 +1,5 @@
 """
+import logging
 S-050/HRMS-0450 -- Interview Reminder Engine.
 
 interview_reminders: genuinely new table -- one row per
@@ -13,6 +14,7 @@ No `interviews.candidate_timezone` column exists (the spec's own
 field S-047/048/049 already use) is read fresh at send time instead of
 being duplicated onto this table or the interview row.
 """
+import logging
 import uuid
 
 from sqlalchemy import Column, DateTime, Enum, ForeignKey, Integer, String, func
@@ -20,22 +22,21 @@ from sqlalchemy.orm import relationship
 
 from app.models.base import Base
 
-
 def _new_uuid() -> str:
     return str(uuid.uuid4())
-
 
 REMINDER_TYPES = ("24H_BEFORE", "1H_BEFORE")
 REMINDER_STATUSES = ("PENDING", "SENT", "CANCELLED")
 
+logger = logging.getLogger(__name__)
 
 class InterviewReminder(Base):
     __tablename__ = "interview_reminders"
 
-    id = Column(String(36), primary_key=True, default=_new_uuid)
+    id = Column(String(512), primary_key=True, default=_new_uuid)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
-    interview_id = Column(String(36), ForeignKey("submission_interviews.id"), nullable=False, index=True)
-    candidate_id = Column(String(36), ForeignKey("candidates.candidateID"), nullable=False, index=True)
+    interview_id = Column(String(512), ForeignKey("submission_interviews.id"), nullable=False, index=True)
+    candidate_id = Column(String(512), ForeignKey("candidates.candidateID"), nullable=False, index=True)
 
     reminder_type = Column(
         Enum(*REMINDER_TYPES, name="interview_reminder_type", native_enum=False, create_constraint=True),

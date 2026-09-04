@@ -1,4 +1,5 @@
 """
+import logging
 S-076/HRMS-0476 -- Conversation Audit Log.
 
 A compliance-grade, insert-only record of significant AI/HR actions on a
@@ -23,12 +24,14 @@ role) isn't practical to add generically across this codebase's SQLite
 test / SQL Server prod split -- enforced at the application level only:
 no update/delete function exists anywhere in audit_log_service.py.
 """
+import logging
 from sqlalchemy import Column, DateTime, ForeignKey, Integer, JSON, String, Text, func, Index
 
 from app.models.base import Base
 
 AUDIT_ACTOR_TYPES = ("AI", "RECRUITER", "HR", "SYSTEM", "CANDIDATE")
 
+logger = logging.getLogger(__name__)
 
 class ConversationAuditLog(Base):
     __tablename__ = "conversation_audit_log"
@@ -38,7 +41,7 @@ class ConversationAuditLog(Base):
     tenant_id = Column(
         String(50), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=False, index=True,
     )
-    candidate_id = Column(String(36), ForeignKey("candidates.candidateID", ondelete="CASCADE"), nullable=False, index=True,
+    candidate_id = Column(String(512), ForeignKey("candidates.candidateID", ondelete="CASCADE"), nullable=False, index=True,
     )
     # NO ACTION, not SET NULL -- SQL Server rejects SET NULL here because
     # candidates->candidate_conversations->conversation_id and
@@ -49,11 +52,11 @@ class ConversationAuditLog(Base):
         Integer, ForeignKey("candidate_conversations.id", ondelete="NO ACTION"), nullable=True, index=True,
     )
 
-    audit_event_type = Column(String(100), nullable=False)
+    audit_event_type = Column(String(512), nullable=False)
     audit_event_description = Column(Text, nullable=False)
 
     actor_type = Column(String(20), nullable=False)
-    actor_id = Column(String(100), nullable=False)
+    actor_id = Column(String(512), nullable=False)
 
     before_state = Column(JSON, nullable=True)
     after_state = Column(JSON, nullable=True)

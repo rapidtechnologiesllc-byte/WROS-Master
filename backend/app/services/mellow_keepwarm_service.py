@@ -7,6 +7,7 @@ candidate warm... not daily or weekly [aggressive follow-up]." Weekly
 is the code-constant default (env-overridable), the middle of that
 stated range, same "flag the real default, don't fake a config UI"
 posture follow_up_scheduler_service already takes for its own
+import logging
 thresholds.
 
 Also the real integration point for the separate, older multichannel
@@ -49,7 +50,6 @@ KEEPWARM_EMAIL_BODY = (
     "out the moment something matches.</p><p>No action needed from you right now.</p>"
 )
 
-
 def _last_outbound_at(db: Session, conversation_id: int) -> Optional[datetime]:
     event = (
         db.query(ConversationEvent)
@@ -58,7 +58,6 @@ def _last_outbound_at(db: Session, conversation_id: int) -> Optional[datetime]:
         .first()
     )
     return event.created_at if event else None
-
 
 def run_mellow_keepwarm_job(db: Session, *, now: Optional[datetime] = None) -> Dict:
     from app.services.candidate_journey_service import get_candidate_journey

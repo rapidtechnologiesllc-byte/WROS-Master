@@ -1,3 +1,4 @@
+import logging
 """S-028/HRMS-0428: add candidate_resume_parsed table
 
 Revision ID: b23976adb15d
@@ -11,7 +12,6 @@ revision = "b23976adb15d"
 down_revision = "a6b7c8d9e0f1"
 branch_labels = None
 depends_on = None
-
 
 def upgrade():
     op.create_table(
@@ -37,7 +37,6 @@ def upgrade():
     )
     op.create_index("ix_candidate_resume_parsed_tenant_id", "candidate_resume_parsed", ["tenant_id"])
     op.create_index("ix_candidate_resume_parsed_candidate_id", "candidate_resume_parsed", ["candidate_id"], unique=True)
-
 
 def downgrade():
     op.drop_index("ix_candidate_resume_parsed_candidate_id", table_name="candidate_resume_parsed")

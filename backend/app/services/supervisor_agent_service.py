@@ -1,4 +1,5 @@
 """
+import logging
 S-066/HRMS-0466 -- Supervisor Agent, Multi-Agent Coordinator.
 
 Real architecture adaptation (per Avinash's explicit direction,
@@ -76,10 +77,8 @@ STAGE_TO_AGENT_NAME = {
     "Joined": "OnboardingAgent",
 }
 
-
 def _active_tenant_ids(db: Session) -> List[str]:
     return sorted({row[0] for row in db.query(CandidateConversation.tenant_id).distinct().all() if row[0]})
-
 
 def _evaluate_conversation(db: Session, conversation: CandidateConversation) -> Dict:
     """Step 3's priority-ordered skip checks (1-2), then a stage lookup
@@ -103,7 +102,6 @@ def _evaluate_conversation(db: Session, conversation: CandidateConversation) -> 
         stage = "Engaged"
     agent_name = STAGE_TO_AGENT_NAME.get(stage, "QualificationAgent")
     return {"agent_name": agent_name, "action_taken": "EVALUATED", "action_data": {"stage": stage}, "acted": False}
-
 
 def _detect_conflicts(db: Session, tenant_id: str, window_start: datetime) -> int:
     """BR-01/BR-03 real audit, not a preventive lock (see module
@@ -134,7 +132,6 @@ def _detect_conflicts(db: Session, tenant_id: str, window_start: datetime) -> in
             )
     return conflicts
 
-
 def _run_cycle_for_tenant(db: Session, tenant_id: str, window_start: datetime, today_start: datetime) -> Dict:
     from app.services.event_emitter_service import emit
 
@@ -160,13 +157,14 @@ def _run_cycle_for_tenant(db: Session, tenant_id: str, window_start: datetime, t
             else:
                 evaluated += 1
         except Exception as exc:
+            logger.error(f"Error: {str(exc)}", exc_info=True)
             db.add(AgentExecutionLog(
                 tenant_id=tenant_id, candidate_id=conversation.candidate_id,
                 agent_name="SupervisorAgent", action_taken="EVALUATION_FAILED",
                 action_data=None, success=False, error_message=str(exc)[:2000],
             ))
             logger.error(f"[SupervisorAgent] Evaluation failed for candidate {conversation.candidate_id!r}: {exc}")
-    db.commit()
+            db.commit()
 
     conflicts = _detect_conflicts(db, tenant_id, window_start)
 
@@ -182,6 +180,7 @@ def _run_cycle_for_tenant(db: Session, tenant_id: str, window_start: datetime, t
         actions_dispatched = breakdown.get("thunder_actions", 0)
         thunder_autonomy_pct = breakdown.get("thunder_pct")
     except Exception as exc:
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[SupervisorAgent] Could not compute thunder analytics for tenant {tenant_id!r}: {exc}")
 
     duration_ms = int((datetime.utcnow() - cycle_started).total_seconds() * 1000)
@@ -197,13 +196,13 @@ def _run_cycle_for_tenant(db: Session, tenant_id: str, window_start: datetime, t
             tenant_id,
         )
     except Exception as exc:
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[SupervisorAgent] Failed to emit supervisor.cycle_completed for tenant {tenant_id!r}: {exc}")
 
     return {
         "candidates_evaluated": evaluated + skipped, "actions_dispatched": actions_dispatched,
         "skipped": skipped, "conflicts_detected": conflicts,
     }
-
 
 def run_supervisor_cycle(db: Session, tenant_id: Optional[str] = None) -> Dict:
     """SUPERVISOR_AGENT_JOB body, run every 15 min. Never lets one bad
@@ -224,6 +223,7 @@ def run_supervisor_cycle(db: Session, tenant_id: Optional[str] = None) -> Dict:
             overall["conflicts_detected"] += result["conflicts_detected"]
             overall["tenants_processed"] += 1
         except Exception as exc:
+            logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.error(f"[SupervisorAgent] Cycle failed for tenant {tid!r}: {exc}")
 
     return overall

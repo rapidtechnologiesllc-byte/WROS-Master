@@ -1,4 +1,5 @@
 """
+import logging
 S-434 -- Overdue task escalation.
 
 Confirmed 2026-08-04: crossing the due date while still open is a real
@@ -19,14 +20,12 @@ from app.models.user import Users
 OPEN_STATUSES = ("NEW", "IN_PROGRESS", "ON_HOLD")
 _TIER_BY_ORDER = {v: k for k, v in PRIORITY_ORDER.items()}
 
-
 def _bump_one_tier_capped(priority: str) -> str:
     if priority == "URGENT":
         return priority  # never touched -- stays whatever it already is
     current = PRIORITY_ORDER[priority]
     ceiling = PRIORITY_ORDER[PRIORITY_BUMP_CEILING]
     return _TIER_BY_ORDER[min(current + 1, ceiling)]
-
 
 def escalate_overdue_tasks(db: Session, *, now: Optional[datetime] = None) -> List[Task]:
     from app.services.notification_service import send_notification

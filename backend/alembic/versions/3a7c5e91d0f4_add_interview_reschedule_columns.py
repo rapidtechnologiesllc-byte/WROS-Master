@@ -1,3 +1,4 @@
+import logging
 """S-051/HRMS-0451: add interview reschedule columns, replace one-per-submission-level unique constraint with a partial index
 
 Revision ID: 3a7c5e91d0f4
@@ -11,7 +12,6 @@ revision = "3a7c5e91d0f4"
 down_revision = "8d4f2c6b1a90"
 branch_labels = None
 depends_on = None
-
 
 def upgrade():
     # A self-referential FK added inline via add_column() during SQLite
@@ -29,7 +29,6 @@ def upgrade():
         "ix_one_current_interview_per_level", "submission_interviews", ["submission_id", "level"],
         unique=True, sqlite_where=sa.text("superseded_at IS NULL"), mssql_where=sa.text("superseded_at IS NULL"),
     )
-
 
 def downgrade():
     op.drop_index("ix_one_current_interview_per_level", table_name="submission_interviews")

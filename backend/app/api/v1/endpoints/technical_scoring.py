@@ -1,10 +1,11 @@
-﻿"""
+"""
 S-037/HRMS-0437 -- Technical Qualification Score
 S-038/HRMS-0438 -- Compensation Fit Score
 S-039/HRMS-0439 -- Availability Score
 S-040/HRMS-0440 -- Overall Candidate Score & Ranking
 ==================================================================
 Prefix: /candidates, /jobs
+import logging
 Tag:    technical-scoring
 
 GET /candidates/{candidate_id}/jobs/{job_id}/score
@@ -35,7 +36,6 @@ from app.services.technical_scoring_service import CandidateNotFound, JobNotFoun
 
 router = APIRouter(tags=["technical-scoring"])
 
-
 @router.get(
     "/candidates/{candidate_id}/jobs/{job_id}/score",
     response_model=TechnicalScoreResponse,
@@ -54,7 +54,7 @@ router = APIRouter(tags=["technical-scoring"])
     ),
 )
 def get_technical_score(candidate_id: str, job_id: str, db: Session = Depends(get_db)):
-    tenant_id = resolve_default_tenant_id(db)
+    tenant_id = resolve_default_tenant_id()
     if not tenant_id:
         raise HTTPException(status_code=500, detail="No tenant available.")
 
@@ -71,7 +71,6 @@ def get_technical_score(candidate_id: str, job_id: str, db: Session = Depends(ge
     db.commit()
     return TechnicalScoreResponse(**result)
 
-
 @router.get(
     "/jobs/{job_id}/candidates/ranked",
     response_model=RankedCandidatesResponse,
@@ -84,7 +83,7 @@ def get_technical_score(candidate_id: str, job_id: str, db: Session = Depends(ge
     ),
 )
 def get_ranked_candidates_for_job(job_id: str, db: Session = Depends(get_db)):
-    tenant_id = resolve_default_tenant_id(db)
+    tenant_id = resolve_default_tenant_id()
     if not tenant_id:
         raise HTTPException(status_code=500, detail="No tenant available.")
 

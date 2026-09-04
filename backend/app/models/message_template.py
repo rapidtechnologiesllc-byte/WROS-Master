@@ -1,10 +1,12 @@
 """
+import logging
 S-014/HRMS-0414 -- Message Template Engine.
 
 tenant_id here follows this subsystem's real convention (the org-owner
 Users.UserID -- see ai_conversation_service.resolve_thunder_config's
 docstring), not the separate app.models.tenant.Tenant table.
 """
+import logging
 from sqlalchemy import Boolean, Column, DateTime, Enum, ForeignKey, Integer, String, Text, UniqueConstraint, func
 from sqlalchemy.orm import relationship
 
@@ -16,8 +18,9 @@ TEMPLATE_CHANNELS = ("WHATSAPP", "EMAIL", "PORTAL", "ANY")
 # entry. Prevents breaking system references." Extend this tuple (and
 # the matching migration widening the CHECK constraint) as more
 # first-engagement/templated sends get built.
-TEMPLATE_KEYS = ("GREETING_WHATSAPP", "GREETING_EMAIL")
+TEMPLATE_KEYS = ("GREETING_WHATSAPP", "GREETING_EMAIL", "EMPLOYEE_WELCOME_EMAIL")
 
+logger = logging.getLogger(__name__)
 
 class MessageTemplate(Base):
     __tablename__ = "message_templates"
@@ -26,19 +29,19 @@ class MessageTemplate(Base):
     )
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
-    tenant_id = Column(String(50), ForeignKey("users.UserID"), nullable=False, index=True)
+    tenant_id = Column(String(512), ForeignKey("users.UserID"), nullable=False, index=True)
 
     template_key = Column(
         Enum(*TEMPLATE_KEYS, name="message_template_key", native_enum=False, create_constraint=True),
         nullable=False, index=True,
     )
-    template_name = Column(String(200), nullable=False)
+    template_name = Column(String(512), nullable=False)
     channel = Column(
         Enum(*TEMPLATE_CHANNELS, name="message_template_channel", native_enum=False, create_constraint=True),
         nullable=False,
     )
     language = Column(String(10), nullable=False, default="en", server_default="en")
-    subject = Column(String(500), nullable=True)
+    subject = Column(String(512), nullable=True)
     body = Column(Text, nullable=False)
 
     version = Column(Integer, nullable=False, default = True)
@@ -52,8 +55,8 @@ class MessageTemplate(Base):
     # real safety net if this is ever violated).
     is_active = Column(Boolean, nullable=False, default=False, server_default="0")
 
-    created_by = Column(String(50), nullable=True)
-    approved_by = Column(String(50), nullable=True)
+    created_by = Column(String(512), nullable=True)
+    approved_by = Column(String(512), nullable=True)
     approved_at = Column(DateTime(timezone=False), nullable=True)
     created_at = Column(DateTime(timezone=False), server_default=func.now())
     updated_at = Column(DateTime(timezone=False), server_default=func.now(), onupdate=func.now())

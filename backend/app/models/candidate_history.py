@@ -1,6 +1,7 @@
 """
 Candidate History Model
 =======================
+import logging
 Stores a chronological audit trail / timeline for every candidate.
 
 Each row represents one event in the candidate's journey, for example:
@@ -13,11 +14,13 @@ Each row represents one event in the candidate's journey, for example:
   - Onboarded
 """
 
+import logging
 from datetime import datetime
 from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text, func
 from sqlalchemy.orm import relationship
 from app.models.base import Base
 
+logger = logging.getLogger(__name__)
 
 class CandidateHistory(Base):
     __tablename__ = "candidate_history"
@@ -38,17 +41,17 @@ class CandidateHistory(Base):
     #   "Applied" | "Screening" | "Interview Scheduled" | "Interview Completed"
     #   "Offer Released" | "Offer Accepted" | "Offer Rejected"
     #   "Pre-Onboarding" | "Onboarded" | "Rejected" | "Custom"
-    event_type      = Column(String(100), nullable=False)
+    event_type      = Column(String(512), nullable=False)
 
     # Human-readable description / note (e.g. "Interview scheduled at 3 PM on 15 May")
     note            = Column(Text, nullable=True)
 
     # Who performed / triggered this event (user ID or name stored as string)
-    performed_by_id   = Column(String(50), nullable=True)   # user / HR / admin ID
-    performed_by_name = Column(String(200), nullable=True)  # display name snapshot
+    performed_by_id   = Column(String(512), nullable=True)   # user / HR / admin ID
+    performed_by_name = Column(String(512), nullable=True)  # display name snapshot
 
     # Optional reference IDs to related records
-    job_id          = Column(String(50), nullable=True)      # which job this event is for
+    job_id          = Column(String(512), nullable=True)      # which job this event is for
     interview_id    = Column(Integer, nullable=True)         # FK-less; store raw ID
     offer_letter_id = Column(Integer, nullable=True)         # FK-less; store raw ID
 

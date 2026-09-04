@@ -1,6 +1,7 @@
 """
 S-207 -- proves app.core.tenant_context's global with_loader_criteria
 scoping on real routes that were NEVER part of the original 6-route
+import logging
 HRMS-0109 fix (tests/test_tenant_scoping_real_routes.py covers those).
 
 Three things this file has to prove, matching the gap doc's own explicit
@@ -38,7 +39,6 @@ from app.models.candidate_ownership import CandidateOwnership, POOL_BU
 from app.models.rbac_template import BusinessUnit
 import app.models  # noqa: F401 -- registers every model on Base.metadata
 
-
 @pytest.fixture()
 def throwaway_jwt_keys(monkeypatch):
     key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
@@ -53,7 +53,6 @@ def throwaway_jwt_keys(monkeypatch):
     ).decode()
     monkeypatch.setattr(security, "PRIVATE_KEY", private_pem)
     monkeypatch.setattr(security, "PUBLIC_KEY", public_pem)
-
 
 @pytest.fixture()
 def client(throwaway_jwt_keys):
@@ -72,12 +71,12 @@ def client(throwaway_jwt_keys):
         finally:
             db.close()
 
-    from app.api.v1.endpoints.onboarding import router as onboarding_router
+    from app.api.v1.endpoints.candidates import router as candidates_router
     from app.api.v1.endpoints.users import router as users_router
     from app.core.database import get_db
 
     app = FastAPI()
-    app.include_router(onboarding_router)
+    app.include_router(candidates_router)
     app.include_router(users_router)
     app.dependency_overrides[get_db] = override_get_db
 
@@ -134,10 +133,8 @@ def client(throwaway_jwt_keys):
         engine.dispose()
         os.remove(db_path)
 
-
 def _token_for(email, role):
     return security.create_access_token(data={"sub": email, "type": role, "name": email})
-
 
 def test_single_record_lookup_never_leaks_across_tenant(client):
     """
@@ -161,7 +158,6 @@ def test_single_record_lookup_never_leaks_across_tenant(client):
     assert own_resp.status_code == 200
     assert own_resp.json()["user_id"] == "U-BX-EMPLOYEE"
 
-
 def test_bu_pool_route_closed_as_side_effect_of_global_scoping(client):
     """
     docs/build-package/HRMS-0109-tenant-scoping-gap.md flagged
@@ -182,7 +178,6 @@ def test_bu_pool_route_closed_as_side_effect_of_global_scoping(client):
     ids = [c["candidate_id"] for c in resp.json()["candidates"]]
     assert ids == ["C-BX-1"]
     assert "C-OTHER-1" not in ids
-
 
 def test_concurrent_requests_for_different_tenants_never_bleed(client):
     """
@@ -206,10 +201,12 @@ def test_concurrent_requests_for_different_tenants_never_bleed(client):
                     headers={"Authorization": f"Bearer {bx_token}"},
                 )
                 results["bx"].append(r.status_code)
-        except Exception as exc:  # pragma: no cover -- surfaced via errors list
+        except Exception as exc:
+            # pragma: no cover -- surfaced via errors list
             errors.append(exc)
 
-    def hit_other():
+            def hit_other():
+                pass
         try:
             for _ in range(15):
                 r = client.get(
@@ -217,10 +214,11 @@ def test_concurrent_requests_for_different_tenants_never_bleed(client):
                     headers={"Authorization": f"Bearer {other_token}"},
                 )
                 results["other"].append(r.status_code)
-        except Exception as exc:  # pragma: no cover
+        except Exception as exc:
+            # pragma: no cover
             errors.append(exc)
 
-    threads = [threading.Thread(target=hit_bx) for _ in range(4)] + [
+            threads = [threading.Thread(target=hit_bx) for _ in range(4)] + [
         threading.Thread(target=hit_other) for _ in range(4)
     ]
     for t in threads:

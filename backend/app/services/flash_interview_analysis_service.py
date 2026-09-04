@@ -4,8 +4,8 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func, and_
 from app.models.submission import Submission
 from app.models.interview_pipeline import SubmissionInterview
+import logging
 from app.models.candidate import Candidate
-
 
 def analyze_interview_transcript(db: Session, interview_id: str) -> dict:
     """
@@ -138,7 +138,6 @@ def analyze_interview_transcript(db: Session, interview_id: str) -> dict:
         "analysis_timestamp": datetime.utcnow().isoformat(),
         "analysis_type": "transcript_synthesis"
     }
-
 
 def compare_panel_vs_flash(db: Session, interview_id: str) -> dict:
     """

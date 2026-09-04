@@ -1,3 +1,5 @@
+import logging
+from app.core.logging import logger
 """Agent Shield Service - Spartan Phalanx formation monitoring and integrity checks."""
 
 from sqlalchemy.orm import Session
@@ -8,6 +10,7 @@ from app.models.agent_phalanx import (
 )
 from app.services.agent_registry_service import AGENT_REGISTRY
 
+logger = logging.getLogger(__name__)
 
 class ShieldStrengthCalculator:
     """Calculate shield strength using Spartan phalanx metrics."""
@@ -66,7 +69,6 @@ class ShieldStrengthCalculator:
             return "FAILING"
         else:
             return "BROKEN"
-
 
 class PhalanxFormationService:
     """Service for managing Spartan phalanx formations."""
@@ -130,6 +132,7 @@ class PhalanxFormationService:
             return True
 
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             db.rollback()
             print(f"Error initializing phalanx formation: {e}")
             return False
@@ -202,6 +205,7 @@ class PhalanxFormationService:
             }
 
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             db.rollback()
             return {"status": "error", "message": str(e)}
 
@@ -328,6 +332,7 @@ class PhalanxFormationService:
             }
 
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             return {"status": "error", "message": str(e)}
 
     @staticmethod
@@ -376,4 +381,5 @@ class PhalanxFormationService:
             }
 
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             return {"status": "error", "message": str(e)}

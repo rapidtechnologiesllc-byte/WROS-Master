@@ -3,6 +3,7 @@ Proves HRMS-0113: BR-0113-01 (P0 fallback within 60s), BR-0113-02
 (cross-tenant dispatch rejected before send), BR-0113-03 (non-P0
 notifications respect the recipient's local business hours; P0 bypasses
 that gating entirely), plus read-receipt/unread-count and the
+import logging
 release_pending_notifications() cron-callable.
 
 Throwaway SQLite -- never the real database.
@@ -31,7 +32,6 @@ from app.services.notification_service import (
     InvalidChannel,
 )
 
-
 @pytest.fixture()
 def db_session():
     fd, db_path = tempfile.mkstemp(suffix=".sqlite3")
@@ -45,7 +45,6 @@ def db_session():
         session.close()
         engine.dispose()
         os.remove(db_path)
-
 
 @pytest.fixture()
 def tenant_and_users(db_session):
@@ -66,12 +65,10 @@ def tenant_and_users(db_session):
     db_session.commit()
     return tenant, other_tenant, recipient, other_tenant_user
 
-
 # A fixed "noon IST" instant -- 2026-02-02 06:30 UTC == 12:00 IST (UTC+5:30) -- inside the 08:00-20:00 window.
 NOON_IST_UTC = datetime(2026, 2, 2, 6, 30)
 # A fixed "3am IST" instant -- 2026-02-02 21:30 UTC (prior day) == 03:00 IST -- outside the window.
 THREE_AM_IST_UTC = datetime(2026, 2, 1, 21, 30)
-
 
 # ---------------------------------------------------------------------------
 # BR-0113-02: tenant scoping
@@ -86,7 +83,6 @@ def test_cross_tenant_dispatch_rejected(db_session, tenant_and_users):
             priority_tier="P1", message="hello", now=NOON_IST_UTC,
         )
 
-
 def test_same_tenant_dispatch_allowed(db_session, tenant_and_users):
     tenant, other_tenant, recipient, other_tenant_user = tenant_and_users
 
@@ -97,12 +93,10 @@ def test_same_tenant_dispatch_allowed(db_session, tenant_and_users):
     db_session.commit()
     assert notification.delivery_status == "SENT"
 
-
 def test_invalid_priority_tier_rejected(db_session, tenant_and_users):
     tenant, other_tenant, recipient, other_tenant_user = tenant_and_users
     with pytest.raises(InvalidPriorityTier):
         send_notification(db_session, calling_context_tenant_id=tenant.id, recipient=recipient, priority_tier="P9", message="x")
-
 
 def test_invalid_channel_rejected(db_session, tenant_and_users):
     tenant, other_tenant, recipient, other_tenant_user = tenant_and_users
@@ -111,7 +105,6 @@ def test_invalid_channel_rejected(db_session, tenant_and_users):
             db_session, calling_context_tenant_id=tenant.id, recipient=recipient,
             priority_tier="P1", message="x", channel_preference="FAX",
         )
-
 
 # ---------------------------------------------------------------------------
 # BR-0113-03: business-hours gating (non-P0), P0 bypass
@@ -128,7 +121,6 @@ def test_p1_within_business_hours_sends_immediately(db_session, tenant_and_users
     assert notification.delivery_status == "SENT"
     assert notification.scheduled_release_at is None
 
-
 def test_p1_outside_business_hours_is_held(db_session, tenant_and_users):
     tenant, other_tenant, recipient, other_tenant_user = tenant_and_users
 
@@ -141,7 +133,6 @@ def test_p1_outside_business_hours_is_held(db_session, tenant_and_users):
     assert notification.scheduled_release_at is not None
     assert notification.scheduled_release_at > THREE_AM_IST_UTC
 
-
 def test_p2_outside_business_hours_is_also_held(db_session, tenant_and_users):
     tenant, other_tenant, recipient, other_tenant_user = tenant_and_users
 
@@ -153,7 +144,6 @@ def test_p2_outside_business_hours_is_also_held(db_session, tenant_and_users):
     assert notification.delivery_status == "PENDING"
     assert notification.scheduled_release_at is not None
 
-
 def test_p0_bypasses_business_hours_gating_entirely(db_session, tenant_and_users):
     tenant, other_tenant, recipient, other_tenant_user = tenant_and_users
 
@@ -164,7 +154,6 @@ def test_p0_bypasses_business_hours_gating_entirely(db_session, tenant_and_users
     db_session.commit()
     assert notification.delivery_status == "SENT"
     assert notification.scheduled_release_at is None
-
 
 def test_release_pending_notifications_sends_held_ones_once_due(db_session, tenant_and_users):
     tenant, other_tenant, recipient, other_tenant_user = tenant_and_users
@@ -187,7 +176,6 @@ def test_release_pending_notifications_sends_held_ones_once_due(db_session, tena
     db_session.commit()
     assert processed == 1
     assert notification.delivery_status == "SENT"
-
 
 # ---------------------------------------------------------------------------
 # BR-0113-01: P0 fallback within 60s
@@ -212,7 +200,6 @@ def test_p0_fallback_to_sms_when_primary_fails(db_session, tenant_and_users):
     assert notification.delivery_status == "FALLBACK_SENT"
     assert notification.fallback_channel == "SMS"
 
-
 def test_p0_no_successful_channel_marks_failed(db_session, tenant_and_users):
     tenant, other_tenant, recipient, other_tenant_user = tenant_and_users
 
@@ -227,7 +214,6 @@ def test_p0_no_successful_channel_marks_failed(db_session, tenant_and_users):
     )
     db_session.commit()
     assert notification.delivery_status == "FAILED"
-
 
 def test_non_p0_does_not_fall_back_on_failure(db_session, tenant_and_users):
     tenant, other_tenant, recipient, other_tenant_user = tenant_and_users
@@ -246,7 +232,6 @@ def test_non_p0_does_not_fall_back_on_failure(db_session, tenant_and_users):
     assert notification.delivery_status == "FAILED"
     assert notification.fallback_channel is None
 
-
 def test_whatsapp_unconfigured_raises_and_is_treated_as_failure_for_fallback_purposes(db_session, tenant_and_users):
     tenant, other_tenant, recipient, other_tenant_user = tenant_and_users
 
@@ -256,7 +241,6 @@ def test_whatsapp_unconfigured_raises_and_is_treated_as_failure_for_fallback_pur
         # explicit "not configured" signal, not a silent no-op.
         from app.services.notification_service import DEFAULT_CHANNEL_SENDERS
         DEFAULT_CHANNEL_SENDERS["WHATSAPP"](recipient, "hi")
-
 
 # ---------------------------------------------------------------------------
 # Read receipts / unread count (bell-icon backend)
@@ -281,7 +265,6 @@ def test_unread_count_and_mark_as_read(db_session, tenant_and_users):
     db_session.commit()
 
     assert get_unread_count(db_session, recipient.UserID, tenant.id) == 1
-
 
 def test_held_notification_does_not_count_as_unread_until_released(db_session, tenant_and_users):
     tenant, other_tenant, recipient, other_tenant_user = tenant_and_users

@@ -1,29 +1,31 @@
+import logging
 """Employee Referral Model - Track referrals and bonus payments."""
 
 from sqlalchemy import Column, String, Integer, Float, DateTime, Text, Boolean, ForeignKey
 from datetime import datetime
 from app.models.base import Base
 
+logger = logging.getLogger(__name__)
 
 class EmployeeReferral(Base):
     """Track employee referrals and bonus payments."""
 
     __tablename__ = "employee_referrals"
 
-    referral_id = Column(String(50), primary_key=True)  # "ref_001"
+    referral_id = Column(String(512), primary_key=True)  # "ref_001"
 
     # Foreign keys
-    job_id = Column(String(50), nullable=False)  # Which job
-    referring_employee_id = Column(String(50), nullable=False)  # Who referred
-    referred_candidate_id = Column(String(36))  # The candidate they referred (can be null initially)
+    job_id = Column(String(512), nullable=False)  # Which job
+    referring_employee_id = Column(String(512), nullable=False)  # Who referred
+    referred_candidate_id = Column(String(50))  # The candidate they referred (can be null initially)
 
     # Referral details
     referred_candidate_email = Column(String(255))  # Email of referred person
     referred_candidate_name = Column(String(255))  # Name of referred person
-    referral_source = Column(String(50), default="EMPLOYEE_REFERRAL")  # Source = EMPLOYEE_REFERRAL
+    referral_source = Column(String(512), default="EMPLOYEE_REFERRAL")  # Source = EMPLOYEE_REFERRAL
 
     # Tracking
-    referral_status = Column(String(50), default="PENDING")
+    referral_status = Column(String(512), default="PENDING")
     # PENDING -> CANDIDATE_REJECTED -> (end)
     #        -> CANDIDATE_SCREENING -> INTERVIEW_SCHEDULED -> INTERVIEWED -> OFFERED -> ACCEPTED -> HIRED -> BONUS_PAID
 
@@ -48,14 +50,13 @@ class EmployeeReferral(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     notes = Column(Text)
 
-
 class JobReferralSettings(Base):
     """Job-level referral settings."""
 
     __tablename__ = "job_referral_settings"
 
-    settings_id = Column(String(50), primary_key=True)
-    job_id = Column(String(50), nullable=False, unique=True)
+    settings_id = Column(String(512), primary_key=True)
+    job_id = Column(String(512), nullable=False, unique=True)
 
     # Referral configuration
     enable_referrals = Column(Boolean, default=True)  # Allow referrals for this job?
@@ -71,21 +72,20 @@ class JobReferralSettings(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
-
 class ReferralBonus(Base):
     """Finance tracking for referral bonuses paid."""
 
     __tablename__ = "referral_bonuses"
 
-    bonus_id = Column(String(50), primary_key=True)
-    referral_id = Column(String(50), nullable=False)  # Link to EmployeeReferral
+    bonus_id = Column(String(512), primary_key=True)
+    referral_id = Column(String(512), nullable=False)  # Link to EmployeeReferral
 
     # Bonus details
-    referring_employee_id = Column(String(50), nullable=False)
+    referring_employee_id = Column(String(512), nullable=False)
     bonus_amount_usd_cents = Column(Integer, nullable=False)
 
     # Payment tracking
-    payment_status = Column(String(50), default="PENDING")  # PENDING, APPROVED, PAID, REJECTED
+    payment_status = Column(String(512), default="PENDING")  # PENDING, APPROVED, PAID, REJECTED
     invoice_number = Column(String(100))
     payment_date = Column(DateTime)
 

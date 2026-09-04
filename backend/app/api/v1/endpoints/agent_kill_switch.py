@@ -1,3 +1,5 @@
+import logging
+from app.core.logging import logger
 """Agent Kill Switch API - Execute and manage kill switches."""
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -8,7 +10,6 @@ from app.models.user import Users
 from app.services.agent_kill_switch_service import AgentKillSwitchService
 
 router = APIRouter(prefix="/agent-kill-switch", tags=["Agent Kill Switch"])
-
 
 @router.get("/evaluate/{agent_name}", dependencies=[Depends(require_resource_permission("admin-settings", "view"))])
 def evaluate_agent_for_kill_switch(
@@ -41,8 +42,8 @@ def evaluate_agent_for_kill_switch(
     except HTTPException:
         raise
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @router.get("/evaluate-all", dependencies=[Depends(require_resource_permission("admin-settings", "view"))])
 def evaluate_all_agents_for_kill_switch(
@@ -81,8 +82,8 @@ def evaluate_all_agents_for_kill_switch(
     except HTTPException:
         raise
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @router.post("/execute/{agent_name}", dependencies=[Depends(require_resource_permission("admin-settings", "edit"))])
 def execute_kill_switch(
@@ -134,8 +135,8 @@ def execute_kill_switch(
     except HTTPException:
         raise
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @router.post("/reenable/{agent_name}", dependencies=[Depends(require_resource_permission("admin-settings", "edit"))])
 def reenable_agent(
@@ -179,4 +180,5 @@ def reenable_agent(
     except HTTPException:
         raise
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))

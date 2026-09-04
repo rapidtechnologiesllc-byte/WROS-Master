@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 import sys
+import logging
 sys.path.insert(0, "/dev/OnboardingModule-Backend")
 
 from app.core.database import SessionLocal
 from app.models.role_template import RoleTemplate, Resource, Module
-from app.models.user import Users, UserRole
+from app.models.user import Users
 from app.services.role_template_permission_service import RoleTemplatePermissionService
 
 db = SessionLocal()

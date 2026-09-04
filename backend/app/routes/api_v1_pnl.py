@@ -1,8 +1,10 @@
 """
+import logging
 COMPLETE P&L REPORTING API ENDPOINTS - Production Grade
 
 Executive P&L dashboards, month-end close, and financial reporting.
 """
+import logging
 from datetime import date, datetime
 from typing import Optional, List
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -21,10 +23,10 @@ from app.services.revenue_recognition_service import (
 
 router = APIRouter(prefix="/api/v1/p-and-l", tags=["p-and-l"])
 
-
 # ============================================================================
 # REQUEST/RESPONSE MODELS
 # ============================================================================
+logger = logging.getLogger(__name__)
 
 class PandLLineItem(BaseModel):
     description: str
@@ -32,7 +34,6 @@ class PandLLineItem(BaseModel):
 
     class Config:
         from_attributes = True
-
 
 class PandLSummary(BaseModel):
     period: str  # YYYY-MM
@@ -59,7 +60,6 @@ class PandLSummary(BaseModel):
     class Config:
         from_attributes = True
 
-
 class ServiceBreakdownItem(BaseModel):
     service: str
     revenue_usd_cents: int
@@ -70,7 +70,6 @@ class ServiceBreakdownItem(BaseModel):
 
     class Config:
         from_attributes = True
-
 
 class ModuleBreakdownItem(BaseModel):
     module: str
@@ -83,7 +82,6 @@ class ModuleBreakdownItem(BaseModel):
     class Config:
         from_attributes = True
 
-
 class PricingModelBreakdownItem(BaseModel):
     pricing_model: str
     revenue_usd_cents: int
@@ -94,7 +92,6 @@ class PricingModelBreakdownItem(BaseModel):
 
     class Config:
         from_attributes = True
-
 
 class ClientOwnerItem(BaseModel):
     client_owner_id: str
@@ -108,7 +105,6 @@ class ClientOwnerItem(BaseModel):
 
     class Config:
         from_attributes = True
-
 
 class MonthEndClose(BaseModel):
     period: str
@@ -127,7 +123,6 @@ class MonthEndClose(BaseModel):
 
     class Config:
         from_attributes = True
-
 
 # ============================================================================
 # ENDPOINTS
@@ -174,8 +169,8 @@ def get_pnl_summary(
     except HTTPException:
         raise
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @router.get(
     "/by-service/{business_unit_id}",
@@ -217,8 +212,8 @@ def get_pnl_by_service(
     except HTTPException:
         raise
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @router.get(
     "/by-module/{business_unit_id}",
@@ -260,8 +255,8 @@ def get_pnl_by_module(
     except HTTPException:
         raise
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @router.get(
     "/by-pricing/{business_unit_id}",
@@ -303,8 +298,8 @@ def get_pnl_by_pricing(
     except HTTPException:
         raise
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @router.get(
     "/by-client-owner/{business_unit_id}",
@@ -344,8 +339,8 @@ def get_pnl_by_client_owner(
     except HTTPException:
         raise
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @router.get(
     "/month-end/{business_unit_id}/{month}",
@@ -383,8 +378,8 @@ def get_month_end_pnl(
     except HTTPException:
         raise
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @router.post(
     "/close-month",
@@ -477,9 +472,9 @@ def close_month_end(
         db.rollback()
         raise
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @router.get(
     "/trend/{business_unit_id}",
@@ -516,8 +511,8 @@ def get_revenue_trend(
     except HTTPException:
         raise
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @router.get(
     "/reconciliation/{business_unit_id}/{month}",
@@ -564,4 +559,5 @@ def get_reconciliation(
         return result
 
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))

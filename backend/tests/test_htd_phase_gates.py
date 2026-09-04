@@ -1,4 +1,5 @@
 """
+import logging
 S-360/HRMS-P506-REV -- HTD 4-Phase Gate Structure.
 
 Proves: no phase advance without an explicit PASS from the correct
@@ -34,7 +35,6 @@ from app.services.htd_phase_gate_service import (
 
 VALID_NOTE = "Completed all induction modules and shadowed three live client delivery sessions successfully."
 
-
 @pytest.fixture()
 def db_session():
     fd, db_path = tempfile.mkstemp(suffix=".sqlite3")
@@ -52,7 +52,6 @@ def db_session():
         engine.dispose()
         os.remove(db_path)
 
-
 @pytest.fixture()
 def employee(db_session):
     tenant = Tenant(name="BlitzenX")
@@ -66,7 +65,6 @@ def employee(db_session):
     db_session.commit()
     return emp
 
-
 def test_pass_advances_to_next_phase(db_session, employee):
     record_phase_gate_decision(
         db_session, employee, phase="INDUCTION", decision="PASS",
@@ -74,7 +72,6 @@ def test_pass_advances_to_next_phase(db_session, employee):
     )
     db_session.commit()
     assert employee.htd_phase == "SHADOW_DELIVERY"
-
 
 def test_full_sequence_reaches_completed(db_session, employee):
     steps = [
@@ -91,7 +88,6 @@ def test_full_sequence_reaches_completed(db_session, employee):
         db_session.commit()
     assert employee.htd_phase == "COMPLETED"
 
-
 def test_cannot_gate_a_phase_the_employee_is_not_in(db_session, employee):
     with pytest.raises(WrongPhaseForGate):
         record_phase_gate_decision(
@@ -100,14 +96,12 @@ def test_cannot_gate_a_phase_the_employee_is_not_in(db_session, employee):
         )
     assert employee.htd_phase == "INDUCTION"  # no quiet advance
 
-
 def test_wrong_gate_owner_role_rejected(db_session, employee):
     with pytest.raises(WrongGateOwnerForPhase):
         record_phase_gate_decision(
             db_session, employee, phase="INDUCTION", decision="PASS",
             gate_owner_user_id="U-TM", gate_owner_role="TECHNICAL_MANAGER", notes=VALID_NOTE,
         )
-
 
 def test_short_notes_rejected(db_session, employee):
     with pytest.raises(InvalidPhaseGateDecision):
@@ -116,7 +110,6 @@ def test_short_notes_rejected(db_session, employee):
             gate_owner_user_id="U-HR", gate_owner_role="HR", notes="too short",
         )
 
-
 def test_extend_keeps_employee_in_same_phase(db_session, employee):
     record_phase_gate_decision(
         db_session, employee, phase="INDUCTION", decision="EXTEND",
@@ -124,7 +117,6 @@ def test_extend_keeps_employee_in_same_phase(db_session, employee):
     )
     db_session.commit()
     assert employee.htd_phase == "INDUCTION"
-
 
 def test_second_extend_on_same_phase_blocked(db_session, employee):
     record_phase_gate_decision(
@@ -139,7 +131,6 @@ def test_second_extend_on_same_phase_blocked(db_session, employee):
             gate_owner_user_id="U-HR", gate_owner_role="HR", notes=VALID_NOTE,
         )
 
-
 def test_after_one_extension_pass_still_allowed(db_session, employee):
     record_phase_gate_decision(
         db_session, employee, phase="INDUCTION", decision="EXTEND",
@@ -153,7 +144,6 @@ def test_after_one_extension_pass_still_allowed(db_session, employee):
     db_session.commit()
     assert employee.htd_phase == "SHADOW_DELIVERY"
 
-
 def test_fail_leaves_employee_in_same_phase(db_session, employee):
     record_phase_gate_decision(
         db_session, employee, phase="INDUCTION", decision="FAIL",
@@ -162,18 +152,15 @@ def test_fail_leaves_employee_in_same_phase(db_session, employee):
     db_session.commit()
     assert employee.htd_phase == "INDUCTION"
 
-
 def test_exit_track_sets_performance_managed(db_session, employee):
     exit_htd_track(db_session, employee, reason=VALID_NOTE, changed_by="U-BUH")
     db_session.commit()
     assert employee.htd_phase == "EXITED"
     assert employee.status == "PERFORMANCE_MANAGED"
 
-
 def test_exit_track_requires_real_reason(db_session, employee):
     with pytest.raises(InvalidPhaseGateDecision):
         exit_htd_track(db_session, employee, reason="nope", changed_by="U-BUH")
-
 
 def test_every_decision_writes_certification_gate_event(db_session, employee):
     record_phase_gate_decision(

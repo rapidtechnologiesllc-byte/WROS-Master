@@ -1,4 +1,5 @@
 """
+import logging
 Phase 4, Part B -- Resource & Bench Management basics.
 
 `04-RESOURCE-MANAGEMENT.md` is explicit that no requirements doc exists
@@ -28,6 +29,7 @@ allocate_employee_to_project()'s existing AllocationOverCapacity check
 (HRMS-0803/HRMS-0508 -- already built, not duplicated here) actually
 blocks an attempt, for audit/reporting visibility.
 """
+import logging
 import uuid
 from datetime import datetime as datetime_type
 
@@ -37,10 +39,10 @@ from sqlalchemy import (
 
 from app.models.base import Base
 
-
 def _new_uuid() -> str:
     return str(uuid.uuid4())
 
+logger = logging.getLogger(__name__)
 
 class BenchPoolEntry(Base):
     """One row per employee currently on the bench. Deleted when they're
@@ -50,9 +52,9 @@ class BenchPoolEntry(Base):
 
     __tablename__ = "bench_pool"
 
-    id = Column(String(36), primary_key=True, default=_new_uuid)
+    id = Column(String(512), primary_key=True, default=_new_uuid)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
-    employee_id = Column(String(36), ForeignKey("employees.id"), nullable=False, unique=True, index=True)
+    employee_id = Column(String(512), ForeignKey("employees.id"), nullable=False, unique=True, index=True)
 
     available_from = Column(Date, nullable=False)
     # JSON-encoded array, mirrors Employee.current_skills's own convention.
@@ -65,9 +67,7 @@ class BenchPoolEntry(Base):
 
     created_at = Column(DateTime, server_default=func.now())
 
-
 BENCH_PERIOD_REASONS = ("PROJECT_ENDED", "PROJECT_DELAYED", "NEWLY_JOINED", "BETWEEN_PROJECTS", "OTHER")
-
 
 class BenchPeriod(Base):
     """S-246/HRMS-0502 (canonical) -- persistent, append-only history of
@@ -88,9 +88,9 @@ class BenchPeriod(Base):
 
     __tablename__ = "bench_periods"
 
-    id = Column(String(36), primary_key=True, default=_new_uuid)
+    id = Column(String(512), primary_key=True, default=_new_uuid)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
-    employee_id = Column(String(36), ForeignKey("employees.id"), nullable=False, index=True)
+    employee_id = Column(String(512), ForeignKey("employees.id"), nullable=False, index=True)
 
     bench_start_date = Column(Date, nullable=False)
     bench_end_date = Column(Date, nullable=True)  # NULL while still on bench
@@ -103,16 +103,15 @@ class BenchPeriod(Base):
 
     created_at = Column(DateTime, server_default=func.now())
 
-
 class EmployeeUtilizationMetric(Base):
     """Per-employee-per-week utilization snapshot, computed from real
     Timesheet data. See record_weekly_utilization_metric()."""
 
     __tablename__ = "employee_utilization_metrics"
 
-    id = Column(String(36), primary_key=True, default=_new_uuid)
+    id = Column(String(512), primary_key=True, default=_new_uuid)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
-    employee_id = Column(String(36), ForeignKey("employees.id"), nullable=False, index=True)
+    employee_id = Column(String(512), ForeignKey("employees.id"), nullable=False, index=True)
 
     period_start = Column(Date, nullable=False)  # always a Monday, matches Timesheet.week_starting_date
     utilization_pct = Column(Numeric(5, 2), nullable=False)
@@ -120,7 +119,6 @@ class EmployeeUtilizationMetric(Base):
     bench_hours = Column(Numeric(6, 2), nullable=False)
 
     created_at = Column(DateTime, server_default=func.now())
-
 
 class AllocationConflictLogEntry(Base):
     """Permanent record of a blocked over-capacity allocation attempt --
@@ -130,14 +128,14 @@ class AllocationConflictLogEntry(Base):
 
     __tablename__ = "allocation_conflict_log"
 
-    id = Column(String(36), primary_key=True, default=_new_uuid)
+    id = Column(String(512), primary_key=True, default=_new_uuid)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
-    employee_id = Column(String(36), ForeignKey("employees.id"), nullable=False, index=True)
+    employee_id = Column(String(512), ForeignKey("employees.id"), nullable=False, index=True)
 
     conflicting_allocation_ids_json = Column(Text, nullable=False)  # JSON-encoded array of EmployeeAllocation.id
     attempted_utilization_pct = Column(Numeric(5, 2), nullable=True)
     existing_utilization_pct = Column(Numeric(5, 2), nullable=True)
-    resolution = Column(String(50), nullable=True)  # NULL until someone actually resolves it
+    resolution = Column(String(512), nullable=True)  # NULL until someone actually resolves it
     resolved_at = Column(DateTime, nullable=True)
 
     detected_at = Column(DateTime, server_default=func.now())

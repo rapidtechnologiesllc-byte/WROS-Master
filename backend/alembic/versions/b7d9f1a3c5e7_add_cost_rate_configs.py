@@ -1,3 +1,4 @@
+import logging
 """add cost_rate_configs (EPIC-16 Fully Loaded Cost / Blended Delivery Rate)
 
 Revision ID: b7d9f1a3c5e7
@@ -11,12 +12,10 @@ from typing import Sequence, Union
 from alembic import op
 import sqlalchemy as sa
 
-
 revision: str = 'b7d9f1a3c5e7'
 down_revision: Union[str, Sequence[str], None] = 'a5c8e2f4b6d9'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
-
 
 def upgrade() -> None:
     """Upgrade schema."""
@@ -38,7 +37,6 @@ def upgrade() -> None:
     )
     op.create_index(op.f('ix_cost_rate_configs_tenant_id'), 'cost_rate_configs', ['tenant_id'], unique=False)
     op.create_index(op.f('ix_cost_rate_configs_business_unit_id'), 'cost_rate_configs', ['business_unit_id'], unique=False)
-
 
 def downgrade() -> None:
     """Downgrade schema."""

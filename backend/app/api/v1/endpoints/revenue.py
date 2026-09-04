@@ -4,6 +4,7 @@ HRMS-0906 (Revenue Realization & Leakage Detection) + HRMS-0903
 Revenue Realization Dashboard) -- API Endpoints
 =========================================================================
 Prefix: /revenue
+import logging
 Tag:    revenue
 
 Wires app.services.revenue_leakage_service and app.services.client_
@@ -19,7 +20,7 @@ client has no projects, matching client_revenue_dashboard_service.py's
 own "insufficient data, not a misleading number" convention -- this
 endpoint does not invent a different contract on top of it.
 
-Auth: get_current_hr_or_admin. Same RBAC "Finance" role gap noted in
+Auth: get_current_internal_user. Same RBAC "Finance" role gap noted in
 invoices.py applies here too.
 
 Routes:
@@ -37,7 +38,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_hr_or_admin
+from app.core.dependencies import get_current_internal_user, require_resource_permission
 from app.models.client import Client
 from app.models.project import Project
 from app.models.revenue_leakage import ReconciliationAlert, RevenueLeakageFlag
@@ -70,7 +71,6 @@ from app.services.revenue_scanning_service import (
 
 router = APIRouter(prefix="/revenue", tags=["revenue"])
 
-
 def _flag_to_item(flag: RevenueLeakageFlag) -> LeakageFlagItem:
     return LeakageFlagItem(
         id=flag.id, project_id=flag.project_id, period_start=flag.period_start, period_end=flag.period_end,
@@ -79,22 +79,21 @@ def _flag_to_item(flag: RevenueLeakageFlag) -> LeakageFlagItem:
         detected_at=flag.detected_at,
     )
 
-
 def _alert_to_item(alert: ReconciliationAlert) -> ReconciliationAlertItem:
     return ReconciliationAlertItem(
         id=alert.id, timesheet_id=alert.timesheet_id, employee_id=alert.employee_id,
         billable_hours=float(alert.billable_hours), status=alert.status, gap_detected_at=alert.gap_detected_at,
     )
 
-
 @router.post(
     "/leakage/scan", response_model=Optional[LeakageFlagItem],
+    dependencies=[Depends(get_current_internal_user)],
     summary="Scan a project+period for unbilled revenue leakage (null if too early or nothing unbilled)",
 )
 def scan_leakage(
     body: ScanLeakageRequest,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     project = db.query(Project).filter(Project.id == body.project_id).first()
     if project is None:
@@ -107,16 +106,16 @@ def scan_leakage(
     db.refresh(flag)
     return _flag_to_item(flag)
 
-
 @router.post(
     "/leakage/{flag_id}/log-reason", response_model=LeakageFlagItem,
+    dependencies=[Depends(get_current_internal_user)],
     summary="Log a reason (e.g. client-negotiated cap) that suppresses a leakage flag",
 )
 def log_leakage_reason(
     flag_id: str,
     body: LogPartialBillingReasonRequest,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     flag = db.query(RevenueLeakageFlag).filter(RevenueLeakageFlag.id == flag_id).first()
     if flag is None:
@@ -126,11 +125,15 @@ def log_leakage_reason(
     db.refresh(flag)
     return _flag_to_item(flag)
 
-
-@router.get("/leakage", response_model=LeakageFlagsResponse, summary="List active (unresolved) leakage flags (cached from daily scan)")
+@router.get(
+    "/leakage",
+    response_model=LeakageFlagsResponse,
+    summary="List active (unresolved) leakage flags (cached from daily scan)",
+    dependencies=[Depends(require_resource_permission("leakage", "view"))]
+)
 def list_leakage_flags(
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     """
     Returns cached revenue leakage results from the daily autonomous scan.
@@ -141,11 +144,15 @@ def list_leakage_flags(
     flags = get_active_leakage_flags(db, tenant_id=current_user.tenant_id)
     return LeakageFlagsResponse(flags=[_flag_to_item(f) for f in flags])
 
-
-@router.get("/leakage/statistics", response_model=dict, summary="Get revenue leakage statistics and totals")
+@router.get(
+    "/leakage/statistics",
+    response_model=dict,
+    summary="Get revenue leakage statistics and totals",
+    dependencies=[Depends(require_resource_permission("leakage", "view"))]
+)
 def get_leakage_statistics(
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     """
     Returns aggregate statistics about revenue leakage:
@@ -157,11 +164,15 @@ def get_leakage_statistics(
     stats = get_scan_statistics(db, tenant_id=current_user.tenant_id)
     return stats
 
-
-@router.post("/leakage/rescan-all", response_model=dict, summary="Manually trigger full revenue scan (secondary action)")
+@router.post(
+    "/leakage/rescan-all",
+    response_model=dict,
+    summary="Manually trigger full revenue scan (secondary action)",
+    dependencies=[Depends(require_resource_permission("leakage", "create"))]
+)
 def rescan_all_projects(
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     """
     Manually trigger a full scan of all projects for revenue leakage.
@@ -172,14 +183,14 @@ def rescan_all_projects(
     result = run_daily_revenue_scan_job(db)
     return result
 
-
 @router.post(
     "/reconciliation/scan", response_model=ReconciliationScanResponse,
+    dependencies=[Depends(get_current_internal_user)],
     summary="Find approved-but-uninvoiced timesheets past the grace period and create alerts",
 )
 def scan_reconciliation(
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     gaps = find_reconciliation_gaps(db, tenant_id=current_user.tenant_id)
     alerts = [create_reconciliation_alert(db, ts, tenant_id=current_user.tenant_id) for ts in gaps]
@@ -188,15 +199,15 @@ def scan_reconciliation(
         db.refresh(alert)
     return ReconciliationScanResponse(alerts=[_alert_to_item(a) for a in alerts])
 
-
 @router.get(
     "/reconciliation/alerts", response_model=ReconciliationAlertsResponse,
+    dependencies=[Depends(get_current_internal_user)],
     summary="List reconciliation alerts",
 )
 def list_reconciliation_alerts(
     status: Optional[str] = None,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     query = db.query(ReconciliationAlert).filter(ReconciliationAlert.tenant_id == current_user.tenant_id)
     if status:
@@ -204,15 +215,15 @@ def list_reconciliation_alerts(
     alerts = query.order_by(ReconciliationAlert.gap_detected_at.desc()).all()
     return ReconciliationAlertsResponse(alerts=[_alert_to_item(a) for a in alerts])
 
-
 @router.post(
     "/reconciliation/alerts/{alert_id}/resolve", response_model=ReconciliationAlertItem,
+    dependencies=[Depends(get_current_internal_user)],
     summary="Mark a reconciliation alert resolved",
 )
 def resolve_reconciliation_alert_endpoint(
     alert_id: str,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     alert = db.query(ReconciliationAlert).filter(ReconciliationAlert.id == alert_id).first()
     if alert is None:
@@ -222,15 +233,15 @@ def resolve_reconciliation_alert_endpoint(
     db.refresh(alert)
     return _alert_to_item(alert)
 
-
 @router.get(
     "/dashboard/clients/{client_id}", response_model=ClientRevenueDashboardResponse,
+    dependencies=[Depends(get_current_internal_user)],
     summary="Client revenue realization dashboard (internal only, estimate)",
 )
 def get_client_dashboard(
     client_id: str,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     client = db.query(Client).filter(Client.id == client_id).first()
     if client is None:

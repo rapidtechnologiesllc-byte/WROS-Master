@@ -1,4 +1,5 @@
 """
+import logging
 S-069/HRMS-0469 -- Multi-Channel Preference Detection.
 
 The doc's literal spec wants candidates.channel_preference (a new column)
@@ -29,7 +30,6 @@ from sqlalchemy.orm import Session
 from app.models.candidate_ai import CandidateConversation, ConversationEvent
 
 MIN_INBOUND_FOR_DETECTION = 3
-
 
 def detect_channel_preference(db: Session, conversation: CandidateConversation) -> Dict[str, Optional[object]]:
     """

@@ -1,4 +1,5 @@
-﻿from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone
+import logging
 from typing import Optional, List
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -6,7 +7,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_hr_or_admin, require_resource_permission
+from app.core.dependencies import get_current_internal_user, require_resource_permission
 from app.models import (
     Users, Candidate, Interview, InterviewPanel,
     InterviewFeedback, PanelMember,
@@ -17,6 +18,7 @@ from app.models import (
 )
 from app.utils.uniq_id_generator import panel_id_generator
 from app.services.email_service import EmailService
+from app.services.message_queue_service import MessageQueueService
 from app.services.interview_sequencing_service import (
     PriorRoundNotPassed,
     enforce_interview_sequencing_gate,
@@ -60,7 +62,6 @@ from app.schemas.interview import (
 
 router = APIRouter(prefix="/interviews", tags=["interviews"])
 
-
 # ============================================
 # Internal Helpers
 # ============================================
@@ -73,7 +74,6 @@ def _candidate_display_name(candidate: Candidate) -> str:
         candidate.candidateLastName or "",
     ]
     return " ".join(filter(None, parts)).strip() or "N/A"
-
 
 def _check_and_auto_submit_for_hire(interview: Interview, db: Session) -> None:
     """
@@ -110,7 +110,7 @@ def _check_and_auto_submit_for_hire(interview: Interview, db: Session) -> None:
     if len(completed_interviews) < 2:
         return
 
-    # --- All conditions met â†’ auto-promote to 'Pre-onboarding-Approval' ---
+    # --- All conditions met â†' auto-promote to 'Pre-onboarding-Approval' ---
     old_status = cs.piplineStatus
     cs.piplineStatus = "Pre-onboarding-Approval"
 
@@ -130,7 +130,7 @@ def _check_and_auto_submit_for_hire(interview: Interview, db: Session) -> None:
 
     logger.info(
         f"[AutoHire] Candidate '{candidate_id}' promoted "
-        f"'{old_status}' â†’ 'Pre-onboarding-Approval' after {len(completed_interviews)} completed interviews."
+        f"'{old_status}' â†' 'Pre-onboarding-Approval' after {len(completed_interviews)} completed interviews."
     )
 
     # --- Notify the hiring manager ---
@@ -205,13 +205,13 @@ def _check_and_auto_submit_for_hire(interview: Interview, db: Session) -> None:
             )
             logger.info(f"[AutoHire] Approval-request email sent to hiring manager: {hiring_manager_email}")
         except Exception as exc:
+            logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.warning(f"[AutoHire] Could not send hiring manager email: {exc}")
     else:
         logger.warning(f"[AutoHire] No hiring manager email found for candidate '{candidate_id}'.")
 
-
 # ---------------------------------------------------------------------------
-# Feedback submitted â€” email notification
+# Feedback submitted --" email notification
 # ---------------------------------------------------------------------------
 
 def _notify_feedback_submitted(
@@ -249,11 +249,11 @@ def _notify_feedback_submitted(
         )
 
     except Exception as exc:
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[FeedbackNotify-DEFECT13] Non-critical notification error: {exc}")
 
-
 # ---------------------------------------------------------------------------
-# Feedback reminder scheduler â€” fires after interview ends
+# Feedback reminder scheduler --" fires after interview ends
 # ---------------------------------------------------------------------------
 
 def _schedule_feedback_reminders(interview: Interview, db: Session) -> None:
@@ -274,7 +274,7 @@ def _schedule_feedback_reminders(interview: Interview, db: Session) -> None:
 
     interview_id = interview.id
 
-    # â”€â”€ Baseline: interview end time (or start + 1 h as fallback) â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # â"€â"€ Baseline: interview end time (or start + 1 h as fallback) â"€â"€â"€â"€â"€â"€â"€â"€â"€
     raw_end = interview.end_time or (
         interview.start_time + timedelta(hours=1) if interview.start_time else None
     )
@@ -287,7 +287,7 @@ def _schedule_feedback_reminders(interview: Interview, db: Session) -> None:
 
     end_ist = raw_end.replace(tzinfo=IST) if raw_end.tzinfo is None else raw_end
 
-    # â”€â”€ Collect panel members â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # â"€â"€ Collect panel members â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
     panel = db.query(InterviewPanel).filter(
         InterviewPanel.id == interview.panel_id
     ).first()
@@ -314,7 +314,7 @@ def _schedule_feedback_reminders(interview: Interview, db: Session) -> None:
     for member in members:
         member_id = member.interviewer_id
 
-        # Fix 1: skip members who already submitted â€” no point reminding them
+        # Fix 1: skip members who already submitted --" no point reminding them
         already_done = db.query(InterviewFeedback).filter(
             InterviewFeedback.interview_id == interview_id,
             InterviewFeedback.interviewer_id == member_id,
@@ -322,7 +322,7 @@ def _schedule_feedback_reminders(interview: Interview, db: Session) -> None:
         if already_done:
             logger.info(
                 f"[FeedbackReminder] Skipping reminder scheduling for member "
-                f"{member_id} on interview {interview_id} â€” feedback already submitted."
+                f"{member_id} on interview {interview_id} -- feedback already submitted."
             )
             continue
 
@@ -332,7 +332,7 @@ def _schedule_feedback_reminders(interview: Interview, db: Session) -> None:
             if fire_at <= now:
                 logger.info(
                     f"[FeedbackReminder] Skipping {suffix} reminder for member "
-                    f"{member_id} on interview {interview_id} â€” already past."
+                    f"{member_id} on interview {interview_id} -- already past."
                 )
                 continue
 
@@ -353,7 +353,7 @@ def _schedule_feedback_reminders(interview: Interview, db: Session) -> None:
                 __candidate_name=_candidate_name,
                 __round_name=_round_name,
             ):
-                """Async APScheduler job â€” send feedback reminder if not yet submitted."""
+                """Async APScheduler job --" send feedback reminder if not yet submitted."""
                 from app.core.database import SessionLocal
                 _db = SessionLocal()
                 try:
@@ -371,7 +371,7 @@ def _schedule_feedback_reminders(interview: Interview, db: Session) -> None:
                     if already_submitted:
                         logger.info(
                             f"[FeedbackReminder] Skipping {__label} reminder for member "
-                            f"{__member_id} on interview {__interview_id} â€” feedback already submitted."
+                            f"{__member_id} on interview {__interview_id} -- feedback already submitted."
                         )
                         return
 
@@ -389,7 +389,7 @@ def _schedule_feedback_reminders(interview: Interview, db: Session) -> None:
                         event_type="action_required",
                         heading=(
                             f"Reminder: Please Submit Your Interview Feedback "
-                            f"â€” {__candidate_name} | {__round_name}"
+                            f"-- {__candidate_name} | {__round_name}"
                         ),
                         message=(
                             f"Dear <strong>{interviewer_name}</strong>,<br><br>"
@@ -411,6 +411,7 @@ def _schedule_feedback_reminders(interview: Interview, db: Session) -> None:
                     )
 
                 except Exception as exc:
+                    logger.error(f"Error: {str(exc)}", exc_info=True)
                     logger.error(
                         f"[FeedbackReminder] Error in reminder job for interview "
                         f"{__interview_id}, member {__member_id}: {exc}"
@@ -431,11 +432,11 @@ def _schedule_feedback_reminders(interview: Interview, db: Session) -> None:
                     f"{member_id} on interview {interview_id} at {_fire_at.isoformat()} (IST)"
                 )
             except Exception as exc:
+                logger.error(f"Error: {str(exc)}", exc_info=True)
                 logger.warning(
                     f"[FeedbackReminder] Could not schedule {suffix} reminder "
                     f"for member {member_id}: {exc}"
                 )
-
 
 def _cancel_feedback_reminders(interview_id: int, member_id: str) -> None:
     """
@@ -456,11 +457,11 @@ def _cancel_feedback_reminders(interview_id: int, member_id: str) -> None:
                     f"{member_id} on interview {interview_id} (feedback submitted)."
                 )
         except Exception as exc:
+            logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.warning(
                 f"[FeedbackReminder] Could not cancel {suffix} reminder "
                 f"for member {member_id} on interview {interview_id}: {exc}"
             )
-
 
 def _cancel_all_feedback_reminders(interview_id: int, db: Session) -> None:
     """
@@ -476,7 +477,6 @@ def _cancel_all_feedback_reminders(interview_id: int, db: Session) -> None:
     ).all()
     for member in members:
         _cancel_feedback_reminders(interview_id, member.interviewer_id)
-
 
 def _cancel_interview_reminders(interview_id: int) -> None:
     """
@@ -494,11 +494,11 @@ def _cancel_interview_reminders(interview_id: int) -> None:
                     f"for interview {interview_id}."
                 )
         except Exception as exc:
+            logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.warning(
                 f"[InterviewReminder] Could not cancel {suffix} reminder "
                 f"for interview {interview_id}: {exc}"
             )
-
 
 def _schedule_interview_reminder(interview: Interview, db: Session) -> None:
     """
@@ -510,11 +510,11 @@ def _schedule_interview_reminder(interview: Interview, db: Session) -> None:
 
     FIX: The DB stores start_time as a *naive* local time (IST, UTC+5:30).
     APScheduler is configured with timezone="UTC", so a naive datetime passed
-    as run_date is interpreted as UTC â€” causing reminders to fire 5.5 h late.
+    as run_date is interpreted as UTC --" causing reminders to fire 5.5 h late.
     We attach the IST offset to make the datetime timezone-aware, which
     APScheduler then correctly converts to its UTC timeline.
 
-    Safe to call on both create and update â€” replaces any existing jobs so the
+    Safe to call on both create and update --" replaces any existing jobs so the
     reminder always matches the current start_time.
     """
     IST = timezone(timedelta(hours=5, minutes=30))  # UTC+05:30
@@ -542,7 +542,7 @@ def _schedule_interview_reminder(interview: Interview, db: Session) -> None:
         if fire_at <= now_local:
             logger.info(
                 f"[InterviewReminder] Skipping '{label}' reminder for interview {interview_id} "
-                f"â€” fire time {fire_at.isoformat()} is already past."
+                f"-- fire time {fire_at.isoformat()} is already past."
             )
             continue
 
@@ -556,7 +556,6 @@ def _schedule_interview_reminder(interview: Interview, db: Session) -> None:
             _reminder_label=_label,
         ):
             """Async job executed by APScheduler."""
-            from app.core.database import SessionLocal
             _db = SessionLocal()
             try:
                 iv = _db.query(Interview).filter(Interview.id == _interview_id).first()
@@ -572,7 +571,7 @@ def _schedule_interview_reminder(interview: Interview, db: Session) -> None:
                 start_str  = iv.start_time.strftime("%d %b %Y, %I:%M %p") if iv.start_time else "N/A"
                 end_str    = iv.end_time.strftime("%d %b %Y, %I:%M %p")   if iv.end_time   else "N/A"
 
-                # â”€â”€ Email to candidate â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+                # â"€â"€ Email to candidate â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
                 if cand and cand.candidateEmail:
                     cand_name = _candidate_display_name(cand)
                     try:
@@ -583,9 +582,9 @@ def _schedule_interview_reminder(interview: Interview, db: Session) -> None:
                                 f"Dear <strong>{cand_name}</strong>,<br><br>"
                                 f"This is a reminder that your <strong>{round_name}</strong> interview "
                                 f"is scheduled to begin in <strong>{_reminder_label}</strong>.<br><br>"
-                                f"âš¡ <strong>Start:</strong> {start_str}<br>"
+                                f"<strong>Start:</strong> {start_str}<br>"
                                 f"ðŸ• <strong>End:</strong>   {end_str}<br>"
-                                + (f"ðŸ”— <strong>Meeting Link:</strong> "
+                                + (f"<strong>Meeting Link:</strong> "
                                    f"<a href='{iv.meeting_link}'>{iv.meeting_link}</a><br>"
                                    if iv.meeting_link else "")
                                 + "<br>Please ensure you are ready and join on time. Best of luck!"
@@ -596,9 +595,10 @@ def _schedule_interview_reminder(interview: Interview, db: Session) -> None:
                             f"{cand.candidateEmail}"
                         )
                     except Exception as exc:
+                        logger.error(f"Error: {str(exc)}", exc_info=True)
                         logger.warning(f"[InterviewReminder] Could not email candidate: {exc}")
 
-                # â”€â”€ Emails to panel members â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+                # â"€â"€ Emails to panel members â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
                 if panel:
                     members = _db.query(PanelMember).filter(PanelMember.panel_id == panel.id).all()
                     for member in members:
@@ -612,16 +612,16 @@ def _schedule_interview_reminder(interview: Interview, db: Session) -> None:
                                     to_email=interviewer.UserEmail,
                                     heading=(
                                         f"Reminder: Interview in {_reminder_label} "
-                                        f"â€” {round_name}"
+                                        f"-- {round_name}"
                                     ),
                                     message=(
                                         f"Dear <strong>{interviewer.UserName or 'Interviewer'}</strong>,<br><br>"
                                         f"This is a reminder that the <strong>{round_name}</strong> interview "
                                         f"for candidate <strong>{cand_name}</strong> begins in "
                                         f"<strong>{_reminder_label}</strong>.<br><br>"
-                                        f"âš¡ <strong>Start:</strong> {start_str}<br>"
+                                        f"<strong>Start:</strong> {start_str}<br>"
                                         f"ðŸ• <strong>End:</strong>   {end_str}<br>"
-                                        + (f"ðŸ”— <strong>Meeting Link:</strong> "
+                                        + (f"<strong>Meeting Link:</strong> "
                                            f"<a href='{iv.meeting_link}'>{iv.meeting_link}</a><br>"
                                            if iv.meeting_link else "")
                                     ),
@@ -631,11 +631,13 @@ def _schedule_interview_reminder(interview: Interview, db: Session) -> None:
                                     f"panel member {interviewer.UserEmail}"
                                 )
                             except Exception as exc:
+                                logger.error(f"Error: {str(exc)}", exc_info=True)
                                 logger.warning(
                                     f"[InterviewReminder] Could not email panel member "
                                     f"{interviewer.UserID}: {exc}"
                                 )
             except Exception as exc:
+                logger.error(f"Error: {str(exc)}", exc_info=True)
                 logger.error(f"[InterviewReminder] Unexpected error in reminder job: {exc}")
             finally:
                 _db.close()
@@ -644,7 +646,7 @@ def _schedule_interview_reminder(interview: Interview, db: Session) -> None:
             scheduler.add_job(
                 _send_reminder,
                 trigger="date",
-                run_date=_fire_at,          # timezone-aware IST â†’ scheduler converts to UTC
+                run_date=_fire_at,          # timezone-aware IST â†' scheduler converts to UTC
                 id=_job_id,
                 replace_existing=True,
             )
@@ -653,11 +655,11 @@ def _schedule_interview_reminder(interview: Interview, db: Session) -> None:
                 f"{interview_id} at {_fire_at.isoformat()} (IST)"
             )
         except Exception as exc:
+            logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.warning(
                 f"[InterviewReminder] Could not schedule [{_label}] reminder "
                 f"for interview {interview_id}: {exc}"
             )
-
 
 def _resolve_hiring_manager_id_for_interview(db: Session, interview: Interview) -> str | None:
     """Backlog item, 2026-08-05: same 3-priority HM resolution
@@ -682,7 +684,6 @@ def _resolve_hiring_manager_id_for_interview(db: Session, interview: Interview) 
             return job.hiringManagerID
 
     return None
-
 
 def _create_hm_review_task(db: Session, interview: Interview) -> None:
     """Backlog item, 2026-08-05 (wros_hm_candidate_review_task_link_backlog):
@@ -725,8 +726,8 @@ def _create_hm_review_task(db: Session, interview: Interview) -> None:
         db.add(task)
         db.commit()
     except Exception as exc:
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[HMReviewTask] Failed to create review task for interview {interview.id}: {exc}")
-
 
 # ============================================
 # NOTE: Hiring Manager review endpoint moved
@@ -735,20 +736,20 @@ def _create_hm_review_task(db: Session, interview: Interview) -> None:
 #   app/api/v1/endpoints/preonboarding.py
 #   GET /preonboarding/hiring-manager/review
 
-
 # ============================================
 # Interview Panel Endpoints
 # ============================================
 
 @router.post(
     "/panels/create",
+    dependencies=[Depends(get_current_internal_user)],
     response_model=InterviewPanelResponse,
     status_code=201,
 )
 def create_interview_panel(
     request: InterviewPanelCreate,
     db: Session = Depends(get_db),
-    user = Depends(get_current_hr_or_admin)
+    user = Depends(get_current_internal_user)
 ):
     """
     Create a new interview panel for a candidate.
@@ -854,7 +855,6 @@ def create_interview_panel(
         rehire_cleared_by=rehire_cleared_by,
     )
 
-
 @router.get(
     "/panels/{panel_id}",
     response_model=InterviewPanelWithDetails,
@@ -863,7 +863,7 @@ def create_interview_panel(
 def get_interview_panel(
     panel_id: int,
     db: Session = Depends(get_db),
-    user = Depends(get_current_hr_or_admin)
+    user = Depends(get_current_internal_user)
 ):
     """
     Get details of a specific interview panel.
@@ -919,7 +919,6 @@ def get_interview_panel(
         interview_count=interview_count
     )
 
-
 @router.get(
     "/panels",
     response_model=List[InterviewPanelWithDetails],
@@ -930,7 +929,7 @@ def get_all_interview_panels(
     round_name: Optional[str] = Query(None, description="Filter by round name"),
     job_id: Optional[str] = Query(None, description="Filter by job ID"),
     db: Session = Depends(get_db),
-    user = Depends(get_current_hr_or_admin)
+    user = Depends(get_current_internal_user)
 ):
     """
     Get all interview panels with optional filtering.
@@ -993,16 +992,16 @@ def get_all_interview_panels(
 
     return results
 
-
 @router.delete(
     "/panels/{panel_id}",
+    dependencies=[Depends(get_current_internal_user)],
     response_model=DeleteResponse,
 
 )
 def delete_interview_panel(
     panel_id: int,
     db: Session = Depends(get_db),
-    user = Depends(get_current_hr_or_admin)
+    user = Depends(get_current_internal_user)
 ):
     """
     Delete an interview panel and all associated data.
@@ -1045,7 +1044,6 @@ def delete_interview_panel(
         message=f"Interview panel {panel_id} and all associated data deleted successfully"
     )
 
-
 # ============================================
 # Rehire Guard Endpoints (2026-08-05)
 # ============================================
@@ -1077,15 +1075,15 @@ def _rehire_review_to_response(db: Session, review: InterviewRehireReview) -> Re
         created_at=review.created_at,
     )
 
-
 @router.get(
     "/rehire-reviews",
+    dependencies=[Depends(get_current_internal_user)],
     response_model=RehireReviewListResponse,
 
 )
 def list_rehire_reviews(
     db: Session = Depends(get_db),
-    user = Depends(get_current_hr_or_admin),
+    user = Depends(get_current_internal_user),
 ):
     """
     Pending rehire-guard reviews awaiting a hiring manager's decision --
@@ -1099,9 +1097,9 @@ def list_rehire_reviews(
         reviews=[_rehire_review_to_response(db, r) for r in reviews],
     )
 
-
 @router.post(
     "/rehire-reviews/{review_id}/decide",
+    dependencies=[Depends(get_current_internal_user)],
     response_model=RehireReviewResponse,
 
 )
@@ -1109,7 +1107,7 @@ def decide_rehire_review_endpoint(
     review_id: int,
     request: RehireReviewDecideRequest,
     db: Session = Depends(get_db),
-    user = Depends(get_current_hr_or_admin),
+    user = Depends(get_current_internal_user),
 ):
     """
     Hiring manager approves or rejects a pending rehire review. Approve
@@ -1128,7 +1126,6 @@ def decide_rehire_review_endpoint(
         raise HTTPException(status_code=409, detail=str(exc))
 
     return _rehire_review_to_response(db, review)
-
 
 def _panel_diversity_warning(db: Session, panel: InterviewPanel, interviewer_id: str) -> str | None:
     """Backlog item, 2026-08-05 (wros_interview_regrouping_and_rehire_guard_priority):
@@ -1166,13 +1163,13 @@ def _panel_diversity_warning(db: Session, panel: InterviewPanel, interviewer_id:
         f"a fresh perspective."
     )
 
-
 # ============================================
 # Panel Member Endpoints
 # ============================================
 
 @router.post(
     "/panel-members/assign",
+    dependencies=[Depends(get_current_internal_user)],
     response_model=PanelMemberResponse,
     status_code=201,
 
@@ -1180,7 +1177,7 @@ def _panel_diversity_warning(db: Session, panel: InterviewPanel, interviewer_id:
 def assign_panel_member(
     request: PanelMemberCreate,
     db: Session = Depends(get_db),
-    user = Depends(get_current_hr_or_admin)
+    user = Depends(get_current_internal_user)
 ):
     """
     Assign an interviewer to an interview panel.
@@ -1255,6 +1252,7 @@ def assign_panel_member(
                 f"{request.interviewer_id} on interview {iv.id}."
             )
     except Exception as exc:
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(
             f"[FeedbackReminder] Could not schedule reminders for new panel member "
             f"{request.interviewer_id}: {exc}"
@@ -1267,7 +1265,6 @@ def assign_panel_member(
         diversity_warning=diversity_warning,
     )
 
-
 @router.get(
     "/panel-members/{panel_id}",
     response_model=List[PanelMemberWithDetails],
@@ -1276,7 +1273,7 @@ def assign_panel_member(
 def get_panel_members(
     panel_id: int,
     db: Session = Depends(get_db),
-    user = Depends(get_current_hr_or_admin)
+    user = Depends(get_current_internal_user)
 ):
     """
     Get all members of a specific panel.
@@ -1320,16 +1317,16 @@ def get_panel_members(
 
     return results
 
-
 @router.delete(
     "/panel-members/{member_id}",
+    dependencies=[Depends(get_current_internal_user)],
     response_model=DeleteResponse,
 
 )
 def remove_panel_member(
     member_id: int,
     db: Session = Depends(get_db),
-    user = Depends(get_current_hr_or_admin)
+    user = Depends(get_current_internal_user)
 ):
     """
     Remove an interviewer from a panel.
@@ -1360,13 +1357,13 @@ def remove_panel_member(
         message=f"Panel member {member_id} removed successfully"
     )
 
-
 # ============================================
 # Interview Endpoints
 # ============================================
 
 @router.post(
     "/create",
+    dependencies=[Depends(get_current_internal_user)],
     response_model=InterviewResponse,
     status_code=201,
 
@@ -1374,19 +1371,19 @@ def remove_panel_member(
 def create_interview(
     request: InterviewCreate,
     db: Session = Depends(get_db),
-    user = Depends(get_current_hr_or_admin)
+    user = Depends(get_current_internal_user)
 ):
     """
     Create a new interview.
-    
+
     Args:
         request: InterviewCreate with interview details
         db: Database session
         user: Authenticated HR/Admin user
-        
+
     Returns:
         InterviewResponse with interview details
-        
+
     Raises:
         HTTPException: If panel or candidate not found, or time validation fails
     """
@@ -1397,7 +1394,7 @@ def create_interview(
             status_code=404,
             detail=f"Interview panel with ID {request.panel_id} not found"
         )
-    
+
     # Verify candidate exists
     candidate = db.query(Candidate).filter(Candidate.candidateID == request.candidate_id).first()
     if not candidate:
@@ -1405,14 +1402,14 @@ def create_interview(
             status_code=404,
             detail=f"Candidate with ID {request.candidate_id} not found"
         )
-    
+
     # Validate time
     if request.end_time <= request.start_time:
         raise HTTPException(
             status_code=400,
             detail="End time must be after start time"
         )
-    
+
     # Create interview
     interview = Interview(
         panel_id=request.panel_id,
@@ -1423,8 +1420,29 @@ def create_interview(
         outlook_event_id=request.outlook_event_id,
         status=request.status
     )
-    
+
     db.add(interview)
+
+    # Queue interview_scheduled message (BEFORE commit for atomicity)
+    MessageQueueService.enqueue(
+        message_type="interview_scheduled",
+        payload={
+            "interview_id": interview.id,
+            "candidate_id": request.candidate_id,
+            "panel_id": request.panel_id,
+            "start_time": request.start_time.isoformat() if hasattr(request.start_time, 'isoformat') else str(request.start_time),
+            "end_time": request.end_time.isoformat() if hasattr(request.end_time, 'isoformat') else str(request.end_time),
+            "meeting_link": request.meeting_link,
+            "candidate_email": candidate.candidateEmail,
+            "candidate_name": f"{candidate.candidateFirstName or ''} {candidate.candidateLastName or ''}".strip(),
+        },
+        resource_id=request.candidate_id,
+        queue_type="EMAIL_QUEUE",
+        created_by=user.UserID,
+        db=db,
+    )
+
+    # ATOMIC COMMIT
     db.commit()
     db.refresh(interview)
 
@@ -1435,6 +1453,7 @@ def create_interview(
     try:
         _schedule_feedback_reminders(interview, db)
     except Exception as exc:
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[FeedbackReminder] Scheduler error on create (non-critical): {exc}")
 
     # Backlog item, 2026-08-05: real Task Dashboard entries for each
@@ -1453,13 +1472,13 @@ def create_interview(
         status=interview.status
     )
 
-
 # ============================================
 # My Interviews Endpoint
 # ============================================
 
 @router.get(
     "/my-interviews",
+    dependencies=[Depends(get_current_internal_user)],
     response_model=MyInterviewsResponse,
     summary="Get my interviews",
     description=(
@@ -1470,7 +1489,7 @@ def create_interview(
 def get_my_interviews(
     status: Optional[str] = Query(None, description="Filter by interview status (Scheduled, Completed, Cancelled)"),
     db: Session = Depends(get_db),
-    user = Depends(get_current_hr_or_admin)
+    user = Depends(get_current_internal_user)
 ):
     """
     Get all interviews where the current user is a panel member.
@@ -1597,7 +1616,6 @@ def get_my_interviews(
         interviews=results
     )
 
-
 @router.get(
     "/{interview_id}",
     response_model=InterviewDetailedResponse,
@@ -1606,7 +1624,7 @@ def get_my_interviews(
 def get_interview(
     interview_id: int,
     db: Session = Depends(get_db),
-    user = Depends(get_current_hr_or_admin)
+    user = Depends(get_current_internal_user)
 ):
     """
     Get details of a specific interview.
@@ -1667,7 +1685,6 @@ def get_interview(
         feedback_status=interview.feedback_status,
     )
 
-
 @router.get(
     "",
     response_model=List[InterviewDetailedResponse],
@@ -1678,7 +1695,7 @@ def get_all_interviews(
     panel_id: Optional[int] = Query(None, description="Filter by panel ID"),
     status: Optional[str] = Query(None, description="Filter by status"),
     db: Session = Depends(get_db),
-    user = Depends(get_current_hr_or_admin)
+    user = Depends(get_current_internal_user)
 ):
     """
     Get all interviews with optional filtering.
@@ -1746,9 +1763,9 @@ def get_all_interviews(
     
     return results
 
-
 @router.put(
     "/{interview_id}",
+    dependencies=[Depends(get_current_internal_user)],
     response_model=InterviewResponse,
 
 )
@@ -1756,7 +1773,7 @@ def update_interview(
     interview_id: int,
     request: InterviewUpdate,
     db: Session = Depends(get_db),
-    user = Depends(get_current_hr_or_admin)
+    user = Depends(get_current_internal_user)
 ):
     """
     Update an existing interview.
@@ -1817,11 +1834,13 @@ def update_interview(
                 f"{interview.id} (status: {interview.status})."
             )
         except Exception as exc:
+            logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.warning(f"[FeedbackReminder] Cancel-all error on update (non-critical): {exc}")
     else:
         try:
             _schedule_feedback_reminders(interview, db)
         except Exception as exc:
+            logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.warning(f"[FeedbackReminder] Scheduler error on update (non-critical): {exc}")
 
     # Backlog item, 2026-08-05: create the HM review Task the first time
@@ -1842,16 +1861,16 @@ def update_interview(
         status=interview.status
     )
 
-
 @router.delete(
     "/{interview_id}",
+    dependencies=[Depends(get_current_internal_user)],
     response_model=DeleteResponse,
 
 )
 def delete_interview(
     interview_id: int,
     db: Session = Depends(get_db),
-    user = Depends(get_current_hr_or_admin)
+    user = Depends(get_current_internal_user)
 ):
     """
     Delete an interview and all associated feedback.
@@ -1879,10 +1898,12 @@ def delete_interview(
     try:
         _cancel_all_feedback_reminders(interview_id, db)
     except Exception as exc:
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[FeedbackReminder] Cancel-all error on delete (non-critical): {exc}")
     try:
         _cancel_interview_reminders(interview_id)
     except Exception as exc:
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[InterviewReminder] Cancel error on delete (non-critical): {exc}")
 
     # Delete all associated feedback
@@ -1897,7 +1918,6 @@ def delete_interview(
         message=f"Interview {interview_id} and all associated feedback deleted successfully"
     )
 
-
 # ============================================
 # Interview Feedback Endpoints
 # ============================================
@@ -1911,7 +1931,7 @@ def delete_interview(
 def submit_interview_feedback(
     request: InterviewFeedbackCreate,
     db: Session = Depends(get_db),
-    user = Depends(get_current_hr_or_admin)
+    user = Depends(get_current_internal_user)
 ):
     """
     Submit interview feedback.
@@ -2009,29 +2029,49 @@ def submit_interview_feedback(
                     interview.feedback_status = "Completed"
                     db.commit()
                     logger.info(
-                        f"[FeedbackComplete] Interview #{interview.id} marked as 'Completed' â€” "
+                        f"[FeedbackComplete] Interview #{interview.id} marked as Completed - "
                         f"all {len(panel_member_ids)} panel member(s) have submitted feedback."
                     )
+
+                    # Wire SLM: Record interview outcome
+                    try:
+                        from app.services.slm_job_metadata_service import SLMJobMetadataService
+                        if interview.job_id:
+                            SLMJobMetadataService.record_hiring_outcome(
+                                db=db,
+                                job_id=str(interview.job_id),
+                                candidate_interviewed=True
+                            )
+                            logger.info(f"[SLM] Recorded interview completion for job: {interview.job_id}")
+                    except Exception as e:
+                        logger.error(f"Error: {str(e)}", exc_info=True)
+                        logger.error(f"[SLM] Failed to record interview outcome: {e}", exc_info=True)
+                        # Continue - SLM failure should not block interview processing
+
                     _create_hm_review_task(db, interview)
     except Exception as exc:
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[FeedbackComplete] Auto-complete check failed non-critically: {exc}")
 
     # Auto-hire check: promote to Approval if all interviews are Hire/Must Hire
     try:
         _check_and_auto_submit_for_hire(interview, db)
     except Exception as exc:
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[AutoHire] check failed non-critically: {exc}")
 
-    # â”€â”€ Notify HM + HR + panel members that feedback was submitted â”€â”€â”€â”€â”€â”€â”€â”€
+    # â"€â"€ Notify HM + HR + panel members that feedback was submitted â"€â"€â"€â"€â"€â"€â"€â"€
     try:
         _notify_feedback_submitted(interview, feedback, user, db)
     except Exception as exc:
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[FeedbackNotify] Notification error (non-critical): {exc}")
 
-    # â”€â”€ Cancel pending feedback reminders for the member who just submitted â”€â”€
+    # â"€â"€ Cancel pending feedback reminders for the member who just submitted â"€â"€
     try:
         _cancel_feedback_reminders(interview.id, request.interviewer_id)
     except Exception as exc:
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[FeedbackReminder] Cancel error (non-critical): {exc}")
 
     return InterviewFeedbackResponse(
@@ -2047,7 +2087,6 @@ def submit_interview_feedback(
         submitted_at=feedback.submitted_at
     )
 
-
 @router.get(
     "/feedback/interview/{interview_id}",
     response_model=List[InterviewFeedbackWithDetails],
@@ -2056,7 +2095,7 @@ def submit_interview_feedback(
 def get_feedback_by_interview(
     interview_id: int,
     db: Session = Depends(get_db),
-    user = Depends(get_current_hr_or_admin)
+    user = Depends(get_current_internal_user)
 ):
     """
     Get all feedback for a specific interview.
@@ -2113,12 +2152,15 @@ def get_feedback_by_interview(
     
     return results
 
-
-@router.get("/feedback/{feedback_id}", response_model=InterviewFeedbackWithDetails)
+@router.get(
+    "/feedback/{feedback_id}",
+    response_model=InterviewFeedbackWithDetails,
+    dependencies=[Depends(require_resource_permission("feedback", "view"))]
+)
 def get_feedback_by_id(
     feedback_id: int,
     db: Session = Depends(get_db),
-    user = Depends(get_current_hr_or_admin)
+    user = Depends(get_current_internal_user)
 ):
     """
     Get specific feedback details.
@@ -2167,13 +2209,16 @@ def get_feedback_by_id(
         submitted_at=feedback.submitted_at
     )
 
-
-@router.put("/feedback/{feedback_id}", response_model=InterviewFeedbackResponse)
+@router.put(
+    "/feedback/{feedback_id}",
+    response_model=InterviewFeedbackResponse,
+    dependencies=[Depends(require_resource_permission("feedback", "update"))]
+)
 def update_interview_feedback(
     feedback_id: int,
     request: InterviewFeedbackUpdate,
     db: Session = Depends(get_db),
-    user = Depends(get_current_hr_or_admin)
+    user = Depends(get_current_internal_user)
 ):
     """
     Update existing interview feedback.
@@ -2234,12 +2279,15 @@ def update_interview_feedback(
         submitted_at=feedback.submitted_at
     )
 
-
-@router.delete("/feedback/{feedback_id}", response_model=DeleteResponse)
+@router.delete(
+    "/feedback/{feedback_id}",
+    response_model=DeleteResponse,
+    dependencies=[Depends(require_resource_permission("feedback", "delete"))]
+)
 def delete_interview_feedback(
     feedback_id: int,
     db: Session = Depends(get_db),
-    user = Depends(get_current_hr_or_admin)
+    user = Depends(get_current_internal_user)
 ):
     """
     Delete interview feedback.
@@ -2270,15 +2318,18 @@ def delete_interview_feedback(
         message=f"Feedback {feedback_id} deleted successfully"
     )
 
-
 # ============================================
 # Statistics and Analytics Endpoints
 # ============================================
 
-@router.get("/statistics", response_model=InterviewStatistics)
+@router.get(
+    "/statistics",
+    response_model=InterviewStatistics,
+    dependencies=[Depends(require_resource_permission("statistic", "view"))]
+)
 def get_interview_statistics(
     db: Session = Depends(get_db),
-    user = Depends(get_current_hr_or_admin)
+    user = Depends(get_current_internal_user)
 ):
     """
     Get overall interview statistics.
@@ -2318,15 +2369,12 @@ def get_interview_statistics(
         average_feedback_score=avg_score
     )
 
-
-@router.get("/candidate-history/{candidate_id}",
- response_model=CandidateInterviewHistory,
- dependencies=[Depends(require_resource_permission("candidates", "view"))],
+@router.get("/candidate-history/{candidate_id}", response_model=CandidateInterviewHistory, dependencies=[Depends(require_resource_permission("candidates", "view"))],
  )
 def get_candidate_interview_history(
     candidate_id: str,
     db: Session = Depends(get_db),
-    user = Depends(get_current_hr_or_admin)
+    user = Depends(get_current_internal_user)
 ):
     """
     Get complete interview history for a candidate.
@@ -2411,12 +2459,15 @@ def get_candidate_interview_history(
         interviews=interview_details
     )
 
-
-@router.get("/interviewer-workload/{interviewer_id}", response_model=InterviewerWorkload)
+@router.get(
+    "/interviewer-workload/{interviewer_id}",
+    response_model=InterviewerWorkload,
+    dependencies=[Depends(require_resource_permission("interviewer-workload", "view"))]
+)
 def get_interviewer_workload(
     interviewer_id: str,
     db: Session = Depends(get_db),
-    user = Depends(get_current_hr_or_admin)
+    user = Depends(get_current_internal_user)
 ):
     """
     Get workload statistics for an interviewer.
@@ -2511,14 +2562,14 @@ def get_interviewer_workload(
         upcoming_interviews=upcoming_details
     )
 
-
 @router.get(
     "/hm-review/my-candidates", response_model=HMCandidateReviewListResponse,
+    dependencies=[Depends(get_current_internal_user)],
     summary="S-102/HRMS-P207 -- the caller's own hiring-manager candidate review list: profile + all interview feedback per candidate",
 )
 def get_my_hiring_manager_candidate_review(
     db: Session = Depends(get_db),
-    user=Depends(get_current_hr_or_admin),
+    user=Depends(get_current_internal_user),
 ):
     """
     Real fix, 2026-08-05 -- this route used to take hiring_manager_id as

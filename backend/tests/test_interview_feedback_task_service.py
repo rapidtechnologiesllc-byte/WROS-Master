@@ -7,6 +7,7 @@ via Task.interview_id -- distinct from the pending-HM-decision Task
 Throwaway SQLite -- never the real database.
 """
 import os
+import logging
 import tempfile
 
 import pytest
@@ -22,7 +23,6 @@ from app.services.interview_feedback_task_service import (
     close_pending_feedback_task,
     sync_pending_feedback_tasks_for_interview,
 )
-
 
 @pytest.fixture()
 def db_session():
@@ -42,7 +42,6 @@ def db_session():
         engine.dispose()
         os.remove(db_path)
 
-
 def _make_candidate(db, candidate_id="C-1"):
     candidate = Candidate(
         candidateID=candidate_id, candidateEmail=f"{candidate_id}@example.com",
@@ -52,13 +51,11 @@ def _make_candidate(db, candidate_id="C-1"):
     db.commit()
     return candidate
 
-
 def _make_interviewer(db, user_id="U-INT-1"):
     u = Users(UserID=user_id, UserRole="employee", UserEmail=f"{user_id}@blitzenx.com", UserPassword="h")
     db.add(u)
     db.commit()
     return u
-
 
 def _make_job(db, job_id="J-1", title="Guidewire Developer"):
     job = Jobs(
@@ -69,7 +66,6 @@ def _make_job(db, job_id="J-1", title="Guidewire Developer"):
     db.commit()
     return job
 
-
 def _make_panel_and_interview(db, candidate_id="C-1", job_id=None, round_name="L1"):
     panel = InterviewPanel(candidate_id=candidate_id, job_id=job_id, round_name=round_name)
     db.add(panel)
@@ -78,7 +74,6 @@ def _make_panel_and_interview(db, candidate_id="C-1", job_id=None, round_name="L
     db.add(interview)
     db.commit()
     return panel, interview
-
 
 def test_creates_one_task_per_panel_member_with_no_feedback(db_session):
     _make_candidate(db_session, "C-1")
@@ -104,7 +99,6 @@ def test_creates_one_task_per_panel_member_with_no_feedback(db_session):
         assert "Guidewire Developer" in t.title
         assert "L1" in t.title
 
-
 def test_skips_member_who_already_submitted_feedback(db_session):
     _make_candidate(db_session, "C-1")
     _make_interviewer(db_session, "U-INT-1")
@@ -121,7 +115,6 @@ def test_skips_member_who_already_submitted_feedback(db_session):
 
     assert db_session.query(Task).filter(Task.category == "INTERVIEW_FEEDBACK").count() == 0
 
-
 def test_does_not_duplicate_task_on_second_sync_call(db_session):
     """Mirrors the real call site: assign_panel_member() re-syncs every
     active interview on the panel each time a new member joins."""
@@ -135,7 +128,6 @@ def test_does_not_duplicate_task_on_second_sync_call(db_session):
     sync_pending_feedback_tasks_for_interview(db_session, interview)
 
     assert db_session.query(Task).filter(Task.category == "INTERVIEW_FEEDBACK").count() == 1
-
 
 def test_close_marks_the_right_members_task_completed(db_session):
     _make_candidate(db_session, "C-1")
@@ -156,10 +148,8 @@ def test_close_marks_the_right_members_task_completed(db_session):
     assert tasks["U-INT-1"].completed_at is not None
     assert tasks["U-INT-2"].status == "NEW"
 
-
 def test_close_is_a_no_op_when_no_task_exists(db_session):
     close_pending_feedback_task(db_session, 999, "U-GHOST")  # must not raise
-
 
 def test_scoped_per_round_not_clubbed_across_candidates_other_jobs(db_session):
     """The whole point of Task.interview_id: two different rounds for

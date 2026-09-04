@@ -1,4 +1,5 @@
 """
+import logging
 S-067/HRMS-0467 -- Onboarding Agent.
 
 Real architecture under test (see onboarding_agent_service module
@@ -36,7 +37,6 @@ from app.models.user import Users, Jobs
 
 import app.services.onboarding_agent_service as svc
 
-
 @pytest.fixture(autouse=True)
 def _fake_whatsapp_number(monkeypatch):
     """whatsapp_routing_service.DEFAULT_WHATSAPP_NUMBER is captured once
@@ -47,7 +47,6 @@ def _fake_whatsapp_number(monkeypatch):
     needs a number to send from."""
     import app.services.whatsapp_routing_service as wr_svc
     monkeypatch.setattr(wr_svc, "DEFAULT_WHATSAPP_NUMBER", "+15550009999")
-
 
 @pytest.fixture()
 def db_session():
@@ -69,7 +68,6 @@ def db_session():
         engine.dispose()
         os.remove(db_path)
 
-
 @pytest.fixture()
 def seeded(db_session):
     db_session.add(Users(UserID="U-ORG", UserRole="Super User", UserEmail="org@blitzenx.com", UserPassword="h", thunder_enabled=True))
@@ -84,7 +82,6 @@ def seeded(db_session):
     db_session.commit()
     return candidate, conv, offer
 
-
 def test_schedule_onboarding_touchpoints_creates_d7_d3_d1(db_session, seeded):
     candidate, _, offer = seeded
     rows = svc.schedule_onboarding_touchpoints(db_session, candidate, offer, "U-ORG")
@@ -96,14 +93,12 @@ def test_schedule_onboarding_touchpoints_creates_d7_d3_d1(db_session, seeded):
     assert d7.scheduled_at.date() == offer.joining_date - timedelta(days=7)
     assert d7.status == "PENDING"
 
-
 def test_schedule_is_idempotent(db_session, seeded):
     candidate, _, offer = seeded
     svc.schedule_onboarding_touchpoints(db_session, candidate, offer, "U-ORG")
     second = svc.schedule_onboarding_touchpoints(db_session, candidate, offer, "U-ORG")
     assert second == []
     assert db_session.query(PreboardingTouchpoint).filter(PreboardingTouchpoint.offer_id == offer.id).count() == 3
-
 
 def test_schedule_skips_offer_with_no_joining_date(db_session, seeded):
     """joining_date is NOT NULL at the DB level (never actually
@@ -116,7 +111,6 @@ def test_schedule_skips_offer_with_no_joining_date(db_session, seeded):
     rows = svc.schedule_onboarding_touchpoints(db_session, candidate, unsaved_offer, "U-ORG")
     assert rows == []
 
-
 def test_cancel_pending_touchpoints_br01(db_session, seeded):
     candidate, _, offer = seeded
     svc.schedule_onboarding_touchpoints(db_session, candidate, offer, "U-ORG")
@@ -125,7 +119,6 @@ def test_cancel_pending_touchpoints_br01(db_session, seeded):
     rows = db_session.query(PreboardingTouchpoint).filter(PreboardingTouchpoint.candidate_id == "C-1").all()
     assert all(r.status == "CANCELLED" for r in rows)
 
-
 def test_d7_message_mentions_documents_when_pending_br02(db_session, seeded):
     candidate, _, offer = seeded
     db_session.add(PreboardingDocument(tenant_id="U-ORG", candidate_id="C-1", offer_id=offer.id, document_type="RESUME", document_label="Resume", status="PENDING"))
@@ -133,14 +126,12 @@ def test_d7_message_mentions_documents_when_pending_br02(db_session, seeded):
     message = svc._build_message("D7", candidate, offer, db_session)
     assert "still waiting on a few documents" in message
 
-
 def test_d7_message_omits_documents_line_when_all_received_br02(db_session, seeded):
     candidate, _, offer = seeded
     db_session.add(PreboardingDocument(tenant_id="U-ORG", candidate_id="C-1", offer_id=offer.id, document_type="RESUME", document_label="Resume", status="RECEIVED"))
     db_session.commit()
     message = svc._build_message("D7", candidate, offer, db_session)
     assert "still waiting on a few documents" not in message
-
 
 def test_run_job_sends_due_touchpoint_and_marks_sent(db_session, seeded):
     candidate, _, offer = seeded
@@ -155,13 +146,11 @@ def test_run_job_sends_due_touchpoint_and_marks_sent(db_session, seeded):
     assert d7.status == "SENT"
     assert d7.sent_at is not None
 
-
 def test_run_job_skips_not_yet_due_touchpoints(db_session, seeded):
     candidate, _, offer = seeded
     svc.schedule_onboarding_touchpoints(db_session, candidate, offer, "U-ORG")  # all in the future
     result = svc.run_onboarding_touchpoint_job(db_session)
     assert result["processed"] == 0
-
 
 def test_run_job_cancels_touchpoints_for_no_longer_accepted_offer(db_session, seeded):
     candidate, _, offer = seeded
@@ -176,7 +165,6 @@ def test_run_job_cancels_touchpoints_for_no_longer_accepted_offer(db_session, se
     assert d7.status == "CANCELLED"
     assert result["cancelled"] >= 1
 
-
 def test_check_onboarding_completion_false_when_documents_pending(db_session, seeded):
     candidate, _, offer = seeded
     svc.schedule_onboarding_touchpoints(db_session, candidate, offer, "U-ORG")
@@ -186,7 +174,6 @@ def test_check_onboarding_completion_false_when_documents_pending(db_session, se
     db_session.commit()
 
     assert svc.check_onboarding_completion(db_session, "C-1", offer.id, "U-ORG") is False
-
 
 def test_check_onboarding_completion_true_schedules_d_plus_1_notifies_and_emits(db_session, seeded):
     candidate, _, offer = seeded
@@ -206,7 +193,6 @@ def test_check_onboarding_completion_true_schedules_d_plus_1_notifies_and_emits(
     assert len(events) == 1
     assert events[0].candidate_id == "C-1"
 
-
 def test_check_onboarding_completion_idempotent_br03(db_session, seeded):
     """BR-03: never emits/notifies twice -- D_PLUS_1's presence is the guard."""
     candidate, _, offer = seeded
@@ -220,7 +206,6 @@ def test_check_onboarding_completion_idempotent_br03(db_session, seeded):
 
     events = db_session.query(EventLog).filter(EventLog.event_type == "onboarding.complete").all()
     assert len(events) == 1  # not doubled
-
 
 def test_d_plus_1_only_sent_after_employee_record_exists(db_session, seeded):
     candidate, _, offer = seeded

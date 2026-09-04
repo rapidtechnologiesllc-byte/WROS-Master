@@ -1,4 +1,5 @@
-﻿"""
+"""
+import logging
 Organizational Structure API â€” Initialize and manage org hierarchy.
 
 Endpoints for:
@@ -39,9 +40,7 @@ from app.services.org_structure_service import (
 from app.models.org_structure import OrgPosition, OrgNode, Department, ApprovalChain
 from app.models.business_unit import BusinessUnit
 
-
 router = APIRouter(prefix="/org", tags=["Organization Structure"])
-
 
 @router.post(
     "/initialize",
@@ -87,19 +86,19 @@ def initialize_org_structure(
             approval_chains_created=chain_result["approval_chains_created"],
         )
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"[OrgInit] Tenant {tenant_id}: Failed to initialize: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to initialize org structure: {str(e)}"
         )
 
-
 @router.get(
     "/positions",
+    dependencies=[Depends(get_current_internal_user)],
     response_model=List[OrgPositionResponse],
     summary="List all org positions",
     description="Returns all organizational positions (CEO, Partner, BU Head, etc.)",
-    dependencies=[Depends(require_resource_permission("admin-settings", "view"))],
 )
 def list_org_positions(
     db: Session = Depends(get_db),
@@ -107,7 +106,6 @@ def list_org_positions(
     """Get all organizational positions, ordered by rank."""
     positions = db.query(OrgPosition).order_by(OrgPosition.rank).all()
     return [OrgPositionResponse.from_orm(p) for p in positions]
-
 
 @router.get(
     "/nodes",
@@ -121,13 +119,23 @@ def list_org_nodes(
     db: Session = Depends(get_db),
 ) -> List[OrgNodeResponse]:
     """Get all organizational nodes for the current tenant."""
+    from app.models.tenant import Tenant
+
     tenant_id = current_user.tenant_id
     if not tenant_id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User is not assigned to a tenant")
 
+    # Join with Tenant to include tenant name
     nodes = db.query(OrgNode).filter(OrgNode.tenant_id == tenant_id).all()
-    return [OrgNodeResponse.from_orm(n) for n in nodes]
+    tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
 
+    result = []
+    for node in nodes:
+        node_dict = OrgNodeResponse.from_orm(node).dict()
+        node_dict['tenant_name'] = tenant.name if tenant else f"Tenant {tenant_id}"
+        result.append(OrgNodeResponse(**node_dict))
+
+    return result
 
 @router.get(
     "/nodes/{org_node_id}",
@@ -142,6 +150,7 @@ def get_org_node(
     db: Session = Depends(get_db),
 ) -> OrgNodeResponse:
     """Get a specific organizational node by ID."""
+
     tenant_id = current_user.tenant_id
     if not tenant_id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User is not assigned to a tenant")
@@ -149,8 +158,13 @@ def get_org_node(
     node = db.query(OrgNode).filter(OrgNode.id == org_node_id, OrgNode.tenant_id == tenant_id).first()
     if not node:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Org node not found")
-    return OrgNodeResponse.from_orm(node)
 
+    # Include tenant name
+    node_dict = OrgNodeResponse.from_orm(node).dict()
+    tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
+    node_dict['tenant_name'] = tenant.name if tenant else f"Tenant {tenant_id}"
+
+    return OrgNodeResponse(**node_dict)
 
 @router.get(
     "/nodes/{org_node_id}/approvers",
@@ -177,7 +191,6 @@ def get_approvers_for_node(
             nodes.append(OrgNodeResponse.from_orm(node))
     return nodes
 
-
 @router.get(
     "/departments",
     response_model=List[DepartmentResponse],
@@ -190,13 +203,23 @@ def list_departments(
     db: Session = Depends(get_db),
 ) -> List[DepartmentResponse]:
     """Get all departments for the current tenant."""
+
     tenant_id = current_user.tenant_id
     if not tenant_id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User is not assigned to a tenant")
 
     departments = db.query(Department).filter(Department.tenant_id == tenant_id).all()
-    return [DepartmentResponse.from_orm(d) for d in departments]
+    tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
+    tenant_name = tenant.name if tenant else f"Tenant {tenant_id}"
 
+    result = []
+    for dept in departments:
+        dept_dict = DepartmentResponse.from_orm(dept).dict()
+        dept_dict['tenant_name'] = tenant_name
+        dept_dict['business_unit_name'] = dept.business_unit.name if dept.business_unit else f"BU {dept.business_unit_id}"
+        result.append(DepartmentResponse(**dept_dict))
+
+    return result
 
 @router.get(
     "/approval-chains",
@@ -220,14 +243,12 @@ def list_approval_chains(
     ).all()
     return [ApprovalChainResponse.from_orm(c) for c in chains]
 
-
 class CreateOrgNodeRequest(BaseModel):
     employee_name: str
     position_id: int
     reports_to_id: Optional[str] = None
     business_unit_id: Optional[int] = None
     location: Optional[str] = None
-
 
 @router.post(
     "/nodes",
@@ -259,6 +280,7 @@ def create_org_node_endpoint(
         db.commit()
         return OrgNodeResponse.from_orm(node)
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         db.rollback()
         logger.error(f"[OrgNode] Tenant {tenant_id}: Failed to create node: {e}")
         raise HTTPException(

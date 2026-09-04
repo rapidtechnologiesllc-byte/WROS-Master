@@ -1,4 +1,5 @@
 """
+import logging
 S-036/HRMS-0436 -- Candidate Sentiment Analysis.
 
 Real architecture under test (see sentiment_analysis_service module
@@ -32,7 +33,6 @@ from app.models.user import Jobs, Users
 
 import app.services.sentiment_analysis_service as svc
 
-
 @pytest.fixture()
 def db_session():
     fd, db_path = tempfile.mkstemp(suffix=".sqlite3")
@@ -52,7 +52,6 @@ def db_session():
         engine.dispose()
         os.remove(db_path)
 
-
 @pytest.fixture()
 def seeded(db_session):
     owner = Users(UserID="U-ORG", UserRole="Super User", UserEmail="ceo@blitzenx.com", UserPassword="h", ai_agent_name="Thunder")
@@ -65,16 +64,13 @@ def seeded(db_session):
     db_session.commit()
     return candidate, conv
 
-
 def _llm_returning(payload_dict):
     return lambda sp, up, mt, t: json.dumps(payload_dict)
-
 
 def _llm_raising(exc):
     def _raise(sp, up, mt, t):
         raise exc
     return _raise
-
 
 # ── TC-001: neutral classification ────────────────────────────────────
 
@@ -87,7 +83,6 @@ def test_neutral_classification(db_session, seeded):
     assert result["sentiment"] == "NEUTRAL"
     assert result["confidence"] > 0.6
 
-
 def test_positive_classification(db_session, seeded):
     candidate, conv = seeded
     result = svc.analyze_sentiment(
@@ -95,7 +90,6 @@ def test_positive_classification(db_session, seeded):
         conversation_id=conv.id, llm_call=_llm_returning({"sentiment": "POSITIVE", "confidence": 0.9}),
     )
     assert result["sentiment"] == "POSITIVE"
-
 
 # ── TC-002: negative classification ────────────────────────────────────
 
@@ -107,7 +101,6 @@ def test_negative_classification(db_session, seeded):
     )
     assert result["sentiment"] == "NEGATIVE"
     assert result["confidence"] > 0.7
-
 
 # ── AC: each sentiment stored with message_id ──────────────────────────
 
@@ -123,7 +116,6 @@ def test_sentiment_persisted_with_message_event_id(db_session, seeded):
     assert rows[0].conversation_id == conv.id
     assert rows[0].tenant_id == "U-ORG"
 
-
 # ── TC-004 / BR-01/BR-03: LLM failure -> safe NEUTRAL, no exception ────
 
 def test_llm_failure_stores_safe_neutral_never_raises(db_session, seeded):
@@ -134,13 +126,11 @@ def test_llm_failure_stores_safe_neutral_never_raises(db_session, seeded):
     assert len(rows) == 1
     assert rows[0].sentiment == "NEUTRAL"
 
-
 def test_invalid_json_stores_safe_neutral(db_session, seeded):
     candidate, conv = seeded
     result = svc.analyze_sentiment(db_session, "U-ORG", "C-1", "Some message", conversation_id=conv.id, llm_call=lambda sp, up, mt, t: "not json")
     assert result["sentiment"] == "NEUTRAL"
     assert result["confidence"] == 0.0
-
 
 def test_unknown_sentiment_value_mapped_to_neutral(db_session, seeded):
     candidate, conv = seeded
@@ -150,7 +140,6 @@ def test_unknown_sentiment_value_mapped_to_neutral(db_session, seeded):
     )
     assert result["sentiment"] == "NEUTRAL"
 
-
 def test_confidence_out_of_range_is_clamped(db_session, seeded):
     candidate, conv = seeded
     result = svc.analyze_sentiment(
@@ -158,7 +147,6 @@ def test_confidence_out_of_range_is_clamped(db_session, seeded):
         llm_call=_llm_returning({"sentiment": "POSITIVE", "confidence": 5.0}),
     )
     assert result["confidence"] == 1.0
-
 
 # ── get_recent_sentiment_trend() / TC-003 negative trend ────────────────
 
@@ -171,7 +159,6 @@ def test_get_recent_sentiment_trend_most_recent_first(db_session, seeded):
     trend = svc.get_recent_sentiment_trend(db_session, "C-1")
     assert trend == ["NEGATIVE", "NEUTRAL", "POSITIVE"]
 
-
 def test_has_negative_sentiment_trend_true_after_3_consecutive(db_session, seeded):
     candidate, conv = seeded
     for _ in range(3):
@@ -180,7 +167,6 @@ def test_has_negative_sentiment_trend_true_after_3_consecutive(db_session, seede
 
     assert svc.has_negative_sentiment_trend(db_session, "C-1") is True
 
-
 def test_has_negative_sentiment_trend_false_with_fewer_than_3(db_session, seeded):
     candidate, conv = seeded
     for _ in range(2):
@@ -188,7 +174,6 @@ def test_has_negative_sentiment_trend_false_with_fewer_than_3(db_session, seeded
     db_session.commit()
 
     assert svc.has_negative_sentiment_trend(db_session, "C-1") is False
-
 
 def test_has_negative_sentiment_trend_false_when_trend_broken(db_session, seeded):
     candidate, conv = seeded

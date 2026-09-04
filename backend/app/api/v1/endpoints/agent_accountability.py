@@ -1,4 +1,5 @@
 """
+import logging
 Agent Accountability API - Show who's responsible for hand-offs breaking down.
 
 GET /agents/accountability - See all agents' contributions to "2,000 by 2030"
@@ -9,17 +10,17 @@ GET /agents/accountability/scorecards - Individual agent performance cards
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from app.core.dependencies import get_db, get_current_recruiter
+from app.core.dependencies import get_db, get_current_user, require_resource_permission
 from app.services.agent_accountability_service import AgentAccountabilityService
 from app.core.logging import logger
+from app.core.database import get_db
 
 router = APIRouter(prefix="/agents", tags=["agent-accountability"])
 
-
-@router.get("/accountability")
+@router.get("/accountability", dependencies=[Depends(require_resource_permission("agents", "view"))])
 async def get_agent_accountability(
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_recruiter)
+    current_user = Depends(get_current_user)
 ):
     """
     Get full accountability view showing:
@@ -49,14 +50,14 @@ async def get_agent_accountability(
         }
 
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Error fetching agent accountability: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
-
-@router.get("/accountability/hand-offs")
+@router.get("/accountability/hand-offs", dependencies=[Depends(require_resource_permission("agents", "view"))])
 async def get_broken_hand_offs(
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_recruiter)
+    current_user = Depends(get_current_user)
 ):
     """
     Get ONLY the broken hand-offs (where one agent isn't passing work to the next).
@@ -88,14 +89,14 @@ async def get_broken_hand_offs(
         }
 
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Error fetching hand-offs: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
-
-@router.get("/accountability/scorecards")
+@router.get("/accountability/scorecards", dependencies=[Depends(require_resource_permission("agents", "view"))])
 async def get_agent_scorecards(
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_recruiter)
+    current_user = Depends(get_current_user)
 ):
     """
     Get individual agent scorecards showing:
@@ -118,5 +119,6 @@ async def get_agent_scorecards(
         }
 
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Error fetching agent scorecards: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))

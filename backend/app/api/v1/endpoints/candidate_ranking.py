@@ -1,4 +1,5 @@
 """
+import logging
 HRMS-1105 (S-320) -- Candidate Ranking & Scoring REST Endpoints.
 
 Endpoints:
@@ -10,7 +11,8 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_user
+from app.core.dependencies import get_current_user, require_resource_permission
+from fastapi import Request
 from app.schemas.candidate_ranking import (
     CalculateFitScoreRequest,
     CalculateFitScoreResponse,
@@ -24,9 +26,9 @@ from app.services.candidate_scoring_service import CandidateScoringService
 router = APIRouter(prefix="/candidates/ranking", tags=["candidate-ranking"])
 scoring_service = CandidateScoringService()
 
-
 @router.post(
     "/fit-score",
+    dependencies=[Depends(require_resource_permission("candidate", "view"))],
     response_model=CalculateFitScoreResponse,
     summary="Calculate candidate fit score",
     description="Calculate how well a candidate matches a specific job demand (0-100 scale)"
@@ -73,9 +75,9 @@ def calculate_fit_score(
 
     return result
 
-
 @router.post(
     "/rank",
+    dependencies=[Depends(require_resource_permission("candidate", "view"))],
     response_model=RankCandidatesResponse,
     summary="Rank candidates for a job",
     description="Rank all candidates for a specific job demand by fit score"
@@ -120,9 +122,9 @@ def rank_candidates(
 
     return result
 
-
 @router.post(
     "/best-match",
+    dependencies=[Depends(require_resource_permission("candidate", "view"))],
     response_model=IdentifyBestMatchResponse,
     summary="Identify best candidate for a job",
     description="Find the top-ranked candidate for a specific job demand"

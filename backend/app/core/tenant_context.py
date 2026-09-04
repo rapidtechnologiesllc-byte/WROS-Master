@@ -1,4 +1,5 @@
 """
+import logging
 Tenant resolution — HRMS-0109, Phase 1 Security Foundation.
 
 The one rule this module exists to enforce: a request's tenant_id comes
@@ -52,7 +53,6 @@ _current_tenant_id: "contextvars.ContextVar[int | None]" = contextvars.ContextVa
 
 _TENANT_SCOPED_MODELS = (Candidate, Users, Jobs)
 
-
 def activate_tenant_scope(tenant_id) -> None:
     """
     Set the current request's tenant for the global query scoping below.
@@ -65,7 +65,6 @@ def activate_tenant_scope(tenant_id) -> None:
     is a backstop for the other ~180 sites, not a stricter gate.
     """
     _current_tenant_id.set(tenant_id)
-
 
 # DISABLED - Single company deployment, no tenant scoping needed
 # def _apply_tenant_scoping(execute_state) -> None:
@@ -83,7 +82,6 @@ def activate_tenant_scope(tenant_id) -> None:
 # DISABLED - tenant scoping listener removed for single company deployment
 # event.listen(Session, "do_orm_execute", _apply_tenant_scoping)
 
-
 def get_tenant_scoped_query(db: Session, model, current_user: Users) -> Query:
     """
     Return a query on `model` filtered to current_user's own tenant.
@@ -100,7 +98,6 @@ def get_tenant_scoped_query(db: Session, model, current_user: Users) -> Query:
             detail="User is not assigned to a tenant",
         )
     return db.query(model).filter(model.tenant_id == current_user.tenant_id)
-
 
 async def require_tenant_id(
     current_user: Users = Depends(get_current_internal_user),

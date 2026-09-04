@@ -1,11 +1,12 @@
 """
 HRMS-0316 -- Invoice Generation, Calculation, Sending & Payment Tracking
 REST API Endpoints
+import logging
 =========================================================================
 
 Prefix: /api/v1/invoices
 Tag: invoices
-Auth: All endpoints require get_current_hr_or_admin
+Auth: All endpoints require get_current_internal_user
 
 Routes:
   POST   /invoices/generate          Generate DRAFT invoice from approved timesheets
@@ -23,9 +24,10 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_hr_or_admin
+from app.core.dependencies import get_current_internal_user
 from app.core.visibility import should_bypass_bu_filter, get_user_bu_id
 from app.models.user import Users
+from fastapi import Request
 from app.schemas.invoice_s316 import (
     GenerateInvoiceRequest,
     GenerateInvoiceResponse,
@@ -51,7 +53,6 @@ from app.models.invoice import Invoice, InvoiceLineItem
 
 router = APIRouter(prefix="/invoices", tags=["invoices"])
 
-
 def _to_line_item_response(li: InvoiceLineItem) -> InvoiceLineItemResponse:
     """Convert database line item to response schema."""
     return InvoiceLineItemResponse(
@@ -63,7 +64,6 @@ def _to_line_item_response(li: InvoiceLineItem) -> InvoiceLineItemResponse:
         rate_usd_cents=li.rate_usd_cents,
         amount_usd_cents=li.amount_usd_cents,
     )
-
 
 def _to_invoice_response(db: Session, invoice: Invoice, tenant_id: int) -> InvoiceDetailResponse:
     """Convert database invoice to response schema."""
@@ -91,13 +91,13 @@ def _to_invoice_response(db: Session, invoice: Invoice, tenant_id: int) -> Invoi
         tenant_id=tenant_id,
     )
 
-
 # ============================================================================
 # POST /invoices/generate
 # ============================================================================
 
 @router.post(
     "/generate",
+    dependencies=[Depends(get_current_internal_user)],
     response_model=GenerateInvoiceResponse,
     status_code=201,
     summary="Generate a DRAFT invoice from approved timesheets",
@@ -109,7 +109,7 @@ def _to_invoice_response(db: Session, invoice: Invoice, tenant_id: int) -> Invoi
 def generate_invoice_endpoint(
     body: GenerateInvoiceRequest,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     """
     Generate a DRAFT invoice for a project and billing period.
@@ -180,12 +180,12 @@ def generate_invoice_endpoint(
             detail=str(exc),
         )
     except Exception as exc:
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         db.rollback()
         raise HTTPException(
             status_code=500,
             detail=f"Internal error: {str(exc)}",
         )
-
 
 # ============================================================================
 # GET /invoices/{id}/calculate
@@ -193,13 +193,14 @@ def generate_invoice_endpoint(
 
 @router.get(
     "/{invoice_id}/calculate",
+    dependencies=[Depends(get_current_internal_user)],
     response_model=CalculateBillAmountResponse,
     summary="Calculate bill amount for an invoice",
 )
 def calculate_bill_amount_endpoint(
     invoice_id: str,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     """
     Calculate the total billed amount for an invoice.
@@ -219,8 +220,8 @@ def calculate_bill_amount_endpoint(
     except InvoiceError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
     except Exception as exc:
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Internal error: {str(exc)}")
-
 
 # ============================================================================
 # POST /invoices/{id}/send
@@ -228,6 +229,7 @@ def calculate_bill_amount_endpoint(
 
 @router.post(
     "/{invoice_id}/send",
+    dependencies=[Depends(get_current_internal_user)],
     response_model=SendInvoiceResponse,
     summary="Approve and send invoice to client",
     responses={
@@ -239,7 +241,7 @@ def send_invoice_endpoint(
     invoice_id: str,
     body: SendInvoiceRequest,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     """
     Approve and send an invoice to the client.
@@ -295,9 +297,9 @@ def send_invoice_endpoint(
         db.rollback()
         raise HTTPException(status_code=400, detail=str(exc))
     except Exception as exc:
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Internal error: {str(exc)}")
-
 
 # ============================================================================
 # POST /invoices/{id}/pay
@@ -305,6 +307,7 @@ def send_invoice_endpoint(
 
 @router.post(
     "/{invoice_id}/pay",
+    dependencies=[Depends(get_current_internal_user)],
     response_model=TrackPaymentResponse,
     summary="Record payment against invoice",
     responses={
@@ -316,7 +319,7 @@ def track_payment_endpoint(
     invoice_id: str,
     body: TrackPaymentRequest,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     """
     Record a payment against an invoice.
@@ -359,9 +362,9 @@ def track_payment_endpoint(
         db.rollback()
         raise HTTPException(status_code=404, detail=str(exc))
     except Exception as exc:
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Internal error: {str(exc)}")
-
 
 # ============================================================================
 # GET /invoices/{id}
@@ -369,13 +372,14 @@ def track_payment_endpoint(
 
 @router.get(
     "/{invoice_id}",
+    dependencies=[Depends(get_current_internal_user)],
     response_model=InvoiceDetailResponse,
     summary="Get invoice details with all line items",
 )
 def get_invoice_endpoint(
     invoice_id: str,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     """
     Get full invoice details including all line items.
@@ -393,12 +397,13 @@ def get_invoice_endpoint(
 
     return _to_invoice_response(db, invoice, current_user.tenant_id)
 
-
 # ============================================================================
 # GET /invoices
 # ============================================================================
 
 @router.get(
+    "",
+    dependencies=[Depends(get_current_internal_user)],
     "",
     response_model=InvoiceListResponse,
     summary="List invoices with optional filters",
@@ -410,7 +415,7 @@ def list_invoices_endpoint(
     limit: int = Query(100, ge=1, le=1000, description="Number of results"),
     offset: int = Query(0, ge=0, description="Pagination offset"),
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     """
     List invoices for the current tenant with optional filtering.

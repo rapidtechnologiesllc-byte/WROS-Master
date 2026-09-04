@@ -1,4 +1,5 @@
 """
+import logging
 S-055/HRMS-0455 -- Offer FAQ Bot.
 
 Real architecture adaptations:
@@ -110,7 +111,6 @@ NEGOTIATION_ESCALATION_MESSAGE = "I've flagged this to our recruiting team and s
 
 GEMINI_MODEL_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
 
-
 def _classify_question(text: str) -> Dict:
     """Returns {"category": "negotiation"|"salary"|"logistics"|"policy"|"general", "topic": Optional[str]}."""
     lowered = (text or "").lower()
@@ -125,13 +125,11 @@ def _classify_question(text: str) -> Dict:
         return {"category": "logistics", "topic": None}
     return {"category": "general", "topic": None}
 
-
 def _get_faq_content(db: Session, tenant_id: str, topic: str) -> str:
     entry = db.query(OfferFAQEntry).filter(OfferFAQEntry.tenant_id == tenant_id, OfferFAQEntry.topic == topic).first()
     if entry is not None:
         return entry.answer_text
     return DEFAULT_FAQ_CONTENT.get(topic, "")
-
 
 def _default_llm_call(prompt: str, api_key: str) -> str:
     import requests
@@ -145,7 +143,6 @@ def _default_llm_call(prompt: str, api_key: str) -> str:
     text = result.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "")
     return re.sub(r"```(?:json)?", "", text).strip()
 
-
 def _call_llm(prompt: str, llm_call: Optional[Callable[[str], str]]) -> str:
     if llm_call is not None:
         return llm_call(prompt)
@@ -153,7 +150,6 @@ def _call_llm(prompt: str, llm_call: Optional[Callable[[str], str]]) -> str:
     if not api_key:
         raise RuntimeError("GEMINI_API_KEY not set")
     return _default_llm_call(prompt, api_key)
-
 
 def _answer_references_offer_data(answer: str, offer: OfferLetter, faq_content: str) -> bool:
     """BR-02 -- a cheap, real heuristic: the answer must mention a
@@ -169,7 +165,6 @@ def _answer_references_offer_data(answer: str, offer: OfferLetter, faq_content: 
         return True
     return False
 
-
 def _notify_recruiter(db: Session, submission: Optional[Submission], message: str) -> None:
     if submission is None or not submission.submitted_by_user_id:
         return
@@ -182,8 +177,8 @@ def _notify_recruiter(db: Session, submission: Optional[Submission], message: st
             priority_tier="P2", channel_preference="IN_APP", message=message,
         )
     except Exception as exc:
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[OfferFAQ] Failed to notify recruiter: {exc}")
-
 
 def _escalate_for_negotiation(db: Session, candidate: Candidate, conversation: CandidateConversation) -> None:
     conversation_state_service.escalate(db, conversation, reason="Salary negotiation question", triggered_by="ai_agent")
@@ -198,7 +193,6 @@ def _escalate_for_negotiation(db: Session, candidate: Candidate, conversation: C
     )
     _notify_recruiter(db, submission, f"{candidate.candidateFirstName or candidate.candidateID} is asking about salary negotiation on their offer.")
 
-
 def _send_channel_aware(db: Session, conversation: CandidateConversation, candidate: Candidate, message: str) -> bool:
     channel = conversation.channel_preference if conversation.channel_preference in ("whatsapp", "web_chat") else "whatsapp"
     try:
@@ -207,7 +201,6 @@ def _send_channel_aware(db: Session, conversation: CandidateConversation, candid
     except (ConsentNotGiven, ConversationOwnedByHuman, DuplicateMessageSuppressed, ThunderPausedError) as exc:
         logger.info(f"[OfferFAQ] Message skipped for candidate {candidate.candidateID!r}: {exc}")
         return False
-
 
 def answer_offer_question(
     db: Session, candidate: Candidate, conversation: CandidateConversation, tenant_id: str, question_text: str, *, llm_call: Optional[Callable[[str], str]] = None,
@@ -254,6 +247,7 @@ def answer_offer_question(
         try:
             answer = _call_llm(prompt, llm_call)
         except Exception as exc:
+            logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.warning(f"[OfferFAQ] LLM call failed for candidate {candidate.candidateID!r}: {exc}")
             answer = None
 
@@ -267,6 +261,7 @@ def answer_offer_question(
         db.commit()
         return {"outcome": "answered", "answer": answer}
     except Exception as exc:
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.error(f"[OfferFAQ] Unexpected failure answering question for candidate {candidate.candidateID!r}: {exc}")
         db.rollback()
         return {"outcome": "answer_failed"}

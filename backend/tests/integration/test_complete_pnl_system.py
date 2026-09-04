@@ -1,4 +1,5 @@
 """
+import logging
 COMPREHENSIVE P&L SYSTEM TEST SUITE - Production Grade
 
 Complete end-to-end testing of all layers:
@@ -9,6 +10,7 @@ Complete end-to-end testing of all layers:
 
 TARGET: 100% test pass rate before production commit
 """
+import logging
 import pytest
 from datetime import datetime, date, timedelta
 from decimal import Decimal
@@ -23,6 +25,7 @@ from unittest.mock import Mock, patch, MagicMock
 # ============================================================================
 # PHASE 1: INVOICE SERVICE TESTS (Complete Workflow)
 # ============================================================================
+logger = logging.getLogger(__name__)
 
 class TestInvoiceCreation:
     """Test invoice creation and validation"""
@@ -72,7 +75,6 @@ class TestInvoiceCreation:
         """❌ Reject invoice creation in locked period"""
         pass
 
-
 class TestLineItemManagement:
     """Test adding/removing line items to invoice"""
 
@@ -117,7 +119,6 @@ class TestLineItemManagement:
     def test_line_item_validation_positive_rate(self):
         """❌ Reject line item with zero or negative rate"""
         pass
-
 
 class TestInvoiceWorkflow:
     """Test invoice status transitions (DRAFT → APPROVED → SENT → PAID)"""
@@ -165,7 +166,6 @@ class TestInvoiceWorkflow:
         """✅ Can cancel invoice from any status"""
         pass
 
-
 class TestInvoiceValidation:
     """Test validation rules enforcement"""
 
@@ -189,7 +189,6 @@ class TestInvoiceValidation:
     def test_validate_amount_positive(self):
         """❌ Cannot create invoice with zero or negative amount"""
         pass
-
 
 # ============================================================================
 # PHASE 2: REVENUE RECOGNITION TESTS (Core Engine)
@@ -223,7 +222,6 @@ class TestRevenueRecognition:
     def test_revenue_marked_immutable(self):
         """✅ Revenue record has immutable flag set"""
         pass
-
 
 class TestMarginCalculation:
     """Test margin calculation (Revenue - Cost)"""
@@ -269,7 +267,6 @@ class TestMarginCalculation:
         # 35.456% → 35.46%
         pass
 
-
 class TestCostCalculation:
     """Test cost derivation from employee data"""
 
@@ -294,7 +291,6 @@ class TestCostCalculation:
     def test_cost_never_negative(self):
         """✅ Cost validation: cannot be negative"""
         pass
-
 
 class TestPartnerRevenueShare:
     """Test partner revenue share (Core business only)"""
@@ -337,7 +333,6 @@ class TestPartnerRevenueShare:
         # Revenue in each BU split accordingly
         pass
 
-
 class TestClassificationDenormalization:
     """Test denormalization of opportunity classifications"""
 
@@ -360,7 +355,6 @@ class TestClassificationDenormalization:
     def test_denormalize_business_type_from_project(self):
         """✅ Revenue.business_type = Project.business_type"""
         pass
-
 
 # ============================================================================
 # PHASE 3: REPORTING QUERY TESTS
@@ -432,7 +426,6 @@ class TestReportingQueries:
         # Forecast vs actual: +5%
         pass
 
-
 # ============================================================================
 # PHASE 4: API ENDPOINT TESTS (All 22 Endpoints)
 # ============================================================================
@@ -475,7 +468,6 @@ class TestRevenueAPI:
     def test_get_revenue_alerts(self):
         """✅ GET /api/v1/revenue/alerts"""
         pass
-
 
 class TestInvoiceAPI:
     """Test Invoice API endpoints"""
@@ -528,7 +520,6 @@ class TestInvoiceAPI:
         """✅ GET /api/v1/invoices/business-unit/{bu_id}/outstanding"""
         pass
 
-
 class TestPandLAPI:
     """Test P&L API endpoints"""
 
@@ -555,7 +546,6 @@ class TestPandLAPI:
     def test_get_month_end_pnl_api(self):
         """✅ GET /api/v1/p-and-l/month-end/{bu_id}/{month}"""
         pass
-
 
 # ============================================================================
 # PHASE 5: EDGE CASES & INTEGRATION TESTS
@@ -598,7 +588,6 @@ class TestEdgeCases:
     def test_concurrent_invoice_updates(self):
         """✅ Handle concurrent updates (no race conditions)"""
         pass
-
 
 class TestEndToEndScenarios:
     """Complete real-world workflows"""
@@ -644,7 +633,6 @@ class TestEndToEndScenarios:
         # 6. Verify P&L shows both
         pass
 
-
 class TestDataIntegrity:
     """Test data consistency and audit trail"""
 
@@ -671,7 +659,6 @@ class TestDataIntegrity:
         """✅ P&L totals = SUM(individual revenues)"""
         pass
 
-
 class TestPerformance:
     """Test performance thresholds"""
 
@@ -689,7 +676,6 @@ class TestPerformance:
     def test_invoice_creation_bulk_line_items(self):
         """✅ Handle invoice with 100+ line items"""
         pass
-
 
 # ============================================================================
 # TEST EXECUTION SUMMARY

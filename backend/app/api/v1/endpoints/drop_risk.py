@@ -2,6 +2,7 @@
 S-060/HRMS-0460 -- Drop Risk Prediction
 ==================================================================
 Prefix: /candidates
+import logging
 Tag:    drop-risk
 
 GET /candidates/{candidate_id}/drop-risk
@@ -29,7 +30,6 @@ from app.services.drop_risk_service import calculate_drop_risk
 
 router = APIRouter(tags=["drop-risk"])
 
-
 @router.get(
     "/candidates/{candidate_id}/drop-risk",
     response_model=DropRiskResponse,
@@ -44,7 +44,7 @@ router = APIRouter(tags=["drop-risk"])
     ),
 )
 def get_drop_risk(candidate_id: str, db: Session = Depends(get_db)):
-    tenant_id = resolve_default_tenant_id(db)
+    tenant_id = resolve_default_tenant_id()
     result = calculate_drop_risk(db, candidate_id, tenant_id)
     if "drop_risk_score" not in result:
         raise HTTPException(status_code=404, detail=f"No drop risk score available for candidate {candidate_id!r} (outcome: {result.get('outcome')}).")

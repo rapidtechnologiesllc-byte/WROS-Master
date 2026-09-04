@@ -1,3 +1,4 @@
+import logging
 """Seed Agent State data with realistic outcomes."""
 
 import sys
@@ -25,7 +26,6 @@ def get_db_url():
             f"DATABASE_URL must use PostgreSQL protocol. Got: {db_url.split('://')[0]}://..."
         )
     return db_url
-
 
 def seed_data():
     """Seed realistic agent state data."""
@@ -295,12 +295,12 @@ def seed_data():
         print("    - CFO Agent: Fear 36/100 - NEUTRAL, steady pace")
 
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         db.rollback()
         print(f"[ERROR] Seeding failed: {e}")
         raise
     finally:
         db.close()
-
 
 if __name__ == "__main__":
     seed_data()

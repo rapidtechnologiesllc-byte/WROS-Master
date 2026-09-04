@@ -6,6 +6,7 @@ their BU); finance & HR manager (no actual p&l)." Refined the same
 day: "a partner has it's own clients and the work is done in their BU
 only... any business he generates should go only to that BU" -- BU
 ownership is a real, client-level fact (Client.business_unit_id), not
+import logging
 a role-attribute abstraction.
 
 Deliberately a SEPARATE scoping mechanism from app.core.bu_scope's
@@ -26,28 +27,27 @@ from sqlalchemy.orm import Query, Session
 
 from app.models.client import Client
 from app.models.user import Users
-from app.services.rbac_service import RBACService
+from app.services.permission_helper import PermissionHelper
 
 # Only these two roles are BU-scoped for revenue/planning screens --
 # everyone else with revenue.view (Super User/CEO, Finance, HR Manager)
 # sees org-wide, per Avinash's exact spec.
 REVENUE_BU_SCOPED_ROLES = {"Partner", "BU Head"}
 
-
 def get_user_role_name(db: Session, user: Users) -> Optional[str]:
-    role = RBACService.get_user_role(db, user.UserID)
-    return role.name if role else None
-
+    # Get user's primary role from role_template
+    if hasattr(user, 'role_template') and user.role_template:
+        return user.role_template.RoleName
+    return None
 
 def is_revenue_bu_scoped(db: Session, user: Users) -> bool:
     return get_user_role_name(db, user) in REVENUE_BU_SCOPED_ROLES
 
-
 def can_view_pnl(db: Session, user: Users) -> bool:
     """revenue.view_pnl -- Super User, Partner, BU Head, Finance. NOT
     HR Manager, per Avinash's explicit "no actual p&l" instruction."""
-    return RBACService.has_permission(db, user.UserID, "revenue.view_pnl")
-
+    tenant_id = getattr(user, 'TenantID', 1) if user else 1
+    return PermissionHelper.has_permission(user.UserID, "revenue.view_pnl", db, tenant_id)
 
 def apply_revenue_bu_scope_to_client_query(db: Session, query: Query, current_user: Users) -> Query:
     """Narrows a Client query to clients with no BU assigned yet
@@ -61,7 +61,6 @@ def apply_revenue_bu_scope_to_client_query(db: Session, query: Query, current_us
     return query.filter(
         (Client.business_unit_id.is_(None)) | (Client.business_unit_id == current_user.business_unit_id)
     )
-
 
 def get_revenue_scoped_client_ids(db: Session, current_user: Users) -> Optional[set]:
     """Returns the set of client IDs visible to current_user under

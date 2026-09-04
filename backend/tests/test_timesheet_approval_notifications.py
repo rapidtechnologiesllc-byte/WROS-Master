@@ -4,10 +4,10 @@ Verifies that EmailService.notify_timesheet_approved() is properly wired into ap
 """
 from datetime import date, datetime
 from unittest.mock import patch, MagicMock
+import logging
 from sqlalchemy.orm import Session
 
 from app.services.timesheet_service import approve_timesheet
-
 
 def _create_mock_timesheet():
     """Create a mock timesheet object for testing."""
@@ -32,7 +32,6 @@ def _create_mock_timesheet():
 
     return timesheet
 
-
 def _create_mock_employee():
     """Create a mock employee object."""
     employee = MagicMock()
@@ -42,12 +41,10 @@ def _create_mock_employee():
     employee.last_name = "Doe"
     return employee
 
-
 def _create_mock_db():
     """Create a mock database session."""
     db = MagicMock(spec=Session)
     return db
-
 
 def test_approve_timesheet_sends_notification():
     """
@@ -103,7 +100,6 @@ def test_approve_timesheet_sends_notification():
         assert kwargs["total_hours"] == 40.0
         assert kwargs["week_starting_date"] == "2026-08-04"
 
-
 def test_approve_timesheet_notification_failure_does_not_block_approval():
     """
     PRIORITY 1 TEST: Verify that if EmailService.notify_timesheet_approved() fails,
@@ -132,7 +128,6 @@ def test_approve_timesheet_notification_failure_does_not_block_approval():
         assert result.status == "APPROVED"
         assert result.approved_by == "manager@test.com"
         assert result.approved_at is not None
-
 
 if __name__ == "__main__":
     import pytest

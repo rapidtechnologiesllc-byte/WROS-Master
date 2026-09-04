@@ -1,4 +1,5 @@
 """
+import logging
 S-349/HRMS-P119 -- Proactive Motivation Engine.
 
 motivation_content_library: BA-approved facts/proof-points per desire
@@ -17,6 +18,7 @@ language describes; no ML retraining loop is built (out of scope,
 same posture as S-046's "explicitly-NOT-ML" formula), the row is the
 honest, queryable outcome record itself.
 """
+import logging
 from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, JSON, String, Text, UniqueConstraint, func
 from sqlalchemy.orm import relationship
 
@@ -24,17 +26,18 @@ from app.models.base import Base
 
 TRIGGER_TYPES = ("COMPETING_OFFER", "OFFER_PENDING_RESPONSE", "COOLING_ENGAGEMENT", "DESIRE_SHIFT", "SCHEDULED_NURTURE")
 
+logger = logging.getLogger(__name__)
 
 class MotivationContentLibrary(Base):
     __tablename__ = "motivation_content_library"
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
-    tenant_id = Column(String(50), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=False, index=True)
+    tenant_id = Column(String(512), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=False, index=True)
     desire_category = Column(String(30), nullable=False)
     content_items = Column(JSON, nullable=False)  # list[str], BA-approved facts only
 
     updated_at = Column(DateTime(timezone=False), server_default=func.now(), onupdate=func.now())
-    updated_by = Column(String(50), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=True)
+    updated_by = Column(String(512), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=True)
 
     tenant = relationship("Users", foreign_keys=[tenant_id], lazy="select")
 
@@ -42,13 +45,12 @@ class MotivationContentLibrary(Base):
         UniqueConstraint("tenant_id", "desire_category", name="uq_motivation_content_per_tenant_category"),
     )
 
-
 class MotivationOutcome(Base):
     __tablename__ = "motivation_outcomes"
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
-    tenant_id = Column(String(50), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=False, index=True)
-    candidate_id = Column(String(36), ForeignKey("candidates.candidateID", ondelete="CASCADE"), nullable=False, index=True)
+    tenant_id = Column(String(512), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=False, index=True)
+    candidate_id = Column(String(512), ForeignKey("candidates.candidateID", ondelete="CASCADE"), nullable=False, index=True)
 
     trigger_type = Column(String(30), nullable=False)  # see TRIGGER_TYPES
     message_sent = Column(Text, nullable=False)

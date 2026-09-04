@@ -1,4 +1,5 @@
 """
+import logging
 Candidate Rejection Workflow Service
 
 Implements the complete rejection workflow:
@@ -16,6 +17,7 @@ Business Rules:
 - All operations logged to audit trail
 """
 
+import logging
 from typing import Optional, List, Tuple
 from datetime import datetime
 from sqlalchemy.orm import Session
@@ -28,16 +30,15 @@ from app.models.candidate_history import CandidateHistory
 from app.core.logging import logger
 from app.core.security import get_password_hash
 
+logger = logging.getLogger(__name__)
 
 class CandidateRejectionError(Exception):
     """Raised when rejection operation fails."""
     pass
 
-
 class CandidateNotFoundError(Exception):
     """Raised when candidate doesn't exist."""
     pass
-
 
 def reject_candidate(
     db: Session,
@@ -82,6 +83,9 @@ def reject_candidate(
         raise CandidateNotFoundError(f"Candidate {candidate_id} not found in tenant {tenant_id}")
 
     try:
+        # BU Lifecycle: Revert to org-wide (NULL) on rejection
+        candidate.associated_bu_id = None
+
         # Create rejection record
         rejection = CandidateRejection(
             candidate_id=candidate_id,
@@ -132,6 +136,7 @@ def reject_candidate(
                 rejection.email_sent = True
                 rejection.email_sent_at = datetime.utcnow()
             except Exception as e:
+                logger.error(f"Error: {str(e)}", exc_info=True)
                 logger.warning(f"Failed to send rejection email for candidate {candidate_id}: {str(e)}")
                 # Don't fail the entire rejection if email fails
                 rejection.email_sent = False
@@ -144,10 +149,10 @@ def reject_candidate(
     except CandidateNotFoundError:
         raise
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         db.rollback()
         logger.error(f"Error rejecting candidate {candidate_id}: {str(e)}")
         raise CandidateRejectionError(f"Failed to reject candidate: {str(e)}")
-
 
 def send_rejection_email(
     db: Session,
@@ -210,10 +215,10 @@ def send_rejection_email(
         return rejection
 
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         db.rollback()
         logger.error(f"Error sending rejection email for rejection {rejection_id}: {str(e)}")
         raise CandidateRejectionError(f"Failed to send rejection email: {str(e)}")
-
 
 def archive_candidate(
     db: Session,
@@ -281,10 +286,10 @@ def archive_candidate(
         return rejection
 
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         db.rollback()
         logger.error(f"Error archiving candidate {candidate_id}: {str(e)}")
         raise CandidateRejectionError(f"Failed to archive candidate: {str(e)}")
-
 
 # ---------------------------------------------------------------------------
 # Helper Functions
@@ -371,6 +376,7 @@ def _send_rejection_email_internal(
         logger.info(f"Rejection email sent via Thunder for {rejection.candidate_id}")
         return
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         logger.debug(f"Thunder message send failed, falling back to EmailService: {str(e)}")
 
     # Fallback to direct email
@@ -386,7 +392,6 @@ def _send_rejection_email_internal(
     except Exception as e:
         logger.error(f"Failed to send rejection email: {str(e)}")
         raise
-
 
 def get_rejection_reasons(
     db: Session,
@@ -413,7 +418,6 @@ def get_rejection_reasons(
         query = query.filter(CandidateRejectionReason.is_active == True)
 
     return query.all()
-
 
 def get_candidate_rejection_status(
     db: Session,
@@ -444,7 +448,6 @@ def get_candidate_rejection_status(
     latest = active_rejections[0] if active_rejections else None
 
     return is_rejected, latest, rejections
-
 
 def create_default_rejection_reasons(db: Session, tenant_id: int = 1) -> None:
     """

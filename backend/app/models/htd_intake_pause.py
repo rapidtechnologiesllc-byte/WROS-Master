@@ -1,4 +1,5 @@
 """
+import logging
 S-359/HRMS-P511 -- HTD Intake Pause Engine: Conversion Rate Breach.
 
 Three small tables rather than the doc's generic `system_config` key-
@@ -8,6 +9,7 @@ for what this story actually needs): a per-tenant singleton pause
 flag, a monthly metrics history, and a permanent pause/resume audit
 log (AC-6).
 """
+import logging
 import uuid
 
 from sqlalchemy import (
@@ -16,13 +18,12 @@ from sqlalchemy import (
 
 from app.models.base import Base
 
-
 def _new_uuid() -> str:
     return str(uuid.uuid4())
 
-
 HTD_PAUSE_LOG_ACTIONS = ("PAUSED", "RESUMED")
 
+logger = logging.getLogger(__name__)
 
 class HtdIntakeStatus(Base):
     """One row per tenant -- the live pause flag a future HRMS-0307
@@ -31,18 +32,17 @@ class HtdIntakeStatus(Base):
     is the real, callable gate a future build of it wires into)."""
     __tablename__ = "htd_intake_status"
 
-    id = Column(String(36), primary_key=True, default=_new_uuid)
+    id = Column(String(512), primary_key=True, default=_new_uuid)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, unique=True, index=True)
 
     is_paused = Column(Boolean, nullable=False, default=False)
     paused_at = Column(DateTime, nullable=True)
     pause_reason = Column(Text, nullable=True)
 
-
 class HtdMonthlyMetric(Base):
     __tablename__ = "htd_monthly_metrics"
 
-    id = Column(String(36), primary_key=True, default=_new_uuid)
+    id = Column(String(512), primary_key=True, default=_new_uuid)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
 
     month_start = Column(Date, nullable=False, index=True)
@@ -56,12 +56,11 @@ class HtdMonthlyMetric(Base):
 
     calculated_at = Column(DateTime, server_default=func.now())
 
-
 class HtdPauseLogEntry(Base):
     """AC-6: permanent, never-deleted pause/resume history."""
     __tablename__ = "htd_pause_log"
 
-    id = Column(String(36), primary_key=True, default=_new_uuid)
+    id = Column(String(512), primary_key=True, default=_new_uuid)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
 
     action = Column(
@@ -71,5 +70,5 @@ class HtdPauseLogEntry(Base):
     reason = Column(Text, nullable=True)
     audit_findings = Column(Text, nullable=True)
     corrective_actions = Column(Text, nullable=True)
-    resumed_by = Column(String(50), nullable=True)
+    resumed_by = Column(String(512), nullable=True)
     created_at = Column(DateTime, server_default=func.now())

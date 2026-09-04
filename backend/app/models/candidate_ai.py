@@ -17,6 +17,7 @@ Tenant context:
   this organisation — consistent with the rest of the HRMS system.
 """
 
+import logging
 from sqlalchemy import (
     Column, Integer, String, DateTime, ForeignKey,
     Text, Boolean, JSON, func
@@ -25,10 +26,10 @@ from sqlalchemy.orm import relationship
 
 from app.models.base import Base
 
-
 # ---------------------------------------------------------------------------
 # 1. candidate_conversations
 # ---------------------------------------------------------------------------
+logger = logging.getLogger(__name__)
 
 class CandidateConversation(Base):
     """
@@ -67,7 +68,7 @@ class CandidateConversation(Base):
 
     # The candidate this conversation belongs to
     # Candidate IDs are "CAN-" prefix + UUID (40 chars total, not 36)
-    candidate_id = Column(String(50),
+    candidate_id = Column(String(512),
         ForeignKey("candidates.candidateID", ondelete="CASCADE"),
         nullable=False,
         index=True,
@@ -75,13 +76,13 @@ class CandidateConversation(Base):
 
     # Conversation lifecycle status
     # e.g. 'open' | 'awaiting_candidate' | 'awaiting_hr' | 'closed' | 'escalated'
-    status = Column(String(50), nullable=False, server_default="open")
+    status = Column(String(512), nullable=False, server_default="open")
 
     # Name / identifier of the AI agent handling this conversation
-    ai_agent_name = Column(String(100), nullable=True)
+    ai_agent_name = Column(String(512), nullable=True)
 
     # Preferred communication channel for this conversation
-    channel_preference = Column(String(50), nullable=True, server_default="email")
+    channel_preference = Column(String(512), nullable=True, server_default="email")
 
     # AI-generated summary of the conversation so far
     summary = Column(Text, nullable=True)
@@ -92,16 +93,16 @@ class CandidateConversation(Base):
     summary_generated_at = Column(DateTime(timezone=False), nullable=True)
 
     # What the AI plans to do next (e.g. "Wait for candidate reply", "Send reminder")
-    next_action = Column(String(200), nullable=True)
+    next_action = Column(String(512), nullable=True)
 
     # Who currently owns the conversation: 'ai_agent' | 'hr_user'
-    owner_type = Column(String(50), nullable=True, server_default="ai_agent")
+    owner_type = Column(String(512), nullable=True, server_default="ai_agent")
 
     # ID of the current owner (ai_agent_name or users.UserID)
-    owner_id = Column(String(100), nullable=True)
+    owner_id = Column(String(512), nullable=True)
 
     # Escalation workflow state
-    escalation_state = Column(String(50), nullable=True, server_default="none")
+    escalation_state = Column(String(512), nullable=True, server_default="none")
 
     # S-075/HRMS-0475 -- per-candidate Thunder pause. Independent of
     # owner_type (BR-01): pausing does NOT transfer ownership, so when
@@ -122,6 +123,46 @@ class CandidateConversation(Base):
     # (S-048) set before its own consumer (S-049) existed.
     offer_faq_active = Column(Boolean, nullable=False, server_default="0")
 
+    # THUNDER REDESIGN (2026-09-04): Real engagement lifecycle tracking
+    # ================================================================
+
+    # Current engagement phase: OUTREACH | CONVERSION | DORMANT | HIRED
+    engagement_phase = Column(
+        String(50),
+        nullable=False,
+        server_default="OUTREACH",
+        index=True
+    )
+
+    # Knowledge level based on behavioral signals: COLD | WARM | HOT
+    knowledge_level = Column(String(50), nullable=False, server_default="COLD")
+
+    # When last message was sent (Day 0, 2-3, 5-7, 8-13, 14+)
+    last_touch_sent_at = Column(DateTime(timezone=False), nullable=True)
+
+    # When next message should be sent (scheduled for future execution)
+    next_touch_scheduled_at = Column(
+        DateTime(timezone=False),
+        nullable=True,
+        index=True  # Index for efficient "get next candidates to touch" queries
+    )
+
+    # When candidate first responded to any message
+    candidate_responded_at = Column(DateTime(timezone=False), nullable=True)
+
+    # Total number of times candidate has engaged (replied, clicked, opened)
+    response_count = Column(Integer, nullable=False, server_default="0")
+
+    # JSON tracking of behavioral signals:
+    # { opened_email: bool, clicked_link: bool, replied: bool, ... }
+    behavioral_signals = Column(JSON, nullable=True, server_default="{}")
+
+    # Days since candidate's last response (auto-calculated, updated daily)
+    days_since_last_response = Column(Integer, nullable=True)
+
+    # How many 14-day cycles have completed (0 = first cycle, 1 = second, etc.)
+    cycle_count = Column(Integer, nullable=False, server_default="0")
+
     # Audit timestamps
     created_at = Column(DateTime(timezone=False), server_default=func.now())
     updated_at = Column(
@@ -139,7 +180,6 @@ class CandidateConversation(Base):
         lazy="dynamic",
         cascade="all, delete-orphan",
     )
-
 
 # ---------------------------------------------------------------------------
 # 2. candidate_ai_assignments
@@ -171,18 +211,20 @@ class CandidateAIAssignment(Base):
     )
 
     # The candidate being assigned to an AI agent
-    candidate_id = Column(String(36),
+    # Candidate IDs are "CAN-" prefix + UUID (50 chars)
+    candidate_id = Column(String(512),
         ForeignKey("candidates.candidateID", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
 
     # Logical name of the AI agent (e.g. "onboarding-bot", "screening-agent")
-    ai_agent_name = Column(String(100), nullable=False)
+    ai_agent_name = Column(String(512), nullable=False)
 
     # The persona/prompt profile the agent uses for this candidate
     # (e.g. "friendly-hr", "formal-recruiter")
-    ai_agent_persona = Column(String(100), nullable=True)
+    # Can be quite long (e.g., full system prompt), so use Text
+    ai_agent_persona = Column(Text, nullable=True)
 
     # When the assignment was made
     assigned_at = Column(DateTime(timezone=False), server_default=func.now())
@@ -201,7 +243,6 @@ class CandidateAIAssignment(Base):
     tenant    = relationship("Users",     foreign_keys=[tenant_id],    lazy="select")
     candidate = relationship("Candidate", foreign_keys=[candidate_id], lazy="select")
     assigner  = relationship("Users",     foreign_keys=[assigned_by],  lazy="select")
-
 
 # ---------------------------------------------------------------------------
 # 3. conversation_events
@@ -251,13 +292,13 @@ class ConversationEvent(Base):
     )
 
     # Type of event (see docstring above)
-    event_type = Column(String(100), nullable=False, index=True)
+    event_type = Column(String(512), nullable=False, index=True)
 
     # Flexible JSON payload — structure depends on event_type
     event_data = Column(JSON, nullable=True)
 
     # Who or what triggered this event
-    triggered_by = Column(String(50), nullable=False, server_default="ai_agent")
+    triggered_by = Column(String(512), nullable=False, server_default="ai_agent")
 
     # Immutable creation timestamp (events are never updated)
     created_at = Column(DateTime(timezone=False), server_default=func.now())

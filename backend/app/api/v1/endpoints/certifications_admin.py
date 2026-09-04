@@ -6,6 +6,7 @@ from datetime import datetime
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
+import logging
 from pydantic import BaseModel
 
 from app.core.database import get_db
@@ -18,6 +19,7 @@ from app.core.logging import logger
 
 router = APIRouter(prefix="/admin/certifications", tags=["admin-certifications"])
 
+logger = logging.getLogger(__name__)
 
 class CertificationRequest(BaseModel):
     cert_name: str
@@ -26,7 +28,6 @@ class CertificationRequest(BaseModel):
     level: str = "Foundation"
     validity_months: int = 24
     is_core_certification: bool = False
-
 
 class CertificationResponse(BaseModel):
     id: str
@@ -38,13 +39,11 @@ class CertificationResponse(BaseModel):
     class Config:
         from_attributes = True
 
-
 class KPITargetRequest(BaseModel):
     employee_id: str
     certification_id: str
     target_date: datetime
     weight: float = 0.1
-
 
 class KPITargetResponse(BaseModel):
     id: str
@@ -56,7 +55,6 @@ class KPITargetResponse(BaseModel):
 
     class Config:
         from_attributes = True
-
 
 @router.post(
     "/create",
@@ -92,7 +90,6 @@ def create_certification(
     logger.info(f"[CERT] Created certification: {cert.cert_code}")
     return cert
 
-
 @router.get(
     "/list",
     response_model=List[CertificationResponse],
@@ -102,7 +99,6 @@ def list_certifications(db: Session = Depends(get_db)):
     """List all certification templates."""
     certs = db.query(Certification).order_by(Certification.cert_name).all()
     return certs
-
 
 @router.post(
     "/assign-target",
@@ -148,7 +144,6 @@ def assign_kpi_target(
     logger.info(f"[KPI] Assigned target: emp={request.employee_id} cert={request.certification_id}")
     return target
 
-
 @router.post(
     "/mark-achieved/{target_id}",
     dependencies=[Depends(require_resource_permission("system", "edit"))],
@@ -173,7 +168,6 @@ def mark_target_achieved(
     logger.info(f"[KPI] Marked achieved: target={target_id}")
     return {"status": "success", "target_id": target_id}
 
-
 @router.get(
     "/employee/{employee_id}/targets",
     response_model=List[KPITargetResponse],
@@ -189,7 +183,6 @@ def get_employee_kpi_targets(
     ).order_by(EmployeeKPITarget.target_date).all()
 
     return targets
-
 
 @router.get(
     "/employee/{employee_id}/score",
@@ -224,7 +217,6 @@ def get_employee_kpi_score(
         "utilization_score": score.utilization_score,
         "last_calculated_at": score.last_calculated_at,
     }
-
 
 def recalculate_employee_kpi_score(db: Session, employee_id: str, business_unit_id: Optional[int] = None):
     """Recalculate KPI score for an employee based on targets."""
@@ -262,3 +254,44 @@ def recalculate_employee_kpi_score(db: Session, employee_id: str, business_unit_
 
     db.commit()
     logger.info(f"[KPI] Recalculated score: emp={employee_id} cert_score={certification_score}")
+
+# ==== Form Dropdown Data Endpoints ====
+
+@router.get(
+    "/business-units",
+    dependencies=[Depends(require_resource_permission("business-unit", "view"))]
+)
+def list_business_units_for_form(db: Session = Depends(get_db)):
+    """List all business units for form dropdown"""
+    from app.models.business_unit import BusinessUnit
+    units = db.query(BusinessUnit).all()
+    data = []
+    for u in units:
+        item = {
+            "id": u.id,
+            "name": u.display_name or u.name,
+            "display_name": u.display_name or u.name,
+            "business_unit_name": u.name,
+            "code": u.bu_code
+        }
+        data.append(item)
+    return data
+
+@router.get(
+    "/roles",
+    dependencies=[Depends(require_resource_permission("role", "view"))]
+)
+def list_roles_for_form(db: Session = Depends(get_db)):
+    """List all role templates for form dropdown"""
+    from app.models.role_template import RoleTemplate
+    templates = db.query(RoleTemplate).all()
+    return [
+        {
+            "id": t.id,
+            "name": t.display_name or t.name,
+            "display_name": t.display_name or t.name,
+            "TemplateName": t.name,
+            "description": t.description
+        }
+        for t in templates
+    ]

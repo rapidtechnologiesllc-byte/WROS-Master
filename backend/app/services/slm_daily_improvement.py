@@ -1,4 +1,5 @@
 """
+import logging
 SLM Daily Improvement Loop - Automatically learns from production usage
 
 Runs once daily (configurable time):
@@ -17,6 +18,7 @@ This creates exponential accuracy growth:
 - Month 1: 85% (+3%)
 """
 
+import logging
 import json
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional
@@ -27,6 +29,7 @@ from app.core.logging import logger
 from app.services.slm_feedback_engine import SLMFeedbackEngine, SLMModelVersion
 from app.models.candidate_resume_parsed import CandidateResumeParsed
 
+logger = logging.getLogger(__name__)
 
 class SLMDailyImprovement:
     """Automated daily learning and improvement"""
@@ -241,27 +244,94 @@ def improved_extract_[field](text):
 
         return trajectory
 
-
 class SLMImprovementScheduler:
     """
-    Schedule daily improvement tasks.
+    Schedule improvement tasks and report progress.
 
     Should be registered with APScheduler:
 
     ```python
     scheduler.add_job(
-        SLMImprovementScheduler.run_daily_at_2am,
-        'cron',
-        hour=2,
-        minute=0,
-        id='slm_daily_improvement'
+        SLMImprovementScheduler.run_and_report,
+        'interval',
+        minutes=30,
+        id='slm_improvement_30min'
     )
     ```
     """
 
     @staticmethod
+    def run_and_report(db: Session) -> Dict:
+        """
+        Run the SLM improvement cycle and post status to message queue.
+
+        Called every 30 minutes by the scheduler.
+
+        Args:
+            db: Database session
+
+        Returns:
+            Report dict with processing stats
+        """
+        try:
+            report = SLMDailyImprovement.run_daily_cycle(db)
+
+            # Extract key metrics
+            corrections_processed = report.get("feedback_collected", 0)
+            outcomes_processed = report.get("errors_fixed", 0)
+            improvements_found = len(report.get("improvements", []))
+
+            # Build status message
+            status_message = (
+                f"SLM: Processed {corrections_processed} corrections, "
+                f"{outcomes_processed} outcomes, {improvements_found} improvements generated"
+            )
+
+            # Post to message queue (intervention queue)
+            try:
+                from app.services.intervention_queue_service import add_to_queue
+
+                # Add as a system-level intervention (candidate_id=None or use a sentinel value)
+                # This shows up in the admin queue for visibility
+                add_to_queue(
+                    db=db,
+                    candidate_id="SYSTEM_SLM",  # Sentinel value for system messages
+                    tenant_id="default",
+                    queue_reason="SLM_STATUS",
+                    reason_detail=status_message,
+                    priority=3,  # PRIORITY_MEDIUM
+                    commit=True
+                )
+                logger.info(f"[SLMScheduler] Posted status: {status_message}")
+            except Exception as e:
+                logger.error(f"Error: {str(e)}", exc_info=True)
+                logger.error(f"[SLMScheduler] Failed to post status message: {e}")
+                # Continue even if message posting fails
+
+            # Return detailed report
+            return {
+                "status": "completed",
+                "corrections_processed": corrections_processed,
+                "outcomes_processed": outcomes_processed,
+                "improvements_generated": improvements_found,
+                "message": status_message,
+                "ready_to_deploy": report.get("ready_to_deploy", False),
+            }
+
+        except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
+            logger.error(f"[SLMScheduler] Improvement cycle failed: {e}", exc_info=True)
+            return {
+                "status": "error",
+                "error": str(e),
+                "corrections_processed": 0,
+                "outcomes_processed": 0,
+                "improvements_generated": 0,
+            }
+
+    @staticmethod
     def run_daily_at_2am():
-        """Run daily improvement at 2 AM UTC"""
+        """Run daily improvement at 2 AM UTC (legacy - kept for backwards compatibility)"""
         from app.core.database import SessionLocal
 
         db = SessionLocal()
@@ -280,6 +350,7 @@ class SLMImprovementScheduler:
             return report
 
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             logger.error(f"[SLMScheduler] Daily improvement failed: {e}")
             return {"status": "error", "error": str(e)}
 

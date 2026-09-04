@@ -1,6 +1,7 @@
 """
 GET/PATCH /tenants/me/locale -- proves S-219/HRMS-0121 (Multi-Continent
 Locale & Currency Config) end-to-end. Genuinely new backend -- no
+import logging
 Tenant-config model, service, or REST layer existed before this.
 
 Throwaway SQLite app, throwaway JWT keys -- never the real database or
@@ -23,7 +24,6 @@ from app.models.tenant import Tenant
 from app.models.user import Users
 import app.models  # noqa: F401 -- registers every model on Base.metadata
 
-
 @pytest.fixture()
 def throwaway_jwt_keys(monkeypatch):
     key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
@@ -38,7 +38,6 @@ def throwaway_jwt_keys(monkeypatch):
     ).decode()
     monkeypatch.setattr(security, "PRIVATE_KEY", private_pem)
     monkeypatch.setattr(security, "PUBLIC_KEY", public_pem)
-
 
 @pytest.fixture()
 def client(throwaway_jwt_keys):
@@ -83,19 +82,15 @@ def client(throwaway_jwt_keys):
         engine.dispose()
         os.remove(db_path)
 
-
 def _token_for(email, role="Admin"):
     return security.create_access_token(data={"sub": email, "type": role, "name": email})
-
 
 def _auth():
     return {"Authorization": f"Bearer {_token_for('admin@blitzenx.com')}"}
 
-
 def test_unauthenticated_request_is_rejected(client):
     resp = client.get("/tenants/me/locale")
     assert resp.status_code in (401, 403)
-
 
 def test_get_locale_defaults(client):
     resp = client.get("/tenants/me/locale", headers=_auth())
@@ -104,7 +99,6 @@ def test_get_locale_defaults(client):
     assert body["default_timezone"] == "UTC"
     assert body["default_date_format"] == "MM/DD/YYYY"
     assert body["default_currency"] == "USD"
-
 
 def test_update_locale_partial(client):
     resp = client.patch(
@@ -123,7 +117,6 @@ def test_update_locale_partial(client):
     get_resp = client.get("/tenants/me/locale", headers=_auth())
     assert get_resp.json()["default_currency"] == "INR"
 
-
 def test_update_locale_rejects_invalid_currency(client):
     resp = client.patch(
         "/tenants/me/locale",
@@ -131,7 +124,6 @@ def test_update_locale_rejects_invalid_currency(client):
         headers=_auth(),
     )
     assert resp.status_code == 422
-
 
 def test_update_locale_rejects_invalid_date_format(client):
     resp = client.patch(

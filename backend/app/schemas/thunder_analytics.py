@@ -1,8 +1,11 @@
+from app.core.logging import logger
 """Pydantic Schemas -- S-071/HRMS-0471 AI Recruiter Performance Analytics."""
+import logging
 from typing import List, Optional
 
 from pydantic import BaseModel
 
+logger = logging.getLogger(__name__)
 
 class AnalyticsSummary(BaseModel):
     qualification_rate: int
@@ -13,7 +16,6 @@ class AnalyticsSummary(BaseModel):
     human_intervention_rate: float
     human_dependency_target_pct: int
 
-
 class TrendPoint(BaseModel):
     date: str
     qualifications: int
@@ -21,19 +23,16 @@ class TrendPoint(BaseModel):
     ghostings: int
     new_candidates: int
 
-
 class TopRiskCandidate(BaseModel):
     candidate_id: str
     name: str
     drop_risk_score: int
     risk_level: str
 
-
 class AgentActionsBreakdown(BaseModel):
     thunder_actions: int
     human_actions: int
     thunder_pct: float
-
 
 class ThunderAnalyticsResponse(BaseModel):
     summary: AnalyticsSummary

@@ -1,6 +1,7 @@
 """
 S-243 (EPIC-02 Revenue Leakage Detection) -- real and distinct from the
 already-shipped S-225/HRMS-0906 timesheet-based leakage
+import logging
 (RevenueLeakageFlag / revenue_leakage_time_layer, in app.models.revenue_leakage).
 
 A 4-pattern engine per the confirmed EPIC-02/03 scoping note: stalled
@@ -22,21 +23,21 @@ placement fee?) before a field gets added -- flagged, not invented.
 See pipeline_leakage_service.scan_subvendor_cost_overruns()'s own
 docstring.
 """
+import logging
 import uuid
 
 from sqlalchemy import Column, DateTime, Enum, ForeignKey, Integer, String, Text, func
 
 from app.models.base import Base
 
-
 def _new_uuid() -> str:
     return str(uuid.uuid4())
-
 
 LEAKAGE_PATTERN_TYPES = (
     "STALLED_OPPORTUNITY", "UNFILLED_DEMAND", "UNBILLED_TIME", "SUBVENDOR_COST_OVERRUN",
 )
 
+logger = logging.getLogger(__name__)
 
 class PipelineLeakageFlag(Base):
     """One row per detected leakage signal. Polymorphic-lite via
@@ -46,7 +47,7 @@ class PipelineLeakageFlag(Base):
 
     __tablename__ = "pipeline_leakage_flags"
 
-    id = Column(String(36), primary_key=True, default=_new_uuid)
+    id = Column(String(512), primary_key=True, default=_new_uuid)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
 
     pattern_type = Column(
@@ -55,10 +56,10 @@ class PipelineLeakageFlag(Base):
     )
     business_unit_id = Column(Integer, ForeignKey("business_units.id"), nullable=True, index=True)
 
-    opportunity_id = Column(String(36), ForeignKey("opportunities.id"), nullable=True, index=True)
-    demand_id = Column(String(36), ForeignKey("demands.id"), nullable=True, index=True)
-    revenue_leakage_flag_id = Column(String(36), ForeignKey("revenue_leakage_time_layer.id"), nullable=True, index=True)
-    sub_vendor_request_id = Column(String(36), ForeignKey("sub_vendor_requests.id"), nullable=True, index=True)
+    opportunity_id = Column(String(512), ForeignKey("opportunities.id"), nullable=True, index=True)
+    demand_id = Column(String(512), ForeignKey("demands.id"), nullable=True, index=True)
+    revenue_leakage_flag_id = Column(String(512), ForeignKey("revenue_leakage_time_layer.id"), nullable=True, index=True)
+    sub_vendor_request_id = Column(String(512), ForeignKey("sub_vendor_requests.id"), nullable=True, index=True)
 
     estimated_impact_usd_cents = Column(Integer, nullable=True)
     detail = Column(Text, nullable=True)

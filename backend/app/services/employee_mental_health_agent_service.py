@@ -1,4 +1,5 @@
 """
+import logging
 Employee Mental Health Agent - Complete Implementation
 
 Monitors employee wellbeing and provides proactive support. Tracks:
@@ -21,7 +22,6 @@ from sqlalchemy import func, and_
 from app.utils.agent_logger import log_agent_execution
 from app.models.employee import Employee
 from app.models.project import Project
-
 
 def get_stress_indicators(db: Session, employee_id: str) -> Dict[str, Any]:
     """Identify stress indicators for an employee."""
@@ -78,7 +78,6 @@ def get_stress_indicators(db: Session, employee_id: str) -> Dict[str, Any]:
         "stress_score": _calculate_stress_score(indicators)
     }
 
-
 def get_wellbeing_score(db: Session, employee_id: str) -> float:
     """Calculate overall wellbeing score (0-100, higher = better wellbeing)."""
     from app.services.hr_agent_service import _calculate_engagement_score, _calculate_utilization
@@ -106,7 +105,6 @@ def get_wellbeing_score(db: Session, employee_id: str) -> float:
 
     return min(100.0, max(0.0, wellbeing))
 
-
 def get_burnout_risks(db: Session, tenant_id: Optional[str] = None) -> List[Dict[str, Any]]:
     """Identify employees at risk of burnout."""
     query = db.query(Employee).filter(Employee.status == "ACTIVE")
@@ -132,7 +130,6 @@ def get_burnout_risks(db: Session, tenant_id: Optional[str] = None) -> List[Dict
             })
 
     return sorted(burnout_risks, key=lambda x: x["burnout_score"], reverse=True)
-
 
 def get_wellness_recommendations(db: Session, employee_id: str) -> List[Dict[str, str]]:
     """Get personalized wellness recommendations."""
@@ -176,7 +173,6 @@ def get_wellness_recommendations(db: Session, employee_id: str) -> List[Dict[str
 
     return recommendations
 
-
 def get_team_wellbeing_snapshot(db: Session, tenant_id: Optional[str] = None) -> Dict[str, Any]:
     """Get wellbeing snapshot for entire team or BU."""
     query = db.query(Employee).filter(Employee.status == "ACTIVE")
@@ -218,7 +214,6 @@ def get_team_wellbeing_snapshot(db: Session, tenant_id: Optional[str] = None) ->
         "recommended_interventions": _get_team_interventions(average_wellbeing, len(burnout_risks), len(employees))
     }
 
-
 def get_mental_health_dashboard(db: Session, tenant_id: Optional[str] = None) -> Dict[str, Any]:
     """Get comprehensive mental health dashboard."""
     team_snapshot = get_team_wellbeing_snapshot(db, tenant_id)
@@ -248,7 +243,6 @@ def get_mental_health_dashboard(db: Session, tenant_id: Optional[str] = None) ->
 
     return dashboard
 
-
 # Helper functions
 
 def _calculate_stress_score(indicators: Dict[str, bool]) -> float:
@@ -257,7 +251,6 @@ def _calculate_stress_score(indicators: Dict[str, bool]) -> float:
     total_indicators = len(indicators)
 
     return (stress_count / total_indicators * 100) if total_indicators > 0 else 0
-
 
 def _calculate_wellbeing_risk(indicators: Dict[str, bool]) -> str:
     """Determine risk level based on stress indicators."""
@@ -271,7 +264,6 @@ def _calculate_wellbeing_risk(indicators: Dict[str, bool]) -> str:
         return "MODERATE"
     else:
         return "LOW"
-
 
 def _get_support_recommendations(indicators: Dict[str, bool], stress_score: float) -> List[str]:
     """Get specific support recommendations based on indicators."""
@@ -298,7 +290,6 @@ def _get_support_recommendations(indicators: Dict[str, bool], stress_score: floa
 
     return recommendations
 
-
 def _determine_wellbeing_trend(db: Session, tenant_id: Optional[str] = None) -> str:
     """Determine if wellbeing is improving, stable, or declining."""
     # In a real system, this would compare weekly snapshots
@@ -311,7 +302,6 @@ def _determine_wellbeing_trend(db: Session, tenant_id: Optional[str] = None) -> 
         return "STABLE"
     else:
         return "DECLINING"
-
 
 def _get_team_interventions(avg_wellbeing: float, burnout_count: int, team_size: int) -> List[str]:
     """Get recommended team-wide interventions."""
@@ -330,7 +320,6 @@ def _get_team_interventions(avg_wellbeing: float, burnout_count: int, team_size:
         interventions.append("Continue current wellness programs - team is healthy")
 
     return interventions
-
 
 def _identify_wellness_focus_areas(db: Session, tenant_id: Optional[str] = None) -> List[Dict[str, str]]:
     """Identify organization-wide wellness focus areas."""
@@ -359,7 +348,6 @@ def _identify_wellness_focus_areas(db: Session, tenant_id: Optional[str] = None)
         })
 
     return focus_areas
-
 
 def _compile_mental_health_actions(snapshot: Dict, burnout_risks: List) -> List[str]:
     """Compile prioritized action items."""

@@ -1,4 +1,5 @@
 """
+import logging
 app.api.v1.endpoints.msgraph -- _require_account() identity resolution.
 
 Real bug fix, 2026-08-05: this used to trust a raw `account_id` cookie
@@ -32,7 +33,6 @@ from app.models.base import Base
 from app.models.user import Users
 import app.models  # noqa: F401
 
-
 @pytest.fixture()
 def throwaway_jwt_keys(monkeypatch):
     key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
@@ -45,7 +45,6 @@ def throwaway_jwt_keys(monkeypatch):
     ).decode()
     monkeypatch.setattr(security, "PRIVATE_KEY", private_pem)
     monkeypatch.setattr(security, "PUBLIC_KEY", public_pem)
-
 
 @pytest.fixture()
 def client(throwaway_jwt_keys, monkeypatch):
@@ -94,16 +93,13 @@ def client(throwaway_jwt_keys, monkeypatch):
         engine.dispose()
         os.remove(db_path)
 
-
 def _token_for(email):
     return security.create_access_token(data={"sub": email})
-
 
 def test_unlinked_account_raises_401(client):
     test_client, _ = client
     resp = test_client.get("/probe/require-account", headers={"Authorization": f"Bearer {_token_for('a@blitzenx.com')}"})
     assert resp.status_code == 401
-
 
 def test_linked_account_resolves_correctly(client):
     test_client, msgraph_module = client
@@ -113,7 +109,6 @@ def test_linked_account_resolves_correctly(client):
     resp = test_client.get("/probe/require-account", headers={"Authorization": f"Bearer {_token_for('a@blitzenx.com')}"})
     assert resp.status_code == 200
     assert resp.json()["account_id"] == "graph-oid-for-a"
-
 
 def test_one_user_never_resolves_another_users_account(client):
     """The real IDOR this fix closes: User A must never be able to
@@ -130,7 +125,6 @@ def test_one_user_never_resolves_another_users_account(client):
 
     assert resp_a.json()["account_id"] == "graph-oid-for-a"
     assert resp_b.json()["account_id"] == "graph-oid-for-b"
-
 
 def test_stale_mapping_without_live_token_raises_401(client):
     """A mapping can exist without a live token (e.g. server restarted,

@@ -1,4 +1,5 @@
-﻿"""EPIC-16 Finance Operations endpoints: bank reconciliation, AR aging, invoice details."""
+from app.core.logging import logger
+"""EPIC-16 Finance Operations endpoints: bank reconciliation, AR aging, invoice details."""
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app.core.dependencies import get_current_internal_user, require_resource_permission
@@ -10,8 +11,9 @@ from app.services.finance_operations_service import (
     get_invoice_detail_drill_down
 )
 
-router = APIRouter(prefix="/finance-operations", tags=["Finance Operations"])
+import logging
 
+router = APIRouter(prefix="/finance-operations", tags=["Finance Operations"])
 
 @router.get("/bank-reconciliation", dependencies=[Depends(require_resource_permission("revenue", "view"))])
 def get_bank_reconciliation(
@@ -24,8 +26,8 @@ def get_bank_reconciliation(
         summary = get_bank_reconciliation_summary(db, as_of_date)
         return {"status": "success", "data": summary}
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @router.get("/ar-aging", dependencies=[Depends(require_resource_permission("revenue", "view"))])
 def get_ar_aging(
@@ -38,8 +40,8 @@ def get_ar_aging(
         aging = get_ar_aging_breakdown(db, as_of_date)
         return {"status": "success", "data": aging}
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @router.get("/invoices/{invoice_id}/detail", dependencies=[Depends(require_resource_permission("revenue", "view"))])
 def get_invoice_detail(
@@ -56,4 +58,5 @@ def get_invoice_detail(
     except HTTPException:
         raise
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))

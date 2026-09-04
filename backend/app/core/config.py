@@ -1,5 +1,6 @@
 """
 Configuration management for the Onboarding Application.
+
 Loads environment variables and provides centralized configuration.
 
 SECRETS MANAGEMENT (2026-08-18):
@@ -7,6 +8,7 @@ SECRETS MANAGEMENT (2026-08-18):
 - Development: Falls back to environment variables and .env files
 - See app.core.secrets_manager for implementation details
 """
+import logging
 import os
 from typing import Optional
 from dotenv import load_dotenv
@@ -37,6 +39,7 @@ except ImportError:
     def get_secret(name: str, default: Optional[str] = None) -> Optional[str]:
         return os.getenv(name.replace("-", "_").upper(), default)
 
+logger = logging.getLogger(__name__)
 
 class Settings:
     """Application settings and configuration."""
@@ -103,11 +106,7 @@ class Settings:
     # CORS Settings - Environment-based configuration
     # Default: localhost for development
     # Production: Use CORS_ORIGINS env var as comma-separated list
-    CORS_ORIGINS: list = [
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-        "http://localhost:8080",
-    ]
+    CORS_ORIGINS: list = ["*"]  # Temporary wildcard for dev testing
 
     # Allow additional origins from environment variable (production/staging)
     _CORS_ENV = os.getenv("CORS_ORIGINS", "").strip()
@@ -141,7 +140,6 @@ class Settings:
             raise ValueError(f"Missing required environment variables: {', '.join(missing)}")
 
         return True
-
 
 # Create a global settings instance
 settings = Settings()

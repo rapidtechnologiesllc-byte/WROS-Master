@@ -4,12 +4,14 @@ Request/Response models for interview decision endpoints.
 """
 from pydantic import BaseModel, Field
 from typing import Optional, List, Dict, Any
+import logging
 from datetime import datetime
-
+from app.core.logging import logger
 
 # ────────────────────────────────────────────────────────────────────────────
 # Request Schemas
 # ────────────────────────────────────────────────────────────────────────────
+logger = logging.getLogger(__name__)
 
 class GetInterviewStatusRequest(BaseModel):
     """Request to get interview status."""
@@ -24,7 +26,6 @@ class GetInterviewStatusRequest(BaseModel):
             }
         }
 
-
 class CalculatePanelDecisionRequest(BaseModel):
     """Request to calculate panel decision."""
     interview_id: int = Field(..., description="Interview ID")
@@ -37,7 +38,6 @@ class CalculatePanelDecisionRequest(BaseModel):
                 "tenant_id": 1
             }
         }
-
 
 class MoveToOfferRequest(BaseModel):
     """Request to create offer after interview approval."""
@@ -64,7 +64,6 @@ class MoveToOfferRequest(BaseModel):
             }
         }
 
-
 class RejectCandidateRequest(BaseModel):
     """Request to reject candidate after interview."""
     interview_id: int = Field(..., description="Interview ID")
@@ -82,7 +81,6 @@ class RejectCandidateRequest(BaseModel):
             }
         }
 
-
 # ────────────────────────────────────────────────────────────────────────────
 # Response Schemas
 # ────────────────────────────────────────────────────────────────────────────
@@ -96,7 +94,6 @@ class FeedbackDetail(BaseModel):
     problem_solving_score: Optional[int] = None
     culture_fit_score: Optional[int] = None
     submitted_at: Optional[str] = None
-
 
 class GetInterviewStatusResponse(BaseModel):
     """Response for get interview status."""
@@ -131,7 +128,6 @@ class GetInterviewStatusResponse(BaseModel):
             }
         }
 
-
 class VotingResult(BaseModel):
     """Voting breakdown from panel."""
     strong_yes: int
@@ -141,14 +137,12 @@ class VotingResult(BaseModel):
     abstain: int
     total_panelists: int
 
-
 class AverageScores(BaseModel):
     """Average interview scores."""
     technical: Optional[float] = None
     communication: Optional[float] = None
     problem_solving: Optional[float] = None
     culture_fit: Optional[float] = None
-
 
 class CalculatePanelDecisionResponse(BaseModel):
     """Response for calculate panel decision."""
@@ -179,7 +173,6 @@ class CalculatePanelDecisionResponse(BaseModel):
             }
         }
 
-
 class MoveToOfferResponse(BaseModel):
     """Response for move to offer."""
     status: str = Field(..., description="Status: success or error")
@@ -201,7 +194,6 @@ class MoveToOfferResponse(BaseModel):
                 "start_date": "2026-09-01"
             }
         }
-
 
 class RejectCandidateResponse(BaseModel):
     """Response for reject candidate."""

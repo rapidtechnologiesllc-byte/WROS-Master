@@ -1,3 +1,4 @@
+import logging
 """add system_config table (S-213/HRMS-0115)
 
 Revision ID: b3f8d2a7c4e6
@@ -11,7 +12,6 @@ revision = "b3f8d2a7c4e6"
 down_revision = "a8e4d2c6f9b1"
 branch_labels = None
 depends_on = None
-
 
 def upgrade():
     op.create_table(
@@ -31,7 +31,6 @@ def upgrade():
     )
     op.create_index("ix_system_config_tenant_id", "system_config", ["tenant_id"])
     op.create_index("ix_system_config_business_unit_id", "system_config", ["business_unit_id"])
-
 
 def downgrade():
     op.drop_index("ix_system_config_business_unit_id", table_name="system_config")

@@ -1,4 +1,5 @@
 """
+import logging
 Checklist Models — Templates and Candidate-specific checklists.
 
 Two item types:
@@ -7,6 +8,7 @@ Two item types:
               Completing it automatically activates the next queue item.
 """
 
+import logging
 from datetime import datetime
 from sqlalchemy import (
     Column, Integer, String, Text, DateTime, Date, Boolean,
@@ -16,15 +18,16 @@ from sqlalchemy.orm import relationship
 
 from app.models.base import Base
 
+logger = logging.getLogger(__name__)
 
 class ChecklistTemplate(Base):
     """A reusable checklist blueprint created by a Hiring Manager."""
     __tablename__ = "checklist_templates"
 
     id = Column(Integer, primary_key=True, autoincrement=True, index=True)
-    name = Column(String(255), nullable=False)
+    name = Column(String(512), nullable=False)
     description = Column(Text, nullable=True)
-    created_by_user_id = Column(String(50), ForeignKey("users.UserID", ondelete="SET NULL"), nullable=True)
+    created_by_user_id = Column(String(512), ForeignKey("users.UserID", ondelete="SET NULL"), nullable=True)
     created_at = Column(DateTime(timezone=False), server_default=func.now())
     updated_at = Column(DateTime(timezone=False), server_default=func.now(), onupdate=func.now())
 
@@ -40,7 +43,6 @@ class ChecklistTemplate(Base):
     def __repr__(self) -> str:
         return f"<ChecklistTemplate id={self.id} name={self.name!r}>"
 
-
 class ChecklistTemplateItem(Base):
     """One item definition inside a ChecklistTemplate."""
     __tablename__ = "checklist_template_items"
@@ -52,7 +54,7 @@ class ChecklistTemplateItem(Base):
         nullable=False,
         index=True
     )
-    title = Column(String(255), nullable=False)
+    title = Column(String(512), nullable=False)
     description = Column(Text, nullable=True)
     item_type = Column(String(10), nullable=False, default="todo")   # 'todo' | 'queue'
     order_index = Column(Integer, nullable=False, default = False)
@@ -65,7 +67,6 @@ class ChecklistTemplateItem(Base):
     def __repr__(self) -> str:
         return f"<ChecklistTemplateItem id={self.id} type={self.item_type!r} title={self.title!r}>"
 
-
 class CandidateChecklist(Base):
     """
     A specific checklist instance assigned to a candidate.
@@ -74,7 +75,7 @@ class CandidateChecklist(Base):
     __tablename__ = "candidate_checklists"
 
     id = Column(Integer, primary_key=True, autoincrement=True, index=True)
-    candidate_id = Column(String(36),
+    candidate_id = Column(String(512),
         ForeignKey("candidates.candidateID", ondelete="CASCADE"),
         nullable=False,
         index=True
@@ -84,8 +85,8 @@ class CandidateChecklist(Base):
         ForeignKey("checklist_templates.id", ondelete="SET NULL"),
         nullable=True
     )
-    template_name = Column(String(255), nullable=True)   # snapshot of name at assignment time
-    assigned_by_user_id = Column(String(50), ForeignKey("users.UserID", ondelete="SET NULL"), nullable=True)
+    template_name = Column(String(512), nullable=True)   # snapshot of name at assignment time
+    assigned_by_user_id = Column(String(512), ForeignKey("users.UserID", ondelete="SET NULL"), nullable=True)
     assigned_at = Column(DateTime(timezone=False), server_default=func.now())
     status = Column(String(20), nullable=False, default="active")  # 'active' | 'completed'
     completed_at = Column(DateTime(timezone=False), nullable=True)
@@ -102,7 +103,6 @@ class CandidateChecklist(Base):
 
     def __repr__(self) -> str:
         return f"<CandidateChecklist id={self.id} candidate={self.candidate_id} status={self.status!r}>"
-
 
 class CandidateChecklistItem(Base):
     """
@@ -123,7 +123,7 @@ class CandidateChecklistItem(Base):
         ForeignKey("checklist_template_items.id", ondelete="SET NULL"),
         nullable=True
     )
-    title = Column(String(255), nullable=False)
+    title = Column(String(512), nullable=False)
     description = Column(Text, nullable=True)
     item_type = Column(String(10), nullable=False, default="todo")   # 'todo' | 'queue'
     order_index = Column(Integer, nullable=False, default = False)

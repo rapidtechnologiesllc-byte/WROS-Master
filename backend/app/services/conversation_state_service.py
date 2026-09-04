@@ -1,4 +1,5 @@
 """
+import logging
 S-018/HRMS-0418 -- Conversation State Manager.
 
 Adapted to this codebase's real state model, which is deliberately
@@ -45,12 +46,14 @@ PREBOARDING/COMPLETED/ESCALATED/PAUSED/WITHDRAWN):
   target status from live data on every reply, so rejecting a same-
   state call would turn an idempotent recompute into a hard failure.
 """
+import logging
 from datetime import datetime
 from typing import Dict, Optional
 
 from sqlalchemy.orm import Session
 
 from app.models.candidate_ai import CandidateConversation, ConversationEvent
+from app.core.logging import logger
 
 # Axis 1: conversation lifecycle. "closed" is terminal -- matches BR-02's
 # "COMPLETED cannot go back to QUALIFYING" (forward-only, non-reversible).
@@ -60,13 +63,13 @@ ALLOWED_STATUS_TRANSITIONS = {
     "closed": set(),
 }
 
+logger = logging.getLogger(__name__)
 
 class InvalidStateTransitionError(Exception):
     def __init__(self, from_state: str, to_state: str):
         self.from_state = from_state
         self.to_state = to_state
         super().__init__(f"Cannot transition from {from_state!r} to {to_state!r}")
-
 
 def _get_conversation(db: Session, conversation_id: int, tenant_id: str) -> CandidateConversation:
     conversation = (
@@ -77,7 +80,6 @@ def _get_conversation(db: Session, conversation_id: int, tenant_id: str) -> Cand
     if not conversation:
         raise ValueError(f"Conversation {conversation_id} not found for tenant {tenant_id}.")
     return conversation
-
 
 def transition_status(
     db: Session,
@@ -110,13 +112,11 @@ def transition_status(
     db.flush()
     return conversation
 
-
 def transition_status_by_id(
     db: Session, conversation_id: int, tenant_id: str, new_status: str, *, reason: str, triggered_by: str,
 ) -> CandidateConversation:
     conversation = _get_conversation(db, conversation_id, tenant_id)
     return transition_status(db, conversation, new_status, reason=reason, triggered_by=triggered_by)
-
 
 def get_conversation_state(db: Session, conversation_id: int, tenant_id: str) -> Dict:
     conversation = _get_conversation(db, conversation_id, tenant_id)
@@ -129,7 +129,6 @@ def get_conversation_state(db: Session, conversation_id: int, tenant_id: str) ->
         "entered_at": conversation.updated_at,
     }
 
-
 # ---------------------------------------------------------------------------
 # Axis 2: escalation. Reversible by construction -- see module docstring.
 # ---------------------------------------------------------------------------
@@ -137,7 +136,6 @@ def get_conversation_state(db: Session, conversation_id: int, tenant_id: str) ->
 # S-062/HRMS-0462 BR-01: CRITICAL escalations (legal keywords) sort to
 # the very top of the intervention queue regardless of age.
 LEGAL_ESCALATION_KEYWORDS = ("legal", "lawyer", "attorney", "lawsuit", "sue", "discriminat")
-
 
 def escalate(db: Session, conversation: CandidateConversation, *, reason: str, triggered_by: str = "ai_agent") -> CandidateConversation:
     conversation.escalation_state = "escalated"
@@ -167,7 +165,6 @@ def escalate(db: Session, conversation: CandidateConversation, *, reason: str, t
 
     return conversation
 
-
 def resolve_escalation(db: Session, conversation: CandidateConversation, *, reason: str, triggered_by: str) -> CandidateConversation:
     conversation.escalation_state = "resolved"
     conversation.updated_at = datetime.utcnow()
@@ -182,7 +179,6 @@ def resolve_escalation(db: Session, conversation: CandidateConversation, *, reas
     resolve_queue_items(db, conversation.candidate_id, conversation.tenant_id, ["ESCALATION"], note=f"Escalation resolved: {reason}", commit=False)
 
     return conversation
-
 
 # ---------------------------------------------------------------------------
 # Axis 3: ownership ("PAUSED" = a human owns it; hand-back = AI owns it
@@ -202,7 +198,6 @@ def pause_for_recruiter(db: Session, conversation: CandidateConversation, *, rec
     db.flush()
     return conversation
 
-
 def pause_for_recruiter_queue(db: Session, conversation: CandidateConversation, *, reason: str) -> CandidateConversation:
     """S-035/HRMS-0435 escalation hand-off: unlike pause_for_recruiter()
     (a specific HR user explicitly taking over), this clears AI
@@ -221,7 +216,6 @@ def pause_for_recruiter_queue(db: Session, conversation: CandidateConversation, 
     ))
     db.flush()
     return conversation
-
 
 def resume_to_thunder(db: Session, conversation: CandidateConversation, *, ai_agent_name: str, reason: str) -> CandidateConversation:
     conversation.owner_type = "ai_agent"

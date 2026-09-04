@@ -2,6 +2,7 @@
 S-046/HRMS-0446 -- Candidate Abandonment Prediction
 ==================================================================
 Prefix: /candidates
+import logging
 Tag:    abandonment-scoring
 
 GET /candidates/{candidate_id}/abandonment-score
@@ -25,7 +26,6 @@ from app.services.ai_conversation_service import resolve_default_tenant_id
 
 router = APIRouter(tags=["abandonment-scoring"])
 
-
 @router.get(
     "/candidates/{candidate_id}/abandonment-score",
     response_model=AbandonmentScoreResponse,
@@ -38,7 +38,7 @@ router = APIRouter(tags=["abandonment-scoring"])
     ),
 )
 def get_abandonment_score(candidate_id: str, db: Session = Depends(get_db)):
-    tenant_id = resolve_default_tenant_id(db)
+    tenant_id = resolve_default_tenant_id()
     if not tenant_id:
         raise HTTPException(status_code=500, detail="No tenant available.")
 

@@ -1,3 +1,4 @@
+import logging
 """add timesheets.task_id, make allocation_id nullable (Task<->Timesheet tie)
 
 Revision ID: e7f2a4c6b8d1
@@ -29,12 +30,10 @@ from typing import Sequence, Union
 from alembic import op
 import sqlalchemy as sa
 
-
 revision: str = 'e7f2a4c6b8d1'
 down_revision: Union[str, Sequence[str], None] = 'd4e6f8a1c3b5'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
-
 
 def upgrade() -> None:
     """Upgrade schema."""
@@ -51,7 +50,6 @@ def upgrade() -> None:
             'ck_timesheet_allocation_or_task',
             '(allocation_id IS NOT NULL) OR (task_id IS NOT NULL)',
         )
-
 
 def downgrade() -> None:
     """Downgrade schema."""

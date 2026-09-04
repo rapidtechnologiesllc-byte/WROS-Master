@@ -11,6 +11,7 @@ Full structure: Corporate (Tenant) → Business Unit → Department → OrgNode 
 - Approval rules (e.g., "a Manager approves their team's timesheets") live in a separate
   ApprovalChain table that references position transitions (e.g., Manager → Director).
 """
+import logging
 from datetime import datetime
 from sqlalchemy import (
     Column, Integer, String, DateTime, ForeignKey, Boolean, Text, Index
@@ -19,6 +20,7 @@ from sqlalchemy.orm import relationship
 
 from app.models.base import Base
 
+logger = logging.getLogger(__name__)
 
 class Department(Base):
     """
@@ -30,21 +32,21 @@ class Department(Base):
     """
     __tablename__ = "departments"
 
-    id = Column(String(36), primary_key=True, index=True)  # UUID
+    id = Column(String(512), primary_key=True, index=True)  # UUID
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False, index=True)
     business_unit_id = Column(Integer, ForeignKey("business_units.id"), nullable=False, index=True)
 
     # Department name (e.g., "Staffing", "Billing", "Operations")
-    name = Column(String(200), nullable=False)
+    name = Column(String(512), nullable=False)
 
     # Optional description of what this department does
     description = Column(Text, nullable=True)
 
     # Hiring manager for this department (OrgNode ID, typically Manager or Senior Manager position)
-    hiring_manager_id = Column(String(36), ForeignKey("org_nodes.id"), nullable=True, index=True)
+    hiring_manager_id = Column(String(512), ForeignKey("org_nodes.id"), nullable=True, index=True)
 
     # Cost center or profit center for finance reporting
-    cost_center_code = Column(String(50), nullable=True)
+    cost_center_code = Column(String(512), nullable=True)
 
     active = Column(Boolean, default=True, nullable=False, index=True)
 
@@ -63,7 +65,6 @@ class Department(Base):
     def __repr__(self) -> str:
         return f"<Department id={self.id} name={self.name!r} bu_id={self.business_unit_id}>"
 
-
 class OrgPosition(Base):
     """
     Named organizational titles: CEO, Partner, BU Head, Senior Director, Director, etc.
@@ -73,7 +74,7 @@ class OrgPosition(Base):
     __tablename__ = "org_positions"
 
     id = Column(Integer, primary_key=True, autoincrement=True, index=True)
-    name = Column(String(100), unique=True, nullable=False, index=True)  # "CEO", "Partner", "BU Head", etc.
+    name = Column(String(512), unique=True, nullable=False, index=True)  # "CEO", "Partner", "BU Head", etc.
     rank = Column(Integer, nullable=False, index=True)  # 0=CEO, 1=Partner, ..., 9=Senior Consultant; used for hierarchy traversal
     description = Column(Text, nullable=True)
 
@@ -83,10 +84,10 @@ class OrgPosition(Base):
 
     # This position approves what workflows
     # (stored as comma-separated strings for flexibility; examples: "TIMESHEET", "PO_APPROVAL", "OFFER_LETTER")
-    approves_workflows = Column(String(500), nullable=True)
+    approves_workflows = Column(String(512), nullable=True)
 
     # RBAC role associated with this position (e.g., "Manager" position → "manager" role)
-    rbac_role_name = Column(String(100), nullable=True, index=True)
+    rbac_role_name = Column(String(512), nullable=True, index=True)
 
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
@@ -97,7 +98,6 @@ class OrgPosition(Base):
     def __repr__(self) -> str:
         return f"<OrgPosition id={self.id} name={self.name!r} rank={self.rank}>"
 
-
 class OrgNode(Base):
     """
     An instance of a position in the organizational tree within a department.
@@ -106,22 +106,32 @@ class OrgNode(Base):
     Each node has one parent (except the root CEO node, which has parent_id=null).
     This creates the tree structure within a department. Cross-department reporting
     (e.g., CEO over all departments, Partner over all BU Heads) is defined by position rank.
+
+    HIERARCHY ENFORCEMENT (2026-08-27):
+    - hierarchy_level: 1-17 (Intern → CEO) defines authority and valid parents
+    - specialization: domain (Recruitment, Development, HR, Finance, etc.) for same-domain reporting
     """
     __tablename__ = "org_nodes"
 
-    id = Column(String(36), primary_key=True, index=True)  # UUID
+    id = Column(String(512), primary_key=True, index=True)  # UUID
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False, index=True)
 
     position_id = Column(Integer, ForeignKey("org_positions.id"), nullable=False, index=True)
 
     # Descriptive name for this specific node (e.g., "Guidewire Practice", "East Coast AE Team")
-    name = Column(String(200), nullable=False)
+    name = Column(String(512), nullable=False)
 
     # Parent node in the hierarchy (null for root-level nodes only: CEO, Partner)
-    parent_id = Column(String(36), ForeignKey("org_nodes.id"), nullable=True, index=True)
+    parent_id = Column(String(512), ForeignKey("org_nodes.id"), nullable=True, index=True)
 
     # Department this node belongs to (null for corporate-level: CEO, Partner)
-    department_id = Column(String(36), ForeignKey("departments.id"), nullable=True, index=True)
+    department_id = Column(String(512), ForeignKey("departments.id"), nullable=True, index=True)
+
+    # MANDATORY: Hierarchy level (1-17) for enforcement of reporting structure
+    hierarchy_level = Column(Integer, nullable=False, default=5, comment="1-17: Intern→CEO, defines authority")
+
+    # MANDATORY: Specialization domain (Recruitment, Development, HR, Finance, etc.)
+    specialization = Column(String(512), nullable=False, default="General", comment="Specialization: Recruitment, Development, HR, Finance, Project Management, QA, Business Analysis")
 
     active = Column(Boolean, default=True, nullable=False, index=True)
 
@@ -143,7 +153,6 @@ class OrgNode(Base):
     def __repr__(self) -> str:
         return f"<OrgNode id={self.id} name={self.name!r} position_id={self.position_id} dept_id={self.department_id}>"
 
-
 class PartnerBUAssignment(Base):
     """
     Links a Partner (OrgNode) to the Business Units they oversee.
@@ -155,7 +164,7 @@ class PartnerBUAssignment(Base):
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False, index=True)
 
     # The Partner OrgNode (position_id must be "Partner")
-    partner_org_node_id = Column(String(36), ForeignKey("org_nodes.id"), nullable=False, index=True)
+    partner_org_node_id = Column(String(512), ForeignKey("org_nodes.id"), nullable=False, index=True)
 
     # The Business Unit this Partner oversees
     business_unit_id = Column(Integer, ForeignKey("business_units.id"), nullable=False, index=True)
@@ -177,7 +186,6 @@ class PartnerBUAssignment(Base):
 
     def __repr__(self) -> str:
         return f"<PartnerBUAssignment partner={self.partner_org_node_id} bu={self.business_unit_id}>"
-
 
 class ApprovalChain(Base):
     """
@@ -202,7 +210,7 @@ class ApprovalChain(Base):
     to_position_id = Column(Integer, ForeignKey("org_positions.id"), nullable=False, index=True)
 
     # Workflow this chain handles (e.g., "TIMESHEET", "OFFER_LETTER", "BUDGET_APPROVAL")
-    workflow = Column(String(100), nullable=False, index=True)
+    workflow = Column(String(512), nullable=False, index=True)
 
     # Whether automatic escalation is enabled (if to_position is unavailable, escalate to their approver)
     auto_escalate = Column(Boolean, default=True, nullable=False)

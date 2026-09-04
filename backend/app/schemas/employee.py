@@ -2,13 +2,17 @@
 Pydantic schemas — S-245 (Create Employee Profile) + S-246 (Mark
 Employee as Bench, extended with bench_periods history) + S-247/S-248
 (bench pool view / aging alerts) API.
+import logging
 """
 
+import logging
 from datetime import date, datetime
 from typing import List, Optional
 
 from pydantic import BaseModel, Field
+from app.core.logging import logger
 
+logger = logging.getLogger(__name__)
 
 class EmployeeCreateRequest(BaseModel):
     first_name: str = Field(..., min_length=1)
@@ -23,18 +27,15 @@ class EmployeeCreateRequest(BaseModel):
     billing_rate_usd_cents: Optional[int] = None
     nationality: Optional[str] = None
 
-
 class BulkImportRowError(BaseModel):
     row: int
     email: Optional[str] = None
     reason: str
 
-
 class BulkImportResponse(BaseModel):
     created: int
     skipped: int
     errors: List[BulkImportRowError]
-
 
 class ConvertCandidateRequest(BaseModel):
     joining_date: date
@@ -51,7 +52,6 @@ class ConvertCandidateRequest(BaseModel):
     # permanent_address already existed on the model, unexposed here.
     current_address: Optional[str] = None
     permanent_address: Optional[str] = None
-
 
 class EmployeeItem(BaseModel):
     id: str
@@ -74,14 +74,11 @@ class EmployeeItem(BaseModel):
     is_on_bench: bool = False
     bench_days: Optional[int] = None
 
-
 class EmployeeListResponse(BaseModel):
     employees: List[EmployeeItem]
 
-
 class MarkBenchRequest(BaseModel):
     reason: str = Field(..., pattern="^(PROJECT_ENDED|PROJECT_DELAYED|NEWLY_JOINED|BETWEEN_PROJECTS|OTHER)$")
-
 
 class BenchPeriodItem(BaseModel):
     id: str
@@ -90,10 +87,8 @@ class BenchPeriodItem(BaseModel):
     reason_for_bench: str
     bench_cost_usd_cents: Optional[int] = None
 
-
 class BenchPeriodHistoryResponse(BaseModel):
     periods: List[BenchPeriodItem]
-
 
 class BenchAgingAlertItem(BaseModel):
     employee_id: str
@@ -101,17 +96,14 @@ class BenchAgingAlertItem(BaseModel):
     days_on_bench: int
     bench_cost_usd_cents: Optional[int] = None
 
-
 class BenchAgingAlertsResponse(BaseModel):
     alerts: List[BenchAgingAlertItem]
-
 
 class StaffingEligibilityResponse(BaseModel):
     employee_id: str
     delivery_engine: str
     eligible: bool
     reason: Optional[str] = None
-
 
 # ---------------------------------------------------------------------------
 # S-351/HRMS-0512 -- Delivery Engine Assignment: Speciality vs Core.
@@ -130,15 +122,12 @@ class EngineHistoryItem(BaseModel):
     approval_reference: Optional[str] = None
     reason: Optional[str] = None
 
-
 class EngineHistoryResponse(BaseModel):
     employee_id: str
     history: List[EngineHistoryItem]
 
-
 class RecordUtilizationRequest(BaseModel):
     week_starting_date: date
-
 
 class UtilizationHistoryItem(BaseModel):
     period_start: date
@@ -146,11 +135,9 @@ class UtilizationHistoryItem(BaseModel):
     billable_hours: float
     bench_hours: float
 
-
 class UtilizationHistoryResponse(BaseModel):
     employee_id: str
     history: List[UtilizationHistoryItem]
-
 
 class UtilizationSummaryItem(BaseModel):
     employee_id: str
@@ -160,12 +147,10 @@ class UtilizationSummaryItem(BaseModel):
     latest_period_start: Optional[date] = None
     is_low_utilization: bool = False
 
-
 class UtilizationSummaryResponse(BaseModel):
     employees: List[UtilizationSummaryItem]
     average_utilization_pct: Optional[float] = None
     low_utilization_count: int = 0
-
 
 class BenchCostSummaryItem(BaseModel):
     employee_id: str
@@ -174,7 +159,6 @@ class BenchCostSummaryItem(BaseModel):
     daily_cost_usd_cents: Optional[int] = None
     monthly_cost_usd_cents: Optional[int] = None
     running_total_usd_cents: Optional[int] = None
-
 
 class BenchCostSummaryResponse(BaseModel):
     employees: List[BenchCostSummaryItem]

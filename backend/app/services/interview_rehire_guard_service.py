@@ -5,6 +5,7 @@ epic-01 is complete" (2026-08-05). His own words: "if there was a
 nohire in the past then when the next time someone is trying to
 schedule interview to the candidate they need to provide a clear
 justification an agentic bot should review and decide or take approval
+import logging
 from hiring manager before scheduling the interview."
 
 Attaches to the LEGACY interview system
@@ -31,6 +32,7 @@ prompt_framework_service (that module's placeholder catalogue is built
 for candidate-facing Thunder replies; this is an internal recruiter
 tool with no candidate context object to feed it).
 """
+import logging
 import json
 import os
 import re
@@ -48,14 +50,13 @@ FAIL_CLOSED_REASONING = (
     "AI review unavailable -- routed to hiring manager for manual approval (fail-closed)."
 )
 
+logger = logging.getLogger(__name__)
 
 class RehireReviewNotFound(Exception):
     pass
 
-
 class RehireReviewAlreadyDecided(Exception):
     pass
-
 
 def get_past_no_hire_panels(db: Session, candidate_id: str) -> List[InterviewPanel]:
     """Every panel (any job, any round) this candidate has been through
@@ -83,10 +84,8 @@ def get_past_no_hire_panels(db: Session, candidate_id: str) -> List[InterviewPan
     rejected_panel_ids = {i.panel_id for i in interviews if i.id in rejected_interview_ids}
     return [p for p in panels if p.id in rejected_panel_ids]
 
-
 def candidate_has_past_no_hire(db: Session, candidate_id: str) -> bool:
     return bool(get_past_no_hire_panels(db, candidate_id))
-
 
 def _past_no_hire_context(db: Session, panels: List[InterviewPanel]) -> str:
     lines = []
@@ -111,7 +110,6 @@ def _past_no_hire_context(db: Session, panels: List[InterviewPanel]) -> str:
                 )
     return "\n".join(lines) if lines else "- (no detail available)"
 
-
 def _default_llm_call(prompt: str, api_key: str) -> str:
     import requests
     resp = requests.post(
@@ -124,7 +122,6 @@ def _default_llm_call(prompt: str, api_key: str) -> str:
     text = result.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "")
     return re.sub(r"```(?:json)?", "", text).strip()
 
-
 def _call_llm(prompt: str, llm_call: Optional[Callable[[str], str]]) -> str:
     if llm_call is not None:
         return llm_call(prompt)
@@ -132,7 +129,6 @@ def _call_llm(prompt: str, llm_call: Optional[Callable[[str], str]]) -> str:
     if not api_key:
         raise RuntimeError("GEMINI_API_KEY not set")
     return _default_llm_call(prompt, api_key)
-
 
 def review_rehire_justification(
     candidate_name: str,
@@ -179,9 +175,9 @@ def review_rehire_justification(
             "confidence": max(0.0, min(1.0, confidence)),
         }
     except Exception as exc:
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[RehireGuard] AI review failed, failing closed to ESCALATE: {exc}")
         return {"decision": "ESCALATE", "reasoning": FAIL_CLOSED_REASONING, "confidence": 0.0}
-
 
 def submit_rehire_request(
     db: Session,
@@ -223,7 +219,6 @@ def submit_rehire_request(
     db.commit()
     db.refresh(review)
     return review
-
 
 def decide_rehire_review(
     db: Session,
@@ -270,7 +265,6 @@ def decide_rehire_review(
     db.commit()
     db.refresh(review)
     return review
-
 
 def get_pending_rehire_reviews(db: Session) -> List[InterviewRehireReview]:
     return (

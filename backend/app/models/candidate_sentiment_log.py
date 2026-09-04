@@ -1,4 +1,5 @@
 """
+import logging
 S-036/HRMS-0436 -- Candidate Sentiment Analysis.
 
 candidate_sentiment_log: a real, new, queryable ledger -- distinct from
@@ -19,6 +20,7 @@ not the spec's DECIMAL(3,2).
 message_event_id points at ConversationEvent.id (the real message log),
 not a fictional conversation_messages.id.
 """
+import logging
 from sqlalchemy import Column, DateTime, Float, ForeignKey, Index, Integer, String, func
 from sqlalchemy.orm import relationship
 
@@ -26,14 +28,15 @@ from app.models.base import Base
 
 SENTIMENT_VALUES = ("POSITIVE", "NEUTRAL", "NEGATIVE")
 
+logger = logging.getLogger(__name__)
 
 class CandidateSentimentLog(Base):
     __tablename__ = "candidate_sentiment_log"
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
 
-    tenant_id = Column(String(50), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=False, index=True)
-    candidate_id = Column(String(36), ForeignKey("candidates.candidateID", ondelete="CASCADE"), nullable=False, index=True)
+    tenant_id = Column(String(512), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=False, index=True)
+    candidate_id = Column(String(512), ForeignKey("candidates.candidateID", ondelete="CASCADE"), nullable=False, index=True)
     conversation_id = Column(Integer, ForeignKey("candidate_conversations.id", ondelete="CASCADE"), nullable=True, index=True)
     message_event_id = Column(Integer, ForeignKey("conversation_events.id", ondelete="SET NULL"), nullable=True)
 

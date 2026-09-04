@@ -1,19 +1,20 @@
+import logging
 """Role Template management endpoints."""
 
-from fastapi import APIRouter, Depends, HTTPException, status, Request
+from fastapi import APIRouter, Depends, HTTPException, status, Request, Body
 from sqlalchemy.orm import Session
 from app.core.database import get_db
-from app.core.dependencies import get_current_internal_user
+from app.core.dependencies import get_current_internal_user, require_resource_permission
 from app.models.user import Users
 from app.models.role_template import Module, Resource, RoleTemplate, RoleTemplatePermission
 from app.models.business_unit import BusinessUnit
-from app.services.rbac_audit_service import RBACauditService
 from pydantic import BaseModel
 from typing import List, Optional
 
 router = APIRouter(prefix="/admin/role-templates", tags=["Role Templates"])
 rbac_router = APIRouter(prefix="/rbac", tags=["RBAC"])
 
+logger = logging.getLogger(__name__)
 
 class PermissionInput(BaseModel):
     resource_id: int
@@ -22,24 +23,23 @@ class PermissionInput(BaseModel):
     can_edit: bool = False
     can_delete: bool = False
 
-
 class RoleTemplateCreate(BaseModel):
     name: str
     display_name: str
     description: Optional[str] = None
     permissions: List[PermissionInput]
 
+class ToggleStatusRequest(BaseModel):
+    is_active: bool
 
 class GrantRevokePermissionInput(BaseModel):
     resource_name: str
     action: str  # view, create, edit, delete
 
-
 class RoleTemplateUpdate(BaseModel):
     display_name: Optional[str] = None
     description: Optional[str] = None
-    permissions: List[PermissionInput]
-
+    permissions: List[PermissionInput] = []
 
 class RoleTemplateResponse(BaseModel):
     id: int
@@ -52,8 +52,10 @@ class RoleTemplateResponse(BaseModel):
     class Config:
         from_attributes = True
 
-
-@router.get("")
+@router.get(
+    "",
+    dependencies=[Depends(require_resource_permission("unknown", "view"))]
+)
 def list_role_templates(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user)
@@ -95,8 +97,10 @@ def list_role_templates(
 
     return {"role_templates": result}
 
-
-@router.get("/{template_id}")
+@router.get(
+    "/{template_id}",
+    dependencies=[Depends(require_resource_permission("role_templates", "view"))]
+)
 def get_role_template(
     template_id: int,
     db: Session = Depends(get_db),
@@ -139,8 +143,10 @@ def get_role_template(
         "permissions": perm_list,
     }
 
-
-@router.post("")
+@router.post(
+    "",
+    dependencies=[Depends(require_resource_permission("unknown", "create"))]
+)
 def create_role_template(
     data: RoleTemplateCreate,
     request: Request,
@@ -208,8 +214,10 @@ def create_role_template(
         "message": "Role template created successfully"
     }
 
-
-@router.put("/{template_id}")
+@router.put(
+    "/{template_id}",
+    dependencies=[Depends(require_resource_permission("role_templates", "update"))]
+)
 def update_role_template(
     template_id: int,
     data: RoleTemplateUpdate,
@@ -217,46 +225,73 @@ def update_role_template(
     current_user: Users = Depends(get_current_internal_user)
 ):
     """Update role template permissions."""
-    template = db.query(RoleTemplate).filter(
-        RoleTemplate.id == template_id,
-        RoleTemplate.tenant_id == current_user.tenant_id
-    ).first()
+    from app.core.logging import logger
+    try:
+        logger.info(f"[PUT] Updating role template {template_id} for user {current_user.UserID}")
 
-    if not template:
-        raise HTTPException(status_code=404, detail="Role template not found")
+        template = db.query(RoleTemplate).filter(
+            RoleTemplate.id == template_id,
+            RoleTemplate.tenant_id == current_user.tenant_id
+        ).first()
 
-    if template.is_system:
-        raise HTTPException(status_code=400, detail="Cannot modify system role templates")
+        if not template:
+            logger.warning(f"[PUT] Template {template_id} not found for tenant {current_user.tenant_id}")
+            raise HTTPException(status_code=404, detail="Role template not found")
 
-    # Update basic fields
-    if data.display_name:
-        template.display_name = data.display_name
-    if data.description is not None:
-        template.description = data.description
+        logger.info(f"[PUT] Found template: {template.name}")
 
-    # Delete existing permissions
-    db.query(RoleTemplatePermission).filter(
-        RoleTemplatePermission.role_template_id == template.id
-    ).delete()
+        # Update basic fields
+        if data.display_name:
+            template.display_name = data.display_name
+            logger.info(f"[PUT] Updated display_name to: {data.display_name}")
+        if data.description is not None:
+            template.description = data.description
+            logger.info(f"[PUT] Updated description")
 
-    # Add new permissions
-    for perm_input in data.permissions:
-        perm = RoleTemplatePermission(
-            role_template_id=template.id,
-            resource_id=perm_input.resource_id,
-            can_view=perm_input.can_view,
-            can_create=perm_input.can_create,
-            can_edit=perm_input.can_edit,
-            can_delete=perm_input.can_delete
-        )
-        db.add(perm)
+        # Delete existing permissions
+        logger.info(f"[PUT] Deleting existing permissions for template {template_id}")
+        db.query(RoleTemplatePermission).filter(
+            RoleTemplatePermission.role_template_id == template.id
+        ).delete()
+        db.flush()
+        logger.info(f"[PUT] Permissions deleted and flushed")
 
-    db.commit()
+        # Add new permissions
+        if data.permissions:
+            logger.info(f"[PUT] Adding {len(data.permissions)} new permissions")
+            for idx, perm_input in enumerate(data.permissions):
+                perm = RoleTemplatePermission(
+                    role_template_id=template.id,
+                    resource_id=perm_input.resource_id,
+                    can_view=perm_input.can_view,
+                    can_create=perm_input.can_create,
+                    can_edit=perm_input.can_edit,
+                    can_delete=perm_input.can_delete
+                )
+                db.add(perm)
+                logger.info(f"[PUT] Added permission {idx+1}: resource_id={perm_input.resource_id}")
 
-    return {"message": "Role template updated successfully"}
+        logger.info(f"[PUT] Flushing permissions")
+        db.flush()
+        logger.info(f"[PUT] Committing transaction")
+        db.commit()
+        logger.info(f"[PUT] Role template {template_id} updated successfully")
 
+        return {"message": "Role template updated successfully"}
+    except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
+        logger.error(f"[PUT] Error updating role template {template_id}: {str(e)}", exc_info=True)
+        db.rollback()
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Error updating role template: {str(e)}")
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Error updating role template: {str(e)}")
 
-@router.post("/{template_id}/grant-permission")
+@router.post(
+    "/{template_id}/grant-permission",
+    dependencies=[Depends(require_resource_permission("role_templates", "create"))]
+)
 def grant_permission(
     template_id: int,
     data: GrantRevokePermissionInput,
@@ -300,34 +335,33 @@ def grant_permission(
             can_delete=False
         )
         db.add(perm)
+        db.flush()  # Flush to ensure perm has an ID
 
-    # Grant the action
-    if action == "view":
+    # Grant the action - only update if it's currently false
+    action_updated = False
+    if action == "view" and not perm.can_view:
         perm.can_view = True
-    elif action == "create":
+        action_updated = True
+    elif action == "create" and not perm.can_create:
         perm.can_create = True
-    elif action == "edit":
+        action_updated = True
+    elif action == "edit" and not perm.can_edit:
         perm.can_edit = True
-    elif action == "delete":
+        action_updated = True
+    elif action == "delete" and not perm.can_delete:
         perm.can_delete = True
+        action_updated = True
 
-    db.commit()
-
-    # Audit log
-    RBACauditService.log_permission_granted(
-        db=db,
-        template_id=template.id,
-        resource_name=resource_name,
-        action=action,
-        user_id=current_user.UserID,
-        tenant_id=current_user.tenant_id,
-        ip_address=request.client.host if request.client else None
-    )
+    # Only commit if something changed
+    if action_updated or not perm.id:
+        db.commit()
 
     return {"message": f"Permission granted: {resource_name} - {action}"}
 
-
-@router.post("/{template_id}/revoke-permission")
+@router.post(
+    "/{template_id}/revoke-permission",
+    dependencies=[Depends(require_resource_permission("role_templates", "create"))]
+)
 def revoke_permission(
     template_id: int,
     data: GrantRevokePermissionInput,
@@ -362,35 +396,34 @@ def revoke_permission(
     ).first()
 
     if not perm:
-        raise HTTPException(status_code=404, detail="Permission not found")
+        # If permission doesn't exist, it's already revoked - return success
+        return {"message": f"Permission already revoked: {resource_name} - {action}"}
 
-    # Revoke the action
-    if action == "view":
+    # Revoke the action - only update if it's currently true
+    action_updated = False
+    if action == "view" and perm.can_view:
         perm.can_view = False
-    elif action == "create":
+        action_updated = True
+    elif action == "create" and perm.can_create:
         perm.can_create = False
-    elif action == "edit":
+        action_updated = True
+    elif action == "edit" and perm.can_edit:
         perm.can_edit = False
-    elif action == "delete":
+        action_updated = True
+    elif action == "delete" and perm.can_delete:
         perm.can_delete = False
+        action_updated = True
 
-    db.commit()
-
-    # Audit log
-    RBACauditService.log_permission_revoked(
-        db=db,
-        template_id=template.id,
-        resource_name=resource_name,
-        action=action,
-        user_id=current_user.UserID,
-        tenant_id=current_user.tenant_id,
-        ip_address=request.client.host if request.client else None
-    )
+    # Only commit if something changed
+    if action_updated:
+        db.commit()
 
     return {"message": f"Permission revoked: {resource_name} - {action}"}
 
-
-@router.delete("/{template_id}")
+@router.delete(
+    "/{template_id}",
+    dependencies=[Depends(require_resource_permission("role_templates", "delete"))]
+)
 def delete_role_template(
     template_id: int,
     db: Session = Depends(get_db),
@@ -429,10 +462,13 @@ def delete_role_template(
 
     return {"message": "Role template deleted successfully"}
 
-
-@router.post("/{template_id}/toggle-status")
+@router.post(
+    "/{template_id}/toggle-status",
+    dependencies=[Depends(require_resource_permission("role_templates", "create"))]
+)
 def toggle_template_status(
     template_id: int,
+    request: ToggleStatusRequest,
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user)
 ):
@@ -445,8 +481,8 @@ def toggle_template_status(
     if not template:
         raise HTTPException(status_code=404, detail="Role template not found")
 
-    # Toggle the enabled status
-    template.enabled = not template.enabled
+    # Set enabled status from request
+    template.enabled = request.is_active
     db.add(template)
     db.commit()
     db.refresh(template)
@@ -455,9 +491,9 @@ def toggle_template_status(
         "id": template.id,
         "name": template.name,
         "enabled": template.enabled,
+        "is_active": template.enabled,
         "message": f"Role template {'enabled' if template.enabled else 'disabled'} successfully"
     }
-
 
 @rbac_router.get("/business-units")
 def list_business_units(
@@ -476,14 +512,60 @@ def list_business_units(
     for bu in bus:
         result.append({
             "id": bu.id,
-            "name": bu.name if hasattr(bu, "name") else bu.bu_name,
-            "bu_name": bu.bu_name if hasattr(bu, "bu_name") else bu.name,
+            "name": bu.name,
+            "display_name": bu.display_name,
         })
 
     return {"business_units": result}
 
+class BusinessUnitCreateRequest(BaseModel):
+    name: str
+    display_name: Optional[str] = None
+    description: Optional[str] = None
+    region: Optional[str] = None
+    continent: Optional[str] = None
 
-@router.get("/{template_id}/audit-trail")
+@rbac_router.post("/business-units")
+def create_business_unit_rbac(
+    req: BusinessUnitCreateRequest,
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_internal_user)
+):
+    """
+    Create a new business unit.
+    Accessible from RBAC endpoints.
+    """
+    # Validate input
+    if not req.name:
+        raise HTTPException(status_code=400, detail="Business Unit name is required")
+
+    # Determine tenant_id (default to 1 if None)
+    tenant_id = current_user.tenant_id if hasattr(current_user, 'tenant_id') and current_user.tenant_id else 1
+
+    new_bu = BusinessUnit(
+        name=req.name,
+        display_name=req.display_name or req.name,
+        description=req.description,
+        bu_code=req.name.upper().replace(" ", ""),
+        tenant_id=tenant_id,
+        active=True
+    )
+
+    db.add(new_bu)
+    db.commit()
+    db.refresh(new_bu)
+
+    return {
+        "id": new_bu.id,
+        "name": new_bu.name,
+        "display_name": new_bu.display_name,
+        "status": "created"
+    }
+
+@router.get(
+    "/{template_id}/audit-trail",
+    dependencies=[Depends(require_resource_permission("role_templates", "view"))]
+)
 def get_template_audit_trail(
     template_id: int,
     db: Session = Depends(get_db),
@@ -510,8 +592,55 @@ def get_template_audit_trail(
         "audit_trail": audit_logs
     }
 
+@router.get(
+    "/{template_id}/users",
+    dependencies=[Depends(require_resource_permission("role_templates", "view"))]
+)
+def get_users_for_role_template(
+    template_id: int,
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_internal_user)
+):
+    """Get all users assigned to a specific role template."""
+    # Verify template exists and belongs to current tenant
+    template = db.query(RoleTemplate).filter(
+        RoleTemplate.id == template_id,
+        RoleTemplate.tenant_id == current_user.tenant_id
+    ).first()
 
-@router.get("/audit/logs")
+    if not template:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Role template not found"
+        )
+
+    # Get users assigned to this role template
+    users = db.query(Users).filter(
+        Users.role_template_id == template_id,
+        Users.tenant_id == current_user.tenant_id
+    ).all()
+
+    return {
+        "template_id": template_id,
+        "template_name": template.name,
+        "user_count": len(users),
+        "users": [
+            {
+                "user_id": u.UserID,
+                "email": u.UserEmail,
+                "name": u.UserName,
+                "role": template.name,
+                "business_unit": u.business_unit_name if hasattr(u, 'business_unit_name') else None,
+                "active": u.is_active
+            }
+            for u in users
+        ]
+    }
+
+@router.get(
+    "/audit/logs",
+    dependencies=[Depends(require_resource_permission("audit", "view"))]
+)
 def get_rbac_audit_logs(
     entity_type: str = None,
     action: str = None,

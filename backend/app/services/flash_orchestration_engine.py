@@ -1,4 +1,5 @@
 """
+import logging
 Flash Orchestration Engine - Daily Command Coordination
 
 Flash is NOT a tracker. Flash is an ORCHESTRATOR that:
@@ -17,6 +18,7 @@ Daily workflow:
 Philosophy: "We work FOR partners to enable success, not burden them with reports."
 """
 
+import logging
 from typing import Dict, Any, List, Optional
 from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
@@ -32,7 +34,9 @@ from app.services.htd_pipeline_accountability_agent import HTDPipelineAccountabi
 from app.services.opportunity_tracker_agent_service import OpportunityTrackerAgent
 from app.services.relation_building_agent_service import RelationBuildingAgent
 from app.services.performance_store_service import write_performance_event
+from app.core.logging import logger
 
+logger = logging.getLogger(__name__)
 
 class FlashOrchestrationEngine:
     """Daily coordination of all 70+ agents toward $100M revenue target.
@@ -280,6 +284,7 @@ class FlashOrchestrationEngine:
             }
 
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             raise
 
     @staticmethod
@@ -345,7 +350,6 @@ class FlashOrchestrationEngine:
             "summary": f"Pool: {len(candidate_results)} candidates. Engagement: {high_pct:.0f}% high. "
                       f"Career mix: {career_dist}. Top risks: {list(risk_dist.keys())[:3]}",
         }
-
 
 def generate_flash_summary(directives: List[Dict], critical: int, high: int) -> str:
     """

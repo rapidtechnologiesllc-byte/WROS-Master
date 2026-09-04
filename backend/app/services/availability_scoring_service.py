@@ -1,4 +1,5 @@
 """
+import logging
 S-039/HRMS-0439 -- Availability Score.
 
 Real architecture adaptations:
@@ -71,11 +72,9 @@ from app.services.technical_scoring_service import CandidateNotFound, JobNotFoun
 
 NEUTRAL_SCORE = 50  # BR-01: null notice period, or no comparison point (no urgency, no start date)
 
-
 def _local_today(tz_name: str) -> date:
     tz = ZoneInfo(tz_name or "Asia/Kolkata")
     return datetime.now(dt_timezone.utc).astimezone(tz).date()
-
 
 def _get_notice_period_days(db: Session, candidate_id: str, tenant_id: str) -> Optional[int]:
     fact = (
@@ -92,7 +91,6 @@ def _get_notice_period_days(db: Session, candidate_id: str, tenant_id: str) -> O
         return None
     return normalize_notice_period_days(fact.fact_value)  # parse failure -> None -> neutral, same as "null"
 
-
 def _score_by_start_date(notice_days: int, days_until_start: int) -> int:
     if notice_days <= days_until_start:
         return 100
@@ -102,7 +100,6 @@ def _score_by_start_date(notice_days: int, days_until_start: int) -> int:
     if over <= 30:
         return 40
     return 15
-
 
 def _score_by_urgency(notice_days: int, urgency: str) -> int:
     if urgency == "IMMEDIATE":
@@ -130,7 +127,6 @@ def _score_by_urgency(notice_days: int, urgency: str) -> int:
     if urgency == "FLEXIBLE":
         return 90  # BR-02: even at 0 notice, FLEXIBLE never reaches 100
     return NEUTRAL_SCORE  # unknown urgency value -- treat as no comparison point
-
 
 def calculate_availability_score(db: Session, candidate_id: str, job_id: str, tenant_id: str) -> Dict:
     """Step 1/Step 2. Upserts availability_score and flat-merges into
@@ -188,7 +184,6 @@ def calculate_availability_score(db: Session, candidate_id: str, job_id: str, te
         "score_breakdown": record.score_breakdown, "calculated_at": record.calculated_at,
     }
 
-
 def recalculate_for_candidate(db: Session, candidate: Candidate, tenant_id: str) -> List[Dict]:
     """Recalculates availability fit for every job this candidate is
     actually linked to. Never raises -- see module docstring."""
@@ -197,6 +192,7 @@ def recalculate_for_candidate(db: Session, candidate: Candidate, tenant_id: str)
         try:
             results.append(calculate_availability_score(db, candidate.candidateID, job_id, tenant_id))
         except Exception as exc:
+            logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.warning(f"[AvailabilityScoring] Failed to recalculate score for candidate {candidate.candidateID!r} / job {job_id!r}: {exc}")
     db.commit()
     return results

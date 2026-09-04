@@ -3,8 +3,10 @@ import requests
 from typing import List, Optional, Dict, Any
 from fastapi import HTTPException
 from app.core.graph_auth import get_graph_token
+import logging
 from app.core.logging import logger
 
+logger = logging.getLogger(__name__)
 
 class EmailService:
     """
@@ -253,6 +255,7 @@ class EmailService:
         except HTTPException:
             raise
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             logger.error(f"[EmailService] Unexpected error: {e}")
             raise HTTPException(status_code=500, detail=str(e))
 
@@ -290,7 +293,6 @@ class EmailService:
         Branded invitation email with Accept / Decline action buttons.
         No calendar event is created — the candidate decides first.
         """
-        from datetime import datetime as _dt
         try:
             _start_dt = _dt.fromisoformat(start_time)
             _end_dt   = _dt.fromisoformat(end_time)
@@ -418,6 +420,7 @@ class EmailService:
         except HTTPException:
             raise
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             logger.error(f"[EmailService] send_interview_invite_request error: {e}")
             raise HTTPException(status_code=500, detail=str(e))
 
@@ -432,7 +435,6 @@ class EmailService:
         start_time_iso: str,
     ) -> None:
         """Notify HR when a candidate accepts or declines an interview invitation."""
-        from datetime import datetime as _dt
         try:
             _start_dt = _dt.fromisoformat(start_time_iso)
             _date_label   = _start_dt.strftime("%d/%m/%Y")
@@ -486,7 +488,8 @@ class EmailService:
                     is_html=True,
                 )
             except Exception as exc:
-                logger.warning(f"[EmailService] HR notification to {hr_email} failed: {exc}")
+                logger.error(f"Error: {str(exc)}", exc_info=True)
+            logger.warning(f"[EmailService] HR notification to {hr_email} failed: {exc}")
 
     @classmethod
     def send_interview_invite(
@@ -588,6 +591,7 @@ class EmailService:
         except HTTPException:
             raise
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             logger.error(f"[EmailService] send_interview_invite error: {e}")
             raise HTTPException(status_code=500, detail=str(e))
 
@@ -736,6 +740,7 @@ class EmailService:
         except HTTPException:
             raise
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             logger.error(f"[EmailService] cancel_interview_event error: {e}")
             raise HTTPException(status_code=500, detail=str(e))
 
@@ -822,6 +827,7 @@ class EmailService:
         except HTTPException:
             raise
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             logger.error(f"[EmailService] send_login_credentials error: {e}")
             raise HTTPException(status_code=500, detail=str(e))
 
@@ -886,6 +892,7 @@ class EmailService:
             )
             logger.info(f"[EmailService] HM approval-request email sent to {hm_email}")
         except Exception as exc:
+            logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.warning(f"[EmailService] notify_hm_approval_requested failed: {exc}")
 
     @classmethod
@@ -961,6 +968,7 @@ class EmailService:
             )
             logger.info(f"[EmailService] HR decision notification sent to {hr_email} — {decision}")
         except Exception as exc:
+            logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.warning(f"[EmailService] notify_hr_hm_decision failed: {exc}")
 
     @classmethod
@@ -1074,6 +1082,7 @@ class EmailService:
             logger.info(f"[EmailService] Offer-released email sent to {candidate_email}")
             return True
         except Exception as exc:
+            logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.warning(f"[EmailService] notify_candidate_offer_released failed: {exc}")
             return False
 
@@ -1143,6 +1152,7 @@ class EmailService:
             )
             logger.info(f"[EmailService] Candidate-response email sent to {hr_email} — {decision}")
         except Exception as exc:
+            logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.warning(f"[EmailService] notify_hr_candidate_responded failed: {exc}")
 
     # ------------------------------------------------------------------
@@ -1150,7 +1160,7 @@ class EmailService:
     # ------------------------------------------------------------------
 
     # Colour & icon map for each event type
-    _EVENT_STYLES: Dict[str, Dict[str, str]] = {
+            _EVENT_STYLES: Dict[str, Dict[str, str]] = {
         "document_uploaded": {
             "colour": "#1a56db",
             "badge_bg": "#dbeafe",
@@ -1333,6 +1343,7 @@ class EmailService:
         except HTTPException:
             raise
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             logger.error(f"[EmailService] send_event_notification error: {e}")
             raise HTTPException(status_code=500, detail=str(e))
 
@@ -1402,6 +1413,7 @@ class EmailService:
         except HTTPException:
             raise
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             logger.error(f"[EmailService] notify_timesheet_approved error: {e}")
             raise HTTPException(status_code=500, detail=str(e))
 
@@ -1509,6 +1521,7 @@ class EmailService:
         except HTTPException:
             raise
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             logger.error(f"[EmailService] send_interview_feedback_notification error: {e}")
             return False
 

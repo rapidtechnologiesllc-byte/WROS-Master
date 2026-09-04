@@ -1,3 +1,4 @@
+import logging
 """Seed scenario data: realistic agent performance patterns."""
 
 import sys
@@ -314,6 +315,7 @@ KEY INSIGHTS:
 """)
 
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         db.rollback()
         print(f"[ERROR] {e}")
         raise

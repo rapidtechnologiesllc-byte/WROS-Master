@@ -1,4 +1,5 @@
 """
+import logging
 Executive Signal & Culture Agent -- org-health rollup.
 
 Proves: the snapshot aggregates real existing signals (no fabricated
@@ -27,7 +28,6 @@ from app.models.user import Users
 
 import app.services.org_health_service as svc
 
-
 @pytest.fixture()
 def db_session():
     fd, db_path = tempfile.mkstemp(suffix=".sqlite3")
@@ -47,7 +47,6 @@ def db_session():
         engine.dispose()
         os.remove(db_path)
 
-
 def test_snapshot_degrades_gracefully_on_empty_db(db_session):
     snapshot = svc.get_org_health_snapshot(db_session)
 
@@ -56,7 +55,6 @@ def test_snapshot_degrades_gracefully_on_empty_db(db_session):
     assert snapshot["workforce"]["open_capacity_alerts"] == 0
     assert "Client Health" in snapshot["note"]  # honest disclosure, not silently omitted
 
-
 def test_snapshot_counts_real_overdue_tasks(db_session):
     db_session.add(Task(title="Overdue", priority="HIGH", status="NEW", is_escalated=True))
     db_session.add(Task(title="Fine", priority="LOW", status="NEW", is_escalated=False))
@@ -64,7 +62,6 @@ def test_snapshot_counts_real_overdue_tasks(db_session):
 
     snapshot = svc.get_org_health_snapshot(db_session)
     assert snapshot["workforce"]["overdue_tasks"] == 1
-
 
 def test_snapshot_counts_open_capacity_alerts(db_session):
     db_session.add_all([

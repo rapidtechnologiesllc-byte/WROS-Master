@@ -1,3 +1,4 @@
+import logging
 """S-020/HRMS-0420: add candidate_sla_breaches table
 
 Revision ID: e4f5a6b7c8d9
@@ -11,7 +12,6 @@ revision = "e4f5a6b7c8d9"
 down_revision = "d3e4f5a6b7c8"
 branch_labels = None
 depends_on = None
-
 
 def upgrade():
     op.create_table(
@@ -29,7 +29,6 @@ def upgrade():
     op.create_index("ix_candidate_sla_breaches_tenant_id", "candidate_sla_breaches", ["tenant_id"])
     op.create_index("ix_candidate_sla_breaches_candidate_id", "candidate_sla_breaches", ["candidate_id"])
     op.create_index("ix_candidate_sla_breaches_conversation_id", "candidate_sla_breaches", ["conversation_id"])
-
 
 def downgrade():
     op.drop_index("ix_candidate_sla_breaches_conversation_id", table_name="candidate_sla_breaches")

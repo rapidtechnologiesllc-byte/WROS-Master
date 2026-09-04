@@ -6,6 +6,7 @@ from app.models.candidate import Candidate
 from app.models.employee import Employee
 from app.models.user import Users
 from app.services.employee_conversion_service import EmployeeConversionService, InvalidCandidateState
+import logging
 from app.core.security import get_password_hash
 
 @pytest.fixture

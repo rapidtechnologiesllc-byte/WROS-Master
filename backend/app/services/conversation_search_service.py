@@ -1,4 +1,5 @@
 """
+import logging
 S-015/HRMS-0415 -- Conversation Search.
 
 Adapted to real architecture: the spec's PostgreSQL tsvector/
@@ -23,6 +24,7 @@ would need a schema change (a real, indexed message_body column) this
 round didn't make -- flagged for a future pass if message volume ever
 makes this measurably slow.
 """
+import logging
 from datetime import datetime
 from typing import Dict, List, Optional
 
@@ -30,15 +32,16 @@ from sqlalchemy.orm import Session
 
 from app.models.candidate import Candidate
 from app.models.candidate_ai import CandidateConversation, ConversationEvent
+from app.core.logging import logger
 
 MIN_QUERY_LENGTH = 2
 SNIPPET_LENGTH = 150
 SEARCHABLE_EVENT_TYPES = ("candidate_reply", "ai_message_sent", "hr_message_sent")
 
+logger = logging.getLogger(__name__)
 
 class SearchTermTooShort(Exception):
     pass
-
 
 def _snippet(body: str, query: str) -> str:
     if not body:
@@ -50,7 +53,6 @@ def _snippet(body: str, query: str) -> str:
         return body[:SNIPPET_LENGTH]
     start = max(0, idx - 40)
     return body[start:start + SNIPPET_LENGTH]
-
 
 def search_conversations(
     db: Session, tenant_id: str, q: str, *,

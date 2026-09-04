@@ -1,4 +1,5 @@
 """
+import logging
 S-043/HRMS-0443 -- Candidate Ghosting Detection.
 
 Real architecture adaptations:
@@ -58,12 +59,10 @@ from app.services.notification_service import send_notification
 
 GHOSTING_REACTIVATION_DAYS = int(os.getenv("GHOSTING_REACTIVATION_DAYS", "14"))  # BR-02 default
 
-
 def _candidate_name(candidate: Candidate) -> str:
     parts = [candidate.candidateFirstName, candidate.candidateLastName]
     name = " ".join(p for p in parts if p).strip()
     return name or candidate.candidateEmail
-
 
 def _assigned_recruiter(db: Session, candidate_id: str) -> Optional[Users]:
     """Mirrors sla_monitoring_service's own resolver -- kept local since
@@ -78,7 +77,6 @@ def _assigned_recruiter(db: Session, candidate_id: str) -> Optional[Users]:
         return db.query(Users).filter(Users.UserID == assignment.assigned_by).first()
     return None
 
-
 def is_candidate_ghosted(db: Session, candidate_id: str, tenant_id: str) -> bool:
     """Step 3's real enforcement primitive -- checked at the point of
     every outbound send, not via a fabricated conversation state."""
@@ -88,7 +86,6 @@ def is_candidate_ghosted(db: Session, candidate_id: str, tenant_id: str) -> bool
         .first()
     )
     return row is not None
-
 
 def _notify_recruiter_of_ghosting(db: Session, tenant_id: str, candidate: Candidate, reactivation_date: datetime) -> None:
     recipient = _assigned_recruiter(db, candidate.candidateID) or db.query(Users).filter(Users.UserID == tenant_id).first()
@@ -104,8 +101,8 @@ def _notify_recruiter_of_ghosting(db: Session, tenant_id: str, candidate: Candid
             ),
         )
     except Exception as exc:
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[GhostingDetection] Failed to notify recruiter for candidate {candidate.candidateID!r}: {exc}")
-
 
 def run_ghosting_detection_job(db: Session) -> dict:
     """Step 2. Real consumer of the POST_THIRD signal S-042 already
@@ -157,11 +154,11 @@ def run_ghosting_detection_job(db: Session) -> dict:
 
             result["ghosted"] += 1
         except Exception as exc:
+            logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.error(f"[GhostingDetection] Failed processing POST_THIRD log id={log_row.id}: {exc}")
             db.rollback()
 
     return result
-
 
 def reactivate_candidate(db: Session, candidate_id: str, tenant_id: str, conversation_id: int) -> bool:
     """Step 4/BR-03: self-reactivation always wins. Returns whether a

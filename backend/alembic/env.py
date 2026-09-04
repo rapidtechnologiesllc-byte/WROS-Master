@@ -1,5 +1,6 @@
 import os
 from dotenv import load_dotenv
+import logging
 from logging.config import fileConfig
 
 from sqlalchemy import engine_from_config, pool
@@ -46,7 +47,7 @@ from app.models.base import Base
 from app.models.tenant import Tenant
 from app.models.audit_log import AuditLog
 from app.models.consent import ConsentRecord
-from app.models.user import Users, Jobs, UserRole, CandidateAssignment, InterviewPanel, PanelMember, Interview, InterviewFeedback
+from app.models.user import Users, Jobs, CandidateAssignment, InterviewPanel, PanelMember, Interview, InterviewFeedback
 from app.models.candidate import Candidate, CandidateInfoForm, CandidateEducationForm, CandidateExperienceForm, CandidateAadharForm, CandidatePanForm, CandidateStatus, CandidateJobApplication
 from app.models.document import CandidateDocument
 from app.models.offer_letter import OfferLetter
@@ -63,7 +64,6 @@ from app.models.interview_pipeline import DemandInterviewPanel, SubmissionInterv
 from app.models.interview import InterviewFeedback, InterviewDecisionLog, InterviewPanelDecision
 
 target_metadata = Base.metadata
-
 
 def run_migrations_offline() -> None:
     """Run migrations in 'offline' mode.
@@ -88,7 +88,6 @@ def run_migrations_offline() -> None:
     with context.begin_transaction():
         context.run_migrations()
 
-
 def run_migrations_online() -> None:
     """Run migrations in 'online' mode.
 
@@ -109,7 +108,6 @@ def run_migrations_online() -> None:
 
         with context.begin_transaction():
             context.run_migrations()
-
 
 if context.is_offline_mode():
     run_migrations_offline()

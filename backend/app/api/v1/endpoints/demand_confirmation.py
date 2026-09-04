@@ -2,6 +2,7 @@
 S-372 (HRMS-0528) Confirmed vs Potential Demand Workflow — API Endpoints
 =========================================================================
 Prefix: /demand-confirmation
+import logging
 Tag:    demand-confirmation
 
 Wires app.services.demand_confirmation_service (built earlier this
@@ -9,7 +10,7 @@ program, no REST layer previously existed) to real HTTP routes. See the
 Definition of Done correction in CLAUDE.md.
 
 Auth: same posture as every other Phase 4 story this round
-(get_current_hr_or_admin -- any internal user). Scope note, flagged
+(get_current_internal_user -- any internal user). Scope note, flagged
 rather than silently narrowed: this codebase has no employee self-
 service login path at all (no get_current_employee dependency exists
 anywhere), so BOTH the EMPLOYEE and BU_HEAD fit confirmations are
@@ -42,7 +43,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_hr_or_admin
+from app.core.dependencies import get_current_internal_user
 from app.models.demand import Demand
 from app.models.demand_confirmation import DemandAlignmentCall
 from app.models.employee import Employee
@@ -70,7 +71,6 @@ from app.services.demand_confirmation_service import (
 
 router = APIRouter(prefix="/demand-confirmation", tags=["demand-confirmation"])
 
-
 def _to_item(db: Session, call: DemandAlignmentCall) -> AlignmentCallItem:
     demand = db.query(Demand).filter(Demand.id == call.demand_id).first()
     employee = db.query(Employee).filter(Employee.id == call.employee_id).first()
@@ -95,13 +95,11 @@ def _to_item(db: Session, call: DemandAlignmentCall) -> AlignmentCallItem:
         specialty_client_release_triggered_at=call.specialty_client_release_triggered_at,
     )
 
-
 def _get_demand_or_404(db: Session, demand_id: str) -> Demand:
     demand = db.query(Demand).filter(Demand.id == demand_id).first()
     if demand is None:
         raise HTTPException(status_code=404, detail="Demand not found.")
     return demand
-
 
 def _get_call_or_404(db: Session, call_id: str) -> DemandAlignmentCall:
     call = db.query(DemandAlignmentCall).filter(DemandAlignmentCall.id == call_id).first()
@@ -109,9 +107,9 @@ def _get_call_or_404(db: Session, call_id: str) -> DemandAlignmentCall:
         raise HTTPException(status_code=404, detail="Alignment call not found.")
     return call
 
-
 @router.post(
     "/demands/{demand_id}/confirm-sow",
+    dependencies=[Depends(get_current_internal_user)],
     response_model=ConfirmSOWResponse,
     summary="Record a SOW reference and confirm the demand",
 )
@@ -119,7 +117,7 @@ def confirm_sow(
     demand_id: str,
     body: ConfirmSOWRequest,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     demand = _get_demand_or_404(db, demand_id)
     try:
@@ -137,9 +135,9 @@ def confirm_sow(
         sow_received_date=demand.sow_received_date,
     )
 
-
 @router.post(
     "/demands/{demand_id}/employees/{employee_id}/schedule-call",
+    dependencies=[Depends(get_current_internal_user)],
     response_model=AlignmentCallItem,
     summary="Book (or return the existing) 3-way alignment call",
 )
@@ -148,7 +146,7 @@ def schedule_call(
     employee_id: str,
     body: ScheduleCallRequest,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     demand = _get_demand_or_404(db, demand_id)
     employee = db.query(Employee).filter(Employee.id == employee_id).first()
@@ -163,16 +161,16 @@ def schedule_call(
     db.refresh(call)
     return _to_item(db, call)
 
-
 @router.get(
     "/demands/{demand_id}/calls",
+    dependencies=[Depends(get_current_internal_user)],
     response_model=AlignmentCallListResponse,
     summary="Get all alignment calls for a demand",
 )
 def get_calls_for_demand(
     demand_id: str,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     _get_demand_or_404(db, demand_id)
     calls = (
@@ -183,9 +181,9 @@ def get_calls_for_demand(
     )
     return AlignmentCallListResponse(calls=[_to_item(db, c) for c in calls])
 
-
 @router.post(
     "/calls/{call_id}/confirm-fit",
+    dependencies=[Depends(get_current_internal_user)],
     response_model=ConfirmFitResponse,
     summary="Record one participant's fit confirmation (immutable once set)",
 )
@@ -193,7 +191,7 @@ def confirm_call_fit(
     call_id: str,
     body: ConfirmFitRequest,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     call = _get_call_or_404(db, call_id)
     try:
@@ -208,16 +206,16 @@ def confirm_call_fit(
     db.refresh(call)
     return ConfirmFitResponse(message="Fit confirmation recorded.", call=_to_item(db, call))
 
-
 @router.post(
     "/calls/{call_id}/trigger-release",
+    dependencies=[Depends(get_current_internal_user)],
     response_model=TriggerReleaseResponse,
     summary="Trigger Specialty client release (hard gate: CONFIRMED + both fits True)",
 )
 def trigger_release(
     call_id: str,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     call = _get_call_or_404(db, call_id)
     demand = _get_demand_or_404(db, call.demand_id)

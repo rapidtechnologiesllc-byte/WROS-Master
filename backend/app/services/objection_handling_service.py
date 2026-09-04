@@ -1,4 +1,5 @@
 """
+import logging
 S-072/HRMS-0472 -- Objection Handling Engine.
 
 Real architecture reuse: "objecting" was already a defined VALID_INTENT
@@ -45,6 +46,7 @@ Step 1's taxonomy below is copied verbatim from this story's own spec
 candidates, same posture as S-029's synonym library / S-055's
 DEFAULT_FAQ_CONTENT / S-067's joining-instructions template.
 """
+import logging
 import json
 from typing import Callable, Dict, Optional
 
@@ -72,6 +74,7 @@ MAX_SAME_OBJECTION_BEFORE_ESCALATE = 3  # BR-01
 SAFE_FALLBACK_MESSAGE = "I understand your concern. Let me have one of our team members follow up with you on this."
 SALARY_NO_NUMBERS_MESSAGE = "Let me connect you with our team to discuss compensation in detail."  # BR-02
 
+logger = logging.getLogger(__name__)
 
 class ObjectionEscalatedError(Exception):
     """BR-01: caller (public_chat_service) should treat this the same
@@ -82,7 +85,6 @@ class ObjectionEscalatedError(Exception):
         self.objection_type = objection_type
         self.count = count
         super().__init__(f"Objection type {objection_type!r} raised {count} times -- escalating per BR-01.")
-
 
 def classify_objection(db: Session, tenant_id: str, candidate_id: str, message_body: str, *, llm_call: Optional[Callable] = None) -> Dict:
     """Step 2. Never raises -- LLM failure or invalid JSON collapses to
@@ -109,11 +111,9 @@ def classify_objection(db: Session, tenant_id: str, candidate_id: str, message_b
     except Exception:
         return {"objection_type": "OTHER", "key_concern": "", "confidence": 0.0}
 
-
 def _count_prior_occurrences(db: Session, conversation_id: int, objection_type: str) -> int:
     events = db.query(ConversationEvent).filter(ConversationEvent.conversation_id == conversation_id, ConversationEvent.event_type == "OBJECTION_RAISED").all()
     return sum(1 for e in events if (e.event_data or {}).get("objection_type") == objection_type)
-
 
 def _generate_objection_response(db: Session, conversation: CandidateConversation, candidate: Candidate, objection_type: str, key_concern: str, *, llm_call: Optional[Callable] = None) -> str:
     if objection_type == "SALARY":  # BR-02: never reaches the LLM at all -- see module docstring
@@ -139,9 +139,9 @@ def _generate_objection_response(db: Session, conversation: CandidateConversatio
         )
         return response.strip() or SAFE_FALLBACK_MESSAGE
     except Exception as exc:
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[ObjectionHandling] Response generation failed for candidate {candidate.candidateID!r}: {exc}")
         return SAFE_FALLBACK_MESSAGE
-
 
 def handle_objection(db: Session, conversation: CandidateConversation, candidate: Candidate, message_body: str, *, llm_call: Optional[Callable] = None) -> Dict:
     """Step 3. Raises ObjectionEscalatedError on the 3rd+ occurrence of
@@ -170,6 +170,7 @@ def handle_objection(db: Session, conversation: CandidateConversation, candidate
     try:
         upsert_fact(db, candidate.candidateID, conversation.tenant_id, fact_category="OBJECTION", fact_key=objection_type, fact_value=key_concern, confidence=classification["confidence"])
     except Exception as exc:
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[ObjectionHandling] Failed to store objection memory fact for candidate {candidate.candidateID!r}: {exc}")
 
     if occurrence_number >= MAX_SAME_OBJECTION_BEFORE_ESCALATE:

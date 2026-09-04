@@ -1,10 +1,11 @@
-﻿"""
+"""
 HRMS-0312: Offer Management & Approval REST Endpoints
 Complete offer lifecycle API endpoints.
 """
 from typing import Optional
 from datetime import date
 from fastapi import APIRouter, Depends, HTTPException, Query
+import logging
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -18,16 +19,16 @@ from app.schemas.offer import (
     OfferSummary
 )
 from app.services.offer_management_service import OfferManagementService
+from app.services.message_queue_service import MessageQueueService
 from app.models.offer import Offer
+from app.models.candidate import Candidate
 
 router = APIRouter(prefix="/offers", tags=["offers"])
 offer_service = OfferManagementService()
 
-
 def _get_tenant_id_from_request(db: Session) -> int:
     """Extract tenant ID from request context (middleware sets this)."""
     return 1  # Default tenant for now; in multi-tenant, comes from middleware
-
 
 # â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 # CREATE OFFER
@@ -78,14 +79,36 @@ def create_offer(
 
         # Fetch the created offer to return full response
         offer = db.query(Offer).filter(Offer.id == result["offer_id"]).first()
+
+        # Queue offer_generated message for approval workflow
+        candidate = db.query(Candidate).filter(Candidate.candidateID == request.candidate_id).first()
+        if offer and candidate:
+            MessageQueueService.enqueue(
+                message_type="offer_generated",
+                payload={
+                    "offer_id": offer.id,
+                    "candidate_id": request.candidate_id,
+                    "candidate_email": candidate.candidateEmail,
+                    "candidate_name": f"{candidate.candidateFirstName or ''} {candidate.candidateLastName or ''}".strip(),
+                    "position_title": request.position_title,
+                    "base_salary_usd_cents": request.base_salary_usd_cents,
+                    "signing_bonus_usd_cents": request.signing_bonus_usd_cents,
+                    "expected_start_date": str(request.expected_start_date),
+                },
+                resource_id=offer.id,
+                queue_type="APPROVAL_QUEUE",
+                created_by=user.UserID,
+                db=db,
+            )
+
         return OfferResponse.from_orm(offer)
 
     except HTTPException:
         raise
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Error creating offer: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to create offer")
-
 
 # â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 # APPROVE OFFER
@@ -140,9 +163,9 @@ def approve_offer(
     except HTTPException:
         raise
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Error approving offer {offer_id}: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to approve offer")
-
 
 # â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 # SEND OFFER TO CANDIDATE
@@ -199,9 +222,9 @@ def send_offer_to_candidate(
     except HTTPException:
         raise
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Error sending offer {offer_id}: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to send offer")
-
 
 # â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 # REJECT OFFER
@@ -209,6 +232,7 @@ def send_offer_to_candidate(
 
 @router.post(
     "/{offer_id}/reject",
+    dependencies=[Depends(require_resource_permission("offer", "manage"))],
     response_model=OfferStatusResponse,
     summary="Reject an offer (candidate action)"
 )
@@ -251,9 +275,9 @@ def reject_offer(
     except HTTPException:
         raise
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Error rejecting offer {offer_id}: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to reject offer")
-
 
 # â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 # RETRACT OFFER
@@ -305,9 +329,9 @@ def retract_offer(
     except HTTPException:
         raise
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Error retracting offer {offer_id}: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to retract offer")
-
 
 # â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 # ACCEPT OFFER
@@ -315,6 +339,7 @@ def retract_offer(
 
 @router.post(
     "/{offer_id}/accept",
+    dependencies=[Depends(require_resource_permission("offer", "manage"))],
     response_model=OfferAcceptanceResponse,
     summary="Accept an offer (candidate action)"
 )
@@ -361,9 +386,9 @@ def accept_offer(
     except HTTPException:
         raise
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Error accepting offer {offer_id}: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to accept offer")
-
 
 # â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 # GET OFFER BY ID
@@ -401,9 +426,9 @@ def get_offer(
     except HTTPException:
         raise
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Error fetching offer {offer_id}: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to fetch offer")
-
 
 # â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 # LIST OFFERS
@@ -457,9 +482,9 @@ def list_offers(
     except HTTPException:
         raise
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Error listing offers: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to list offers")
-
 
 # â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 # OFFER STATUS SUMMARY
@@ -467,6 +492,7 @@ def list_offers(
 
 @router.get(
     "/candidate/{candidate_id}",
+    dependencies=[Depends(require_resource_permission("offer", "manage"))],
     response_model=OfferListResponse,
     summary="Get all offers for a candidate"
 )
@@ -496,5 +522,6 @@ def get_candidate_offers(
     except HTTPException:
         raise
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Error fetching offers for candidate {candidate_id}: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to fetch offers")

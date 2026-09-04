@@ -2,6 +2,7 @@
 S-004/HRMS-0404 -- Web Portal Chat Messages
 ==============================================
 Prefix: /portal/conversations
+import logging
 Tag:    portal-messages
 
 Candidate-authenticated (get_current_candidate -- real JWT candidate
@@ -19,6 +20,7 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.dependencies import get_current_candidate
 from app.models.candidate import Candidate
+from app.core.dependencies import get_current_internal_user
 from app.schemas.portal_messages import (
     PortalMessageHistoryResponse,
     PortalMessageRequest,
@@ -35,9 +37,9 @@ from app.services.portal_message_service import (
 
 router = APIRouter(prefix="/portal/conversations", tags=["portal-messages"])
 
-
 @router.post(
     "/{conversation_id}/messages",
+    dependencies=[Depends(get_current_internal_user)],
     response_model=PortalMessageResponse,
     status_code=201,
     summary="Candidate sends a message via the web portal",
@@ -61,9 +63,9 @@ def post_portal_message(
 
     return PortalMessageResponse(**result)
 
-
 @router.get(
     "/{conversation_id}/messages",
+    dependencies=[Depends(get_current_internal_user)],
     response_model=PortalMessageHistoryResponse,
     summary="Candidate retrieves their portal conversation history",
 )
@@ -80,9 +82,9 @@ def list_portal_messages(
 
     return PortalMessageHistoryResponse(**result)
 
-
 @router.get(
     "/{conversation_id}/messages/poll",
+    dependencies=[Depends(get_current_internal_user)],
     response_model=PortalMessageHistoryResponse,
     summary="S-346 -- long-poll for messages newer than after_id (WebSocket fallback)",
 )

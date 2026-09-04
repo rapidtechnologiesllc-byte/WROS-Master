@@ -1,4 +1,5 @@
 """
+import logging
 Candidate Status Management API
 
 Endpoints for updating and viewing a candidate's:
@@ -19,7 +20,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_hr_or_admin, require_resource_permission
+from app.core.dependencies import get_current_internal_user, require_resource_permission
 from app.models.candidate import Candidate, CandidateStatus
 from app.models.user import CandidateAssignment, Jobs, Users
 from app.models.checklist import ChecklistTemplate, CandidateChecklist, CandidateChecklistItem
@@ -28,9 +29,7 @@ from app.services.email_service import EmailService
 from app.core.logging import logger
 from app.schemas.candidate import CandidateStatusUpdateRequest, CandidateStatusResponse, AllCandidateStatusResponse, StatusActionResponse, ManagerApprovalRequest
 
-
 router = APIRouter(prefix="/status", tags=["candidate-status"])
-
 
 # ---------------------------------------------------------------------------
 # Valid choices (kept as constants so the Swagger docs show the options)
@@ -49,8 +48,6 @@ VALID_PIPELINE_STATUSES = {
     "Rejected",
 }
 
-
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -63,7 +60,6 @@ def _candidate_display_name(candidate: Candidate) -> str:
         candidate.candidateLastName or "",
     ]
     return " ".join(filter(None, parts)).strip() or "N/A"
-
 
 def _assign_preboarding_checklist(candidate: Candidate, db: Session, performed_by_id: Optional[str] = None) -> None:
     """
@@ -156,7 +152,6 @@ def _assign_preboarding_checklist(candidate: Candidate, db: Session, performed_b
     db.commit()
     logger.info(f"[Approval] Successfully auto-assigned checklist '{template_name}' to candidate '{candidate.candidateID}'.")
 
-
 def _send_approval_notifications(candidate: Candidate, cs: CandidateStatus, assignment: Optional[CandidateAssignment], db: Session) -> None:
     """
     Email notification upon Hiring Manager approval:
@@ -212,6 +207,7 @@ def _send_approval_notifications(candidate: Candidate, cs: CandidateStatus, assi
             )
             logger.info(f"[Approval] Sent approval notification to candidate: {candidate.candidateEmail}")
         except Exception as exc:
+            logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.warning(f"[Approval] Could not email candidate: {exc}")
 
     # ── 4. Send email to hiring manager ──
@@ -230,6 +226,7 @@ def _send_approval_notifications(candidate: Candidate, cs: CandidateStatus, assi
             )
             logger.info(f"[Approval] Sent approval notification to hiring manager: {hiring_manager_email}")
         except Exception as exc:
+            logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.warning(f"[Approval] Could not email hiring manager: {exc}")
 
     # ── 5. Send email to recruiter ──
@@ -248,6 +245,7 @@ def _send_approval_notifications(candidate: Candidate, cs: CandidateStatus, assi
             )
             logger.info(f"[Approval] Sent approval notification to recruiter: {recruiter_email}")
         except Exception as exc:
+            logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.warning(f"[Approval] Could not email recruiter: {exc}")
 
 def _build_status_response(candidate: Candidate, cs: Optional[CandidateStatus]) -> CandidateStatusResponse:
@@ -267,7 +265,6 @@ def _build_status_response(candidate: Candidate, cs: Optional[CandidateStatus]) 
         updated_at=cs.updatedAt if cs else None,
     )
 
-
 # ---------------------------------------------------------------------------
 # Routes
 # ---------------------------------------------------------------------------
@@ -282,7 +279,7 @@ def update_candidate_status(
     candidate_id: str,
     request: CandidateStatusUpdateRequest,
     db: Session = Depends(get_db),
-    user=Depends(get_current_hr_or_admin),
+    user=Depends(get_current_internal_user),
 ):
     """
     Update the `status` (Active / Inactive) and/or `pipeline_status`
@@ -379,7 +376,6 @@ def update_candidate_status(
         data=_build_status_response(candidate, cs),
     )
 
-
 @router.get(
     "/all",
     response_model=AllCandidateStatusResponse,
@@ -388,7 +384,7 @@ def update_candidate_status(
 )
 def get_all_candidate_statuses(
     db: Session = Depends(get_db),
-    user=Depends(get_current_hr_or_admin),
+    user=Depends(get_current_internal_user),
     status: Optional[str] = None,
     pipeline_status: Optional[str] = None,
 ):
@@ -440,7 +436,6 @@ def get_all_candidate_statuses(
 
     return AllCandidateStatusResponse(total=len(results), candidates=results)
 
-
 @router.get(
     "/{candidate_id}",
     response_model=CandidateStatusResponse,
@@ -450,7 +445,7 @@ def get_all_candidate_statuses(
 def get_candidate_status(
     candidate_id: str,
     db: Session = Depends(get_db),
-    user=Depends(get_current_hr_or_admin),
+    user=Depends(get_current_internal_user),
 ):
     """
     Returns the current account status and pipeline status for a single candidate.
@@ -465,7 +460,6 @@ def get_candidate_status(
     ).first()
 
     return _build_status_response(candidate, cs)
-
 
 # NOTE: The hiring-manager-approval endpoint has been moved to:
 #   app/api/v1/endpoints/preonboarding.py

@@ -1,5 +1,6 @@
 """
 HRMS-0801 (Project Lifecycle Management) + HRMS-0804 (Milestone
+import logging
 Creation & Completion Tracking), Phase 2 Domain 4.
 
 A project is auto-created when an Opportunity transitions to WON (see
@@ -15,6 +16,7 @@ recompute it, is NOT built here: there is no score to display yet, and
 building a second, competing health-scoring formula would be exactly
 the kind of drift HRMS-0807's own BR-0807-01 warns against.
 """
+import logging
 import uuid
 from datetime import date as date_type, datetime
 
@@ -27,10 +29,8 @@ from app.models.base import Base
 from app.models.client import BILLING_CURRENCIES
 from app.models.employee import DELIVERY_ENGINES
 
-
 def _new_uuid() -> str:
     return str(uuid.uuid4())
-
 
 PROJECT_STATUSES = ("PLANNING", "ACTIVE", "ON_HOLD", "COMPLETED", "CLOSED")
 BILLING_TYPES = ("TIME_AND_MATERIALS", "FIXED_BID")
@@ -56,18 +56,19 @@ PROJECT_BUSINESS_TYPES = ("T_AND_M", "MANAGED_SERVICES", "PROJECT", "POD", "PILO
 SPECIALITY_CURRENCIES = ("INR", "USD")
 CORE_CURRENCIES = ("USD",)
 
+logger = logging.getLogger(__name__)
 
 class Project(Base):
     __tablename__ = "projects"
 
-    id = Column(String(36), primary_key=True, default=_new_uuid)
+    id = Column(String(512), primary_key=True, default=_new_uuid)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
 
-    client_id = Column(String(36), ForeignKey("clients.id"), nullable=False, index=True)
+    client_id = Column(String(512), ForeignKey("clients.id"), nullable=False, index=True)
     # Nullable: not every project traces back to a tracked opportunity
     # (e.g. an existing client's direct follow-on request) -- HRMS-0801's
     # own data mapping calls this out explicitly.
-    opportunity_id = Column(String(36), ForeignKey("opportunities.id"), nullable=True, index=True)
+    opportunity_id = Column(String(512), ForeignKey("opportunities.id"), nullable=True, index=True)
 
     name = Column(String(300), nullable=False)
     status = Column(
@@ -82,7 +83,7 @@ class Project(Base):
         Enum(*BILLING_CURRENCIES, name="project_currency", native_enum=False, create_constraint=True),
         nullable=False, default="USD",
     )
-    continent = Column(String(50), nullable=True)
+    continent = Column(String(512), nullable=True)
     # HRMS-0910 BR-0910-02: weekend timesheet entries are only flagged as
     # an anomaly when the project does NOT opt in to weekend billing.
     allow_weekend_billing = Column(Boolean, nullable=False, default=False)
@@ -117,21 +118,20 @@ class Project(Base):
     end_date = Column(Date, nullable=True)
 
     created_at = Column(DateTime, server_default=func.now())
-    created_by = Column(String(50), nullable=True)
+    created_by = Column(String(512), nullable=True)
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
-
 
 class ProjectMilestone(Base):
     __tablename__ = "project_milestones"
 
-    id = Column(String(36), primary_key=True, default=_new_uuid)
+    id = Column(String(512), primary_key=True, default=_new_uuid)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
-    project_id = Column(String(36), ForeignKey("projects.id"), nullable=False, index=True)
+    project_id = Column(String(512), ForeignKey("projects.id"), nullable=False, index=True)
 
     title = Column(String(300), nullable=False)
     description = Column(Text, nullable=True)
     due_date = Column(Date, nullable=False)
-    owner_employee_id = Column(String(36), ForeignKey("employees.id"), nullable=True)
+    owner_employee_id = Column(String(512), ForeignKey("employees.id"), nullable=True)
 
     is_complete = Column(
         Enum("PENDING", "COMPLETE", name="project_milestone_completion", native_enum=False, create_constraint=True),

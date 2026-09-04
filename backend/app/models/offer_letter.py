@@ -1,20 +1,22 @@
 from datetime import datetime
 from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text, Date, func
 from sqlalchemy.orm import relationship
+import logging
 from app.models.base import Base
 
+logger = logging.getLogger(__name__)
 
 class OfferLetter(Base):
     __tablename__ = "offer_letters"
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
-    candidate_id = Column(String(36), ForeignKey("candidates.candidateID"), nullable=False)
-    job_id = Column(String(50), ForeignKey("jobs.jobID"), nullable=True)
-    hiring_manager_id = Column(String(50), ForeignKey("users.UserID"), nullable=True)
-    reporting_manager_id = Column(String(50), ForeignKey("users.UserID"), nullable=True)
+    candidate_id = Column(String(512), ForeignKey("candidates.candidateID"), nullable=False)
+    job_id = Column(String(512), ForeignKey("jobs.jobID"), nullable=True)
+    hiring_manager_id = Column(String(512), ForeignKey("users.UserID"), nullable=True)
+    reporting_manager_id = Column(String(512), ForeignKey("users.UserID"), nullable=True)
 
-    position = Column(String(200), nullable=False)
-    salary = Column(String(50), nullable=False)
+    position = Column(String(512), nullable=False)
+    salary = Column(String(512), nullable=False)
     joining_date = Column(Date, nullable=False)
     offer_expire_date = Column(Date, nullable=False)
 
@@ -26,10 +28,10 @@ class OfferLetter(Base):
     responded_at = Column(DateTime(timezone=False), nullable=True)
 
     created_at = Column(DateTime(timezone=False), server_default=func.now())
-    created_by = Column(String(50), ForeignKey("users.UserID"), nullable=True)
+    created_by = Column(String(512), ForeignKey("users.UserID"), nullable=True)
 
     cancelled_at = Column(DateTime(timezone=False), nullable=True)
-    cancelled_by = Column(String(50), ForeignKey("users.UserID"), nullable=True)
+    cancelled_by = Column(String(512), ForeignKey("users.UserID"), nullable=True)
 
     # ── Document links (populated after generation) ───────────────────────────
     sharepoint_url  = Column(Text, nullable=True)
@@ -40,12 +42,12 @@ class OfferLetter(Base):
     # approval_status: None | AwaitingApproval | Approved | Rejected
     approval_status  = Column(String(30), nullable=True)
     approved_at      = Column(DateTime(timezone=False), nullable=True)
-    approved_by      = Column(String(50), ForeignKey("users.UserID"), nullable=True)
+    approved_by      = Column(String(512), ForeignKey("users.UserID"), nullable=True)
     approval_notes   = Column(Text, nullable=True)
 
     # ── Release to candidate ──────────────────────────────────────────────────
     released_at = Column(DateTime(timezone=False), nullable=True)
-    released_by = Column(String(50), ForeignKey("users.UserID"), nullable=True)
+    released_by = Column(String(512), ForeignKey("users.UserID"), nullable=True)
 
     # ── Signature file paths ──────────────────────────────────────────────────
     hm_signature_path        = Column(Text, nullable=True)   # SharePoint path of HM PNG

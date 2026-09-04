@@ -1,4 +1,5 @@
 """
+import logging
 S-021/HRMS-0421 -- Candidate Memory Store.
 
 Foundational story only, per its own dependency note ("HRMS-0422 Facts
@@ -20,6 +21,7 @@ docstring for the model-level ones):
   unspecified LLM. Validation is 200-500 WORDS (per this story's own
   spec), not characters -- distinct from S-019's char-based rule.
 """
+import logging
 import os
 import re
 from datetime import datetime, timedelta
@@ -40,10 +42,10 @@ SUMMARY_MAX_AGE = timedelta(days=1)  # "daily whichever comes first"
 
 GEMINI_MODEL_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
 
+logger = logging.getLogger(__name__)
 
 class InvalidFactCategory(Exception):
     pass
-
 
 def _get_or_create_memory(db: Session, candidate_id: str, tenant_id: str) -> CandidateMemory:
     memory = db.query(CandidateMemory).filter(CandidateMemory.candidate_id == candidate_id).first()
@@ -52,7 +54,6 @@ def _get_or_create_memory(db: Session, candidate_id: str, tenant_id: str) -> Can
         db.add(memory)
         db.flush()
     return memory
-
 
 def get_memory(db: Session, candidate_id: str, tenant_id: str) -> Dict:
     """getMemory() -- BR-01: candidate-level, one record shared across
@@ -77,7 +78,6 @@ def get_memory(db: Session, candidate_id: str, tenant_id: str) -> Dict:
             for f in facts
         ],
     }
-
 
 def upsert_fact(
     db: Session, candidate_id: str, tenant_id: str, fact_category: str, fact_key: str,
@@ -128,7 +128,6 @@ def upsert_fact(
     db.flush()
     return new_fact
 
-
 def _active_conversation(db: Session, candidate_id: str) -> Optional[CandidateConversation]:
     return (
         db.query(CandidateConversation)
@@ -136,7 +135,6 @@ def _active_conversation(db: Session, candidate_id: str) -> Optional[CandidateCo
         .order_by(CandidateConversation.created_at.desc())
         .first()
     )
-
 
 def _log_memory_event(db: Session, candidate_id: str, event_type: str, event_data: Dict) -> None:
     """Memory has no natural home of its own for an audit log (it's
@@ -149,7 +147,6 @@ def _log_memory_event(db: Session, candidate_id: str, event_type: str, event_dat
     db.add(ConversationEvent(conversation_id=conversation.id, event_type=event_type, event_data=event_data, triggered_by="system"))
     db.flush()
 
-
 def _default_llm_call(prompt: str, api_key: str) -> str:
     resp = requests.post(
         f"{GEMINI_MODEL_URL}?key={api_key}",
@@ -161,7 +158,6 @@ def _default_llm_call(prompt: str, api_key: str) -> str:
     text = result.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "")
     return re.sub(r"```(?:json)?", "", text).strip()
 
-
 def _call_llm(prompt: str, llm_call: Optional[Callable[[str], str]]) -> str:
     if llm_call is not None:
         return llm_call(prompt)
@@ -169,7 +165,6 @@ def _call_llm(prompt: str, llm_call: Optional[Callable[[str], str]]) -> str:
     if not api_key:
         raise RuntimeError("GEMINI_API_KEY not set")
     return _default_llm_call(prompt, api_key)
-
 
 def _build_summary_prompt(candidate: Candidate, facts: List[CandidateMemoryFact]) -> str:
     facts_lines = "\n".join(f"- [{f.fact_category}] {f.fact_key}: {f.fact_value}" for f in facts) or "(no facts recorded yet)"
@@ -180,7 +175,6 @@ def _build_summary_prompt(candidate: Candidate, facts: List[CandidateMemoryFact]
         "preferences, constraints, availability. Use professional language. "
         f"Return only the summary text, no markdown, no headers.\n\nFacts:\n{facts_lines}"
     )
-
 
 def should_update_summary(db: Session, candidate_id: str, tenant_id: str) -> bool:
     """'After every 5 new facts or daily whichever comes first.'"""
@@ -198,7 +192,6 @@ def should_update_summary(db: Session, candidate_id: str, tenant_id: str) -> boo
         .count()
     )
     return new_fact_count >= FACTS_PER_SUMMARY_TRIGGER
-
 
 def update_memory_summary(
     db: Session, candidate_id: str, tenant_id: str, *, llm_call: Optional[Callable[[str], str]] = None,
@@ -221,10 +214,11 @@ def update_memory_summary(
     try:
         raw = _call_llm(prompt, llm_call).strip()
     except Exception as exc:
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[CandidateMemory] Summary generation failed for candidate {candidate_id}: {exc}")
         _log_memory_event(db, candidate_id, "MEMORY_SUMMARY_FAILED", {"reason": str(exc)})
         db.commit()
-        return None
+        raise ValueError("Operation failed")
 
     word_count = len(raw.split())
     if word_count < MIN_SUMMARY_WORDS or word_count > MAX_SUMMARY_WORDS:
@@ -241,10 +235,8 @@ def update_memory_summary(
     db.commit()
     return raw
 
-
 class FactNotFound(Exception):
     pass
-
 
 def correct_fact(
     db: Session, candidate_id: str, tenant_id: str, fact_id: int, new_value: str, *, corrected_by: str,

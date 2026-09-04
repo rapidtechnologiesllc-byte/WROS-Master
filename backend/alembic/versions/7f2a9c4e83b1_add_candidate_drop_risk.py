@@ -1,3 +1,4 @@
+import logging
 """S-060/HRMS-0460: add candidate_drop_risk table
 
 Revision ID: 7f2a9c4e83b1
@@ -12,7 +13,6 @@ revision = "7f2a9c4e83b1"
 down_revision = "1d5f8b3a70c4"
 branch_labels = None
 depends_on = None
-
 
 def upgrade():
     op.create_table(
@@ -33,7 +33,6 @@ def upgrade():
     )
     op.create_index("ix_candidate_drop_risk_tenant_id", "candidate_drop_risk", ["tenant_id"])
     op.create_index("ix_candidate_drop_risk_candidate_id", "candidate_drop_risk", ["candidate_id"])
-
 
 def downgrade():
     op.drop_index("ix_candidate_drop_risk_candidate_id", table_name="candidate_drop_risk")

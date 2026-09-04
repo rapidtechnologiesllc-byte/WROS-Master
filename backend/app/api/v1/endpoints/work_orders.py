@@ -1,4 +1,5 @@
 """
+import logging
 Work Order API Endpoints (DEFECT-1: Work Order / PO Model)
 
 HRMS-0XXX -- Work Order / PO / Engagement Records
@@ -27,9 +28,10 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_hr_or_admin
+from app.core.dependencies import get_current_internal_user, require_resource_permission
 from app.models.user import Users
 from app.models.work_order import WorkOrder
+from app.core.logging import logger
 from app.schemas.work_order import (
     CreateWorkOrderRequest,
     UpdateWorkOrderRequest,
@@ -56,7 +58,6 @@ from app.services.work_order_service import (
 
 router = APIRouter(prefix="/work-orders", tags=["work_orders"])
 
-
 def _to_item(wo: WorkOrder) -> WorkOrderItem:
     """Convert WorkOrder model to API response item."""
     return WorkOrderItem(
@@ -79,12 +80,15 @@ def _to_item(wo: WorkOrder) -> WorkOrderItem:
         updated_at=wo.updated_at.isoformat() if wo.updated_at else None,
     )
 
-
-@router.post("", response_model=WorkOrderItem)
+@router.post(
+    "",
+    response_model=WorkOrderItem,
+    dependencies=[Depends(require_resource_permission("unknown", "create"))]
+)
 def create_work_order_endpoint(
     req: CreateWorkOrderRequest,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ) -> WorkOrderItem:
     """
     Create a new Work Order.
@@ -124,17 +128,21 @@ def create_work_order_endpoint(
     except WorkOrderValidationError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Failed to create work order: {str(e)}")
 
-
-@router.get("", response_model=WorkOrderListResponse)
+@router.get(
+    "",
+    response_model=WorkOrderListResponse,
+    dependencies=[Depends(require_resource_permission("unknown", "view"))]
+)
 def list_work_orders(
     status: Optional[str] = Query(None, description="Filter by status (ACTIVE, ENDED, PAUSED)"),
     client_id: Optional[str] = Query(None, description="Filter by client ID"),
     demand_id: Optional[str] = Query(None, description="Filter by demand ID"),
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ) -> WorkOrderListResponse:
     """
     List Work Orders for the current tenant.
@@ -156,14 +164,18 @@ def list_work_orders(
 
         return WorkOrderListResponse(work_orders=[_to_item(wo) for wo in work_orders])
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to list work orders: {str(e)}")
 
-
-@router.get("/{work_order_id}", response_model=WorkOrderItem)
+@router.get(
+    "/{work_order_id}",
+    response_model=WorkOrderItem,
+    dependencies=[Depends(require_resource_permission("work_orders", "view"))]
+)
 def get_work_order(
     work_order_id: str,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ) -> WorkOrderItem:
     """Get a specific Work Order by ID."""
     try:
@@ -174,15 +186,19 @@ def get_work_order(
     except HTTPException:
         raise
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to get work order: {str(e)}")
 
-
-@router.put("/{work_order_id}", response_model=WorkOrderItem)
+@router.put(
+    "/{work_order_id}",
+    response_model=WorkOrderItem,
+    dependencies=[Depends(require_resource_permission("work_orders", "update"))]
+)
 def update_work_order_endpoint(
     work_order_id: str,
     req: UpdateWorkOrderRequest,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ) -> WorkOrderItem:
     """
     Update a Work Order.
@@ -221,72 +237,92 @@ def update_work_order_endpoint(
     except WorkOrderValidationError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Failed to update work order: {str(e)}")
 
-
-@router.get("/by-demand/{demand_id}", response_model=WorkOrderListResponse)
+@router.get(
+    "/by-demand/{demand_id}",
+    response_model=WorkOrderListResponse,
+    dependencies=[Depends(require_resource_permission("by-demand", "view"))]
+)
 def get_work_orders_by_demand_endpoint(
     demand_id: str,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ) -> WorkOrderListResponse:
     """Get all Work Orders for a specific demand."""
     try:
         work_orders = get_work_orders_by_demand(db, demand_id, current_user.tenant_id)
         return WorkOrderListResponse(work_orders=[_to_item(wo) for wo in work_orders])
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to get work orders: {str(e)}")
 
-
-@router.get("/by-project/{project_id}", response_model=WorkOrderListResponse)
+@router.get(
+    "/by-project/{project_id}",
+    response_model=WorkOrderListResponse,
+    dependencies=[Depends(require_resource_permission("by-project", "view"))]
+)
 def get_work_orders_by_project_endpoint(
     project_id: str,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ) -> WorkOrderListResponse:
     """Get all Work Orders linked to a specific project."""
     try:
         work_orders = get_work_orders_by_project(db, project_id, current_user.tenant_id)
         return WorkOrderListResponse(work_orders=[_to_item(wo) for wo in work_orders])
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to get work orders: {str(e)}")
 
-
-@router.get("/by-employee/{employee_id}", response_model=WorkOrderListResponse)
+@router.get(
+    "/by-employee/{employee_id}",
+    response_model=WorkOrderListResponse,
+    dependencies=[Depends(require_resource_permission("by-employee", "view"))]
+)
 def get_work_orders_by_employee_endpoint(
     employee_id: str,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ) -> WorkOrderListResponse:
     """Get all Work Orders for a specific employee."""
     try:
         work_orders = get_work_orders_by_employee(db, employee_id, current_user.tenant_id)
         return WorkOrderListResponse(work_orders=[_to_item(wo) for wo in work_orders])
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to get work orders: {str(e)}")
 
-
-@router.get("/by-client/{client_id}", response_model=WorkOrderListResponse)
+@router.get(
+    "/by-client/{client_id}",
+    response_model=WorkOrderListResponse,
+    dependencies=[Depends(require_resource_permission("by-client", "view"))]
+)
 def get_work_orders_by_client_endpoint(
     client_id: str,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ) -> WorkOrderListResponse:
     """Get all Work Orders for a specific client."""
     try:
         work_orders = get_work_orders_by_client(db, client_id, current_user.tenant_id)
         return WorkOrderListResponse(work_orders=[_to_item(wo) for wo in work_orders])
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to get work orders: {str(e)}")
 
-
-@router.post("/{work_order_id}/end", response_model=WorkOrderItem)
+@router.post(
+    "/{work_order_id}/end",
+    response_model=WorkOrderItem,
+    dependencies=[Depends(require_resource_permission("work_orders", "create"))]
+)
 def end_work_order_endpoint(
     work_order_id: str,
     req: EndWorkOrderRequest,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ) -> WorkOrderItem:
     """End a Work Order and optionally set the end date."""
     try:
@@ -303,16 +339,20 @@ def end_work_order_endpoint(
     except WorkOrderValidationError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Failed to end work order: {str(e)}")
 
-
-@router.post("/{work_order_id}/pause", response_model=WorkOrderItem)
+@router.post(
+    "/{work_order_id}/pause",
+    response_model=WorkOrderItem,
+    dependencies=[Depends(require_resource_permission("work_orders", "create"))]
+)
 def pause_work_order_endpoint(
     work_order_id: str,
     req: PauseWorkOrderRequest,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ) -> WorkOrderItem:
     """Pause a Work Order."""
     try:
@@ -329,16 +369,20 @@ def pause_work_order_endpoint(
     except WorkOrderValidationError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Failed to pause work order: {str(e)}")
 
-
-@router.post("/{work_order_id}/resume", response_model=WorkOrderItem)
+@router.post(
+    "/{work_order_id}/resume",
+    response_model=WorkOrderItem,
+    dependencies=[Depends(require_resource_permission("work_orders", "create"))]
+)
 def resume_work_order_endpoint(
     work_order_id: str,
     req: ResumeWorkOrderRequest,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ) -> WorkOrderItem:
     """Resume a paused Work Order."""
     try:
@@ -355,5 +399,6 @@ def resume_work_order_endpoint(
     except WorkOrderValidationError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Failed to resume work order: {str(e)}")

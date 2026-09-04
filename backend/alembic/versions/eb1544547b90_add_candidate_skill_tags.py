@@ -1,3 +1,4 @@
+import logging
 """S-029/HRMS-0429: add candidate_skill_tags table
 
 Revision ID: eb1544547b90
@@ -11,7 +12,6 @@ revision = "eb1544547b90"
 down_revision = "b23976adb15d"
 branch_labels = None
 depends_on = None
-
 
 def upgrade():
     op.create_table(
@@ -29,7 +29,6 @@ def upgrade():
     op.create_index("ix_candidate_skill_tags_tenant_id", "candidate_skill_tags", ["tenant_id"])
     op.create_index("ix_candidate_skill_tags_candidate_id", "candidate_skill_tags", ["candidate_id"])
     op.create_index("ix_candidate_skill_tags_lookup", "candidate_skill_tags", ["tenant_id", "candidate_id", "skill_canonical"])
-
 
 def downgrade():
     op.drop_index("ix_candidate_skill_tags_lookup", table_name="candidate_skill_tags")

@@ -1,5 +1,6 @@
 """
 S-353/HRMS-0514 -- Core-Pull Conflict Rule Engine ("Core Wins Policy") and
+import logging
 S-373/HRMS-0529 -- Specialty Pool Minimum 40 Core-Certified Guard.
 
 Built directly from `Requirements/S-353_HRMS-0514.docx` and
@@ -18,6 +19,7 @@ allocation") lives in exactly one place -- detect_core_pull_conflict()
 below. HRMS-1105 (Part A, not yet built) and S-372 (Part A, not yet
 built) must call this, never reimplement "Core wins" themselves.
 """
+import logging
 from datetime import date, datetime, timedelta
 from typing import Dict, Optional
 
@@ -30,6 +32,7 @@ from app.models.core_pull import CorePullEvent, SpecialtyPoolReplacementPlan
 from app.models.user import Users
 from app.services.notification_service import send_notification
 from app.services.orchestration_router_service import evaluate_action_intent
+from app.core.logging import logger
 
 CORE_PULL_AGENT_ID = "core_pull_engine"
 SPECIALTY_POOL_MINIMUM = 40  # S-373 BR: a hard floor, not a target
@@ -38,24 +41,21 @@ OVERRIDE_JUSTIFICATION_MIN_CHARS = 100
 OVERRIDE_ALERT_THRESHOLD = 2  # more than this many overrides in 30 days pages the Director
 OVERRIDE_ALERT_WINDOW_DAYS = 30
 
+logger = logging.getLogger(__name__)
 
 class SpecialtyPoolBelowMinimum(Exception):
     """S-373: a Core move that would drop the Specialty Core-Certified
     pool below SPECIALTY_POOL_MINIMUM is blocked until a replacement
     plan is logged for this employee."""
 
-
 class CorePullOverrideForbidden(Exception):
     """S-353: only a BU Head may override a pending Core-Pull."""
-
 
 class InvalidReplacementPlan(Exception):
     pass
 
-
 class InvalidOverrideJustification(Exception):
     pass
-
 
 # ===========================================================================
 # S-373/HRMS-0529 -- Specialty Pool Minimum 40 Core-Certified Guard
@@ -91,7 +91,6 @@ def check_specialty_pool_guard(db: Session, employee_being_moved: Employee) -> D
         "gap": max(0, SPECIALTY_POOL_MINIMUM - pool_size_after_move),
     }
 
-
 def get_specialty_pool_status(db: Session, *, tenant_id: Optional[int] = None) -> Dict:
     """Read-only current pool size for a dashboard view -- no specific
     employee being moved, so no 'after move' simulation (that's
@@ -113,7 +112,6 @@ def get_specialty_pool_status(db: Session, *, tenant_id: Optional[int] = None) -
         "at_edge": count == SPECIALTY_POOL_MINIMUM + 1,  # one more loss would breach
         "gap": max(0, SPECIALTY_POOL_MINIMUM - count),
     }
-
 
 def log_replacement_plan(
     db: Session,
@@ -153,7 +151,6 @@ def log_replacement_plan(
     db.flush()
     return plan
 
-
 def _has_replacement_plan_since(db: Session, employee_id: str, *, since: datetime) -> bool:
     return (
         db.query(SpecialtyPoolReplacementPlan)
@@ -164,7 +161,6 @@ def _has_replacement_plan_since(db: Session, employee_id: str, *, since: datetim
         .first()
         is not None
     )
-
 
 # ===========================================================================
 # S-353/HRMS-0514 -- CorePullEngine
@@ -236,7 +232,6 @@ def detect_core_pull_conflict(
     db.add(event)
     db.flush()
     return event
-
 
 def execute_core_pull(
     db: Session,
@@ -343,7 +338,6 @@ def execute_core_pull(
             pass
 
     return event
-
 
 def override_core_pull(
     db: Session,

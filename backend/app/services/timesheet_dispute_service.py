@@ -1,4 +1,5 @@
 """
+import logging
 HRMS-0904 -- Timesheet Dispute Resolution.
 
 BR-01: the original approved Timesheet/TimesheetEntry rows are never
@@ -9,6 +10,7 @@ close for invoicing") -- not wired to an actual invoice-period-close gate
 since invoicing doesn't exist in this codebase yet, same posture as
 every other not-yet-reachable dependency this session.
 """
+import logging
 from datetime import datetime
 from typing import Optional
 
@@ -16,17 +18,17 @@ from sqlalchemy.orm import Session
 
 from app.models.timesheet import Timesheet
 from app.models.timesheet_dispute import OPEN_DISPUTE_STATUSES, TimesheetDispute
+from app.core.logging import logger
 
 MIN_REASON_LENGTH = 50
 
+logger = logging.getLogger(__name__)
 
 class DisputeValidationError(Exception):
     pass
 
-
 class InvalidDisputeTransition(Exception):
     pass
-
 
 def raise_dispute(
     db: Session,
@@ -54,7 +56,6 @@ def raise_dispute(
     )
     db.add(dispute)
     return dispute
-
 
 def resolve_dispute(
     db: Session,
@@ -87,7 +88,6 @@ def resolve_dispute(
     dispute.resolution_notes = resolution_notes
     db.add(dispute)
     return dispute
-
 
 def has_open_dispute(db: Session, timesheet: Timesheet) -> bool:
     """BR-02 hook: a future invoice-period-close gate should call this

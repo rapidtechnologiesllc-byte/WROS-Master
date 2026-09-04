@@ -1,4 +1,4 @@
-﻿"""
+"""
 S-215/HRMS-0117 -- Error Logging Framework.
 
 log_error() is the one function that writes a real, DB-queryable
@@ -11,31 +11,33 @@ elsewhere this session) -- pages the first Super User, same
 resolve_default_tenant_id()-style convention already established.
 """
 import json
+import logging
 import traceback
 from typing import List, Optional
 
 from sqlalchemy.orm import Session
 
 from app.models.error_log import ERROR_SEVERITIES, ErrorLog
+from app.services.permission_helper import PermissionHelper
 
 MAX_STACK_TRACE_CHARS = 8000
 
+logger = logging.getLogger(__name__)
 
 class UnknownSeverity(Exception):
     pass
-
 
 def _page_on_call(db: Session, error: ErrorLog) -> None:
     from app.core.logging import logger
     from app.models.user import Users
     from app.services.notification_service import send_notification
-    from app.services.rbac_service import RBACService
 
     # Zero-hardcoding: Find admin via permission check, not hardcoded role name
     all_users = db.query(Users).order_by(Users.UserID.asc()).all()
     on_call = None
     for user in all_users:
-        if RBACService.has_permission(db, user.UserID, "admin-settings", "edit"):
+        tenant_id = getattr(user, 'TenantID', 1)
+        if PermissionHelper.has_permission(user.UserID, "admin-settings.edit", db, tenant_id):
             on_call = user
             break
 
@@ -48,7 +50,6 @@ def _page_on_call(db: Session, error: ErrorLog) -> None:
         priority_tier="P0",
         message=f"CRITICAL error: {error.error_type} -- {error.message[:200]}",
     )
-
 
 def log_error(
     db: Session,
@@ -82,7 +83,6 @@ def log_error(
         _page_on_call(db, row)
 
     return row
-
 
 def query_error_log(
     db: Session, *, integration_name: Optional[str] = None, severity: Optional[str] = None,

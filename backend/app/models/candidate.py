@@ -1,6 +1,7 @@
 from datetime import datetime
 from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text, Date, func, Boolean, Index, Enum
 from sqlalchemy.orm import relationship
+import logging
 from app.models.base import Base
 
 # HRMS-P606 (R-03): only W2_FULLTIME may ever be submitted. UNKNOWN is the
@@ -15,35 +16,36 @@ CANDIDATE_EMPLOYMENT_TYPES = ("W2_FULLTIME", "C2C", "1099", "UNKNOWN")
 # DB trigger.
 CANDIDATE_SOURCE_CHANNELS = ("DIRECT", "SUBVENDOR")
 
+logger = logging.getLogger(__name__)
 
 class Candidate(Base):
     __tablename__ = "candidates"
-    candidateID = Column(String(50), primary_key=True, index=True)
-    candidateRole = Column(String(50), nullable=True, default="Candidate")
+    candidateID = Column(String(512), primary_key=True, index=True)
+    candidateRole = Column(String(512), nullable=True, default="Candidate")
     # Employee type: "Intern" | "Full Time Employee"
-    candidateEmployeeType = Column(String(50), nullable=True)
-    candidateJobTitle = Column(String(50), nullable=True)
+    candidateEmployeeType = Column(String(512), nullable=True)
+    candidateJobTitle = Column(String(512), nullable=True)
     candidateFirstName = Column(String(150), nullable=True)
     candidateMiddleName = Column(String(150), nullable=True)
     candidateLastName = Column(String(150), nullable=True)
-    candidateEmail = Column(String(200), unique=True, nullable=False, index=True)
+    candidateEmail = Column(String(512), unique=True, nullable=False, index=True)
     candidateMobile = Column(String(20), nullable=True)
     # R-07 -- the Dev Review Standard's own example of the dedup gap:
     # "missing phone/LinkedIn" matching. See app.services.candidate_service
     # .create_candidate_safe() -- this field lets LinkedIn dedup run for
     # the first time in this codebase.
-    linkedin_url = Column(String(500), nullable=True)
+    linkedin_url = Column(String(512), nullable=True)
     candidateGender = Column(String(10), nullable=True)
     candidateDateOfBirth = Column(Date, nullable=True)
-    candidateSource = Column(String(50), nullable=True)
-    candidateExperience = Column(String(50), nullable=True)
+    candidateSource = Column(String(512), nullable=True)
+    candidateExperience = Column(String(512), nullable=True)
     candidateSkills = Column(Text, nullable=True)
     candidateJoiningDate = Column(Date, nullable=True)
-    candidateExpectedSalary = Column(String(50), nullable=True)
-    candidateCurrentSalary = Column(String(50), nullable=True)
-    candidateCurrentLocation = Column(String(200), nullable=True)
-    candidatePassword = Column(String(200), nullable=False)
-    candidateTempPassword = Column(String(200), nullable=True)  # plain-text password for credential emails
+    candidateExpectedSalary = Column(String(512), nullable=True)
+    candidateCurrentSalary = Column(String(512), nullable=True)
+    candidateCurrentLocation = Column(String(512), nullable=True)
+    candidatePassword = Column(String(512), nullable=False)
+    candidateTempPassword = Column(String(512), nullable=True)  # plain-text password for credential emails
     candidateIsVerified = Column(Boolean, nullable=True)
     candidateCreatedAt = Column(DateTime(timezone=False), server_default=func.now())
     # HRMS-P601 (R-01) -- the 5-year experience gate. Populated by real
@@ -76,9 +78,9 @@ class Candidate(Base):
         Enum(*CANDIDATE_SOURCE_CHANNELS, name="candidate_source_channel", native_enum=False, create_constraint=True),
         nullable=False, server_default="DIRECT", default="DIRECT",
     )
-    vendor_id = Column(String(36), ForeignKey("sub_vendor_accounts.id"), nullable=True)
+    vendor_id = Column(String(512), ForeignKey("sub_vendor_accounts.id"), nullable=True)
     # Job mapping — which job this candidate applied for / was assigned to
-    job_id = Column(String(50), ForeignKey("jobs.jobID"), nullable=True, index=True)
+    job_id = Column(String(512), ForeignKey("jobs.jobID"), nullable=True, index=True)
     # Backlog item, 2026-08-05 (wros_email_2fa_backlog, candidate half) --
     # opt-in email OTP, reusing app.core.mfa's role-agnostic EMAIL_OTP_*
     # functions. Tri-state, not a plain boolean: NULL = never asked
@@ -104,13 +106,12 @@ class Candidate(Base):
     submission_bu = relationship("BusinessUnit", foreign_keys=[submission_bu_id], lazy="select")
     associated_bu = relationship("BusinessUnit", foreign_keys=[associated_bu_id], lazy="select")
 
-
 class CandidateInfoForm(Base):
     __tablename__ = "candidate_forms"
     formID = Column(Integer, primary_key=True, index=True, autoincrement=True)
-    candidateID = Column(String(50), ForeignKey("candidates.candidateID"), nullable=False)
-    position = Column(String(255), nullable=True)
-    department = Column(String(100), nullable=True)
+    candidateID = Column(String(512), ForeignKey("candidates.candidateID"), nullable=False)
+    position = Column(String(512), nullable=True)
+    department = Column(String(512), nullable=True)
     dob = Column(Date, nullable=True)
     gender = Column(String(10), nullable=True)
     marital_status = Column(String(10), nullable=True)
@@ -122,16 +123,15 @@ class CandidateInfoForm(Base):
     formUpdatedAt = Column(DateTime(timezone=False), server_default=func.now(), onupdate=func.now())
     # candidate = relationship("Candidate")
 
-
 class CandidateEducationForm(Base):
     __tablename__ = "candidate_education_forms"
     formID = Column(Integer, primary_key=True, index=True, autoincrement=True)
-    candidateID = Column(String(50), ForeignKey("candidates.candidateID"), nullable=False)
-    education_institute = Column(String(255), nullable=True)
-    degree = Column(String(255), nullable=True)
-    field_of_study = Column(String(255), nullable=True)
-    starting_year = Column(String(50), nullable=True)
-    year_of_passing = Column(String(50), nullable=True)
+    candidateID = Column(String(512), ForeignKey("candidates.candidateID"), nullable=False)
+    education_institute = Column(String(512), nullable=True)
+    degree = Column(String(512), nullable=True)
+    field_of_study = Column(String(512), nullable=True)
+    starting_year = Column(String(512), nullable=True)
+    year_of_passing = Column(String(512), nullable=True)
     percentage = Column(String(10), nullable=True)
     submittedAt = Column(Date, nullable=True)
     document_is_submitted = Column(Boolean, nullable=True)
@@ -144,12 +144,12 @@ class CandidateEducationForm(Base):
 class CandidateExperienceForm(Base):
     __tablename__ = "candidate_experience_forms"
     formID = Column(Integer, primary_key=True, index=True, autoincrement=True)
-    candidateID = Column(String(50), ForeignKey("candidates.candidateID"), nullable=False)
-    company_name = Column(String(255), nullable=True)
-    job_title = Column(String(255), nullable=True)
+    candidateID = Column(String(512), ForeignKey("candidates.candidateID"), nullable=False)
+    company_name = Column(String(512), nullable=True)
+    job_title = Column(String(512), nullable=True)
     start_date = Column(Date, nullable=True)
     end_date = Column(Date, nullable=True)
-    year_of_experience = Column(String(50), nullable=True)
+    year_of_experience = Column(String(512), nullable=True)
     document_is_submitted = Column(Boolean, nullable=True)
     submittedAt = Column(Date, nullable=True)
     # Optional link to the uploaded document in candidate_documents
@@ -161,9 +161,9 @@ class CandidateExperienceForm(Base):
 class CandidateAadharForm(Base):
     __tablename__ = "candidate_aadhar_forms"
     formID = Column(Integer, primary_key=True, index=True, autoincrement=True)
-    candidateID = Column(String(50), ForeignKey("candidates.candidateID"), nullable=False)
+    candidateID = Column(String(512), ForeignKey("candidates.candidateID"), nullable=False)
     aadhar = Column(String(12), nullable=True)
-    name_in_aadhar = Column(String(100), nullable=True)
+    name_in_aadhar = Column(String(512), nullable=True)
     enrollment_number = Column(String(20), nullable=True)
     aadhar_is_submitted = Column(Boolean, nullable=True)
     submittedAt = Column(Date, nullable=True)
@@ -177,10 +177,10 @@ class CandidateAadharForm(Base):
 class CandidatePanForm(Base):
     __tablename__ = "candidate_pan_forms"
     formID = Column(Integer, primary_key=True, index=True, autoincrement=True)
-    candidateID = Column(String(50), ForeignKey("candidates.candidateID"), nullable=False)
+    candidateID = Column(String(512), ForeignKey("candidates.candidateID"), nullable=False)
     pan = Column(String(10), nullable=True)
-    name_in_pan = Column(String(100), nullable=True)
-    father_name_in_pan = Column(String(100), nullable=True)
+    name_in_pan = Column(String(512), nullable=True)
+    father_name_in_pan = Column(String(512), nullable=True)
     pan_is_submitted = Column(Boolean, nullable=True)
     submittedAt = Column(Date, nullable=True)
     is_verified = Column(Boolean, nullable=True)
@@ -190,17 +190,15 @@ class CandidatePanForm(Base):
     formUpdatedAt = Column(DateTime(timezone=False), server_default=func.now(), onupdate=func.now())
     # candidate = relationship("Candidate")
 
-
 class CandidateStatus(Base):
     __tablename__ = "candidate_status"
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
-    candidateID = Column(String(50), ForeignKey("candidates.candidateID"), nullable=False)
-    piplineStatus = Column(String(50), nullable=True, default="Applied")
-    status = Column(String(50), nullable=True, default="Active")
+    candidateID = Column(String(512), ForeignKey("candidates.candidateID"), nullable=False)
+    piplineStatus = Column(String(512), nullable=True, default="Applied")
+    status = Column(String(512), nullable=True, default="Active")
     createdAt = Column(DateTime(timezone=False), server_default=func.now())
     updatedAt = Column(DateTime(timezone=False), server_default=func.now(), onupdate=func.now())
     # candidate = relationship("Candidate")
-
 
 class CandidateJobApplication(Base):
     """
@@ -210,7 +208,7 @@ class CandidateJobApplication(Base):
     __tablename__ = "candidate_job_applications"
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
-    candidate_id = Column(String(36),
+    candidate_id = Column(String(512),
         ForeignKey("candidates.candidateID", ondelete="CASCADE"),
         nullable=False,
         index=True,
@@ -222,7 +220,7 @@ class CandidateJobApplication(Base):
         index=True,
     )
     # Per-application status independent of the candidate's global status
-    application_status = Column(String(50), nullable=True, default="Applied")
+    application_status = Column(String(512), nullable=True, default="Applied")
     applied_at = Column(DateTime(timezone=False), server_default=func.now())
     updated_at = Column(DateTime(timezone=False), server_default=func.now(), onupdate=func.now())
 

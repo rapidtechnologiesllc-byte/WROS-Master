@@ -1,4 +1,5 @@
 """
+import logging
 S-020/HRMS-0420 -- Engagement SLA Monitoring.
 
 Scoping decision, 2026-07-24: this codebase already has two systems
@@ -54,10 +55,8 @@ from app.models.user import Users
 NO_CONTACT_THRESHOLD_HOURS = int(os.getenv("SLA_NO_CONTACT_THRESHOLD_HOURS", "24"))
 MONITORED_STATUSES = ("open", "awaiting_candidate")  # real equivalent of QUALIFYING/QUALIFIED, per S-018
 
-
 def _candidate_name(candidate: Candidate) -> str:
     return " ".join(filter(None, [candidate.candidateFirstName, candidate.candidateLastName])).strip() or candidate.candidateEmail
-
 
 def _assigned_recruiter(db: Session, candidate_id: str) -> Optional[Users]:
     assignment = (
@@ -70,7 +69,6 @@ def _assigned_recruiter(db: Session, candidate_id: str) -> Optional[Users]:
         return db.query(Users).filter(Users.UserID == assignment.assigned_by).first()
     return None
 
-
 def _no_contact_threshold_hours(db: Session, tenant_id: str) -> int:
     """S-077/HRMS-0477: real per-tenant TenantAIConfig.sla_no_contact_hours,
     falling back to the module-constant default (still env-overridable,
@@ -80,7 +78,6 @@ def _no_contact_threshold_hours(db: Session, tenant_id: str) -> int:
         return get_sla_no_contact_hours(db, tenant_id)
     except Exception:
         return NO_CONTACT_THRESHOLD_HOURS
-
 
 def _notify_recruiter_of_breach(db: Session, tenant_id: str, candidate: Candidate, threshold_hours: int) -> None:
     from app.services.notification_service import send_notification
@@ -98,8 +95,8 @@ def _notify_recruiter_of_breach(db: Session, tenant_id: str, candidate: Candidat
             ),
         )
     except Exception as exc:
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[SLAMonitoring] Failed to notify recruiter of breach for candidate {candidate.candidateID}: {exc}")
-
 
 def detect_and_resolve_no_contact_breaches(db: Session, tenant_id: Optional[str] = None) -> Dict[str, int]:
     """
@@ -165,7 +162,6 @@ def detect_and_resolve_no_contact_breaches(db: Session, tenant_id: Optional[str]
     db.commit()
     return {"checked": len(conversations), "created": created, "resolved": resolved}
 
-
 def get_active_breaches(db: Session, tenant_id: str) -> List[Dict]:
     """GET /sla/breaches?is_resolved=false -- oldest breach first (most urgent)."""
     now = datetime.utcnow()
@@ -190,7 +186,6 @@ def get_active_breaches(db: Session, tenant_id: str) -> List[Dict]:
             "hours_since_breach": round((now - b.breached_at).total_seconds() / 3600.0, 1),
         })
     return result
-
 
 def get_active_no_contact_breach_for_conversation(db: Session, conversation_id: int) -> Optional[CandidateSLABreach]:
     """Used by the Status Card warning line (⚠ No contact in N hours)."""

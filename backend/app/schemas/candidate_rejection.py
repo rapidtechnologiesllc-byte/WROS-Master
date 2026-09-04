@@ -1,4 +1,5 @@
 """
+import logging
 Schemas for Candidate Rejection Workflow
 
 Includes request/response models for:
@@ -7,10 +8,13 @@ Includes request/response models for:
 - archive_candidate(): Archive/soft-delete candidate
 """
 
+import logging
 from pydantic import BaseModel, EmailStr
 from typing import Optional, List
 from datetime import datetime
+from app.core.logging import logger
 
+logger = logging.getLogger(__name__)
 
 class CandidateRejectionReasonResponse(BaseModel):
     """Response model for predefined rejection reasons."""
@@ -23,7 +27,6 @@ class CandidateRejectionReasonResponse(BaseModel):
 
     class Config:
         from_attributes = True
-
 
 class RejectCandidateRequest(BaseModel):
     """
@@ -44,7 +47,6 @@ class RejectCandidateRequest(BaseModel):
     send_email: bool = True
     tenant_id: Optional[int] = 1
 
-
 class RejectCandidateResponse(BaseModel):
     """Response after rejecting a candidate."""
     rejection_id: int
@@ -60,7 +62,6 @@ class RejectCandidateResponse(BaseModel):
     class Config:
         from_attributes = True
 
-
 class SendRejectionEmailRequest(BaseModel):
     """
     Request to send rejection email to candidate.
@@ -74,7 +75,6 @@ class SendRejectionEmailRequest(BaseModel):
     include_feedback: bool = False
     include_next_steps: bool = True
 
-
 class SendRejectionEmailResponse(BaseModel):
     """Response after sending rejection email."""
     rejection_id: int
@@ -86,7 +86,6 @@ class SendRejectionEmailResponse(BaseModel):
 
     class Config:
         from_attributes = True
-
 
 class ArchiveCandidateRequest(BaseModel):
     """
@@ -102,7 +101,6 @@ class ArchiveCandidateRequest(BaseModel):
     archive_reason: Optional[str] = None
     archive_note: Optional[str] = None
 
-
 class ArchiveCandidateResponse(BaseModel):
     """Response after archiving a candidate."""
     rejection_id: int
@@ -113,7 +111,6 @@ class ArchiveCandidateResponse(BaseModel):
 
     class Config:
         from_attributes = True
-
 
 class CandidateRejectionResponse(BaseModel):
     """Full rejection record response."""
@@ -135,14 +132,12 @@ class CandidateRejectionResponse(BaseModel):
     class Config:
         from_attributes = True
 
-
 class ListCandidateRejectionsResponse(BaseModel):
     """Response listing candidate rejections."""
     total: int
     page: int
     page_size: int
     rejections: List[CandidateRejectionResponse]
-
 
 class CandidateRejectionStatusResponse(BaseModel):
     """Query rejection status for a candidate."""

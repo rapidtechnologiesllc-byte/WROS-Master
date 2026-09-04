@@ -1,3 +1,4 @@
+import logging
 """add conversation_audit_log (S-076/HRMS-0476)
 
 Revision ID: f1a2b3c4d5e6
@@ -23,12 +24,10 @@ from typing import Sequence, Union
 from alembic import op
 import sqlalchemy as sa
 
-
 revision: str = 'f1a2b3c4d5e6'
 down_revision: Union[str, Sequence[str], None] = 'e0f1a2b3c4d5'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
-
 
 def upgrade() -> None:
     op.create_table(
@@ -56,7 +55,6 @@ def upgrade() -> None:
         'ix_conversation_audit_log_tenant_candidate_created',
         'conversation_audit_log', ['tenant_id', 'candidate_id', 'created_at'], unique=False,
     )
-
 
 def downgrade() -> None:
     op.drop_index('ix_conversation_audit_log_tenant_candidate_created', table_name='conversation_audit_log')

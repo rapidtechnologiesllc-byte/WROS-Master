@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """
+import logging
 Synthetic Training Data Generation using Claude
 
 Takes real resume examples and generates 5000+ synthetic variations using Claude.
@@ -21,6 +22,7 @@ This solves the training data bottleneck:
 - Total: 5000-5100 examples for fine-tuning
 """
 
+import logging
 import json
 import os
 import sys
@@ -36,6 +38,7 @@ from anthropic import Anthropic
 
 client = Anthropic()
 
+logger = logging.getLogger(__name__)
 
 class SyntheticDataGenerator:
     """Generate synthetic training examples using Claude"""
@@ -181,6 +184,7 @@ Generate {count} variations now:
                 print(f"   Could not parse JSON response")
 
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             print(f"  Error: {e}")
 
         return variations
@@ -291,7 +295,6 @@ Generate {count} variations now:
 
         return True
 
-
 def main():
     parser = argparse.ArgumentParser(
         description="Generate synthetic training examples using Claude"
@@ -319,7 +322,6 @@ def main():
     success = generator.run()
 
     sys.exit(0 if success else 1)
-
 
 if __name__ == "__main__":
     main()

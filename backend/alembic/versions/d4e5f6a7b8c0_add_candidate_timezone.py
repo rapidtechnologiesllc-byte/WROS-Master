@@ -1,3 +1,4 @@
+import logging
 """add candidates.timezone for conversation-inactivity send-window gating
 
 Revision ID: d4e5f6a7b8c0
@@ -21,13 +22,11 @@ from typing import Sequence, Union
 from alembic import op
 import sqlalchemy as sa
 
-
 # revision identifiers, used by Alembic.
 revision: str = 'd4e5f6a7b8c0'
 down_revision: Union[str, Sequence[str], None] = 'c3d4e5f6a7b9'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
-
 
 def upgrade() -> None:
     """Upgrade schema."""
@@ -35,7 +34,6 @@ def upgrade() -> None:
         'candidates',
         sa.Column('timezone', sa.String(length=64), nullable=False, server_default='Asia/Kolkata'),
     )
-
 
 def downgrade() -> None:
     """Downgrade schema."""

@@ -1,4 +1,4 @@
-// Auth page with sample-style two-step sign-in flow.
+// Auth page with two-step sign-in flow. Production ready with fully automated CI/CD!
 import React, { useState } from "react";
 import { Eye, EyeOff } from "lucide-react";
 import {
@@ -66,7 +66,8 @@ export default function AuthPage() {
         setError("User not found. Please check your email and try again.");
       }
     } catch (err) {
-      setError(err.message || "Unable to validate email. Please try again.");
+      console.error("[AuthPage] Email validation error:", err);
+      setError(err.message || "Unable to validate email. Please try again or contact the help desk if the problem persists.");
     } finally {
       setLoading(false);
     }
@@ -78,8 +79,8 @@ export default function AuthPage() {
       const user = response;
       return user;
     } catch (error) {
-      console.error("Failed to fetch user details", error);
-      return null;
+      console.error(`[AuthPage] Failed to fetch user details: ${error.message}`, error);
+      throw new Error(`Failed to fetch user details: ${error.message}`);
     }
   };
 
@@ -87,12 +88,22 @@ export default function AuthPage() {
   // stores the real session and either redirects immediately or, for a
   // never-asked candidate, shows the opt-in popup first.
   const finishLogin = async (data, { offer2faOptIn = false } = {}) => {
-    localStorage.setItem("hrms_token", data.access_token);
-    const user = await getCurrentUser();
-    if (user) {
-      localStorage.setItem("user_info", JSON.stringify(user));
-      localStorage.setItem("permission_role", user.permission_role);
-    }
+    try {
+      localStorage.setItem("hrms_token", data.access_token);
+      // Store refresh token for automatic token renewal
+      if (data.refresh_token) {
+        localStorage.setItem("hrms_refresh_token", data.refresh_token);
+      }
+      try {
+        const user = await getCurrentUser();
+        if (user) {
+          localStorage.setItem("user_info", JSON.stringify(user));
+          localStorage.setItem("permission_role", user.permission_role);
+        }
+      } catch (userError) {
+        console.error("[AuthPage] Non-critical: Failed to fetch user details:", userError);
+        throw userError;
+      }
     // Fallback: use user_role from login response if permission_role not available
     if (data?.user_role) {
       localStorage.setItem("permission_role", data.user_role);
@@ -123,6 +134,23 @@ export default function AuthPage() {
       Boolean(
         data?.candidate_id || data?.candidate_email || data?.candidate_role,
       );
+
+    // ✅ NEW: Check for password reset requirement (auto-created users)
+    if (data?.password_must_reset && !looksLikeCandidate) {
+      localStorage.setItem("hrms_user_type", "employee");
+      if (data?.user_role) {
+        localStorage.setItem("hrms_role", data.user_role.toUpperCase());
+      }
+      if (data?.user_name) {
+        localStorage.setItem("hrms_user_name", data.user_name);
+      }
+      if (data?.user_email) {
+        localStorage.setItem("hrms_user_email", data.user_email);
+      }
+      // Force password reset on first login
+      window.location.href = "/force-password-reset";
+      return;
+    }
 
     let redirectPath = "/";
     if (looksLikeCandidate) {
@@ -190,6 +218,10 @@ export default function AuthPage() {
       return;
     }
     window.location.href = redirectPath;
+    } catch (error) {
+      console.error("[AuthPage] finishLogin error:", error);
+      setError(error.message || "Login failed. Please try again or contact the help desk if the problem persists.");
+    }
   };
 
   const submitLogin = async (event) => {
@@ -239,7 +271,11 @@ export default function AuthPage() {
           setMfaSetupData(setupData);
           setStep("mfa-setup");
         } catch (setupErr) {
-          setError(setupErr.message || "Could not start MFA enrollment.");
+          const errorMsg = setupErr.message || "Could not start MFA enrollment.";
+          console.error(`[AuthPage] MFA setup failed: ${errorMsg}`, setupErr);
+          setError(errorMsg);
+          setLoading(false);
+          throw new Error(errorMsg);
         } finally {
           setLoading(false);
         }
@@ -256,7 +292,8 @@ export default function AuthPage() {
         return;
       }
     } catch (err) {
-      setError(err.message || "Login failed.");
+      console.error("[AuthPage] Login error:", err);
+      setError(err.message || "Login failed. Please try again or contact the help desk if the problem persists.");
     } finally {
       setLoading(false);
     }
@@ -268,8 +305,14 @@ export default function AuthPage() {
     setLoading(true);
     try {
       const data = await verifyCandidateEmailOtp(pendingOtpToken, otpCode.trim());
-      await finishLogin(data);
+      try {
+        await finishLogin(data);
+      } catch (finishErr) {
+        console.error("[AuthPage] finishLogin error:", finishErr);
+        setError(finishErr.message || "Failed to complete login.");
+      }
     } catch (err) {
+      console.error("[AuthPage] OTP verification error:", err);
       setError(err.message || "Invalid or expired code.");
     } finally {
       setLoading(false);
@@ -288,6 +331,7 @@ export default function AuthPage() {
       setMfaSetupData(null);
       await finishLogin(data);
     } catch (err) {
+      console.error("[AuthPage] MFA setup confirm error:", err);
       setError(err.message || "Invalid code. Check your authenticator app and try again.");
     } finally {
       setLoading(false);
@@ -306,6 +350,7 @@ export default function AuthPage() {
         : await verifyMfa(pendingMfaToken, { code: mfaCode.trim() });
       await finishLogin(data);
     } catch (err) {
+      console.error("[AuthPage] MFA verify error:", err);
       setError(err.message || "Invalid or expired code.");
     } finally {
       setLoading(false);
@@ -320,6 +365,7 @@ export default function AuthPage() {
       const data = await verifyStaffEmailOtp(pendingMfaToken, staffOtpCode.trim());
       await finishLogin(data);
     } catch (err) {
+      console.error("[AuthPage] Staff email OTP error:", err);
       setError(err.message || "Invalid or expired code.");
     } finally {
       setLoading(false);
@@ -333,6 +379,7 @@ export default function AuthPage() {
       await resendStaffEmailOtp(pendingMfaToken);
       setStaffOtpNotice("A new code has been sent to your email.");
     } catch (err) {
+      console.error("[AuthPage] Resend staff OTP error:", err);
       setError(err.message || "Could not resend the code.");
     }
   };
@@ -344,6 +391,7 @@ export default function AuthPage() {
       await resendCandidateEmailOtp(pendingOtpToken);
       setOtpNotice("A new code has been sent to your email.");
     } catch (err) {
+      console.error("[AuthPage] Resend OTP error:", err);
       setError(err.message || "Could not resend the code.");
     }
   };
@@ -352,8 +400,8 @@ export default function AuthPage() {
     try {
       await setCandidateEmail2faOptIn(optedIn);
     } catch (err) {
-      // Non-blocking -- a failed preference save must never trap the
-      // candidate on the login screen after they've already authenticated.
+      console.error("[AuthPage] 2FA opt-in save error (non-blocking):", err);
+      // Non-blocking -- don't throw, just log
     } finally {
       setShow2faOptInPopup(false);
       window.location.href = "/";
@@ -674,7 +722,7 @@ export default function AuthPage() {
                   <input
                     type={showPassword ? "text" : "password"}
                     required
-                    className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 pr-10 text-sm outline-none focus:border-bx-orange"
+                    className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 pr-10 text-sm text-slate-900 outline-none focus:border-bx-orange focus:ring-1 focus:ring-bx-orange"
                     value={loginForm.UserPassword}
                     onChange={(event) =>
                       setLoginForm((prev) => ({

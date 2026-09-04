@@ -1,4 +1,5 @@
 """
+import logging
 S-019/HRMS-0419 -- Conversation Summary Auto-Generation.
 
 Adapted to real architecture:
@@ -34,6 +35,7 @@ S-018's just-stabilized call sites and its 159-test regression
 baseline, this late before tonight's launch. Flagged as an explicit
 follow-up wiring task, not a silent gap.
 """
+import logging
 import json
 import re
 from datetime import datetime
@@ -54,7 +56,6 @@ SEARCHABLE_EVENT_TYPES = ("candidate_reply", "ai_message_sent", "hr_message_sent
 
 GEMINI_MODEL_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
 
-
 def _candidate_reply_count(db: Session, conversation_id: int) -> int:
     return (
         db.query(ConversationEvent)
@@ -62,11 +63,9 @@ def _candidate_reply_count(db: Session, conversation_id: int) -> int:
         .count()
     )
 
-
 def should_generate_summary_after_reply(db: Session, conversation_id: int) -> bool:
     """BR-01, message-count half: every 5th inbound message."""
     return _candidate_reply_count(db, conversation_id) % MESSAGE_COUNT_TRIGGER == 0
-
 
 def _recent_events_text(db: Session, conversation_id: int) -> str:
     events = (
@@ -86,7 +85,6 @@ def _recent_events_text(db: Session, conversation_id: int) -> str:
             lines.append(f"{speaker}: {body[:500]}")
     return "\n".join(lines) or "(no messages yet)"
 
-
 def _known_facts_text(db: Session, candidate: Candidate) -> str:
     from app.services.ai_conversation_service import get_missing_fields
 
@@ -104,10 +102,10 @@ def _known_facts_text(db: Session, candidate: Candidate) -> str:
         facts.append("Profile is complete.")
     return "\n".join(facts)
 
+logger = logging.getLogger(__name__)
 
 class SummaryGenerationFailed(Exception):
     pass
-
 
 def _default_llm_call(prompt: str, api_key: str) -> str:
     resp = requests.post(
@@ -120,7 +118,6 @@ def _default_llm_call(prompt: str, api_key: str) -> str:
     text = result.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "")
     return re.sub(r"```(?:json)?", "", text).strip()
 
-
 def _call_llm_for_summary(prompt: str, llm_call: Optional[Callable[[str], str]]) -> str:
     import os
 
@@ -132,7 +129,6 @@ def _call_llm_for_summary(prompt: str, llm_call: Optional[Callable[[str], str]])
         raise SummaryGenerationFailed("GEMINI_API_KEY not set")
     return _default_llm_call(prompt, api_key)
 
-
 def _build_summary_prompt(messages_text: str, facts_text: str) -> str:
     return (
         "Summarize this recruiting conversation in 2-3 sentences. Focus on: what "
@@ -141,7 +137,6 @@ def _build_summary_prompt(messages_text: str, facts_text: str) -> str:
         "filler phrases. Return only the summary text, no markdown, no quotes.\n\n"
         f"Conversation:\n{messages_text}\n\nKnown facts:\n{facts_text}"
     )
-
 
 def generate_conversation_summary(
     db: Session,
@@ -166,6 +161,7 @@ def generate_conversation_summary(
         try:
             raw = _call_llm_for_summary(prompt, llm_call).strip()
         except Exception as exc:
+            logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.warning(f"[ConversationSummary] LLM call failed for conversation {conversation.id}: {exc}")
             db.add(ConversationEvent(
                 conversation_id=conversation.id, event_type="SUMMARY_GENERATION_FAILED",
@@ -195,7 +191,6 @@ def generate_conversation_summary(
     db.flush()
     return None
 
-
 def maybe_generate_summary_after_reply(
     db: Session, conversation: CandidateConversation, candidate: Candidate, *, llm_call: Optional[Callable[[str], str]] = None,
 ) -> Optional[str]:
@@ -206,10 +201,10 @@ def maybe_generate_summary_after_reply(
         return None
     try:
         return generate_conversation_summary(db, conversation, candidate, llm_call=llm_call)
-    except Exception as exc:  # belt-and-suspenders -- generate_conversation_summary already shouldn't raise
+    except Exception as exc:
+        # belt-and-suspenders -- generate_conversation_summary already shouldn't raise
         logger.error(f"[ConversationSummary] Unexpected error generating summary for conversation {conversation.id}: {exc}")
-        return None
-
+        raise ValueError("Operation failed")
 
 def maybe_generate_summary_after_transition(
     db: Session, conversation: CandidateConversation, candidate: Candidate, *, llm_call: Optional[Callable[[str], str]] = None,
@@ -219,5 +214,6 @@ def maybe_generate_summary_after_transition(
     try:
         return generate_conversation_summary(db, conversation, candidate, llm_call=llm_call)
     except Exception as exc:
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.error(f"[ConversationSummary] Unexpected error generating summary for conversation {conversation.id}: {exc}")
-        return None
+        raise ValueError("Operation failed")

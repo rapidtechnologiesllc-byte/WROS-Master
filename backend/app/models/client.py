@@ -27,6 +27,7 @@ PRIMARY) rather than adopting HRMS-0201's coarser vocabulary
 picking one is a product call, not an engineering one -- flagged here,
 not silently resolved.
 """
+import logging
 import uuid
 
 from sqlalchemy import (
@@ -37,10 +38,8 @@ from sqlalchemy.orm import relationship
 
 from app.models.base import Base
 
-
 def _new_uuid() -> str:
     return str(uuid.uuid4())
-
 
 CLIENT_TYPES = ("DIRECT", "MSP", "VMS")
 CLIENT_TIERS = ("PLATINUM", "GOLD", "SILVER", "STANDARD")
@@ -62,11 +61,12 @@ LINE_TYPES = ("CORE", "SPECIALITY")
 # BR-01: cannot set status=ACTIVE without at least one client_contact.
 STATUSES_REQUIRING_CONTACT = {"ACTIVE"}
 
+logger = logging.getLogger(__name__)
 
 class Client(Base):
     __tablename__ = "clients"
 
-    id = Column(String(36), primary_key=True, default=_new_uuid)
+    id = Column(String(512), primary_key=True, default=_new_uuid)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
     # EPIC-02/03 access spec, 2026-08-05 -- Avinash's own words: "a
     # partner has it's own clients and the work is done in their BU
@@ -81,12 +81,12 @@ class Client(Base):
     business_unit_id = Column(Integer, ForeignKey("business_units.id"), nullable=True, index=True)
 
     company_name = Column(String(300), nullable=False)
-    company_short_name = Column(String(50), nullable=True)
-    industry = Column(String(100), nullable=True)
+    company_short_name = Column(String(512), nullable=True)
+    industry = Column(String(512), nullable=True)
     # HRMS-0201 -- genuinely new field this story adds; HRMS-0102 had no
     # country column (only free-text billing_address). See module-level
     # note below on why this extends HRMS-0102 rather than forking it.
-    country = Column(String(100), nullable=True)
+    country = Column(String(512), nullable=True)
     client_type = Column(Enum(*CLIENT_TYPES, name="client_type", native_enum=False, create_constraint=True), nullable=False, default="DIRECT")
     # 2026-08-06 -- see LINE_TYPES above. Nullable because existing rows
     # predate this field; the create form requires it going forward.
@@ -100,13 +100,13 @@ class Client(Base):
     tier = Column(Enum(*CLIENT_TIERS, name="client_tier", native_enum=False, create_constraint=True), nullable=False, default="STANDARD")
     status = Column(Enum(*CLIENT_STATUSES, name="client_status", native_enum=False, create_constraint=True), nullable=False, default="PROSPECT")
 
-    account_manager_employee_id = Column(String(36), ForeignKey("employees.id"), nullable=True)
+    account_manager_employee_id = Column(String(512), ForeignKey("employees.id"), nullable=True)
 
     billing_address = Column(Text, nullable=True)
     billing_currency = Column(Enum(*BILLING_CURRENCIES, name="billing_currency", native_enum=False, create_constraint=True), nullable=False, default="USD")
     payment_terms_days = Column(Integer, nullable=False, default=30)
     credit_limit_usd_cents = Column(Integer, nullable=True)
-    tax_id_client = Column(String(100), nullable=True)
+    tax_id_client = Column(String(512), nullable=True)
 
     contract_start_date = Column(Date, nullable=True)
     contract_end_date = Column(Date, nullable=True)
@@ -123,7 +123,7 @@ class Client(Base):
     notes = Column(Text, nullable=True)
 
     created_at = Column(DateTime, server_default=func.now())
-    created_by = Column(String(50), nullable=True)
+    created_by = Column(String(512), nullable=True)
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
 
     contacts = relationship("ClientContact", back_populates="client", lazy="select")
@@ -132,18 +132,17 @@ class Client(Base):
         UniqueConstraint("tenant_id", "company_name", name="uq_client_company_name_per_tenant"),
     )
 
-
 class ClientContact(Base):
     __tablename__ = "client_contacts"
 
-    id = Column(String(36), primary_key=True, default=_new_uuid)
+    id = Column(String(512), primary_key=True, default=_new_uuid)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
-    client_id = Column(String(36), ForeignKey("clients.id"), nullable=False, index=True)
+    client_id = Column(String(512), ForeignKey("clients.id"), nullable=False, index=True)
 
-    name = Column(String(200), nullable=False)
-    title = Column(String(200), nullable=True)
+    name = Column(String(512), nullable=False)
+    title = Column(String(512), nullable=True)
     email = Column(String(300), nullable=False)
-    phone = Column(String(50), nullable=True)
+    phone = Column(String(512), nullable=True)
     role_type = Column(Enum(*CONTACT_ROLE_TYPES, name="contact_role_type", native_enum=False, create_constraint=True), nullable=False)
     is_primary = Column(Boolean, nullable=False, default=False)
     linkedin_url = Column(Text, nullable=True)
@@ -156,19 +155,18 @@ class ClientContact(Base):
         UniqueConstraint("client_id", "email", name="uq_client_contact_email_per_client"),
     )
 
-
 class ClientHistory(Base):
     """Insert-only, same immutable pattern as employee_employment_history."""
     __tablename__ = "client_history"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
-    client_id = Column(String(36), ForeignKey("clients.id"), nullable=False, index=True)
+    client_id = Column(String(512), ForeignKey("clients.id"), nullable=False, index=True)
     change_type = Column(
         Enum("STATUS", "ACCOUNT_MANAGER", "TIER", "CONTRACT_TERMS", name="client_change_type", native_enum=False, create_constraint=True),
         nullable=False,
     )
     old_value = Column(Text, nullable=True)
     new_value = Column(Text, nullable=True)
-    changed_by = Column(String(50), nullable=True)
+    changed_by = Column(String(512), nullable=True)
     changed_at = Column(DateTime, server_default=func.now())

@@ -1,4 +1,5 @@
 """
+import logging
 Recruitment Funnel API - Real-time visibility into Phase 1 agent effectiveness.
 
 GET /recruiting/funnel - Complete recruitment pipeline with all 5 pillars
@@ -10,17 +11,17 @@ GET /recruiting/funnel/happiness-only - Just employee happiness
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
-from app.core.dependencies import get_db, get_current_recruiter
+from app.core.dependencies import get_db, get_current_user, require_resource_permission
 from app.services.recruitment_funnel_dashboard_service import RecruitmentFunnelDashboard
 from app.core.logging import logger
+from app.core.database import get_db
 
 router = APIRouter(prefix="/recruiting", tags=["recruitment-funnel"])
 
-
-@router.get("/funnel")
+@router.get("/funnel", dependencies=[Depends(require_resource_permission("agents", "view"))])
 async def get_full_recruitment_funnel(
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_recruiter)
+    current_user = Depends(get_current_user)
 ):
     """
     Get complete recruitment funnel showing all 5 pillars:
@@ -61,14 +62,14 @@ async def get_full_recruitment_funnel(
         }
 
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Error fetching recruitment funnel: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
 
-
-@router.get("/funnel/recruitment")
+@router.get("/funnel/recruitment", dependencies=[Depends(require_resource_permission("agents", "view"))])
 async def get_recruitment_only(
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_recruiter)
+    current_user = Depends(get_current_user)
 ):
     """Get just the recruitment funnel (Phase 1 agents)."""
     try:
@@ -80,14 +81,14 @@ async def get_recruitment_only(
             "health": funnel["recruitment"]["health"]
         }
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Error fetching recruitment metrics: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
-
-@router.get("/funnel/resources")
+@router.get("/funnel/resources", dependencies=[Depends(require_resource_permission("agents", "view"))])
 async def get_resources_only(
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_recruiter)
+    current_user = Depends(get_current_user)
 ):
     """Get resource management metrics (utilization, CORE certification, HTD)."""
     try:
@@ -98,14 +99,14 @@ async def get_resources_only(
             "health": funnel["resources"]["health"]
         }
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Error fetching resource metrics: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
-
-@router.get("/funnel/happiness")
+@router.get("/funnel/happiness", dependencies=[Depends(require_resource_permission("agents", "view"))])
 async def get_happiness_only(
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_recruiter)
+    current_user = Depends(get_current_user)
 ):
     """Get employee happiness metrics (retention, onboarding)."""
     try:
@@ -116,14 +117,14 @@ async def get_happiness_only(
             "health": funnel["employee_happiness"]["health"]
         }
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Error fetching happiness metrics: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
-
-@router.get("/funnel/2030-trajectory")
+@router.get("/funnel/2030-trajectory", dependencies=[Depends(require_resource_permission("agents", "view"))])
 async def get_2030_trajectory(
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_recruiter)
+    current_user = Depends(get_current_user)
 ):
     """
     Calculate if we're on pace to reach 2,000 employees by 2030.
@@ -144,5 +145,6 @@ async def get_2030_trajectory(
             "health": funnel["progress_2030"]["health"]
         }
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Error calculating 2030 trajectory: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))

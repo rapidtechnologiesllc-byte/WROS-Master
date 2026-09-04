@@ -5,6 +5,7 @@ a public route, a properly-declared route, and a route with no
 declaration at all.
 """
 import pytest
+import logging
 from fastapi import Depends, FastAPI
 
 from app.core.dependencies import require_permission, require_attribute
@@ -14,7 +15,6 @@ from app.core.route_security_audit import (
 )
 
 PUBLIC_ROUTES = ["/", "/docs", "/health"]
-
 
 def _toy_app() -> FastAPI:
     app = FastAPI()
@@ -37,7 +37,6 @@ def _toy_app() -> FastAPI:
 
     return app
 
-
 def test_public_and_declared_routes_are_not_flagged():
     app = _toy_app()
     missing = find_routes_missing_permission_declaration(app, PUBLIC_ROUTES)
@@ -45,18 +44,15 @@ def test_public_and_declared_routes_are_not_flagged():
     assert "GET /candidates" not in missing
     assert "POST /candidates" not in missing
 
-
 def test_route_with_no_declaration_is_flagged():
     app = _toy_app()
     missing = find_routes_missing_permission_declaration(app, PUBLIC_ROUTES)
     assert "GET /reports" in missing
 
-
 def test_assert_raises_when_any_route_is_missing_a_declaration():
     app = _toy_app()
     with pytest.raises(RuntimeError, match="GET /reports"):
         assert_all_routes_have_permission_declarations(app, PUBLIC_ROUTES)
-
 
 def test_assert_passes_once_the_gap_is_fixed():
     app = FastAPI()

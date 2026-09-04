@@ -1,4 +1,5 @@
 """
+import logging
 S-052/HRMS-0452 -- Interview No-Show Handling.
 
 Real architecture adaptations:
@@ -68,12 +69,10 @@ RESCHEDULE_OFFER_DELAY_HOURS = 2  # Step 4
 RESCHEDULE_OFFER_TIMEOUT_HOURS = 48  # Step 4
 JOB_BATCH_SIZE = 100
 
-
 def _as_utc(dt: datetime) -> datetime:
     if dt.tzinfo is None:
         return dt.replace(tzinfo=dt_timezone.utc)
     return dt.astimezone(dt_timezone.utc)
-
 
 def _active_conversation(db: Session, candidate_id: str) -> Optional[CandidateConversation]:
     return (
@@ -83,7 +82,6 @@ def _active_conversation(db: Session, candidate_id: str) -> Optional[CandidateCo
         .first()
     )
 
-
 def _has_replied_since(db: Session, conversation_id: int, since: datetime) -> bool:
     reply = (
         db.query(ConversationEvent)
@@ -91,7 +89,6 @@ def _has_replied_since(db: Session, conversation_id: int, since: datetime) -> bo
         .first()
     )
     return reply is not None
-
 
 def _resolve_interviewer_user(db: Session, panel_id: Optional[str]) -> Optional[Users]:
     if not panel_id:
@@ -104,7 +101,6 @@ def _resolve_interviewer_user(db: Session, panel_id: Optional[str]) -> Optional[
         return None
     return db.query(Users).filter(Users.UserID == employee.wros_user_id).first()
 
-
 def _interviewer_name(db: Session, panel_id: Optional[str]) -> str:
     if not panel_id:
         return "our interviewer"
@@ -115,7 +111,6 @@ def _interviewer_name(db: Session, panel_id: Optional[str]) -> str:
     if employee is None:
         return "our interviewer"
     return f"{employee.first_name} {employee.last_name}".strip() or "our interviewer"
-
 
 def _notify_recruiter(db: Session, submission: Optional[Submission], message: str) -> None:
     if submission is None or not submission.submitted_by_user_id:
@@ -129,8 +124,8 @@ def _notify_recruiter(db: Session, submission: Optional[Submission], message: st
             priority_tier="P1", channel_preference="IN_APP", message=message,
         )
     except Exception as exc:
+        logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[InterviewNoShow] Failed to notify recruiter: {exc}")
-
 
 def _send_thunder_message_best_effort(db: Session, conversation: Optional[CandidateConversation], candidate: Candidate, message: str) -> bool:
     if conversation is None:
@@ -141,7 +136,6 @@ def _send_thunder_message_best_effort(db: Session, conversation: Optional[Candid
     except (ConsentNotGiven, ConversationOwnedByHuman, DuplicateMessageSuppressed, ThunderPausedError) as exc:
         logger.info(f"[InterviewNoShow] WhatsApp message skipped for candidate {candidate.candidateID!r}: {exc}")
         return False
-
 
 def run_no_show_detection_job(db: Session) -> Dict:
     """Steps 1 + 3, combined -- runs every 5 min. Never lets one bad
@@ -201,6 +195,7 @@ def run_no_show_detection_job(db: Session) -> Dict:
                 if conversation is not None:
                     db.add(ConversationEvent(conversation_id=conversation.id, event_type="ai_message_sent", event_data={"channel": "email", "body": message[:500], "auto_generated": True, "message_type": "NO_SHOW_CHECK_IN"}, triggered_by="ai_agent"))
             except Exception as exc:
+                logger.error(f"Error: {str(exc)}", exc_info=True)
                 logger.error(f"[InterviewNoShow] Check-in email failed for candidate {candidate.candidateID!r}: {exc}")
 
             interview.no_show_check_in_at = now.replace(tzinfo=None)
@@ -208,6 +203,7 @@ def run_no_show_detection_job(db: Session) -> Dict:
             db.commit()
             result["check_in_sent"] += 1
         except Exception as exc:
+            logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.error(f"[InterviewNoShow] Failed processing check-in for interview {interview.id!r}: {exc}")
             db.rollback()
             result["skipped"] += 1
@@ -268,16 +264,17 @@ def run_no_show_detection_job(db: Session) -> Dict:
                         "<p>The candidate did not join. We are following up with them now. We will reschedule if appropriate.</p>", is_html=True,
                     )
                 except Exception as exc:
+                    logger.error(f"Error: {str(exc)}", exc_info=True)
                     logger.error(f"[InterviewNoShow] Interviewer notification email failed: {exc}")
 
             result["no_show_confirmed"] += 1
         except Exception as exc:
+            logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.error(f"[InterviewNoShow] Failed confirming no-show for interview {interview.id!r}: {exc}")
             db.rollback()
             result["skipped"] += 1
 
     return result
-
 
 def run_no_show_followup_job(db: Session) -> Dict:
     """Step 4 -- the reschedule-offer follow-through. Never lets one
@@ -317,6 +314,7 @@ def run_no_show_followup_job(db: Session) -> Dict:
             db.commit()
             result["offer_sent"] += 1
         except Exception as exc:
+            logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.error(f"[InterviewNoShow] Failed sending reschedule offer for interview {interview.id!r}: {exc}")
             db.rollback()
             result["skipped"] += 1
@@ -353,6 +351,7 @@ def run_no_show_followup_job(db: Session) -> Dict:
             else:
                 result["skipped"] += 1
         except Exception as exc:
+            logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.error(f"[InterviewNoShow] Failed processing reschedule-offer follow-up for interview {interview.id!r}: {exc}")
             db.rollback()
             result["skipped"] += 1

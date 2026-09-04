@@ -1,9 +1,11 @@
+import logging
 """Agent State Target Model - Strategic alignment & performance accountability."""
 
 from sqlalchemy import Column, String, Integer, Float, Boolean, DateTime, Text
 from datetime import datetime
 from app.models.base import Base
 
+logger = logging.getLogger(__name__)
 
 class AgentStateTarget(Base):
     """Agent's strategic contribution, targets, and accountability metrics."""
@@ -50,7 +52,6 @@ class AgentStateTarget(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
-
 class AgentActualPerformance(Base):
     """Daily actual performance vs targets."""
 
@@ -76,7 +77,6 @@ class AgentActualPerformance(Base):
     progress_to_2030_pct = Column(Float)  # % toward 2030 target
 
     created_at = Column(DateTime, default=datetime.utcnow)
-
 
 class AgentFearScore(Base):
     """Agent stress/anxiety based on gap from targets."""
@@ -105,7 +105,6 @@ class AgentFearScore(Base):
 
     created_at = Column(DateTime, default=datetime.utcnow)
 
-
 class AgentIssue(Base):
     """Current issues blocking agent progress."""
 
@@ -122,7 +121,6 @@ class AgentIssue(Base):
     root_cause = Column(Text)  # "Rate limiting on LinkedIn API"
 
     created_at = Column(DateTime, default=datetime.utcnow)
-
 
 class AgentImprovement(Base):
     """Actions to improve agent toward targets."""

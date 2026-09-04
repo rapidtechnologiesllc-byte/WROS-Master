@@ -3,13 +3,14 @@ S-353 (HRMS-0514) Core-Pull Engine + S-373 (HRMS-0529) Specialty Pool
 Minimum 40 Guard — API Endpoints
 =========================================================================
 Prefix: /core-pull
+import logging
 Tag:    core-pull
 
 Wires app.services.core_pull_service (built earlier this program, no
 REST layer previously existed) to real HTTP routes. See the Definition
 of Done correction in CLAUDE.md.
 
-Auth: same posture as Thunder/Resource Management (get_current_hr_or_admin
+Auth: same posture as Thunder/Resource Management (get_current_internal_user
 -- any internal user). override is additionally gated on the acting
 user's UserRole == "BU Head" inside override_core_pull() itself (403 if
 not); no separate RBAC permission exists for this area yet.
@@ -38,7 +39,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_hr_or_admin
+from app.core.dependencies import get_current_internal_user
 from app.models.core_pull import CorePullEvent
 from app.models.demand import Demand
 from app.models.employee import Employee
@@ -68,7 +69,6 @@ from app.services.orchestration_router_service import ActionBlocked, ActionDelay
 
 router = APIRouter(prefix="/core-pull", tags=["core-pull"])
 
-
 def _to_item(db: Session, event: CorePullEvent) -> CorePullEventItem:
     employee = db.query(Employee).filter(Employee.id == event.employee_id).first()
     demand = db.query(Demand).filter(Demand.id == event.core_demand_id).first()
@@ -89,35 +89,34 @@ def _to_item(db: Session, event: CorePullEvent) -> CorePullEventItem:
         core_demand_job_title=demand.job_title if demand else "(unknown demand)",
     )
 
-
 def _get_event_or_404(db: Session, event_id: str) -> CorePullEvent:
     event = db.query(CorePullEvent).filter(CorePullEvent.id == event_id).first()
     if event is None:
         raise HTTPException(status_code=404, detail="Core-Pull event not found.")
     return event
 
-
 @router.get(
     "/specialty-pool-status",
+    dependencies=[Depends(get_current_internal_user)],
     response_model=SpecialtyPoolStatusResponse,
     summary="Get the current Specialty Core-Certified pool size vs the 40-minimum floor",
 )
 def get_pool_status(
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     status = get_specialty_pool_status(db, tenant_id=current_user.tenant_id)
     return SpecialtyPoolStatusResponse(**status)
 
-
 @router.get(
     "/events",
+    dependencies=[Depends(get_current_internal_user)],
     response_model=CorePullEventQueueResponse,
     summary="Get pending Core-Pull events",
 )
 def get_pending_events(
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     events = (
         db.query(CorePullEvent)
@@ -130,16 +129,16 @@ def get_pending_events(
     )
     return CorePullEventQueueResponse(events=[_to_item(db, e) for e in events])
 
-
 @router.post(
     "/events/{event_id}/execute",
+    dependencies=[Depends(get_current_internal_user)],
     response_model=ExecuteCorePullResponse,
     summary="Execute a pending Core-Pull event (same-day forced transfer)",
 )
 def execute_event(
     event_id: str,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     event = _get_event_or_404(db, event_id)
     employee = db.query(Employee).filter(Employee.id == event.employee_id).first()
@@ -163,9 +162,9 @@ def execute_event(
         specialty_pool_size_after=guard["pool_size_after_move"],
     )
 
-
 @router.post(
     "/events/{event_id}/override",
+    dependencies=[Depends(get_current_internal_user)],
     response_model=OverrideCorePullResponse,
     summary="Override a pending Core-Pull event (BU Head only)",
 )
@@ -173,7 +172,7 @@ def override_event(
     event_id: str,
     body: OverrideCorePullRequest,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     event = _get_event_or_404(db, event_id)
     try:
@@ -195,16 +194,16 @@ def override_event(
     db.refresh(event)
     return OverrideCorePullResponse(message="Core-Pull event overridden.", event=_to_item(db, event))
 
-
 @router.post(
     "/replacement-plans",
+    dependencies=[Depends(get_current_internal_user)],
     response_model=ReplacementPlanResponse,
     summary="Log a Specialty Pool replacement plan to unblock a guard-blocked execute",
 )
 def submit_replacement_plan(
     body: ReplacementPlanRequest,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     employee = db.query(Employee).filter(Employee.id == body.employee_id).first()
     if employee is None:

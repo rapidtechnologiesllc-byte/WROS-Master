@@ -1,5 +1,6 @@
 """
 S-353/HRMS-0514 -- Core-Pull Conflict Rule Engine ("Core Wins Policy") and
+import logging
 S-373/HRMS-0529 -- Specialty Pool Minimum 40 Core-Certified Guard.
 
 Both stories per docs/build-package/04-RESOURCE-MANAGEMENT.md Part A, built
@@ -10,6 +11,7 @@ is an unrelated story (Workforce Scenario Planning); the real, canonical
 Core-Pull ID is HRMS-0514/S-353, confirmed against
 `WROS_Canonical_Backlog_S001-401.xlsx`. See CLAUDE.md's correction note.
 """
+import logging
 import uuid
 
 from sqlalchemy import (
@@ -18,13 +20,12 @@ from sqlalchemy import (
 
 from app.models.base import Base
 
-
 def _new_uuid() -> str:
     return str(uuid.uuid4())
 
-
 CORE_PULL_EVENT_STATUSES = ("PENDING", "EXECUTED", "OVERRIDDEN")
 
+logger = logging.getLogger(__name__)
 
 class CorePullEvent(Base):
     """One row per detected Core-vs-Speciality conflict for a single
@@ -33,12 +34,12 @@ class CorePullEvent(Base):
 
     __tablename__ = "core_pull_events"
 
-    id = Column(String(36), primary_key=True, default=_new_uuid)
+    id = Column(String(512), primary_key=True, default=_new_uuid)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
 
-    employee_id = Column(String(36), ForeignKey("employees.id"), nullable=False, index=True)
-    core_demand_id = Column(String(36), ForeignKey("demands.id"), nullable=False, index=True)
-    speciality_allocation_id = Column(String(36), ForeignKey("employee_allocations.id"), nullable=False, index=True)
+    employee_id = Column(String(512), ForeignKey("employees.id"), nullable=False, index=True)
+    core_demand_id = Column(String(512), ForeignKey("demands.id"), nullable=False, index=True)
+    speciality_allocation_id = Column(String(512), ForeignKey("employee_allocations.id"), nullable=False, index=True)
 
     status = Column(
         String(20), nullable=False, default="PENDING",
@@ -51,9 +52,8 @@ class CorePullEvent(Base):
 
     # BU Head override path -- BR: min 100 chars, Director-visible.
     override_justification = Column(Text, nullable=True)
-    overridden_by = Column(String(50), ForeignKey("users.UserID"), nullable=True)
+    overridden_by = Column(String(512), ForeignKey("users.UserID"), nullable=True)
     overridden_at = Column(DateTime, nullable=True)
-
 
 class SpecialtyPoolReplacementPlan(Base):
     """S-373/HRMS-0529 -- logged by a BU Head before a Core move that
@@ -63,12 +63,12 @@ class SpecialtyPoolReplacementPlan(Base):
 
     __tablename__ = "specialty_pool_replacement_plans"
 
-    id = Column(String(36), primary_key=True, default=_new_uuid)
+    id = Column(String(512), primary_key=True, default=_new_uuid)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
 
-    employee_id_moving = Column(String(36), ForeignKey("employees.id"), nullable=False, index=True)
+    employee_id_moving = Column(String(512), ForeignKey("employees.id"), nullable=False, index=True)
     replacement_strategy = Column(Text, nullable=False)  # min 100 chars, enforced in the service layer
     expected_replacement_date = Column(Date, nullable=False)
 
-    logged_by = Column(String(50), ForeignKey("users.UserID"), nullable=True)
+    logged_by = Column(String(512), ForeignKey("users.UserID"), nullable=True)
     logged_at = Column(DateTime, server_default=func.now())

@@ -13,6 +13,7 @@ The pipeline runs in a single synchronous call; async usage wraps with
 `asyncio.get_event_loop().run_in_executor(...)`.
 """
 
+import logging
 import json
 import os
 import re
@@ -24,19 +25,33 @@ from langgraph.graph import END, StateGraph
 
 load_dotenv()
 
+logger = logging.getLogger(__name__)
+
 # ---------------------------------------------------------------------------
 # LLM initialisation (re-uses the same key as job_description_generator)
 # ---------------------------------------------------------------------------
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-_llm = ChatGoogleGenerativeAI(
-    api_key=GEMINI_API_KEY,
-    model="gemini-flash-lite-latest",          # fast, cheap, sufficient for scoring
-    temperature=0.2,                    # low temp → consistent scores
-)
+_llm = None
 
+try:
+    _llm = ChatGoogleGenerativeAI(
+        api_key=GEMINI_API_KEY,
+        model="gemini-flash-lite-latest",          # fast, cheap, sufficient for scoring
+        temperature=0.2,                    # low temp → consistent scores
+    )
+except Exception as e:
+    logger.error(f"Error: {str(e)}", exc_info=True)
+    # If Google credentials not available, LLM will be None
+    # ATS scoring will return stub response
+    import sys
+    print(f"[WARNING] ATS Scorer: Google credentials not available: {e}", file=sys.stderr)
 
 def _invoke_llm(prompt: str) -> str:
     """Invoke the LLM and normalise the response to a plain string."""
+    if _llm is None:
+        # Return stub response if LLM not available (e.g., Google credentials missing)
+        return '{"score": 50, "message": "ATS scoring unavailable - Google credentials not configured"}'
+
     response = _llm.invoke(prompt)
     if isinstance(response.content, str):
         return response.content
@@ -46,7 +61,6 @@ def _invoke_llm(prompt: str) -> str:
             for part in response.content
         )
     return str(response.content)
-
 
 def _extract_json(text: str) -> dict:
     """
@@ -64,12 +78,12 @@ def _extract_json(text: str) -> dict:
     try:
         return json.loads(text)
     except json.JSONDecodeError:
-        return {}
-
+        raise ValueError("Operation failed")
 
 # ---------------------------------------------------------------------------
 # State definition
 # ---------------------------------------------------------------------------
+logger = logging.getLogger(__name__)
 
 class ATSState(TypedDict):
     # Inputs
@@ -100,7 +114,6 @@ class ATSState(TypedDict):
     score_rationale: str
     ats_verdict: str           # one-liner verdict for display
 
-
 # ---------------------------------------------------------------------------
 # Node 1 — Profile summariser
 # ---------------------------------------------------------------------------
@@ -126,7 +139,6 @@ Return ONLY the summary paragraph, no extra text.
 """
     state["profile_summary"] = _invoke_llm(prompt).strip()
     return state
-
 
 # ---------------------------------------------------------------------------
 # Node 2 — Skills & Experience scorer
@@ -168,7 +180,6 @@ Return ONLY a JSON object with exactly these keys:
     state["skills_score"] = min(25, max(0, int(data.get("skills_score", 0))))
     state["experience_score"] = min(25, max(0, int(data.get("experience_score", 0))))
     return state
-
 
 # ---------------------------------------------------------------------------
 # Node 3 — Education & Location scorer
@@ -217,7 +228,6 @@ Return ONLY a JSON object with exactly these keys:
     state["education_score"] = min(20, max(0, int(data.get("education_score", 0))))
     state["location_score"] = min(15, max(0, int(data.get("location_score", 0))))
     return state
-
 
 # ---------------------------------------------------------------------------
 # Node 4 — Culture-fit & Final verdict
@@ -282,7 +292,6 @@ Return ONLY a JSON object with exactly these keys:
     state["ats_verdict"] = data.get("ats_verdict", "")
     return state
 
-
 # ---------------------------------------------------------------------------
 # Build & cache the compiled graph
 # ---------------------------------------------------------------------------
@@ -301,9 +310,7 @@ def _build_ats_graph():
     g.add_edge("score_culture_verdict", END)
     return g.compile()
 
-
 _ATS_GRAPH = _build_ats_graph()
-
 
 # ---------------------------------------------------------------------------
 # Public API

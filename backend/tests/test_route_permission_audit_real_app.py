@@ -1,5 +1,6 @@
 """
 Runs the HRMS-0114 audit against the REAL app (app.main:app) and
+import logging
 reports the current gap.
 
 Tiers:
@@ -56,14 +57,12 @@ GENUINE_OPEN_QUESTIONS = set()  # both resolved 2026-07-20: active-jobs kept
 # internal (require_permission("job.view")), webhook now requires either
 # a shared secret or an internal-user token (require_webhook_secret_or_internal_user)
 
-
 def _all_public_paths():
     # route_security_audit compares against route.path, which for a
     # parameterized route IS the literal "{param}" template string --
     # unlike AuthenticationMiddleware's runtime check, no segment
     # matching is needed here, plain equality against the template works.
     return AuthenticationMiddleware.PUBLIC_ROUTES + AuthenticationMiddleware.PUBLIC_ROUTE_TEMPLATES
-
 
 def test_msgraph_manual_exception_guard_still_has_real_protection():
     """
@@ -81,7 +80,6 @@ def test_msgraph_manual_exception_guard_still_has_real_protection():
     source = inspect.getsource(msgraph)
     for route_fn_snippet in ["def send_mail(", "def schedule_meeting(", "def get_my_meetings("]:
         assert route_fn_snippet in source, f"{route_fn_snippet} not found -- route may have moved/renamed"
-
 
 def test_real_app_has_no_unexplained_routes_with_zero_identity_check():
     from app.main import app
@@ -105,10 +103,8 @@ def test_real_app_has_no_unexplained_routes_with_zero_identity_check():
     if resolved:
         print(f"\nThese are no longer open questions, remove from GENUINE_OPEN_QUESTIONS: {resolved}")
 
-
 @pytest.mark.xfail(strict=False, reason="Routes with coarse auth but no fine-grained RBAC permission -- tracked, not an emergency")
 def test_real_app_has_no_routes_with_only_coarse_auth():
-    from app.main import app
 
     coarse = find_routes_with_only_coarse_auth(app, _all_public_paths())
     if coarse:

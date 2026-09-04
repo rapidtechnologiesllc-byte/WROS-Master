@@ -1,4 +1,5 @@
 """
+import logging
 S-215/HRMS-0117 -- Error Logging Framework.
 
 Additive to the existing file-based structured logging
@@ -10,6 +11,7 @@ files aren't queryable by integration_name/time_window) and CRITICAL
 paging (Step 3/AC-1). This table is the real, additive DB sink; not a
 replacement for the file logger.
 """
+import logging
 import uuid
 from datetime import datetime
 
@@ -20,18 +22,18 @@ from app.models.base import Base
 
 ERROR_SEVERITIES = ("INFO", "WARN", "ERROR", "CRITICAL")
 
-
 def _new_uuid() -> str:
     return str(uuid.uuid4())
 
+logger = logging.getLogger(__name__)
 
 class ErrorLog(Base):
     __tablename__ = "error_log"
 
-    id = Column(String(36), primary_key=True, default=_new_uuid)
+    id = Column(String(512), primary_key=True, default=_new_uuid)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)  # nullable -- some errors are pre-auth
 
-    error_type = Column(String(200), nullable=False, index=True)
+    error_type = Column(String(512), nullable=False, index=True)
     severity = Column(String(10), nullable=False, index=True)  # one of ERROR_SEVERITIES
     message = Column(Text, nullable=False)
     stack_trace = Column(Text, nullable=True)
@@ -39,6 +41,6 @@ class ErrorLog(Base):
     # HRMS-1108 Integration Health Agent's own filter dimension -- not
     # built yet, this table is Step 4's real read surface for it once
     # it exists. Nullable: most errors aren't integration-specific.
-    integration_name = Column(String(100), nullable=True, index=True)
+    integration_name = Column(String(512), nullable=True, index=True)
 
     created_at = Column(DateTime, server_default=func.now(), index=True)

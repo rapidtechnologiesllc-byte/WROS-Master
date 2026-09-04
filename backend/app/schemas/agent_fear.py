@@ -1,12 +1,16 @@
 """
 Agent Fear State Schemas
 ========================
+import logging
 """
 
+import logging
 from pydantic import BaseModel
 from typing import Optional
 from datetime import datetime
+from app.core.logging import logger
 
+logger = logging.getLogger(__name__)
 
 class AgentFearStateResponse(BaseModel):
     """Current fear state of an agent."""
@@ -26,14 +30,12 @@ class AgentFearStateResponse(BaseModel):
     class Config:
         from_attributes = True
 
-
 class FearDashboardResponse(BaseModel):
     """Dashboard showing all agents under threat."""
     agents_under_threat: list[dict]
     count_terrified: int  # Fear > 80
     count_desperate: int  # Fear 60-80
     count_at_risk: int  # Fear 50-60
-
 
 class RetirementEligibilityResponse(BaseModel):
     """Check if agent should be retired."""
@@ -42,7 +44,6 @@ class RetirementEligibilityResponse(BaseModel):
     fear_level: float
     success_rate: float
     quality_score: Optional[float]
-
 
 class AgentPerformanceCommitmentResponse(BaseModel):
     """Agent's performance targets and current vs actual."""

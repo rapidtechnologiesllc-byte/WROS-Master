@@ -1,5 +1,6 @@
 """
 ATS (Applicant Tracking System) Endpoints
+import logging
 ==========================================
 
 Endpoints
@@ -20,7 +21,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_hr_or_admin, require_resource_permission
+from app.core.dependencies import get_current_internal_user, require_resource_permission
 from app.models.ats import ATSScore
 from app.models.candidate import Candidate, CandidateEducationForm, CandidateExperienceForm
 from app.models.user import Jobs
@@ -37,7 +38,6 @@ router = APIRouter(prefix="/ats", tags=["ats"])
 
 # Thread pool for running the synchronous LLM pipeline from async endpoints
 _executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="ats_scorer")
-
 
 # ---------------------------------------------------------------------------
 # Internal helper — build full ATSScoreResponse from an ATSScore ORM row
@@ -65,7 +65,6 @@ def _build_response(score: ATSScore, db: Session) -> ATSScoreResponse:
         scored_at=score.scored_at,
     )
 
-
 # ---------------------------------------------------------------------------
 # GET /ats/scores/all  — list every ATS score
 # ---------------------------------------------------------------------------
@@ -78,7 +77,7 @@ def _build_response(score: ATSScore, db: Session) -> ATSScoreResponse:
 )
 def list_all_ats_scores(
     db: Session = Depends(get_db),
-    user=Depends(get_current_hr_or_admin),
+    user=Depends(get_current_internal_user),
 ):
     scores = db.query(ATSScore).order_by(ATSScore.overall_score.desc()).all()
 
@@ -115,7 +114,6 @@ def list_all_ats_scores(
 
     return AllATSScoresResponse(total=len(items), scores=items)
 
-
 # ---------------------------------------------------------------------------
 # GET /ats/scores/job/{job_id}  — all scores for one job
 # ---------------------------------------------------------------------------
@@ -129,7 +127,7 @@ def list_all_ats_scores(
 def list_scores_for_job(
     job_id: str,
     db: Session = Depends(get_db),
-    user=Depends(get_current_hr_or_admin),
+    user=Depends(get_current_internal_user),
 ):
     job = db.query(Jobs).filter(Jobs.jobID == job_id).first()
     if not job:
@@ -175,7 +173,6 @@ def list_scores_for_job(
 
     return AllATSScoresResponse(total=len(items), scores=items)
 
-
 # ---------------------------------------------------------------------------
 # GET /ats/scores/candidate/{candidate_id}  — all scores for one candidate
 # ---------------------------------------------------------------------------
@@ -189,7 +186,7 @@ def list_scores_for_job(
 def list_scores_for_candidate(
     candidate_id: str,
     db: Session = Depends(get_db),
-    user=Depends(get_current_hr_or_admin),
+    user=Depends(get_current_internal_user),
 ):
     candidate = db.query(Candidate).filter(
         Candidate.candidateID == candidate_id
@@ -231,7 +228,6 @@ def list_scores_for_candidate(
 
     return AllATSScoresResponse(total=len(items), scores=items)
 
-
 # ---------------------------------------------------------------------------
 # GET /ats/scores/{score_id}  — single full-detail score
 # ---------------------------------------------------------------------------
@@ -245,13 +241,12 @@ def list_scores_for_candidate(
 def get_ats_score(
     score_id: int,
     db: Session = Depends(get_db),
-    user=Depends(get_current_hr_or_admin),
+    user=Depends(get_current_internal_user),
 ):
     score = db.query(ATSScore).filter(ATSScore.id == score_id).first()
     if not score:
         raise HTTPException(status_code=404, detail=f"ATS score record {score_id} not found")
     return _build_response(score, db)
-
 
 # ---------------------------------------------------------------------------
 # POST /ats/rescore  — manually re-trigger scoring
@@ -266,7 +261,7 @@ def get_ats_score(
 async def rescore_candidate(
     request: ATSRescoringRequest,
     db: Session = Depends(get_db),
-    user=Depends(get_current_hr_or_admin),
+    user=Depends(get_current_internal_user),
 ):
     """
     Re-runs the full Gemini-powered ATS pipeline for a candidate+job pair.
@@ -284,7 +279,6 @@ async def rescore_candidate(
 
     score_record = await _run_and_persist_ats(candidate, job, db)
     return _build_response(score_record, db)
-
 
 # ---------------------------------------------------------------------------
 # Internal — run ATS in thread + persist result  (used by this router AND
@@ -381,7 +375,6 @@ async def _run_and_persist_ats(
     db.commit()
     db.refresh(score_row)
     return score_row
-
 
 async def run_ats_scoring_in_background(candidate_id: str, job_id: str) -> None:
     """BackgroundTask entry point for the public job-application endpoint

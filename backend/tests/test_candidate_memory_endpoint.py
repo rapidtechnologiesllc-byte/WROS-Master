@@ -2,6 +2,7 @@
 GET /ai-agent/memory/{candidate_id} -- HTTP wiring for S-021/HRMS-0421.
 Routed under /ai-agent (not /candidates/{id}/memory) matching this
 round's convention of hosting Thunder-intelligence candidate-scoped
+import logging
 reads there (missing-fields, portal-link).
 
 Throwaway SQLite app, throwaway JWT keys -- never the real database.
@@ -26,7 +27,6 @@ import app.models  # noqa: F401
 
 import app.services.candidate_memory_service as memory_svc
 
-
 @pytest.fixture()
 def throwaway_jwt_keys(monkeypatch):
     key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
@@ -39,7 +39,6 @@ def throwaway_jwt_keys(monkeypatch):
     ).decode()
     monkeypatch.setattr(security, "PRIVATE_KEY", private_pem)
     monkeypatch.setattr(security, "PUBLIC_KEY", public_pem)
-
 
 @pytest.fixture()
 def client(throwaway_jwt_keys):
@@ -79,10 +78,8 @@ def client(throwaway_jwt_keys):
         engine.dispose()
         os.remove(db_path)
 
-
 def _token_for(email):
     return security.create_access_token(data={"sub": email, "type": "Super User"})
-
 
 def test_get_memory_returns_facts(client):
     resp = client.get("/ai-agent/memory/C-1", headers={"Authorization": f"Bearer {_token_for('ceo@blitzenx.com')}"})
@@ -93,22 +90,18 @@ def test_get_memory_returns_facts(client):
     assert len(body["facts"]) == 1
     assert body["facts"][0]["key"] == "expected_ctc"
 
-
 def test_get_memory_requires_auth(client):
     resp = client.get("/ai-agent/memory/C-1")
     assert resp.status_code in (401, 403)
-
 
 def test_get_memory_unknown_candidate_404(client):
     resp = client.get("/ai-agent/memory/NOPE", headers={"Authorization": f"Bearer {_token_for('ceo@blitzenx.com')}"})
     assert resp.status_code == 404
 
-
 def test_get_memory_includes_fact_id(client):
     resp = client.get("/ai-agent/memory/C-1", headers={"Authorization": f"Bearer {_token_for('ceo@blitzenx.com')}"})
     fact = resp.json()["facts"][0]
     assert "id" in fact
-
 
 def test_patch_fact_correction_updates_value_and_confidence(client):
     get_resp = client.get("/ai-agent/memory/C-1", headers={"Authorization": f"Bearer {_token_for('ceo@blitzenx.com')}"})
@@ -124,7 +117,6 @@ def test_patch_fact_correction_updates_value_and_confidence(client):
     assert body["value"] == "26 LPA"
     assert body["confidence"] == 1.0
 
-
 def test_patch_fact_correction_unknown_fact_404(client):
     resp = client.patch(
         "/ai-agent/memory/C-1/facts/999999",
@@ -132,7 +124,6 @@ def test_patch_fact_correction_unknown_fact_404(client):
         headers={"Authorization": f"Bearer {_token_for('ceo@blitzenx.com')}"},
     )
     assert resp.status_code == 404
-
 
 def test_patch_fact_correction_requires_auth(client):
     resp = client.patch("/ai-agent/memory/C-1/facts/1", json={"fact_value": "x"})

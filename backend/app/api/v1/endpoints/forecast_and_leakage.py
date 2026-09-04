@@ -1,4 +1,5 @@
-﻿"""
+"""
+import logging
 S-242 (Forecast vs Actual) + S-243 (Revenue Leakage Detection).
 
 Gated behind revenue.view / revenue.view_pnl same as every other
@@ -32,7 +33,6 @@ from app.services.pipeline_leakage_service import (
 
 router = APIRouter(tags=["forecast-and-leakage"])
 
-
 def _caller_business_unit_ids(db: Session, current_user: Users) -> Optional[List[int]]:
     """None = org-wide (Super User/Finance/HR Manager). A real list =
     scoped to whichever BU(s) the caller's own client-visibility
@@ -43,8 +43,11 @@ def _caller_business_unit_ids(db: Session, current_user: Users) -> Optional[List
     query = apply_revenue_bu_scope_to_client_query(db, db.query(Client.business_unit_id).distinct(), current_user)
     return [row[0] for row in query.all() if row[0] is not None]
 
-
-@router.get("/forecast-vs-actual", response_model=ForecastVsActualResponse)
+@router.get(
+    "/forecast-vs-actual",
+    response_model=ForecastVsActualResponse,
+    dependencies=[Depends(require_resource_permission("forecast-vs-actual", "view"))]
+)
 def forecast_vs_actual(
     year: int, month: int,
     db: Session = Depends(get_db),
@@ -55,8 +58,11 @@ def forecast_vs_actual(
         db, client_ids=list(client_ids) if client_ids is not None else None, year=year, month=month,
     )
 
-
-@router.get("/forecast-vs-actual/bu/{business_unit_id}", response_model=ForecastVsActualResponse)
+@router.get(
+    "/forecast-vs-actual/bu/{business_unit_id}",
+    response_model=ForecastVsActualResponse,
+    dependencies=[Depends(require_resource_permission("forecast-vs-actual", "view"))]
+)
 def forecast_vs_actual_by_bu(
     business_unit_id: int, year: int, month: int,
     db: Session = Depends(get_db),
@@ -67,8 +73,11 @@ def forecast_vs_actual_by_bu(
         raise HTTPException(status_code=403, detail="Not authorized to view this Business Unit's revenue.")
     return get_forecast_vs_actual_by_bu(db, business_unit_id=business_unit_id, year=year, month=month)
 
-
-@router.get("/forecast-vs-actual/trend", response_model=ForecastVsActualTrendResponse)
+@router.get(
+    "/forecast-vs-actual/trend",
+    response_model=ForecastVsActualTrendResponse,
+    dependencies=[Depends(require_resource_permission("forecast-vs-actual", "view"))]
+)
 def forecast_vs_actual_trend(
     year: int,
     db: Session = Depends(get_db),
@@ -80,8 +89,11 @@ def forecast_vs_actual_trend(
     )
     return ForecastVsActualTrendResponse(business_unit_id=None, year=year, months=months)
 
-
-@router.post("/revenue-leakage/scan", response_model=PipelineLeakageScanResponse)
+@router.post(
+    "/revenue-leakage/scan",
+    response_model=PipelineLeakageScanResponse,
+    dependencies=[Depends(require_resource_permission("revenue-leakage", "create"))]
+)
 def scan_leakage(
     db: Session = Depends(get_db),
     current_user: Users = Depends(require_resource_permission("revenue", "view")),
@@ -96,8 +108,11 @@ def scan_leakage(
     total_impact = sum(f.estimated_impact_usd_cents or 0 for f in flags)
     return PipelineLeakageScanResponse(flags=flags, total_estimated_impact_usd_cents=total_impact)
 
-
-@router.get("/revenue-leakage/active", response_model=PipelineLeakageScanResponse)
+@router.get(
+    "/revenue-leakage/active",
+    response_model=PipelineLeakageScanResponse,
+    dependencies=[Depends(require_resource_permission("revenue-leakage", "view"))]
+)
 def active_leakage(
     db: Session = Depends(get_db),
     current_user: Users = Depends(require_resource_permission("revenue", "view")),
@@ -107,8 +122,11 @@ def active_leakage(
     total_impact = sum(f.estimated_impact_usd_cents or 0 for f in flags)
     return PipelineLeakageScanResponse(flags=flags, total_estimated_impact_usd_cents=total_impact)
 
-
-@router.post("/revenue-leakage/{flag_id}/resolve", response_model=PipelineLeakageFlagItem)
+@router.post(
+    "/revenue-leakage/{flag_id}/resolve",
+    response_model=PipelineLeakageFlagItem,
+    dependencies=[Depends(require_resource_permission("revenue-leakage", "create"))]
+)
 def resolve_flag(
     flag_id: str, body: ResolveLeakageFlagRequest,
     db: Session = Depends(get_db),

@@ -10,6 +10,7 @@ stays non-negative after the hire's fully loaded cost is added --
 flagged here as the one real assumption, easy to make configurable
 later once Avinash gives an actual minimum-margin policy.
 """
+import logging
 from typing import Optional
 
 from sqlalchemy.orm import Session
@@ -19,7 +20,6 @@ from app.services.pnl_service import get_bu_pnl
 
 # Flagged assumption, not a given policy number -- see module docstring.
 MIN_ACCEPTABLE_MARGIN_PCT = 0.0
-
 
 def check_hiring_affordability(
     db: Session, *, business_unit_id: int, proposed_annual_salary_usd_cents: int, year: int, month: int,

@@ -1,8 +1,10 @@
 """
 Tests for Hiring Manager Validation Service (HRMS-1104 / S-319)
 Tests for create_validation_questions, send_to_hm, record_hm_response
+import logging
 """
 
+import logging
 import pytest
 from datetime import datetime, timedelta
 from uuid import uuid4
@@ -19,18 +21,15 @@ from app.models import (
 )
 from app.services.hiring_manager_validation_service import HiringManagerValidationService
 
-
 @pytest.fixture
 def hm_service():
     """Create service instance for testing"""
     return HiringManagerValidationService()
 
-
 @pytest.fixture
 def mock_db():
     """Create mock database session"""
     return Mock(spec=Session)
-
 
 @pytest.fixture
 def sample_job():
@@ -44,7 +43,6 @@ def sample_job():
         auto_schedule_after_approval=True
     )
 
-
 @pytest.fixture
 def sample_candidate():
     """Create sample candidate for testing"""
@@ -56,7 +54,6 @@ def sample_candidate():
         phone="+1234567890"
     )
 
-
 @pytest.fixture
 def sample_hiring_manager():
     """Create sample hiring manager user"""
@@ -66,6 +63,7 @@ def sample_hiring_manager():
         user_name="Manager Name"
     )
 
+logger = logging.getLogger(__name__)
 
 class TestCreateValidationQuestions:
     """Tests for create_validation_questions method"""
@@ -205,7 +203,6 @@ class TestCreateValidationQuestions:
         )
 
         assert result["auto_schedule_after_approval"] is False
-
 
 class TestSendToHM:
     """Tests for send_to_hm method"""
@@ -348,7 +345,6 @@ class TestSendToHM:
 
         assert result["status"] == "already_exists"
         assert result["validation_id"] == "existing_validation_id"
-
 
 class TestRecordHMResponse:
     """Tests for record_hm_response method"""
@@ -530,7 +526,6 @@ class TestRecordHMResponse:
 
         assert result["response_time_hours"] >= 2
 
-
 class TestDetermineDecision:
     """Tests for decision determination logic"""
 
@@ -617,7 +612,6 @@ class TestDetermineDecision:
 
         assert result["status"] == HMValidationStatus.MAYBE
         assert result["next_step"] == "escalate_for_review"
-
 
 class TestIntegrationScenarios:
     """Integration tests for complete workflows"""

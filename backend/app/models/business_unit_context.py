@@ -25,12 +25,13 @@ Usage:
       def partner(self):
           return self.bu_context.partner_org_node
 """
-
+import logging
 from datetime import datetime
 from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Boolean, Index
 from sqlalchemy.orm import relationship
 from app.models.base import Base
 
+logger = logging.getLogger(__name__)
 
 class BusinessUnitContext(Base):
     """
@@ -56,19 +57,19 @@ class BusinessUnitContext(Base):
 
     # BU leadership: who is responsible
     # Partner (OrgNode at Partner position level)
-    partner_org_node_id = Column(String(36), ForeignKey("org_nodes.id"), nullable=True, index=True)
+    partner_org_node_id = Column(String(512), ForeignKey("org_nodes.id"), nullable=True, index=True)
 
     # BU Head (typically an Employee)
-    bu_head_employee_id = Column(String(36), ForeignKey("employees.id"), nullable=True, index=True)
+    bu_head_employee_id = Column(String(512), ForeignKey("employees.id"), nullable=True, index=True)
 
     # HR Manager for this BU
-    hr_manager_employee_id = Column(String(36), ForeignKey("employees.id"), nullable=True, index=True)
+    hr_manager_employee_id = Column(String(512), ForeignKey("employees.id"), nullable=True, index=True)
 
     # Sourcing lead (Recruiter responsible for this BU)
-    sourcing_lead_employee_id = Column(String(36), ForeignKey("employees.id"), nullable=True, index=True)
+    sourcing_lead_employee_id = Column(String(512), ForeignKey("employees.id"), nullable=True, index=True)
 
     # Finance: cost center or profit center code
-    cost_center_code = Column(String(50), nullable=True)
+    cost_center_code = Column(String(512), nullable=True)
 
     # Status: is this context active
     active = Column(Boolean, nullable=False, default=True)
@@ -76,8 +77,8 @@ class BusinessUnitContext(Base):
     # Audit fields
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
     updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
-    created_by = Column(String(50), nullable=True)
-    updated_by = Column(String(50), nullable=True)
+    created_by = Column(String(512), nullable=True)
+    updated_by = Column(String(512), nullable=True)
 
     # Relationships
     business_unit = relationship("BusinessUnit", foreign_keys=[business_unit_id], lazy="select")

@@ -1,4 +1,5 @@
 """
+import logging
 Flash Interview Transcript Service
 
 Reads interview transcripts from Office 365 Teams meetings and sends to Claude LLM
@@ -8,6 +9,7 @@ Production: Real transcripts from Office 365
 Local: Mock transcripts for testing
 """
 
+import logging
 import json
 import requests
 from typing import Optional
@@ -20,6 +22,7 @@ from app.models.candidate_ai import ConversationEvent
 from app.core.logging import logger
 from app.core.graph_auth import GraphServiceAuth
 
+logger = logging.getLogger(__name__)
 
 class FlashTranscriptService:
     """Reads and analyzes interview transcripts using Claude LLM."""
@@ -55,8 +58,9 @@ class FlashTranscriptService:
                 return None
 
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             logger.error(f"[Flash] Error fetching transcript: {str(e)}")
-            return None
+            raise ValueError("Operation failed")
 
     @staticmethod
     def get_mock_transcript(candidate_name: str, role: str) -> str:
@@ -171,6 +175,7 @@ Respond ONLY with valid JSON (no markdown, no extra text):
                 }
 
         except Exception as e:
+            logger.error(f"Error: {str(e)}", exc_info=True)
             logger.error(f"[Flash] Claude analysis failed: {str(e)}")
             return {
                 "error": str(e),

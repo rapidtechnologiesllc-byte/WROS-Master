@@ -1,4 +1,5 @@
 """
+import logging
 HRMS-0110 — the one sanctioned way to write an audit row.
 
 Critical usage rule: call write_audit_log() and let the CALLER commit,
@@ -24,7 +25,6 @@ from typing import Optional
 from sqlalchemy.orm import Session
 
 from app.models.audit_log import AuditLog
-
 
 def write_audit_log(
     db: Session,

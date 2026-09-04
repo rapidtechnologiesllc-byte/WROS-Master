@@ -1,8 +1,10 @@
 """Training, Certification, and Partner-specific dashboards."""
+import logging
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
+from app.core.logging import logger
 from app.core.database import get_db
-from app.core.dependencies import get_current_internal_user
+from app.core.dependencies import get_current_internal_user, require_resource_permission
 from app.core.visibility import should_bypass_bu_filter, get_user_bu_id
 from app.models.user import Users
 from app.services.training_certification_service import (
@@ -15,12 +17,14 @@ from app.services.training_certification_service import (
 
 router = APIRouter(prefix="/dashboards", tags=["Dashboards"])
 
-
 # ============================================================================
 # Training & Certification Dashboard
 # ============================================================================
 
-@router.get("/training-certification")
+@router.get(
+    "/training-certification",
+    dependencies=[Depends(require_resource_permission("training-certification", "view"))]
+)
 def get_training_certification_dashboard(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user)
@@ -46,10 +50,13 @@ def get_training_certification_dashboard(
             }
         }
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
-
-@router.get("/training-certification/employee/{employee_id}")
+@router.get(
+    "/training-certification/employee/{employee_id}",
+    dependencies=[Depends(require_resource_permission("training-certification", "view"))]
+)
 def get_employee_training_details(
     employee_id: str,
     db: Session = Depends(get_db),
@@ -73,14 +80,17 @@ def get_employee_training_details(
     except HTTPException:
         raise
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
-
 
 # ============================================================================
 # Troy's Partner Dashboard (Current Demand, Pipeline, Certifications, Buddy, Core Certified)
 # ============================================================================
 
-@router.get("/troy-partner")
+@router.get(
+    "/troy-partner",
+    dependencies=[Depends(require_resource_permission("troy-partner", "view"))]
+)
 def get_troy_partner_dashboard(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user)
@@ -150,4 +160,5 @@ def get_troy_partner_dashboard(
     except HTTPException:
         raise
     except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))

@@ -10,8 +10,11 @@ from app.models.invoice import Invoice, InvoiceStatus
 from app.models.timesheet import Timesheet
 from app.models.allocation import EmployeeAllocation
 from app.models.client import Client
+import logging
 from app.models.project import Project
+from app.core.logging import logger
 
+logger = logging.getLogger(__name__)
 
 class InvoiceCompleteService:
     """Manages complete invoice lifecycle from generation to payment."""

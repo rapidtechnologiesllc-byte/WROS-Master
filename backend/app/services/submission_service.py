@@ -1,4 +1,5 @@
 """
+import logging
 HRMS-0711 -- Client Submission Pipeline, Phase 2 Domain 2.
 
 Compliance gates (checkExperienceEligibility / checkMarketProfileRule /
@@ -28,6 +29,7 @@ that's supposed to read that log (HRMS-P605/P606) and HRMS-0440's full
 AI ranking (submission_rank here is caller-supplied, e.g. from the
 existing ATSScore.overall_score -- not recomputed by this module).
 """
+import logging
 from datetime import datetime
 from typing import List, Optional
 
@@ -36,6 +38,7 @@ from sqlalchemy.orm import Session
 from app.models.candidate import Candidate
 from app.models.demand import Demand
 from app.models.employee import Employee
+from app.core.logging import logger
 from app.models.submission import (
     ALLOWED_SUBMISSION_TRANSITIONS,
     Submission,
@@ -53,6 +56,7 @@ MARKET_PROFILE_ALLOWED_EMPLOYEE_STATUSES = {"BENCH", "ACTIVE", "ALLOCATED"}
 # same as C2C/1099 (BR-02 of that story).
 EMPLOYMENT_TYPE_ALLOWED = {"W2_FULLTIME"}
 
+logger = logging.getLogger(__name__)
 
 class SubmissionComplianceError(Exception):
     """Raised with every failed gate's blocker, not just the first."""
@@ -61,18 +65,14 @@ class SubmissionComplianceError(Exception):
         self.blockers = blockers
         super().__init__(f"Submission blocked: {[b['error'] for b in blockers]}")
 
-
 class DemandNotOpenForSubmission(Exception):
     pass
-
 
 class DuplicateSubmission(Exception):
     pass
 
-
 class InvalidSubmissionTransition(Exception):
     pass
-
 
 def check_experience_eligibility(candidate: Candidate) -> dict:
     months = candidate.total_experience_months
@@ -95,7 +95,6 @@ def check_experience_eligibility(candidate: Candidate) -> dict:
         "experience_months": months, "deficit_months": deficit,
     }
 
-
 def check_market_profile_rule(db: Session, candidate_id: str) -> dict:
     employee = db.query(Employee).filter(Employee.candidate_id == candidate_id).first()
     if employee is None:
@@ -115,7 +114,6 @@ def check_market_profile_rule(db: Session, candidate_id: str) -> dict:
         }
     return {"allowed": True, "candidate_status": employee.status}
 
-
 def check_employment_type_rule(candidate: Candidate) -> dict:
     if candidate.employment_type in EMPLOYMENT_TYPE_ALLOWED:
         return {"allowed": True, "employment_type": candidate.employment_type}
@@ -124,7 +122,6 @@ def check_employment_type_rule(candidate: Candidate) -> dict:
         "error": "C2C_NOT_ACCEPTED",
         "message": "BlitzenX only accepts full-time (W2) candidates.",
     }
-
 
 def _log_violation(
     db: Session, *, tenant_id: Optional[int], recruiter_user_id: Optional[str],
@@ -136,7 +133,6 @@ def _log_violation(
         violation_type=violation_type, candidate_status_at_time=candidate_status_at_time,
         blocked_message=blocked_message,
     ))
-
 
 def create_submission(
     db: Session,
@@ -234,7 +230,6 @@ def create_submission(
         transition_demand_status(db, demand, "IN_PROGRESS", changed_by=submitted_by_user_id)
 
     return submission
-
 
 def update_client_response(
     db: Session,

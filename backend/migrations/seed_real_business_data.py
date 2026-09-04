@@ -1,3 +1,4 @@
+import logging
 """Seed realistic business data - Candidates, employees, opportunities, agent events."""
 
 import sys
@@ -247,6 +248,7 @@ AGENTS TALKING TO EACH OTHER:
 """)
 
 except Exception as e:
+    logger.error(f"Error: {str(e)}", exc_info=True)
     db.rollback()
     print(f"[ERROR] {e}")
     raise

@@ -2,6 +2,7 @@
 HRMS-0507 -- allocate/end-allocation, the one write path that moves an
 employee off (or back onto) the bench. Per 04-RESOURCE-MANAGEMENT.md's
 own framing, this is always a distinct human decision, never automatic
+import logging
 -- there is no agent or ranking logic here (that's Phase 4 Part A).
 
 Reuses app.services.employee_service.transition_employee_status() for
@@ -16,6 +17,7 @@ separate scheduled job, so bench_pool can never drift out of sync with
 Employee.status. log_allocation_conflict() records a permanent audit
 row the moment AllocationOverCapacity is about to be raised.
 """
+import logging
 from datetime import date
 from typing import Optional
 
@@ -25,26 +27,25 @@ from app.models.demand import Demand
 from app.models.employee import Employee
 from app.models.employee_allocation import EmployeeAllocation
 from app.services.employee_service import transition_employee_status
+from app.core.logging import logger
 from app.services.resource_management_service import (
     log_allocation_conflict,
     mark_employee_on_bench,
     remove_employee_from_bench,
 )
 
+logger = logging.getLogger(__name__)
 
 class EmployeeAlreadyAllocated(Exception):
     pass
-
 
 class AllocationOverCapacity(Exception):
     """HRMS-0803 BR-0803-01: overlapping allocations summing over 100%
     utilization are blocked, hard -- not just a warning."""
 
-
 class BuddyProgramNotGraduated(Exception):
     """S-365/HRMS-0521 BR: no client deployment while an employee is
     actively mid-Buddy-Program (IN_PROGRESS/EXTENDED)."""
-
 
 # S-365's BR reads as a blanket "buddy_program_status=GRADUATED required
 # for allocation," which read literally would also block every employee
@@ -58,7 +59,6 @@ class BuddyProgramNotGraduated(Exception):
 # unilaterally as final -- confirm with whoever owns onboarding whether
 # NOT_STARTED should also block.
 _BUDDY_PROGRAM_BLOCKING_STATUSES = ("IN_PROGRESS", "EXTENDED")
-
 
 def allocate_employee_to_project(
     db: Session,
@@ -151,7 +151,6 @@ def allocate_employee_to_project(
             remove_employee_from_bench(db, employee)
 
     return allocation
-
 
 def end_allocation(
     db: Session,

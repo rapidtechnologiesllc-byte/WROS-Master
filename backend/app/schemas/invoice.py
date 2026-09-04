@@ -1,3 +1,5 @@
+import logging
+from app.core.logging import logger
 """Pydantic schemas -- HRMS-0907 (Invoice Generation, Status Tracking) API."""
 
 from datetime import date, datetime
@@ -5,12 +7,12 @@ from typing import List, Optional
 
 from pydantic import BaseModel
 
+logger = logging.getLogger(__name__)
 
 class GenerateInvoiceRequest(BaseModel):
     project_id: str
     period_start: date
     period_end: date
-
 
 class InvoiceLineItemItem(BaseModel):
     id: str
@@ -19,7 +21,6 @@ class InvoiceLineItemItem(BaseModel):
     hours: float
     rate_usd_cents: int
     amount_usd_cents: int
-
 
 class InvoiceItem(BaseModel):
     id: str
@@ -35,7 +36,6 @@ class InvoiceItem(BaseModel):
     sent_at: Optional[datetime] = None
     paid_at: Optional[datetime] = None
     line_items: List[InvoiceLineItemItem] = []
-
 
 class InvoiceListResponse(BaseModel):
     invoices: List[InvoiceItem]

@@ -1,9 +1,12 @@
+from app.core.logging import logger
 """Pydantic Schemas -- S-060/HRMS-0460 Drop Risk Prediction."""
 from datetime import datetime
+import logging
 from typing import Any, Dict
 
 from pydantic import BaseModel
 
+logger = logging.getLogger(__name__)
 
 class DropRiskResponse(BaseModel):
     candidate_id: str

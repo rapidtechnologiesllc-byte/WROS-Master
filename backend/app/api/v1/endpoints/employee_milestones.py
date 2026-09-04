@@ -3,6 +3,7 @@ S-356/HRMS-0517 -- Employee Milestone Tracker: Personal, Project & Org
 -- API Endpoints
 =========================================================================
 Prefix: /employee-milestones
+import logging
 Tag:    employee-milestones
 
 Wires app.services.employee_milestone_service (new this round) to real
@@ -11,7 +12,7 @@ shipped /projects/{id}/milestones (HRMS-0801/0804) -- see app.models.
 employee_milestone's module docstring for the real table-name collision
 this story's own doc has with that one.
 
-Auth: get_current_hr_or_admin. The doc's own "Not In Scope" note (set
+Auth: get_current_internal_user. The doc's own "Not In Scope" note (set
 by RM/BU Head/PM only, no employee self-service creation) is naturally
 satisfied since this codebase has no employee self-service login role
 at all yet -- flagged, not a new gate invented for this story.
@@ -26,7 +27,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_hr_or_admin
+from app.core.dependencies import get_current_internal_user, require_resource_permission
 from app.models.employee_milestone import EmployeeMilestone
 from app.models.user import Users
 from app.schemas.employee_milestone import (
@@ -47,7 +48,6 @@ from app.services.employee_milestone_service import (
 
 router = APIRouter(prefix="/employee-milestones", tags=["employee-milestones"])
 
-
 def _to_item(m: EmployeeMilestone) -> EmployeeMilestoneItem:
     return EmployeeMilestoneItem(
         id=m.id, project_id=m.project_id, employee_id=m.employee_id,
@@ -56,12 +56,16 @@ def _to_item(m: EmployeeMilestone) -> EmployeeMilestoneItem:
         completion_notes=m.completion_notes, set_by=m.set_by,
     )
 
-
-@router.post("", response_model=EmployeeMilestoneItem, summary="Create a milestone (PERSONAL/PROJECT/ORG)")
+@router.post(
+    "",
+    response_model=EmployeeMilestoneItem,
+    summary="Create a milestone (PERSONAL/PROJECT/ORG)",
+    dependencies=[Depends(require_resource_permission("employee_milestones", "create"))]
+)
 def create_milestone_endpoint(
     body: CreateEmployeeMilestoneRequest,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     try:
         milestone = create_milestone(
@@ -75,29 +79,29 @@ def create_milestone_endpoint(
     db.refresh(milestone)
     return _to_item(milestone)
 
-
 @router.get(
     "/employee/{employee_id}", response_model=EmployeeMilestoneListResponse,
+    dependencies=[Depends(get_current_internal_user)],
     summary="List one employee's PERSONAL/ORG milestones (and PROJECT ones assigned to them)",
 )
 def list_employee_milestones(
     employee_id: str,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     milestones = get_employee_milestones(db, employee_id)
     return EmployeeMilestoneListResponse(milestones=[_to_item(m) for m in milestones])
 
-
 @router.post(
     "/{milestone_id}/complete", response_model=EmployeeMilestoneItem,
+    dependencies=[Depends(get_current_internal_user)],
     summary="Complete a milestone -- completed_date is always today, never caller-supplied",
 )
 def complete_milestone_endpoint(
     milestone_id: str,
     body: CompleteEmployeeMilestoneRequest,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     milestone = db.query(EmployeeMilestone).filter(EmployeeMilestone.id == milestone_id).first()
     if milestone is None:
@@ -110,14 +114,14 @@ def complete_milestone_endpoint(
     db.refresh(milestone)
     return _to_item(milestone)
 
-
 @router.post(
     "/scan-overdue", response_model=ScanOverdueMilestonesResponse,
+    dependencies=[Depends(get_current_internal_user)],
     summary="Idempotent scan: flip past-due open milestones to OVERDUE + write a negative performance event",
 )
 def scan_overdue_endpoint(
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     overdue = scan_overdue_milestones(db, tenant_id=current_user.tenant_id)
     db.commit()

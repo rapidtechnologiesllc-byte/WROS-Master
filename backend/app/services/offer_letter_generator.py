@@ -2,6 +2,7 @@
 Offer Letter Generator
 ======================
 Fetches the .docx template from SharePoint, replaces {{placeholder}} tokens
+import logging
 with real candidate / offer data, and returns the filled document as bytes.
 
 Placeholder convention (matching the BlitzenX template exactly):
@@ -41,7 +42,6 @@ from app.core.logging import logger
 from app.services.sharepoint_service import download_file
 from app.services.salary_structure_generator import calculate_salary
 
-
 # ---------------------------------------------------------------------------
 # Config
 # ---------------------------------------------------------------------------
@@ -67,7 +67,6 @@ _TEMPLATE_MAP: dict[str, str] = {
     "intern":    TEMPLATE_PATH,
     "fulltime":  FULLTIME_TEMPLATE_PATH,
 }
-
 
 def get_template_path(template_type: str) -> str:
     """
@@ -102,7 +101,6 @@ _C_LIGHT_BLUE = "D6E4F0"
 _C_WHITE      = "FFFFFF"
 _C_GOLD       = "C9A84C"
 
-
 # ---------------------------------------------------------------------------
 # Date helpers
 # ---------------------------------------------------------------------------
@@ -112,7 +110,6 @@ _MONTH_NAMES = [
     "July", "August", "September", "October", "November", "December",
 ]
 
-
 def _fmt_date_medium(d) -> str:
     """Format a date/datetime as '30 April 2026'."""
     if d is None:
@@ -120,7 +117,6 @@ def _fmt_date_medium(d) -> str:
     if isinstance(d, datetime):
         d = d.date()
     return f"{d.day} {_MONTH_NAMES[d.month]} {d.year}"
-
 
 # ---------------------------------------------------------------------------
 # Salary maths
@@ -174,7 +170,6 @@ class _Salary:
     @property
     def net_pm(self):         return self.net_pa / 12
 
-
 def _calc_salary(annual_ctc: float) -> _Salary:
     basic     = annual_ctc * 0.50
     hra       = basic * 0.40
@@ -208,7 +203,6 @@ def _calc_salary(annual_ctc: float) -> _Salary:
         esic_employee_pa=esic_emp,
     )
 
-
 def _parse_salary(salary_str: str) -> float:
     """Parse a salary string like '3,60,000' or '₹360000' to float."""
     try:
@@ -217,17 +211,14 @@ def _parse_salary(salary_str: str) -> float:
     except (ValueError, TypeError):
         return 0.0
 
-
 def _fmt(amount: float) -> str:
     return f"₹ {amount:,.2f}"
-
 
 # ---------------------------------------------------------------------------
 # Core: run→paragraph-level placeholder replacement
 # ---------------------------------------------------------------------------
 
 _PLACEHOLDER_RE = re.compile(r"\{\{[^}]+\}\}")
-
 
 def _replace_in_paragraph(para, context: dict) -> None:
     """
@@ -251,7 +242,6 @@ def _replace_in_paragraph(para, context: dict) -> None:
     for run in para.runs[1:]:
         run.text = ""
 
-
 def _replace_in_doc(doc: Document, context: dict) -> None:
     """Apply _replace_in_paragraph to every paragraph in the document,
     including paragraphs inside table cells."""
@@ -262,7 +252,6 @@ def _replace_in_doc(doc: Document, context: dict) -> None:
             for cell in row.cells:
                 for para in cell.paragraphs:
                     _replace_in_paragraph(para, context)
-
 
 # ---------------------------------------------------------------------------
 # Salary table builder
@@ -276,7 +265,6 @@ def _set_cell_bg(cell, hex_color: str) -> None:
     shd.set(qn("w:color"), "auto")
     shd.set(qn("w:fill"),  hex_color)
     tcPr.append(shd)
-
 
 def _write_cell(
     cell,
@@ -294,7 +282,6 @@ def _write_cell(
     run.font.size = Pt(font_size)
     if color:
         run.font.color.rgb = RGBColor.from_string(color)
-
 
 def _build_salary_table(doc: Document, annual_salary_str: str) -> object:
     """
@@ -390,7 +377,6 @@ def _build_salary_table(doc: Document, annual_salary_str: str) -> object:
 
     return table._tbl   # raw XML element
 
-
 def _inject_signature_image(
     doc: Document,
     hiring_manager_name: str,
@@ -446,7 +432,6 @@ def _inject_signature_image(
     logger.warning(
         "offer_letter_generator — {{Signature SignatureHRManager2}} placeholder not found"
     )
-
 
 def _inject_candidate_signature(
     doc: Document,
@@ -511,8 +496,6 @@ def _inject_candidate_signature(
             f"fell back to plain-text label in {found_count} location(s)"
         )
 
-
-
 def _inject_salary_table(doc: Document, annual_salary_str: str) -> None:
     """
     Find the paragraph containing _SALARY_TABLE_MARKER, build the salary table
@@ -551,7 +534,6 @@ def _inject_salary_table(doc: Document, annual_salary_str: str) -> None:
     logger.info(
         f"offer_letter_generator — salary table injected (CTC={ctc:,.0f})"
     )
-
 
 # ---------------------------------------------------------------------------
 # Public API
@@ -603,7 +585,6 @@ def build_context(
         # NOTE: {{Signature SignatureHRManager2}} is intentionally omitted here;
         #       it is replaced with the actual PNG image by _inject_signature_image().
     }
-
 
 def generate_filled_docx(
     *,
@@ -676,6 +657,7 @@ def generate_filled_docx(
                 f"({len(sig_img_bytes)} bytes) from {HR_MANAGER_SIGNATURE_PATH}"
             )
         except Exception as exc:
+            logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.warning(
                 f"offer_letter_generator — could not download static signature image "
                 f"from '{HR_MANAGER_SIGNATURE_PATH}': {exc}"
@@ -702,16 +684,13 @@ def generate_filled_docx(
     logger.info("offer_letter_generator — document generated successfully")
     return output.read()
 
-
 def generated_file_path(candidate_id: str, offer_id: int) -> str:
     """Return the SharePoint path where the generated offer letter will be saved."""
     return f"{GENERATED_FOLDER}/{candidate_id}/offer_{offer_id}.docx"
 
-
 def signed_offer_file_path(candidate_id: str, offer_id: int) -> str:
     """Return the SharePoint path where the fully-signed offer letter will be saved."""
     return f"{GENERATED_FOLDER}/{candidate_id}/offer_{offer_id}_signed.docx"
-
 
 def inject_candidate_signature_into_docx(
     docx_bytes: bytes,
