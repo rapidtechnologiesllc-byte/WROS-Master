@@ -328,10 +328,33 @@ def main():
     gate.learning_db.save()
 
     if all_passed:
-        print("✅ ALL FILES APPROVED\n")
+        print("✅ OK - ALL FILES APPROVED - Commit allowed\n")
         return 0
     else:
-        print("❌ COMMIT BLOCKED - Fix issues above\n")
+        print("""
+╔════════════════════════════════════════════════════════════════╗
+║              FAIL CODE REVIEW REJECTED                        ║
+╚════════════════════════════════════════════════════════════════╝
+
+❌ STRICT COMMIT ENFORCEMENT ACTIVE
+
+Policy: 100% code review MUST PASS with ZERO errors and ZERO warnings
+
+• Both NEW and PRE-EXISTING violations BLOCK commits
+• No exceptions. No --no-verify. No shortcuts.
+• Fix the violations above, re-stage, and re-commit
+
+For PRE-EXISTING issues you can't fix now:
+  1. Create GitHub issue: describe the problem
+  2. Reference it: "Relates to #ISSUE_NUMBER"
+  3. Fix YOUR changes, commit with reference
+  4. Next time (separate PR): fix the pre-existing issue
+
+Reference: CLAUDE.md "STRICT COMMIT ENFORCEMENT RULES"
+═══════════════════════════════════════════════════════════════
+
+Fix the issues above and try again.
+""")
         return 1
 
 if __name__ == '__main__':
