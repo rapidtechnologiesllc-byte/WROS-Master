@@ -892,7 +892,10 @@ def start_scheduler():
                 db = SessionLocal()
                 try:
                     result = create_weekly_draft_batch(db)
-                    logger.info(f"[scheduler] Weekly timesheet draft creation: {result}")
+                    if isinstance(result, dict) and result:
+                        logger.info(f"[scheduler] Weekly timesheet draft creation: {result}")
+                    elif not result:
+                        logger.warning("[scheduler] Weekly timesheet draft creation returned empty result")
                 except Exception as exc:
                     logger.error(f"Error: {str(exc)}", exc_info=True)
                     logger.error(f"[scheduler] Weekly timesheet draft creation error: {exc}")
@@ -1037,10 +1040,18 @@ def start_scheduler():
                         tenant_id="default",
                         db=db
                     )
-                    partners_with_action = len(result.get("partner_directives", []))
-                    critical = result.get("summary", {}).get("critical_alerts", 0)
-                    high = result.get("summary", {}).get("high_alerts", 0)
-                    logger.info(f"[scheduler] Flash Coordination: {partners_with_action} partners have directives, {critical} critical, {high} high alerts")
+                    if isinstance(result, dict) and result:
+                        partner_directives = result.get("partner_directives", [])
+                        if isinstance(partner_directives, list):
+                            partners_with_action = len(partner_directives)
+                        else:
+                            partners_with_action = 0
+                        summary = result.get("summary", {})
+                        critical = summary.get("critical_alerts", 0) if isinstance(summary, dict) else 0
+                        high = summary.get("high_alerts", 0) if isinstance(summary, dict) else 0
+                        logger.info(f"[scheduler] Flash Coordination: {partners_with_action} partners have directives, {critical} critical, {high} high alerts")
+                    elif not result:
+                        logger.warning("[scheduler] Flash coordination returned empty result")
                 except Exception as exc:
                     logger.error(f"Error: {str(exc)}", exc_info=True)
                     logger.error(f"[scheduler] Flash coordination error: {exc}")
@@ -1136,17 +1147,22 @@ def start_scheduler():
         try:
             from app.services.message_queue_coordinator import MessageQueueCoordinator
 
+            # Configuration constants for message queue processing
+            MQ_PENDING_BATCH_LIMIT = 100
+            MQ_THUNDER_BATCH_LIMIT = 50
+            MQ_THUNDER_QUEUE_TYPE = "THUNDER_QUEUE"
+
             def _run_message_queue_processing():
                 db = SessionLocal()
                 try:
                     # Step 1: Convert PENDING messages to CHANNEL_QUEUED (routes via SLM orchestration)
-                    pending_result = MessageQueueCoordinator.process_pending_messages(limit=100, db=db)
+                    pending_result = MessageQueueCoordinator.process_pending_messages(limit=MQ_PENDING_BATCH_LIMIT, db=db)
                     if pending_result.get("messages_processed", 0) > 0 or pending_result.get("errors", 0) > 0:
                         logger.info(f"[scheduler] Message queue processing (pending): {pending_result}")
 
                     # Step 2: Process THUNDER_QUEUE messages specifically
                     thunder_result = MessageQueueCoordinator.process_channel_messages(
-                        queue_type="THUNDER_QUEUE", limit=50, db=db
+                        queue_type=MQ_THUNDER_QUEUE_TYPE, limit=MQ_THUNDER_BATCH_LIMIT, db=db
                     )
                     if thunder_result.get("channels_processed", 0) > 0 or thunder_result.get("channels_failed", 0) > 0:
                         logger.info(f"[scheduler] Message queue processing (THUNDER): {thunder_result}")
@@ -1234,6 +1250,32 @@ def start_scheduler():
         except Exception as exc:
             logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.warning(f"Could not register SLM improvement scheduler: {exc}")
+
+        # ── Every 2 min: MESSAGE_QUEUE_WORKER (Process CANDIDATE_QUEUE, etc.) ──
+        try:
+            from app.workers.message_queue_worker import process_message_queue
+
+            def _run_message_queue_worker():
+                db = SessionLocal()
+                try:
+                    process_message_queue()
+                except Exception as exc:
+                    logger.error(f"Error: {str(exc)}", exc_info=True)
+                    logger.error(f"[scheduler] Message queue worker error: {exc}")
+                finally:
+                    db.close()
+
+            scheduler.add_job(
+                _run_message_queue_worker,
+                trigger="interval",
+                minutes=2,
+                id="message_queue_worker",
+                replace_existing=True,
+            )
+            logger.info("[OK] Scheduled message queue worker (every 2 min)")
+        except Exception as exc:
+            logger.error(f"Error: {str(exc)}", exc_info=True)
+            logger.warning(f"Could not register message queue worker scheduler: {exc}")
 
 def shutdown_scheduler():
     """Shutdown the APScheduler instance."""
