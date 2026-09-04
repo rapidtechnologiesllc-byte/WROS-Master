@@ -219,6 +219,30 @@ def run_auto_assign_ai_agent_in_background(candidate_id: str):
             )
             db.add(event)
 
+        # Enqueue initial email to candidate for Thunder to send
+        if candidate and conversation:
+            try:
+                from app.services.message_queue_service import MessageQueueService
+                candidate_email = getattr(candidate, 'candidateEmail', None)
+                if candidate_email:
+                    MessageQueueService.enqueue(
+                        message_type="thunder_initial_email",
+                        queue_type="EMAIL_QUEUE",
+                        resource_id=candidate_id,
+                        created_by="system",
+                        db=db,
+                        payload={
+                            "candidate_id": candidate_id,
+                            "candidate_email": candidate_email,
+                            "candidate_name": f"{getattr(candidate, 'candidateFirstName', '')} {getattr(candidate, 'candidateLastName', '') or ''}".strip(),
+                            "conversation_id": conversation.id,
+                            "template": "thunder_initial_intake"
+                        }
+                    )
+                    logger.info(f"[Thunder] Enqueued initial email for candidate {candidate_id}")
+            except Exception as e:
+                logger.error(f"[Thunder] Failed to enqueue email for candidate {candidate_id}: {str(e)}", exc_info=True)
+
         db.commit()
 
         if conversation:
