@@ -591,8 +591,9 @@ def create_dispute(
         raise HTTPException(status_code=500, detail=f"Failed to raise dispute: {str(e)}")
 
 @router.get(
-    "/{timesheet_id}/disputes", response_model=DisputeListResponse,
-    dependencies=[Depends(require_permission("timesheet.view"))],
+    "/{timesheet_id}/disputes",
+    response_model=DisputeListResponse,
+    dependencies=[Depends(require_role_template_permission(*Permissions.TIMESHEETS_VIEW))],
     summary="List disputes for a timesheet",
 )
 def list_disputes(
@@ -610,8 +611,9 @@ def list_disputes(
     return DisputeListResponse(disputes=[_dispute_to_item(d) for d in disputes])
 
 @router.post(
-    "/disputes/{dispute_id}/resolve", response_model=DisputeItem,
-    dependencies=[Depends(require_permission("timesheet.edit"))],
+    "/disputes/{dispute_id}/resolve",
+    response_model=DisputeItem,
+    dependencies=[Depends(require_role_template_permission(*Permissions.TIMESHEETS_EDIT))],
     summary="Resolve a dispute (ADJUSTED or CONFIRMED) -- never mutates the original timesheet",
 )
 def resolve_dispute_endpoint(
