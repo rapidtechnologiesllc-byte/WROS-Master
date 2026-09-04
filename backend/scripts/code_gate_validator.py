@@ -139,12 +139,12 @@ class CodeGateValidator:
             # CRITICAL 1: Missing role template permission check on protected endpoint
             if '@router.get' in line or '@router.post' in line or '@router.put' in line or '@router.delete' in line:
                 # Check if endpoint has public marker (in docstring or comment)
-                next_20_lines = '\n'.join(self.lines[i:min(i+20, len(self.lines))]).upper()
+                next_20_lines = '\n'.join(self.lines[i-1:min(i+19, len(self.lines))]).upper()
                 if 'PUBLIC' in next_20_lines:
                     continue
 
                 # Look at decorator and next lines for permission enforcement
-                decorator_block = '\n'.join(self.lines[i:min(i+10, len(self.lines))])
+                decorator_block = '\n'.join(self.lines[i-1:min(i+9, len(self.lines))])
 
                 # Check for role template permission patterns:
                 # 1. dependencies=[Depends(require_resource_permission(...))]
@@ -323,7 +323,7 @@ class CodeGateValidator:
             # Check for function calls (often to other modules)
             if re.search(r'^\s*\w+\(.*\)\s*$', line) and not line.strip().startswith('#'):
                 # Look ahead to see if there's any error checking
-                next_5_lines = '\n'.join(self.lines[i:min(i+5, len(self.lines))])
+                next_5_lines = '\n'.join(self.lines[i-1:min(i+4, len(self.lines))])
 
                 # Pattern 1: Function call → immediately commit with no checks
                 if 'db.commit()' in next_5_lines and not ('if ' in next_5_lines or 'try' in next_5_lines):
