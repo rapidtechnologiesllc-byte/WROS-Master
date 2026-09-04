@@ -267,6 +267,7 @@ class CodeGateValidator:
         # These rules apply EVERYWHERE - no exceptions
         self._check_thunder_autonomy()
         self._check_role_template_mandatory()
+        self._check_critical_thinking()
 
         # ──── CRITICAL CHECKS FOR DATABASE INITIALIZATION FILES ────
         is_db_init = 'init_' in self.file_path or '_seed.py' in self.file_path or 'reset_' in self.file_path
@@ -431,6 +432,128 @@ class CodeGateValidator:
                         })
                         found_create_without_check = True
                         break  # Only report first instance
+
+    def _check_critical_thinking(self):
+        """CRITICAL: Enforce critical thinking patterns in code.
+
+        Critical thinking checks:
+        1. Assumptions are validated (e.g., isinstance checks, null checks)
+        2. Edge cases are handled (empty lists, None values, invalid states)
+        3. Dependencies are verified before use
+        4. Variable names are self-documenting
+        5. Complex logic has explanatory comments
+        6. Function inputs are validated
+        """
+        for i, line in enumerate(self.lines, 1):
+            # CRITICAL: Assignment without validation of source
+            # Pattern: x = some_function() without checking if result is valid
+            if re.search(r'^\s*\w+\s*=\s*\w+\(', line) and not line.strip().startswith('#'):
+                # Check if next line validates the assignment
+                if i < len(self.lines):
+                    next_lines = '\n'.join(self.lines[i:min(i+3, len(self.lines))]).lower()
+
+                    # Look for validation patterns
+                    has_validation = any(x in next_lines for x in [
+                        'if ', 'assert', 'raise', 'or ', 'and ',
+                        'is none', 'is not none', 'empty', '== none'
+                    ])
+
+                    # Assignment to a critical variable without validation
+                    if not has_validation and any(critical in line for critical in [
+                        'user', 'config', 'data', 'result', 'response', 'permission', 'access'
+                    ]):
+                        if 'import' not in line and 'logger' not in line and 'print' not in line:
+                            self.issues.append({
+                                'severity': 'HIGH',
+                                'line': i,
+                                'issue': 'Assignment without validation - assuming result is safe',
+                                'fix': 'Validate immediately: if result: ... or if isinstance(...): ...',
+                                'impact_type': 'MISSING_NULL_CHECK'
+                            })
+
+            # CRITICAL: Loop without length validation
+            # Pattern: for item in collection without checking if collection exists/not empty
+            if 'for ' in line and ' in ' in line and ':' in line:
+                collection_name = line.split(' in ')[-1].split(':')[0].strip()
+
+                # Check if collection was validated before loop
+                prev_lines = '\n'.join(self.lines[max(0, i-5):i]).lower()
+
+                has_length_check = any(x in prev_lines for x in [
+                    f'if {collection_name}', f'len({collection_name})',
+                    'not empty', f'assert {collection_name}', '== []'
+                ])
+
+                if not has_length_check and not any(x in line for x in ['import', 'range', 'enumerate']):
+                    if not any(x in collection_name for x in ['range', '[', '__', 'self.']):
+                        self.issues.append({
+                            'severity': 'MEDIUM',
+                            'line': i,
+                            'issue': f'Loop over {collection_name} without validating it exists',
+                            'fix': f'Add: if {collection_name}: for item in {collection_name}: ...',
+                            'impact_type': 'MISSING_NULL_CHECK'
+                        })
+
+            # CRITICAL: Function call without error handling
+            # Pattern: db.query() or external API call without try/except context
+            if any(pattern in line for pattern in ['db.query', 'db.add', 'db.delete', 'requests.', 'http.', 'api.']):
+                # Check if we're in a try block
+                prev_lines = '\n'.join(self.lines[max(0, i-3):i])
+                in_try_block = 'try:' in prev_lines
+
+                # Check if next lines have error handling
+                next_lines = '\n'.join(self.lines[i:min(i+5, len(self.lines))])
+                has_error_handling = 'except' in next_lines or in_try_block
+
+                if not has_error_handling and 'import' not in line:
+                    self.issues.append({
+                        'severity': 'HIGH',
+                        'line': i,
+                        'issue': 'External operation without error handling',
+                        'fix': 'Wrap in: try: ... except Exception as e: logger.error(...); raise',
+                        'impact_type': 'MISSING_ERROR_MSG'
+                    })
+
+            # CRITICAL: Boolean logic without clear intention
+            # Pattern: if x or y: or if x and y: without parentheses or comments
+            if re.search(r'if\s+\w+\s+(and|or)\s+\w+', line) and '(' not in line:
+                # Complex boolean without clarity
+                if ' or ' in line and ' and ' in line:
+                    self.issues.append({
+                        'severity': 'MEDIUM',
+                        'line': i,
+                        'issue': 'Ambiguous boolean logic - unclear precedence (and vs or)',
+                        'fix': 'Add parentheses: if (a and b) or c: or # Comment explaining logic',
+                        'impact_type': 'MISSING_ERROR_MSG'
+                    })
+
+            # CRITICAL: Hardcoded values that look like configuration
+            # Pattern: Magic numbers or strings that should be constants
+            if re.search(r'["\']?(10|5|100|1000|true|false|admin|super)["\']?', line):
+                if 'CONST' not in line and '=' in line and not line.strip().startswith('#'):
+                    if any(x in line for x in ['timeout', 'limit', 'max', 'threshold', 'count']):
+                        if 'import' not in line and 'def ' not in line:
+                            self.issues.append({
+                                'severity': 'LOW',
+                                'line': i,
+                                'issue': 'Configuration value appears hardcoded - should be named constant',
+                                'fix': 'Extract: TIMEOUT = 10; then use TIMEOUT in code',
+                                'impact_type': 'MAGIC_NUMBER'
+                            })
+
+            # CRITICAL: Empty/placeholder implementation
+            # Pattern: pass, return None, return [] without explanation
+            if line.strip() in ['pass', 'return None', 'return []', 'return {}']:
+                prev_line = self.lines[i-2].strip() if i > 1 else ''
+                # If function definition or class, might be intentional
+                if not any(x in prev_line for x in ['def ', 'class ', '"""', "'''"]):
+                    self.issues.append({
+                        'severity': 'MEDIUM',
+                        'line': i,
+                        'issue': 'Empty implementation - missing logic or intentional?',
+                        'fix': 'Add comment explaining why this is empty: # TODO: or # Intentional: ...',
+                        'impact_type': 'SILENT_CATCH'
+                    })
 
     def _check_javascript(self):
         """Check JavaScript files."""
