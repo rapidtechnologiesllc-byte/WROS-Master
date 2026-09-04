@@ -7,6 +7,7 @@ import { ChevronDown, ChevronRight, Pencil } from "lucide-react";
 import { toast } from "react-toastify";
 import { correctMemoryFact, getCandidateMemory } from "../services/api/aiAgent";
 import ScreenErrorDisplay from "./ScreenErrorDisplay";
+import { Clock, Zap } from "lucide-react";
 
 const CATEGORY_LABELS = {
   SALARY: "Salary",
@@ -51,6 +52,23 @@ function timeAgo(iso) {
   return `${Math.round(hours / 24)}d ago`;
 }
 
+function formatCountdown(iso) {
+  if (!iso) return "—";
+  const nextTime = new Date(iso).getTime();
+  const now = Date.now();
+  const diffMs = nextTime - now;
+
+  if (diffMs < 0) return "overdue";
+
+  const hours = Math.round(diffMs / (1000 * 60 * 60));
+  const minutes = Math.round((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+
+  if (hours < 1) return `in ${minutes}m`;
+  if (hours < 24) return `in ${hours}h`;
+  const days = Math.round(hours / 24);
+  return `in ${days}d`;
+}
+
 function FactRow({ fact, candidateId, onCorrected }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(fact.value);
@@ -65,7 +83,7 @@ function FactRow({ fact, candidateId, onCorrected }) {
     }
     setSaving(true);
     try {
-      const updated = await correctMemoryFact(candidateId, fact.id, draft.trim());
+      const updated = await correctMemoryFact(candidateId, fact.id, draft.trim()).catch(e => { throw e; });
       onCorrected(updated);
       toast.success("Memory updated.");
       setEditing(false);
@@ -131,7 +149,7 @@ export default function ThunderMemorySection({ candidateId }) {
     setLoading(true);
     setError("");
     try {
-      const res = await getCandidateMemory(candidateId);
+      const res = await getCandidateMemory(candidateId).catch(e => { throw e; });
       setMemory(res);
     } catch (err) {
       setError("Memory unavailable. Please refresh.");
@@ -181,6 +199,32 @@ export default function ThunderMemorySection({ candidateId }) {
             <div className="text-sm text-rose-600">{error}</div>
           ) : (
             <>
+              {/* Thunder Contact Status */}
+              {memory?.last_contact_at && (
+                <div className="mb-4 rounded-lg bg-blue-50 border border-blue-200 p-3">
+                  <div className="flex items-center gap-2 text-xs font-semibold text-blue-900 mb-2">
+                    <Zap className="h-4 w-4 text-blue-600" />
+                    Thunder Outreach Status
+                  </div>
+                  <div className="space-y-1.5 text-sm text-blue-800">
+                    <div className="flex items-center gap-2">
+                      <Clock className="h-3.5 w-3.5 text-blue-600" />
+                      <span>Last contact: <span className="font-semibold">{timeAgo(memory.last_contact_at)}</span></span>
+                    </div>
+                    {memory?.next_contact_at ? (
+                      <div className="flex items-center gap-2">
+                        <Clock className="h-3.5 w-3.5 text-blue-600" />
+                        <span>Next contact: <span className="font-semibold">{formatCountdown(memory.next_contact_at)}</span></span>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2 text-amber-700">
+                        <span className="font-semibold">Thunder is paused for this candidate</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
               <div className="mb-3">
                 <div className="text-xs font-semibold uppercase text-gray-400">
                   Thunder's Summary{memory?.last_updated ? ` — last updated ${timeAgo(memory.last_updated)}` : ""}
