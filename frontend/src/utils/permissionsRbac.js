@@ -17,11 +17,11 @@
  */
 export const getUserPermissions = () => {
   try {
-    const userStr = localStorage.getItem('user');
-    if (!userStr) return [];
+    const permissionsStr = localStorage.getItem('hrms_permissions');
+    if (!permissionsStr) return [];
 
-    const user = JSON.parse(userStr);
-    return user.permissions || [];
+    const permissions = JSON.parse(permissionsStr);
+    return permissions || [];
   } catch (error) {
     console.error('Failed to get user permissions from localStorage:', error);
     // CRITICAL FIX: Throw security error instead of silent failure
@@ -324,57 +324,6 @@ export const clearCachedPermissions = () => {
 // ============================================================================
 // ROLE TEMPLATE MODULE LOADING
 // ============================================================================
-
-/**
- * Load role template modules for the current user
- * This function queries the backend to get the user's assigned roles,
- * then loads the modules associated with each role template.
- * @returns {Promise<Array>} Array of module names user can access
- */
-export const loadRoleTemplateModules = async () => {
-  try {
-    // Get current user's roles from localStorage
-    const rolesStr = localStorage.getItem('hrms_roles');
-    const roles = rolesStr ? JSON.parse(rolesStr) : [];
-
-    if (!roles || roles.length === 0) {
-      console.warn('No roles found for user');
-      return [];
-    }
-
-    // Fetch role templates API to get modules for each role
-    const { apiRequest } = await import('../services/api/client');
-
-    // Try to get role template modules from backend
-    try {
-      const response = await apiRequest('/admin/role-templates/modules', { method: 'GET' });
-      if (response?.data?.modules) {
-        return response.data.modules;
-      }
-    } catch (err) {
-      console.debug('Role template modules endpoint not available, falling back to permissions', err);
-    }
-
-    // Fallback: Extract module names from permissions
-    const permissionsStr = localStorage.getItem('hrms_permissions');
-    const permissions = permissionsStr ? JSON.parse(permissionsStr) : [];
-
-    const modules = new Set();
-    permissions.forEach(perm => {
-      // Extract module name from permission (e.g., 'candidates.view' -> 'candidates')
-      const [moduleName] = perm.split('.');
-      if (moduleName) {
-        modules.add(moduleName);
-      }
-    });
-
-    return Array.from(modules);
-  } catch (error) {
-    console.error('Failed to load role template modules:', error);
-    // CRITICAL FIX: Throw error instead of silent failure
-    throw new Error(`Failed to load role template modules: ${error.message}`);
-  }
-};
 
 /**
  * Filter navigation items based on role template modules
