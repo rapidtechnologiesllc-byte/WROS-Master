@@ -247,16 +247,21 @@ class CodeGateValidator:
                         })
 
             # LOW 1: Missing null check before attribute access
-            if re.search(r'\.UserName|\.first_name|\.email|\.name\s*$', line):
-                prev_5_lines = '\n'.join(self.lines[max(0, i-5):i])
-                if 'if ' not in prev_5_lines:
-                    self.issues.append({
-                        'severity': 'LOW',
-                        'issue': f'Accessing attribute on line {i} without null check',
-                        'line': i,
-                        'fix': 'Add null check: if obj: return obj.attribute',
-                        'impact_type': 'MISSING_NULL_CHECK'
-                    })
+            # Skip import statements - they don't have attribute access
+            if not line.strip().startswith('import ') and not line.strip().startswith('from '):
+                if re.search(r'\.UserName|\.first_name|\.email|\.name\s*$', line):
+                    # Make sure this is actual attribute access, not a module path
+                    # Pattern: variable.attribute (with space or assignment before it)
+                    if re.search(r'[a-zA-Z0-9_\)]\.(UserName|first_name|email|name)[\s$]', line):
+                        prev_5_lines = '\n'.join(self.lines[max(0, i-5):i])
+                        if 'if ' not in prev_5_lines:
+                            self.issues.append({
+                                'severity': 'LOW',
+                                'issue': f'Accessing attribute on line {i} without null check',
+                                'line': i,
+                                'fix': 'Add null check: if obj: return obj.attribute',
+                                'impact_type': 'MISSING_NULL_CHECK'
+                            })
 
         # ──── CRITICAL ARCHITECTURAL CHECKS (ALL FILES) ────
         # These rules apply EVERYWHERE - no exceptions
