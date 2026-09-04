@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Zap, Clock, MessageSquare, CheckCircle2 } from "lucide-react";
-import { getCandidateMemory } from "../services/api/aiAgent";
+import { toast } from "react-toastify";
+import { getCandidateMemory, pauseThunder, resumeThunder } from "../services/api/aiAgent";
 
 function timeAgo(iso) {
   if (!iso) return "—";
@@ -30,6 +31,8 @@ function formatCountdown(iso) {
 export default function ThunderCandidateMetrics({ candidateId }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [pauseLoading, setPauseLoading] = useState(false);
+  const [showPauseModal, setShowPauseModal] = useState(false);
 
   useEffect(() => {
     if (!candidateId) return;
@@ -48,6 +51,35 @@ export default function ThunderCandidateMetrics({ candidateId }) {
 
     fetch();
   }, [candidateId]);
+
+  const handlePause = async (durationMs) => {
+    try {
+      setPauseLoading(true);
+      const resumeAt = durationMs ? new Date(Date.now() + durationMs).toISOString() : null;
+      // Note: This needs conversation_id from Messages tab ConversationCard
+      // For now, show message to use Messages tab pause button
+      toast.info("Use 'Pause Thunder' button in Messages tab to configure pause duration");
+      setShowPauseModal(false);
+    } catch (err) {
+      console.error("Failed to pause Thunder", err);
+      toast.error(err?.message || "Failed to pause Thunder");
+    } finally {
+      setPauseLoading(false);
+    }
+  };
+
+  const handleResume = async () => {
+    try {
+      setPauseLoading(true);
+      toast.info("Use 'Resume Thunder' button in Messages tab to resume");
+      // Requires conversation_id from Messages tab
+    } catch (err) {
+      console.error("Failed to resume Thunder", err);
+      toast.error(err?.message || "Failed to resume Thunder");
+    } finally {
+      setPauseLoading(false);
+    }
+  };
 
   if (loading || !data) {
     return (
@@ -68,10 +100,29 @@ export default function ThunderCandidateMetrics({ candidateId }) {
           <Zap className="h-4 w-4 text-blue-600" />
           Thunder Engagement
         </div>
-        <span className="text-xs font-medium text-blue-700 bg-white px-2.5 py-1 rounded-full">
-          Active
-        </span>
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-medium text-blue-700 bg-white px-2.5 py-1 rounded-full">
+            Active
+          </span>
+          <button
+            onClick={() => setShowPauseModal(true)}
+            disabled={pauseLoading}
+            title="Pause Thunder outreach to this candidate"
+            className="text-xs font-medium text-blue-700 bg-white px-2.5 py-1 rounded-full hover:bg-blue-50 transition disabled:opacity-60"
+          >
+            {pauseLoading ? "..." : "Pause"}
+          </button>
+        </div>
       </div>
+
+      {showPauseModal && (
+        <PauseThunderModal
+          busy={pauseLoading}
+          onConfirm={handlePause}
+          onCancel={() => setShowPauseModal(false)}
+          inProfile={true}
+        />
+      )}
 
       <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-4">
         {/* Last Contact */}
@@ -126,6 +177,76 @@ export default function ThunderCandidateMetrics({ candidateId }) {
           <p className="text-sm text-blue-800 italic">{data.summary}</p>
         </div>
       )}
+    </div>
+  );
+}
+
+const PAUSE_DURATION_OPTIONS = [
+  { label: "24 hours", ms: 24 * 60 * 60 * 1000 },
+  { label: "48 hours", ms: 48 * 60 * 60 * 1000 },
+  { label: "1 week", ms: 7 * 24 * 60 * 60 * 1000 },
+  { label: "Until I manually resume", ms: null },
+];
+
+function PauseThunderModal({ busy, onConfirm, onCancel, inProfile }) {
+  const [selectedMs, setSelectedMs] = useState(PAUSE_DURATION_OPTIONS[0].ms);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <div className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-xl">
+        <h3 className="text-base font-semibold text-gray-900">Pause Thunder?</h3>
+        <p className="mt-1 text-sm text-gray-500">
+          {inProfile
+            ? "Thunder will stop sending follow-ups to this candidate. Use the Messages tab to configure pause duration and resume."
+            : "Thunder will stop sending follow-ups to this candidate. Ownership stays with the AI recruiter -- no hand-back needed when it resumes."
+          }
+        </p>
+        {inProfile && (
+          <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+            <p className="text-xs text-blue-700">
+              ℹ️ Full pause/resume controls are in the <strong>Messages tab</strong>. Click there to set pause duration.
+            </p>
+          </div>
+        )}
+        {!inProfile && (
+          <div className="mt-4 space-y-2">
+            {PAUSE_DURATION_OPTIONS.map((opt) => (
+              <label
+                key={opt.label}
+                className="flex cursor-pointer items-center gap-2 rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
+              >
+                <input
+                  type="radio"
+                  name="pause-duration"
+                  checked={selectedMs === opt.ms}
+                  onChange={() => setSelectedMs(opt.ms)}
+                />
+                Resume in: {opt.label}
+              </label>
+            ))}
+          </div>
+        )}
+        <div className="mt-5 flex justify-end gap-2">
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={busy}
+            className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-60"
+          >
+            Cancel
+          </button>
+          {!inProfile && (
+            <button
+              type="button"
+              onClick={() => onConfirm(selectedMs)}
+              disabled={busy}
+              className="rounded-xl border border-amber-200 bg-amber-500 px-3 py-2 text-sm font-medium text-white hover:bg-amber-600 disabled:opacity-60"
+            >
+              {busy ? "Pausing..." : "Confirm"}
+            </button>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
