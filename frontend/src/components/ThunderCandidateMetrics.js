@@ -55,11 +55,17 @@ export default function ThunderCandidateMetrics({ candidateId }) {
   const handlePause = async (durationMs) => {
     try {
       setPauseLoading(true);
+      if (!data?.conversation_id) {
+        toast.error("Cannot pause: conversation ID not found. Use Messages tab to pause.");
+        return;
+      }
       const resumeAt = durationMs ? new Date(Date.now() + durationMs).toISOString() : null;
-      // Note: This needs conversation_id from Messages tab ConversationCard
-      // For now, show message to use Messages tab pause button
-      toast.info("Use 'Pause Thunder' button in Messages tab to configure pause duration");
+      await pauseThunder(data.conversation_id, resumeAt).catch(e => { throw e; });
+      toast.success("Thunder paused successfully");
       setShowPauseModal(false);
+      // Refresh data
+      const res = await getCandidateMemory(candidateId).catch(e => { throw e; });
+      setData(res);
     } catch (err) {
       console.error("Failed to pause Thunder", err);
       toast.error(err?.message || "Failed to pause Thunder");
@@ -71,8 +77,15 @@ export default function ThunderCandidateMetrics({ candidateId }) {
   const handleResume = async () => {
     try {
       setPauseLoading(true);
-      toast.info("Use 'Resume Thunder' button in Messages tab to resume");
-      // Requires conversation_id from Messages tab
+      if (!data?.conversation_id) {
+        toast.error("Cannot resume: conversation ID not found. Use Messages tab to resume.");
+        return;
+      }
+      await resumeThunder(data.conversation_id).catch(e => { throw e; });
+      toast.success("Thunder resumed successfully");
+      // Refresh data
+      const res = await getCandidateMemory(candidateId).catch(e => { throw e; });
+      setData(res);
     } catch (err) {
       console.error("Failed to resume Thunder", err);
       toast.error(err?.message || "Failed to resume Thunder");
@@ -101,16 +114,20 @@ export default function ThunderCandidateMetrics({ candidateId }) {
           Thunder Engagement
         </div>
         <div className="flex items-center gap-2">
-          <span className="text-xs font-medium text-blue-700 bg-white px-2.5 py-1 rounded-full">
-            Active
+          <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${
+            data?.is_thunder_paused
+              ? 'text-amber-700 bg-amber-100'
+              : 'text-green-700 bg-green-100'
+          }`}>
+            {data?.is_thunder_paused ? "Paused" : "Active"}
           </span>
           <button
-            onClick={() => setShowPauseModal(true)}
+            onClick={() => data?.is_thunder_paused ? handleResume() : setShowPauseModal(true)}
             disabled={pauseLoading}
-            title="Pause Thunder outreach to this candidate"
+            title={data?.is_thunder_paused ? "Resume Thunder outreach" : "Pause Thunder outreach"}
             className="text-xs font-medium text-blue-700 bg-white px-2.5 py-1 rounded-full hover:bg-blue-50 transition disabled:opacity-60"
           >
-            {pauseLoading ? "..." : "Pause"}
+            {pauseLoading ? "..." : data?.is_thunder_paused ? "Resume" : "Pause"}
           </button>
         </div>
       </div>
