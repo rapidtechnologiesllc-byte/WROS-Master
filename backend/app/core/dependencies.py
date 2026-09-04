@@ -322,24 +322,28 @@ def require_permission(permission: str):
 
 def require_resource_permission(resource_name: str, action: str = "view"):
     """
-    NEW: FastAPI dependency factory using database-driven role templates.
+    DEPRECATED: Use require_role_template_permission() instead.
 
-    Checks if user has the specified action (view, create, edit, delete) on a resource.
-
-    Usage:
-    @router.get("/candidates", dependencies=[Depends(require_resource_permission("candidates", "view"))])
-    @router.post("/candidates", dependencies=[Depends(require_resource_permission("candidates", "create"))])
-    @router.put("/candidates/{id}", dependencies=[Depends(require_resource_permission("candidates", "edit"))])
-    @router.delete("/candidates/{id}", dependencies=[Depends(require_resource_permission("candidates", "delete"))])
-
-    Returns 403 if the user doesn't have the required permission.
-    Super Users automatically have all permissions.
+    Legacy compatibility wrapper. Maps action names to column names and delegates to role templates.
     """
+    return require_role_template_permission(resource_name, action)
+
+def require_role_template_permission(resource_name: str, field_name: str = "can_view"):
+    """Data-driven role template permission check. Queries database, no hard-coded permissions."""
+    # Map field names to action names for the service layer
+    field_to_action = {
+        "can_view": "view",
+        "can_create": "create",
+        "can_edit": "edit",
+        "can_delete": "delete",
+    }
+
+    action = field_to_action.get(field_name, field_name)
+
     async def _check(
         credentials: HTTPAuthorizationCredentials = Depends(security),
         db: Session = Depends(get_db),
     ):
-
         token = credentials.credentials
         payload = decode_access_token(token)
         _reject_if_mfa_pending(payload)
@@ -349,30 +353,24 @@ def require_resource_permission(resource_name: str, action: str = "view"):
         if not user:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
 
-        # Super User bypass
+        # Super User bypass - always grants all permissions
         if RoleTemplatePermissionService.is_super_user(db, user.UserID, user.tenant_id):
             return user
 
-        # Check resource + action permission
+        # Query role template permissions from database (DYNAMIC, not hard-coded)
         if not RoleTemplatePermissionService.has_permission(db, user.UserID, resource_name, action, user.tenant_id):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"Permission denied: {action} access to '{resource_name}' required",
+                detail=f"Permission denied: {field_name} access to '{resource_name}' required",
             )
         return user
 
-    _check.__wros_permission__ = f"{resource_name}.{action}"
+    _check.__wros_permission__ = f"{resource_name}.{field_name}"
+    _check.__wros_authn__ = "role_template_permission_check"
     return _check
 
 def require_attribute(attribute: str, expected: bool = True):
-    """
-    FastAPI dependency factory that enforces a role attribute flag.
-
-    Usage:
-    @router.post("/pipeline", dependencies=[Depends(require_attribute("pipeline_control"))])
-
-    Returns 403 if the authenticated user's role does not have the attribute set to `expected`.
-    """
+    """FastAPI dependency factory that enforces a role attribute flag."""
     async def _check(
         credentials: HTTPAuthorizationCredentials = Depends(security),
         db: Session = Depends(get_db),

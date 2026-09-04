@@ -1,7 +1,25 @@
 {
-  "timestamp": "2026-09-04T01:16:43.348095",
-  "pattern_analysis": {},
-  "rule_updates": [],
+  "timestamp": "2026-09-04T01:32:19.889026",
+  "pattern_analysis": {
+    "valid_permission_functions": [
+      "require_permission",
+      "require_resource_permission",
+      "require_role_template_permission",
+      "require_attribute",
+      "require_admin_role",
+      "get_current_internal_user",
+      "get_current_hr_or_admin"
+    ]
+  },
+  "rule_updates": [
+    {
+      "rule": "dependency_permission_check",
+      "description": "recognize require_role_template_permission as valid permission dependency",
+      "added_functions": ["require_role_template_permission"]
+    }
+  ],
   "detection_improvements": [],
-  "learning_insights": []
+  "learning_insights": [
+    "require_role_template_permission is a factory function that returns a dependency, not an endpoint itself"
+  ]
 }
