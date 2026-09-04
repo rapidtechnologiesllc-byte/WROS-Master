@@ -31,9 +31,9 @@ router = APIRouter(prefix="/api/v1/candidates", tags=["candidates"])
 )
 def create_candidate(
     request: CandidateCreateRequest,
+    background_tasks: BackgroundTasks,
     current_user: Users = Depends(get_current_user),
     db: Session = Depends(get_db),
-    background_tasks: BackgroundTasks = BackgroundTasks(),
 ) -> dict:
     """
     Create a new candidate and assign to Thunder AI recruiter.
