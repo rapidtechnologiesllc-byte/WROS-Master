@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from sqlalchemy.orm import Session
 from datetime import datetime
 
-from app.core.dependencies import get_current_user, get_db
+from app.core.dependencies import get_current_user, get_db, require_resource_permission
 from app.models.user import Users
 from app.services.candidate_service import (
     create_candidate_safe,
@@ -26,6 +26,7 @@ router = APIRouter(prefix="/api/v1/candidates", tags=["candidates"])
 
 @router.post(
     "/create",
+    dependencies=[Depends(require_resource_permission("candidates", "create"))],
     summary="Create a new candidate",
     description="Create a candidate profile and auto-assign to Thunder AI recruiter",
 )
