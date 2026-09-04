@@ -44,7 +44,11 @@ class DuplicateCandidateError(Exception):
     def __init__(self, existing: Candidate, matched_on: str):
         self.existing = existing
         self.matched_on = matched_on
-        super().__init__(f"Candidate matched existing record (on {matched_on}): {existing.candidateID}")
+        try:
+            super().__init__(f"Candidate matched existing record (on {matched_on}): {existing.candidateID}")
+        except Exception as e:
+            logger.error(f"Failed to initialize DuplicateCandidateError: {e}", exc_info=True)
+            raise
 
 def find_duplicate_candidate(
     db: Session, *, email: Optional[str] = None, mobile: Optional[str] = None,
@@ -57,19 +61,31 @@ def find_duplicate_candidate(
     more than one would match.
     """
     if email:
-        hit = db.query(Candidate).filter(Candidate.candidateEmail == email).first()
-        if hit:
-            return hit, "email"
+        try:
+            hit = db.query(Candidate).filter(Candidate.candidateEmail == email).first()
+            if hit:
+                return hit, "email"
+        except Exception as e:
+            logger.error(f"Error querying candidate by email: {e}", exc_info=True)
+            raise
 
     if mobile:
-        hit = db.query(Candidate).filter(Candidate.candidateMobile == mobile).first()
-        if hit:
-            return hit, "phone"
+        try:
+            hit = db.query(Candidate).filter(Candidate.candidateMobile == mobile).first()
+            if hit:
+                return hit, "phone"
+        except Exception as e:
+            logger.error(f"Error querying candidate by mobile: {e}", exc_info=True)
+            raise
 
     if linkedin_url:
-        hit = db.query(Candidate).filter(Candidate.linkedin_url == linkedin_url).first()
-        if hit:
-            return hit, "linkedin"
+        try:
+            hit = db.query(Candidate).filter(Candidate.linkedin_url == linkedin_url).first()
+            if hit:
+                return hit, "linkedin"
+        except Exception as e:
+            logger.error(f"Error querying candidate by LinkedIn URL: {e}", exc_info=True)
+            raise
 
     return None, None
 
@@ -113,10 +129,23 @@ def create_candidate_safe(
         candidateTempPassword=plain_password,
         candidateIsVerified=False,
         associated_bu_id=None,  # BU lifecycle: New candidates are org-wide (NULL)
-        tenant_id=tenant_id or "1",  # Default to tenant 1 if not provided
         **fields,
     )
-    db.add(candidate)
+
+    # Verify candidate doesn't already exist (double-check duplicates)
+    try:
+        existing_check = db.query(Candidate).filter(Candidate.candidateID == candidate_id).first()
+        if existing_check:
+            raise ValueError(f"Candidate {candidate_id} already exists (duplicate after dedup check)")
+    except Exception as e:
+        logger.error(f"Error checking for duplicate candidate {candidate_id}: {e}", exc_info=True)
+        raise
+
+    try:
+        db.add(candidate)
+    except Exception as e:
+        logger.error(f"Error adding candidate {candidate_id} to session: {e}", exc_info=True)
+        raise
 
     # S-012/HRMS-0412 -- Thunder's WhatsApp send path (send_thunder_
     # message) hard-requires a whatsapp_outreach ConsentRecord and fails
@@ -128,12 +157,22 @@ def create_candidate_safe(
     # actually send for any real candidate, not just ones created
     # through the public web chat's explicit checkbox.
     if mobile:
-        from app.models.consent import ConsentRecord
-        db.add(ConsentRecord(
-            subject_type="candidate", subject_id=candidate_id,
-            consent_type="whatsapp_outreach", consent_given=True,
-            captured_by="candidate_creation",
-        ))
+        try:
+            from app.models.consent import ConsentRecord
+            existing_consent = db.query(ConsentRecord).filter(
+                ConsentRecord.subject_id == candidate_id,
+                ConsentRecord.consent_type == "whatsapp_outreach"
+            ).first()
+            if not existing_consent:
+                consent_record = ConsentRecord(
+                    subject_type="candidate", subject_id=candidate_id,
+                    consent_type="whatsapp_outreach", consent_given=True,
+                    captured_by="candidate_creation",
+                )
+                db.add(consent_record)
+        except Exception as e:
+            logger.error(f"Failed to create WhatsApp consent record for candidate {candidate_id}: {e}", exc_info=True)
+            raise
 
     return candidate, True  # Return (candidate, is_new=True) for new candidates
 
@@ -164,8 +203,8 @@ def parse_experience_to_months(raw: Optional[str]) -> Optional[int]:
     already specifies for NULL, rather than a fabricated zero.
     """
     if not raw:
-        return None
+        return None  # Intentional: Unverified candidates use NULL, not 0
     match = _EXPERIENCE_YEARS_PATTERN.search(raw)
     if not match:
-        return None
+        return None  # Intentional: No numeric match means experience not verifiable
     return round(float(match.group(1)) * 12)
