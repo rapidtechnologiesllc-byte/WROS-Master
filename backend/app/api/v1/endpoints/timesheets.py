@@ -662,7 +662,7 @@ def resolve_dispute_endpoint(
 @router.post(
     "/nag-cascade/run",
     summary="EPIC-16 Timesheet Nag Cascade: scan + nag for one week",
-    dependencies=[Depends(require_resource_permission("nag-cascade", "create"))]
+    dependencies=[Depends(require_role_template_permission("nag-cascade", "can_create"))]
 )
 def run_timesheet_nag_cascade(
     week_starting_date: str,
