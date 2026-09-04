@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.core.logging import logger
 from app.models.message_queue import MessageQueue, MessageChannel
-from app.services.message_handlers import CandidateCreationHandler
+from app.services.message_handlers import CandidateCreationHandler, CandidateConversionHandler
 
 logger = logging.getLogger(__name__)
 
@@ -51,30 +51,43 @@ class CandidateQueueProcessor:
                 CandidateCreationHandler.on_success(message, result, db)
                 return result
 
+            elif message_type == "convert_candidate_to_employee":
+                result = CandidateConversionHandler.process(message, db)
+                CandidateConversionHandler.on_success(message, result, db)
+                return result
+
             else:
                 raise ValueError(f"Unknown message type: {message_type}")
 
         except Exception as e:
+            # Route to appropriate handler's retry logic
+            if message_type == "create_candidate":
+                handler_class = CandidateCreationHandler
+            elif message_type == "convert_candidate_to_employee":
+                handler_class = CandidateConversionHandler
+            else:
+                raise RuntimeError(f"No handler for message type: {message_type}") from e
+
             # Determine if should retry
-            should_retry = CandidateCreationHandler.should_retry(message)
+            should_retry = handler_class.should_retry(message)
 
             if should_retry:
                 logger.warning(
                     f"[CandidateQueueProcessor] {message_type} processing failed, "
                     f"scheduling retry (attempt {message.retry_count + 1}/"
-                    f"{CandidateCreationHandler.MAX_RETRIES}): {str(e)}",
+                    f"{handler_class.MAX_RETRIES}): {str(e)}",
                     exc_info=True,
                 )
-                CandidateCreationHandler.on_retry(message, str(e), db)
+                handler_class.on_retry(message, str(e), db)
                 raise RuntimeError(f"Retryable error: {str(e)}") from e
 
             else:
                 logger.error(
                     f"[CandidateQueueProcessor] {message_type} processing FAILED after "
-                    f"max retries ({CandidateCreationHandler.MAX_RETRIES}): {str(e)}",
+                    f"max retries ({handler_class.MAX_RETRIES}): {str(e)}",
                     exc_info=True,
                 )
-                CandidateCreationHandler.on_failed(message, str(e), db)
+                handler_class.on_failed(message, str(e), db)
                 raise RuntimeError(f"Max retries exceeded: {str(e)}") from e
 
     @staticmethod

@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.logging import logger
 from app.core.dependencies import get_current_internal_user, require_resource_permission
+from app.services.message_queue_service import MessageQueueService
 
 from app.models.candidate import Candidate, CandidateStatus
 from app.models.employee import Employee
@@ -19,7 +20,7 @@ router = APIRouter(prefix="/candidates", tags=["candidates-workflows"])
 @router.post(
     "/{candidate_id}/convert-to-employee",
     dependencies=[Depends(require_resource_permission("candidates", "edit"))],
-    summary="Convert candidate to employee (workflow)"
+    summary="Queue candidate-to-employee conversion"
 )
 def convert_candidate_to_employee(
     candidate_id: str,
@@ -27,15 +28,15 @@ def convert_candidate_to_employee(
     current_user: Users = Depends(get_current_internal_user),
 ):
     """
-    Convert a candidate to an employee record.
+    Queue candidate-to-employee conversion through message queue.
 
-    Workflow operation: Orchestrates candidate → employee transition.
-    Prerequisites:
+    Uses idempotent queue pattern with automatic retries (5 attempts, 30-min intervals).
+
+    Prerequisites validation:
     - Candidate status must be "OFFER"
     - Start date must have arrived (candidateJoiningDate <= today)
 
-    Raises:
-        HTTPException: If prerequisites not met or conversion fails
+    Returns: message_id for polling conversion status
     """
     candidate = db.query(Candidate).filter(Candidate.candidateID == candidate_id).first()
     if not candidate:
@@ -52,58 +53,49 @@ def convert_candidate_to_employee(
     if not candidate.candidateJoiningDate or candidate.candidateJoiningDate > datetime.now().date():
         raise HTTPException(status_code=400, detail="Joining date has not arrived yet")
 
+    # Queue the conversion through message queue (idempotent pattern)
+    message_id = str(uuid.uuid4())
+
     try:
-        # Create Employee record
-        employee = Employee(
-            id=str(uuid.uuid4()),
-            tenant_id=candidate.tenant_id or "default",
-            first_name=candidate.candidateFirstName,
-            last_name=candidate.candidateLastName or "",
-            email=candidate.candidateEmail,
-            mobile=candidate.candidateMobile,
-            gender=candidate.candidateGender,
-            date_of_birth=candidate.candidateDateOfBirth,
-            status="ACTIVE",
-            employment_type=candidate.candidateEmployeeType or "Full-Time",
-            designation=candidate.candidateJobTitle or "Employee",
-            location=candidate.candidateCurrentLocation,
-            joining_date=candidate.candidateJoiningDate,
-            created_at=datetime.utcnow(),
-        )
-        db.add(employee)
-        db.flush()
-
-        # Update candidate status
-        candidate_status.piplineStatus = "EMPLOYEE"
-        candidate_status.status = "EMPLOYEE"
-        candidate_status.updatedAt = datetime.utcnow()
-
-        # Log conversion event
-        db.add(ConversationEvent(
-            event_type="CANDIDATE_CONVERTED_TO_EMPLOYEE",
-            triggered_by="HR",
-            event_data={
+        MessageQueueService.enqueue(
+            message_type="convert_candidate_to_employee",
+            queue_type="CANDIDATE_QUEUE",
+            resource_id=candidate_id,
+            created_by=current_user.UserID,
+            db=db,
+            payload={
+                "message_id": message_id,
                 "candidate_id": candidate_id,
-                "employee_id": employee.id,
-                "timestamp": datetime.utcnow().isoformat(),
-                "triggered_by_user": user.UserID if user else "system"
+                "candidate_first_name": candidate.candidateFirstName,
+                "candidate_email": candidate.candidateEmail,
+                "candidate_mobile": candidate.candidateMobile,
+                "candidate_gender": candidate.candidateGender,
+                "candidate_dob": candidate.candidateDateOfBirth,
+                "candidate_employee_type": candidate.candidateEmployeeType or "Full-Time",
+                "candidate_job_title": candidate.candidateJobTitle or "Employee",
+                "candidate_location": candidate.candidateCurrentLocation,
+                "candidate_joining_date": candidate.candidateJoiningDate,
+                "tenant_id": candidate.tenant_id or "default",
+                "triggered_by_user": current_user.UserID if current_user else "system",
             }
-        ))
+        )
 
-        db.commit()
-        logger.info(f"✅ Candidate {candidate_id} converted to Employee {employee.id}")
+        try:
+            db.commit()
+        except Exception as e:
+            db.rollback()
+            raise HTTPException(status_code=500, detail=f"Failed to queue conversion: {str(e)}") from e
 
-        return {
-            "status": "success",
-            "candidate_id": candidate_id,
-            "employee_id": employee.id,
-            "message": f"Candidate {candidate.candidateFirstName} converted to employee successfully"
-        }
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"Error: {str(e)}", exc_info=True)
-        db.rollback()
-        logger.error(f"❌ Conversion failed: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Conversion failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Conversion queue error: {str(e)}") from e
+
+    return {
+        "message_id": message_id,
+        "status": "pending",
+        "polling_endpoint": f"/candidates/{candidate_id}/convert-status/{message_id}"
+    }
 
 def _user_info(user: Users | None) -> dict | None:
     """Return compact user info dict, or None if not found."""
