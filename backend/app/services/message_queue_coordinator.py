@@ -15,6 +15,7 @@ from datetime import datetime, timedelta
 
 from sqlalchemy.orm import Session
 from app.core.logging import logger
+from app.models.message_queue import MessageQueue, MessageChannel
 
 logger = logging.getLogger(__name__)
 
