@@ -223,11 +223,18 @@ def unified_login(request: UnifiedLoginRequest, db: Session = Depends(get_db)):
         # This permission check happens immediately after authentication (not optional)
         logger.warning(f"[LOGIN] Checking role_template_id: hasattr={hasattr(user, 'role_template_id')}, value={getattr(user, 'role_template_id', 'MISSING')}")
 
-        if not hasattr(user, 'role_template_id') or not user.role_template_id:
-            logger.error(f"[LOGIN] PERMISSION CHECK FAILED: role_template_id missing or falsy")
+        if not hasattr(user, 'role_template_id'):
+            logger.error(f"[LOGIN] PERMISSION CHECK FAILED: role_template_id attribute missing")
             raise HTTPException(
                 status_code=403,
-                detail="Your user account doesn't have permissions loaded. Please reach out to help desk."
+                detail="ERROR-001: role_template_id attribute missing"
+            )
+
+        if not user.role_template_id:
+            logger.error(f"[LOGIN] PERMISSION CHECK FAILED: role_template_id is falsy: {user.role_template_id}")
+            raise HTTPException(
+                status_code=403,
+                detail="ERROR-002: role_template_id is falsy"
             )
 
         # role_template_id is mandatory and already validated above
@@ -242,14 +249,25 @@ def unified_login(request: UnifiedLoginRequest, db: Session = Depends(get_db)):
         user_role = "User"
         try:
             rt = db.query(RoleTemplate).filter(RoleTemplate.id == role_template_id).first()
-            if rt and hasattr(rt, 'name') and rt.name:
-                user_role = rt.name
-            else:
-                logger.error(f"[LOGIN] Role template {role_template_id} not found for user {request.email}")
+            if not rt:
+                logger.error(f"[LOGIN] Role template {role_template_id} not found in DB")
                 raise HTTPException(
                     status_code=403,
-                    detail="Your user account doesn't have permissions loaded. Please reach out to help desk."
+                    detail="ERROR-003: RoleTemplate not found"
                 )
+            if not hasattr(rt, 'name'):
+                logger.error(f"[LOGIN] RoleTemplate {role_template_id} has no name attribute")
+                raise HTTPException(
+                    status_code=403,
+                    detail="ERROR-004: RoleTemplate has no name attr"
+                )
+            if not rt.name:
+                logger.error(f"[LOGIN] RoleTemplate {role_template_id} has empty name: '{rt.name}'")
+                raise HTTPException(
+                    status_code=403,
+                    detail="ERROR-005: RoleTemplate name is empty"
+                )
+            user_role = rt.name
         except HTTPException:
             raise
         except Exception as e:
