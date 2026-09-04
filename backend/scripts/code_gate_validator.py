@@ -1,10 +1,19 @@
 #!/usr/bin/env python3
 """
 ╔══════════════════════════════════════════════════════════════════════════════╗
-║                     IMMUTABLE PRODUCTION PROTECTION GATE                     ║
+║            AUTONOMOUS AGENTIC CODE GATE WITH SELF-LEARNING                   ║
+║                                                                              ║
+║ IMMUTABLE PRODUCTION PROTECTION WITH AUTO-FIXING & LEARNING                 ║
 ╠══════════════════════════════════════════════════════════════════════════════╣
 ║                                                                              ║
-║ THIS GATE CANNOT BE BYPASSED, OVERRIDDEN, OR SKIPPED UNDER ANY CIRCUMSTANCE ║
+║ CAPABILITIES:                                                                ║
+║ • Autonomous detection of architectural violations                           ║
+║ • Auto-applies fixes for high-confidence patterns                            ║
+║ • Self-learns from violations (every 60 seconds)                             ║
+║ • Updates detection rules based on patterns                                  ║
+║ • Blocks commits until architecture requirements met                         ║
+║                                                                              ║
+║ THIS GATE IS IMMUTABLE AND CANNOT BE BYPASSED UNDER ANY CIRCUMSTANCE        ║
 ║                                                                              ║
 ║ PURPOSE: Prevent production outages caused by architectural violations       ║
 ║ HISTORY: 36+ hours of downtime in 2026 were due to issues this gate catches ║
@@ -18,8 +27,8 @@
 ║ • All violations must be fixed BEFORE commit is allowed                      ║
 ║ • Every commit is scanned - there are no skips                               ║
 ║                                                                              ║
-║ If you think this gate is wrong, WRONG GATE BLOCKS YOU, NOT YOUR CODE       ║
-║ Create a GitHub issue to discuss architectural changes, don't try to bypass  ║
+║ If you think this gate is wrong, CREATE GITHUB ISSUE - don't try to bypass  ║
+║ Gate learns and improves autonomously from all feedback                      ║
 ║                                                                              ║
 ╚══════════════════════════════════════════════════════════════════════════════╝
 """
@@ -28,6 +37,13 @@ import re
 import os
 import logging
 from pathlib import Path
+
+# Start autonomous learning scheduler on import
+try:
+    from gate_scheduler import start_gate_learning_scheduler
+    _scheduler = start_gate_learning_scheduler()
+except Exception as e:
+    print(f"[GATE WARNING] Could not start learning scheduler: {e}")
 
 # Force UTF-8 encoding on Windows
 if sys.platform == 'win32':
