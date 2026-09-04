@@ -13,6 +13,7 @@ from app.core.database import get_db
 from app.core.dependencies import get_current_candidate, get_current_internal_user, require_resource_permission
 from app.core.graph_auth import get_graph_token
 from app.core.dependencies import get_current_internal_user
+from app.models.candidate import Candidate
 
 # Alias for backward compatibility
 get_current_user = get_current_internal_user
