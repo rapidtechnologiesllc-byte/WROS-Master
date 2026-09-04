@@ -15,7 +15,7 @@ export default function WeeklyPerformersWidget() {
       try {
         // Fetch candidates data to calculate weekly performance
         const response = await axios.get(
-          `${API_BASE}/api/v1/onboarding/hr/get_all_candidates`,
+          `${API_BASE}/api/v1/candidates/all`,
           { headers: { Authorization: `Bearer ${token}` } }
         );
 

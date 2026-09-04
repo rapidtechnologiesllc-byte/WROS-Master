@@ -57,11 +57,11 @@ def client(throwaway_jwt_keys, monkeypatch):
         finally:
             db.close()
 
-    from app.api.v1.endpoints.onboarding import router as onboarding_router
+    from app.api.v1.endpoints.candidates import router as candidates_router
     from app.core.database import get_db
 
     app = FastAPI()
-    app.include_router(onboarding_router)
+    app.include_router(candidates_router)
     app.dependency_overrides[get_db] = override_get_db
 
     db = TestSessionLocal()

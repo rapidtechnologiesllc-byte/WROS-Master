@@ -177,7 +177,7 @@ export const getHrCandidateFullDetails = async (candidateId) => {
   }
 
   const { data } = await apiRequest(
-    `/onboarding/hr/candidate/${encodeURIComponent(candidateId)}`,
+    `/api/v1/candidates/${encodeURIComponent(candidateId)}`,
     {
       method: "GET",
     },
