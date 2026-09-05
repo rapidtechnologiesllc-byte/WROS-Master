@@ -79,15 +79,27 @@ _engine_kwargs = {
 # Create SQLAlchemy engine
 engine = create_engine(DATABASE_URL, **_engine_kwargs)
 
-# Configure schema for database
+# Configure schema, isolation level, and timeouts
 # PostgreSQL: use app_schema (app_user has privileges there)
 # SQLite: no schema support, skip configuration
 @event.listens_for(engine, "connect")
 def receive_connect(dbapi_conn, connection_record):
     if "sqlite" not in DATABASE_URL.lower():
-        # PostgreSQL only — tables are in public schema, use public first
         cursor = dbapi_conn.cursor()
+
+        # Set schema search path
         cursor.execute("SET search_path TO public, app_schema")
+
+        # Transaction isolation: READ COMMITTED (default PostgreSQL level)
+        # Prevents dirty reads and lost updates while allowing more concurrency than SERIALIZABLE
+        cursor.execute("SET TRANSACTION ISOLATION LEVEL READ COMMITTED")
+
+        # Statement timeout: 30 seconds (prevent runaway queries)
+        cursor.execute("SET statement_timeout = '30s'")
+
+        # Lock timeout: 5 seconds (fail fast if can't acquire lock)
+        cursor.execute("SET lock_timeout = '5s'")
+
         cursor.close()
 
 # SessionLocal class

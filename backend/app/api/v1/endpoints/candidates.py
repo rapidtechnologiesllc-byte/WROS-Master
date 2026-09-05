@@ -55,6 +55,103 @@ from app.services.apollo_integration import search_apollo_by_linkedin_url
 
 router = APIRouter(prefix="/candidate", tags=["candidate"])
 
+
+# ============================================================================
+# Create Candidate Request/Response Models (Async via Celery)
+# ============================================================================
+
+class CreateCandidateRequest(BaseModel):
+    """Request to create a new candidate (queued for async processing)"""
+    email: str
+    first_name: str
+    last_name: str
+    mobile: str
+    gender: str
+    current_location: str
+    source: str = "form_submission"
+    resume_data: Optional[dict] = None
+    education: Optional[list] = None
+    experience: Optional[list] = None
+    certifications: Optional[list] = None
+
+
+class CreateCandidateResponse(BaseModel):
+    """Response for candidate creation request (returns queue info for polling)"""
+    status: str
+    message_id: str
+    polling_endpoint: str
+
+
+# ============================================================================
+# Create Candidate Endpoint (Async)
+# ============================================================================
+
+@router.post("/create", response_model=CreateCandidateResponse)
+def create_candidate(
+    request: CreateCandidateRequest,
+    db: Session = Depends(get_db),
+    user: Optional[dict] = Depends(get_current_candidate),
+):
+    """
+    Create a new candidate asynchronously.
+
+    The candidate creation is queued as a Celery task and returns a message_id
+    for polling status. This prevents the form submission from timing out on
+    large resume parsing operations.
+
+    Args:
+        request: Candidate creation details
+        db: Database session
+        user: Current candidate/user (optional, used if recruiter creates)
+
+    Returns:
+        CreateCandidateResponse with message_id and polling_endpoint
+
+    Raises:
+        HTTPException: If task queueing fails
+    """
+    from app.tasks.candidate_creation import create_candidate_async
+
+    try:
+        # Queue the candidate creation as async task
+        task = create_candidate_async.delay(
+            email=request.email,
+            first_name=request.first_name,
+            last_name=request.last_name,
+            mobile=request.mobile,
+            gender=request.gender,
+            location=request.current_location,
+            source=request.source,
+            tenant_id="1",
+            user_id=user.get("UserID") if user else None,
+            resume_path=None,
+            additional_data={
+                "education": request.education,
+                "experience": request.experience,
+                "certifications": request.certifications,
+            },
+        )
+
+        # Return task info for polling
+        message_id = task.id
+        polling_endpoint = f"/api/v1/tasks/{message_id}/status"
+
+        logger.info(f"Candidate creation queued: {message_id} ({request.email})")
+
+        return CreateCandidateResponse(
+            status="pending",
+            message_id=message_id,
+            polling_endpoint=polling_endpoint,
+        )
+
+    except Exception as e:
+        logger.error(f"Failed to queue candidate creation: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to queue candidate creation: {str(e)}",
+        ) from e
+
+
 # ============================================================================
 # LinkedIn Import Request/Response Models
 # ============================================================================

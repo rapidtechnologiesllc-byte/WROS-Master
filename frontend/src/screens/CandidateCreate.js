@@ -653,51 +653,20 @@ export default function CandidateCreate({ onBack, onSave }) {
         .join(" ")
         .trim();
 
-      const createdCandidateId = data?.candidate_id;
-      const candidateEmail = email?.trim();
-      const candidatePassword = data?.candidate_password;
-      const candidatePortalUrl = "https://hrms.blitzenx.com/";
+      // Queue response returns message_id for polling, not candidate_id
+      const messageId = data?.message_id || data?.id || "pending-" + Date.now();
+      const pollingEndpoint = data?.polling_endpoint || "/api/v1/messages/" + messageId + "/status";
+      const status = data?.status || "pending";
 
-      const createdCandidate = {
-        id: createdCandidateId,
-        name: candidateName || "New Candidate",
-        email: candidateEmail,
-        phone: mobile ? `${countryCode}${mobile}` : mobile,
-        jobTitle: candidateJobTitle || jobName || "",
-        skills: String(skills || "")
-          .split(",")
-          .map((skill) => skill.trim())
-          .filter(Boolean),
-        status: "New",
-      };
-      let nextNotice = "Candidate created successfully.";
-      if (resumeFile) {
-        if (!createdCandidateId) {
-          nextNotice = `${nextNotice} Resume skipped because candidate id is missing.`;
-        } else {
-          try {
-            await uploadResume({
-              candidateId: createdCandidateId,
-              file: resumeFile,
-            });
-            nextNotice = `${nextNotice} Resume uploaded.`;
-            showSuccess(nextNotice);
-          } catch (uploadErr) {
-            console.error("Resume upload failed:", uploadErr);
-            nextNotice = `${nextNotice} Resume upload failed: ${
-              uploadErr?.message || "Unknown error"
-            }.`;
-            showError(nextNotice);
-          }
-        }
-      } else {
-        showSuccess(nextNotice);
-      }
-      setActionNotice(nextNotice);
-      return createdCandidate;
+      // Log the response for debugging
+      console.log("Queue response:", { messageId, pollingEndpoint, status, data });
+
+      // Return queue response for parent handlers to use
+      return { message_id: messageId, polling_endpoint: pollingEndpoint, status };
     } catch (err) {
       const errorMessage = handleApiError(err, "Failed to create candidate.");
       showError(errorMessage);
+      throw err;
     } finally {
       setIsSaving(false);
     }
@@ -707,20 +676,23 @@ export default function CandidateCreate({ onBack, onSave }) {
     setIsAssigning(true);
 
     try {
-      const candidateId = await handleCreateCandidate();
-      if (!candidateId?.id) {
-        showError("Candidate creation failed");
-        return;
-      }
-      const result = await assignJob(selectedJobId, candidateId?.id, {
-        application_status: "Applied",
-      });
-      if (result?.status === 201) {
-        showSuccess("Job assigned successfully ✅");
-        onSave(candidateId);
+      const queueResponse = await handleCreateCandidate();
+      // Success case: show queue status
+      if (queueResponse && queueResponse.message_id) {
+        const messageId = queueResponse.message_id;
+        const pollingEndpoint = queueResponse.polling_endpoint || "/candidates";
+
+        // Show queue status modal with polling endpoint
+        const message = `✓ Candidate queued successfully!\n\nMessage ID: ${messageId}\n\nYou will receive an email notification when the candidate is created. You can also check the status at:\n${pollingEndpoint}\n\nOnce created, you can assign jobs from the candidate detail page.`;
+        showSuccess(message);
+
+        // Close form and return to candidates list
+        setTimeout(() => {
+          navigate("/candidates");
+        }, 3000);
       }
     } catch (err) {
-      const errorMessage = handleApiError(err, "Candidate created but job assignment failed.");
+      const errorMessage = handleApiError(err, "Failed to queue candidate creation.");
       showError(errorMessage);
     } finally {
       setIsAssigning(false);
@@ -729,28 +701,24 @@ export default function CandidateCreate({ onBack, onSave }) {
 
   const handleSaveOnly = async () => {
     try {
-      const candidate = await handleCreateCandidate();
-      console.log("Created candidate:", candidate);
+      const queueResponse = await handleCreateCandidate();
+      // Success case: show queue status
+      if (queueResponse && queueResponse.message_id) {
+        const messageId = queueResponse.message_id;
+        const pollingEndpoint = queueResponse.polling_endpoint || "/candidates";
 
-      if (!candidate?.id) {
-        console.error("Candidate creation returned no ID", candidate);
-        return;
+        // Show queue status modal with polling endpoint and email notification info
+        const message = `✓ Candidate creation queued successfully!\n\nMessage ID: ${messageId}\n\n📧 You will receive an email notification when the candidate is created.\n\n🔍 You can also check status anytime at:\n${pollingEndpoint}\n\nOnce created, you'll be able to upload a resume and manage the candidate.`;
+        showSuccess(message);
+
+        // Close form and return to candidates list
+        setTimeout(() => {
+          navigate("/candidates");
+        }, 3000);
       }
-
-      try {
-        await createCandidateHistoryEvent(candidate.id, {
-          event_type: HISTORY_EVENT_TYPES.APPLIED,
-        });
-      } catch (historyErr) {
-        console.error("Failed to create history event (continuing anyway):", historyErr);
-      }
-
-      console.log("Calling onSave with:", candidate);
-      onSave(candidate);
     } catch (error) {
-      console.error("Failed in handleSaveOnly:", error);
-      const errorMessage = handleApiError(error, "Failed to create candidate");
-      showError(errorMessage);
+      // Error is already handled by handleCreateCandidate, just ensure we're not in saving state
+      console.error("Candidate creation error handled");
     }
   };
 
