@@ -2,6 +2,55 @@
 
 ---
 
+## 🚨 MANDATORY: RUTHLESS ARCHITECT REVIEW BEFORE EVERY COMMIT (2026-09-05)
+
+**NEW WORKFLOW: Architect Agent → Code Review Gate → Tests → Deploy**
+
+### Pre-Gate Architecture Validation (MANDATORY)
+
+**Every commit MUST be reviewed by ruthless architect agent BEFORE code review gate runs.**
+
+**Process:**
+1. **Ruthless Architect Agent** (catches 200+ gaps: integration, error handling, data flow, race conditions)
+2. **Code Review Gate** (style, security, permissions)
+3. **Tests** (functionality)
+4. **Deploy** (only if all three pass)
+
+**Why:** Gaps caught at design time (architect) cost 1 hour to fix. Gaps caught in production cost 10 hours + customer impact.
+
+**Agent Mandate:**
+- Think like 0.1% tech architect
+- Be mean mentor - catch EVERY gap
+- Focus on: integration wiring, error handlers, race conditions, timeouts, data consistency
+- Find 50+ gaps minimum per review
+- Categorize: CRITICAL (blocks production) / HIGH (crashes) / MEDIUM (data loss) / LOW (debt)
+- Provide: fix priority, code examples, timeline estimate
+
+**What Architect Catches:**
+- ✅ Endpoints not wired to async queues
+- ✅ Missing error handlers (silent failures)
+- ✅ Race conditions (concurrent writes)
+- ✅ Task status endpoints that don't exist
+- ✅ Health checks missing (Redis/Celery down = nobody knows)
+- ✅ Data corruption patterns (atomic commits missing)
+- ✅ Timeout issues (hangs forever)
+- ✅ Thread pool exhaustion (100 concurrent requests)
+
+**Enforce This:**
+- No commit without architect review
+- No PR without gap assessment
+- No deployment without CRITICAL issues fixed
+- All PRODUCTION BLOCKERS + CRASH PREVENTION gaps must be fixed before ship
+
+**Example (from 2026-09-05 audit):**
+- Found: Celery infrastructure built but NOT WIRED to endpoints
+- Impact: Form submission returns 200 but task never queues
+- Production effect: System appears to work for 1 hour, then cascades to total failure
+- Fix time: 6 hours
+- Result: Production-grade system instead of crash-on-day-1
+
+---
+
 ## 🚨 MANDATORY: NO NEW FEATURES UNTIL GATE CLEARANCE (2026-09-04 Enforcement)
 
 **BLOCKING POLICY: All pre-existing code quality violations MUST be fixed before picking up new feature work.**
