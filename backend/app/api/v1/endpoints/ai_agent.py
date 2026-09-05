@@ -427,7 +427,7 @@ def get_resume_completeness(
         "are the same class of BA-approved, admin-only product decision."
     ),
 )
-def get_prompt_templates_endpoint(
+async def get_prompt_templates_endpoint(
     current_user: Users = Depends(get_current_internal_user),
 ):
     from app.services.prompt_framework_service import get_prompt_templates
@@ -1096,8 +1096,7 @@ def deactivate_agent(
         "`Mail.ReadWrite` **Application** permission granted by an admin.\n"
         "Go to: *Azure Portal → App Registrations → API permissions → Add permission "
         "→ Microsoft Graph → Application permissions → Mail.Read → Grant admin consent*."
-    ),
-)
+   async def )
 def list_inbox(
     top: int = 50,
     skip: int = 0,
@@ -1127,7 +1126,7 @@ def list_inbox(
         "Returns all inbox messages from `helpdesk_hrms@blitzenx.com` that were "
         "sent **by** the given email address. Use this to view the full email "
         "conversation thread with a specific candidate or sender.\n\n"
-        "> **Prerequisite**: `Mail.Read` or `Mail.ReadWrite` Application permission."
+        "> **Prerequisite**: `Mail.Read` or `Mail.ReadWrite` Application permission"
     ),
 )
 def list_inbox_by_email(
