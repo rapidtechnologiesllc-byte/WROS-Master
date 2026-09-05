@@ -62,7 +62,6 @@ from app.api.v1.endpoints.candidate_journey import router as candidate_journey_r
 from app.api.v1.endpoints.drop_risk import router as drop_risk_router
 from app.api.v1.endpoints.desire_intelligence import router as desire_intelligence_router
 from app.api.v1.endpoints.activity_feed import router as activity_feed_router
-from app.api.v1.endpoints.intervention_queue import router as intervention_queue_router
 from app.api.v1.endpoints.risk_dashboard import router as risk_dashboard_router
 from app.api.v1.endpoints.engagement_metrics import router as engagement_metrics_router
 from app.api.v1.endpoints.thunder_analytics import router as thunder_analytics_router
@@ -104,7 +103,6 @@ from app.api.v1.endpoints.permission_composition import router as permission_com
 from app.api.v1.endpoints.role_templates import router as role_templates_router
 from app.api.v1.endpoints.role_template_modules import router as role_template_modules_router
 from app.api.v1.endpoints.navigation import router as navigation_router
-from app.api.v1.endpoints.admin_queue import router as admin_queue_router
 from app.api.v1.endpoints.relation_building import router as relation_building_router
 from app.api.v1.endpoints.recruitment_funnel import router as recruitment_funnel_router
 from app.api.v1.endpoints.agent_accountability import router as agent_accountability_router
@@ -187,7 +185,6 @@ router.include_router(router=candidate_journey_router)
 router.include_router(router=drop_risk_router)
 router.include_router(router=desire_intelligence_router)
 router.include_router(router=activity_feed_router)
-router.include_router(router=intervention_queue_router)
 router.include_router(router=risk_dashboard_router)
 router.include_router(router=engagement_metrics_router)
 router.include_router(router=thunder_analytics_router)
@@ -224,7 +221,6 @@ router.include_router(router=agent_performance_dashboard_router)
 router.include_router(router=employee_referrals_router)
 router.include_router(router=work_orders_router)
 router.include_router(router=autonomous_job_management_router)
-router.include_router(router=admin_queue_router)
 router.include_router(router=recruitment_funnel_router)
 router.include_router(router=agent_accountability_router)
 router.include_router(router=pipeline_orchestration_router)
