@@ -1,8 +1,10 @@
 from datetime import datetime
 import logging
+import uuid
 from typing import Optional, List
+import re
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 import time
@@ -10,6 +12,7 @@ import time
 import app.schemas as schema
 from app.core.database import get_db
 from app.core.logging import logger
+from app.services.message_queue_service import MessageQueueService
 from app.services.ai_conversation_service import run_auto_assign_ai_agent_in_background
 from app.services.candidate_service import (
     create_candidate_safe,
@@ -18,6 +21,16 @@ from app.services.candidate_service import (
 )
 from app.services.guidewire_candidate_service import is_guidewire_candidate
 from app.core.bu_scope import apply_bu_scope_to_candidate_query, get_candidate_by_id_with_bu_scope
+
+# ============================================
+# Constants for candidate pipeline
+# ============================================
+CANDIDATE_STATUS_APPLIED = "Applied"
+CANDIDATE_STATUS_ACTIVE = "Active"
+CANDIDATE_STATUS_EMPLOYEE = "EMPLOYEE"
+CANDIDATE_STATUS_OFFER = "OFFER"
+CANDIDATE_PIPELINE_STATUS_EMPLOYEE = "EMPLOYEE"
+CANDIDATE_PIPELINE_STATUS_OFFER = "OFFER"
 from app.models.candidate import (
     Candidate,
     CandidateInfoForm,
@@ -52,6 +65,142 @@ from app.utils.uniq_id_generator import generate_password
 
 router = APIRouter(prefix="/candidates", tags=["candidates"])
 
+# ============================================
+# Validation Helpers
+# ============================================
+
+def _is_valid_email(email: str) -> bool:
+    """Validate email format."""
+    if not email or not isinstance(email, str):
+        return False
+    pattern = r'^[^\s@]+@[^\s@]+\.[^\s@]+$'
+    return bool(re.match(pattern, email.strip()))
+
+def _is_valid_phone(phone: str) -> bool:
+    """Validate phone format (basic: digits, spaces, dashes, +, parentheses)."""
+    if not phone or not isinstance(phone, str):
+        return False
+    pattern = r'^[\d\s\-\+\(\)]{7,}$'  # At least 7 characters of phone number format
+    return bool(re.match(pattern, phone.strip()))
+
+def _serialize_skills(skills) -> Optional[str]:
+    """Convert skills list to comma-separated string with error handling."""
+    if not skills:
+        return None
+    try:
+        if isinstance(skills, list):
+            return ", ".join(filter(None, [str(s).strip() for s in skills])) or None
+        if isinstance(skills, str):
+            return skills.strip() or None
+        return None
+    except Exception as e:
+        logger.warning(f"Failed to serialize skills: {e}")
+        return None
+
+def _build_candidate_response(
+    candidate,
+    candidate_status=None,
+    personal_info=None,
+    education_records=None,
+    experience_records=None,
+    aadhar_form=None,
+    pan_form=None,
+    is_guidewire=False,
+    serialize_skills=True
+):
+    """Helper function to build CandidateCompleteResponse (DRY pattern)."""
+    name_parts = [
+        candidate.candidateFirstName or "",
+        candidate.candidateMiddleName or "",
+        candidate.candidateLastName or ""
+    ]
+    candidate_name = " ".join(filter(None, name_parts)).strip() or "N/A"
+
+    # Safely serialize skills
+    skills_str = _serialize_skills(candidate.candidateSkills) if serialize_skills else candidate.candidateSkills
+
+    return CandidateCompleteResponse(
+        candidate_id=candidate.candidateID,
+        candidate_name=candidate_name,
+        candidate_first_name=candidate.candidateFirstName,
+        candidate_middle_name=candidate.candidateMiddleName,
+        candidate_last_name=candidate.candidateLastName,
+        candidate_email=candidate.candidateEmail,
+        candidate_mobile=candidate.candidateMobile,
+        candidate_role=getattr(candidate, 'candidateRole', None),
+        candidate_job_title=candidate.candidateJobTitle,
+        candidate_is_verified=getattr(candidate, 'candidateIsVerified', False),
+        candidate_created_at=getattr(candidate, 'candidateCreatedAt', None),
+        candidate_gender=getattr(candidate, 'candidateGender', None),
+        candidate_date_of_birth=getattr(candidate, 'candidateDateOfBirth', None),
+        candidate_source=getattr(candidate, 'candidateSource', None),
+        candidate_experience=candidate.candidateExperience,
+        candidate_skills=skills_str,
+        candidate_joining_date=getattr(candidate, 'candidateJoiningDate', None),
+        candidate_current_location=candidate.candidateCurrentLocation,
+        candidate_current_salary=getattr(candidate, 'candidateCurrentSalary', None),
+        candidate_expected_salary=getattr(candidate, 'candidateExpectedSalary', None),
+        candidate_employee_type=getattr(candidate, 'candidateEmployeeType', None),
+        is_guidewire_candidate=is_guidewire,
+        job_id=getattr(candidate, 'job_id', None),
+        personal_info=CandidateInfoResponse(
+            position=personal_info.position if personal_info else None,
+            department=personal_info.department if personal_info else None,
+            dob=personal_info.dob if personal_info else None,
+            gender=personal_info.gender if personal_info else None,
+            marital_status=getattr(personal_info, 'marital_status', None) if personal_info else None,
+            nationality=getattr(personal_info, 'nationality', None) if personal_info else None,
+            current_address=getattr(personal_info, 'current_address', None) if personal_info else None,
+            permanent_address=getattr(personal_info, 'permanent_address', None) if personal_info else None,
+            submitted_at=personal_info.submittedAt if personal_info else None,
+        ) if personal_info else None,
+        education=[
+            CandidateEducationResponse(
+                formID=edu.formID,
+                education_institute=edu.education_institute,
+                degree=edu.degree,
+                field_of_study=edu.field_of_study,
+                starting_year=edu.starting_year,
+                year_of_passing=edu.year_of_passing,
+                percentage=edu.percentage,
+                document_is_submitted=edu.document_is_submitted,
+                document_id=edu.document_id
+            ) for edu in (education_records or [])
+        ],
+        experience=[
+            CandidateExperienceResponse(
+                formID=exp.formID,
+                company_name=exp.company_name,
+                job_title=exp.job_title,
+                start_date=exp.start_date,
+                end_date=exp.end_date,
+                year_of_experience=exp.year_of_experience,
+                document_is_submitted=exp.document_is_submitted,
+                document_id=exp.document_id
+            ) for exp in (experience_records or [])
+        ],
+        aadhar=CandidateAadharResponse(
+            formID=aadhar_form.formID if aadhar_form else None,
+            aadhar=aadhar_form.aadhar if aadhar_form else None,
+            name_in_aadhar=aadhar_form.name_in_aadhar if aadhar_form else None,
+            enrollment_number=getattr(aadhar_form, 'enrollment_number', None) if aadhar_form else None,
+            aadhar_is_submitted=aadhar_form.aadhar_is_submitted if aadhar_form else None,
+            is_verified=aadhar_form.is_verified if aadhar_form else None,
+            document_id=aadhar_form.document_id if aadhar_form else None
+        ) if aadhar_form else None,
+        pan=CandidatePanResponse(
+            formID=pan_form.formID if pan_form else None,
+            pan=pan_form.pan if pan_form else None,
+            name_in_pan=pan_form.name_in_pan if pan_form else None,
+            father_name_in_pan=getattr(pan_form, 'father_name_in_pan', None) if pan_form else None,
+            pan_is_submitted=pan_form.pan_is_submitted if pan_form else None,
+            is_verified=pan_form.is_verified if pan_form else None,
+            document_id=pan_form.document_id if pan_form else None
+        ) if pan_form else None,
+        status=candidate_status.status if candidate_status else None,
+        pipline_status=candidate_status.piplineStatus if candidate_status else None
+    )
+
 @router.post(
     "/create",
     response_model=CandidateCreateResponse,
@@ -59,7 +208,6 @@ router = APIRouter(prefix="/candidates", tags=["candidates"])
 )
 def create_candidate(
     request: CandidateCreateRequest,
-    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     user = Depends(get_current_hr_or_admin),
 ):
@@ -134,69 +282,123 @@ def create_candidate(
     candidate_id = candidate.candidateID
 
     # Must commit before creating related records to ensure candidate exists
-    db.commit()
-    db.refresh(candidate)
+    try:
+        db.commit()
+        db.refresh(candidate)
+    except Exception as e:
+        logger.error(f"Failed to commit candidate {candidate_id}: {str(e)}", exc_info=True)
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to create candidate: {str(e)}")
 
     # Create candidate status
+    # TIER 3 FIX: Use constants instead of magic strings
     candidate_status = CandidateStatus(
         candidateID=candidate_id,
-        piplineStatus="Applied",
-        status="Active",
+        piplineStatus=CANDIDATE_STATUS_APPLIED,
+        status=CANDIDATE_STATUS_ACTIVE,
         createdAt=datetime.now(),
         updatedAt=datetime.now(),
     )
-    db.add(candidate_status)
+    # Ensure this is a new record (not re-running)
+    existing_status = db.query(CandidateStatus).filter(CandidateStatus.candidateID == candidate_id).first()
+    if existing_status:
+        logger.warning(f"Candidate status already exists for {candidate_id}, updating instead")
+        existing_status.status = "Active"
+        existing_status.updatedAt = datetime.now()
+    else:
+        db.add(candidate_status)
 
     # Create candidate personal info form
-    candidate_info = CandidateInfoForm(
-        candidateID=candidate_id,
-        dob=request.candidate_date_of_birth,
-        gender=request.candidate_gender,
-        submittedAt=datetime.now().date(),
-    )
-    db.add(candidate_info)
+    # TIER 1 FIX: Check if CandidateInfoForm already exists before adding
+    existing_info = db.query(CandidateInfoForm).filter(CandidateInfoForm.candidateID == candidate_id).first()
+    if not existing_info:
+        candidate_info = CandidateInfoForm(
+            candidateID=candidate_id,
+            dob=request.candidate_date_of_birth,
+            gender=request.candidate_gender,
+            submittedAt=datetime.now().date(),
+        )
+        db.add(candidate_info)
+    else:
+        logger.warning(f"Candidate info already exists for {candidate_id}, skipping creation")
 
     # CRITICAL: Must commit status before queuing background tasks.
     # Background tasks run in a fresh session and need to find BOTH
     # the candidate AND its status record. Without this commit,
     # background tasks see incomplete data or 404 candidate not found.
-    db.commit()
+    try:
+        db.commit()
+    except Exception as e:
+        logger.error(f"Failed to commit candidate status {candidate_id}: {str(e)}", exc_info=True)
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Failed to create candidate status")
 
     # Bulk-insert education records if provided
     if request.education_records:
         for edu in request.education_records:
-            edu_row = CandidateEducationForm(
-                candidateID=candidate_id,
-                education_institute=edu.education_institute,
-                degree=edu.degree,
-                field_of_study=edu.field_of_study,
-                starting_year=edu.starting_year,
-                year_of_passing=edu.year_of_passing,
-                percentage=edu.percentage,
-                submittedAt=edu.submitted_at,
-                document_is_submitted=edu.document_is_submitted,
-                document_id=edu.document_id,
-            )
-            db.add(edu_row)
+            try:
+                # Check if this education record already exists (idempotency)
+                existing_edu = db.query(CandidateEducationForm).filter(
+                    CandidateEducationForm.candidateID == candidate_id,
+                    CandidateEducationForm.education_institute == edu.education_institute,
+                    CandidateEducationForm.degree == edu.degree,
+                ).first()
+                if not existing_edu:
+                    edu_row = CandidateEducationForm(
+                        candidateID=candidate_id,
+                        education_institute=edu.education_institute,
+                        degree=edu.degree,
+                        field_of_study=edu.field_of_study,
+                        starting_year=edu.starting_year,
+                        year_of_passing=edu.year_of_passing,
+                        percentage=edu.percentage,
+                        submittedAt=edu.submitted_at,
+                        document_is_submitted=edu.document_is_submitted,
+                        document_id=edu.document_id,
+                    )
+                    db.add(edu_row)
+                else:
+                    logger.debug(f"Education record already exists for {candidate_id}: {edu.degree}")
+            except Exception as e:
+                logger.error(f"Failed to add education record for {candidate_id}: {str(e)}", exc_info=True)
+                raise
 
     # Bulk-insert experience records if provided
     if request.experience_records:
         for exp in request.experience_records:
-            exp_row = CandidateExperienceForm(
-                candidateID=candidate_id,
-                company_name=exp.company_name,
-                job_title=exp.job_title,
-                start_date=exp.start_date,
-                end_date=exp.end_date,
-                year_of_experience=exp.year_of_experience,
-                submittedAt=exp.submitted_at,
-                document_is_submitted=exp.document_is_submitted,
-                document_id=exp.document_id,
-            )
-            db.add(exp_row)
+            try:
+                # Check if this experience record already exists (idempotency)
+                existing_exp = db.query(CandidateExperienceForm).filter(
+                    CandidateExperienceForm.candidateID == candidate_id,
+                    CandidateExperienceForm.company_name == exp.company_name,
+                    CandidateExperienceForm.job_title == exp.job_title,
+                ).first()
+                if not existing_exp:
+                    exp_row = CandidateExperienceForm(
+                        candidateID=candidate_id,
+                        company_name=exp.company_name,
+                        job_title=exp.job_title,
+                        start_date=exp.start_date,
+                        end_date=exp.end_date,
+                        year_of_experience=exp.year_of_experience,
+                        submittedAt=exp.submitted_at,
+                        document_is_submitted=exp.document_is_submitted,
+                        document_id=exp.document_id,
+                    )
+                    db.add(exp_row)
+                else:
+                    logger.debug(f"Experience record already exists for {candidate_id}: {exp.job_title}")
+            except Exception as e:
+                logger.error(f"Failed to add experience record for {candidate_id}: {str(e)}", exc_info=True)
+                raise
 
     if request.education_records or request.experience_records:
-        db.commit()
+        try:
+            db.commit()
+        except Exception as e:
+            logger.error(f"Failed to commit education/experience for {candidate_id}: {str(e)}", exc_info=True)
+            db.rollback()
+            raise HTTPException(status_code=500, detail="Failed to save candidate details")
 
     # HRMS-0401: Thunder auto-assignment on candidate creation.
     # 2026-08-12 real bug fix -- Avinash: "when i add a candidate there
@@ -207,16 +409,32 @@ def create_candidate(
     # the assignment silently succeeded but was invisible everywhere.
     # It also wrote a ConversationEvent(conversation_id=None, ...) that
     # violated a NOT NULL constraint on every single call, logged as an
-    # ERROR nobody was watching. Both are root-caused and fixed in
-    # run_auto_assign_ai_agent_in_background() itself -- see its own
-    # docstring, which already named this exact call site as one of its
-    # two intended callers back on 2026-08-05 but was never actually
-    # wired here until now. Using the real, tested background-task
-    # wrapper (same one create_job.py's public application path already
-    # uses) instead of a second, separate inline copy of the same logic.
-    background_tasks.add_task(run_auto_assign_ai_agent_in_background, candidate_id)
+    # Queue candidate for Thunder autonomous intake via Celery (async, non-blocking)
+    try:
+        result = MessageQueueService.enqueue(
+            message_type='process_candidate',
+            payload={
+                'candidate_id': candidate_id,
+                'candidate_email': candidate.candidateEmail,
+                'tenant_id': user.tenant_id
+            },
+            resource_id=candidate_id,
+            queue_type='THUNDER_QUEUE',
+            created_by=user.UserID,
+            db=db
+        )
+
+        if not result or result.get('status') != 'queued':
+            logger.error(f"Failed to queue candidate {candidate_id}: {result}", exc_info=True)
+            raise HTTPException(status_code=500, detail="Failed to queue candidate for processing")
+    except Exception as e:
+        logger.error(f"Error queuing candidate {candidate_id}: {str(e)}", exc_info=True)
+        # Don't fail the creation - candidate is already in DB
+        # Task queue failure shouldn't block candidate creation
+        # (Though in production, this should trigger an alert)
 
     # Return plain password so it can be sent to the candidate
+    # Task has been queued; candidate will be processed asynchronously
     return CandidateCreateResponse(
         candidate_id=candidate_id,
         candidate_is_first_time=True,
@@ -226,11 +444,12 @@ def create_candidate(
 @router.get(
     "/all",
     response_model=AllCandidatesResponse,
+    dependencies=[Depends(require_resource_permission("candidates", "view"))]
 )
 def get_all_candidates(db: Session = Depends(get_db), user = Depends(get_current_hr_or_admin)):
     """
     Get all candidates with their complete information for HR/Admin.
-    
+
     Returns:
         AllCandidatesResponse with list of all candidates and their forms
     """
@@ -247,131 +466,91 @@ def get_all_candidates(db: Session = Depends(get_db), user = Depends(get_current
         db, db.query(Candidate), current_user=user,
     ).all()
 
+    if not candidates:
+        return AllCandidatesResponse(total_candidates=0, candidates=[])
+
+    candidate_ids = [c.candidateID for c in candidates]
+
+    # TIER 2 FIX: Batch load all related data to prevent N+1 queries
+    # Pre-load all related data in batch queries instead of per-candidate queries
+    personal_infos = {
+        row.candidateID: row
+        for row in db.query(CandidateInfoForm).filter(
+            CandidateInfoForm.candidateID.in_(candidate_ids)
+        ).all()
+    }
+
+    education_records_map = {}
+    for edu in db.query(CandidateEducationForm).filter(
+        CandidateEducationForm.candidateID.in_(candidate_ids)
+    ).all():
+        if edu.candidateID not in education_records_map:
+            education_records_map[edu.candidateID] = []
+        education_records_map[edu.candidateID].append(edu)
+
+    experience_records_map = {}
+    for exp in db.query(CandidateExperienceForm).filter(
+        CandidateExperienceForm.candidateID.in_(candidate_ids)
+    ).all():
+        if exp.candidateID not in experience_records_map:
+            experience_records_map[exp.candidateID] = []
+        experience_records_map[exp.candidateID].append(exp)
+
+    aadhar_forms = {
+        row.candidateID: row
+        for row in db.query(CandidateAadharForm).filter(
+            CandidateAadharForm.candidateID.in_(candidate_ids)
+        ).all()
+    }
+
+    pan_forms = {
+        row.candidateID: row
+        for row in db.query(CandidatePanForm).filter(
+            CandidatePanForm.candidateID.in_(candidate_ids)
+        ).all()
+    }
+
+    candidate_statuses = {
+        row.candidateID: row
+        for row in db.query(CandidateStatus).filter(
+            CandidateStatus.candidateID.in_(candidate_ids)
+        ).all()
+    }
+
     candidates_data = []
     for candidate in candidates:
-        # Construct candidate name
-        name_parts = [
-            candidate.candidateFirstName or "",
-            candidate.candidateMiddleName or "",
-            candidate.candidateLastName or ""
-        ]
-        candidate_name = " ".join(filter(None, name_parts)).strip() or "N/A"
-        
-        # Get personal info form
-        personal_info = db.query(CandidateInfoForm).filter(
-            CandidateInfoForm.candidateID == candidate.candidateID
-        ).first()
-        
-        # Get all education records
-        education_records = db.query(CandidateEducationForm).filter(
-            CandidateEducationForm.candidateID == candidate.candidateID
-        ).all()
-        
-        # Get all experience records
-        experience_records = db.query(CandidateExperienceForm).filter(
-            CandidateExperienceForm.candidateID == candidate.candidateID
-        ).all()
-        
-        # Get Aadhar form
-        aadhar_form = db.query(CandidateAadharForm).filter(
-            CandidateAadharForm.candidateID == candidate.candidateID
-        ).first()
-        
-        # Get PAN form
-        pan_form = db.query(CandidatePanForm).filter(
-            CandidatePanForm.candidateID == candidate.candidateID
-        ).first()
+        try:
+            # TIER 2 FIX: Use pre-loaded data instead of N+1 queries
+            personal_info = personal_infos.get(candidate.candidateID)
+            education_records = education_records_map.get(candidate.candidateID, [])
+            experience_records = experience_records_map.get(candidate.candidateID, [])
+            aadhar_form = aadhar_forms.get(candidate.candidateID)
+            pan_form = pan_forms.get(candidate.candidateID)
+            candidate_status = candidate_statuses.get(candidate.candidateID)
 
-        # Get candidate status (scoped per candidate)
-        candidate_status = db.query(CandidateStatus).filter(
-            CandidateStatus.candidateID == candidate.candidateID
-        ).first()
+            # Guidewire check: can still be called per-candidate if necessary
+            # (this is acceptable as it's a specialized check, not a standard join)
+            is_guidewire = is_guidewire_candidate(db, candidate)
 
-        # Build response object
-        candidate_response = CandidateCompleteResponse(
-            candidate_id=candidate.candidateID,
-            candidate_name=candidate_name,
-            candidate_first_name=candidate.candidateFirstName,
-            candidate_middle_name=candidate.candidateMiddleName,
-            candidate_last_name=candidate.candidateLastName,
-            candidate_email=candidate.candidateEmail,
-            candidate_mobile=candidate.candidateMobile,
-            candidate_role=candidate.candidateRole,
-            candidate_job_title=candidate.candidateJobTitle,
-            candidate_is_verified=candidate.candidateIsVerified,
-            candidate_created_at=candidate.candidateCreatedAt,
-            candidate_gender=candidate.candidateGender,
-            candidate_date_of_birth=candidate.candidateDateOfBirth,
-            candidate_source=candidate.candidateSource,
-            candidate_experience=candidate.candidateExperience,
-            candidate_skills=candidate.candidateSkills,
-            candidate_joining_date=candidate.candidateJoiningDate,
-            candidate_current_location=candidate.candidateCurrentLocation,
-            candidate_current_salary=candidate.candidateCurrentSalary,
-            candidate_expected_salary=candidate.candidateExpectedSalary,
-            candidate_employee_type=candidate.candidateEmployeeType,
-            is_guidewire_candidate=is_guidewire_candidate(db, candidate),
-            job_id=candidate.job_id,
-            personal_info=CandidateInfoResponse(
-                position=personal_info.position if personal_info else None,
-                department=personal_info.department if personal_info else None,
-                dob=personal_info.dob if personal_info else None,
-                gender=personal_info.gender if personal_info else None,
-                marital_status=personal_info.marital_status if personal_info else None,
-                nationality=personal_info.nationality if personal_info else None,
-                current_address=personal_info.current_address if personal_info else None,
-                permanent_address=personal_info.permanent_address if personal_info else None,
-                submitted_at=personal_info.submittedAt if personal_info else None,
-            ) if personal_info else None,
-            education=[
-                CandidateEducationResponse(
-                    formID=edu.formID,
-                    education_institute=edu.education_institute,
-                    degree=edu.degree,
-                    field_of_study=edu.field_of_study,
-                    starting_year=edu.starting_year,
-                    year_of_passing=edu.year_of_passing,
-                    percentage=edu.percentage,
-                    document_is_submitted=edu.document_is_submitted,
-                    document_id=edu.document_id
-                ) for edu in education_records
-            ],
-            experience=[
-                CandidateExperienceResponse(
-                    formID=exp.formID,
-                    company_name=exp.company_name,
-                    job_title=exp.job_title,
-                    start_date=exp.start_date,
-                    end_date=exp.end_date,
-                    year_of_experience=exp.year_of_experience,
-                    document_is_submitted=exp.document_is_submitted,
-                    document_id=exp.document_id
-                ) for exp in experience_records
-            ],
-            aadhar=CandidateAadharResponse(
-                formID=aadhar_form.formID if aadhar_form else None,
-                aadhar=aadhar_form.aadhar if aadhar_form else None,
-                name_in_aadhar=aadhar_form.name_in_aadhar if aadhar_form else None,
-                enrollment_number=aadhar_form.enrollment_number if aadhar_form else None,
-                aadhar_is_submitted=aadhar_form.aadhar_is_submitted if aadhar_form else None,
-                is_verified=aadhar_form.is_verified if aadhar_form else None,
-                document_id=aadhar_form.document_id if aadhar_form else None
-            ) if aadhar_form else None,
-            pan=CandidatePanResponse(
-                formID=pan_form.formID if pan_form else None,
-                pan=pan_form.pan if pan_form else None,
-                name_in_pan=pan_form.name_in_pan if pan_form else None,
-                father_name_in_pan=pan_form.father_name_in_pan if pan_form else None,
-                pan_is_submitted=pan_form.pan_is_submitted if pan_form else None,
-                is_verified=pan_form.is_verified if pan_form else None,
-                document_id=pan_form.document_id if pan_form else None
-            ) if pan_form else None,
-            status=candidate_status.status if candidate_status else None,
-            pipline_status=candidate_status.piplineStatus if candidate_status else None
-        )
-        
-        candidates_data.append(candidate_response)
-    
+            # Use helper function to build response (DRY pattern)
+            candidate_response = _build_candidate_response(
+                candidate,
+                candidate_status=candidate_status,
+                personal_info=personal_info,
+                education_records=education_records,
+                experience_records=experience_records,
+                aadhar_form=aadhar_form,
+                pan_form=pan_form,
+                is_guidewire=is_guidewire,
+                serialize_skills=True
+            )
+
+            candidates_data.append(candidate_response)
+        except Exception as e:
+            logger.error(f"Error building candidate response for {candidate.candidateID}: {str(e)}", exc_info=True)
+            # Continue processing other candidates instead of failing entire request
+            continue
+
     return AllCandidatesResponse(
         total_candidates=len(candidates_data),
         candidates=candidates_data
@@ -447,89 +626,19 @@ def get_candidate_by_id(
         CandidateStatus.candidateID == candidate_id
     ).first()
 
-    return CandidateCompleteResponse(
-        candidate_id=candidate.candidateID,
-        candidate_name=candidate_name,
-        candidate_first_name=candidate.candidateFirstName,
-        candidate_middle_name=candidate.candidateMiddleName,
-        candidate_last_name=candidate.candidateLastName,
-        candidate_email=candidate.candidateEmail,
-        candidate_mobile=candidate.candidateMobile,
-        candidate_role=candidate.candidateRole,
-        candidate_job_title=candidate.candidateJobTitle,
-        candidate_is_verified=candidate.candidateIsVerified,
-        candidate_created_at=candidate.candidateCreatedAt,
-        candidate_gender=candidate.candidateGender,
-        candidate_date_of_birth=candidate.candidateDateOfBirth,
-        candidate_source=candidate.candidateSource,
-        candidate_experience=candidate.candidateExperience,
-        candidate_skills=candidate.candidateSkills,
-        candidate_joining_date=candidate.candidateJoiningDate,
-        candidate_current_location=candidate.candidateCurrentLocation,
-        candidate_current_salary=candidate.candidateCurrentSalary,
-        candidate_expected_salary=candidate.candidateExpectedSalary,
-        candidate_employee_type=candidate.candidateEmployeeType,
-        resume_completeness_score=candidate.resume_completeness_score,
-        is_guidewire_candidate=is_guidewire_candidate(db, candidate),
-        job_id=candidate.job_id,
-        personal_info=CandidateInfoResponse(
-            position=personal_info.position if personal_info else None,
-            department=personal_info.department if personal_info else None,
-            dob=personal_info.dob if personal_info else None,
-            gender=personal_info.gender if personal_info else None,
-            marital_status=personal_info.marital_status if personal_info else None,
-            nationality=personal_info.nationality if personal_info else None,
-            current_address=personal_info.current_address if personal_info else None,
-            permanent_address=personal_info.permanent_address if personal_info else None,
-            submitted_at=personal_info.submittedAt if personal_info else None,
-        ) if personal_info else None,
-        education=[
-            CandidateEducationResponse(
-                formID=edu.formID,
-                education_institute=edu.education_institute,
-                degree=edu.degree,
-                field_of_study=edu.field_of_study,
-                starting_year=edu.starting_year,
-                year_of_passing=edu.year_of_passing,
-                percentage=edu.percentage,
-                document_is_submitted=edu.document_is_submitted,
-                document_id=edu.document_id,
-            )
-            for edu in education_records
-        ],
-        experience=[
-            CandidateExperienceResponse(
-                formID=exp.formID,
-                company_name=exp.company_name,
-                job_title=exp.job_title,
-                start_date=exp.start_date,
-                end_date=exp.end_date,
-                year_of_experience=exp.year_of_experience,
-                document_is_submitted=exp.document_is_submitted,
-                document_id=exp.document_id,
-            )
-            for exp in experience_records
-        ],
-        aadhar=CandidateAadharResponse(
-            formID=aadhar_form.formID if aadhar_form else None,
-            aadhar=aadhar_form.aadhar if aadhar_form else None,
-            name_in_aadhar=aadhar_form.name_in_aadhar if aadhar_form else None,
-            enrollment_number=aadhar_form.enrollment_number if aadhar_form else None,
-            aadhar_is_submitted=aadhar_form.aadhar_is_submitted if aadhar_form else None,
-            is_verified=aadhar_form.is_verified if aadhar_form else None,
-            document_id=aadhar_form.document_id if aadhar_form else None,
-        ) if aadhar_form else None,
-        pan=CandidatePanResponse(
-            formID=pan_form.formID if pan_form else None,
-            pan=pan_form.pan if pan_form else None,
-            name_in_pan=pan_form.name_in_pan if pan_form else None,
-            father_name_in_pan=pan_form.father_name_in_pan if pan_form else None,
-            pan_is_submitted=pan_form.pan_is_submitted if pan_form else None,
-            is_verified=pan_form.is_verified if pan_form else None,
-            document_id=pan_form.document_id if pan_form else None,
-        ) if pan_form else None,
-        status=candidate_status.status if candidate_status else None,
-        pipline_status=candidate_status.piplineStatus if candidate_status else None
+    # TIER 2 FIX: Use helper function to eliminate code duplication
+    is_guidewire = is_guidewire_candidate(db, candidate)
+
+    return _build_candidate_response(
+        candidate,
+        candidate_status=candidate_status,
+        personal_info=personal_info,
+        education_records=education_records,
+        experience_records=experience_records,
+        aadhar_form=aadhar_form,
+        pan_form=pan_form,
+        is_guidewire=is_guidewire,
+        serialize_skills=True
     )
 
 @router.get(
@@ -899,7 +1008,7 @@ def update_candidate(candidate_id: str, request: CandidateUpdateRequest, db: Ses
 
     # Return full candidate object so frontend doesn't need separate refresh GET
     # Convert skills list to comma-separated string if it's a list
-            skills_str = candidate.candidateSkills
+    skills_str = candidate.candidateSkills
     if isinstance(skills_str, list):
         skills_str = ", ".join(filter(None, skills_str)) if skills_str else None
 
@@ -933,24 +1042,25 @@ def update_candidate(candidate_id: str, request: CandidateUpdateRequest, db: Ses
 def delete_candidate(candidate_id: str, db: Session = Depends(get_db), user = Depends(get_current_hr_or_admin)):
     """
     Delete a candidate and all associated records.
-    
+
     Args:
         candidate_id: ID of the candidate to delete
         db: Database session
         user: Authenticated HR/Admin user
-        
+
     Returns:
         DeleteResponse with success message
-        
+
     Raises:
-        HTTPException: If candidate not found
+        HTTPException: If candidate not found or user lacks BU permission
     """
-    # Find the candidate
-    candidate = db.query(Candidate).filter(Candidate.candidateID == candidate_id).first()
+    # TIER 2 FIX: Add BU scoping to delete_candidate
+    # User can only delete candidates they have access to
+    candidate = get_candidate_by_id_with_bu_scope(db, candidate_id, user)
     if not candidate:
         raise HTTPException(
             status_code=404,
-            detail=f"Candidate with ID {candidate_id} not found"
+            detail=f"Candidate with ID {candidate_id} not found or not accessible"
         )
     
     # ---------------------------------------------------------------
@@ -1064,8 +1174,15 @@ def delete_candidate(candidate_id: str, db: Session = Depends(get_db), user = De
 
     # 17. Finally delete the candidate row --" all FKs cleared above.
     db.delete(candidate)
-    db.commit()
-    
+
+    # TIER 1 FIX: Add try/except to db.commit() for transaction safety
+    try:
+        db.commit()
+    except Exception as e:
+        logger.error(f"Failed to commit deletion of candidate {candidate_id}: {str(e)}", exc_info=True)
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to delete candidate: {str(e)}")
+
     return DeleteResponse(
         status="Success",
         message=f"Candidate with ID {candidate_id} and all associated records deleted successfully"
@@ -1105,37 +1222,51 @@ def convert_candidate_to_employee(
         CandidateStatus.candidateID == candidate_id
     ).first()
 
-    if not candidate_status or candidate_status.piplineStatus != "OFFER":
-        current_status = candidate_status.piplineStatus if candidate_status else "Unknown"
-        raise HTTPException(status_code=400, detail=f"Candidate status is {current_status}, not OFFER")
+    # TIER 3 FIX: Enhanced status validation
+    if not candidate_status:
+        raise HTTPException(status_code=400, detail="Candidate status record not found")
 
-    if not candidate.candidateJoiningDate or candidate.candidateJoiningDate > datetime.now().date():
-        raise HTTPException(status_code=400, detail="Joining date has not arrived yet")
+    if candidate_status.piplineStatus != CANDIDATE_PIPELINE_STATUS_OFFER:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Candidate status is '{candidate_status.piplineStatus}', must be 'OFFER' to convert to employee"
+        )
+
+    # TIER 3 FIX: Validate email and joining date
+    if not candidate.candidateEmail or not _is_valid_email(candidate.candidateEmail):
+        raise HTTPException(status_code=400, detail="Candidate email is missing or invalid")
+
+    if not candidate.candidateJoiningDate:
+        raise HTTPException(status_code=400, detail="Candidate joining date is required")
+
+    if candidate.candidateJoiningDate > datetime.now().date():
+        raise HTTPException(status_code=400, detail=f"Joining date ({candidate.candidateJoiningDate}) has not arrived yet")
 
     try:
         # Create Employee record
+        # TIER 3 FIX: Use constants for status values
         employee = Employee(
             id=str(uuid.uuid4()),
             tenant_id=candidate.tenant_id or "default",
-            first_name=candidate.candidateFirstName,
+            first_name=candidate.candidateFirstName or "Employee",
             last_name=candidate.candidateLastName or "",
             email=candidate.candidateEmail,
-            mobile=candidate.candidateMobile,
+            mobile=candidate.candidateMobile or "",
             gender=candidate.candidateGender,
             date_of_birth=candidate.candidateDateOfBirth,
             status="ACTIVE",
             employment_type=candidate.candidateEmployeeType or "Full-Time",
             designation=candidate.candidateJobTitle or "Employee",
-            location=candidate.candidateCurrentLocation,
+            location=candidate.candidateCurrentLocation or "",
             joining_date=candidate.candidateJoiningDate,
             created_at=datetime.utcnow(),
         )
         db.add(employee)
         db.flush()
 
-        # Update candidate status to EMPLOYEE
-        candidate_status.piplineStatus = "EMPLOYEE"
-        candidate_status.status = "EMPLOYEE"
+        # Update candidate status to EMPLOYEE (using constants)
+        candidate_status.piplineStatus = CANDIDATE_PIPELINE_STATUS_EMPLOYEE
+        candidate_status.status = CANDIDATE_STATUS_EMPLOYEE
         candidate_status.updatedAt = datetime.utcnow()
 
         # Log conversion event
@@ -1151,8 +1282,15 @@ def convert_candidate_to_employee(
             }
         ))
 
-        db.commit()
-        logger.info(f"âœ... Candidate {candidate_id} converted to Employee {employee.id}")
+        # TIER 1 FIX: Add try/except to db.commit() for transaction safety
+        try:
+            db.commit()
+        except Exception as e:
+            logger.error(f"Failed to commit conversion of candidate {candidate_id}: {str(e)}", exc_info=True)
+            db.rollback()
+            raise HTTPException(status_code=500, detail=f"Failed to complete conversion: {str(e)}")
+
+        logger.info(f"Successfully converted Candidate {candidate_id} to Employee {employee.id}")
 
         return {
             "status": "success",
