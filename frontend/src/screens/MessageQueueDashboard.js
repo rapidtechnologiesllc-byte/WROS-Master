@@ -17,6 +17,7 @@ import {
   ArrowLeftOutlined,
 } from '@ant-design/icons';
 import styled from 'styled-components';
+import * as queuesApi from '../services/api/queues';
 
 const PageContainer = styled.div`
   padding: 24px;
@@ -57,15 +58,7 @@ function MessageQueueDashboard() {
       setLoading(true);
       setError(null);
 
-      const token = localStorage.getItem('hrms_token');
-      const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
-
-      const statsRes = await fetch(`/api/v1/queues/stats`, { headers });
-      if (!statsRes.ok) {
-        const errText = await statsRes.text();
-        throw new Error(`Failed to fetch stats: ${errText}`);
-      }
-      const statsData = await statsRes.json();
+      const statsData = await queuesApi.getQueueStats();
 
       // Transform stats to queue list format
       const queueList = QUEUE_TYPES.map(queueType => {
@@ -93,20 +86,7 @@ function MessageQueueDashboard() {
 
   const fetchQueueMessages = async (queueType) => {
     try {
-      const token = localStorage.getItem('hrms_token');
-      const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
-
-      const params = new URLSearchParams();
-      params.append('queue_type', queueType);
-      params.append('limit', 100);
-      params.append('offset', 0);
-
-      const messagesRes = await fetch(`/api/v1/queues?${params}`, { headers });
-      if (!messagesRes.ok) {
-        const errText = await messagesRes.text();
-        throw new Error(`Failed to fetch messages: ${errText}`);
-      }
-      const messagesData = await messagesRes.json();
+      const messagesData = await queuesApi.getQueueMessages(queueType, null, 100, 0);
       setMessages(messagesData.data || []);
       setSelectedQueue(queueType);
       setDrawerVisible(true);
@@ -117,20 +97,15 @@ function MessageQueueDashboard() {
 
   const handleQueueAction = async (queueType, action) => {
     try {
-      const token = localStorage.getItem('hrms_token');
-      const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
-
-      const res = await fetch(`/api/v1/queues/${queueType}/${action}`, {
-        method: 'POST',
-        headers
-      });
-
-      if (!res.ok) {
-        const errText = await res.text();
-        throw new Error(`Failed to ${action} queue: ${errText}`);
+      let result;
+      if (action === 'start') {
+        result = await queuesApi.startQueue(queueType);
+      } else if (action === 'stop') {
+        result = await queuesApi.stopQueue(queueType);
+      } else if (action === 'retry') {
+        result = await queuesApi.retryQueue(queueType);
       }
 
-      const result = await res.json();
       message.success(result.message || `Queue ${action} successful`);
 
       // Refresh stats
@@ -303,19 +278,7 @@ function MessageQueueDashboard() {
 
   const retryMessage = async (messageId) => {
     try {
-      const token = localStorage.getItem('hrms_token');
-      const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
-
-      const res = await fetch(`/api/v1/queues/${messageId}/retry`, {
-        method: 'POST',
-        headers
-      });
-
-      if (!res.ok) {
-        const errText = await res.text();
-        throw new Error(`Failed to retry message: ${errText}`);
-      }
-
+      await queuesApi.retryMessage(messageId);
       message.success('Message queued for retry');
 
       // Refresh messages
@@ -329,19 +292,7 @@ function MessageQueueDashboard() {
 
   const clearMessage = async (messageId) => {
     try {
-      const token = localStorage.getItem('hrms_token');
-      const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
-
-      const res = await fetch(`/api/v1/queues/${messageId}/clear`, {
-        method: 'POST',
-        headers
-      });
-
-      if (!res.ok) {
-        const errText = await res.text();
-        throw new Error(`Failed to clear message: ${errText}`);
-      }
-
+      await queuesApi.clearMessage(messageId);
       message.success('Message cleared from queue');
 
       // Refresh messages
@@ -349,7 +300,8 @@ function MessageQueueDashboard() {
         await fetchQueueMessages(selectedQueue);
       }
     } catch (err) {
-      message.error(err.message);
+      message.error(`Failed to clear message: ${err.message}`);
+      throw err;
     }
   };
 

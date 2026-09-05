@@ -169,10 +169,10 @@ def get_candidate_creation_status(
             "retry_count": message.retry_count,
         }
 
-        # If completed, include candidate_id
-        if message.status == "COMPLETED" and message.result:
-            response["candidate_id"] = message.result.get("candidate_id")
-            response["is_new"] = message.result.get("is_new")
+        # If completed, extract result from payload
+        if message.status == "COMPLETED" and message.payload:
+            response["candidate_id"] = message.payload.get("candidate_id")
+            response["is_new"] = message.payload.get("is_new")
 
         # If failed, include error
         if message.status == "FAILED":

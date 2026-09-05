@@ -37,9 +37,12 @@ import {
   getUserPermissions,
   isSuperAdmin,
   canViewModule,
-  loadRoleTemplateModules,
   filterNavigationByModules,
 } from "../utils/permissionsRbac";
+
+// Constants
+const MAX_RETRIES = 12; // Retry every 5s for up to 60 seconds (0s, 5s, 10s, ..., 55s)
+
 // MODULE_CONFIG removed: backend permission system filters navigation items
 
 // Dynamic navigation driven by role template permissions from backend
@@ -111,59 +114,64 @@ const RESOURCE_KEY_TO_PATH = {
 
 // Fetch pre-built navigation from backend (already filtered by permissions)
 async function fetchNavigationFromBackend() {
-  const { apiRequest } = await import("../services/api/client");
-  console.debug("Fetching navigation from /hr/me/navigation...");
+  try {
+    const { apiRequest } = await import("../services/api/client");
+    console.debug("Fetching navigation from /hr/me/navigation...");
 
-  const result = await apiRequest("/api/v1/hr/me/navigation", { method: "GET" });
-  console.debug("Navigation API response:", result?.data);
+    const result = await apiRequest("/api/v1/hr/me/navigation", { method: "GET" });
+    console.debug("Navigation API response:", result?.data);
 
-  // apiRequest returns { data, response } where data is already parsed JSON
-  // Backend returns { data: { groups: [...] } }, which becomes result.data = { data: { groups: [...] } }
-  // So we need result?.data?.data to get the nested structure
-  let navData = result?.data?.data;
+    // apiRequest returns { data, response } where data is already parsed JSON
+    // Backend returns { data: { groups: [...] } }, which becomes result.data = { data: { groups: [...] } }
+    // So we need result?.data?.data to get the nested structure
+    let navData = result?.data?.data;
 
-  // Fallback: if result.data is already the groups structure, use it directly
-  if (!navData && result?.data?.groups) {
-    navData = result.data;
-  }
-
-  console.debug("Extracted navData:", navData);
-
-  if (!navData) {
-    throw new Error("Navigation response missing data structure");
-  }
-
-  if (!navData.groups || !Array.isArray(navData.groups)) {
-    throw new Error(`Navigation response missing or invalid groups array. navData.groups=${navData.groups}`);
-  }
-
-  console.debug(`Processing ${navData.groups.length} groups...`);
-
-  // Backend returns: { groups: [ { label, icon, items: [{key, label, icon, route}] } ] }
-  // Transform items to use route for navigation - REQUIRES all fields to be present
-  const groups = navData.groups.map(group => {
-    if (!group.items || !Array.isArray(group.items)) {
-      throw new Error(`Navigation group "${group.label}" missing items array`);
+    // Fallback: if result.data is already the groups structure, use it directly
+    if (!navData && result?.data?.groups) {
+      navData = result.data;
     }
 
-    return {
-      ...group,
-      items: group.items.map(item => ({
-        key: item.key,
-        label: item.label,
-        icon: ICON_MAP_BY_RESOURCE[item.key] || Briefcase,
-        path: item.route || RESOURCE_KEY_TO_PATH[item.key] || `/${item.key.replace(/_/g, "-")}`, // Admin path mapping, then fallback
-      }))
-    };
-  });
+    console.debug("Extracted navData:", navData);
 
-  console.debug("Navigation fetched from backend:", {
-    groupCount: groups.length,
-    totalItems: groups.reduce((sum, g) => sum + g.items.length, 0),
-    modules: groups.map(g => `${g.label}(${g.items.length})`).join(", "),
-  });
+    if (!navData) {
+      throw new Error("Navigation response missing data structure");
+    }
 
-  return groups;
+    if (!navData.groups || !Array.isArray(navData.groups)) {
+      throw new Error(`Navigation response missing or invalid groups array. navData.groups=${navData.groups}`);
+    }
+
+    console.debug(`Processing ${navData.groups.length} groups...`);
+
+    // Backend returns: { groups: [ { label, icon, items: [{key, label, icon, route}] } ] }
+    // Transform items to use route for navigation - REQUIRES all fields to be present
+    const groups = navData.groups.map(group => {
+      if (!group.items || !Array.isArray(group.items)) {
+        throw new Error(`Navigation group "${group.label}" missing items array`);
+      }
+
+      return {
+        ...group,
+        items: group.items.map(item => ({
+          key: item.key,
+          label: item.label,
+          icon: ICON_MAP_BY_RESOURCE[item.key] || Briefcase,
+          path: item.route || RESOURCE_KEY_TO_PATH[item.key] || `/${item.key.replace(/_/g, "-")}`, // Admin path mapping, then fallback
+        }))
+      };
+    });
+
+    console.debug("Navigation fetched from backend:", {
+      groupCount: groups.length,
+      totalItems: groups.reduce((sum, g) => sum + g.items.length, 0),
+      modules: groups.map(g => `${g.label}(${g.items.length})`).join(", "),
+    });
+
+    return groups;
+  } catch (error) {
+    console.error(`Failed to fetch navigation from backend: ${error.message}`, error);
+    throw error;
+  }
 }
 
 
