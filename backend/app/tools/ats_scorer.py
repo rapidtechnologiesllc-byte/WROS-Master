@@ -33,18 +33,23 @@ logger = logging.getLogger(__name__)
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 _llm = None
 
-try:
-    _llm = ChatGoogleGenerativeAI(
-        api_key=GEMINI_API_KEY,
-        model="gemini-flash-lite-latest",          # fast, cheap, sufficient for scoring
-        temperature=0.2,                    # low temp → consistent scores
-    )
-except Exception as e:
-    logger.error(f"Error: {str(e)}", exc_info=True)
-    # If Google credentials not available, LLM will be None
-    # ATS scoring will return stub response
+# Only attempt to initialize LLM if API key is provided
+if GEMINI_API_KEY:
+    try:
+        _llm = ChatGoogleGenerativeAI(
+            api_key=GEMINI_API_KEY,
+            model="gemini-flash-lite-latest",          # fast, cheap, sufficient for scoring
+            temperature=0.2,                    # low temp → consistent scores
+        )
+    except Exception as e:
+        logger.error(f"Error initializing LLM: {str(e)}", exc_info=True)
+        # If Google credentials not available, LLM will be None
+        # ATS scoring will return stub response
+        import sys
+        print(f"[WARNING] ATS Scorer: LLM initialization failed: {e}", file=sys.stderr)
+else:
     import sys
-    print(f"[WARNING] ATS Scorer: Google credentials not available: {e}", file=sys.stderr)
+    print("[WARNING] ATS Scorer: GEMINI_API_KEY not set, using stub responses", file=sys.stderr)
 
 def _invoke_llm(prompt: str) -> str:
     """Invoke the LLM and normalise the response to a plain string."""

@@ -232,30 +232,16 @@ class RoleTemplatePermissionService:
                 # CRITICAL FIX: Raise error instead of returning empty dict
                 raise ValueError(f"Cannot get user permissions: no role template found for user_id={user_id}")
 
-            # Get all resources for this tenant
-            resources = db.query(Resource).filter(
-                Resource.tenant_id == tenant_id,
-                Resource.enabled == True
-            ).all()
-
-            if not resources:
-                # CRITICAL FIX: Raise error instead of returning empty dict
-                raise ValueError(f"Cannot get user permissions: no resources found for tenant_id={tenant_id}")
-
-            # Get all role template permissions for this role
+            # OPTIMIZATION: Get only role template permissions (not all resources)
+            # This avoids expensive query of all resources for every request
             role_perms = db.query(RoleTemplatePermission).filter(
                 RoleTemplatePermission.role_template_id == role.id
             ).all()
 
-            # Build role permission lookup
-            role_perm_lookup = {}
-            for perm in role_perms:
-                role_perm_lookup[perm.resource_id] = {
-                    "can_view": perm.can_view,
-                    "can_create": perm.can_create,
-                    "can_edit": perm.can_edit,
-                    "can_delete": perm.can_delete
-                }
+            if not role_perms:
+                # No permissions for this role
+                logger.warning(f"No role template permissions found for role_id={role.id}")
+                return {}
 
             # Get user custom permissions (overrides)
             custom_perms = {}
@@ -275,27 +261,47 @@ class RoleTemplatePermissionService:
                 # UserCustomPermission doesn't exist yet
                 pass
 
-            # Build final permissions (role + overrides)
+            # Build final permissions from role + custom overrides
+            # Only include resources with actual permissions (no need to fetch all resources)
             permissions = {}
-            for resource in resources:
-                # Start with role permission
-                if resource.id in role_perm_lookup:
-                    perms = role_perm_lookup[resource.id]
-                    overridden = False
-                else:
-                    perms = {"can_view": False, "can_create": False, "can_edit": False, "can_delete": False}
+
+            # Get resource IDs from role permissions, then fetch only those resources
+            resource_ids = [perm.resource_id for perm in role_perms]
+            if resource_ids:
+                # Fetch only resources that have permissions assigned
+                resources_with_perms = db.query(Resource).filter(
+                    Resource.id.in_(resource_ids),
+                    Resource.tenant_id == tenant_id,
+                    Resource.enabled == True
+                ).all()
+
+                # Build lookup of resource by ID
+                resource_by_id = {r.id: r for r in resources_with_perms}
+
+                # Combine role permissions with resources
+                for role_perm in role_perms:
+                    resource = resource_by_id.get(role_perm.resource_id)
+                    if not resource:
+                        continue
+
+                    perms = {
+                        "can_view": role_perm.can_view,
+                        "can_create": role_perm.can_create,
+                        "can_edit": role_perm.can_edit,
+                        "can_delete": role_perm.can_delete
+                    }
                     overridden = False
 
-                # Apply custom override if exists
-                if resource.id in custom_perms:
-                    perms = custom_perms[resource.id]
-                    overridden = True
+                    # Apply custom override if exists
+                    if role_perm.resource_id in custom_perms:
+                        perms = custom_perms[role_perm.resource_id]
+                        overridden = True
 
-                permissions[resource.name] = {
-                    **perms,
-                    "display_name": resource.display_name,
-                    "overridden": overridden
-                }
+                    permissions[resource.name] = {
+                        **perms,
+                        "display_name": resource.display_name,
+                        "overridden": overridden
+                    }
 
             logger.info(f"get_user_permissions({user_id}): {len(permissions)} resources, {sum(1 for p in permissions.values() if p['overridden'])} overridden")
             return permissions

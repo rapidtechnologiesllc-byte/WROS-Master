@@ -43,7 +43,7 @@ router = APIRouter(prefix="/hr", tags=["hr"])
 
 @router.get(
     "/me",
-    dependencies=[Depends(get_current_internal_user)],
+    dependencies=[Depends(get_current_internal_user), Depends(require_resource_permission("user", "view"))],
     summary="Get current HR/Admin user's profile with a fresh access token",
 )
 def get_me(
@@ -128,7 +128,7 @@ def get_me(
 
 @router.patch(
     "/me/digest-preference",
-    dependencies=[Depends(get_current_internal_user)],
+    dependencies=[Depends(get_current_internal_user), Depends(require_resource_permission("user", "view"))],
     response_model=DigestPreferenceResponse,
     summary="Enable/disable the recruiter's own Thunder morning digest (S-065/HRMS-0465)",
 )
@@ -144,7 +144,7 @@ def update_digest_preference(
 
 @router.get(
     "/me/permissions",
-    dependencies=[Depends(get_current_internal_user)],
+    dependencies=[Depends(get_current_internal_user), Depends(require_resource_permission("user", "view"))],
     summary="Get current user's permissions for frontend access control",
 )
 def get_current_user_permissions(
@@ -189,7 +189,7 @@ def get_current_user_permissions(
 
 @router.get(
     "/users/all",
-    dependencies=[Depends(get_current_internal_user)],
+    dependencies=[Depends(get_current_internal_user), Depends(require_resource_permission("user", "view"))],
     response_model=AllUsersResponse,
 )
 def get_all_users(
@@ -213,7 +213,11 @@ def get_all_users(
     # Build response
     users_data = []
     for u in users:
-        role_template = db.query(RoleTemplate).filter(RoleTemplate.id == u.role_template_id).first() if u.role_template_id else None
+        # role_template_id is MANDATORY - skip users without role assignment
+        if not u.role_template_id:
+            logger.warning(f"User {u.UserID} has no role_template_id assigned, skipping")
+            continue
+        role_template = db.query(RoleTemplate).filter(RoleTemplate.id == u.role_template_id).first()
         users_data.append(UserResponse(
             user_id=u.UserID,
             user_name=u.UserName or "",
@@ -236,7 +240,7 @@ def get_all_users(
 
 @router.get(
     "/users/search",
-    dependencies=[Depends(get_current_internal_user)],
+    dependencies=[Depends(get_current_internal_user), Depends(require_resource_permission("user", "view"))],
     response_model=AllUsersResponse,
     summary="Search / filter users by name, permission role, or user role",
 )
@@ -350,7 +354,7 @@ def search_users(
 
 @router.get(
     "/users/details/{user_id}",
-    dependencies=[Depends(get_current_internal_user)],
+    dependencies=[Depends(get_current_internal_user), Depends(require_resource_permission("user", "view"))],
     response_model=UserResponse,
     summary="Get user details by user ID",
 )
@@ -369,7 +373,7 @@ def get_user_details_by_id(
             detail=f"User with ID '{user_id}' not found"
         )
 
-    role_template = db.query(RoleTemplate).filter(RoleTemplate.id == u.role_template_id).first() if u.role_template_id else None
+    role_template = db.query(RoleTemplate).filter(RoleTemplate.id == u.role_template_id).first()
 
     return UserResponse(
         user_id=u.UserID,
@@ -1197,7 +1201,7 @@ def get_hiring_manager_assigned_candidates(
 
 @router.get(
     "/job-titles",
-    dependencies=[Depends(get_current_internal_user)],
+    dependencies=[Depends(get_current_internal_user), Depends(require_resource_permission("user", "view"))],
     summary="Get all active job titles for the tenant",
     tags=["reference-data"]
 )
