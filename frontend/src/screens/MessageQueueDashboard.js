@@ -45,6 +45,7 @@ function MessageQueueDashboard() {
     'DASHBOARD_QUEUE',
     'CALENDAR_QUEUE',
     'SIGNATURE_QUEUE',
+    'CANDIDATE_QUEUE',
   ];
 
   useEffect(() => {
