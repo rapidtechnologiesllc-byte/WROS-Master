@@ -1,6 +1,7 @@
 from datetime import datetime
 import logging
 from typing import Optional
+from functools import wraps
 
 from fastapi import APIRouter, Depends, FastAPI, Header, HTTPException, Response
 from fastapi.middleware.cors import CORSMiddleware
@@ -54,6 +55,35 @@ from app.services.linkedin_import_service import (
 from app.services.apollo_integration import search_apollo_by_linkedin_url
 
 router = APIRouter(prefix="/candidate", tags=["candidate"])
+
+
+# ============================================================================
+# Database Error Handling Decorator
+# ============================================================================
+
+def handle_db_errors(func):
+    """
+    Decorator to wrap endpoint functions and handle database errors.
+
+    Catches any database exceptions, rolls back the session, and returns
+    proper HTTP error responses with logging.
+    """
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        db = None
+        try:
+            # Extract db from kwargs if present (for dependency injection)
+            db = kwargs.get('db')
+            return func(*args, **kwargs)
+        except Exception as e:
+            if db:
+                try:
+                    db.rollback()
+                except Exception:
+                    pass
+            logger.error(f"Database error in {func.__name__}: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail=str(e)) from e
+    return wrapper
 
 
 # ============================================================================
@@ -765,6 +795,7 @@ def candidate_aadhar(request: CandidateAadharForm, db: Session = Depends(get_db)
         )
 
 @router.post("/pan-form/", response_model=candidateFormResponse, dependencies=[Depends(require_resource_permission("pan-form", "create"))])
+@handle_db_errors
 def candidate_pan(request: CandidatePanForm, db: Session = Depends(get_db), user = Depends(get_current_candidate)):
     """
     Create or update candidate PAN form.
@@ -838,6 +869,7 @@ def candidate_pan(request: CandidatePanForm, db: Session = Depends(get_db), user
 
 # Individual Education Record Management
 @router.post("/education/add", response_model=candidateFormResponse, dependencies=[Depends(require_resource_permission("education", "create"))])
+@handle_db_errors
 def add_education_record(
     request: EducationRecord,
     db: Session = Depends(get_db),
@@ -877,6 +909,7 @@ def add_education_record(
     )
 
 @router.put("/education/{education_id}", response_model=candidateFormResponse, dependencies=[Depends(require_resource_permission("education", "update"))])
+@handle_db_errors
 def update_education_record(
     education_id: int,
     request: EducationRecord,
@@ -929,6 +962,7 @@ def update_education_record(
     )
 
 @router.delete("/education/{education_id}", response_model=candidateFormResponse, dependencies=[Depends(require_resource_permission("education", "delete"))])
+@handle_db_errors
 def delete_education_record(
     education_id: int,
     db: Session = Depends(get_db),
@@ -1004,6 +1038,7 @@ def list_education_records(
 
 # Individual Experience Record Management
 @router.post("/experience/add", response_model=candidateFormResponse, dependencies=[Depends(require_resource_permission("experience", "create"))])
+@handle_db_errors
 def add_experience_record(
     request: ExperienceRecord,
     db: Session = Depends(get_db),
@@ -1042,6 +1077,7 @@ def add_experience_record(
     )
 
 @router.put("/experience/{experience_id}", response_model=candidateFormResponse, dependencies=[Depends(require_resource_permission("experience", "update"))])
+@handle_db_errors
 def update_experience_record(
     experience_id: int,
     request: ExperienceRecord,
@@ -1093,6 +1129,7 @@ def update_experience_record(
     )
 
 @router.delete("/experience/{experience_id}", response_model=candidateFormResponse, dependencies=[Depends(require_resource_permission("experience", "delete"))])
+@handle_db_errors
 def delete_experience_record(
     experience_id: int,
     db: Session = Depends(get_db),
