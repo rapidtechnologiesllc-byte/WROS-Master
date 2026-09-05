@@ -17,7 +17,6 @@ import logging
 import traceback
 
 from app.core.dependencies import get_current_user, get_db
-from app.core.permission_enforcement import require_action_permission
 from app.models.user import Users
 from app.services.message_queue_service import MessageQueueService
 from app.utils.uniq_id_generator import generate_password
@@ -33,7 +32,6 @@ router = APIRouter(prefix="/api/v1/candidates", tags=["candidates"])
     summary="Queue candidate creation",
     description="Queue a candidate creation request for processing with retries",
 )
-@require_action_permission("candidates", "create")
 def create_candidate(
     request: CandidateCreateRequest,
     current_user: Users = Depends(get_current_user),
