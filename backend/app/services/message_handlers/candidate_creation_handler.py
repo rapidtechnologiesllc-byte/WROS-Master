@@ -12,7 +12,7 @@ from typing import Any, Dict, Optional
 from sqlalchemy.orm import Session
 
 from app.core.logging import logger
-from app.models.message_queue import MessageQueue
+from app.models.channel_queue import ChannelQueueItem
 from app.models.candidate import Candidate
 from app.services.candidate_service import (
     create_candidate_safe,
@@ -31,7 +31,7 @@ class CandidateCreationHandler:
 
     @staticmethod
     def process(
-        message: MessageQueue,
+        message: ChannelQueueItem,
         db: Session,
     ) -> Dict[str, Any]:
         """
@@ -200,7 +200,7 @@ class CandidateCreationHandler:
             raise
 
     @staticmethod
-    def should_retry(message: MessageQueue) -> bool:
+    def should_retry(message: ChannelQueueItem) -> bool:
         """
         Determine if message should be retried.
 
@@ -237,7 +237,7 @@ class CandidateCreationHandler:
         return True
 
     @staticmethod
-    def on_retry(message: MessageQueue, error: str, db: Session) -> None:
+    def on_retry(message: ChannelQueueItem, error: str, db: Session) -> None:
         """
         Handle retry logic after failed attempt.
 
@@ -270,7 +270,7 @@ class CandidateCreationHandler:
         )
 
     @staticmethod
-    def on_success(message: MessageQueue, result: Dict[str, Any], db: Session) -> None:
+    def on_success(message: ChannelQueueItem, result: Dict[str, Any], db: Session) -> None:
         """
         Handle successful message processing.
 
@@ -301,7 +301,7 @@ class CandidateCreationHandler:
         )
 
     @staticmethod
-    def on_failed(message: MessageQueue, final_error: str, db: Session) -> None:
+    def on_failed(message: ChannelQueueItem, final_error: str, db: Session) -> None:
         """
         Handle final failure after all retries exhausted.
 
