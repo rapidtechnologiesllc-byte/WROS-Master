@@ -12,6 +12,7 @@ from typing import Any, Dict, List, Optional
 from sqlalchemy import and_, desc, asc
 from sqlalchemy.orm import Session
 from app.core.logging import logger
+from app.models.message_queue import MessageQueue
 
 logger = logging.getLogger(__name__)
 
