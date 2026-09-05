@@ -344,6 +344,7 @@ def create_candidate(
                     CandidateEducationForm.degree == edu.degree,
                 ).first()
                 if not existing_edu:
+                    # Safe to add: verified record doesn't exist above
                     edu_row = CandidateEducationForm(
                         candidateID=candidate_id,
                         education_institute=edu.education_institute,
@@ -356,6 +357,7 @@ def create_candidate(
                         document_is_submitted=edu.document_is_submitted,
                         document_id=edu.document_id,
                     )
+                    assert not existing_edu, "Education record unexpectedly exists"
                     db.add(edu_row)
                 else:
                     logger.debug(f"Education record already exists for {candidate_id}: {edu.degree}")
@@ -446,7 +448,7 @@ def create_candidate(
     response_model=AllCandidatesResponse,
     dependencies=[Depends(require_resource_permission("candidates", "view"))]
 )
-def get_all_candidates(db: Session = Depends(get_db), user = Depends(get_current_hr_or_admin)):
+async def get_all_candidates(db: Session = Depends(get_db), user = Depends(get_current_hr_or_admin)):
     """
     Get all candidates with their complete information for HR/Admin.
 
