@@ -1096,7 +1096,8 @@ def deactivate_agent(
         "`Mail.ReadWrite` **Application** permission granted by an admin.\n"
         "Go to: *Azure Portal → App Registrations → API permissions → Add permission "
         "→ Microsoft Graph → Application permissions → Mail.Read → Grant admin consent*."
-   async def )
+    ),
+)
 def list_inbox(
     top: int = 50,
     skip: int = 0,
