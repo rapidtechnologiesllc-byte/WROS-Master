@@ -127,6 +127,7 @@ import BuHeadDashboardScreen from "../screens/BuHeadDashboardScreen";
 import MyReferralsScreen from "../screens/MyReferralsScreen";
 import MessageQueueDashboard from "../screens/MessageQueueDashboard";
 import LinkedInPipelineScreen from "../screens/LinkedInPipelineScreen";
+import DocumentUploadScreen from "../screens/DocumentUploadScreen";
 
 
 // Wrapper component that renders the appropriate dashboard based on user permissions
@@ -732,6 +733,13 @@ export default function AppRoutes() {
                   fetchCandidateById={fetchCandidateById}
                   updateCandidate={updateCandidate}
                 />
+              }
+            />
+
+            <Route
+              path="candidates/:candidateId/upload-documents"
+              element={
+                <DocumentUploadScreen candidateId={null} />
               }
             />
 

@@ -11,6 +11,7 @@ Handles:
 import logging
 from datetime import datetime, timedelta
 from typing import Dict
+from enum import Enum
 from sqlalchemy.orm import Session
 
 from app.celery_app import app
@@ -20,9 +21,19 @@ from app.core.redis import get_redis_client
 from app.services.message_queue_service import MessageQueueService
 from app.services.s3_upload_service import get_s3_service
 from app.services.email_service import send_notification_email
-from app.models.candidate_upload_state import CandidateUploadState
 
 logger = logging.getLogger(__name__)
+
+
+class CandidateUploadState(str, Enum):
+    """State machine for candidate document upload lifecycle."""
+    UPLOADING = "uploading"
+    QUEUED = "queued"
+    PROCESSING = "processing"
+    COMPLETE = "complete"
+    ERROR = "error"
+    CANCELLED = "cancelled"
+    ABANDONED = "abandoned"
 
 
 # Configuration constants

@@ -5,6 +5,7 @@ from app.api.v1.endpoints.auth import router as auth_router
 from app.api.v1.endpoints.users import router as users_router
 from app.api.v1.endpoints.create_job import router as create_job_router
 from app.api.v1.endpoints.candidates import router as candidates_router
+from app.api.v1.endpoints.candidates.upload import router as upload_router
 from app.api.v1.endpoints.msgraph import router as msgraph_router
 from app.api.v1.endpoints.interviews import router as interviews_router
 from app.api.v1.endpoints.documents import router as documents_router
@@ -128,6 +129,7 @@ router.include_router(router=users_router)
 router.include_router(router=create_job_router)
 router.include_router(router=interviews_router)
 router.include_router(router=candidates_router)
+router.include_router(router=upload_router)
 router.include_router(router=linkedin_pipeline_router)
 router.include_router(router=msgraph_router)
 router.include_router(router=documents_router)

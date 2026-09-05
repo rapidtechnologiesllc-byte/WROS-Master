@@ -21,6 +21,7 @@ class CandidateDocument(Base):
     
     # Document information
     document_type = Column(String(512), nullable=False, index=True)  # resume, pan, aadhar, etc.
+    document_name = Column(String(512), nullable=True)  # User-friendly document name
     original_filename = Column(String(512), nullable=False)
     stored_filename = Column(String(512), nullable=False)  # Unique filename in SharePoint
     file_size = Column(Integer, nullable=False)  # Size in bytes
@@ -31,6 +32,9 @@ class CandidateDocument(Base):
     sharepoint_url = Column(Text, nullable=True)
     sharepoint_file_id = Column(String(512), nullable=True)
     sharepoint_folder_path = Column(String(512), nullable=True)
+
+    # Upload sequence for progressive uploads
+    upload_sequence = Column(Integer, nullable=True)  # Order in which document was uploaded (1, 2, 3...)
     
     # Security and validation
     is_virus_scanned = Column(Boolean, default=False)

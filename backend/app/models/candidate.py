@@ -101,6 +101,18 @@ class Candidate(Base):
     submission_timestamp = Column(DateTime, nullable=True)  # When candidate was submitted to BU
     thunder_enabled = Column(Boolean, nullable=False, default=True, server_default="1")  # Enable/disable Thunder autonomous processing
 
+    # Progressive Upload Status Tracking
+    upload_status = Column(String(50), nullable=True, default="uploading")  # uploading, queued, processing, complete, error
+    expected_document_count = Column(Integer, nullable=True, default=0)  # Total documents expected
+    actual_document_count = Column(Integer, nullable=True, default=0)  # Documents actually uploaded
+    upload_started_at = Column(DateTime, nullable=True)  # When upload session started
+    last_document_uploaded_at = Column(DateTime, nullable=True)  # When last document was uploaded
+    queued_at = Column(DateTime, nullable=True)  # When queued for processing
+    processing_started_at = Column(DateTime, nullable=True)  # When Celery task started
+    processing_completed_at = Column(DateTime, nullable=True)  # When Celery task completed
+    upload_error = Column(Text, nullable=True)  # Error message if upload failed
+    celery_task_id = Column(String(512), nullable=True)  # Task ID for monitoring
+
     # Relationships
     documents = relationship("CandidateDocument", back_populates="candidate", foreign_keys="CandidateDocument.candidate_id")
     job = relationship("Jobs", foreign_keys=[job_id], lazy="select", back_populates="candidates")
