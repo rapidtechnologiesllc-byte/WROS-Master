@@ -60,7 +60,7 @@ router = APIRouter(prefix="/rejection", tags=["candidate-rejection"])
     status_code=201,
     dependencies=[Depends(require_resource_permission("reject", "create"))]
 )
-def api_reject_candidate(
+async def api_reject_candidate(
     request: RejectCandidateRequest,
     current_user = Depends(get_current_internal_user),
     db: Session = Depends(get_db),
@@ -278,7 +278,7 @@ def api_archive_candidate(
 @router.get(
     "/reasons",
     response_model=list[CandidateRejectionReasonResponse],
-    dependencies=[Depends(require_resource_permission("reason", "view"))]
+    dependencies=[Depends(require_resource_permission("rejection", "view"))]
 )
 def api_get_rejection_reasons(
     current_user = Depends(get_current_internal_user),
@@ -324,7 +324,7 @@ def api_get_rejection_reasons(
 @router.get(
     "/candidate/{candidate_id}",
     response_model=CandidateRejectionStatusResponse,
-    dependencies=[Depends(require_resource_permission("candidate", "view"))]
+    dependencies=[Depends(require_resource_permission("rejection", "view"))]
 )
 def api_get_candidate_rejection_status(
     candidate_id: str,
@@ -374,7 +374,7 @@ def api_get_candidate_rejection_status(
 @router.get(
     "/{rejection_id}",
     response_model=CandidateRejectionResponse,
-    dependencies=[Depends(require_resource_permission("candidate_rejection", "view"))]
+    dependencies=[Depends(require_resource_permission("rejection", "view"))]
 )
 def api_get_rejection(
     rejection_id: int,

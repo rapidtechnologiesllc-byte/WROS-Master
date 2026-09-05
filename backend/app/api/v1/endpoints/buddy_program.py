@@ -45,7 +45,7 @@ def _get_record_or_404(db: Session, record_id: str) -> BuddyProgramRecord:
     response_model=list[BuddyProgramRecordResponse],
     dependencies=[Depends(require_resource_permission("record", "view"))]
 )
-def list_records(current_user: Users = Depends(get_current_internal_user), db: Session = Depends(get_db)):
+async def list_records(current_user: Users = Depends(get_current_internal_user), db: Session = Depends(get_db)):
     return db.query(BuddyProgramRecord).filter(BuddyProgramRecord.status.in_(("IN_PROGRESS", "EXTENDED"))).all()
 
 @router.post(
@@ -114,13 +114,18 @@ def _decide(db: Session, record_id: str, decision: str, notes: "str | None", cha
     if not employee:
         raise HTTPException(status_code=404, detail=f"No employee found for buddy program record {record_id!r}.")
     try:
-        record_graduation_decision(db, record, employee, decision=decision, changed_by=changed_by, notes=notes)
+        result = record_graduation_decision(db, record, employee, decision=decision, changed_by=changed_by, notes=notes)
+        if result is None:
+            raise ValueError("record_graduation_decision returned None")
         db.commit()
         db.refresh(record)
         return record
     except (InvalidGraduationDecision, ExtensionLimitReached) as exc:
         db.rollback()
         raise HTTPException(status_code=422, detail=str(exc))
+    except Exception as exc:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(exc))
 
 @router.get(
     "/records/{record_id}/can-extend",

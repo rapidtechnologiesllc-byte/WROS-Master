@@ -74,7 +74,7 @@ async def get_active_business_unit_id(
     response_model=MyBUAccessResponse,
     dependencies=[Depends(require_resource_permission("my-acce", "view"))]
 )
-def my_bu_access(current_user: Users = Depends(get_current_internal_user), db: Session = Depends(get_db)):
+async def my_bu_access(current_user: Users = Depends(get_current_internal_user), db: Session = Depends(get_db)):
     """
     Get the business units this user has access to.
 
