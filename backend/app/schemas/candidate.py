@@ -173,6 +173,7 @@ class CandidateCompleteResponse(BaseModel):
     pan: CandidatePanResponse | None = None
     status: str | None = None
     pipline_status: str | None = None
+    history: list[dict] = []  # Chronological audit trail of candidate events
 
 class AllCandidatesResponse(BaseModel):
     total_candidates: int
