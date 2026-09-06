@@ -26,11 +26,13 @@ logger = logging.getLogger(__name__)
     response_model=CandidateCreateResponse,
     dependencies=[Depends(require_resource_permission("candidates", "create"))],
 )
-def create_candidate(
+async def create_candidate(
     request: CandidateCreateRequest,
     db: Session = Depends(get_db),
 ):
     """Queue candidate for creation via async processor.
+
+    DEBUG: This is an async endpoint to handle async dependencies.
 
     Flow:
     1. Validate request + generate password
@@ -51,31 +53,34 @@ def create_candidate(
         HTTPException(400): If validation fails
         HTTPException(500): If queue fails
     """
-    # Validate location is required
-    if not request.candidate_current_location or not request.candidate_current_location.strip():
-        raise HTTPException(
-            status_code=400,
-            detail="Location (City, State, Country) is mandatory for candidate creation"
-        )
+    logger.error(f"[DEBUG] Endpoint reached, request={request.candidate_email}")
 
-    # Validate email format
-    if not request.candidate_email or "@" not in request.candidate_email:
-        raise HTTPException(
-            status_code=400,
-            detail="Valid email address is required"
-        )
-
-    # Generate password for candidate (will be sent later)
-    password = generate_password()
-
-    # Queue candidate creation request
-    # CandidateQueueProcessor will handle:
-    # 1. Duplicate detection (email/phone)
-    # 2. Candidate record creation in DB
-    # 3. Status + info record creation
-    # 4. Queueing to Thunder for processing
     try:
-        logger.info(f"Queueing candidate creation: {request.candidate_email}")
+        # Validate location is required
+        if not request.candidate_current_location or not request.candidate_current_location.strip():
+            raise HTTPException(
+                status_code=400,
+                detail="Location (City, State, Country) is mandatory for candidate creation"
+            )
+
+        # Validate email format
+        if not request.candidate_email or "@" not in request.candidate_email:
+            raise HTTPException(
+                status_code=400,
+                detail="Valid email address is required"
+            )
+
+        # Generate password for candidate (will be sent later)
+        password = generate_password()
+
+        # Queue candidate creation request
+        # CandidateQueueProcessor will handle:
+        # 1. Duplicate detection (email/phone)
+        # 2. Candidate record creation in DB
+        # 3. Status + info record creation
+        # 4. Queueing to Thunder for processing
+        logger.info(f"[ENDPOINT START] Queueing candidate creation: {request.candidate_email}")
+        print(f"[DEBUG] Endpoint handler reached with email: {request.candidate_email}")
 
         # Prepare payload for queueing
         payload = {
