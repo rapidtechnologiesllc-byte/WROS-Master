@@ -19,6 +19,7 @@ Access Control:
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List, Dict, Any
+from datetime import datetime
 
 from app.core.dependencies import get_db, get_current_user, require_resource_permission
 from app.models.user import Users
@@ -94,7 +95,7 @@ async def get_finance_dashboard(
                     }
                     for p in partners
                 ],
-                "timestamp": __import__('datetime').datetime.utcnow().isoformat()
+                "timestamp": datetime.utcnow().isoformat()
             }
 
         elif current_user.UserRole == "Partner":
@@ -109,7 +110,7 @@ async def get_finance_dashboard(
                 "pl": FinanceAgent.calculate_real_time_partner_pl(
                     db, current_user.tenant_id, current_user.UserID, annual_goal_usd=5000000
                 ),
-                "timestamp": __import__('datetime').datetime.utcnow().isoformat()
+                "timestamp": datetime.utcnow().isoformat()
             }
 
         elif current_user.UserRole == "BU_HEAD" or current_user.business_unit_id:
@@ -125,7 +126,7 @@ async def get_finance_dashboard(
                 "pl": FinanceAgent.calculate_real_time_partner_pl(
                     db, current_user.tenant_id, bu_id, annual_goal_usd=500000  # Per-BU target
                 ),
-                "timestamp": __import__('datetime').datetime.utcnow().isoformat()
+                "timestamp": datetime.utcnow().isoformat()
             }
 
         else:
@@ -244,7 +245,7 @@ async def detect_cost_anomalies(
     return {
         "partner_id": partner_id,
         "anomalies": anomalies,
-        "timestamp": __import__('datetime').datetime.utcnow().isoformat()
+        "timestamp": datetime.utcnow().isoformat()
     }
 
 @router.get(
@@ -268,7 +269,7 @@ async def hourly_profitability_check(
     results = FinanceAgent.hourly_partner_check(db, current_user.tenant_id)
 
     return {
-        "check_time": __import__('datetime').datetime.utcnow().isoformat(),
+        "check_time": datetime.utcnow().isoformat(),
         "partners_monitored": len(results),
         "critical_alerts": [r for r in results if r.get("status") == "ESCALATION_TRIGGERED"],
         "results": results

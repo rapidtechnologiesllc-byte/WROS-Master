@@ -84,7 +84,7 @@ def get_candidate_ai_assignment(
         "GET/PATCH /admin/tenant/ai-config above."
     ),
 )
-def get_tenant_thunder_enabled(
+async def get_tenant_thunder_enabled(
     current_user: Users = Depends(get_current_internal_user),
 ):
     return TenantThunderEnabledResponse(thunder_enabled=current_user.thunder_enabled)

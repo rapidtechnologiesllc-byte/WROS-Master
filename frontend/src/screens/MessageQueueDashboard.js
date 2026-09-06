@@ -32,37 +32,65 @@ function MessageQueueDashboard() {
   const [error, setError] = useState(null);
   const [selectedQueue, setSelectedQueue] = useState(null);
   const [drawerVisible, setDrawerVisible] = useState(false);
-
-  const QUEUE_TYPES = [
-    'THUNDER_QUEUE',
-    'EMAIL_QUEUE',
-    'WHATSAPP_QUEUE',
-    'SMS_QUEUE',
-    'SLACK_QUEUE',
-    'APPROVAL_QUEUE',
-    'COMMISSION_QUEUE',
-    'CRM_QUEUE',
-    'DASHBOARD_QUEUE',
-    'CALENDAR_QUEUE',
-    'SIGNATURE_QUEUE',
-    'CANDIDATE_QUEUE',
-  ];
+  const [queueTypes, setQueueTypes] = useState([]);
 
   useEffect(() => {
-    fetchQueueStats();
-    const interval = setInterval(fetchQueueStats, 10000);
-    return () => clearInterval(interval);
+    const loadInitialData = async () => {
+      try {
+        await fetchQueueTypes();
+      } catch (err) {
+        console.error('Failed to load queue types:', err);
+      }
+    };
+    loadInitialData();
   }, []);
+
+  useEffect(() => {
+    if (queueTypes.length > 0) {
+      fetchQueueStats();
+      const interval = setInterval(fetchQueueStats, 10000);
+      return () => clearInterval(interval);
+    }
+  }, [queueTypes]);
+
+  const fetchQueueTypes = async () => {
+    try {
+      try {
+        const response = await fetch('/api/v1/config/queue-types');
+        if (!response.ok) {
+          throw new Error('Failed to fetch queue types from backend');
+        }
+        const data = await response.json();
+        setQueueTypes(data.queue_types || []);
+      } catch (fetchErr) {
+        throw fetchErr;
+      }
+    } catch (err) {
+      console.error('Failed to fetch queue types:', err);
+      setError(`Failed to load queue types: ${err.message}`);
+      // Fallback to empty list
+      setQueueTypes([]);
+    }
+  };
 
   const fetchQueueStats = async () => {
     try {
       setLoading(true);
       setError(null);
 
+      // Use fetched queue types, fallback to empty if not loaded
+      const types = queueTypes.length > 0 ? queueTypes : [];
+      if (types.length === 0) {
+        setError('No queue types available');
+        setQueues([]);
+        setLoading(false);
+        return;
+      }
+
       const statsData = await queuesApi.getQueueStats();
 
-      // Transform stats to queue list format
-      const queueList = QUEUE_TYPES.map(queueType => {
+      // Transform stats to queue list format using dynamic queue types
+      const queueList = types.map(queueType => {
         const queueData = statsData.queues?.[queueType] || {};
         const messageCount = queueData.total || 0;
 

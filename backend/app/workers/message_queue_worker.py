@@ -32,14 +32,34 @@ def process_message_queue(batch_size: int = 10, timeout_minutes: int = 30) -> Di
 
     try:
         # Query PENDING messages (ordered by created_at for FIFO)
+        # Process PENDING messages
         pending_messages = db.query(ChannelQueueItem).filter(
             ChannelQueueItem.status == "PENDING"
         ).order_by(ChannelQueueItem.created_at).limit(batch_size).all()
 
-        logger.info(f"[Worker] Found {len(pending_messages) if pending_messages else 0} PENDING messages to process")
+        # Also check for FAILED messages ready for retry
+        retry_messages = db.query(ChannelQueueItem).filter(
+            ChannelQueueItem.status == "FAILED",
+            ChannelQueueItem.next_retry_at <= datetime.utcnow(),
+            ChannelQueueItem.retry_count < 5  # MAX_RETRIES
+        ).order_by(ChannelQueueItem.created_at).limit(batch_size // 2).all()
 
-        if pending_messages:
-            for message in pending_messages:
+        # Re-queue retry messages back to PENDING
+        if retry_messages:
+            for msg in retry_messages:
+                msg.status = "PENDING"
+                logger.info(f"[Worker] Retry attempt {msg.retry_count + 1}/5 for message {msg.id}")
+            try:
+                db.commit()
+            except Exception as e:
+                db.rollback()
+                logger.error(f"[Worker] Failed to reset retry messages to PENDING: {e}", exc_info=True)
+
+        all_messages = (pending_messages or []) + (retry_messages or [])
+        logger.info(f"[Worker] Found {len(all_messages) if all_messages else 0} messages to process ({len(pending_messages) if pending_messages else 0} PENDING, {len(retry_messages) if retry_messages else 0} retrying)")
+
+        if all_messages:
+            for message in all_messages:
                 if not message:
                     logger.warning("[Worker] Skipping None message")
                     continue
@@ -124,8 +144,8 @@ def process_candidate_queue(batch_size: int = 5) -> Dict[str, Any]:
             ChannelQueueItem.status == "PENDING"
         ).order_by(ChannelQueueItem.created_at).limit(batch_size).all()
 
-        if pending_messages:
-            for message in pending_messages:
+        if all_messages:
+            for message in all_messages:
                 try:
                     message.status = "PROCESSING"
                     db.commit()

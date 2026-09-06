@@ -15,6 +15,7 @@ from app.services.candidate_service import create_candidate_safe, find_duplicate
 from app.services.message_queue_service import MessageQueueService
 from app.services.ready_for_opportunity_service import scan_new_job_for_matches
 from app.models.user import Jobs
+from app.models.business_unit import BusinessUnit
 from app.models.candidate import (
     Candidate,
     CandidateEducationForm,
@@ -1223,7 +1224,7 @@ def assign_candidate_to_job(
     # If the job has a BU, candidate moves to BU Owned; otherwise stays Org Pool
     if job.business_unit_id:
         from app.services.candidate_pool_service import set_bu_owned
-        bu = db.query(__import__('app.models.rbac', fromlist=['BusinessUnit']).BusinessUnit).filter_by(id=job.business_unit_id).first()
+        bu = db.query(BusinessUnit).filter_by(id=job.business_unit_id).first()
         bu_name = bu.name if bu else f"BU #{job.business_unit_id}"
         performed_by = getattr(user, 'UserID', None)
         set_bu_owned(

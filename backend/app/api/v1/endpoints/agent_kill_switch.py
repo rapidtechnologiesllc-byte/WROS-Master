@@ -1,4 +1,5 @@
 import logging
+from datetime import datetime
 from app.core.logging import logger
 """Agent Kill Switch API - Execute and manage kill switches."""
 
@@ -67,7 +68,7 @@ def evaluate_all_agents_for_kill_switch(
 
         return {
             "status": "success",
-            "timestamp": str(__import__('datetime').datetime.utcnow()),
+            "timestamp": str(datetime.utcnow()),
             "evaluation_summary": {
                 "total_evaluated": results["evaluated"],
                 "kill_switch_candidates": len(results["kill_switch_candidates"]),

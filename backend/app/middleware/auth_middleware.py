@@ -99,6 +99,11 @@ class AuthenticationMiddleware(BaseHTTPMiddleware):
         "/linkedin-candidate-pipeline/list",
         "/linkedin-candidate-pipeline/queue",
         "/linkedin-candidate-pipeline/status",
+        # Dynamic configuration endpoints (frontend needs these to load)
+        "/api/v1/config/queue-types",
+        "/api/v1/config/message-statuses",
+        "/api/v1/config/candidate-statuses",
+        "/api/v1/config/app-config",
     ]
 
     # Route TEMPLATES (FastAPI's {param} syntax) that are public, for

@@ -20,6 +20,30 @@ def start_scheduler():
         scheduler.start()
         logger.info("[OK] APScheduler started")
 
+        # ── Every 30 sec: MESSAGE QUEUE WORKER (candidate creation, etc) ──────
+        try:
+            from app.workers.message_queue_worker import process_message_queue
+
+            async def _run_message_queue_worker():
+                try:
+                    result = process_message_queue(batch_size=5)
+                    if result["messages_processed"] > 0:
+                        logger.info(f"[scheduler] Message queue processed: {result}")
+                except Exception as exc:
+                    logger.error(f"[scheduler] Message queue worker error: {exc}", exc_info=True)
+
+            scheduler.add_job(
+                _run_message_queue_worker,
+                trigger="interval",
+                seconds=30,
+                id="message_queue_worker",
+                replace_existing=True,
+            )
+            logger.info("[OK] Scheduled message queue worker job (every 30 sec)")
+        except Exception as exc:
+            logger.error(f"Error: {str(exc)}", exc_info=True)
+            logger.warning(f"Could not register message queue worker scheduler: {exc}")
+
         # ── Daily job: expire 90-day BU ownerships ────────────────────────────
         try:
             from app.core.database import SessionLocal

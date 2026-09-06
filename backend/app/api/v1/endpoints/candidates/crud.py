@@ -226,13 +226,12 @@ def create_candidate(
     Raises:
         HTTPException: If candidate with email already exists, or location not provided
     """
-    try:
-        # Validate location is provided (required for candidate search)
-        if not request.candidate_current_location or not request.candidate_current_location.strip():
-            raise HTTPException(
-                status_code=400,
-                detail="Location (City, State, Country) is mandatory for candidate creation"
-            )
+    # Validate location is provided (required for candidate search)
+    if not request.candidate_current_location or not request.candidate_current_location.strip():
+        raise HTTPException(
+            status_code=400,
+            detail="Location (City, State, Country) is mandatory for candidate creation"
+        )
 
     # R-07: createCandidateSafe() is the only sanctioned creation path --
     # runs email/phone/LinkedIn dedup (each independently) before any insert.

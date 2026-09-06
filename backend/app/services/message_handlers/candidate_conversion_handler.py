@@ -12,7 +12,7 @@ from typing import Any, Dict
 from sqlalchemy.orm import Session
 
 from app.core.logging import logger
-from app.models.message_queue import MessageQueue
+from app.models.channel_queue import ChannelQueueItem
 from app.models.candidate import Candidate, CandidateStatus
 from app.models.employee import Employee
 from app.models.candidate_ai import ConversationEvent
@@ -28,7 +28,7 @@ class CandidateConversionHandler:
 
     @staticmethod
     def process(
-        message: MessageQueue,
+        message: ChannelQueueItem,
         db: Session,
     ) -> Dict[str, Any]:
         """
@@ -37,7 +37,7 @@ class CandidateConversionHandler:
         Implements FAIL FAST: Raises exceptions on any error.
 
         Args:
-            message: MessageQueue record with payload containing conversion data
+            message: ChannelQueueItem record with payload containing conversion data
             db: Database session
 
         Returns:
@@ -147,7 +147,7 @@ class CandidateConversionHandler:
             raise
 
     @staticmethod
-    def should_retry(message: MessageQueue) -> bool:
+    def should_retry(message: ChannelQueueItem) -> bool:
         """Determine if message should be retried."""
         if message.retry_count >= CandidateConversionHandler.MAX_RETRIES:
             logger.error(
@@ -172,7 +172,7 @@ class CandidateConversionHandler:
         return True
 
     @staticmethod
-    def on_retry(message: MessageQueue, error: str, db: Session) -> None:
+    def on_retry(message: ChannelQueueItem, error: str, db: Session) -> None:
         """Handle retry logic after failed attempt."""
         from datetime import timedelta
 
@@ -198,7 +198,7 @@ class CandidateConversionHandler:
         )
 
     @staticmethod
-    def on_success(message: MessageQueue, result: Dict[str, Any], db: Session) -> None:
+    def on_success(message: ChannelQueueItem, result: Dict[str, Any], db: Session) -> None:
         """Handle successful message processing."""
         message.status = "COMPLETED"
         message.completed_at = datetime.utcnow()
@@ -219,7 +219,7 @@ class CandidateConversionHandler:
         )
 
     @staticmethod
-    def on_failed(message: MessageQueue, final_error: str, db: Session) -> None:
+    def on_failed(message: ChannelQueueItem, final_error: str, db: Session) -> None:
         """Handle final failure after all retries exhausted."""
         message.status = "FAILED"
         message.error = final_error

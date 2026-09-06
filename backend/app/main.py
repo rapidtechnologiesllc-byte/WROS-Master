@@ -18,6 +18,8 @@ from app.middleware import setup_cors, RequestLoggingMiddleware
 # global tenant-scoping do_orm_execute listener deterministically at
 # process startup. See app.core.tenant_context's module docstring.
 from app.core import tenant_context as _tenant_context  # noqa: F401
+from app.api.v1.endpoints.queues import router as queues_router
+from app.api.v1.endpoints.config import router as config_router
 
 # Agent State models — imported here so Base.metadata.create_all() finds them
 from app.models import agent_phalanx  # noqa: F401
@@ -25,20 +27,29 @@ from app.models import agent_phalanx  # noqa: F401
 # Referral models — imported here for database table creation
 from app.models import referral  # noqa: F401
 
+# Channel Queue models — imported here for database table creation
+from app.models import channel_queue  # noqa: F401
+
 # Create FastAPI application
 # Swagger/(/docs) and ReDoc (/redoc) are interactive, "Try it out"-capable
 # API explorers against this HR system's real PII (employee bank details,
 # salaries, PAN numbers, candidate resumes) -- gated behind DEBUG (already
 # False by default, see app.core.config) so they're not reachable on the
 # open internet in production. Pre-launch security hardening.
-app = FastAPI(
-    title=settings.APP_NAME,
-    version=settings.APP_VERSION,
-    description="HRMS Onboarding and Authentication API",
-    docs_url="/docs" if settings.DEBUG else None,
-    redoc_url="/redoc" if settings.DEBUG else None,
-    openapi_url="/openapi.json" if settings.DEBUG else None,
-)
+try:
+    app = FastAPI(
+        title=settings.APP_NAME or "WROS",
+        version=settings.APP_VERSION or "1.0.0",
+        description="HRMS Onboarding and Authentication API",
+        docs_url="/docs" if settings.DEBUG else None,
+        redoc_url="/redoc" if settings.DEBUG else None,
+        openapi_url="/openapi.json" if settings.DEBUG else None,
+    )
+    if not app:
+        raise RuntimeError("Failed to initialize FastAPI application")
+except Exception as e:
+    logger.error(f"Failed to create FastAPI application: {e}", exc_info=True)
+    raise
 
 # Setup CORS middleware
 setup_cors(app)
@@ -195,6 +206,10 @@ app.include_router(auth_router)
 app.include_router(users_access_control_router)
 # Include v1 routes with /api/v1 prefix
 app.include_router(router)
+# Include message queue routes with /api/v1 prefix
+app.include_router(queues_router, prefix="/api/v1")
+# Include configuration routes with /api/v1 prefix (dynamic config - never hardcode)
+app.include_router(config_router, prefix="/api/v1")
 
 # HRMS-0114 -- fail startup if any route has no explicit identity/
 # permission declaration at all. Runs synchronously at import time
@@ -225,6 +240,12 @@ assert_all_routes_have_permission_declarations(
         "GET /admin/certifications/roles",
         "GET /message-templates/keys",
         "POST /auth/reset-password",
+        "GET /queues/{message_id}",
+        "GET /queues/email/{message_id}/engagement",
+        "GET /config/queue-types",
+        "GET /config/message-statuses",
+        "GET /config/candidate-statuses",
+        "GET /config/app-config",
     ],
 )
 logger.info("[OK] HRMS-0114 route permission audit passed")

@@ -1,4 +1,4 @@
-from datetime import datetime
+﻿from datetime import datetime
 import logging
 from typing import Optional
 
@@ -290,20 +290,20 @@ def search_users(
         description="Partial, case-insensitive match on business unit name",
     ),
     skip: int = Query(default=0, ge=0, description="Records to skip"),
-    limit: int = Query(default=50, ge=1, le=200, description="Max records to return (1â€“200)"),
+    limit: int = Query(default=50, ge=1, le=200, description="Max records to return (1-200)"),
 ):
     """
-    Search users with any combination of filters.  All filters are optional â€”
+    Search users with any combination of filters.  All filters are optional â€"
     omit all of them to get a paginated list of every user.
 
     **Filters:**
-    - `name` â€” partial, case-insensitive match on `UserName` **or** `UserEmail`
-    - `permission_role` â€” exact match on the RBAC `Role.name`
+    - `name` â€" partial, case-insensitive match on `UserName` **or** `UserEmail`
+    - `permission_role` â€" exact match on the RBAC `Role.name`
       (e.g. `'HR Manager'`, `'Recruiter'`, `'Admin'`)
-    - `user_role` â€” exact match on the legacy `UserRole` column
+    - `user_role` â€" exact match on the legacy `UserRole` column
       (e.g. `'HR'`, `'Admin'`)
-    - `department` â€” partial, case-insensitive match on `Department.name`
-    - `business_unit` â€” partial, case-insensitive match on `BusinessUnit.name`
+    - `department` â€" partial, case-insensitive match on `Department.name`
+    - `business_unit` â€" partial, case-insensitive match on `BusinessUnit.name`
 
     **Pagination:** use `skip` / `limit`.
     """
@@ -313,7 +313,7 @@ def search_users(
     # optional filters below narrow it further.
     query = db.query(Users)
 
-    # â”€â”€ name filter â€” partial match on UserName OR UserEmail â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # â"€â"€ name filter â€" partial match on UserName OR UserEmail â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
     if name:
         pattern = f"%{name.lower()}%"
         query = query.filter(
@@ -323,7 +323,7 @@ def search_users(
             )
         )
 
-    # â”€â”€ role template filter (via role_template_id) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # â"€â"€ role template filter (via role_template_id) â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
     if user_role:
         query = query.join(RoleTemplate, RoleTemplate.id == Users.role_template_id).filter(
             RoleTemplate.name == user_role
@@ -332,14 +332,14 @@ def search_users(
     # NOTE: permission_role filter removed 2026-08-24 (referenced non-existent Role model and Users.role_id field)
     # If needed, use RoleTemplate join: query.join(RoleTemplate, RoleTemplate.id == Users.role_template_id)
 
-    # â”€â”€ Department filter â€” join through Department â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # â"€â"€ Department filter â€" join through Department â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
     if department:
         dept_pattern = f"%{department.lower()}%"
         query = query.join(Department, Department.id == Users.department_id).filter(
             sql_func.lower(Department.name).like(dept_pattern)
         )
 
-    # â”€â”€ Business unit filter â€” join through BusinessUnit â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # â"€â"€ Business unit filter â€" join through BusinessUnit â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
     if business_unit:
         bu_pattern = f"%{business_unit.lower()}%"
         from app.models.business_unit import BusinessUnitContext
@@ -1081,7 +1081,7 @@ def delete_user(
             {Jobs.recuriterID: None}, synchronize_session=False
         )
     except Exception as update_error:
-        logger.error(f”Failed to nullify Jobs.recuriterID for {user_id}: {update_error}”, exc_info=True)
+        logger.error(f"Failed to nullify Jobs.recuriterID for {user_id}: {update_error}", exc_info=True)
         raise
 
     try:
@@ -1089,7 +1089,7 @@ def delete_user(
             {Jobs.hiringManagerID: None}, synchronize_session=False
         )
     except Exception as update_error:
-        logger.error(f”Failed to nullify Jobs.hiringManagerID for {user_id}: {update_error}”, exc_info=True)
+        logger.error(f"Failed to nullify Jobs.hiringManagerID for {user_id}: {update_error}", exc_info=True)
         raise
 
     try:
@@ -1097,7 +1097,7 @@ def delete_user(
             CandidateAssignment.hiring_manager_id == user_id
         ).update({CandidateAssignment.hiring_manager_id: None}, synchronize_session=False)
     except Exception as update_error:
-        logger.error(f”Failed to nullify CandidateAssignment.hiring_manager_id for {user_id}: {update_error}”, exc_info=True)
+        logger.error(f"Failed to nullify CandidateAssignment.hiring_manager_id for {user_id}: {update_error}", exc_info=True)
         raise
 
     try:
@@ -1105,7 +1105,7 @@ def delete_user(
             CandidateAssignment.reporting_manager_id == user_id
         ).update({CandidateAssignment.reporting_manager_id: None}, synchronize_session=False)
     except Exception as update_error:
-        logger.error(f”Failed to nullify CandidateAssignment.reporting_manager_id for {user_id}: {update_error}”, exc_info=True)
+        logger.error(f"Failed to nullify CandidateAssignment.reporting_manager_id for {user_id}: {update_error}", exc_info=True)
         raise
 
     try:
@@ -1113,7 +1113,7 @@ def delete_user(
             {PanelMember.interviewer_id: None}, synchronize_session=False
         )
     except Exception as update_error:
-        logger.error(f”Failed to nullify PanelMember.interviewer_id for {user_id}: {update_error}”, exc_info=True)
+        logger.error(f"Failed to nullify PanelMember.interviewer_id for {user_id}: {update_error}", exc_info=True)
         raise
 
     try:
@@ -1121,7 +1121,7 @@ def delete_user(
             {InterviewFeedback.interviewer_id: None}, synchronize_session=False
         )
     except Exception as update_error:
-        logger.error(f”Failed to nullify InterviewFeedback.interviewer_id for {user_id}: {update_error}”, exc_info=True)
+        logger.error(f"Failed to nullify InterviewFeedback.interviewer_id for {user_id}: {update_error}", exc_info=True)
         raise
 
     try:
@@ -1129,7 +1129,7 @@ def delete_user(
             {OfferLetter.hiring_manager_id: None}, synchronize_session=False
         )
     except Exception as update_error:
-        logger.error(f”Failed to nullify OfferLetter.hiring_manager_id for {user_id}: {update_error}”, exc_info=True)
+        logger.error(f"Failed to nullify OfferLetter.hiring_manager_id for {user_id}: {update_error}", exc_info=True)
         raise
 
     try:
@@ -1137,7 +1137,7 @@ def delete_user(
             {OfferLetter.reporting_manager_id: None}, synchronize_session=False
         )
     except Exception as update_error:
-        logger.error(f”Failed to nullify OfferLetter.reporting_manager_id for {user_id}: {update_error}”, exc_info=True)
+        logger.error(f"Failed to nullify OfferLetter.reporting_manager_id for {user_id}: {update_error}", exc_info=True)
         raise
 
     try:
@@ -1145,7 +1145,7 @@ def delete_user(
             {OfferLetter.created_by: None}, synchronize_session=False
         )
     except Exception as update_error:
-        logger.error(f”Failed to nullify OfferLetter.created_by for {user_id}: {update_error}”, exc_info=True)
+        logger.error(f"Failed to nullify OfferLetter.created_by for {user_id}: {update_error}", exc_info=True)
         raise
 
     try:
@@ -1153,7 +1153,7 @@ def delete_user(
             {OfferLetter.cancelled_by: None}, synchronize_session=False
         )
     except Exception as update_error:
-        logger.error(f”Failed to nullify OfferLetter.cancelled_by for {user_id}: {update_error}”, exc_info=True)
+        logger.error(f"Failed to nullify OfferLetter.cancelled_by for {user_id}: {update_error}", exc_info=True)
         raise
 
     try:
@@ -1161,7 +1161,7 @@ def delete_user(
             {CandidateDocument.verified_by: None}, synchronize_session=False
         )
     except Exception as update_error:
-        logger.error(f”Failed to nullify CandidateDocument.verified_by for {user_id}: {update_error}”, exc_info=True)
+        logger.error(f"Failed to nullify CandidateDocument.verified_by for {user_id}: {update_error}", exc_info=True)
         raise
 
     try:
@@ -1169,19 +1169,19 @@ def delete_user(
             {Newsletter.created_by: None}, synchronize_session=False
         )
     except Exception as update_error:
-        logger.error(f”Failed to nullify Newsletter.created_by for {user_id}: {update_error}”, exc_info=True)
+        logger.error(f"Failed to nullify Newsletter.created_by for {user_id}: {update_error}", exc_info=True)
         raise
 
     try:
         db.delete(target)
     except Exception as delete_error:
-        logger.error(f”Failed to delete user {user_id}: {delete_error}”, exc_info=True)
+        logger.error(f"Failed to delete user {user_id}: {delete_error}", exc_info=True)
         raise
 
     try:
         db.commit()
     except Exception as commit_error:
-        logger.error(f”Failed to commit user deletion for {user_id}: {commit_error}”, exc_info=True)
+        logger.error(f"Failed to commit user deletion for {user_id}: {commit_error}", exc_info=True)
         db.rollback()
         raise
 

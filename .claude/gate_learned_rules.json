@@ -1,57 +1,7 @@
 {
-  "timestamp": "2026-09-05T22:09:04.602301",
-  "pattern_analysis": {
-    "non_existent_dependencies": {
-      "pattern": "Depends(function_name) where function_name is not imported or defined",
-      "severity": "CRITICAL",
-      "impact": "Endpoint hangs indefinitely - user sees timeout, no error logs",
-      "examples": [
-        "user = Depends(get_current_hr_or_admin)  # Function doesn't exist!",
-        "Depends(undefined_function_reference)"
-      ],
-      "prevention": "Check all functions in Depends() have imports before commit"
-    },
-    "auth_scheme_mixing": {
-      "pattern": "Using old Depends(get_current_*) alongside new role template auth",
-      "severity": "CRITICAL",
-      "impact": "Conflicting auth schemes cause hangs or permission errors",
-      "examples": [
-        "@router.post('/endpoint', dependencies=[Depends(require_role_template_permission(...))])\\ndef endpoint(user=Depends(get_current_hr_or_admin)):  # Mixed!",
-        "Combining @require_permission with Depends(get_current_user)"
-      ],
-      "prevention": "Use ONLY new role templates, remove all old Depends(get_current_*)"
-    }
-  },
-  "rule_updates": [
-    {
-      "rule_id": "undefined_depends_detection",
-      "rule_name": "Detect Undefined Depends() Functions",
-      "added": "2026-09-05",
-      "description": "Architect agent must scan all Depends(...) calls and verify the function exists in imported modules. Reject if undefined.",
-      "implementation": "Parse decorator args, extract function names, check against module imports before architecture approval"
-    },
-    {
-      "rule_id": "auth_scheme_consistency",
-      "rule_name": "No Auth Scheme Mixing",
-      "added": "2026-09-05",
-      "description": "Reject endpoints that mix old Depends(get_current_*) with new role template @dependencies",
-      "implementation": "If file has both old and new auth patterns, require choosing one and removing the other"
-    }
-  ],
-  "detection_improvements": [
-    "Scan all FastAPI @router decorators for dependencies parameter",
-    "Extract Depends(...) function names from both @router and function parameters",
-    "Cross-reference against imported modules (from app.core.dependencies import X)",
-    "Flag if function name not found in imports as CRITICAL",
-    "Check for auth mixing: if role templates present, flag any remaining Depends(get_current_*)",
-    "Provide actionable fix: 'Undefined dependency get_current_hr_or_admin - either import it or remove it'"
-  ],
-  "learning_insights": [
-    "Non-existent dependencies cause silent hangs (no exception in logs) - very hard to debug",
-    "Hangs happen at FastAPI dependency resolution phase, before endpoint code runs",
-    "Backend logs show NOTHING when dependency fails - request just times out",
-    "Frontend users see 'connection timeout' or 'internal server error' after 10-30 seconds",
-    "Real incident: 3+ hours debugging to find unused old auth function in Depends()",
-    "Prevention is better than debugging - architect agent must catch this before gate"
-  ]
+  "timestamp": "2026-09-05T22:45:30.771059",
+  "pattern_analysis": {},
+  "rule_updates": [],
+  "detection_improvements": [],
+  "learning_insights": []
 }

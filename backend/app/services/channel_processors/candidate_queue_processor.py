@@ -8,8 +8,9 @@ from typing import Any, Dict, Optional
 from sqlalchemy.orm import Session
 
 from app.core.logging import logger
-from app.models.message_queue import MessageQueue, MessageChannel
-from app.services.message_handlers import CandidateCreationHandler, CandidateConversionHandler
+from app.models.channel_queue import ChannelQueueItem
+from app.services.message_handlers.candidate_creation_handler import CandidateCreationHandler
+from app.services.message_handlers.candidate_conversion_handler import CandidateConversionHandler
 
 logger = logging.getLogger(__name__)
 
@@ -19,8 +20,7 @@ class CandidateQueueProcessor:
 
     @staticmethod
     def process(
-        message: MessageQueue,
-        channel: MessageChannel,
+        message: ChannelQueueItem,
         db: Session,
     ) -> Dict[str, Any]:
         """
@@ -29,7 +29,7 @@ class CandidateQueueProcessor:
         Routes to appropriate handler and implements retry logic.
 
         Args:
-            message: MessageQueue record with message_type and payload
+            message: ChannelQueueItem record with message_type and payload
             channel: MessageChannel record indicating this processing attempt
             db: Database session
 
@@ -78,7 +78,11 @@ class CandidateQueueProcessor:
                     f"{handler_class.MAX_RETRIES}): {str(e)}",
                     exc_info=True,
                 )
-                handler_class.on_retry(message, str(e), db)
+                try:
+                    handler_class.on_retry(message, str(e), db)
+                except Exception as retry_error:
+                    logger.error(f"Failed to schedule retry: {retry_error}", exc_info=True)
+                    raise RuntimeError(f"Failed to schedule retry: {str(retry_error)}") from retry_error
                 raise RuntimeError(f"Retryable error: {str(e)}") from e
 
             else:
@@ -87,12 +91,16 @@ class CandidateQueueProcessor:
                     f"max retries ({handler_class.MAX_RETRIES}): {str(e)}",
                     exc_info=True,
                 )
-                handler_class.on_failed(message, str(e), db)
+                try:
+                    handler_class.on_failed(message, str(e), db)
+                except Exception as fail_error:
+                    logger.error(f"Failed to mark as failed: {fail_error}", exc_info=True)
+                    raise RuntimeError(f"Failed to mark as failed: {str(fail_error)}") from fail_error
                 raise RuntimeError(f"Max retries exceeded: {str(e)}") from e
 
     @staticmethod
     def handle_success(
-        message: MessageQueue,
+        message: ChannelQueueItem,
         result: Dict[str, Any],
         db: Session,
     ) -> None:
@@ -102,7 +110,7 @@ class CandidateQueueProcessor:
         Updates message and channel records.
 
         Args:
-            message: MessageQueue record
+            message: ChannelQueueItem record
             result: Result from handler
             db: Database session
         """
@@ -120,36 +128,3 @@ class CandidateQueueProcessor:
             raise
 
         logger.info(f"[CandidateQueueProcessor] ✅ Message {message.id} completed successfully")
-
-    @staticmethod
-    def handle_failure(
-        message: MessageQueue,
-        error: str,
-        channel: MessageChannel,
-        db: Session,
-    ) -> None:
-        """
-        Mark processing as failed.
-
-        Args:
-            message: MessageQueue record
-            error: Error message
-            channel: MessageChannel record
-            db: Database session
-        """
-        channel.status = "FAILED"
-        channel.error_details = error
-
-        try:
-            db.commit()
-        except Exception as e:
-            db.rollback()
-            logger.error(
-                f"[CandidateQueueProcessor] Failed to commit failure for channel {channel.id}: {e}",
-                exc_info=True,
-            )
-            raise
-
-        logger.error(
-            f"[CandidateQueueProcessor] ❌ Channel {channel.id} failed: {error}"
-        )

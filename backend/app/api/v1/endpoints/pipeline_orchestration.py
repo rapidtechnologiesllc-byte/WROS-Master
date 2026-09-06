@@ -11,6 +11,7 @@ Endpoints:
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
+from datetime import datetime
 
 from app.core.dependencies import get_db, get_current_user, require_resource_permission
 from app.core.database import get_db
@@ -119,7 +120,7 @@ async def execute_all_agents(
     try:
         results = {
             "status": "success",
-            "timestamp": str(__import__("datetime").datetime.utcnow()),
+            "timestamp": str(datetime.utcnow()),
             "cycle": "Flash orchestration cycle",
             "agents": []
         }

@@ -42,12 +42,15 @@ class ChannelQueueItem(Base):
     # Link to original message
     message_id = Column(String(512), nullable=False, index=True)  # FK to message_queue.id
 
+    # Message type (e.g., 'create_candidate', 'send_email', 'schedule_interview')
+    type = Column(String(100), nullable=False, index=True, comment="Message type: create_candidate, send_email, schedule_interview, etc.")
+
     # Channel configuration
     channel_type = Column(
         String(100),
         nullable=False,
         index=True,
-        comment="EMAIL, WHATSAPP, SMS, SLACK, THUNDER, APPROVAL, COMMISSION, CRM, DASHBOARD, CALENDAR, SIGNATURE, TIMESHEET, KPI, SALES, CLIENT"
+        comment="EMAIL, WHATSAPP, SMS, SLACK, THUNDER, APPROVAL, COMMISSION, CRM, DASHBOARD, CALENDAR, SIGNATURE, TIMESHEET, KPI, SALES, CLIENT, CANDIDATE_QUEUE"
     )
 
     # Status tracking
@@ -62,6 +65,9 @@ class ChannelQueueItem(Base):
     payload = Column(JSON(), nullable=False)  # Channel-specific data (recipient, template vars, etc.)
     recipient = Column(String(512), nullable=True)  # Email, phone, user_id, channel_id, etc.
 
+    # Processing result (set when status=COMPLETED)
+    result = Column(JSON(), nullable=True)  # Result from handler (e.g., {'candidate_id': '...', 'is_new': True})
+
     # Retry logic
     retry_count = Column(Integer, nullable=False, default=0)
     error = Column(Text(), nullable=True)
@@ -69,6 +75,7 @@ class ChannelQueueItem(Base):
 
     # Timestamps
     processed_at = Column(DateTime(timezone=False), nullable=True)
+    completed_at = Column(DateTime(timezone=False), nullable=True)  # When processing completed (success or failure)
     created_at = Column(DateTime(timezone=False), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=False), server_default=func.now(), onupdate=func.now(), nullable=False)
 
