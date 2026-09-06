@@ -16,6 +16,8 @@ from sqlalchemy.orm import Session
 from app.core.logging import logger
 from app.core.database import get_db
 from app.models.channel_queue import ChannelQueueItem
+from app.models.candidate import Candidate
+from app.models.system_config import SystemConfig
 
 logger = logging.getLogger(__name__)
 
@@ -40,8 +42,8 @@ async def get_queue_types(db: Session = Depends(get_db)):
     Listed in auth_middleware.py PUBLIC_ROUTES and main.py known_exceptions.
     """
     try:
-        # Query distinct queue types from ChannelQueueItem model
-        queue_items = db.query(ChannelQueueItem.queue_type).distinct().all()
+        # Query distinct channel types from ChannelQueueItem model
+        queue_items = db.query(ChannelQueueItem.channel_type).distinct().all()
         queue_types = sorted([item[0] for item in queue_items if item[0]])
 
         if not queue_types:
@@ -63,7 +65,7 @@ async def get_queue_types(db: Session = Depends(get_db)):
 
 
 @router.get("/message-statuses", response_model=Dict[str, Any])
-async def get_message_statuses():
+async def get_message_statuses(db: Session = Depends(get_db)):
     """Get all valid message statuses.
 
     Returns the lifecycle statuses messages go through (PENDING, PROCESSING, COMPLETED, FAILED, etc)
@@ -73,25 +75,18 @@ async def get_message_statuses():
     Listed in auth_middleware.py PUBLIC_ROUTES and main.py known_exceptions.
     """
     try:
-        statuses = [
-            "PENDING",
-            "PROCESSING",
-            "COMPLETED",
-            "FAILED",
-            "RETRYING",
-            "CANCELLED"
-        ]
+        # Query distinct statuses from ChannelQueueItem model
+        status_items = db.query(ChannelQueueItem.status).distinct().all()
+        statuses = sorted([item[0] for item in status_items if item[0]])
 
-        if not statuses or len(statuses) == 0:
-            raise ValueError("No message statuses configured")
+        if not statuses:
+            logger.warning("No message statuses found in database, returning empty list")
 
         result = {
             "status": "success",
             "message_statuses": statuses,
             "count": len(statuses)
         }
-        if not result:
-            raise ValueError("Failed to build response")
 
         return result
     except Exception as e:
@@ -103,7 +98,7 @@ async def get_message_statuses():
 
 
 @router.get("/candidate-statuses", response_model=Dict[str, Any])
-async def get_candidate_statuses():
+async def get_candidate_statuses(db: Session = Depends(get_db)):
     """Get all valid candidate statuses.
 
     Returns the lifecycle statuses candidates go through (Applied, Screening, Interview, etc)
@@ -113,28 +108,18 @@ async def get_candidate_statuses():
     Listed in auth_middleware.py PUBLIC_ROUTES and main.py known_exceptions.
     """
     try:
-        statuses = [
-            "Applied",
-            "Screening",
-            "Qualified",
-            "Interview",
-            "Offer",
-            "Hired",
-            "Rejected",
-            "OnHold",
-            "Withdrawn"
-        ]
+        # Query distinct candidate statuses from Candidate model (application_status field)
+        status_items = db.query(Candidate.application_status).distinct().all()
+        statuses = sorted([item[0] for item in status_items if item[0]])
 
-        if not statuses or len(statuses) == 0:
-            raise ValueError("No candidate statuses configured")
+        if not statuses:
+            logger.warning("No candidate statuses found in database, returning empty list")
 
         result = {
             "status": "success",
             "candidate_statuses": statuses,
             "count": len(statuses)
         }
-        if not result:
-            raise ValueError("Failed to build response")
 
         return result
     except Exception as e:
@@ -146,49 +131,57 @@ async def get_candidate_statuses():
 
 
 @router.get("/app-config", response_model=Dict[str, Any])
-async def get_app_config():
+async def get_app_config(db: Session = Depends(get_db)):
     """Get application-wide configuration settings.
 
     Returns polling intervals, timeouts, retry limits, feature flags, etc.
+    Fetches from SystemConfig database. Falls back to defaults if not configured.
 
     NOTE: This is a PUBLIC endpoint - no authentication required.
     Intentionally accessible without auth to allow frontend initialization before login.
     Listed in auth_middleware.py PUBLIC_ROUTES and main.py known_exceptions.
     """
     try:
-        config = {
-            "polling": {
+        # Query all system config (tenant-wide defaults: business_unit_id IS NULL)
+        # For now, assume tenant_id=1 (single tenant setup)
+        try:
+            config_items = db.query(SystemConfig).filter(
+                SystemConfig.tenant_id == 1,
+                SystemConfig.business_unit_id == None
+            ).all()
+        except Exception as e:
+            logger.error(f"Failed to query system config from database: {e}", exc_info=True)
+            config_items = []
+
+        # Build config dict from database, or use defaults
+        config = {}
+        if config_items:
+            for item in config_items:
+                if item.config_key not in config:
+                    config[item.config_key] = item.config_value
+        else:
+            logger.warning("No app configuration found in database, using defaults")
+            # Sensible defaults
+            config = {
                 "queue_stats_interval_seconds": 10,
                 "message_check_interval_seconds": 5,
-                "status_update_interval_seconds": 30
-            },
-            "timeouts": {
+                "status_update_interval_seconds": 30,
                 "api_request_timeout_seconds": 30,
                 "queue_message_timeout_minutes": 30,
-                "handler_execution_timeout_minutes": 15
-            },
-            "retries": {
+                "handler_execution_timeout_minutes": 15,
                 "max_retry_attempts": 5,
                 "retry_delay_minutes": 30,
-                "max_total_retry_time_hours": 24
-            },
-            "features": {
+                "max_total_retry_time_hours": 24,
                 "async_message_processing_enabled": True,
                 "history_logging_enabled": True,
                 "duplicate_candidate_detection_enabled": True,
                 "idempotency_checking_enabled": True
             }
-        }
-
-        if not config or len(config) == 0:
-            raise ValueError("No app configuration available")
 
         result = {
             "status": "success",
             "config": config
         }
-        if not result:
-            raise ValueError("Failed to build response")
 
         return result
     except Exception as e:
