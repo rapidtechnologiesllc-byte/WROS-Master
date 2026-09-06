@@ -47,14 +47,29 @@ class MessageQueueService:
             )
         except Exception as celery_error:
             # FAIL HARD - do not fall back to database
+            error_msg = str(celery_error).lower()
+            is_connection_error = any(
+                key in error_msg
+                for key in ["connection refused", "connect timeout", "unreachable", "redis"]
+            )
+
             logger.error(
                 f"CRITICAL: Celery queue failed for {task_name}: {celery_error}",
                 exc_info=True
             )
-            logger.error("Redis/Celery infrastructure is DOWN - this is a critical system failure")
-            raise RuntimeError(
-                f"Message queue unavailable (Celery/Redis down): {str(celery_error)}"
-            )
+
+            if is_connection_error:
+                error_detail = (
+                    "Redis broker is not running on localhost:6379. "
+                    "Please start Redis: redis-server --port 6379"
+                )
+                logger.error(f"Redis/Celery infrastructure is DOWN: {error_detail}")
+                raise RuntimeError(error_detail)
+            else:
+                logger.error("Redis/Celery infrastructure is DOWN - this is a critical system failure")
+                raise RuntimeError(
+                    f"Message queue unavailable (Celery/Redis down): {str(celery_error)}"
+                )
 
     @staticmethod
     def _enqueue_celery(
@@ -186,11 +201,21 @@ class MessageQueueService:
                     logger.error(f"Failed to create queue item: {create_err}", exc_info=True)
                     raise
 
+                # Check if queue item already exists (avoid duplicate on retry)
                 try:
-                    db.add(queue_item)
-                except Exception as add_err:
-                    logger.error(f"Failed to add: {add_err}", exc_info=True)
+                    existing = db.query(ChannelQueueItem).filter(
+                        ChannelQueueItem.message_id == task.id
+                    ).first()
+                except Exception as query_err:
+                    logger.error(f"Failed to query existing queue item: {query_err}", exc_info=True)
                     raise
+
+                if not existing:
+                    try:
+                        db.add(queue_item)
+                    except Exception as add_err:
+                        logger.error(f"Failed to add queue item: {add_err}", exc_info=True)
+                        raise
 
                 try:
                     db.commit()
@@ -208,12 +233,16 @@ class MessageQueueService:
             logger.error(f"CRITICAL: Failed to log task to database: {db_error}", exc_info=True)
             try:
                 db.rollback()
-            except Exception:
-                pass
+            except Exception as rollback_err:
+                # Intentional: rollback may fail if connection already closed
+                # Task is already queued in Celery, so main flow succeeded
+                logger.warning(f"Failed to rollback transaction: {rollback_err}")
             try:
                 db.close()
-            except Exception:
-                pass
+            except Exception as close_err:
+                # Intentional: close may fail if session already terminated
+                # We've already logged the error above
+                logger.warning(f"Failed to close database session: {close_err}")
             # Re-raise so caller knows logging failed
             raise RuntimeError(
                 f"Queue task logging to database failed: {str(db_error)}. "

@@ -120,6 +120,12 @@ async def startup_event():
     settings.validate_config()
     logger.info("[OK] Configuration validated")
 
+    # Verify Redis broker is available (fail fast if not)
+    from app.celery_app import check_redis_connection
+    if not check_redis_connection():
+        logger.warning("[WARNING] Redis broker unavailable - background tasks will fail")
+        logger.warning("[WARNING] Candidate creation will timeout - please start Redis")
+
     # Start APScheduler immediately (no I/O needed)
     from app.core.scheduler import start_scheduler
     start_scheduler()

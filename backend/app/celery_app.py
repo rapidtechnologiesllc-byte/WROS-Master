@@ -11,6 +11,8 @@ TASK_HARD_TIMEOUT_SECONDS = 30 * 60
 TASK_SOFT_TIMEOUT_SECONDS = 25 * 60
 RESULT_EXPIRES_SECONDS = 3600
 WORKER_MAX_TASKS = 100
+REDIS_CONNECT_TIMEOUT_SECONDS = 5
+REDIS_SOCKET_TIMEOUT_SECONDS = 5
 
 # Create Celery app instance
 redis_url = getattr(settings, 'REDIS_URL', None) or 'redis://localhost:6379/0'
@@ -34,7 +36,34 @@ app.conf.update(
     result_expires=RESULT_EXPIRES_SECONDS,
     worker_prefetch_multiplier=1,
     worker_max_tasks_per_child=WORKER_MAX_TASKS,
+    # Connection timeouts (fail fast if Redis unavailable)
+    broker_connection_retry_on_startup=False,
+    broker_connection_retry=False,
+    broker_connection_max_retries=0,
+    redis_socket_connect_timeout=REDIS_CONNECT_TIMEOUT_SECONDS,
+    redis_socket_timeout=REDIS_SOCKET_TIMEOUT_SECONDS,
 )
+
+def check_redis_connection() -> bool:
+    """Check if Redis broker is available. Fails fast if not."""
+    import logging
+    logger = logging.getLogger(__name__)
+
+    try:
+        # Try to connect to Redis via Celery
+        with app.connection() as conn:
+            conn.connect()
+        logger.info("✅ Redis broker connection verified")
+        return True
+    except Exception as error:
+        logger.error(
+            f"❌ CRITICAL: Redis broker unavailable: {error}\n"
+            f"Redis must be running on {redis_url} for candidate creation and background tasks.\n"
+            f"Please start Redis: redis-server --port 6379",
+            exc_info=True
+        )
+        return False
+
 
 if __name__ == '__main__':
     app.start()
