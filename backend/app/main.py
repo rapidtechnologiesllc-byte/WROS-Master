@@ -54,14 +54,11 @@ except Exception as e:
 # Setup CORS middleware
 setup_cors(app)
 
+# Add authentication middleware (must come early to wrap all routes)
+app.add_middleware(AuthenticationMiddleware)
+
 # Add request logging middleware
 app.add_middleware(RequestLoggingMiddleware)
-
-# Add authentication middleware
-app.add_middleware(AuthenticationMiddleware)
-
-# Add authentication middleware
-app.add_middleware(AuthenticationMiddleware)
 
 # Phase 1 B4 -- rate limiting, enabled 2026-07-20. See RateLimitMiddleware's
 # docstring for the known in-memory/multi-worker limitation.
