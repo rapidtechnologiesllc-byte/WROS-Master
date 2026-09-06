@@ -39,6 +39,8 @@ from app.services.org_hierarchy_validator import validate_before_employee_creati
 from app.services.message_queue_service import MessageQueueService
 from app.models.org_structure import OrgNode
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter(prefix="/hr", tags=["hr"])
 
 @router.get(
@@ -46,7 +48,7 @@ router = APIRouter(prefix="/hr", tags=["hr"])
     dependencies=[Depends(get_current_internal_user), Depends(require_resource_permission("user", "view"))],
     summary="Get current HR/Admin user's profile with a fresh access token",
 )
-def get_me(
+async def get_me(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user),
 ):
@@ -137,9 +139,30 @@ def update_digest_preference(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user),
 ):
-    current_user.digest_enabled = payload.digest_enabled
-    db.add(current_user)
-    db.commit()
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    if payload.digest_enabled is None:
+        raise ValueError("digest_enabled value is required")
+
+    try:
+        current_user.digest_enabled = payload.digest_enabled
+    except Exception as update_error:
+        logger.error(f"Failed to set digest_enabled on user {current_user.UserID}: {update_error}", exc_info=True)
+        raise
+
+    try:
+        db.add(current_user)
+    except Exception as add_error:
+        logger.error(f"Failed to add user to session: {add_error}", exc_info=True)
+        raise
+
+    try:
+        db.commit()
+    except Exception as commit_error:
+        logger.error(f"Failed to commit digest preference update: {commit_error}", exc_info=True)
+        db.rollback()
+        raise
+
     return DigestPreferenceResponse(digest_enabled=current_user.digest_enabled)
 
 @router.get(
@@ -193,50 +216,49 @@ def get_current_user_permissions(
     response_model=AllUsersResponse,
 )
 def get_all_users(
-    db: Session = Depends(get_db), 
+    db: Session = Depends(get_db),
     user = Depends(get_current_internal_user)
 ):
-    """
-    Get all users (HR, Admin, etc.) from the system.
-    Does not include candidates.
-    
-    Args:
-        db: Database session
-        user: Authenticated HR/Admin user
-        
-    Returns:
-        AllUsersResponse with list of all users and total count
-    """
-    # HRMS-0109 -- scoped to the caller's own tenant, never all tenants' users.
-    users = db.query(Users).all()
+    """Get all users (HR, Admin, etc.) from the system."""
+    try:
+        logger.info("get_all_users: Starting query")
+        users = db.query(Users).all()
+        logger.info(f"get_all_users: Found {len(users)} users")
 
-    # Build response
-    users_data = []
-    for u in users:
-        # role_template_id is MANDATORY - skip users without role assignment
-        if not u.role_template_id:
-            logger.warning(f"User {u.UserID} has no role_template_id assigned, skipping")
-            continue
-        role_template = db.query(RoleTemplate).filter(RoleTemplate.id == u.role_template_id).first()
-        users_data.append(UserResponse(
-            user_id=u.UserID,
-            user_name=u.UserName or "",
-            user_email=u.UserEmail,
-            user_role=u.UserRole,
-            job_title=u.job_title,
-            role_template_id=u.role_template_id,
-            created_at=u.CreatedAt,
-            permission_role=role_template.name if role_template else None,
-            department_id=u.department_id,
-            department_name=u.department.name if u.department else None,
-            business_unit_id=u.business_unit_id,
-            business_unit_name=u.business_unit.name if u.business_unit else None,
-        ))
-    
-    return AllUsersResponse(
-        total_users=len(users_data),
-        users=users_data
-    )
+        users_data = []
+        for idx, u in enumerate(users):
+            try:
+                logger.info(f"get_all_users: Processing user {idx+1}/{len(users)} - UserID={u.UserID}")
+                if not u.role_template_id:
+                    logger.warning(f"User {u.UserID} has no role_template_id, skipping")
+                    continue
+
+                role_template = db.query(RoleTemplate).filter(RoleTemplate.id == u.role_template_id).first()
+                logger.info(f"get_all_users: Creating UserResponse for {u.UserID}")
+
+                users_data.append(UserResponse(
+                    user_id=u.UserID,
+                    user_name=u.UserName or "",
+                    user_email=u.UserEmail,
+                    user_role=u.UserRole,
+                    job_title=u.job_title,
+                    role_template_id=u.role_template_id,
+                    created_at=u.CreatedAt,
+                    permission_role=(role_template.name if role_template else None),
+                    department_id=u.department_id,
+                    department_name=(u.department.name if (u.department and hasattr(u.department, 'name')) else None),
+                    business_unit_id=u.business_unit_id,
+                    business_unit_name=(u.business_unit.name if (u.business_unit and hasattr(u.business_unit, 'name')) else None),
+                ))
+            except Exception as e:
+                logger.error(f"Error processing user {u.UserID}: {str(e)}", exc_info=True)
+                continue
+
+        logger.info(f"get_all_users: Returning {len(users_data)} users")
+        return AllUsersResponse(total_users=len(users_data), users=users_data)
+    except Exception as e:
+        logger.error(f"CRITICAL: get_all_users failed: {str(e)}", exc_info=True)
+        raise
 
 @router.get(
     "/users/search",
@@ -340,11 +362,11 @@ def search_users(
             user_role=u.UserRole,
             job_title=u.job_title,
             created_at=u.CreatedAt,
-            permission_role=role_template.name if role_template else None,
+            permission_role=(role_template.name if role_template else None),
             department_id=u.department_id,
-            department_name=u.department.name if u.department else None,
+            department_name=(u.department.name if (u.department and hasattr(u.department, 'name')) else None),
             business_unit_id=u.business_unit_id,
-            business_unit_name=u.business_unit.name if u.business_unit else None,
+            business_unit_name=(u.business_unit.name if (u.business_unit and hasattr(u.business_unit, 'name')) else None),
         ))
 
     return AllUsersResponse(
@@ -382,11 +404,11 @@ def get_user_details_by_id(
         user_role=u.UserRole,
         job_title=u.job_title,
         created_at=u.CreatedAt,
-        permission_role=role_template.name if role_template else None,
+        permission_role=(role_template.name if role_template else None),
         department_id=u.department_id,
-        department_name=u.department.name if u.department else None,
+        department_name=(u.department.name if (u.department and hasattr(u.department, 'name')) else None),
         business_unit_id=u.business_unit_id,
-        business_unit_name=u.business_unit.name if u.business_unit else None,
+        business_unit_name=(u.business_unit.name if (u.business_unit and hasattr(u.business_unit, 'name')) else None),
     )
 
 @router.post(
@@ -402,55 +424,88 @@ def create_candidate_assignment(
 ):
     """
     Create a candidate assignment with hiring and reporting managers.
-    
+
     Args:
         request: CandidateAssignmentCreate containing candidate_id and manager IDs
         db: Database session
         user: Authenticated HR/Admin user
-        
+
     Returns:
         CandidateAssignmentResponse with assignment details
-        
+
     Raises:
         HTTPException: If candidate or managers not found
     """
-    # Verify candidate exists
-    candidate = db.query(Candidate).filter(Candidate.candidateID == request.candidate_id).first()
+    if not request.candidate_id:
+        raise ValueError("candidate_id is required")
+
+    try:
+        candidate = db.query(Candidate).filter(Candidate.candidateID == request.candidate_id).first()
+    except Exception as query_error:
+        logger.error(f"Failed to query candidate {request.candidate_id}: {query_error}", exc_info=True)
+        raise
+
     if not candidate:
         raise HTTPException(
             status_code=404,
             detail=f"Candidate with ID {request.candidate_id} not found"
         )
-    
-    # Verify hiring manager exists if provided
+
     if request.hiring_manager_id:
-        hiring_manager = db.query(Users).filter(Users.UserID == request.hiring_manager_id).first()
+        try:
+            hiring_manager = db.query(Users).filter(Users.UserID == request.hiring_manager_id).first()
+        except Exception as query_error:
+            logger.error(f"Failed to query hiring manager {request.hiring_manager_id}: {query_error}", exc_info=True)
+            raise
+
         if not hiring_manager:
             raise HTTPException(
                 status_code=404,
                 detail=f"Hiring manager with ID {request.hiring_manager_id} not found"
             )
-    
-    # Verify reporting manager exists if provided
+
     if request.reporting_manager_id:
-        reporting_manager = db.query(Users).filter(Users.UserID == request.reporting_manager_id).first()
+        try:
+            reporting_manager = db.query(Users).filter(Users.UserID == request.reporting_manager_id).first()
+        except Exception as query_error:
+            logger.error(f"Failed to query reporting manager {request.reporting_manager_id}: {query_error}", exc_info=True)
+            raise
+
         if not reporting_manager:
             raise HTTPException(
                 status_code=404,
                 detail=f"Reporting manager with ID {request.reporting_manager_id} not found"
             )
-    
-    # Create assignment
-    assignment = CandidateAssignment(
-        candidate_id=request.candidate_id,
-        hiring_manager_id=request.hiring_manager_id,
-        reporting_manager_id=request.reporting_manager_id
-    )
-    
-    db.add(assignment)
-    db.commit()
-    db.refresh(assignment)
-    
+
+    try:
+        assignment = CandidateAssignment(
+            candidate_id=request.candidate_id,
+            hiring_manager_id=request.hiring_manager_id,
+            reporting_manager_id=request.reporting_manager_id
+        )
+    except Exception as creation_error:
+        logger.error(f"Failed to create CandidateAssignment: {creation_error}", exc_info=True)
+        raise
+
+    try:
+        db.add(assignment)
+    except Exception as add_error:
+        logger.error(f"Failed to add assignment to session: {add_error}", exc_info=True)
+        raise
+
+    try:
+        db.commit()
+    except Exception as commit_error:
+        logger.error(f"Failed to commit assignment: {commit_error}", exc_info=True)
+        db.rollback()
+        raise
+
+    try:
+        db.refresh(assignment)
+    except Exception as refresh_error:
+        logger.error(f"Failed to refresh assignment: {refresh_error}", exc_info=True)
+        raise
+
     return CandidateAssignmentResponse(
         id=assignment.id,
         candidate_id=assignment.candidate_id,
@@ -607,26 +662,62 @@ def create_user(
     Create a new internal user (HR, Admin, etc.).
     Requires permission: user.manage
     """
-    from app.schemas.auth import SignupRequest as SR
+    if not request.user_name or not request.user_name.strip():
+        raise ValueError("User name is required")
+    if not request.user_email or not request.user_email.strip():
+        raise ValueError("User email is required")
+    if not request.user_password or not request.user_password.strip():
+        raise ValueError("User password is required")
+    if not request.user_role or not request.user_role.strip():
+        raise ValueError("User role is required")
+    if not request.role_template_id:
+        raise ValueError("Role template ID is required")
+
     from app.core.database import check_user
-    existing = check_user(db, request.user_email)
+
+    try:
+        existing = check_user(db, request.user_email)
+    except Exception as check_error:
+        logger.error(f"Failed to check existing user {request.user_email}: {check_error}", exc_info=True)
+        raise
+
     if existing:
         raise HTTPException(status_code=400, detail=f"User with email {request.user_email} already exists")
 
-    # PRODUCTION SAFETY: Auto-assign tenant_id from creating user's tenant
     tenant_id = current_user.tenant_id or 1
 
-    new_user = Users(
-        UserID=user_id_generator(),
-        UserName=request.user_name,
-        UserEmail=request.user_email,
-        UserPassword=get_password_hash(request.user_password),
-        UserRole=request.user_role,
-        tenant_id=tenant_id  # PRODUCTION: Always set from creator's tenant or default to 1
-    )
-    db.add(new_user)
-    db.commit()
-    db.refresh(new_user)
+    try:
+        new_user = Users(
+            UserID=user_id_generator(),
+            UserName=request.user_name,
+            UserEmail=request.user_email,
+            UserPassword=get_password_hash(request.user_password),
+            UserRole=request.user_role,
+            tenant_id=tenant_id
+        )
+    except Exception as creation_error:
+        logger.error(f"Failed to create Users object: {creation_error}", exc_info=True)
+        raise
+
+    try:
+        db.add(new_user)
+    except Exception as add_error:
+        logger.error(f"Failed to add user to session: {add_error}", exc_info=True)
+        raise
+
+    try:
+        db.commit()
+    except Exception as commit_error:
+        logger.error(f"Failed to commit new user: {commit_error}", exc_info=True)
+        db.rollback()
+        raise
+
+    try:
+        db.refresh(new_user)
+    except Exception as refresh_error:
+        logger.error(f"Failed to refresh new user: {refresh_error}", exc_info=True)
+        raise
+
     return UserResponse(
         user_id=new_user.UserID,
         user_name=new_user.UserName or "",
@@ -704,16 +795,19 @@ def create_user_with_roles(
     if not is_valid:
         raise HTTPException(status_code=400, detail=f"Invalid reporting structure: {error_msg}")
 
-    new_user = Users(
-        UserID=user_id_generator(),
-        UserName=user_name,
-        UserEmail=user_email,
-        UserPassword=get_password_hash(user_password),
-        UserRole="Admin",  # Default role
-        tenant_id=tenant_id
-    )
+    try:
+        new_user = Users(
+            UserID=user_id_generator(),
+            UserName=user_name,
+            UserEmail=user_email,
+            UserPassword=get_password_hash(user_password),
+            UserRole="Admin",
+            tenant_id=tenant_id
+        )
+    except Exception as creation_error:
+        logger.error(f"Failed to create Users object: {creation_error}", exc_info=True)
+        raise
 
-    # Set optional fields if provided
     if job_title:
         new_user.job_title = job_title
     if partner_id:
@@ -723,32 +817,60 @@ def create_user_with_roles(
 
     new_user.role_template_id = role_template_id
 
-    db.add(new_user)
-    db.commit()
-    db.refresh(new_user)
+    try:
+        db.add(new_user)
+    except Exception as add_error:
+        logger.error(f"Failed to add user to session: {add_error}", exc_info=True)
+        raise
 
-    # Create OrgNode record with VALIDATED hierarchy_level and specialization
+    try:
+        db.commit()
+    except Exception as commit_error:
+        logger.error(f"Failed to commit new user: {commit_error}", exc_info=True)
+        db.rollback()
+        raise
+
+    try:
+        db.refresh(new_user)
+    except Exception as refresh_error:
+        logger.error(f"Failed to refresh new user: {refresh_error}", exc_info=True)
+        raise
+
     try:
         org_node = OrgNode(
             name=f"{new_user.UserName} - {specialization}",
             node_type="PERSON",
             user_id=new_user.UserID,
             parent_node_id=parent_node_id,
-            hierarchy_level=hierarchy_level,  # From request (already validated)
-            specialization=specialization,    # From request (already validated)
-            authority_level="INDIVIDUAL",     # Default, can be overridden per role
+            hierarchy_level=hierarchy_level,
+            specialization=specialization,
+            authority_level="INDIVIDUAL",
             business_unit_id=business_unit_id,
             email=user_email,
             tenant_id=tenant_id,
         )
+    except Exception as orgnode_creation_error:
+        logger.error(f"Failed to create OrgNode instance: {orgnode_creation_error}", exc_info=True)
+        raise
+
+    try:
         db.add(org_node)
+    except Exception as add_error:
+        logger.error(f"Failed to add OrgNode to session: {add_error}", exc_info=True)
+        raise
+
+    try:
         db.commit()
+    except Exception as commit_error:
+        logger.error(f"Failed to commit OrgNode: {commit_error}", exc_info=True)
+        db.rollback()
+        raise
+
+    try:
         db.refresh(org_node)
-    except Exception as e:
-        logger.error(f"Error: {str(e)}", exc_info=True)
-        from app.core.logging import logger
-        logger.error(f"Failed to create OrgNode for new user {user_email}: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Failed to create organizational hierarchy: {str(e)}")
+    except Exception as refresh_error:
+        logger.error(f"Failed to refresh OrgNode: {refresh_error}", exc_info=True)
+        raise
 
     # Queue user_created message for welcome email
     MessageQueueService.enqueue(
@@ -793,7 +915,15 @@ def update_user_with_roles(
     Update a user with role template (single), job title, partner, and business unit.
     Requires permission: user.manage
     """
-    target = db.query(Users).filter(Users.UserID == user_id).first()
+    if not user_id or not user_id.strip():
+        raise ValueError("user_id is required")
+
+    try:
+        target = db.query(Users).filter(Users.UserID == user_id).first()
+    except Exception as query_error:
+        logger.error(f"Failed to query user {user_id}: {query_error}", exc_info=True)
+        raise
+
     if not target:
         raise HTTPException(status_code=404, detail=f"User {user_id} not found")
 
@@ -808,12 +938,21 @@ def update_user_with_roles(
     if request.business_unit_id is not None:
         target.business_unit_id = request.business_unit_id
 
-    # Handle role template update: set single role_template_id on user
     if request.role_template_id is not None:
         target.role_template_id = request.role_template_id
 
-    db.commit()
-    db.refresh(target)
+    try:
+        db.commit()
+    except Exception as commit_error:
+        logger.error(f"Failed to commit user update for {user_id}: {commit_error}", exc_info=True)
+        db.rollback()
+        raise
+
+    try:
+        db.refresh(target)
+    except Exception as refresh_error:
+        logger.error(f"Failed to refresh user {user_id}: {refresh_error}", exc_info=True)
+        raise
 
     return UserResponse(
         user_id=target.UserID,
@@ -842,11 +981,18 @@ def update_user(
     If user has NULL tenant_id, assigns current user's tenant_id.
     Requires permission: user.manage
     """
-    target = db.query(Users).filter(Users.UserID == user_id).first()
+    if not user_id or not user_id.strip():
+        raise ValueError("user_id is required")
+
+    try:
+        target = db.query(Users).filter(Users.UserID == user_id).first()
+    except Exception as query_error:
+        logger.error(f"Failed to query user {user_id}: {query_error}", exc_info=True)
+        raise
+
     if not target:
         raise HTTPException(status_code=404, detail=f"User {user_id} not found")
 
-    # Fix NULL tenant_id by assigning current user's tenant
     if target.tenant_id is None:
         target.tenant_id = current_user.tenant_id or 1
 
@@ -859,11 +1005,26 @@ def update_user(
     if request.business_unit_id is not None:
         target.business_unit_id = request.business_unit_id
 
-    db.commit()
-    db.refresh(target)
+    try:
+        db.commit()
+    except Exception as commit_error:
+        logger.error(f"Failed to commit user update for {user_id}: {commit_error}", exc_info=True)
+        db.rollback()
+        raise
 
-    # Build response with all fields
-    role_template = db.query(RoleTemplate).filter(RoleTemplate.id == target.role_template_id).first() if target.role_template_id else None
+    try:
+        db.refresh(target)
+    except Exception as refresh_error:
+        logger.error(f"Failed to refresh user {user_id}: {refresh_error}", exc_info=True)
+        raise
+
+    role_template = None
+    if target.role_template_id:
+        try:
+            role_template = db.query(RoleTemplate).filter(RoleTemplate.id == target.role_template_id).first()
+        except Exception as query_error:
+            logger.error(f"Failed to query role template {target.role_template_id}: {query_error}", exc_info=True)
+            raise
 
     return UserResponse(
         user_id=target.UserID,
@@ -872,11 +1033,11 @@ def update_user(
         user_role=target.UserRole,
         job_title=target.job_title,
         role_template_id=target.role_template_id,
-        permission_role=role_template.name if role_template else None,
+        permission_role=(role_template.name if role_template else None),
         department_id=target.department_id,
-        department_name=target.department.name if target.department else None,
+        department_name=(target.department.name if (target.department and hasattr(target.department, 'name')) else None),
         business_unit_id=target.business_unit_id,
-        business_unit_name=target.business_unit.name if target.business_unit else None,
+        business_unit_name=(target.business_unit.name if (target.business_unit and hasattr(target.business_unit, 'name')) else None),
         created_at=target.CreatedAt
     )
 
@@ -897,10 +1058,17 @@ def delete_user(
     set to NULL so that no foreign-key constraint blocks the delete.
     Requires permission: user.manage
     """
+    if not user_id or not user_id.strip():
+        raise ValueError("user_id is required")
     if current_user.UserID == user_id:
         raise HTTPException(status_code=400, detail="Cannot delete your own account")
 
-    target = db.query(Users).filter(Users.UserID == user_id).first()
+    try:
+        target = db.query(Users).filter(Users.UserID == user_id).first()
+    except Exception as query_error:
+        logger.error(f"Failed to query user {user_id}: {query_error}", exc_info=True)
+        raise
+
     if not target:
         raise HTTPException(status_code=404, detail=f"User {user_id} not found")
 
@@ -908,61 +1076,114 @@ def delete_user(
     # Null out every FK that references this user before deleting them
     # ------------------------------------------------------------------
 
-    # 1. Jobs â€” recruiter / hiring-manager
-    db.query(Jobs).filter(Jobs.recuriterID == user_id).update(
-        {Jobs.recuriterID: None}, synchronize_session=False
-    )
-    db.query(Jobs).filter(Jobs.hiringManagerID == user_id).update(
-        {Jobs.hiringManagerID: None}, synchronize_session=False
-    )
+    try:
+        db.query(Jobs).filter(Jobs.recuriterID == user_id).update(
+            {Jobs.recuriterID: None}, synchronize_session=False
+        )
+    except Exception as update_error:
+        logger.error(f”Failed to nullify Jobs.recuriterID for {user_id}: {update_error}”, exc_info=True)
+        raise
 
-    # 2. CandidateAssignment â€” hiring / reporting manager
-    db.query(CandidateAssignment).filter(
-        CandidateAssignment.hiring_manager_id == user_id
-    ).update({CandidateAssignment.hiring_manager_id: None}, synchronize_session=False)
-    db.query(CandidateAssignment).filter(
-        CandidateAssignment.reporting_manager_id == user_id
-    ).update({CandidateAssignment.reporting_manager_id: None}, synchronize_session=False)
+    try:
+        db.query(Jobs).filter(Jobs.hiringManagerID == user_id).update(
+            {Jobs.hiringManagerID: None}, synchronize_session=False
+        )
+    except Exception as update_error:
+        logger.error(f”Failed to nullify Jobs.hiringManagerID for {user_id}: {update_error}”, exc_info=True)
+        raise
 
-    # 3. PanelMember â€” interviewer
-    db.query(PanelMember).filter(PanelMember.interviewer_id == user_id).update(
-        {PanelMember.interviewer_id: None}, synchronize_session=False
-    )
+    try:
+        db.query(CandidateAssignment).filter(
+            CandidateAssignment.hiring_manager_id == user_id
+        ).update({CandidateAssignment.hiring_manager_id: None}, synchronize_session=False)
+    except Exception as update_error:
+        logger.error(f”Failed to nullify CandidateAssignment.hiring_manager_id for {user_id}: {update_error}”, exc_info=True)
+        raise
 
-    # 4. InterviewFeedback â€” interviewer
-    db.query(InterviewFeedback).filter(InterviewFeedback.interviewer_id == user_id).update(
-        {InterviewFeedback.interviewer_id: None}, synchronize_session=False
-    )
+    try:
+        db.query(CandidateAssignment).filter(
+            CandidateAssignment.reporting_manager_id == user_id
+        ).update({CandidateAssignment.reporting_manager_id: None}, synchronize_session=False)
+    except Exception as update_error:
+        logger.error(f”Failed to nullify CandidateAssignment.reporting_manager_id for {user_id}: {update_error}”, exc_info=True)
+        raise
 
-    # 5. OfferLetter â€” hiring manager / reporting manager / created_by / cancelled_by
-    db.query(OfferLetter).filter(OfferLetter.hiring_manager_id == user_id).update(
-        {OfferLetter.hiring_manager_id: None}, synchronize_session=False
-    )
-    db.query(OfferLetter).filter(OfferLetter.reporting_manager_id == user_id).update(
-        {OfferLetter.reporting_manager_id: None}, synchronize_session=False
-    )
-    db.query(OfferLetter).filter(OfferLetter.created_by == user_id).update(
-        {OfferLetter.created_by: None}, synchronize_session=False
-    )
-    db.query(OfferLetter).filter(OfferLetter.cancelled_by == user_id).update(
-        {OfferLetter.cancelled_by: None}, synchronize_session=False
-    )
+    try:
+        db.query(PanelMember).filter(PanelMember.interviewer_id == user_id).update(
+            {PanelMember.interviewer_id: None}, synchronize_session=False
+        )
+    except Exception as update_error:
+        logger.error(f”Failed to nullify PanelMember.interviewer_id for {user_id}: {update_error}”, exc_info=True)
+        raise
 
-    # 6. CandidateDocument â€” verified_by
-    db.query(CandidateDocument).filter(CandidateDocument.verified_by == user_id).update(
-        {CandidateDocument.verified_by: None}, synchronize_session=False
-    )
+    try:
+        db.query(InterviewFeedback).filter(InterviewFeedback.interviewer_id == user_id).update(
+            {InterviewFeedback.interviewer_id: None}, synchronize_session=False
+        )
+    except Exception as update_error:
+        logger.error(f”Failed to nullify InterviewFeedback.interviewer_id for {user_id}: {update_error}”, exc_info=True)
+        raise
 
-    # 7. Newsletter â€” created_by
-    db.query(Newsletter).filter(Newsletter.created_by == user_id).update(
-        {Newsletter.created_by: None}, synchronize_session=False
-    )
+    try:
+        db.query(OfferLetter).filter(OfferLetter.hiring_manager_id == user_id).update(
+            {OfferLetter.hiring_manager_id: None}, synchronize_session=False
+        )
+    except Exception as update_error:
+        logger.error(f”Failed to nullify OfferLetter.hiring_manager_id for {user_id}: {update_error}”, exc_info=True)
+        raise
 
-    # ------------------------------------------------------------------
-    # Now it is safe to delete the user row
-    # ------------------------------------------------------------------
-    db.delete(target)
-    db.commit()
+    try:
+        db.query(OfferLetter).filter(OfferLetter.reporting_manager_id == user_id).update(
+            {OfferLetter.reporting_manager_id: None}, synchronize_session=False
+        )
+    except Exception as update_error:
+        logger.error(f”Failed to nullify OfferLetter.reporting_manager_id for {user_id}: {update_error}”, exc_info=True)
+        raise
+
+    try:
+        db.query(OfferLetter).filter(OfferLetter.created_by == user_id).update(
+            {OfferLetter.created_by: None}, synchronize_session=False
+        )
+    except Exception as update_error:
+        logger.error(f”Failed to nullify OfferLetter.created_by for {user_id}: {update_error}”, exc_info=True)
+        raise
+
+    try:
+        db.query(OfferLetter).filter(OfferLetter.cancelled_by == user_id).update(
+            {OfferLetter.cancelled_by: None}, synchronize_session=False
+        )
+    except Exception as update_error:
+        logger.error(f”Failed to nullify OfferLetter.cancelled_by for {user_id}: {update_error}”, exc_info=True)
+        raise
+
+    try:
+        db.query(CandidateDocument).filter(CandidateDocument.verified_by == user_id).update(
+            {CandidateDocument.verified_by: None}, synchronize_session=False
+        )
+    except Exception as update_error:
+        logger.error(f”Failed to nullify CandidateDocument.verified_by for {user_id}: {update_error}”, exc_info=True)
+        raise
+
+    try:
+        db.query(Newsletter).filter(Newsletter.created_by == user_id).update(
+            {Newsletter.created_by: None}, synchronize_session=False
+        )
+    except Exception as update_error:
+        logger.error(f”Failed to nullify Newsletter.created_by for {user_id}: {update_error}”, exc_info=True)
+        raise
+
+    try:
+        db.delete(target)
+    except Exception as delete_error:
+        logger.error(f”Failed to delete user {user_id}: {delete_error}”, exc_info=True)
+        raise
+
+    try:
+        db.commit()
+    except Exception as commit_error:
+        logger.error(f”Failed to commit user deletion for {user_id}: {commit_error}”, exc_info=True)
+        db.rollback()
+        raise
 
     return DeleteResponse(
         status="Success",
