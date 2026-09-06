@@ -173,6 +173,132 @@ const TIMEOUT = 5000;  // ⚠️ FLAG if repeated
 
 ---
 
+## 🚨 CRITICAL: NO NON-EXISTENT DEPENDENCIES IN Depends() (2026-09-05)
+
+**STATUS:** ✅ ENFORCED - All Depends() decorators must reference functions that actually exist
+
+**THE PROBLEM:**
+
+Using a non-existent dependency function causes the endpoint to **HANG INDEFINITELY**:
+
+```python
+# ❌ WRONG - get_current_hr_or_admin doesn't exist
+def create_candidate(
+    request: CandidateCreateRequest,
+    db: Session = Depends(get_db),
+    user = Depends(get_current_hr_or_admin),  # DOESN'T EXIST!
+):
+```
+
+**What happens:**
+1. FastAPI tries to resolve `get_current_hr_or_admin` dependency
+2. Function doesn't exist → FastAPI hangs waiting for resolution
+3. Request never completes (timeout after 10+ seconds)
+4. Browser shows "connection timeout" error
+5. Backend logs show nothing (because it never got to endpoint code)
+
+**CASCADING IMPACT:**
+- ❌ Endpoint returns 0 data (looks working to user)
+- ❌ Backend appears to hang (no error messages)
+- ❌ Debugging is nightmare (logs don't show the issue)
+- ❌ Production incident with no clear root cause
+- ❌ User's form stuck "processing" forever
+
+### THE FIX
+
+**Rule 1: Check dependency exists before using it**
+```python
+# ✅ CORRECT - function must be defined
+from app.core.dependencies import get_current_user  # Must exist!
+
+def create_candidate(
+    request: CandidateCreateRequest,
+    db: Session = Depends(get_db),
+    user = Depends(get_current_user),  # Verified to exist
+):
+```
+
+**Rule 2: If switching auth schemes, remove old dependencies**
+```python
+# ❌ WRONG - using old HR-specific auth
+user = Depends(get_current_hr_or_admin)  # Don't mix old/new
+
+# ✅ CORRECT - use role template auth
+dependencies=[Depends(require_role_template_permission(*Permissions.CANDIDATES_CREATE))]
+```
+
+**Rule 3: When in doubt, check imports**
+```python
+# Before using in Depends():
+from app.core.dependencies import get_current_hr_or_admin
+# If import fails → function doesn't exist → don't use it
+```
+
+### Architect Agent Prevention
+
+The architect agent (runs before code review gate) MUST catch:
+- ✅ Depends() with functions that don't exist in imported modules
+- ✅ Auth scheme mixing (old Depends() + new role templates)
+- ✅ Removed dependency functions still being used
+- ✅ Typos in dependency function names
+
+**Scan for patterns:**
+```python
+# Pattern 1: Undefined dependency
+dependencies=[Depends(some_function_that_doesnt_exist)]
+
+# Pattern 2: Auth mixing
+@router.post("/endpoint", dependencies=[Depends(require_role_template_permission(...))])
+def endpoint(
+    user=Depends(get_current_hr_or_admin)  # MIXED - old auth in new pattern
+):
+
+# Pattern 3: Import without definition
+from app.core.dependencies import get_something
+# ... but get_something not defined in dependencies.py
+```
+
+### Real Example (2026-09-05 Incident)
+
+**The Problem:** Line 212 in candidates/crud.py
+```python
+def create_candidate(
+    request: CandidateCreateRequest,
+    db: Session = Depends(get_db),
+    user = Depends(get_current_hr_or_admin),  # ← DOESN'T EXIST
+):
+```
+
+**The Impact:**
+- Endpoint timeout for every candidate creation
+- API returns HTTP 504 (gateway timeout) after 10+ seconds
+- User's form "Add Candidate" button hangs forever
+- Backend logs show nothing (no error!)
+- 3+ hours debugging to find the cause
+
+**The Fix:** Remove the non-existent dependency
+```python
+def create_candidate(
+    request: CandidateCreateRequest,
+    db: Session = Depends(get_db),  # Only real dependency
+):
+```
+
+**Result:** Endpoint returns immediately with proper response
+
+### Prevention Checklist
+
+Before committing ANY endpoint with Depends():
+
+- [ ] Every function in Depends() exists (check import)
+- [ ] No mixing old + new auth schemes
+- [ ] No typos in dependency names
+- [ ] If using role templates, remove old auth dependencies
+- [ ] Architect agent scanned for undefined Depends()
+- [ ] Gate passed without "undefined dependency" warnings
+
+---
+
 ## 🚨 MANDATORY: RUTHLESS ARCHITECT REVIEW BEFORE EVERY COMMIT (2026-09-05)
 
 **NEW WORKFLOW: Architect Agent → Code Review Gate → Tests → Deploy**
