@@ -13,6 +13,34 @@ MAX_TASKS_PER_QUEUE = 100
 MAX_FINISHED_TASKS = 50
 
 
+@router.get("/workers", dependencies=[Depends(require_resource_permission("queue", "view"))])
+def get_workers_status():
+    """Get Celery worker status (working/idle/stopped)."""
+    try:
+        inspect = celery_app.control.inspect()
+        active = inspect.active() or {}
+        stats = inspect.stats() or {}
+
+        workers = []
+        if isinstance(stats, dict) and stats:
+            stats_items = list(stats.items())
+            if stats_items:
+                for worker_name, stat_data in stats_items:
+                    active_count = len(active.get(worker_name, [])) if isinstance(active.get(worker_name), list) else 0
+                    status = "working" if active_count > 0 else "idle"
+                    workers.append({
+                        "name": worker_name,
+                        "status": status,
+                        "active_tasks": active_count,
+                        "pool_size": stat_data.get("pool", {}).get("max-concurrency", 0)
+                    })
+
+        return {"workers": workers, "total_workers": len(workers), "working": sum(1 for w in workers if w["status"] == "working")}
+    except Exception as e:
+        logger.error(f"Failed to get worker status: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get("/queues", dependencies=[Depends(require_resource_permission("queue", "view"))])
 def get_queues():
     """Get list of Celery queues with real-time task counts (pending, active, failed, reserved)."""
