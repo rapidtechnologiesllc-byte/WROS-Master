@@ -88,22 +88,6 @@ export default function MessageQueueDashboard() {
     });
   };
 
-  const fetchFinishedTasks = () => {
-    const token = localStorage.getItem('hrms_token');
-    fetch('http://localhost:8080/api/v1/celery/tasks/finished?limit=50', {
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`,
-      },
-    }).then(r => r.json()).then(data => {
-      console.log('Finished tasks:', data.tasks);
-      alert(`${data.total_finished} finished tasks found.\nCheck browser console for details.`);
-    }).catch(err => {
-      console.error('Failed to fetch finished tasks:', err);
-      alert(`Error: ${err.message}`);
-    });
-  };
-
   return (
     <div className="h-full w-full bg-gray-50 dark:bg-gray-900 p-6">
       <div className="max-w-7xl mx-auto">
@@ -137,12 +121,6 @@ export default function MessageQueueDashboard() {
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 mb-8">
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-lg font-semibold text-gray-900">Queues ({queues.length})</h2>
-            <button
-              onClick={fetchFinishedTasks}
-              className="px-3 py-1 bg-green-600 hover:bg-green-700 text-white rounded text-sm"
-            >
-              View Finished Tasks
-            </button>
           </div>
           {queues.length === 0 ? (
             <p className="text-gray-500">No queues found</p>
@@ -202,6 +180,7 @@ export default function MessageQueueDashboard() {
                     <th className="text-center py-3 px-4 font-semibold text-blue-600">Active</th>
                     <th className="text-center py-3 px-4 font-semibold text-purple-600">Reserved</th>
                     <th className="text-center py-3 px-4 font-semibold text-red-600">Failed</th>
+                    <th className="text-center py-3 px-4 font-semibold text-green-600">Finished</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -226,6 +205,9 @@ export default function MessageQueueDashboard() {
                       </td>
                       <td className="text-center py-3 px-4">
                         <span className="inline-block px-3 py-1 bg-red-100 text-red-900 font-semibold rounded">{q.failed || 0}</span>
+                      </td>
+                      <td className="text-center py-3 px-4">
+                        <span className="inline-block px-3 py-1 bg-green-100 text-green-900 font-semibold rounded">{q.completed || 0}</span>
                       </td>
                     </tr>
                   ))}
