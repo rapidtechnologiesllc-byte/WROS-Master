@@ -45,16 +45,16 @@ def get_workers_status():
 def get_queues():
     """Get list of Celery queues with real-time task counts (pending, active, failed, reserved)."""
     try:
-        queues = []
+        queue_data = {}
         seen_queues = set()
 
-        # Get configured queues from Celery app config
+        # Get configured queues from Celery app config (primary source of truth)
         if hasattr(celery_app.conf, 'task_queues') and celery_app.conf.task_queues:
             task_queues_list = list(celery_app.conf.task_queues)
             if task_queues_list:
                 for queue in task_queues_list:
                     queue_name = queue.name
-                    queue_data = {
+                    queue_data[queue_name] = {
                         "name": queue_name,
                         "key": f"celery.{queue_name}",
                         "pending": 0,
@@ -62,10 +62,9 @@ def get_queues():
                         "reserved": 0,
                         "failed": 0
                     }
-                    queues.append(queue_data)
                     seen_queues.add(queue_name)
 
-        # Get Redis keys for actual queue data
+        # Get Redis keys for actual queue task data
         result_keys = redis_client.keys('celery*')
 
         # Get Celery inspect data for all task states
@@ -73,21 +72,22 @@ def get_queues():
         active_tasks = inspect.active() or {}
         reserved_tasks = inspect.reserved() or {}
 
-        # Get queues with actual tasks from Redis (pending)
-        queue_data = {}
+        # Update queue data with actual tasks from Redis (pending)
         if result_keys:
             for key in result_keys:
                 try:
                     length = redis_client.llen(key)
                     queue_name = key.split('.')[-1] if '.' in key else key
-                    queue_data[queue_name] = {
-                        "name": queue_name,
-                        "key": key,
-                        "pending": length,
-                        "active": 0,
-                        "reserved": 0,
-                        "failed": 0
-                    }
+                    if queue_name not in queue_data:
+                        queue_data[queue_name] = {
+                            "name": queue_name,
+                            "key": key,
+                            "pending": 0,
+                            "active": 0,
+                            "reserved": 0,
+                            "failed": 0
+                        }
+                    queue_data[queue_name]["pending"] = length
                     seen_queues.add(queue_name)
                 except Exception as e:
                     logger.warning(f"Failed to get length for {key}: {e}")
