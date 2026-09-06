@@ -2,16 +2,18 @@
 
 Provides centralized configuration endpoints that return dynamic queue types,
 statuses, and app configuration instead of hardcoding values in frontend.
+
+IMPORTANT: These endpoints are PUBLIC - they are intentionally accessible without
+authentication to allow frontend to load configuration data before login.
+They are listed in auth_middleware.py PUBLIC_ROUTES and main.py known_exceptions.
 """
 import logging
 from typing import Dict, List, Any
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, HTTPException
 
 from app.core.logging import logger
 from app.models.channel_queue import ChannelQueueItem
-from app.schemas.auth import UserRole
-from app.core.permission_enforcement import require_permission
 
 logger = logging.getLogger(__name__)
 
@@ -25,11 +27,15 @@ except Exception as e:
 
 
 @router.get("/queue-types", response_model=Dict[str, Any])
-async def get_queue_types(_: UserRole = Depends(require_permission("config:view"))):
+async def get_queue_types():
     """Get all valid queue types from backend configuration.
 
     Instead of hardcoding QUEUE_TYPES in frontend, fetch this endpoint.
     Returns the actual queue types that exist in the system.
+
+    NOTE: This is a PUBLIC endpoint - no authentication required.
+    Intentionally accessible without auth to allow frontend initialization before login.
+    Listed in auth_middleware.py PUBLIC_ROUTES and main.py known_exceptions.
     """
     try:
         queue_types = [
@@ -71,10 +77,14 @@ async def get_queue_types(_: UserRole = Depends(require_permission("config:view"
 
 
 @router.get("/message-statuses", response_model=Dict[str, Any])
-async def get_message_statuses(_: UserRole = Depends(require_permission("config:view"))):
+async def get_message_statuses():
     """Get all valid message statuses.
 
     Returns the lifecycle statuses messages go through (PENDING, PROCESSING, COMPLETED, FAILED, etc)
+
+    NOTE: This is a PUBLIC endpoint - no authentication required.
+    Intentionally accessible without auth to allow frontend initialization before login.
+    Listed in auth_middleware.py PUBLIC_ROUTES and main.py known_exceptions.
     """
     try:
         statuses = [
@@ -107,10 +117,14 @@ async def get_message_statuses(_: UserRole = Depends(require_permission("config:
 
 
 @router.get("/candidate-statuses", response_model=Dict[str, Any])
-async def get_candidate_statuses(_: UserRole = Depends(require_permission("config:view"))):
+async def get_candidate_statuses():
     """Get all valid candidate statuses.
 
     Returns the lifecycle statuses candidates go through (Applied, Screening, Interview, etc)
+
+    NOTE: This is a PUBLIC endpoint - no authentication required.
+    Intentionally accessible without auth to allow frontend initialization before login.
+    Listed in auth_middleware.py PUBLIC_ROUTES and main.py known_exceptions.
     """
     try:
         statuses = [
@@ -146,10 +160,14 @@ async def get_candidate_statuses(_: UserRole = Depends(require_permission("confi
 
 
 @router.get("/app-config", response_model=Dict[str, Any])
-async def get_app_config(_: UserRole = Depends(require_permission("config:view"))):
+async def get_app_config():
     """Get application-wide configuration settings.
 
     Returns polling intervals, timeouts, retry limits, feature flags, etc.
+
+    NOTE: This is a PUBLIC endpoint - no authentication required.
+    Intentionally accessible without auth to allow frontend initialization before login.
+    Listed in auth_middleware.py PUBLIC_ROUTES and main.py known_exceptions.
     """
     try:
         config = {
