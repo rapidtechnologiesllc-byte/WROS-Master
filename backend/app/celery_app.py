@@ -13,10 +13,11 @@ RESULT_EXPIRES_SECONDS = 3600
 WORKER_MAX_TASKS = 100
 
 # Create Celery app instance
+redis_url = getattr(settings, 'REDIS_URL', None) or 'redis://localhost:6379/0'
 app = Celery(
     'wros_backend',
-    broker=settings.REDIS_URL or 'redis://localhost:6379/0',
-    backend=settings.REDIS_URL or 'redis://localhost:6379/1',
+    broker=redis_url,
+    backend=redis_url.replace('/0', '/1') if redis_url else 'redis://localhost:6379/1',
     include=['app.tasks.candidate_tasks', 'app.tasks.notification_tasks']
 )
 

@@ -12,20 +12,7 @@ const QueueManagementScreen = () => {
   const [limit] = useState(25);
   const [selectedMessage, setSelectedMessage] = useState(null);
   const [expandedStats, setExpandedStats] = useState(true);
-
-  const QUEUE_TYPES = [
-    'THUNDER_QUEUE',
-    'EMAIL_QUEUE',
-    'WHATSAPP_QUEUE',
-    'SMS_QUEUE',
-    'SLACK_QUEUE',
-    'APPROVAL_QUEUE',
-    'COMMISSION_QUEUE',
-    'CRM_QUEUE',
-    'DASHBOARD_QUEUE',
-    'CALENDAR_QUEUE',
-    'SIGNATURE_QUEUE'
-  ];
+  const [queueTypes, setQueueTypes] = useState([]);
 
   const STATUSES = ['PENDING', 'SLM_PROCESSING', 'CHANNEL_QUEUED', 'COMPLETED', 'FAILED'];
 
@@ -60,15 +47,52 @@ const QueueManagementScreen = () => {
     }
   };
 
+  // Fetch queue types from API
+  const fetchQueueTypes = async () => {
+    try {
+      const response = await apiRequest('/config/queue-types');
+      setQueueTypes(response.queue_types || []);
+    } catch (err) {
+      console.error('Failed to load queue types:', err);
+      setQueueTypes([]);
+      throw err;
+    }
+  };
+
   // Initial load and polling
   useEffect(() => {
-    fetchMessages();
-    fetchStats();
+    (async () => {
+      try {
+        await fetchQueueTypes();
+      } catch (err) {
+        console.error('Failed to fetch queue types:', err);
+      }
+      try {
+        await fetchMessages();
+      } catch (err) {
+        console.error('Failed to fetch messages:', err);
+      }
+      try {
+        await fetchStats();
+      } catch (err) {
+        console.error('Failed to fetch stats:', err);
+      }
+    })();
 
     // Poll every 5 seconds
     const interval = setInterval(() => {
-      fetchMessages();
-      fetchStats();
+      (async () => {
+        try {
+          await fetchMessages();
+        } catch (err) {
+          console.error('Failed to fetch messages:', err);
+        }
+        try {
+          await fetchStats();
+        } catch (err) {
+          console.error('Failed to fetch stats:', err);
+        }
+      })();
     }, 5000);
 
     return () => clearInterval(interval);
@@ -250,7 +274,7 @@ const QueueManagementScreen = () => {
             className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           >
             <option value="">All Queues</option>
-            {QUEUE_TYPES.map(queueType => (
+            {queueTypes.map(queueType => (
               <option key={queueType} value={queueType}>{queueType}</option>
             ))}
           </select>

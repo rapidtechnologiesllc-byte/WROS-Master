@@ -197,7 +197,7 @@ def authenticate_user(db: Session, email: str, password: str):
     return user
 
 def get_candidate(db: Session, email: str):
-    # Import here to avoid circular import
+    from app.models.candidate import Candidate
     return db.query(Candidate).filter(Candidate.candidateEmail == email).first()
 
 def hash_candidate_password(password: str) -> str:

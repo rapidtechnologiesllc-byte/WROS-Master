@@ -202,10 +202,27 @@ class MessageQueueService:
                 logger.info(f"Logged task {task.id} ({channel_type})")
 
         except Exception as db_error:
-            logger.error(f"Log to database failed: {db_error}", exc_info=True)
-        finally:
+            # CRITICAL: Fail hard instead of swallowing error
+            # Database logging is required for queue visibility
+            # If it fails, the caller must know
+            logger.error(f"CRITICAL: Failed to log task to database: {db_error}", exc_info=True)
+            try:
+                db.rollback()
+            except Exception:
+                pass
             try:
                 db.close()
+            except Exception:
+                pass
+            # Re-raise so caller knows logging failed
+            raise RuntimeError(
+                f"Queue task logging to database failed: {str(db_error)}. "
+                f"Task may not be visible in dashboard. Check infrastructure."
+            ) from db_error
+        finally:
+            try:
+                if db and db.is_active:
+                    db.close()
             except Exception as close_err:
                 logger.warning(f"Failed to close database: {close_err}")
 

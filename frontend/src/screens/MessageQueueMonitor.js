@@ -9,6 +9,18 @@ const MessageQueueMonitor = () => {
   const [error, setError] = useState(null);
   const [selectedQueue, setSelectedQueue] = useState(null);
   const [refreshInterval, setRefreshInterval] = useState(5);
+  const [queueTypes, setQueueTypes] = useState([]);
+
+  const fetchQueueTypes = async () => {
+    try {
+      const response = await apiRequest('/api/v1/config/queue-types', 'GET');
+      setQueueTypes(response.queue_types || []);
+    } catch (err) {
+      console.error('Failed to load queue types:', err);
+      setQueueTypes([]);
+      throw err;
+    }
+  };
 
   const fetchQueueData = async () => {
     setLoading(true);
@@ -46,8 +58,29 @@ const MessageQueueMonitor = () => {
   };
 
   useEffect(() => {
-    fetchQueueData();
-    const timer = setInterval(fetchQueueData, refreshInterval * 1000);
+    (async () => {
+      try {
+        await fetchQueueTypes();
+      } catch (err) {
+        console.error('Failed to fetch queue types:', err);
+      }
+      try {
+        await fetchQueueData();
+      } catch (err) {
+        console.error('Failed to fetch queue data:', err);
+      }
+    })();
+
+    const timer = setInterval(() => {
+      (async () => {
+        try {
+          await fetchQueueData();
+        } catch (err) {
+          console.error('Failed to fetch queue data:', err);
+        }
+      })();
+    }, refreshInterval * 1000);
+
     return () => clearInterval(timer);
   }, [selectedQueue, refreshInterval]);
 
@@ -90,12 +123,9 @@ const MessageQueueMonitor = () => {
             className="queue-filter"
           >
             <option value="">All Queues</option>
-            <option value="CANDIDATE_QUEUE">Candidate Queue</option>
-            <option value="THUNDER_QUEUE">Thunder Queue</option>
-            <option value="EMAIL_QUEUE">Email Queue</option>
-            <option value="INTERVIEW_QUEUE">Interview Queue</option>
-            <option value="OFFER_QUEUE">Offer Queue</option>
-            <option value="ONBOARDING_QUEUE">Onboarding Queue</option>
+            {queueTypes.map(queueType => (
+              <option key={queueType} value={queueType}>{queueType}</option>
+            ))}
           </select>
           <select
             value={refreshInterval}

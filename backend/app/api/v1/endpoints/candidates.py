@@ -211,7 +211,7 @@ class LinkedInImportResponse(BaseModel):
 
 @router.post(
     "/import/linkedin",
-    response_model=LinkedInImportResponse,
+    response_model=dict,
     dependencies=[Depends(require_resource_permission("candidate", "create"))],
 )
 async def import_linkedin_candidate_endpoint(
@@ -219,72 +219,106 @@ async def import_linkedin_candidate_endpoint(
     db: Session = Depends(get_db)
 ):
     """
-    Import candidate from LinkedIn profile URL with Apollo enrichment.
+    Queue LinkedIn candidate import for async processing.
+
+    IMPORTANT: This endpoint does NOT import synchronously.
+    It queues the import request and returns a polling endpoint.
+
+    This architecture enables:
+    1. Fast HTTP response (no blocking on API calls)
+    2. Proper async processing via Celery
+    3. Automatic retry with exponential backoff
+    4. Audit trail via ChannelQueueItem
+    5. Thunder integration after candidate creation
 
     Workflow:
+    1. Validate LinkedIn URL format
+    2. Queue 'import_linkedin_candidate' task
+    3. Return message_id for polling
+
+    Backend async task (import_linkedin_candidate_task) will:
     1. Parse LinkedIn URL to extract profile slug
     2. Call Apollo.io to enrich: email, phone, company, title, open_to_work status
-    3. GATE: Only proceed if candidate is marked "Open to Work" (high-priority targets only)
+    3. GATE: Only proceed if candidate is marked "Open to Work"
     4. Check for duplicates (email OR phone)
     5. Create real Candidate record
-    6. Record WhatsApp consent
-    7. Return candidate ready for Thunder autonomous loop
+    6. Queue to Thunder for autonomous processing
 
     Args:
         request: LinkedInImportRequest with linkedin_url
 
     Returns:
-        LinkedInImportResponse with:
-        - status: 'SUCCESS'
-        - candidate_id: UUID ready for Thunder
-        - email: Enriched from Apollo
-        - phone: Enriched from Apollo
-        - full_name: From LinkedIn profile
-        - open_to_work: True (gated at import)
-        - linkedin_url: Original URL
-        - message: Ready for Thunder autonomous outreach
+        dict with:
+        - status: 'queued'
+        - message_id: UUID for polling task status
+        - polling_endpoint: URL to poll for result
+        - polling_interval_seconds: Recommended poll interval
 
     Raises:
         HTTPException 400: Invalid LinkedIn URL format
-        HTTPException 404: Apollo enrichment found no profile
-        HTTPException 403: Candidate not open to work (expected, not an error)
-        HTTPException 409: Duplicate candidate already exists
+        HTTPException 500: Failed to queue task
     """
+    from app.services.message_queue_service import MessageQueueService
+
     try:
-        # Create Apollo search function that calls the integration module
-        # In production, this would receive a real MCP client
-        # For now, it will raise NotImplementedError with setup instructions
-        async def apollo_search_func(search_params):
-            """Call Apollo.io MCP to enrich candidate data"""
-            # NOTE: apollo_mcp_client would be injected from environment/config
-            # in production. For now, None triggers NotImplementedError with setup steps
-            return await search_apollo_by_linkedin_url(
-                linkedin_url=search_params.get('linkedin_url'),
-                apollo_mcp_client=None  # Not configured in current environment
+        # Validate LinkedIn URL format first
+        if not request.linkedin_url:
+            raise HTTPException(
+                status_code=400,
+                detail="LinkedIn URL is required"
             )
 
-        candidate, import_info = await import_linkedin_candidate(
-            db,
-            request.linkedin_url,
-            apollo_search_func=apollo_search_func
+        linkedin_url_lower = request.linkedin_url.lower()
+        if not ('linkedin.com' in linkedin_url_lower or 'lnkd.in' in linkedin_url_lower):
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid LinkedIn URL format. Must be linkedin.com or lnkd.in"
+            )
+
+        logger.info(f"[LINKEDIN_ENDPOINT] Queueing LinkedIn import: {request.linkedin_url}")
+
+        # Queue the LinkedIn import as async task
+        # This allows:
+        # 1. Quick HTTP response (no blocking on API calls or DB operations)
+        # 2. Proper async processing via Celery
+        # 3. Automatic retry with exponential backoff (60s, 120s, 240s)
+        # 4. Audit trail via ChannelQueueItem
+        # 5. Thunder integration after candidate creation
+        result = MessageQueueService.enqueue(
+            task_name='import_linkedin_candidate',
+            data={
+                'linkedin_url': request.linkedin_url,
+                'tenant_id': 1  # TODO: get from current_user context
+            }
         )
 
-        return LinkedInImportResponse(**import_info)
+        if not result or result.get('status') != 'queued':
+            logger.error(f"[LINKEDIN_ENDPOINT] Failed to queue: {result}")
+            raise HTTPException(
+                status_code=500,
+                detail="Failed to queue LinkedIn import"
+            )
 
-    except InvalidLinkedInURL as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    except ApolloCandidateNotFound as e:
-        raise HTTPException(status_code=404, detail=str(e))
-    except CandidateNotOpenToWork as e:
-        raise HTTPException(
-            status_code=403,
-            detail=f"Candidate not open to work: {str(e)}"
-        )
-    except DuplicateCandidateExists as e:
-        raise HTTPException(status_code=409, detail=str(e))
+        message_id = result.get('message_id')
+        logger.info(f"[LINKEDIN_ENDPOINT] Queued successfully: {message_id}")
+
+        return {
+            "status": "queued",
+            "message_id": message_id,
+            "linkedin_url": request.linkedin_url,
+            "polling_endpoint": f"/api/v1/tasks/{message_id}/status",
+            "polling_interval_seconds": 5,
+            "message": "LinkedIn import queued. Check polling_endpoint for result."
+        }
+
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"LinkedIn import error: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Import failed: {str(e)}")
+        logger.error(f"[LINKEDIN_ENDPOINT] Failed to queue: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to queue LinkedIn import. Please try again."
+        )
 
 @router.post("/change_password", response_model=ChangePasswordResponse, dependencies=[Depends(require_resource_permission("change_password", "create"))])
 def change_password(request: ChangePasswordRequest, db: Session = Depends(get_db), user = Depends(get_current_candidate)):

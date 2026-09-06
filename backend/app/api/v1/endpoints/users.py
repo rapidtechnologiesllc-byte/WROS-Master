@@ -648,9 +648,9 @@ def get_assigned_interviews(
 
 @router.post(
     "/users/create",
-    response_model=UserResponse,
-    status_code=201,
-    summary="Create a new HR/Admin user",
+    response_model=dict,
+    status_code=202,
+    summary="Queue new HR/Admin user creation",
     dependencies=[Depends(require_resource_permission("users", "edit"))],
 )
 def create_user(
@@ -659,77 +659,107 @@ def create_user(
     current_user = Depends(get_current_internal_user)
 ):
     """
-    Create a new internal user (HR, Admin, etc.).
-    Requires permission: user.manage
-    """
-    if not request.user_name or not request.user_name.strip():
-        raise ValueError("User name is required")
-    if not request.user_email or not request.user_email.strip():
-        raise ValueError("User email is required")
-    if not request.user_password or not request.user_password.strip():
-        raise ValueError("User password is required")
-    if not request.user_role or not request.user_role.strip():
-        raise ValueError("User role is required")
-    if not request.role_template_id:
-        raise ValueError("Role template ID is required")
+    Queue user creation for async background processing.
 
+    This endpoint:
+    1. Validates request
+    2. Queues 'create_user_with_roles' task
+    3. Returns message_id for polling
+
+    Background processing handles:
+    1. User record creation
+    2. Role template assignment
+    3. Permission setup
+    4. Welcome email notification
+    5. Audit logging
+
+    Args:
+        request: SignupRequest with user_name, user_email, user_password, user_role, role_template_id
+
+    Returns:
+        dict with:
+        - status: 'queued'
+        - message_id: UUID for polling task status
+        - polling_endpoint: URL to check status
+
+    Raises:
+        HTTPException 400: Validation error
+        HTTPException 409: User email already exists
+        HTTPException 500: Failed to queue
+    """
+    from app.services.message_queue_service import MessageQueueService
+
+    # Validate inputs
+    if not request.user_name or not request.user_name.strip():
+        raise HTTPException(status_code=400, detail="User name is required")
+    if not request.user_email or not request.user_email.strip():
+        raise HTTPException(status_code=400, detail="User email is required")
+    if not request.user_password or not request.user_password.strip():
+        raise HTTPException(status_code=400, detail="Password is required")
+    if not request.user_role or not request.user_role.strip():
+        raise HTTPException(status_code=400, detail="User role is required")
+    if not request.role_template_id:
+        raise HTTPException(status_code=400, detail="Role template ID is required")
+
+    # Check if user already exists
     from app.core.database import check_user
 
     try:
         existing = check_user(db, request.user_email)
-    except Exception as check_error:
-        logger.error(f"Failed to check existing user {request.user_email}: {check_error}", exc_info=True)
+        if existing:
+            raise HTTPException(
+                status_code=409,
+                detail=f"User with email {request.user_email} already exists"
+            )
+    except HTTPException:
         raise
-
-    if existing:
-        raise HTTPException(status_code=400, detail=f"User with email {request.user_email} already exists")
+    except Exception as check_error:
+        logger.error(f"Failed to check existing user: {check_error}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to validate email")
 
     tenant_id = current_user.tenant_id or 1
 
     try:
-        new_user = Users(
-            UserID=user_id_generator(),
-            UserName=request.user_name,
-            UserEmail=request.user_email,
-            UserPassword=get_password_hash(request.user_password),
-            UserRole=request.user_role,
-            tenant_id=tenant_id
+        # Queue user creation for background processing
+        result = MessageQueueService.enqueue(
+            task_name='create_user_with_roles',
+            data={
+                'user_email': request.user_email,
+                'user_name': request.user_name,
+                'user_password': request.user_password,
+                'business_unit_id': None,  # Not provided in basic create
+                'role_ids': [request.role_template_id],
+                'created_by_user_id': current_user.UserID,
+                'tenant_id': tenant_id
+            }
         )
-    except Exception as creation_error:
-        logger.error(f"Failed to create Users object: {creation_error}", exc_info=True)
-        raise
 
-    try:
-        db.add(new_user)
-    except Exception as add_error:
-        logger.error(f"Failed to add user to session: {add_error}", exc_info=True)
-        raise
+        if not result or result.get('status') != 'queued':
+            logger.error(f"Failed to queue user creation: {result}")
+            raise HTTPException(status_code=500, detail="Failed to queue user creation")
 
-    try:
-        db.commit()
-    except Exception as commit_error:
-        logger.error(f"Failed to commit new user: {commit_error}", exc_info=True)
-        db.rollback()
-        raise
+        message_id = result.get('message_id')
+        logger.info(f"User creation queued: {message_id} for {request.user_email}")
 
-    try:
-        db.refresh(new_user)
-    except Exception as refresh_error:
-        logger.error(f"Failed to refresh new user: {refresh_error}", exc_info=True)
-        raise
+        return {
+            "status": "queued",
+            "message_id": message_id,
+            "user_email": request.user_email,
+            "polling_endpoint": f"/api/v1/tasks/{message_id}/status",
+            "polling_interval_seconds": 3
+        }
 
-    return UserResponse(
-        user_id=new_user.UserID,
-        user_name=new_user.UserName or "",
-        user_email=new_user.UserEmail,
-        user_role=new_user.UserRole,
-        created_at=new_user.CreatedAt
-    )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to queue user creation: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to queue user creation")
 
 @router.post(
     "/users/create-with-roles",
-    response_model=UserResponse,
-    summary="Create a new user with roles and optional job title",
+    response_model=dict,
+    status_code=202,
+    summary="Queue new user with roles and org hierarchy",
     dependencies=[Depends(require_resource_permission("users", "edit"))],
 )
 def create_user_with_roles(
@@ -738,166 +768,147 @@ def create_user_with_roles(
     current_user: Users = Depends(get_current_internal_user)
 ):
     """
-    Create a new user with roles and org hierarchy (MANDATORY: hierarchy_level + specialization).
+    Queue user creation with roles and org hierarchy for async processing.
+
+    This endpoint:
+    1. Validates request and org hierarchy
+    2. Queues 'create_user_with_roles' task
+    3. Returns message_id for polling
+
+    Background processing handles:
+    1. User record creation
+    2. OrgNode creation with hierarchy
+    3. Role assignment
+    4. Permission setup
+    5. Welcome email and onboarding
 
     REQUIRED FIELDS (from request):
     - user_name, user_email, user_password, role_template_id
-    - hierarchy_level (1-17): MANDATORY - defines org position
-    - specialization: MANDATORY - Recruitment, Development, HR, Finance, Project Management, QA, Business Analysis
+    - hierarchy_level (1-17): defines org position
+    - specialization: Recruitment, Development, HR, Finance, etc.
 
-    Validates reporting structure before creating OrgNode.
-    Requires permission: user.manage
+    Args:
+        request: CreateUserWithRolesRequest with all user details
+
+    Returns:
+        dict with:
+        - status: 'queued'
+        - message_id: UUID for polling task status
+        - polling_endpoint: URL to check status
+
+    Raises:
+        HTTPException 400: Validation error
+        HTTPException 409: User email already exists or invalid hierarchy
+        HTTPException 500: Failed to queue
     """
-    user_name = request.user_name
-    user_email = request.user_email
-    user_password = request.user_password
-    job_title = request.job_title
-    partner_id = request.partner_id
-    business_unit_id = request.business_unit_id
-    role_template_id = request.role_template_id
-    hierarchy_level = request.hierarchy_level  # MANDATORY
-    specialization = request.specialization    # MANDATORY
-    parent_node_id = request.parent_node_id
+    from app.services.message_queue_service import MessageQueueService
 
-    if not user_name or not user_name.strip():
+    # Validate all required fields
+    if not request.user_name or not request.user_name.strip():
         raise HTTPException(status_code=400, detail="User name is required")
-    if not user_email or not user_email.strip():
+    if not request.user_email or not request.user_email.strip():
         raise HTTPException(status_code=400, detail="User email is required")
-    if not user_password or not user_password.strip():
+    if not request.user_password or not request.user_password.strip():
         raise HTTPException(status_code=400, detail="Password is required")
-    if not role_template_id:
+    if not request.role_template_id:
         raise HTTPException(status_code=400, detail="Role template is required")
+    if not request.hierarchy_level:
+        raise HTTPException(status_code=400, detail="Hierarchy level is required")
+    if not request.specialization:
+        raise HTTPException(status_code=400, detail="Specialization is required")
 
-    existing = check_user(db, user_email)
-    if existing:
-        raise HTTPException(status_code=400, detail=f"User with email {user_email} already exists")
-
-    # PRODUCTION SAFETY: Auto-assign tenant_id from creating user's tenant
-    tenant_id = current_user.tenant_id or 1
+    # Check if user email already exists
+    try:
+        existing = check_user(db, request.user_email)
+        if existing:
+            raise HTTPException(
+                status_code=409,
+                detail=f"User with email {request.user_email} already exists"
+            )
+    except HTTPException:
+        raise
+    except Exception as check_error:
+        logger.error(f"Failed to check existing user: {check_error}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to validate email")
 
     # Validate role template exists
-    role_template = db.query(RoleTemplate).filter(
-        RoleTemplate.id == role_template_id
-    ).first()
-
-    if not role_template:
-        raise HTTPException(status_code=400, detail="Role template not found")
-
-    # CRITICAL: Validate org hierarchy with 17-level system + specialization
-    is_valid, error_msg = validate_before_employee_creation(
-        db,
-        hierarchy_level=hierarchy_level,
-        specialization=specialization,
-        parent_node_id=parent_node_id,
-        business_unit_id=business_unit_id
-    )
-
-    if not is_valid:
-        raise HTTPException(status_code=400, detail=f"Invalid reporting structure: {error_msg}")
-
     try:
-        new_user = Users(
-            UserID=user_id_generator(),
-            UserName=user_name,
-            UserEmail=user_email,
-            UserPassword=get_password_hash(user_password),
-            UserRole="Admin",
-            tenant_id=tenant_id
+        role_template = db.query(RoleTemplate).filter(
+            RoleTemplate.id == request.role_template_id
+        ).first()
+
+        if not role_template:
+            raise HTTPException(status_code=400, detail="Role template not found")
+    except HTTPException:
+        raise
+    except Exception as role_error:
+        logger.error(f"Failed to check role template: {role_error}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to validate role template")
+
+    # Validate org hierarchy with 17-level system + specialization
+    try:
+        is_valid, error_msg = validate_before_employee_creation(
+            db,
+            hierarchy_level=request.hierarchy_level,
+            specialization=request.specialization,
+            parent_node_id=request.parent_node_id,
+            business_unit_id=request.business_unit_id
         )
-    except Exception as creation_error:
-        logger.error(f"Failed to create Users object: {creation_error}", exc_info=True)
+
+        if not is_valid:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid reporting structure: {error_msg}"
+            )
+    except HTTPException:
         raise
+    except Exception as hierarchy_error:
+        logger.error(f"Failed to validate org hierarchy: {hierarchy_error}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to validate hierarchy")
 
-    if job_title:
-        new_user.job_title = job_title
-    if partner_id:
-        new_user.partner_id = partner_id
-    if business_unit_id:
-        new_user.business_unit_id = business_unit_id
-
-    new_user.role_template_id = role_template_id
+    tenant_id = current_user.tenant_id or 1
 
     try:
-        db.add(new_user)
-    except Exception as add_error:
-        logger.error(f"Failed to add user to session: {add_error}", exc_info=True)
-        raise
-
-    try:
-        db.commit()
-    except Exception as commit_error:
-        logger.error(f"Failed to commit new user: {commit_error}", exc_info=True)
-        db.rollback()
-        raise
-
-    try:
-        db.refresh(new_user)
-    except Exception as refresh_error:
-        logger.error(f"Failed to refresh new user: {refresh_error}", exc_info=True)
-        raise
-
-    try:
-        org_node = OrgNode(
-            name=f"{new_user.UserName} - {specialization}",
-            node_type="PERSON",
-            user_id=new_user.UserID,
-            parent_node_id=parent_node_id,
-            hierarchy_level=hierarchy_level,
-            specialization=specialization,
-            authority_level="INDIVIDUAL",
-            business_unit_id=business_unit_id,
-            email=user_email,
-            tenant_id=tenant_id,
+        # Queue user creation for background processing
+        result = MessageQueueService.enqueue(
+            task_name='create_user_with_roles',
+            data={
+                'user_email': request.user_email,
+                'user_name': request.user_name,
+                'user_password': request.user_password,
+                'business_unit_id': request.business_unit_id,
+                'role_ids': [request.role_template_id],
+                'job_title': request.job_title,
+                'partner_id': request.partner_id,
+                'hierarchy_level': request.hierarchy_level,
+                'specialization': request.specialization,
+                'parent_node_id': request.parent_node_id,
+                'created_by_user_id': current_user.UserID,
+                'tenant_id': tenant_id
+            }
         )
-    except Exception as orgnode_creation_error:
-        logger.error(f"Failed to create OrgNode instance: {orgnode_creation_error}", exc_info=True)
+
+        if not result or result.get('status') != 'queued':
+            logger.error(f"Failed to queue user creation: {result}")
+            raise HTTPException(status_code=500, detail="Failed to queue user creation")
+
+        message_id = result.get('message_id')
+        logger.info(f"User with roles queued: {message_id} for {request.user_email}")
+
+        return {
+            "status": "queued",
+            "message_id": message_id,
+            "user_email": request.user_email,
+            "user_name": request.user_name,
+            "polling_endpoint": f"/api/v1/tasks/{message_id}/status",
+            "polling_interval_seconds": 3
+        }
+
+    except HTTPException:
         raise
-
-    try:
-        db.add(org_node)
-    except Exception as add_error:
-        logger.error(f"Failed to add OrgNode to session: {add_error}", exc_info=True)
-        raise
-
-    try:
-        db.commit()
-    except Exception as commit_error:
-        logger.error(f"Failed to commit OrgNode: {commit_error}", exc_info=True)
-        db.rollback()
-        raise
-
-    try:
-        db.refresh(org_node)
-    except Exception as refresh_error:
-        logger.error(f"Failed to refresh OrgNode: {refresh_error}", exc_info=True)
-        raise
-
-    # Queue user_created message for welcome email
-    MessageQueueService.enqueue(
-        message_type="user_created",
-        payload={
-            "user_id": new_user.UserID,
-            "user_name": new_user.UserName,
-            "user_email": new_user.UserEmail,
-            "user_role": new_user.UserRole,
-            "job_title": job_title,
-            "business_unit_id": business_unit_id,
-            "hierarchy_level": hierarchy_level,
-            "specialization": specialization,
-        },
-        resource_id=new_user.UserID,
-        queue_type="EMAIL_QUEUE",
-        created_by=current_user.UserID,
-        db=db,
-    )
-
-    return UserResponse(
-        user_id=new_user.UserID,
-        user_name=new_user.UserName or "",
-        user_email=new_user.UserEmail,
-        user_role=new_user.UserRole,
-        created_at=new_user.CreatedAt
-    )
+    except Exception as e:
+        logger.error(f"Failed to queue user creation: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to queue user creation")
 
 @router.put(
     "/users/{user_id}/update-with-roles",
