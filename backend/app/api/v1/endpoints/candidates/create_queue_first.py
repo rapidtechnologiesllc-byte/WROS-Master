@@ -26,10 +26,9 @@ logger = logging.getLogger(__name__)
     response_model=CandidateCreateResponse,
     dependencies=[Depends(require_resource_permission("candidates", "create"))],
 )
-def create_candidate(
+async def create_candidate(
     request: CandidateCreateRequest,
     db: Session = Depends(get_db),
-    user = Depends(lambda: None),  # Dummy dependency to satisfy get_current_user requirement
 ):
     """Queue candidate for creation via async processor.
 
@@ -52,22 +51,30 @@ def create_candidate(
         HTTPException(400): If validation fails
         HTTPException(500): If queue fails
     """
+    logger.info(f"=== ENDPOINT CALLED ===")
+    logger.info(f"Validating location...")
+
     # Validate location is required
     if not request.candidate_current_location or not request.candidate_current_location.strip():
+        logger.error("Location validation failed")
         raise HTTPException(
             status_code=400,
             detail="Location (City, State, Country) is mandatory for candidate creation"
         )
 
+    logger.info(f"Validating email...")
     # Validate email format
     if not request.candidate_email or "@" not in request.candidate_email:
+        logger.error("Email validation failed")
         raise HTTPException(
             status_code=400,
             detail="Valid email address is required"
         )
 
+    logger.info(f"Generating password...")
     # Generate password for candidate (will be sent later)
     password = generate_password()
+    logger.info(f"Password generated")
 
     # Queue candidate creation request
     # CandidateQueueProcessor will handle:
@@ -77,30 +84,36 @@ def create_candidate(
     # 4. Queueing to Thunder for processing
     try:
         logger.info(f"Queueing candidate creation: {request.candidate_email}")
+
+        # Prepare payload for queueing
+        payload = {
+            'candidate_email': request.candidate_email,
+            'candidate_first_name': request.candidate_first_name,
+            'candidate_middle_name': request.candidate_middle_name or '',
+            'candidate_last_name': request.candidate_last_name,
+            'candidate_mobile': request.candidate_mobile,
+            'candidate_current_location': request.candidate_current_location,
+            'candidate_gender': request.candidate_gender or 'Not Specified',
+            'candidate_date_of_birth': str(request.candidate_date_of_birth) if request.candidate_date_of_birth else None,
+            'candidate_source': request.candidate_source or 'Direct',
+            'candidate_experience': request.candidate_experience or '',
+            'candidate_skills': request.candidate_skills or [],
+            'candidate_joining_date': str(request.candidate_joining_date) if request.candidate_joining_date else None,
+            'candidate_expected_salary': request.candidate_expected_salary or '',
+            'candidate_current_salary': request.candidate_current_salary or '',
+            'candidate_role': request.candidate_role or '',
+            'candidate_employee_type': request.candidate_employee_type or 'Full-time',
+            'candidate_job_title': request.candidate_job_title or '',
+            'education_records': request.education_records or [],
+            'experience_records': request.experience_records or [],
+            'password': password,
+        }
+
+        logger.info(f"Payload prepared: {payload}")
+
         result = MessageQueueService.enqueue(
             task_name='create_candidate',
-            data={
-                'candidate_email': request.candidate_email,
-                'candidate_first_name': request.candidate_first_name,
-                'candidate_middle_name': request.candidate_middle_name,
-                'candidate_last_name': request.candidate_last_name,
-                'candidate_mobile': request.candidate_mobile,
-                'candidate_current_location': request.candidate_current_location,
-                'candidate_gender': request.candidate_gender,
-                'candidate_date_of_birth': request.candidate_date_of_birth,
-                'candidate_source': request.candidate_source,
-                'candidate_experience': request.candidate_experience,
-                'candidate_skills': request.candidate_skills,
-                'candidate_joining_date': request.candidate_joining_date,
-                'candidate_expected_salary': request.candidate_expected_salary,
-                'candidate_current_salary': request.candidate_current_salary,
-                'candidate_role': request.candidate_role,
-                'candidate_employee_type': request.candidate_employee_type,
-                'candidate_job_title': request.candidate_job_title,
-                'education_records': request.education_records,
-                'experience_records': request.experience_records,
-                'password': password,
-            }
+            data=payload
         )
 
         if not result or result.get('status') != 'queued':
@@ -122,6 +135,8 @@ def create_candidate(
         raise
     except Exception as e:
         logger.error(f"Failed to queue candidate creation: {str(e)}", exc_info=True)
+        import traceback
+        logger.error(f"Traceback: {traceback.format_exc()}")
         raise HTTPException(
             status_code=500,
             detail="Failed to queue candidate for creation. Please try again."
