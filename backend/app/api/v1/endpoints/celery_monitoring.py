@@ -15,17 +15,13 @@ MAX_FINISHED_TASKS = 50
 
 @router.get("/queues", dependencies=[Depends(require_resource_permission("queue", "view"))])
 def get_queues():
-    """Get list of Celery queues and task counts - shows all known queues."""
+    """Get list of Celery queues and task counts from actual registered queues."""
     try:
-        # Known queues to always display
-        known_queues = ['default', 'thunder', 'email', 'sms', 'whatsapp', 'slack']
         queues = []
         result_keys = redis_client.keys('celery*')
-
-        # Track which queues we've already seen
         seen_queues = set()
 
-        # Get queues with actual tasks
+        # Get queues with actual tasks from Redis
         if result_keys:
             for key in result_keys:
                 try:
@@ -36,11 +32,29 @@ def get_queues():
                 except Exception as e:
                     logger.warning(f"Failed to get length for {key}: {e}")
 
-        # Add known queues with 0 count if not already present
-        if known_queues:
-            for queue_name in known_queues:
-                if queue_name not in seen_queues:
-                    queues.append({"name": queue_name, "key": f"celery.{queue_name}", "pending_count": 0})
+        # Get registered queues from Celery inspect API
+        try:
+            inspect = celery_app.control.inspect()
+            registered_queues = inspect.registered() or {}
+
+            # Extract unique queue names from registered tasks
+            if isinstance(registered_queues, dict) and registered_queues:
+                queue_items = list(registered_queues.items())
+                if queue_items:
+                    for worker_name, tasks in queue_items:
+                        if tasks:
+                            for task_name in tasks:
+                                # Extract queue routing if available
+                                if hasattr(celery_app.conf, 'task_routes') and celery_app.conf.task_routes:
+                                    if callable(celery_app.conf.task_routes):
+                                        route = celery_app.conf.task_routes(task_name)
+                                        if route and 'queue' in route:
+                                            queue_name = route['queue']
+                                            if queue_name not in seen_queues:
+                                                queues.append({"name": queue_name, "key": f"celery.{queue_name}", "pending_count": 0})
+                                                seen_queues.add(queue_name)
+        except Exception as e:
+            logger.warning(f"Failed to get registered queues from inspect: {e}")
 
         total = sum(q["pending_count"] for q in queues)
         return {"queues": queues, "total_queues": len(queues), "total_pending": total}
