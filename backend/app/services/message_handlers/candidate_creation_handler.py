@@ -15,6 +15,8 @@ from app.core.logging import logger
 from app.models.channel_queue import ChannelQueueItem
 from app.models.candidate import Candidate, CandidateStatus, CandidateEducationForm, CandidateExperienceForm
 from app.services.candidate_service import create_candidate_safe, DuplicateCandidateError
+from app.services.data_healer_service import DataHealerService
+from app.services.message_queue_service import MessageQueueService
 
 logger = logging.getLogger(__name__)
 
@@ -175,14 +177,113 @@ class CandidateCreationHandler:
             except Exception as e:
                 logger.error(f"[Handler] Failed to log history: {e}", exc_info=True)
 
+            # 6. QUEUE TO THUNDER FOR AUTONOMOUS PROCESSING
+            try:
+                MessageQueueService.enqueue(
+                    task_name='assign_thunder_agent',
+                    data={
+                        'candidate_id': candidate_id,
+                        'action': 'qualify',
+                        'tenant_id': payload.get('tenant_id', 1),
+                    }
+                )
+                logger.info(f"[Handler] ✅ Queued {candidate_id} to Thunder for autonomous processing")
+            except Exception as e:
+                logger.warning(f"[Handler] Failed to queue Thunder (non-blocking): {e}")
+                # Don't fail candidate creation if Thunder queueing fails - it's async
+
             return {"status": "success", "candidate_id": candidate_id, "is_new": is_new}
 
         except DuplicateCandidateError as e:
             logger.warning(f"[Handler] Duplicate candidate: {candidate_email}", exc_info=True)
-            raise RuntimeError(f"Duplicate candidate: {str(e)}") from e
+            # Duplicates are OK - track as multiple applications
+            return {"status": "success", "candidate_id": str(e), "is_new": False, "duplicate": True}
         except Exception as e:
-            logger.error(f"[Handler] Unexpected error: {e}", exc_info=True)
-            raise
+            error_msg = str(e)
+            logger.error(f"[Handler] Candidate creation failed: {error_msg}", exc_info=True)
+
+            # HEALING STRATEGY: Try to fix data issues before giving up
+            can_heal, healed_payload, recruiter_task = DataHealerService.heal_and_recover(
+                error=error_msg,
+                payload=payload,
+                db=db
+            )
+
+            if can_heal:
+                logger.info(f"[Handler] Healer fixed issues, retrying with healed payload")
+                # Retry with healed payload (may use placeholders)
+                try:
+                    candidate, is_new = create_candidate_safe(
+                        db,
+                        email=healed_payload.get("candidate_email"),
+                        mobile=healed_payload.get("candidate_mobile"),
+                        plain_password=healed_payload.get("candidate_password"),
+                        tenant_id=healed_payload.get("tenant_id"),
+                        candidateRole=healed_payload.get("candidate_role", "Candidate"),
+                        candidateEmployeeType=healed_payload.get("candidate_employee_type"),
+                        candidateJobTitle=healed_payload.get("candidate_job_title"),
+                        candidateFirstName=healed_payload.get("candidate_first_name"),
+                        candidateLastName=healed_payload.get("candidate_last_name"),
+                        candidateGender=healed_payload.get("candidate_gender"),
+                        candidateDateOfBirth=healed_payload.get("candidate_date_of_birth"),
+                        candidateCurrentLocation=healed_payload.get("candidate_current_location"),
+                        candidateCreatedAt=datetime.now(),
+                    )
+                    try:
+                        db.commit()
+                    except Exception as commit_err:
+                        db.rollback()
+                        raise RuntimeError(f"Failed to commit healed candidate: {str(commit_err)}") from commit_err
+
+                    try:
+                        db.refresh(candidate)
+                    except Exception as refresh_err:
+                        logger.error(f"Failed to refresh candidate: {refresh_err}")
+                        raise RuntimeError(f"Failed to refresh candidate: {str(refresh_err)}") from refresh_err
+
+                    candidate_id = candidate.candidateID
+
+                    # Create status if it doesn't already exist
+                    try:
+                        existing_status = db.query(CandidateStatus).filter(
+                            CandidateStatus.candidateID == candidate_id
+                        ).first()
+                    except Exception as query_err:
+                        existing_status = None
+                        logger.warning(f"Failed to query status: {query_err}")
+
+                    if not existing_status:
+                        try:
+                            status_record = CandidateStatus(
+                                candidateID=candidate_id,
+                                piplineStatus="Applied",
+                                status="Active",
+                                createdAt=datetime.now(),
+                                updatedAt=datetime.now(),
+                            )
+                            db.add(status_record)
+                            db.commit()
+                        except Exception as status_err:
+                            db.rollback()
+                            logger.error(f"Failed to create status for healed candidate: {status_err}", exc_info=True)
+                            raise RuntimeError(f"Failed to create status: {str(status_err)}") from status_err
+
+                    # If we used placeholders, create a recruiter task to fix the data
+                    if recruiter_task:
+                        logger.info(f"[Handler] Creating recruiter task: {recruiter_task}")
+                        DataHealerService.create_recruiter_fix_task(candidate_id, recruiter_task, db)
+
+                    return {"status": "success", "candidate_id": candidate_id, "is_new": is_new, "healed": True}
+
+                except Exception as retry_error:
+                    logger.error(f"[Handler] Healed retry also failed: {retry_error}", exc_info=True)
+                    # Escalate to recruiter for manual review
+                    raise RuntimeError(f"Manual review required after healing attempt: {retry_error}") from retry_error
+            else:
+                # Cannot heal - escalate
+                escalation_msg = recruiter_task or f"Cannot auto-fix: {error_msg}"
+                logger.error(f"[Handler] Escalating to recruiter: {escalation_msg}")
+                raise RuntimeError(escalation_msg) from e
 
     @staticmethod
     def _log_history_event(candidate_id: str, event_type: str, note: str):
