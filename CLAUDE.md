@@ -23,6 +23,81 @@
 
 ---
 
+## 🚨 CRITICAL: NO HARDCODED USER PERMISSIONS (2026-09-06)
+
+**STATUS:** ✅ ENFORCED - All user permission dependencies must be dynamic role-based checks
+
+### The Problem
+
+**Hardcoded user permission functions like `get_current_hr_or_admin` cause catastrophic failures:**
+
+```python
+# ❌ DEADLY WRONG - Used in production for years
+def endpoint(
+    user = Depends(get_current_hr_or_admin)  # ← Hardcoded assumption
+):
+    pass
+
+# Impact: 
+# - Function name is hardcoded in code
+# - If function doesn't exist or changes, endpoint returns 500 SILENTLY
+# - No clear error message (FastAPI dependency resolution hangs)
+# - Affects ALL endpoints using this dependency
+# - Cascades failures across entire API layer
+```
+
+### The Rule
+
+❌ **NEVER hardcode user permission functions:**
+- `Depends(get_current_hr_or_admin)` - FORBIDDEN
+- `Depends(get_current_candidate_otp_pending)` - FORBIDDEN  
+- Any `Depends(get_current_<specific_role>)` - FORBIDDEN
+- Any role-specific function dependency - FORBIDDEN
+
+✅ **ALWAYS use dynamic role-based auth:**
+- `dependencies=[Depends(require_resource_permission("resource", "action"))]`
+- `dependencies=[Depends(require_role_template_permission("resource", "action"))]`
+- `current_user = Depends(get_current_user)` - Generic user auth only
+- Database-driven permission checks - Never hardcoded
+
+### How Hardcoding Breaks Everything
+
+**Incident 2026-09-06:**
+- 26 instances of `get_current_hr_or_admin` found in codebase
+- Function exists but has async/sync issues
+- Endpoints return 500 without error details
+- Debugging took 6+ hours
+- Affected: auth.py, candidates/crud.py, 4 test files
+- Root cause: Hardcoded dependency assumption
+
+### Prevention & Enforcement
+
+**Code Review Gate:**
+- ❌ Flags any `Depends(get_current_<specific>)` pattern
+- ❌ Flags imports of hardcoded permission functions
+- ✅ Only allows `require_resource_permission()` or `require_role_template_permission()`
+
+**Architect Agent:**
+- ❌ Scans for hardcoded user permission dependencies
+- ❌ Flags endpoints with role-specific `Depends()`
+- ✅ Requires justification for any user dependency
+
+**CLAUDE.md:**
+- This rule is NON-NEGOTIABLE
+- Violations must be fixed before merge
+- No exceptions, no workarounds
+
+### Checklist for Every Endpoint
+
+Before committing any endpoint:
+- [ ] No `Depends(get_current_hr_or_admin)` or similar
+- [ ] No imports of hardcoded permission functions
+- [ ] Permission check is dynamic via `require_resource_permission()`
+- [ ] If need current user: only use `get_current_user` (generic)
+- [ ] Gate passes with zero permission violations
+
+---
+
 ## 🚨 ZERO TOLERANCE: NO HARDCODED VALUES (2026-09-05)
 
 **STATUS:** ✅ ENFORCED - All hardcoded lists, queues, endpoints, and configuration must be dynamic
