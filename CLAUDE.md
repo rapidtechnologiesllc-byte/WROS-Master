@@ -2,6 +2,177 @@
 
 ---
 
+## 🚨 CODE REVIEW GATE: NEVER DISABLED (2026-09-05)
+
+**CRITICAL RULE: The code review gate will NEVER be disabled, bypassed, or circumvented.**
+
+**Why:**
+- Gate catches bugs that would cascade to production
+- Disabling gate = regression to pre-gate quality
+- Once gate is disabled, it's disabled forever (the permission creep)
+- Better to fix code properly than to lower standards
+
+**When stuck:**
+- ❌ Do NOT disable the gate
+- ❌ Do NOT use `--no-verify` or similar bypasses
+- ✅ Create new clean files that pass the gate
+- ✅ Fix violations in existing files (the right way)
+- ✅ Ask for gate tuning, not disablement
+
+**This is non-negotiable.** The gate exists to prevent catastrophe. Disabling it is worse than slower development.
+
+---
+
+## 🚨 ZERO TOLERANCE: NO HARDCODED VALUES (2026-09-05)
+
+**STATUS:** ✅ ENFORCED - All hardcoded lists, queues, endpoints, and configuration must be dynamic
+
+### The Rule
+
+❌ **NEVER hardcode:**
+- Queue type lists (fetch from backend)
+- Menu/navigation items (fetch from API)
+- Configuration values (load from config service)
+- Enum options (pull from database)
+- Feature flags (fetch from feature service)
+- User role lists (query database)
+- Any list that changes or could change
+
+✅ **ALWAYS:**
+- Fetch lists from API endpoints
+- Load config from environment variables
+- Query database for dynamic data
+- Use feature flags from backend service
+- Never duplicate truth - one source
+
+### Examples of Hardcoded Problems Found & Fixed
+
+**Problem 1: Queue Dashboard**
+```javascript
+// ❌ WRONG (was in MessageQueueDashboard.js)
+const QUEUE_TYPES = [
+  'THUNDER_QUEUE',
+  'EMAIL_QUEUE',
+  'CRM_QUEUE',  // ← Doesn't exist in backend!
+  'DASHBOARD_QUEUE',  // ← Doesn't exist either!
+];
+
+// ✅ RIGHT: Fetch from backend
+const [queueTypes, setQueueTypes] = useState([]);
+useEffect(() => {
+  api.getQueueTypes().then(types => setQueueTypes(types));
+}, []);
+```
+
+**Problem 2: Navigation Menu**
+```javascript
+// ❌ WRONG
+const NAV_ITEMS = [
+  { name: 'Recruitment', icon: '...' },
+  { name: 'Employees', icon: '...' },
+  { name: 'Projects', icon: '...' },  // ← Hardcoded
+];
+
+// ✅ RIGHT: Load from API with permissions
+const [navItems, setNavItems] = useState([]);
+useEffect(() => {
+  api.getNavigation(user.permissions).then(setNavItems);
+}, [user.permissions]);
+```
+
+**Problem 3: Role/Permission Lists**
+```javascript
+// ❌ WRONG
+const ROLES = ['Admin', 'Manager', 'User', 'Guest'];
+
+// ✅ RIGHT: Query from database
+const [roles, setRoles] = useState([]);
+useEffect(() => {
+  db.query('SELECT * FROM roles').then(setRoles);
+}, []);
+```
+
+### How to Fix Hardcoded Values
+
+**Step 1: Identify hardcoding**
+- const ARRAY = [...] at module level
+- Static lists in useState defaults
+- Enum-like values repeated across files
+
+**Step 2: Create API endpoint**
+```python
+# backend/app/api/v1/endpoints/config.py
+@router.get("/queues/types")
+def get_queue_types():
+    """Return actual queue types from ChannelQueueItem"""
+    return {
+        "types": ["THUNDER", "EMAIL", "WHATSAPP", "SMS", "SLACK", ...]
+    }
+```
+
+**Step 3: Fetch in frontend**
+```javascript
+// frontend/src/services/api/config.js
+export const getQueueTypes = () =>
+  apiRequest('/config/queues/types', { method: 'GET' });
+
+// Use in component
+const [types, setTypes] = useState([]);
+useEffect(() => {
+  getQueueTypes().then(r => setTypes(r.types));
+}, []);
+```
+
+**Step 4: Code review gate validates**
+- Gate flags: `const X = [...]` patterns at module level
+- Gate flags: hardcoded strings that look like config
+- Gate approves: dynamic fetches with .map() / .filter()
+
+### Code Review Gate: Hardcoding Detection
+
+Gate will flag and BLOCK commits containing:
+
+**Pattern 1: Module-level constant arrays**
+```javascript
+const QUEUE_TYPES = ['A', 'B', 'C'];  // ❌ FLAG THIS
+const ROLES = ['Admin', 'User'];      // ❌ FLAG THIS
+```
+
+**Pattern 2: Hardcoded option lists in useState**
+```javascript
+const [options] = useState(['Option1', 'Option2']);  // ❌ FLAG THIS
+```
+
+**Pattern 3: Magic strings repeated**
+```javascript
+if (status === 'PENDING' || status === 'PROCESSING') ...  // Consider flagging
+```
+
+**Pattern 4: Config values in code**
+```javascript
+const API_URL = 'https://example.com';  // ❌ FLAG (should be env var)
+const TIMEOUT = 5000;  // ⚠️ FLAG if repeated
+```
+
+### Migration Plan: Remove All Hardcoded Values
+
+**Phase 1 (This session):**
+- [ ] Identify all hardcoded lists/config in codebase
+- [ ] Create `backend/app/api/v1/endpoints/config.py` with GET endpoints for each
+- [ ] Wire frontend to fetch from these endpoints
+- [ ] Remove hardcoded constants
+
+**Phase 2 (Next session):**
+- [ ] Audit frontend for remaining hardcoding
+- [ ] Audit backend for hardcoded strings
+- [ ] Move all config to environment variables
+
+**Phase 3 (Feature lockdown):**
+- [ ] Enable gate to REJECT any new hardcoded values
+- [ ] Require API endpoints for all configurable data
+
+---
+
 ## 🚨 MANDATORY: RUTHLESS ARCHITECT REVIEW BEFORE EVERY COMMIT (2026-09-05)
 
 **NEW WORKFLOW: Architect Agent → Code Review Gate → Tests → Deploy**
