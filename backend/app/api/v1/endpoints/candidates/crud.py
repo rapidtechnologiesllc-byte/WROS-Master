@@ -226,12 +226,13 @@ def create_candidate(
     Raises:
         HTTPException: If candidate with email already exists, or location not provided
     """
-    # Validate location is provided (required for candidate search)
-    if not request.candidate_current_location or not request.candidate_current_location.strip():
-        raise HTTPException(
-            status_code=400,
-            detail="Location (City, State, Country) is mandatory for candidate creation"
-        )
+    try:
+        # Validate location is provided (required for candidate search)
+        if not request.candidate_current_location or not request.candidate_current_location.strip():
+            raise HTTPException(
+                status_code=400,
+                detail="Location (City, State, Country) is mandatory for candidate creation"
+            )
 
     # R-07: createCandidateSafe() is the only sanctioned creation path --
     # runs email/phone/LinkedIn dedup (each independently) before any insert.
@@ -435,6 +436,7 @@ def create_candidate(
     # It also wrote a ConversationEvent(conversation_id=None, ...) that
     # violated a NOT NULL constraint on every single call, logged as an
     # Queue candidate for Thunder autonomous intake via Celery (async, non-blocking)
+    logger.info(f"DEBUG: About to queue candidate {candidate_id}, tenant_id={user.tenant_id}")
     try:
         result = MessageQueueService.enqueue(
             task_name='process_candidate',
@@ -443,6 +445,7 @@ def create_candidate(
                 'tenant_id': user.tenant_id
             }
         )
+        logger.info(f"DEBUG: Enqueue result: {result}")
 
         if not result or result.get('status') != 'queued':
             logger.error(f"Failed to queue candidate {candidate_id}: {result}", exc_info=True)
@@ -453,13 +456,16 @@ def create_candidate(
         # Task queue failure shouldn't block candidate creation
         # (Though in production, this should trigger an alert)
 
-    # Return plain password so it can be sent to the candidate
-    # Task has been queued; candidate will be processed asynchronously
-    return CandidateCreateResponse(
-        candidate_id=candidate_id,
-        candidate_is_first_time=True,
-        candidate_password=password  # Return plain password
-    )
+        # Return plain password so it can be sent to the candidate
+        # Task has been queued; candidate will be processed asynchronously
+        return CandidateCreateResponse(
+            candidate_id=candidate_id,
+            candidate_is_first_time=True,
+            candidate_password=password  # Return plain password
+        )
+    except Exception as e:
+        logger.error(f"FULL EXCEPTION in create_candidate: {type(e).__name__}: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Internal error: {str(e)}")
 
 @router.get(
     "/all",
