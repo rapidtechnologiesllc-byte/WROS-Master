@@ -24,8 +24,12 @@ export default function MessageQueueDashboard() {
   }, [selectedQueue]);
 
   const fetchQueues = () => {
+    const token = localStorage.getItem('hrms_token');
     fetch('http://localhost:8080/api/v1/celery/queues', {
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
     }).then(r => r.json()).then(data => {
       setQueues(data.queues || []);
     }).catch(err => {
@@ -35,8 +39,12 @@ export default function MessageQueueDashboard() {
   };
 
   const fetchStats = () => {
+    const token = localStorage.getItem('hrms_token');
     fetch('http://localhost:8080/api/v1/celery/stats', {
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
     }).then(r => r.json()).then(data => {
       setStats(data);
       setLastUpdate(new Date());
@@ -48,8 +56,12 @@ export default function MessageQueueDashboard() {
   };
 
   const fetchQueueTasks = (queueName) => {
+    const token = localStorage.getItem('hrms_token');
     fetch(`http://localhost:8080/api/v1/celery/queue/${queueName}/tasks`, {
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
     }).then(r => r.json()).then(data => {
       setTasks(data.tasks || []);
     }).catch(err => {
@@ -59,8 +71,12 @@ export default function MessageQueueDashboard() {
   };
 
   const fetchFinishedTasks = () => {
+    const token = localStorage.getItem('hrms_token');
     fetch('http://localhost:8080/api/v1/celery/tasks/finished?limit=50', {
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
     }).then(r => r.json()).then(data => {
       console.log('Finished tasks:', data.tasks);
       alert(`${data.total_finished} finished tasks found.\nCheck browser console for details.`);
