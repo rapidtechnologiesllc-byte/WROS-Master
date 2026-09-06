@@ -15,21 +15,34 @@ MAX_FINISHED_TASKS = 50
 
 @router.get("/queues", dependencies=[Depends(require_resource_permission("queue", "view"))])
 def get_queues():
-    """Get list of Celery queues and task counts."""
+    """Get list of Celery queues and task counts - shows all known queues."""
     try:
-        result_keys = redis_client.keys('celery*')
+        # Known queues to always display
+        known_queues = ['default', 'thunder', 'email', 'sms', 'whatsapp', 'slack']
         queues = []
+        result_keys = redis_client.keys('celery*')
+
+        # Track which queues we've already seen
+        seen_queues = set()
+
+        # Get queues with actual tasks
         if result_keys:
             for key in result_keys:
                 try:
                     length = redis_client.llen(key)
-                    queues.append({"name": key.split('.')[-1] if '.' in key else key, "key": key, "pending_count": length})
+                    queue_name = key.split('.')[-1] if '.' in key else key
+                    queues.append({"name": queue_name, "key": key, "pending_count": length})
+                    seen_queues.add(queue_name)
                 except Exception as e:
                     logger.warning(f"Failed to get length for {key}: {e}")
-        total = 0
-        if queues:
-            for q in queues:
-                total += q["pending_count"]
+
+        # Add known queues with 0 count if not already present
+        if known_queues:
+            for queue_name in known_queues:
+                if queue_name not in seen_queues:
+                    queues.append({"name": queue_name, "key": f"celery.{queue_name}", "pending_count": 0})
+
+        total = sum(q["pending_count"] for q in queues)
         return {"queues": queues, "total_queues": len(queues), "total_pending": total}
     except Exception as e:
         logger.error(f"Failed to get queues: {e}", exc_info=True)
