@@ -437,16 +437,11 @@ def create_candidate(
     # Queue candidate for Thunder autonomous intake via Celery (async, non-blocking)
     try:
         result = MessageQueueService.enqueue(
-            message_type='process_candidate',
-            payload={
+            task_name='process_candidate',
+            data={
                 'candidate_id': candidate_id,
-                'candidate_email': candidate.candidateEmail,
                 'tenant_id': user.tenant_id
-            },
-            resource_id=candidate_id,
-            queue_type='THUNDER_QUEUE',
-            created_by=user.UserID,
-            db=db
+            }
         )
 
         if not result or result.get('status') != 'queued':
