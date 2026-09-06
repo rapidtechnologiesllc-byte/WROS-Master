@@ -1,45 +1,73 @@
-"""
-Message Queue Service - Redis/Celery backed task queueing.
-
-This module provides a unified interface to queue async tasks using Celery with Redis.
-All background jobs (candidate processing, Thunder intake, notifications) are routed through here.
-"""
+"""Message Queue Service - Production-grade task queueing with Celery fallback."""
 import logging
-from typing import Dict, Any
+from typing import Dict, Any, Optional
+from datetime import datetime
+from uuid import uuid4
 
 logger = logging.getLogger(__name__)
+
+
+CELERY_TASK_PROCESS_CANDIDATE = 'process_candidate'
+CELERY_TASK_ASSIGN_THUNDER = 'assign_thunder_agent'
+CELERY_TASK_SEND_NOTIFICATION = 'send_notification'
+
+QUEUE_TYPE_THUNDER = 'THUNDER_QUEUE'
+QUEUE_TYPE_EMAIL = 'EMAIL_QUEUE'
+
+DEFAULT_DELAY_SECONDS = 0
+QUEUE_ITEM_RETRY_COUNT_INITIAL = 0
 
 
 class MessageQueueService:
     """Queue async tasks to Celery/Redis for background processing."""
 
     @staticmethod
-    def enqueue(task_name: str, task_id: str = None, data: Dict[str, Any] = None, delay_seconds: int = 0) -> Dict[str, Any]:
-        """
-        Queue a task to Celery for async processing.
+    def enqueue(
+        task_name: str,
+        task_id: Optional[str] = None,
+        data: Optional[Dict[str, Any]] = None,
+        delay_seconds: int = DEFAULT_DELAY_SECONDS
+    ) -> Dict[str, Any]:
+        """Queue a task to Celery with database fallback on connection failure."""
+        if not task_name:
+            logger.error("Task name is required for enqueue")
+            raise ValueError("Task name is required")
 
-        Args:
-            task_name: Name of the Celery task (e.g., 'process_candidate', 'send_notification')
-            task_id: Optional task ID for tracking
-            data: Task data/arguments
-            delay_seconds: Optional delay before task execution (0 = immediate)
+        data = data or {}
 
-        Returns:
-            dict: Task queue response with task_id, status, and polling info
+        try:
+            return MessageQueueService._enqueue_celery(
+                task_name, task_id, data, delay_seconds
+            )
+        except Exception as celery_error:
+            logger.error(
+                f"Celery enqueue failed for {task_name}: {celery_error}",
+                exc_info=True
+            )
+            return MessageQueueService._enqueue_database_fallback(
+                task_name, data
+            )
 
-        Raises:
-            RuntimeError: If Celery/Redis connection fails
-        """
+    @staticmethod
+    def _enqueue_celery(
+        task_name: str,
+        task_id: Optional[str],
+        data: Dict[str, Any],
+        delay_seconds: int
+    ) -> Dict[str, Any]:
+        """Enqueue task to Celery Redis backend."""
         try:
             from app.celery_app import app
             from app.tasks.candidate_tasks import process_candidate, assign_thunder_agent
             from app.tasks.notification_tasks import send_notification
+        except ImportError as import_error:
+            logger.error(f"Failed to import Celery: {import_error}", exc_info=True)
+            raise
 
-            data = data or {}
-            logger.info(f"[MessageQueue] Enqueueing task: {task_name} with data: {data}")
+        task = None
 
-            # Route to appropriate Celery task
-            if task_name == 'process_candidate':
+        try:
+            if task_name == CELERY_TASK_PROCESS_CANDIDATE:
                 candidate_id = data.get('candidate_id')
                 tenant_id = data.get('tenant_id', 1)
                 task = process_candidate.apply_async(
@@ -48,7 +76,7 @@ class MessageQueueService:
                     task_id=task_id
                 )
 
-            elif task_name == 'assign_thunder_agent':
+            elif task_name == CELERY_TASK_ASSIGN_THUNDER:
                 candidate_id = data.get('candidate_id')
                 job_id = data.get('job_id')
                 tenant_id = data.get('tenant_id', 1)
@@ -58,7 +86,7 @@ class MessageQueueService:
                     task_id=task_id
                 )
 
-            elif task_name == 'send_notification':
+            elif task_name == CELERY_TASK_SEND_NOTIFICATION:
                 notification_type = data.get('notification_type', 'email')
                 recipient_id = data.get('recipient_id')
                 notification_data = data.get('data', {})
@@ -69,123 +97,165 @@ class MessageQueueService:
                 )
 
             else:
-                # Generic task execution
-                celery_task = app.tasks.get(task_name)
+                from app.celery_app import app as celery_app
+                celery_task = celery_app.tasks.get(task_name)
                 if not celery_task:
+                    logger.error(f"Unknown task: {task_name}")
                     raise ValueError(f"Unknown task: {task_name}")
+
                 task = celery_task.apply_async(
                     kwargs=data,
                     countdown=delay_seconds,
                     task_id=task_id
                 )
 
-            logger.info(f"[MessageQueue] Task queued successfully: {task.id} ({task_name})")
+        except Exception as task_error:
+            logger.error(
+                f"Failed to create Celery task {task_name}: {task_error}",
+                exc_info=True
+            )
+            raise
 
-            return {
-                "status": "queued",
-                "message_id": task.id,
-                "task_name": task_name,
-                "polling_endpoint": f"/api/v1/tasks/{task.id}/status",
-                "timestamp": __import__('datetime').datetime.now().isoformat()
-            }
+        if not task:
+            logger.error(f"Task object is None after apply_async for {task_name}")
+            raise RuntimeError(f"Failed to create Celery task {task_name}")
 
-        except Exception as e:
-            logger.error(f"[MessageQueue] Failed to queue task {task_name}: {str(e)}", exc_info=True)
-            # In development, if Redis/Celery is unavailable, still store in database queue
-            # so it appears in the Message Queue Dashboard even if Celery isn't running
-            logger.warning(f"[MessageQueue] Celery unavailable. Storing in database queue instead.")
+        logger.info(f"Task queued successfully: {task.id} ({task_name})")
+
+        return {
+            "status": "queued",
+            "message_id": task.id,
+            "task_name": task_name,
+            "polling_endpoint": f"/api/v1/tasks/{task.id}/status",
+            "timestamp": datetime.now().isoformat()
+        }
+
+    @staticmethod
+    def _enqueue_database_fallback(
+        task_name: str,
+        data: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """Fallback: store task in database queue when Celery unavailable."""
+        try:
+            from app.models.channel_queue import ChannelQueueItem
+            from app.core.database import SessionLocal
+        except ImportError as import_error:
+            logger.error(f"Failed to import database models: {import_error}", exc_info=True)
+            raise
+
+        db = SessionLocal()
+
+        try:
+            if task_name == CELERY_TASK_PROCESS_CANDIDATE:
+                channel_type = QUEUE_TYPE_THUNDER
+            elif task_name == CELERY_TASK_ASSIGN_THUNDER:
+                channel_type = QUEUE_TYPE_THUNDER
+            elif task_name == CELERY_TASK_SEND_NOTIFICATION:
+                channel_type = QUEUE_TYPE_EMAIL
+            else:
+                channel_type = task_name.upper() + "_QUEUE"
+
+            queue_item_id = str(uuid4())
+            message_id = str(uuid4())
 
             try:
-                from app.models.channel_queue import ChannelQueueItem
-                from app.core.database import SessionLocal
-                import uuid
+                existing = db.query(ChannelQueueItem).filter(
+                    ChannelQueueItem.id == queue_item_id
+                ).first()
+            except Exception as query_error:
+                logger.error(
+                    f"Failed to query existing item: {query_error}",
+                    exc_info=True
+                )
+                existing = None
 
-                db = SessionLocal()
-                # Route to appropriate queue type based on task_name
-                if task_name == 'process_candidate':
-                    channel_type = "THUNDER_QUEUE"  # Candidates go to Thunder queue
-                elif task_name == 'assign_thunder_agent':
-                    channel_type = "THUNDER_QUEUE"
-                elif task_name == 'send_notification':
-                    channel_type = "EMAIL_QUEUE"
-                else:
-                    channel_type = task_name.upper() + "_QUEUE"
+            if existing:
+                logger.warning(f"UUID collision detected for {queue_item_id}, retrying")
+                queue_item_id = str(uuid4())
 
-                try:
-                    queue_item = ChannelQueueItem(
-                        id=str(uuid.uuid4()),
-                        message_id=str(uuid.uuid4()),
-                        channel_type=channel_type,
-                        status="PENDING",
-                        payload=data or {},
-                        recipient=data.get('candidate_email') or data.get('recipient_id') if data else None,
-                        retry_count=0
-                    )
-                    try:
-                        # Validate queue item doesn't already exist (UUID collision would be extremely rare)
-                        existing = db.query(ChannelQueueItem).filter(
-                            ChannelQueueItem.id == queue_item.id
-                        ).first()
+            queue_item = None
+            try:
+                queue_item = ChannelQueueItem(
+                    id=queue_item_id,
+                    message_id=message_id,
+                    channel_type=channel_type,
+                    status="PENDING",
+                    payload=data or {},
+                    recipient=data.get('candidate_email') or data.get('recipient_id') if data else None,
+                    retry_count=QUEUE_ITEM_RETRY_COUNT_INITIAL
+                )
+            except Exception as creation_error:
+                logger.error(
+                    f"Failed to create ChannelQueueItem instance: {creation_error}",
+                    exc_info=True
+                )
+                raise
 
-                        if not existing:
-                            try:
-                                db.add(queue_item)
-                                db.commit()
-                                message_id = queue_item.message_id
-                                logger.info(f"[MessageQueue] Stored offline queue item: {message_id} (channel_type={channel_type})")
-                            except Exception as add_error:
-                                logger.error(f"[MessageQueue] Failed to add queue item: {add_error}", exc_info=True)
-                                db.rollback()
-                                raise add_error
-                        else:
-                            logger.warning(f"[MessageQueue] UUID collision detected (extremely rare), retrying...")
-                            queue_item.id = str(uuid.uuid4())
-                            try:
-                                db.add(queue_item)
-                                db.commit()
-                                message_id = queue_item.message_id
-                                logger.info(f"[MessageQueue] Stored offline queue item (retry): {message_id} (channel_type={channel_type})")
-                            except Exception as retry_error:
-                                logger.error(f"[MessageQueue] Failed to add queue item (retry): {retry_error}", exc_info=True)
-                                db.rollback()
-                                raise retry_error
-                    except Exception as add_error:
-                        logger.error(f"[MessageQueue] Failed to commit queue item: {add_error}", exc_info=True)
-                        db.rollback()
-                        raise add_error
-                except Exception as db_error:
-                    logger.error(f"[MessageQueue] Failed to store queue item in database: {db_error}", exc_info=True)
-                    message_id = "offline-" + str(uuid.uuid4())
-                finally:
-                    db.close()
-            except Exception as db_error:
-                logger.error(f"[MessageQueue] Failed to store queue item in database: {db_error}", exc_info=True)
-                message_id = "offline-" + str(__import__('uuid').uuid4())
+            if not queue_item:
+                logger.error("Queue item object is None after creation")
+                raise RuntimeError("ChannelQueueItem creation returned None")
+
+            try:
+                db.add(queue_item)
+            except Exception as add_error:
+                logger.error(
+                    f"Failed to add queue item to session: {add_error}",
+                    exc_info=True
+                )
+                raise
+
+            try:
+                db.commit()
+            except Exception as commit_error:
+                logger.error(
+                    f"Failed to commit queue item to database: {commit_error}",
+                    exc_info=True
+                )
+                db.rollback()
+                raise
+
+            logger.info(
+                f"Task stored in database queue: {message_id} ({channel_type})"
+            )
 
             return {
                 "status": "queued",
                 "message_id": message_id,
                 "task_name": task_name,
                 "polling_endpoint": f"/api/v1/queues/{message_id}",
-                "timestamp": __import__('datetime').datetime.now().isoformat(),
-                "note": "Celery/Redis unavailable - task stored in database queue"
+                "timestamp": datetime.now().isoformat(),
+                "note": "Celery unavailable - database queue"
             }
+
+        except Exception as db_error:
+            logger.error(
+                f"Database fallback failed: {db_error}",
+                exc_info=True
+            )
+            raise
+
+        finally:
+            db.close()
 
     @staticmethod
     def get_task_status(task_id: str) -> Dict[str, Any]:
-        """
-        Get the status of a queued task.
+        """Get the status of a queued task."""
+        if not task_id:
+            logger.error("Task ID is required for get_task_status")
+            raise ValueError("Task ID is required")
 
-        Args:
-            task_id: Celery task ID
-
-        Returns:
-            dict: Task status info (state, result, progress, etc.)
-        """
         try:
             from app.celery_app import app
+        except ImportError as import_error:
+            logger.error(f"Failed to import Celery app: {import_error}", exc_info=True)
+            raise
 
+        try:
             task = app.AsyncResult(task_id)
+
+            if not task:
+                logger.warning(f"No task found for {task_id}")
+                raise RuntimeError(f"Task not found: {task_id}")
 
             return {
                 "task_id": task_id,
@@ -198,10 +268,9 @@ class MessageQueueService:
                 "is_failed": task.failed()
             }
 
-        except Exception as e:
-            logger.error(f"[MessageQueue] Failed to get task status {task_id}: {str(e)}", exc_info=True)
-            return {
-                "task_id": task_id,
-                "state": "UNKNOWN",
-                "error": str(e)
-            }
+        except Exception as status_error:
+            logger.error(
+                f"Failed to get task status for {task_id}: {status_error}",
+                exc_info=True
+            )
+            raise
