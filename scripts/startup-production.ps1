@@ -38,12 +38,19 @@ if (-not $redisRunning) {
     Exit 1
 }
 
-# Step 2: Start Celery worker
+# Step 2: Start Celery worker and Flower monitoring
 Write-Host ""
 Write-Host "[2/4] Starting Celery worker..." -ForegroundColor Yellow
 
 $celeryProcess = Start-Process -FilePath "python" `
     -ArgumentList "-m celery -A app.celery_app worker --loglevel=info --concurrency=4" `
+    -WorkingDirectory "C:\dev\WROS-Master\backend" `
+    -WindowStyle Hidden `
+    -PassThru
+
+Write-Host "Starting Celery Flower monitoring (http://localhost:5555)..." -ForegroundColor Cyan
+$flowerProcess = Start-Process -FilePath "python" `
+    -ArgumentList "-m celery -A app.celery_app flower --port=5555" `
     -WorkingDirectory "C:\dev\WROS-Master\backend" `
     -WindowStyle Hidden `
     -PassThru
