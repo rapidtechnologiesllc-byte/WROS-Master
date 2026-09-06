@@ -30,7 +30,11 @@ class MessageQueueService:
         data: Optional[Dict[str, Any]] = None,
         delay_seconds: int = DEFAULT_DELAY_SECONDS
     ) -> Dict[str, Any]:
-        """Queue a task to Celery with database fallback on connection failure."""
+        """Queue a task to Celery ONLY. Fails hard if Redis/Celery unavailable.
+
+        NEVER fall back to database - that masks infrastructure failures.
+        If Celery is down, we MUST FAIL and alert, not silently queue to database.
+        """
         if not task_name:
             logger.error("Task name is required for enqueue")
             raise ValueError("Task name is required")
@@ -42,12 +46,14 @@ class MessageQueueService:
                 task_name, task_id, data, delay_seconds
             )
         except Exception as celery_error:
+            # FAIL HARD - do not fall back to database
             logger.error(
-                f"Celery enqueue failed for {task_name}: {celery_error}",
+                f"CRITICAL: Celery queue failed for {task_name}: {celery_error}",
                 exc_info=True
             )
-            return MessageQueueService._enqueue_database_fallback(
-                task_name, data
+            logger.error("Redis/Celery infrastructure is DOWN - this is a critical system failure")
+            raise RuntimeError(
+                f"Message queue unavailable (Celery/Redis down): {str(celery_error)}"
             )
 
     @staticmethod
@@ -210,121 +216,6 @@ class MessageQueueService:
             "polling_endpoint": f"/api/v1/tasks/{task.id}/status",
             "timestamp": datetime.now().isoformat()
         }
-
-    @staticmethod
-    def _enqueue_database_fallback(
-        task_name: str,
-        data: Dict[str, Any]
-    ) -> Dict[str, Any]:
-        """Fallback: store task in database queue when Celery unavailable."""
-        try:
-            from app.models.channel_queue import ChannelQueueItem
-            from app.core.database import SessionLocal
-        except ImportError as import_error:
-            logger.error(f"Failed to import database models: {import_error}", exc_info=True)
-            raise
-
-        db = SessionLocal()
-
-        try:
-            if task_name == CELERY_TASK_CREATE_CANDIDATE:
-                channel_type = QUEUE_TYPE_CANDIDATE
-                message_type = 'create_candidate'
-            elif task_name == CELERY_TASK_PROCESS_CANDIDATE:
-                channel_type = QUEUE_TYPE_THUNDER
-                message_type = 'process_candidate'
-            elif task_name == CELERY_TASK_ASSIGN_THUNDER:
-                channel_type = QUEUE_TYPE_THUNDER
-                message_type = 'assign_thunder'
-            elif task_name == CELERY_TASK_SEND_NOTIFICATION:
-                channel_type = QUEUE_TYPE_EMAIL
-                message_type = 'send_notification'
-            else:
-                channel_type = task_name.upper() + "_QUEUE"
-                message_type = task_name
-
-            queue_item_id = str(uuid4())
-            message_id = str(uuid4())
-
-            try:
-                existing = db.query(ChannelQueueItem).filter(
-                    ChannelQueueItem.id == queue_item_id
-                ).first()
-            except Exception as query_error:
-                logger.error(
-                    f"Failed to query existing item: {query_error}",
-                    exc_info=True
-                )
-                existing = None
-
-            if existing:
-                logger.warning(f"UUID collision detected for {queue_item_id}, retrying")
-                queue_item_id = str(uuid4())
-
-            queue_item = None
-            try:
-                queue_item = ChannelQueueItem(
-                    id=queue_item_id,
-                    message_id=message_id,
-                    type=message_type,
-                    channel_type=channel_type,
-                    status="PENDING",
-                    payload=data or {},
-                    recipient=data.get('candidate_email') or data.get('recipient_id') if data else None,
-                    retry_count=QUEUE_ITEM_RETRY_COUNT_INITIAL
-                )
-            except Exception as creation_error:
-                logger.error(
-                    f"Failed to create ChannelQueueItem instance: {creation_error}",
-                    exc_info=True
-                )
-                raise
-
-            if not queue_item:
-                logger.error("Queue item object is None after creation")
-                raise RuntimeError("ChannelQueueItem creation returned None")
-
-            try:
-                db.add(queue_item)
-            except Exception as add_error:
-                logger.error(
-                    f"Failed to add queue item to session: {add_error}",
-                    exc_info=True
-                )
-                raise
-
-            try:
-                db.commit()
-            except Exception as commit_error:
-                logger.error(
-                    f"Failed to commit queue item to database: {commit_error}",
-                    exc_info=True
-                )
-                db.rollback()
-                raise
-
-            logger.info(
-                f"Task stored in database queue: {message_id} ({channel_type})"
-            )
-
-            return {
-                "status": "queued",
-                "message_id": message_id,
-                "task_name": task_name,
-                "polling_endpoint": f"/api/v1/queues/{message_id}",
-                "timestamp": datetime.now().isoformat(),
-                "note": "Celery unavailable - database queue"
-            }
-
-        except Exception as db_error:
-            logger.error(
-                f"Database fallback failed: {db_error}",
-                exc_info=True
-            )
-            raise
-
-        finally:
-            db.close()
 
     @staticmethod
     def get_task_status(task_id: str) -> Dict[str, Any]:
