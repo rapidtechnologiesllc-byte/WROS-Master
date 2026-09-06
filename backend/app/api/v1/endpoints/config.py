@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session
 from app.core.logging import logger
 from app.core.database import get_db
 from app.models.channel_queue import ChannelQueueItem
-from app.models.candidate import CandidateStatus
+from app.models.candidate import CandidateJobApplication
 from app.models.system_config import SystemConfig
 
 logger = logging.getLogger(__name__)
@@ -108,8 +108,8 @@ async def get_candidate_statuses(db: Session = Depends(get_db)):
     Listed in auth_middleware.py PUBLIC_ROUTES and main.py known_exceptions.
     """
     try:
-        # Query distinct candidate statuses from CandidateStatus model
-        status_items = db.query(CandidateStatus.application_status).distinct().all()
+        # Query distinct candidate statuses from CandidateJobApplication model
+        status_items = db.query(CandidateJobApplication.application_status).distinct().all()
         statuses = sorted([item[0] for item in status_items if item[0]])
 
         if not statuses:
