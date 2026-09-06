@@ -11,7 +11,8 @@ Async email tasks:
 
 from app.core.celery_app import celery_app
 from app.core.database import SessionLocal
-from app.api.v1.endpoints.admin_queue import TaskStatus, log_task_message
+import logging
+logger = logging.getLogger(__name__)
 import uuid
 
 @celery_app.task(bind=True, name="tasks.send_email")

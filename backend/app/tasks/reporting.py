@@ -11,7 +11,8 @@ Async tasks for generating reports:
 
 from app.core.celery_app import celery_app
 from app.core.database import SessionLocal
-from app.api.v1.endpoints.admin_queue import TaskStatus, log_task_message
+import logging
+logger = logging.getLogger(__name__)
 
 @celery_app.task(bind=True, name="tasks.generate_report")
 def generate_report_task(self, report_type: str, user_id: str, filters: dict = None):

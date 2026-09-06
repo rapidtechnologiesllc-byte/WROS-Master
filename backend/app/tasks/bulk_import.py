@@ -11,8 +11,10 @@ from celery import current_task
 from app.core.celery_app import celery_app
 from app.core.database import SessionLocal
 from app.services.bulk_engagement_service import import_candidates_from_csv
-from app.api.v1.endpoints.admin_queue import TaskStatus, log_task_message
 import uuid
+import logging
+
+logger = logging.getLogger(__name__)
 
 @celery_app.task(bind=True, name="tasks.bulk_import_candidates")
 def import_candidates_task(self, file_path: str, tenant_id: str = "default"):
