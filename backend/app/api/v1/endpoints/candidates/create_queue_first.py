@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
     response_model=CandidateCreateResponse,
     dependencies=[Depends(require_resource_permission("candidates", "create"))],
 )
-async def create_candidate(
+def create_candidate(
     request: CandidateCreateRequest,
     db: Session = Depends(get_db),
 ):
