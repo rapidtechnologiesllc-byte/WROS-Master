@@ -1,0 +1,177 @@
+import React, { useState, useEffect } from 'react';
+
+export default function MessageQueueDashboard() {
+  const [queues, setQueues] = useState([]);
+  const [selectedQueue, setSelectedQueue] = useState(null);
+  const [tasks, setTasks] = useState([]);
+  const [stats, setStats] = useState(null);
+  const [lastUpdate, setLastUpdate] = useState(new Date());
+
+  useEffect(() => {
+    fetchQueues();
+    fetchStats();
+    const interval = setInterval(() => {
+      fetchQueues();
+      fetchStats();
+    }, 3000);
+    return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    if (selectedQueue) {
+      fetchQueueTasks(selectedQueue);
+    }
+  }, [selectedQueue]);
+
+  const fetchQueues = () => {
+    fetch('http://localhost:8080/api/v1/celery/queues', {
+      headers: { 'Content-Type': 'application/json' },
+    }).then(r => r.json()).then(data => {
+      setQueues(data.queues || []);
+    }).catch(err => {
+      console.error('Failed to fetch queues:', err);
+      setQueues([]);
+    });
+  };
+
+  const fetchStats = () => {
+    fetch('http://localhost:8080/api/v1/celery/stats', {
+      headers: { 'Content-Type': 'application/json' },
+    }).then(r => r.json()).then(data => {
+      setStats(data);
+      setLastUpdate(new Date());
+    }).catch(err => {
+      console.error('Failed to fetch stats:', err);
+      setStats(null);
+      setLastUpdate(new Date());
+    });
+  };
+
+  const fetchQueueTasks = (queueName) => {
+    fetch(`http://localhost:8080/api/v1/celery/queue/${queueName}/tasks`, {
+      headers: { 'Content-Type': 'application/json' },
+    }).then(r => r.json()).then(data => {
+      setTasks(data.tasks || []);
+    }).catch(err => {
+      console.error(`Failed to fetch ${queueName} tasks:`, err);
+      setTasks([]);
+    });
+  };
+
+  const fetchFinishedTasks = () => {
+    fetch('http://localhost:8080/api/v1/celery/tasks/finished?limit=50', {
+      headers: { 'Content-Type': 'application/json' },
+    }).then(r => r.json()).then(data => {
+      console.log('Finished tasks:', data.tasks);
+      alert(`${data.total_finished} finished tasks found.\nCheck browser console for details.`);
+    }).catch(err => {
+      console.error('Failed to fetch finished tasks:', err);
+      alert(`Error: ${err.message}`);
+    });
+  };
+
+  return (
+    <div className="h-full w-full bg-gray-50 dark:bg-gray-900 p-6">
+      <div className="max-w-7xl mx-auto">
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Message Queue</h1>
+          <p className="text-gray-600 dark:text-gray-400 mt-2">Celery task queue monitoring</p>
+          <p className="text-sm text-gray-500 dark:text-gray-500 mt-1">Updated: {lastUpdate.toLocaleTimeString()}</p>
+        </div>
+
+        {stats && (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+            <div className="bg-white dark:bg-gray-800 rounded-lg p-4 shadow-sm">
+              <p className="text-gray-600 dark:text-gray-400 text-sm">Pending</p>
+              <p className="text-3xl font-bold text-amber-600">{stats.pending}</p>
+            </div>
+            <div className="bg-white dark:bg-gray-800 rounded-lg p-4 shadow-sm">
+              <p className="text-gray-600 dark:text-gray-400 text-sm">Active</p>
+              <p className="text-3xl font-bold text-blue-600">{stats.active}</p>
+            </div>
+            <div className="bg-white dark:bg-gray-800 rounded-lg p-4 shadow-sm">
+              <p className="text-gray-600 dark:text-gray-400 text-sm">Reserved</p>
+              <p className="text-3xl font-bold text-purple-600">{stats.reserved}</p>
+            </div>
+            <div className="bg-white dark:bg-gray-800 rounded-lg p-4 shadow-sm">
+              <p className="text-gray-600 dark:text-gray-400 text-sm">Scheduled</p>
+              <p className="text-3xl font-bold text-green-600">{stats.scheduled}</p>
+            </div>
+          </div>
+        )}
+
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 mb-8">
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-lg font-semibold text-gray-900">Queues ({queues.length})</h2>
+            <button
+              onClick={fetchFinishedTasks}
+              className="px-3 py-1 bg-green-600 hover:bg-green-700 text-white rounded text-sm"
+            >
+              View Finished Tasks
+            </button>
+          </div>
+          {queues.length === 0 ? (
+            <p className="text-gray-500">No queues found</p>
+          ) : (
+            <div className="space-y-2">
+              {queues.map((q) => (
+                <button
+                  key={q.key}
+                  onClick={() => setSelectedQueue(q.name)}
+                  className={`w-full text-left p-4 rounded transition-colors ${
+                    selectedQueue === q.name
+                      ? 'bg-blue-100 dark:bg-blue-900/30'
+                      : 'bg-gray-50 dark:bg-gray-700 hover:bg-gray-100'
+                  }`}
+                >
+                  <div className="flex justify-between">
+                    <span className="font-mono text-sm">{q.name}</span>
+                    <span className="font-bold text-amber-600">{q.pending_count} pending</span>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {selectedQueue && (
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6">
+            <div className="flex justify-between mb-4">
+              <h2 className="text-lg font-semibold">
+                Messages in <code className="text-blue-600">{selectedQueue}</code>
+              </h2>
+              <button
+                onClick={() => setSelectedQueue(null)}
+                className="text-sm text-gray-500 hover:text-gray-700 font-bold"
+              >
+                ✕
+              </button>
+            </div>
+            {tasks.length === 0 ? (
+              <p className="text-center py-8 text-gray-500">No tasks in queue</p>
+            ) : (
+              <table className="w-full text-sm">
+                <thead className="border-b-2">
+                  <tr>
+                    <th className="text-left py-2 px-4">Task Name</th>
+                    <th className="text-left py-2 px-4">Task ID</th>
+                    <th className="text-left py-2 px-4">Args</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {tasks.map((t, i) => (
+                    <tr key={i} className="border-b hover:bg-gray-50">
+                      <td className="py-2 px-4 font-semibold">{t.name}</td>
+                      <td className="py-2 px-4 font-mono text-xs truncate">{t.id}</td>
+                      <td className="py-2 px-4 text-xs truncate">{JSON.stringify(t.args)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
