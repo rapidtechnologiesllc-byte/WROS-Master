@@ -150,8 +150,57 @@ export default function MessageQueueDashboard() {
           )}
         </div>
 
+        {/* Queue metrics table */}
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6">
+          <h2 className="text-lg font-semibold mb-4">Queue Task States</h2>
+          {queues.length === 0 ? (
+            <p className="text-gray-500">No queues</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="border-b-2 bg-gray-50 dark:bg-gray-700">
+                  <tr>
+                    <th className="text-left py-3 px-4 font-semibold">Queue</th>
+                    <th className="text-center py-3 px-4 font-semibold">Idle</th>
+                    <th className="text-center py-3 px-4 font-semibold text-amber-600">Pending</th>
+                    <th className="text-center py-3 px-4 font-semibold text-blue-600">Active</th>
+                    <th className="text-center py-3 px-4 font-semibold text-purple-600">Reserved</th>
+                    <th className="text-center py-3 px-4 font-semibold text-red-600">Failed</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {queues.map((q, i) => (
+                    <tr
+                      key={i}
+                      className="border-b hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer transition-colors"
+                      onClick={() => setSelectedQueue(q.name)}
+                    >
+                      <td className="py-3 px-4 font-semibold text-orange-600">{q.name.toUpperCase()}</td>
+                      <td className="text-center py-3 px-4">
+                        <span className="inline-block px-2 py-1 bg-gray-300 text-gray-900 text-xs font-bold rounded">Idle</span>
+                      </td>
+                      <td className="text-center py-3 px-4">
+                        <span className="inline-block px-3 py-1 bg-amber-100 text-amber-900 font-semibold rounded">{q.pending}</span>
+                      </td>
+                      <td className="text-center py-3 px-4">
+                        <span className="inline-block px-3 py-1 bg-blue-100 text-blue-900 font-semibold rounded">{q.active}</span>
+                      </td>
+                      <td className="text-center py-3 px-4">
+                        <span className="inline-block px-3 py-1 bg-purple-100 text-purple-900 font-semibold rounded">{q.reserved}</span>
+                      </td>
+                      <td className="text-center py-3 px-4">
+                        <span className="inline-block px-3 py-1 bg-red-100 text-red-900 font-semibold rounded">{q.failed || 0}</span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+
         {selectedQueue && (
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 mt-6">
             <div className="flex justify-between mb-4">
               <h2 className="text-lg font-semibold">
                 Messages in <code className="text-blue-600">{selectedQueue}</code>
