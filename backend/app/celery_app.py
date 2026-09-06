@@ -4,6 +4,7 @@ Redis-backed task queue for Thunder autonomous agent, candidate processing, and 
 """
 import os
 from celery import Celery
+from kombu import Queue, Exchange
 from app.core.config import settings
 
 # Configuration constants
@@ -51,6 +52,17 @@ app.conf.update(
             'options': {'queue': 'celery', 'priority': 10}
         },
     },
+)
+
+# Define queues
+default_exchange = Exchange('celery', type='direct')
+app.conf.task_queues = (
+    Queue('default', exchange=default_exchange, routing_key='default'),
+    Queue('thunder', exchange=default_exchange, routing_key='thunder'),
+    Queue('email', exchange=default_exchange, routing_key='email'),
+    Queue('sms', exchange=default_exchange, routing_key='sms'),
+    Queue('whatsapp', exchange=default_exchange, routing_key='whatsapp'),
+    Queue('slack', exchange=default_exchange, routing_key='slack'),
 )
 
 def check_redis_connection() -> bool:
