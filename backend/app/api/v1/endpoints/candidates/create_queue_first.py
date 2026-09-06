@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
     response_model=CandidateCreateResponse,
     dependencies=[Depends(require_resource_permission("candidates", "create"))],
 )
-async def create_candidate(
+def create_candidate(
     request: CandidateCreateRequest,
     db: Session = Depends(get_db),
 ):
@@ -53,9 +53,9 @@ async def create_candidate(
         HTTPException(400): If validation fails
         HTTPException(500): If queue fails
     """
-    logger.error(f"[DEBUG] Endpoint reached, request={request.candidate_email}")
-
     try:
+        logger.error(f"[DEBUG] Endpoint reached, request email={request.candidate_email}")
+        print(f"[PRINT DEBUG] Handler called with email: {request.candidate_email}", flush=True)
         # Validate location is required
         if not request.candidate_current_location or not request.candidate_current_location.strip():
             raise HTTPException(
