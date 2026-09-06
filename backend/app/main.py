@@ -13,6 +13,7 @@ from app.api.v1.routes import router
 from app.api.v1.endpoints.auth import router as auth_router
 from app.api.v1.endpoints.users_access_control import router as users_access_control_router
 from app.middleware import setup_cors, RequestLoggingMiddleware
+from app.middleware.auth_middleware import AuthenticationMiddleware
 # S-207 -- importing this here (rather than relying on it being pulled in
 # lazily by whichever endpoint module happens to run first) registers the
 # global tenant-scoping do_orm_execute listener deterministically at
@@ -238,7 +239,6 @@ app.include_router(celery_monitoring_router, prefix="/api/v1")
 # ever removed. See docs/build-package/HRMS-0114-route-gap.md for the
 # full history of how every other route reached 0 unexplained gaps.
 from app.core.route_security_audit import assert_all_routes_have_permission_declarations
-from app.middleware.auth_middleware import AuthenticationMiddleware
 
 assert_all_routes_have_permission_declarations(
     app,
@@ -259,9 +259,6 @@ assert_all_routes_have_permission_declarations(
         "GET /config/message-statuses",
         "GET /config/candidate-statuses",
         "GET /config/app-config",
-        "GET /api/v1/celery/queues",
-        "GET /api/v1/celery/workers",
-        "GET /api/v1/celery/stats",
     ],
 )
 logger.info("[OK] HRMS-0114 route permission audit passed")
