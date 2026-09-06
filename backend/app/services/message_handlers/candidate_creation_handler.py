@@ -7,16 +7,14 @@ Implements idempotent candidate creation through message queue.
 """
 import logging
 from datetime import datetime, timedelta
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
 from sqlalchemy.orm import Session
-import requests
 
 from app.core.logging import logger
 from app.models.channel_queue import ChannelQueueItem
 from app.models.candidate import Candidate, CandidateStatus, CandidateEducationForm, CandidateExperienceForm
 from app.services.candidate_service import create_candidate_safe, DuplicateCandidateError
-from app.utils.uniq_id_generator import generate_password as generate_temp_password
 
 logger = logging.getLogger(__name__)
 

@@ -10,7 +10,9 @@ logger = logging.getLogger(__name__)
 CELERY_TASK_PROCESS_CANDIDATE = 'process_candidate'
 CELERY_TASK_ASSIGN_THUNDER = 'assign_thunder_agent'
 CELERY_TASK_SEND_NOTIFICATION = 'send_notification'
+CELERY_TASK_CREATE_CANDIDATE = 'create_candidate'
 
+QUEUE_TYPE_CANDIDATE = 'CANDIDATE_QUEUE'
 QUEUE_TYPE_THUNDER = 'THUNDER_QUEUE'
 QUEUE_TYPE_EMAIL = 'EMAIL_QUEUE'
 
@@ -67,7 +69,16 @@ class MessageQueueService:
         task = None
 
         try:
-            if task_name == CELERY_TASK_PROCESS_CANDIDATE:
+            if task_name == CELERY_TASK_CREATE_CANDIDATE:
+                candidate_email = data.get('candidate_email')
+                tenant_id = data.get('tenant_id', 1)
+                task = process_candidate.apply_async(
+                    args=[data, tenant_id],
+                    countdown=delay_seconds,
+                    task_id=task_id
+                )
+
+            elif task_name == CELERY_TASK_PROCESS_CANDIDATE:
                 candidate_id = data.get('candidate_id')
                 tenant_id = data.get('tenant_id', 1)
                 task = process_candidate.apply_async(
@@ -146,14 +157,21 @@ class MessageQueueService:
         db = SessionLocal()
 
         try:
-            if task_name == CELERY_TASK_PROCESS_CANDIDATE:
+            if task_name == CELERY_TASK_CREATE_CANDIDATE:
+                channel_type = QUEUE_TYPE_CANDIDATE
+                message_type = 'create_candidate'
+            elif task_name == CELERY_TASK_PROCESS_CANDIDATE:
                 channel_type = QUEUE_TYPE_THUNDER
+                message_type = 'process_candidate'
             elif task_name == CELERY_TASK_ASSIGN_THUNDER:
                 channel_type = QUEUE_TYPE_THUNDER
+                message_type = 'assign_thunder'
             elif task_name == CELERY_TASK_SEND_NOTIFICATION:
                 channel_type = QUEUE_TYPE_EMAIL
+                message_type = 'send_notification'
             else:
                 channel_type = task_name.upper() + "_QUEUE"
+                message_type = task_name
 
             queue_item_id = str(uuid4())
             message_id = str(uuid4())
@@ -178,6 +196,7 @@ class MessageQueueService:
                 queue_item = ChannelQueueItem(
                     id=queue_item_id,
                     message_id=message_id,
+                    type=message_type,
                     channel_type=channel_type,
                     status="PENDING",
                     payload=data or {},
