@@ -15,49 +15,119 @@ MAX_FINISHED_TASKS = 50
 
 @router.get("/queues", dependencies=[Depends(require_resource_permission("queue", "view"))])
 def get_queues():
-    """Get list of Celery queues and task counts from actual registered queues."""
+    """Get list of Celery queues with real-time task counts (pending, active, failed, reserved)."""
     try:
         queues = []
         result_keys = redis_client.keys('celery*')
         seen_queues = set()
 
-        # Get queues with actual tasks from Redis
+        # Get Celery inspect data for all task states
+        inspect = celery_app.control.inspect()
+        active_tasks = inspect.active() or {}
+        reserved_tasks = inspect.reserved() or {}
+
+        # Get queues with actual tasks from Redis (pending)
+        queue_data = {}
         if result_keys:
             for key in result_keys:
                 try:
                     length = redis_client.llen(key)
                     queue_name = key.split('.')[-1] if '.' in key else key
-                    queues.append({"name": queue_name, "key": key, "pending_count": length})
+                    queue_data[queue_name] = {
+                        "name": queue_name,
+                        "key": key,
+                        "pending": length,
+                        "active": 0,
+                        "reserved": 0,
+                        "failed": 0
+                    }
                     seen_queues.add(queue_name)
                 except Exception as e:
                     logger.warning(f"Failed to get length for {key}: {e}")
 
-        # Get registered queues from Celery inspect API
-        try:
-            inspect = celery_app.control.inspect()
-            registered_queues = inspect.registered() or {}
+        # Count active tasks per queue
+        if active_tasks:
+            active_items = list(active_tasks.items())
+            if active_items:
+                for worker_name, tasks in active_items:
+                    if isinstance(tasks, list) and tasks:
+                        task_list = [t for t in tasks]
+                        if task_list:
+                            for task in task_list:
+                                queue_name = task.get('delivery_info', {}).get('routing_key', 'default')
+                                if queue_name not in queue_data:
+                                    queue_data[queue_name] = {
+                                        "name": queue_name,
+                                        "key": f"celery.{queue_name}",
+                                        "pending": 0,
+                                        "active": 0,
+                                        "reserved": 0,
+                                        "failed": 0
+                                    }
+                                    seen_queues.add(queue_name)
+                                queue_data[queue_name]["active"] += 1
 
-            # Extract unique queue names from registered tasks
+        # Count reserved tasks per queue
+        if reserved_tasks:
+            reserved_items = list(reserved_tasks.items())
+            if reserved_items:
+                for worker_name, tasks in reserved_items:
+                    if isinstance(tasks, list) and tasks:
+                        task_list = [t for t in tasks]
+                        if task_list:
+                            for task in task_list:
+                                queue_name = task.get('delivery_info', {}).get('routing_key', 'default')
+                                if queue_name not in queue_data:
+                                    queue_data[queue_name] = {
+                                        "name": queue_name,
+                                        "key": f"celery.{queue_name}",
+                                        "pending": 0,
+                                        "active": 0,
+                                        "reserved": 0,
+                                        "failed": 0
+                                    }
+                                    seen_queues.add(queue_name)
+                                queue_data[queue_name]["reserved"] += 1
+
+        # Get registered queues from Celery inspect API to discover all queues
+        try:
+            registered_queues = inspect.registered() or {}
             if isinstance(registered_queues, dict) and registered_queues:
                 queue_items = list(registered_queues.items())
                 if queue_items:
                     for worker_name, tasks in queue_items:
                         if tasks:
                             for task_name in tasks:
-                                # Extract queue routing if available
                                 if hasattr(celery_app.conf, 'task_routes') and celery_app.conf.task_routes:
                                     if callable(celery_app.conf.task_routes):
                                         route = celery_app.conf.task_routes(task_name)
                                         if route and 'queue' in route:
                                             queue_name = route['queue']
                                             if queue_name not in seen_queues:
-                                                queues.append({"name": queue_name, "key": f"celery.{queue_name}", "pending_count": 0})
+                                                queue_data[queue_name] = {
+                                                    "name": queue_name,
+                                                    "key": f"celery.{queue_name}",
+                                                    "pending": 0,
+                                                    "active": 0,
+                                                    "reserved": 0,
+                                                    "failed": 0
+                                                }
                                                 seen_queues.add(queue_name)
         except Exception as e:
-            logger.warning(f"Failed to get registered queues from inspect: {e}")
+            logger.warning(f"Failed to get registered queues: {e}")
 
-        total = sum(q["pending_count"] for q in queues)
-        return {"queues": queues, "total_queues": len(queues), "total_pending": total}
+        queues = list(queue_data.values())
+        total_pending = sum(q["pending"] for q in queues)
+        total_active = sum(q["active"] for q in queues)
+        total_reserved = sum(q["reserved"] for q in queues)
+
+        return {
+            "queues": queues,
+            "total_queues": len(queues),
+            "total_pending": total_pending,
+            "total_active": total_active,
+            "total_reserved": total_reserved
+        }
     except Exception as e:
         logger.error(f"Failed to get queues: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
