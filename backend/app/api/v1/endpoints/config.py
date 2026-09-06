@@ -10,9 +10,11 @@ They are listed in auth_middleware.py PUBLIC_ROUTES and main.py known_exceptions
 import logging
 from typing import Dict, List, Any
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
+from sqlalchemy.orm import Session
 
 from app.core.logging import logger
+from app.core.database import get_db
 from app.models.channel_queue import ChannelQueueItem
 
 logger = logging.getLogger(__name__)
@@ -27,7 +29,7 @@ except Exception as e:
 
 
 @router.get("/queue-types", response_model=Dict[str, Any])
-async def get_queue_types():
+async def get_queue_types(db: Session = Depends(get_db)):
     """Get all valid queue types from backend configuration.
 
     Instead of hardcoding QUEUE_TYPES in frontend, fetch this endpoint.
@@ -38,34 +40,18 @@ async def get_queue_types():
     Listed in auth_middleware.py PUBLIC_ROUTES and main.py known_exceptions.
     """
     try:
-        queue_types = [
-            "THUNDER",
-            "EMAIL",
-            "WHATSAPP",
-            "SMS",
-            "SLACK",
-            "APPROVAL",
-            "COMMISSION",
-            "CRM",
-            "DASHBOARD",
-            "CALENDAR",
-            "SIGNATURE",
-            "TIMESHEET",
-            "KPI",
-            "SALES",
-            "CLIENT"
-        ]
+        # Query distinct queue types from ChannelQueueItem model
+        queue_items = db.query(ChannelQueueItem.queue_type).distinct().all()
+        queue_types = sorted([item[0] for item in queue_items if item[0]])
 
-        if not queue_types or len(queue_types) == 0:
-            raise ValueError("No queue types configured")
+        if not queue_types:
+            logger.warning("No queue types found in database, returning empty list")
 
         result = {
             "status": "success",
             "queue_types": queue_types,
             "count": len(queue_types)
         }
-        if not result:
-            raise ValueError("Failed to build response")
 
         return result
     except Exception as e:
