@@ -3,7 +3,7 @@ Enforces The Contract through 3-strike escalation, upstream balancing loops, and
 """
 import logging
 from typing import Any, Dict, Optional, List
-from datetime import datetime
+from datetime import datetime, timedelta
 from uuid import uuid4
 
 from sqlalchemy.orm import Session
@@ -67,7 +67,7 @@ class DoctorAgentDaemon:
                 "operation_id": operation_id,
                 "agent_id": agent_id,
                 "strike_count": strike_count,
-                "action": STRIKE_LEVELS[min(strike_count, 3)]["action"],
+                "action": DoctorAgentDaemon.STRIKE_LEVELS[min(strike_count, 3)]["action"],
                 "escalation_result": escalation_result,
                 "timestamp": datetime.utcnow().isoformat()
             }
@@ -316,7 +316,7 @@ class DoctorAgentDaemon:
                     "margin_floor_percent": max(profit_margin_percent + 5, 30),  # Enforce with 5% buffer
                     "blocking_rule": f"AcquisitionService CANNOT propose {skill_profile} engagements below {max(profit_margin_percent + 5, 30)}% margin",
                     "constraint_active": True,
-                    "expires_at": (datetime.utcnow() + __import__('datetime').timedelta(days=30)).isoformat()
+                    "expires_at": (datetime.utcnow() + timedelta(days=30)).isoformat()
                 }
 
                 logger.warning(f"Margin guardrail enforced: {skill_profile} must maintain {constraint_token['margin_floor_percent']}% margin")
