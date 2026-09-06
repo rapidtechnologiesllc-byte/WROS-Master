@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 
 export default function MessageQueueDashboard() {
+  const [workers, setWorkers] = useState([]);
   const [queues, setQueues] = useState([]);
   const [selectedQueue, setSelectedQueue] = useState(null);
   const [tasks, setTasks] = useState([]);
@@ -8,9 +9,11 @@ export default function MessageQueueDashboard() {
   const [lastUpdate, setLastUpdate] = useState(new Date());
 
   useEffect(() => {
+    fetchWorkers();
     fetchQueues();
     fetchStats();
     const interval = setInterval(() => {
+      fetchWorkers();
       fetchQueues();
       fetchStats();
     }, 3000);
@@ -22,6 +25,21 @@ export default function MessageQueueDashboard() {
       fetchQueueTasks(selectedQueue);
     }
   }, [selectedQueue]);
+
+  const fetchWorkers = () => {
+    const token = localStorage.getItem('hrms_token');
+    fetch('http://localhost:8080/api/v1/celery/workers', {
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+    }).then(r => r.json()).then(data => {
+      setWorkers(data.workers || []);
+    }).catch(err => {
+      console.error('Failed to fetch workers:', err);
+      setWorkers([]);
+    });
+  };
 
   const fetchQueues = () => {
     const token = localStorage.getItem('hrms_token');
@@ -145,6 +163,24 @@ export default function MessageQueueDashboard() {
                     <span className="font-bold text-amber-600">{q.pending_count} pending</span>
                   </div>
                 </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Worker Status */}
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 mb-8">
+          <h2 className="text-lg font-semibold mb-4">Worker Status</h2>
+          {workers.length === 0 ? (
+            <p className="text-gray-500">No workers running</p>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {workers.map((w, i) => (
+                <div key={i} className={`p-4 rounded border-2 ${w.status === 'working' ? 'border-green-500 bg-green-50 dark:bg-green-900' : 'border-gray-300 bg-gray-50 dark:bg-gray-700'}`}>
+                  <p className="font-semibold text-sm">{w.name}</p>
+                  <p className={`text-sm font-bold ${w.status === 'working' ? 'text-green-600' : 'text-gray-600'}`}>{w.status.toUpperCase()}</p>
+                  <p className="text-xs text-gray-600 mt-2">Active: {w.active_tasks} | Pool: {w.pool_size}</p>
+                </div>
               ))}
             </div>
           )}
