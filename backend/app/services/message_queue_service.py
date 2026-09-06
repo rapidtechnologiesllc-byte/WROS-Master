@@ -57,16 +57,19 @@ class MessageQueueService:
         data: Dict[str, Any],
         delay_seconds: int
     ) -> Dict[str, Any]:
-        """Enqueue task to Celery Redis backend."""
+        """Enqueue task to Celery Redis backend AND log to database for dashboard visibility."""
         try:
             from app.celery_app import app
             from app.tasks.candidate_tasks import process_candidate, assign_thunder_agent
             from app.tasks.notification_tasks import send_notification
+            from app.models.channel_queue import ChannelQueueItem
+            from app.core.database import SessionLocal
         except ImportError as import_error:
-            logger.error(f"Failed to import Celery: {import_error}", exc_info=True)
+            logger.error(f"Failed to import Celery or database models: {import_error}", exc_info=True)
             raise
 
         task = None
+        db = None
 
         try:
             if task_name == CELERY_TASK_CREATE_CANDIDATE:
@@ -132,6 +135,73 @@ class MessageQueueService:
             raise RuntimeError(f"Failed to create Celery task {task_name}")
 
         logger.info(f"Task queued successfully: {task.id} ({task_name})")
+
+        # Also log to database for dashboard visibility (non-blocking fallback)
+        db = SessionLocal() if db is None else db
+        try:
+            # Determine channel type based on task name
+            if task_name == CELERY_TASK_CREATE_CANDIDATE:
+                channel_type = QUEUE_TYPE_CANDIDATE
+                message_type = 'create_candidate'
+            elif task_name == CELERY_TASK_PROCESS_CANDIDATE:
+                channel_type = QUEUE_TYPE_THUNDER
+                message_type = 'process_candidate'
+            elif task_name == CELERY_TASK_ASSIGN_THUNDER:
+                channel_type = QUEUE_TYPE_THUNDER
+                message_type = 'assign_thunder'
+            elif task_name == CELERY_TASK_SEND_NOTIFICATION:
+                channel_type = QUEUE_TYPE_EMAIL
+                message_type = 'send_notification'
+            else:
+                channel_type = task_name.upper() + "_QUEUE"
+                message_type = task_name
+
+            try:
+                existing = db.query(ChannelQueueItem).filter(
+                    ChannelQueueItem.message_id == task.id
+                ).first()
+            except Exception as query_err:
+                logger.error(f"Query failed: {query_err}", exc_info=True)
+                existing = None
+
+            if not existing:
+                try:
+                    queue_item = ChannelQueueItem(
+                        id=str(uuid4()),
+                        message_id=task.id,
+                        type=message_type,
+                        channel_type=channel_type,
+                        status="PENDING",
+                        payload=data or {},
+                        recipient=data.get('candidate_email') or data.get('recipient_id') if data else None,
+                        retry_count=QUEUE_ITEM_RETRY_COUNT_INITIAL
+                    )
+                except Exception as create_err:
+                    logger.error(f"Failed to create queue item: {create_err}", exc_info=True)
+                    raise
+
+                try:
+                    db.add(queue_item)
+                except Exception as add_err:
+                    logger.error(f"Failed to add: {add_err}", exc_info=True)
+                    raise
+
+                try:
+                    db.commit()
+                except Exception as commit_err:
+                    logger.error(f"Failed to commit: {commit_err}", exc_info=True)
+                    db.rollback()
+                    raise
+
+                logger.info(f"Logged task {task.id} ({channel_type})")
+
+        except Exception as db_error:
+            logger.error(f"Log to database failed: {db_error}", exc_info=True)
+        finally:
+            try:
+                db.close()
+            except Exception as close_err:
+                logger.warning(f"Failed to close database: {close_err}")
 
         return {
             "status": "queued",
