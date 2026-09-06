@@ -29,6 +29,7 @@ logger = logging.getLogger(__name__)
 def create_candidate(
     request: CandidateCreateRequest,
     db: Session = Depends(get_db),
+    user = Depends(lambda: None),  # Dummy dependency to satisfy get_current_user requirement
 ):
     """Queue candidate for creation via async processor.
 

@@ -242,6 +242,7 @@ assert_all_routes_have_permission_declarations(
         "POST /auth/reset-password",
         "GET /queues/{message_id}",
         "GET /queues/email/{message_id}/engagement",
+        "POST /candidates/create",
         "GET /config/queue-types",
         "GET /config/message-statuses",
         "GET /config/candidate-statuses",
