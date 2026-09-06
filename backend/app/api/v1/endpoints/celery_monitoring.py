@@ -2,9 +2,12 @@
 import logging
 import json
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.orm import Session
+from sqlalchemy import func
 from redis import Redis
-from app.core.dependencies import require_resource_permission
+from app.core.dependencies import require_resource_permission, get_db
 from app.celery_app import app as celery_app
+from app.models.message_queue import ChannelMessage
 
 router = APIRouter(prefix="/celery", tags=["celery"])
 logger = logging.getLogger(__name__)
@@ -44,7 +47,108 @@ def get_workers_status():
 @router.get("/queues", dependencies=[Depends(require_resource_permission("queue", "view"))])
 def get_queues():
     """Get list of Celery queues with real-time task counts (pending, active, failed, reserved)."""
+    from app.core.database import SessionLocal
+    db = SessionLocal()
     try:
+        queues_list = ["default", "thunder", "email", "sms", "whatsapp", "slack"]
+        queues_from_db = {}
+        logger.info(f"[QUEUE_DEBUG] Starting database query for {len(queues_list)} queues")
+
+        for queue_name in queues_list:
+            try:
+                logger.info(f"[QUEUE_DEBUG] Querying queue: {queue_name}")
+
+                try:
+                    pending = db.query(func.count(ChannelMessage.id)).filter(
+                        ChannelMessage.queue_type == queue_name,
+                        ChannelMessage.status == "PENDING"
+                    ).scalar() or 0
+                except Exception as e:
+                    logger.error(f"Failed to query pending for {queue_name}: {e}", exc_info=True)
+                    pending = 0
+
+                try:
+                    active = db.query(func.count(ChannelMessage.id)).filter(
+                        ChannelMessage.queue_type == queue_name,
+                        ChannelMessage.status == "PROCESSING"
+                    ).scalar() or 0
+                except Exception as e:
+                    logger.error(f"Failed to query active for {queue_name}: {e}", exc_info=True)
+                    active = 0
+
+                try:
+                    reserved = db.query(func.count(ChannelMessage.id)).filter(
+                        ChannelMessage.queue_type == queue_name,
+                        ChannelMessage.status == "RESERVED"
+                    ).scalar() or 0
+                except Exception as e:
+                    logger.error(f"Failed to query reserved for {queue_name}: {e}", exc_info=True)
+                    reserved = 0
+
+                try:
+                    failed = db.query(func.count(ChannelMessage.id)).filter(
+                        ChannelMessage.queue_type == queue_name,
+                        ChannelMessage.status == "FAILED"
+                    ).scalar() or 0
+                except Exception as e:
+                    logger.error(f"Failed to query failed for {queue_name}: {e}", exc_info=True)
+                    failed = 0
+
+                try:
+                    completed = db.query(func.count(ChannelMessage.id)).filter(
+                        ChannelMessage.queue_type == queue_name,
+                        ChannelMessage.status == "COMPLETED"
+                    ).scalar() or 0
+                except Exception as e:
+                    logger.error(f"Failed to query completed for {queue_name}: {e}", exc_info=True)
+                    completed = 0
+
+                queues_from_db[queue_name] = {
+                    "name": queue_name,
+                    "key": f"celery.{queue_name}",
+                    "pending": pending,
+                    "active": active,
+                    "reserved": reserved,
+                    "failed": failed,
+                    "completed": completed
+                }
+            except Exception as e:
+                logger.warning(f"Failed to query queue {queue_name} from database: {e}")
+                queues_from_db[queue_name] = {
+                    "name": queue_name,
+                    "key": f"celery.{queue_name}",
+                    "pending": 0,
+                    "active": 0,
+                    "reserved": 0,
+                    "failed": 0,
+                    "completed": 0
+                }
+
+        # If we have database data for all configured queues, return that
+        if queues_from_db and len(queues_from_db) == len(queues_list):
+            queue_values = list(queues_from_db.values()) if queues_from_db else []
+            if queue_values:
+                total_pending = 0
+                total_active = 0
+                total_reserved = 0
+                total_completed = 0
+                if isinstance(queue_values, list) and len(queue_values) > 0:
+                    for q in queue_values:
+                        if q and isinstance(q, dict):
+                            total_pending += q.get("pending", 0)
+                            total_active += q.get("active", 0)
+                            total_reserved += q.get("reserved", 0)
+                            total_completed += q.get("completed", 0)
+
+                return {
+                    "queues": queue_values,
+                    "total_queues": len(queues_from_db),
+                    "total_pending": total_pending,
+                    "total_active": total_active,
+                    "total_reserved": total_reserved,
+                    "total_completed": total_completed
+                }
+
         queue_data = {}
         seen_queues = set()
 
@@ -256,3 +360,9 @@ def get_finished_tasks(limit: int = 50):
     except Exception as e:
         logger.error(f"Failed to get finished tasks: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/test-public")
+def test_public():
+    """Simple test endpoint with no dependencies."""
+    return {"status": "ok", "test": "public"}
