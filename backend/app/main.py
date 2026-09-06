@@ -60,6 +60,9 @@ app.add_middleware(RequestLoggingMiddleware)
 # Add authentication middleware
 app.add_middleware(AuthenticationMiddleware)
 
+# Add authentication middleware
+app.add_middleware(AuthenticationMiddleware)
+
 # Phase 1 B4 -- rate limiting, enabled 2026-07-20. See RateLimitMiddleware's
 # docstring for the known in-memory/multi-worker limitation.
 # DISABLED: Rate limiter was blocking role template permission updates
