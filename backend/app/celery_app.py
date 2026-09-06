@@ -42,6 +42,15 @@ app.conf.update(
     broker_connection_max_retries=0,
     redis_socket_connect_timeout=REDIS_CONNECT_TIMEOUT_SECONDS,
     redis_socket_timeout=REDIS_SOCKET_TIMEOUT_SECONDS,
+    # Celery Beat periodic task schedule
+    beat_scheduler='celery.beat:PersistentScheduler',
+    beat_schedule={
+        'process-candidates-every-30-seconds': {
+            'task': 'process_candidates_batch',
+            'schedule': 30.0,  # Run every 30 seconds
+            'options': {'queue': 'celery', 'priority': 10}
+        },
+    },
 )
 
 def check_redis_connection() -> bool:
