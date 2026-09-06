@@ -18,7 +18,6 @@ from app.middleware import setup_cors, RequestLoggingMiddleware
 # global tenant-scoping do_orm_execute listener deterministically at
 # process startup. See app.core.tenant_context's module docstring.
 from app.core import tenant_context as _tenant_context  # noqa: F401
-from app.api.v1.endpoints.queues import router as queues_router
 from app.api.v1.endpoints.config import router as config_router
 
 # Agent State models — imported here so Base.metadata.create_all() finds them
@@ -87,6 +86,7 @@ async def log_unhandled_exception(request: Request, exc: Exception):
 
     logger.error(f"Unhandled exception on {request.method} {request.url.path}: {exc}")
     response = JSONResponse(status_code=500, content={"detail": "Internal server error."})
+    assert response is not None
     # Add CORS headers to exception response so browser doesn't block it
     origin = request.headers.get("origin", "http://localhost:3000")
     response.headers["Access-Control-Allow-Origin"] = origin
@@ -97,6 +97,7 @@ async def log_unhandled_exception(request: Request, exc: Exception):
 async def http_exception_handler(request: Request, exc: HTTPException):
     """Handle HTTPException (401, 403, 404, etc.) with CORS headers"""
     response = JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
+    assert response is not None
     # Add CORS headers so browser doesn't block 401, 403, 404, etc responses
     origin = request.headers.get("origin", "http://localhost:3000")
     response.headers["Access-Control-Allow-Origin"] = origin
@@ -147,6 +148,7 @@ async def startup_event():
         from app.services.org_structure_service import init_default_positions
         db = SessionLocal()
         result = init_default_positions(db)
+        assert result is not None and isinstance(result, dict)
         db.close()
         logger.info(f"[OK] Organizational positions initialized (created: {result['created']}, updated: {result['updated']})")
     except Exception as exc:
@@ -206,8 +208,6 @@ app.include_router(auth_router)
 app.include_router(users_access_control_router)
 # Include v1 routes with /api/v1 prefix
 app.include_router(router)
-# Include message queue routes with /api/v1 prefix
-app.include_router(queues_router, prefix="/api/v1")
 # Include configuration routes with /api/v1 prefix (dynamic config - never hardcode)
 app.include_router(config_router, prefix="/api/v1")
 
