@@ -57,6 +57,9 @@ setup_cors(app)
 # Add request logging middleware
 app.add_middleware(RequestLoggingMiddleware)
 
+# Add authentication middleware
+app.add_middleware(AuthenticationMiddleware)
+
 # Phase 1 B4 -- rate limiting, enabled 2026-07-20. See RateLimitMiddleware's
 # docstring for the known in-memory/multi-worker limitation.
 # DISABLED: Rate limiter was blocking role template permission updates
@@ -256,6 +259,9 @@ assert_all_routes_have_permission_declarations(
         "GET /config/message-statuses",
         "GET /config/candidate-statuses",
         "GET /config/app-config",
+        "GET /api/v1/celery/queues",
+        "GET /api/v1/celery/workers",
+        "GET /api/v1/celery/stats",
     ],
 )
 logger.info("[OK] HRMS-0114 route permission audit passed")
