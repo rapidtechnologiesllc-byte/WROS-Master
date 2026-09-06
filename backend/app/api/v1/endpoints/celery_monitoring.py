@@ -46,8 +46,27 @@ def get_queues():
     """Get list of Celery queues with real-time task counts (pending, active, failed, reserved)."""
     try:
         queues = []
-        result_keys = redis_client.keys('celery*')
         seen_queues = set()
+
+        # Get configured queues from Celery app config
+        if hasattr(celery_app.conf, 'task_queues') and celery_app.conf.task_queues:
+            task_queues_list = list(celery_app.conf.task_queues)
+            if task_queues_list:
+                for queue in task_queues_list:
+                    queue_name = queue.name
+                    queue_data = {
+                        "name": queue_name,
+                        "key": f"celery.{queue_name}",
+                        "pending": 0,
+                        "active": 0,
+                        "reserved": 0,
+                        "failed": 0
+                    }
+                    queues.append(queue_data)
+                    seen_queues.add(queue_name)
+
+        # Get Redis keys for actual queue data
+        result_keys = redis_client.keys('celery*')
 
         # Get Celery inspect data for all task states
         inspect = celery_app.control.inspect()
