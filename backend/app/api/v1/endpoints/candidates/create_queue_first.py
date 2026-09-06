@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 @router.post(
     "/create",
     response_model=CandidateCreateResponse,
-    # dependencies=[Depends(require_resource_permission("candidates", "create"))],  # TEMPORARILY DISABLED TO TEST
+    dependencies=[Depends(require_resource_permission("candidates", "create"))],
 )
 async def create_candidate(
     request: CandidateCreateRequest,
