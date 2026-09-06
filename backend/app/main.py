@@ -259,6 +259,7 @@ assert_all_routes_have_permission_declarations(
         "GET /config/message-statuses",
         "GET /config/candidate-statuses",
         "GET /config/app-config",
+        "GET /api/v1/celery/test-public",
     ],
 )
 logger.info("[OK] HRMS-0114 route permission audit passed")
