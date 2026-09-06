@@ -51,31 +51,22 @@ async def create_candidate(
         HTTPException(400): If validation fails
         HTTPException(500): If queue fails
     """
-    try:
-        logger.info(f"=== ENDPOINT CALLED ===")
-        logger.info(f"Request email: {request.candidate_email}")
-        logger.info(f"Request location: {request.candidate_current_location}")
+    # Validate location is required
+    if not request.candidate_current_location or not request.candidate_current_location.strip():
+        raise HTTPException(
+            status_code=400,
+            detail="Location (City, State, Country) is mandatory for candidate creation"
+        )
 
-        # Validate location is required
-        if not request.candidate_current_location or not request.candidate_current_location.strip():
-            logger.error("Location validation failed")
-            raise HTTPException(
-                status_code=400,
-                detail="Location (City, State, Country) is mandatory for candidate creation"
-            )
+    # Validate email format
+    if not request.candidate_email or "@" not in request.candidate_email:
+        raise HTTPException(
+            status_code=400,
+            detail="Valid email address is required"
+        )
 
-        # Validate email format
-        if not request.candidate_email or "@" not in request.candidate_email:
-            logger.error("Email validation failed")
-            raise HTTPException(
-                status_code=400,
-                detail="Valid email address is required"
-            )
-
-        logger.info(f"Generating password...")
-        # Generate password for candidate (will be sent later)
-        password = generate_password()
-        logger.info(f"Password generated")
+    # Generate password for candidate (will be sent later)
+    password = generate_password()
 
     # Queue candidate creation request
     # CandidateQueueProcessor will handle:
