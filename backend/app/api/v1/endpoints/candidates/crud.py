@@ -290,35 +290,58 @@ def create_candidate(
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Failed to create candidate: {str(e)}")
 
-    # Create candidate status
-    # TIER 3 FIX: Use constants instead of magic strings
-    candidate_status = CandidateStatus(
-        candidateID=candidate_id,
-        piplineStatus=CANDIDATE_STATUS_APPLIED,
-        status=CANDIDATE_STATUS_ACTIVE,
-        createdAt=datetime.now(),
-        updatedAt=datetime.now(),
-    )
-    # Ensure this is a new record (not re-running)
-    existing_status = db.query(CandidateStatus).filter(CandidateStatus.candidateID == candidate_id).first()
+    try:
+        candidate_status = CandidateStatus(
+            candidateID=candidate_id,
+            piplineStatus=CANDIDATE_STATUS_APPLIED,
+            status=CANDIDATE_STATUS_ACTIVE,
+            createdAt=datetime.now(),
+            updatedAt=datetime.now(),
+        )
+    except Exception as creation_error:
+        logger.error(f"Failed to create CandidateStatus object: {creation_error}", exc_info=True)
+        raise
+
+    try:
+        existing_status = db.query(CandidateStatus).filter(CandidateStatus.candidateID == candidate_id).first()
+    except Exception as query_error:
+        logger.error(f"Failed to query existing status for {candidate_id}: {query_error}", exc_info=True)
+        raise
+
     if existing_status:
         logger.warning(f"Candidate status already exists for {candidate_id}, updating instead")
         existing_status.status = "Active"
         existing_status.updatedAt = datetime.now()
     else:
-        db.add(candidate_status)
+        try:
+            db.add(candidate_status)
+        except Exception as add_error:
+            logger.error(f"Failed to add candidate status to session: {add_error}", exc_info=True)
+            raise
 
-    # Create candidate personal info form
-    # TIER 1 FIX: Check if CandidateInfoForm already exists before adding
-    existing_info = db.query(CandidateInfoForm).filter(CandidateInfoForm.candidateID == candidate_id).first()
+    try:
+        existing_info = db.query(CandidateInfoForm).filter(CandidateInfoForm.candidateID == candidate_id).first()
+    except Exception as query_error:
+        logger.error(f"Failed to query existing info for {candidate_id}: {query_error}", exc_info=True)
+        raise
+
     if not existing_info:
-        candidate_info = CandidateInfoForm(
-            candidateID=candidate_id,
-            dob=request.candidate_date_of_birth,
-            gender=request.candidate_gender,
-            submittedAt=datetime.now().date(),
-        )
-        db.add(candidate_info)
+        try:
+            candidate_info = CandidateInfoForm(
+                candidateID=candidate_id,
+                dob=request.candidate_date_of_birth,
+                gender=request.candidate_gender,
+                submittedAt=datetime.now().date(),
+            )
+        except Exception as creation_error:
+            logger.error(f"Failed to create CandidateInfoForm object: {creation_error}", exc_info=True)
+            raise
+
+        try:
+            db.add(candidate_info)
+        except Exception as add_error:
+            logger.error(f"Failed to add candidate info to session: {add_error}", exc_info=True)
+            raise
     else:
         logger.warning(f"Candidate info already exists for {candidate_id}, skipping creation")
 
