@@ -4,8 +4,7 @@ Exports all middleware components for easy import.
 """
 from app.middleware.auth_middleware import (
     AuthenticationMiddleware,
-    RequestLoggingMiddleware,
-    RateLimitMiddleware
+    RequestLoggingMiddleware
 )
 import logging
 from app.middleware.cors import setup_cors, get_cors_config, CORSConfig
@@ -13,7 +12,6 @@ from app.middleware.cors import setup_cors, get_cors_config, CORSConfig
 __all__ = [
     "AuthenticationMiddleware",
     "RequestLoggingMiddleware",
-    "RateLimitMiddleware",
     "setup_cors",
     "get_cors_config",
     "CORSConfig"
