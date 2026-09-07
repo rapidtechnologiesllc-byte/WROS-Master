@@ -46,9 +46,22 @@ def get_workers_status():
 
 @router.get("/queues", dependencies=[Depends(require_resource_permission("queue", "view"))])
 def get_queues():
-    """Get real-time Celery queue status from Redis and Celery inspect only."""
+    """Get all configured queues with real-time task counts from Redis and Celery."""
     try:
+        configured_queues = ["default", "thunder", "email", "sms", "whatsapp", "slack"]
         queue_data = {}
+
+        if configured_queues and isinstance(configured_queues, list):
+            for queue_name in configured_queues:
+                queue_data[queue_name] = {
+                    "name": queue_name,
+                    "key": f"celery.{queue_name}",
+                    "pending": 0,
+                    "active": 0,
+                    "reserved": 0,
+                    "failed": 0,
+                    "completed": 0
+                }
 
         try:
             result_keys = redis_client.keys('celery*')
@@ -57,15 +70,9 @@ def get_queues():
                     try:
                         length = redis_client.llen(key)
                         queue_name = key.split('.')[-1] if '.' in key else key
-                        queue_data[queue_name] = {
-                            "name": queue_name,
-                            "key": key,
-                            "pending": length,
-                            "active": 0,
-                            "reserved": 0,
-                            "failed": 0,
-                            "completed": 0
-                        }
+                        if queue_name in queue_data:
+                            queue_data[queue_name]["pending"] = length
+                            queue_data[queue_name]["key"] = key
                     except Exception as e:
                         logger.warning(f"Failed to get length for Redis key {key}: {e}")
         except Exception as e:
