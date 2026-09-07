@@ -1,1 +1,0 @@
-"""BlitzenX WROS Application Package"""
