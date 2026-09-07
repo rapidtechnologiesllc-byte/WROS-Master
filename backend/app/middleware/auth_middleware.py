@@ -139,7 +139,14 @@ class AuthenticationMiddleware(BaseHTTPMiddleware):
         "/linkedin-candidate-pipeline/{pipeline_id}/complete-import",
         "/linkedin-candidate-pipeline/{pipeline_id}/status",
     ]
-    
+
+    # Routes eligible for prefix matching (e.g. "/static/logo.png" under
+    # "/static"). Deliberately excludes "/" -- see the bug this replaced:
+    # "/" is a valid PREFIX_ROUTE... no wait, "/" is only ever an exact
+    # match (below), never a prefix, because every path starts with "/"
+    # and a prefix match on it would make every route public.
+    PREFIX_ROUTES = ["/static", "/docs", "/redoc"]
+
     async def dispatch(self, request: Request, call_next: Callable):
         """
         Process each request and validate authentication.
@@ -245,13 +252,6 @@ class AuthenticationMiddleware(BaseHTTPMiddleware):
                 status_code=500,
                 content={"detail": f"Internal authentication error: {type(e).__name__}: {str(e)[:100]}"}
             )
-    
-    # Routes eligible for prefix matching (e.g. "/static/logo.png" under
-    # "/static"). Deliberately excludes "/" -- see the bug this replaced:
-    # "/" is a valid PREFIX_ROUTE... no wait, "/" is only ever an exact
-    # match (below), never a prefix, because every path starts with "/"
-    # and a prefix match on it would make every route public.
-            PREFIX_ROUTES = ["/static", "/docs", "/redoc"]
 
     def _is_public_route(self, path: str) -> bool:
         """
