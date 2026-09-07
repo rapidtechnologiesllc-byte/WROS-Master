@@ -309,14 +309,11 @@ def get_queue_tasks(queue_name: str = "celery", db: Session = Depends(get_db)):
                     try:
                         tasks.append({
                             "id": str(msg.id) if msg.id else "unknown",
-                            "name": msg.message_type or "unknown",
+                            "name": msg.type or "unknown",
                             "queue": msg.queue_type,
                             "status": msg.status,
                             "created_at": msg.created_at.isoformat() if msg.created_at else None,
-                            "args": {
-                                "recipient": msg.recipient,
-                                "message_content": msg.message_content[:100] if msg.message_content else None
-                            }
+                            "payload": msg.payload if msg.payload else {}
                         })
                     except Exception as e:
                         logger.warning(f"Failed to process task {msg.id}: {e}")
