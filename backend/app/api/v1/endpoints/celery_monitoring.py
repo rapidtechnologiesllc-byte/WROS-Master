@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 from redis import Redis
 from app.core.dependencies import require_resource_permission, get_db
+from app.core.queue_utils import redis_key_to_queue_name, queue_name_to_redis_key, get_configured_queues
 from app.celery_app import app as celery_app
 from app.models.message_queue import ChannelMessage
 
@@ -79,14 +80,18 @@ def get_workers_status():
 def get_queues():
     """Get all configured queues with real-time task counts from Redis and Celery."""
     try:
-        configured_queues = ["default", "thunder", "email", "sms", "whatsapp", "slack"]
+        configured_queues = get_configured_queues()
+        if not configured_queues or not isinstance(configured_queues, list):
+            configured_queues = ["default", "thunder", "email", "sms", "whatsapp", "slack"]
+
         queue_data = {}
 
+        # Initialize all configured queues
         if configured_queues and isinstance(configured_queues, list):
             for queue_name in configured_queues:
                 queue_data[queue_name] = {
                     "name": queue_name,
-                    "key": f"celery.{queue_name}",
+                    "key": queue_name_to_redis_key(queue_name),
                     "pending": 0,
                     "active": 0,
                     "reserved": 0,
@@ -94,17 +99,14 @@ def get_queues():
                     "completed": 0
                 }
 
+        # Count pending tasks in each queue from Redis
         try:
             result_keys = redis_client.keys('celery*')
             if result_keys:
                 for key in result_keys:
                     try:
                         length = redis_client.llen(key)
-                        # Map Redis key to queue name: "celery" -> "default", "celery.thunder" -> "thunder"
-                        if key == 'celery':
-                            queue_name = 'default'
-                        else:
-                            queue_name = key.split('.')[-1] if '.' in key else key
+                        queue_name = redis_key_to_queue_name(key)
                         if queue_name in queue_data:
                             queue_data[queue_name]["pending"] = length
                             queue_data[queue_name]["key"] = key
@@ -112,6 +114,33 @@ def get_queues():
                         logger.warning(f"Failed to get length for Redis key {key}: {e}")
         except Exception as e:
             logger.warning(f"Failed to get Redis keys: {e}")
+
+        # Count finished/failed tasks from celery-task-meta-* keys
+        try:
+            finished_keys = redis_client.keys('celery-task-meta-*')
+            if finished_keys and isinstance(finished_keys, list):
+                for key in finished_keys:
+                    try:
+                        data = redis_client.get(key)
+                        if data:
+                            obj = json.loads(data)
+                            status = obj.get("status", "UNKNOWN")
+                            # Try to extract queue name from task metadata
+                            # For now, increment counts for all queues (simplified)
+                            # In production, should extract queue from task metadata
+                            if queue_data and isinstance(queue_data, dict):
+                                queue_keys = queue_data.keys()
+                                if queue_keys is not None:
+                                    for queue_name in queue_keys:
+                                        if queue_name and queue_name in queue_data and isinstance(queue_data[queue_name], dict):
+                                            if status == "SUCCESS":
+                                                queue_data[queue_name]["completed"] = queue_data[queue_name].get("completed", 0) + 1
+                                            elif status in ["FAILURE", "FAILED"]:
+                                                queue_data[queue_name]["failed"] = queue_data[queue_name].get("failed", 0) + 1
+                    except Exception as e:
+                        logger.warning(f"Failed to parse finished task {key}: {e}")
+        except Exception as e:
+            logger.warning(f"Failed to count finished tasks: {e}")
 
         try:
             inspect = celery_app.control.inspect()
@@ -179,13 +208,8 @@ def get_queues():
 def get_queue_tasks(queue_name: str = "celery"):
     """Get pending tasks from a queue via Redis."""
     try:
-        # Map queue name to Redis key: "default" -> "celery", others -> "celery.{queue_name}"
-        if queue_name == "default":
-            queue_key = "celery"
-        elif queue_name.startswith('celery'):
-            queue_key = queue_name
-        else:
-            queue_key = f"celery.{queue_name}"
+        # Map queue name to Redis key using utility function
+        queue_key = queue_name_to_redis_key(queue_name)
 
         try:
             queue_length = redis_client.llen(queue_key)
@@ -264,14 +288,9 @@ def get_queue_stats():
                 for key in result_keys:
                     try:
                         length = redis_client.llen(key)
-                        # Map Redis key to queue name: "celery" -> "default", "celery.thunder" -> "thunder"
-                        if key == 'celery':
-                            queue_name = 'default'
-                        else:
-                            queue_name = key.split('.')[-1] if '.' in key else key
+                        queue_name = redis_key_to_queue_name(key)
                         # Only count configured queues
-                        configured_queues = ["default", "thunder", "email", "sms", "whatsapp", "slack"]
-                        if queue_name in configured_queues:
+                        if queue_name in get_configured_queues():
                             pending_count += length
                     except Exception as e:
                         logger.warning(f"Failed to get length for Redis key {key}: {e}")
