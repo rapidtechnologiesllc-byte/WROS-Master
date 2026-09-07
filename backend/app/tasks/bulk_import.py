@@ -8,7 +8,7 @@ Tasks are tracked in message queue dashboard.
 """
 
 from celery import current_task
-from app.core.celery_app import celery_app
+from app.celery_app import app as celery_app
 from app.core.database import SessionLocal
 from app.services.bulk_engagement_service import import_candidates_from_csv
 import uuid

@@ -9,7 +9,7 @@ Async email tasks:
 - Send notifications
 """
 
-from app.core.celery_app import celery_app
+from app.celery_app import app as celery_app
 from app.core.database import SessionLocal
 import logging
 logger = logging.getLogger(__name__)
