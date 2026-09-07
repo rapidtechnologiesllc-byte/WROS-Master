@@ -35,14 +35,38 @@ def start_scheduler():
             scheduler.add_job(
                 _run_message_queue_worker,
                 trigger="interval",
-                seconds=30,
+                seconds=5,
                 id="message_queue_worker",
                 replace_existing=True,
             )
-            logger.info("[OK] Scheduled message queue worker job (every 30 sec)")
+            logger.info("[OK] Scheduled message queue worker job (every 5 sec)")
         except Exception as exc:
             logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.warning(f"Could not register message queue worker scheduler: {exc}")
+
+        # ── Every 90 sec: AUTONOMOUS SDLC CYCLE (audit → develop → test → fix → deploy) ──
+        try:
+            from app.services.autonomous_sdlc_service import run_autonomous_sdlc_cycle
+
+            async def _run_sdlc_cycle():
+                try:
+                    result = run_autonomous_sdlc_cycle()
+                    if result.get("status") == "changes_deployed":
+                        logger.info(f"[scheduler] SDLC cycle completed: {result}")
+                except Exception as exc:
+                    logger.error(f"[scheduler] SDLC cycle error: {exc}", exc_info=True)
+
+            scheduler.add_job(
+                _run_sdlc_cycle,
+                trigger="interval",
+                seconds=90,
+                id="autonomous_sdlc_cycle",
+                replace_existing=True,
+            )
+            logger.info("[OK] Scheduled autonomous SDLC cycle job (every 90 sec)")
+        except Exception as exc:
+            logger.error(f"Error: {str(exc)}", exc_info=True)
+            logger.warning(f"Could not register autonomous SDLC cycle scheduler: {exc}")
 
         # ── Daily job: expire 90-day BU ownerships ────────────────────────────
         try:

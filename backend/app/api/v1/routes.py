@@ -48,6 +48,7 @@ from app.api.v1.endpoints.revenue_targets import router as revenue_targets_route
 from app.api.v1.endpoints.forecast_and_leakage import router as forecast_and_leakage_router
 from app.api.v1.endpoints.revenue_to_demand import router as revenue_to_demand_router
 from app.api.v1.endpoints.cost_rate import router as cost_rate_router
+from app.api.v1.endpoints.sdlc_control import router as sdlc_control_router
 from app.api.v1.endpoints.public_chat import router as public_chat_router
 from app.api.v1.endpoints.flash import router as flash_router
 from app.api.v1.endpoints.whatsapp_webhook import router as whatsapp_webhook_router
@@ -233,3 +234,4 @@ router.include_router(router=agent_pyramid_router)
 router.include_router(router=goals_router)
 router.include_router(router=certifications_admin_router)
 router.include_router(router=slm_feedback_router)
+router.include_router(router=sdlc_control_router)

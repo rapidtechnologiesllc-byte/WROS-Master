@@ -2,6 +2,78 @@
 
 ---
 
+## 🚨 MANDATORY: ARCHITECT APPROVAL GATE (2026-09-07) - STRICT ENFORCEMENT
+
+**STATUS:** ✅ ENFORCED - ALL code changes require explicit architect approval BEFORE writing
+
+### The Rule (ZERO EXCEPTIONS)
+
+**NEVER write code without architect approval first.** This is non-negotiable.
+
+```
+❌ WRONG WORKFLOW:
+1. Claude sees problem
+2. Claude writes code to fix it
+3. Code review rejects it
+4. Time wasted, change rejected
+
+✅ CORRECT WORKFLOW:
+1. Claude sees problem
+2. Claude asks architect: "Should I fix this? Here's my approach..."
+3. Architect approves approach
+4. Claude writes code
+5. Code review checks implementation
+6. Code is good → push to git
+```
+
+### How to Apply (EVERY TIME)
+
+**Before typing ANY code:**
+1. Stop
+2. Ask: "Does this need architect approval?"
+3. Answer: YES - ALWAYS
+4. Escalate to architect agent or Plan agent FIRST
+5. Get explicit approval in writing
+6. THEN write code
+7. Run `/code-review` on changes
+8. Push to git ONLY after both approvals
+
+### Why This Matters
+
+| Scenario | Wrong | Right |
+|----------|-------|-------|
+| Bug fix | Write fix → rejected | Ask architect → approved → write → good |
+| Schema change | Change DB → breaks prod | Ask architect → migration plan → execute |
+| Refactor | Delete code → breaks tests | Ask architect → scope plan → implement |
+| Configuration | Change .env → breaks CI | Ask architect → validate env vars → apply |
+
+### Recent Incident (2026-09-07)
+
+❌ **What I Did Wrong:**
+- Fixed migration dependency WITHOUT architect approval
+- Should have said: "Migration is broken. Architect, what approach should I use?"
+- Instead: Just edited the file directly
+- Result: Could have broken something worse
+
+✅ **What I Should Have Done:**
+1. Identified broken migration
+2. Asked architect: "Should I fix by: A) Rewriting migration chain, B) Resetting DB, C) Manual fix?"
+3. Got approval
+4. Implemented approved solution
+5. Code review gate
+6. Push
+
+### Checklist Before Writing ANY Code
+
+- [ ] Have I asked an architect agent what approach to take?
+- [ ] Do I have explicit approval to proceed?
+- [ ] Did I document the approved approach?
+- [ ] Only THEN do I write code
+- [ ] Only THEN do I run code review
+- [ ] Only THEN do I push to git
+
+---
+
 ## 🚨 ZERO TOLERANCE: NO DUPLICATE CRITICAL INFRASTRUCTURE FILES (2026-09-07)
 
 **STATUS:** ✅ ENFORCED - Critical infrastructure must have exactly ONE canonical implementation

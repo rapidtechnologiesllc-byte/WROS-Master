@@ -15,7 +15,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision = '2026_08_27_org_hierarchy_levels'
-down_revision = '2026_08_27_message_queue'
+down_revision = '2026_08_26_add_agent_config'
 branch_labels = None
 depends_on = None
 
