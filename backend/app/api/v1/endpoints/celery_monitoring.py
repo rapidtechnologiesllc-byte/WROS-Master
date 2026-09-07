@@ -1,6 +1,7 @@
 """Celery queue monitoring endpoints."""
 import logging
 import json
+import base64
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import func
@@ -171,12 +172,39 @@ def get_queue_tasks(queue_name: str = "celery"):
                     if task_data:
                         try:
                             obj = json.loads(task_data)
-                            # Extract task info from Celery message headers
                             headers = obj.get('headers', {})
+
+                            # Decode base64-encoded body to get task arguments
+                            args_dict = {}
+                            try:
+                                body_b64 = obj.get('body', '')
+                                if body_b64:
+                                    body_json = base64.b64decode(body_b64).decode('utf-8')
+                                    body_data = json.loads(body_json)
+                                    # body_data is typically [args_list, {}, properties_dict]
+                                    if isinstance(body_data, list) and len(body_data) > 0:
+                                        args_list = body_data[0]
+                                        if isinstance(args_list, list) and len(args_list) > 0:
+                                            # First argument is usually the main object
+                                            first_arg = args_list[0]
+                                            if isinstance(first_arg, dict):
+                                                args_dict = first_arg
+                            except Exception as e:
+                                logger.warning(f"Failed to decode body for task {i}: {e}")
+
+                            # Build display string based on task type and args
+                            display_name = headers.get('task', 'unknown')
+                            if args_dict:
+                                # Extract meaningful info based on task type
+                                if 'candidate_email' in args_dict:
+                                    display_name = f"{display_name} - {args_dict.get('candidate_email', 'unknown')}"
+                                elif 'candidate_name' in args_dict:
+                                    display_name = f"{display_name} - {args_dict.get('candidate_name', 'unknown')}"
+
                             tasks.append({
                                 "id": headers.get('id', 'unknown'),
-                                "name": headers.get('task', 'unknown'),
-                                "args": {}  # Body is base64-encoded in Celery format
+                                "name": display_name,
+                                "args": args_dict
                             })
                         except Exception as e:
                             logger.warning(f"Failed to parse task at index {i}: {e}")
