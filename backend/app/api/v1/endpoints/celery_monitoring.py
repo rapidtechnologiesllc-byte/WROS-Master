@@ -285,43 +285,38 @@ def get_queues():
 
 
 @router.get("/queue/{queue_name}/tasks", dependencies=[Depends(require_resource_permission("queue", "view"))])
-def get_queue_tasks(queue_name: str = "celery", db: Session = Depends(get_db)):
-    """Get pending tasks from a queue (from database)."""
+def get_queue_tasks(queue_name: str = "celery"):
+    """Get pending tasks from a queue via Redis."""
     try:
-        from app.core.database import SessionLocal
-        db = SessionLocal()
+        queue_key = f"celery.{queue_name}" if not queue_name.startswith('celery') else queue_name
 
         try:
-            normalized_queue = queue_name.upper() if queue_name.upper() in ["THUNDER", "DEFAULT", "EMAIL", "SMS", "WHATSAPP", "SLACK"] else queue_name
+            queue_length = redis_client.llen(queue_key)
+        except Exception as e:
+            logger.error(f"Failed to get queue length for {queue_key}: {e}")
+            queue_length = 0
 
-            try:
-                pending_messages = db.query(ChannelMessage).filter(
-                    ChannelMessage.queue_type == normalized_queue,
-                    ChannelMessage.status == "PENDING"
-                ).limit(MAX_TASKS_PER_QUEUE).all()
-            except Exception as e:
-                logger.error(f"Database query failed for queue {normalized_queue}: {e}", exc_info=True)
-                raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+        tasks = []
+        if queue_length and queue_length > 0:
+            max_tasks = min(queue_length, MAX_TASKS_PER_QUEUE)
+            for i in range(max_tasks):
+                try:
+                    task_data = redis_client.lindex(queue_key, i)
+                    if task_data:
+                        try:
+                            obj = json.loads(task_data)
+                            tasks.append({
+                                "id": obj.get('headers', {}).get('id', 'unknown'),
+                                "name": obj.get('headers', {}).get('task', 'unknown'),
+                                "args": obj.get('body', [{}])[0] if obj.get('body') else {}
+                            })
+                        except Exception as e:
+                            logger.warning(f"Failed to parse task at index {i}: {e}")
+                except Exception as e:
+                    logger.warning(f"Failed to read task at {i} from {queue_key}: {e}")
 
-            tasks = []
-            if pending_messages:
-                for msg in pending_messages:
-                    try:
-                        tasks.append({
-                            "id": str(msg.id) if msg.id else "unknown",
-                            "name": msg.type or "unknown",
-                            "queue": msg.queue_type,
-                            "status": msg.status,
-                            "created_at": msg.created_at.isoformat() if msg.created_at else None,
-                            "payload": msg.payload if msg.payload else {}
-                        })
-                    except Exception as e:
-                        logger.warning(f"Failed to process task {msg.id}: {e}")
-
-            logger.info(f"Retrieved {len(tasks)} pending tasks from {normalized_queue}")
-            return {"queue": normalized_queue, "total_pending": len(tasks), "tasks": tasks}
-        finally:
-            db.close()
+        logger.info(f"Retrieved {len(tasks)} from queue {queue_name}")
+        return {"queue": queue_name, "total_pending": queue_length, "tasks": tasks}
     except Exception as e:
         logger.error(f"Failed to get queue tasks: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
