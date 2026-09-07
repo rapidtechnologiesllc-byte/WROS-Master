@@ -10,7 +10,6 @@ import {
 import { useState, useEffect, useRef } from "react";
 import { Button, Card, StatusBadge } from "../components/ui";
 import { useNavigate } from "react-router-dom";
-import InterventionQueueWidget from "../components/intervention/InterventionQueueWidget";
 import LinkedInActivityTable from "../components/LinkedInActivityTable";
 import { getRoles } from "../utils/permissions";
 import { getHrMe } from "../services/api/users";
@@ -125,8 +124,6 @@ export default function Dashboard({
   return (
     <div className="space-y-4">
       <Card title="Dashboard" icon={<LayoutDashboard className="h-4 w-4" />} />
-
-      <InterventionQueueWidget />
 
       <div className="grid gap-4 md:grid-cols-3">
         <StatCard
