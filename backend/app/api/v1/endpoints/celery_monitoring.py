@@ -148,7 +148,13 @@ def get_queues():
 def get_queue_tasks(queue_name: str = "celery"):
     """Get pending tasks from a queue via Redis."""
     try:
-        queue_key = f"celery.{queue_name}" if not queue_name.startswith('celery') else queue_name
+        # Map queue name to Redis key: "default" -> "celery", others -> "celery.{queue_name}"
+        if queue_name == "default":
+            queue_key = "celery"
+        elif queue_name.startswith('celery'):
+            queue_key = queue_name
+        else:
+            queue_key = f"celery.{queue_name}"
 
         try:
             queue_length = redis_client.llen(queue_key)
