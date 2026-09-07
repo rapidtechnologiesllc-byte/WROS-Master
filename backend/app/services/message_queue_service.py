@@ -86,18 +86,6 @@ class MessageQueueService:
         """DEPRECATED: Celery removed. Use enqueue() instead."""
         logger.warning("_enqueue_celery() is deprecated - use enqueue() instead")
         return MessageQueueService.enqueue(task_name, task_id, data, delay_seconds)
-                    countdown=delay_seconds,
-                    task_id=task_id
-                )
-
-            elif task_name == CELERY_TASK_PROCESS_CANDIDATE:
-                candidate_id = data.get('candidate_id')
-                tenant_id = data.get('tenant_id', 1)
-                task = process_candidate.apply_async(
-                    args=[candidate_id, tenant_id],
-                    countdown=delay_seconds,
-                    task_id=task_id
-                )
 
             elif task_name == CELERY_TASK_ASSIGN_THUNDER:
                 candidate_id = data.get('candidate_id')
