@@ -20,7 +20,6 @@ from app.middleware.auth_middleware import AuthenticationMiddleware
 # process startup. See app.core.tenant_context's module docstring.
 from app.core import tenant_context as _tenant_context  # noqa: F401
 from app.api.v1.endpoints.config import router as config_router
-from app.api.v1.endpoints.celery_monitoring import router as celery_monitoring_router
 
 # Agent State models — imported here so Base.metadata.create_all() finds them
 from app.models import agent_phalanx  # noqa: F401
@@ -124,11 +123,6 @@ async def startup_event():
     settings.validate_config()
     logger.info("[OK] Configuration validated")
 
-    # Verify Redis broker is available (fail fast if not)
-    from app.celery_app import check_redis_connection
-    if not check_redis_connection():
-        logger.warning("[WARNING] Redis broker unavailable - background tasks will fail")
-        logger.warning("[WARNING] Candidate creation will timeout - please start Redis")
 
     # Start APScheduler immediately (no I/O needed)
     from app.core.scheduler import start_scheduler
@@ -221,8 +215,6 @@ app.include_router(users_access_control_router)
 app.include_router(router)
 # Include configuration routes with /api/v1 prefix (dynamic config - never hardcode)
 app.include_router(config_router, prefix="/api/v1")
-# Include queue monitoring routes with /api/v1 prefix (Flower proxy endpoints)
-app.include_router(celery_monitoring_router, prefix="/api/v1")
 
 # HRMS-0114 -- fail startup if any route has no explicit identity/
 # permission declaration at all. Runs synchronously at import time

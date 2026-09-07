@@ -1,4 +1,4 @@
-"""Message Queue Service - Production-grade task queueing with Celery fallback."""
+"""Message Queue Service - Custom database-backed task queue (Celery removed)."""
 import logging
 from typing import Dict, Any, Optional
 from datetime import datetime
@@ -21,7 +21,7 @@ QUEUE_ITEM_RETRY_COUNT_INITIAL = 0
 
 
 class MessageQueueService:
-    """Queue async tasks to Celery/Redis for background processing."""
+    """Queue async tasks to custom message queue system (database + Redis backend)."""
 
     @staticmethod
     def enqueue(
@@ -30,46 +30,51 @@ class MessageQueueService:
         data: Optional[Dict[str, Any]] = None,
         delay_seconds: int = DEFAULT_DELAY_SECONDS
     ) -> Dict[str, Any]:
-        """Queue a task to Celery ONLY. Fails hard if Redis/Celery unavailable.
-
-        NEVER fall back to database - that masks infrastructure failures.
-        If Celery is down, we MUST FAIL and alert, not silently queue to database.
-        """
+        """Queue a task to custom message queue. Uses database as primary store."""
         if not task_name:
             logger.error("Task name is required for enqueue")
             raise ValueError("Task name is required")
 
         data = data or {}
+        task_id = task_id or str(uuid4())
 
         try:
-            return MessageQueueService._enqueue_celery(
-                task_name, task_id, data, delay_seconds
-            )
-        except Exception as celery_error:
-            # FAIL HARD - do not fall back to database
-            error_msg = str(celery_error).lower()
-            is_connection_error = any(
-                key in error_msg
-                for key in ["connection refused", "connect timeout", "unreachable", "redis"]
+            from app.models.channel_queue import ChannelQueueItem
+            from app.core.database import SessionLocal
+
+            db = SessionLocal()
+
+            # Create queue item in database
+            queue_item = ChannelQueueItem(
+                message_id=task_id,
+                message_type=task_name,
+                channel_type=QUEUE_TYPE_CANDIDATE if 'candidate' in task_name.lower() else QUEUE_TYPE_THUNDER,
+                status='PENDING',
+                payload=data,
+                retry_count=QUEUE_ITEM_RETRY_COUNT_INITIAL,
+                created_at=datetime.utcnow()
             )
 
+            db.add(queue_item)
+            db.commit()
+
+            logger.info(f"[QUEUE] Enqueued {task_name} (ID: {task_id})")
+
+            return {
+                "status": "queued",
+                "message_id": task_id,
+                "queue_item_id": queue_item.id if hasattr(queue_item, 'id') else task_id
+            }
+
+        except Exception as queue_error:
             logger.error(
-                f"CRITICAL: Celery queue failed for {task_name}: {celery_error}",
+                f"CRITICAL: Message queue failed for {task_name}: {queue_error}",
                 exc_info=True
             )
-
-            if is_connection_error:
-                error_detail = (
-                    "Redis broker is not running on localhost:6379. "
-                    "Please start Redis: redis-server --port 6379"
-                )
-                logger.error(f"Redis/Celery infrastructure is DOWN: {error_detail}")
-                raise RuntimeError(error_detail)
-            else:
-                logger.error("Redis/Celery infrastructure is DOWN - this is a critical system failure")
-                raise RuntimeError(
-                    f"Message queue unavailable (Celery/Redis down): {str(celery_error)}"
-                )
+            raise RuntimeError(f"Failed to queue task: {str(queue_error)}")
+        finally:
+            if 'db' in locals():
+                db.close()
 
     @staticmethod
     def _enqueue_celery(
@@ -78,26 +83,9 @@ class MessageQueueService:
         data: Dict[str, Any],
         delay_seconds: int
     ) -> Dict[str, Any]:
-        """Enqueue task to Celery Redis backend AND log to database for dashboard visibility."""
-        try:
-            from app.celery_app import app
-            from app.tasks.candidate_tasks import process_candidate, assign_thunder_agent
-            from app.tasks.notification_tasks import send_notification
-            from app.models.channel_queue import ChannelQueueItem
-            from app.core.database import SessionLocal
-        except ImportError as import_error:
-            logger.error(f"Failed to import Celery or database models: {import_error}", exc_info=True)
-            raise
-
-        task = None
-        db = None
-
-        try:
-            if task_name == CELERY_TASK_CREATE_CANDIDATE:
-                candidate_email = data.get('candidate_email')
-                tenant_id = data.get('tenant_id', 1)
-                task = process_candidate.apply_async(
-                    args=[data, tenant_id],
+        """DEPRECATED: Celery removed. Use enqueue() instead."""
+        logger.warning("_enqueue_celery() is deprecated - use enqueue() instead")
+        return MessageQueueService.enqueue(task_name, task_id, data, delay_seconds)
                     countdown=delay_seconds,
                     task_id=task_id
                 )
