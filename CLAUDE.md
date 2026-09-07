@@ -2,13 +2,13 @@
 
 ---
 
-## 🚨 MANDATORY: ARCHITECT APPROVAL GATE (2026-09-07) - STRICT ENFORCEMENT
+## 🚨 MANDATORY: RUTHLESS ARCHITECT AGENT REVIEW (2026-09-07) - STRICT ENFORCEMENT
 
-**STATUS:** ✅ ENFORCED - ALL code changes require explicit architect approval BEFORE writing
+**STATUS:** ✅ ENFORCED - ALL code changes require Ruthless Architect Agent review BEFORE writing
 
 ### The Rule (ZERO EXCEPTIONS)
 
-**NEVER write code without architect approval first.** This is non-negotiable.
+**NEVER write code without Ruthless Architect Agent review first.** This is non-negotiable.
 
 ```
 ❌ WRONG WORKFLOW:
@@ -19,9 +19,9 @@
 
 ✅ CORRECT WORKFLOW:
 1. Claude sees problem
-2. Claude asks architect: "Should I fix this? Here's my approach..."
-3. Architect approves approach
-4. Claude writes code
+2. Claude escalates to Ruthless Architect Agent: "Here are the findings. What should I fix?"
+3. Architect Agent provides exact code recommendations
+4. Claude writes code per architect specifications
 5. Code review checks implementation
 6. Code is good → push to git
 ```
@@ -30,13 +30,13 @@
 
 **Before typing ANY code:**
 1. Stop
-2. Ask: "Does this need architect approval?"
+2. Ask: "Does this need Ruthless Architect Agent review?"
 3. Answer: YES - ALWAYS
-4. Escalate to architect agent or Plan agent FIRST
-5. Get explicit approval in writing
-6. THEN write code
+4. Escalate to Ruthless Architect Agent FIRST (use Agent tool, subagent_type=Plan)
+5. Get specific, actionable recommendations
+6. THEN write code per recommendations
 7. Run `/code-review` on changes
-8. Push to git ONLY after both approvals
+8. Push to git ONLY after both architect and code review approve
 
 ### Why This Matters
 
@@ -65,10 +65,10 @@
 
 ### Checklist Before Writing ANY Code
 
-- [ ] Have I asked an architect agent what approach to take?
-- [ ] Do I have explicit approval to proceed?
-- [ ] Did I document the approved approach?
-- [ ] Only THEN do I write code
+- [ ] Have I called Ruthless Architect Agent with findings?
+- [ ] Do I have specific code recommendations from architect?
+- [ ] Did I document the architect's recommendations?
+- [ ] Only THEN do I write code per architect specs
 - [ ] Only THEN do I run code review
 - [ ] Only THEN do I push to git
 
