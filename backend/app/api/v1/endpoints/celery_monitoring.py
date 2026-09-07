@@ -171,10 +171,12 @@ def get_queue_tasks(queue_name: str = "celery"):
                     if task_data:
                         try:
                             obj = json.loads(task_data)
+                            # Extract task info from Celery message headers
+                            headers = obj.get('headers', {})
                             tasks.append({
-                                "id": obj.get('headers', {}).get('id', 'unknown'),
-                                "name": obj.get('headers', {}).get('task', 'unknown'),
-                                "args": obj.get('body', [{}])[0] if obj.get('body') else {}
+                                "id": headers.get('id', 'unknown'),
+                                "name": headers.get('task', 'unknown'),
+                                "args": {}  # Body is base64-encoded in Celery format
                             })
                         except Exception as e:
                             logger.warning(f"Failed to parse task at index {i}: {e}")
