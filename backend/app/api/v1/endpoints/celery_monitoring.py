@@ -69,7 +69,11 @@ def get_queues():
                 for key in result_keys:
                     try:
                         length = redis_client.llen(key)
-                        queue_name = key.split('.')[-1] if '.' in key else key
+                        # Map Redis key to queue name: "celery" -> "default", "celery.thunder" -> "thunder"
+                        if key == 'celery':
+                            queue_name = 'default'
+                        else:
+                            queue_name = key.split('.')[-1] if '.' in key else key
                         if queue_name in queue_data:
                             queue_data[queue_name]["pending"] = length
                             queue_data[queue_name]["key"] = key
@@ -190,7 +194,15 @@ def get_queue_stats():
                 for key in result_keys:
                     try:
                         length = redis_client.llen(key)
-                        pending_count += length
+                        # Map Redis key to queue name: "celery" -> "default", "celery.thunder" -> "thunder"
+                        if key == 'celery':
+                            queue_name = 'default'
+                        else:
+                            queue_name = key.split('.')[-1] if '.' in key else key
+                        # Only count configured queues
+                        configured_queues = ["default", "thunder", "email", "sms", "whatsapp", "slack"]
+                        if queue_name in configured_queues:
+                            pending_count += length
                     except Exception as e:
                         logger.warning(f"Failed to get length for Redis key {key}: {e}")
         except Exception as e:
