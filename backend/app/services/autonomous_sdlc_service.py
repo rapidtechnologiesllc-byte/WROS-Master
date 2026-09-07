@@ -18,6 +18,7 @@ import json
 import os
 from datetime import datetime
 from typing import Dict, Any, List
+from sqlalchemy import text
 
 logger = logging.getLogger(__name__)
 
@@ -173,7 +174,7 @@ def _audit_system_health() -> Dict[str, Any]:
         from app.core.database import SessionLocal
         db = SessionLocal()
         try:
-            db.execute("SELECT 1")
+            db.execute(text("SELECT 1"))
             logger.info("[AUDIT] Database: OK")
         except Exception as e:
             issues.append({"type": "database", "error": str(e)})
@@ -194,8 +195,7 @@ def _audit_system_health() -> Dict[str, Any]:
         # Check message queue status
         try:
             db = SessionLocal()
-            from sqlalchemy import text
-            result = db.execute(text("SELECT COUNT(*) FROM app_schema.message_queue WHERE status='pending' LIMIT 10"))
+            result = db.execute(text("SELECT COUNT(*) FROM app_schema.channel_message WHERE status='pending' LIMIT 10"))
             pending_count = result.scalar()
             if pending_count > 5:
                 issues.append({
@@ -232,10 +232,23 @@ def _audit_system_health() -> Dict[str, Any]:
 
 def _develop_fixes(issues: List[Dict[str, Any]]) -> Dict[str, Any]:
     """
-    DEVELOP PHASE: Create and apply fixes for identified issues
+    DEVELOP PHASE: Call architect agent for guidance, then apply fixes
+
+    NOTE: In actual deployment, this would call the Enterprise Architect Agent
+    via SendMessage to a running agent. For now, uses local heuristics.
     """
     fixes_applied = 0
     fixes = []
+
+    if not issues:
+        logger.info("[DEVELOP] No issues to fix")
+        return {"fixes_applied": 0, "fixes": []}
+
+    # In production, would call architect agent here:
+    # result = call_architect_agent(issues)
+    # architect_recommendations = result.get("fixes")
+    logger.info(f"[DEVELOP] Would consult architect agent for {len(issues)} issues")
+    logger.info(f"[DEVELOP] Issues found: {[i.get('type') for i in issues]}")
 
     for issue in issues:
         try:
@@ -263,18 +276,30 @@ def _run_verification_tests() -> Dict[str, Any]:
     endpoints_tested = 0
 
     test_endpoints = [
-        ("GET", "/health"),
-        ("GET", "/api/v1/config/app-config"),
-        ("GET", "/celery/queues"),
+        ("GET", "/admin/health", True),
+        ("GET", "/api/v1/config/app-config", True),
+        ("GET", "/celery/queues", True),
     ]
 
     try:
         import requests
-        for method, endpoint in test_endpoints:
+        # Generate a test JWT token with admin permissions
+        test_token = None
+        try:
+            from app.core.security import create_access_token
+            test_token = create_access_token(data={"sub": "system-audit", "type": "admin"})
+        except Exception as e:
+            logger.warning(f"[TEST] Could not generate test token: {e}")
+
+        headers = {}
+        if test_token:
+            headers["Authorization"] = f"Bearer {test_token}"
+
+        for method, endpoint, requires_auth in test_endpoints:
             try:
                 url = f"http://localhost:8080{endpoint}"
                 if method == "GET":
-                    response = requests.get(url, timeout=5)
+                    response = requests.get(url, timeout=5, headers=headers)
 
                 endpoints_tested += 1
                 if response.status_code in [200, 400, 404]:  # 400/404 ok if endpoint exists
