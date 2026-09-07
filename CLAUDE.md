@@ -2,6 +2,110 @@
 
 ---
 
+## 🚨 ZERO TOLERANCE: NO DUPLICATE CRITICAL INFRASTRUCTURE FILES (2026-09-07)
+
+**STATUS:** ✅ ENFORCED - Critical infrastructure must have exactly ONE canonical implementation
+
+### The Problem
+
+**Duplicate celery_app.py files caused silent, cascading system failure:**
+
+```
+❌ FOUND TWO COMPETING IMPLEMENTATIONS:
+- backend/app/celery_app.py (PRIMARY - used by workers)
+- backend/app/core/celery_app.py (DUPLICATE - ignored by workers)
+
+RESULT:
+- API queued tasks to Redis with one celery app config
+- Worker used different config from different file
+- Tasks never executed (task names didn't match)
+- Database updates never happened
+- Users saw HTTP 200 success, but candidates never created
+- 4 tasks stuck in queue forever
+- Looked like it worked, actually broke completely
+```
+
+### The Rule
+
+❌ **NEVER create duplicate implementations of critical infrastructure files:**
+- `**/celery_app.py` - Only ONE allowed (app root level)
+- `**/settings.py` - Only ONE allowed
+- `**/config.py` - Only ONE allowed
+- `**/database.py` - Only ONE allowed
+- Any file imported by multiple modules = SINGLE SOURCE OF TRUTH
+
+✅ **ALWAYS use a single canonical location:**
+- `app/celery_app.py` ← SINGLE SOURCE
+- Import from this one location everywhere
+- Delete any duplicate in subdirectories (e.g., core/, services/)
+
+✅ **IF you need different configs:**
+- Create ONE celery_app.py
+- Use environment variables to select behavior
+- Never create duplicate files
+- Load config once, reference everywhere
+
+### Why This Matters
+
+| Scenario | Impact | Why Strict Rule |
+|----------|--------|-----------------|
+| Two celery configs | Workers use wrong one, tasks never execute | Silent complete failure |
+| Two database.py | Connection pools conflict, deadlocks | Data corruption risk |
+| Two settings.py | Inconsistent state across workers | Non-deterministic bugs |
+| Two config sources | Cache invalidation chaos | Unpredictable behavior |
+
+### Prevention Mechanisms
+
+**Code Review Gate (MANDATORY):**
+- ❌ Flags any duplicate `**/celery_app.py` files
+- ❌ Flags any duplicate `**/settings.py` files
+- ❌ Flags any duplicate `**/config.py` files
+- ❌ Flags any duplicate `**/database.py` files
+- Requires deletion of duplicate before commit
+
+**Architect Agent (MANDATORY):**
+- Scans for multiple implementations of critical infrastructure
+- Flags competing config sources
+- Requires consolidation before merge
+
+**CI/CD (MANDATORY):**
+- Build fails if duplicates detected
+- Must have exactly ONE canonical file
+- No exceptions
+
+### Incident: Candidate Creation System (2026-09-07)
+
+**What Happened:**
+1. Two `celery_app.py` files existed (app root + app/core)
+2. API used one, workers used the other
+3. Tasks queued but never executed
+4. Candidates never created
+5. System appeared to work (HTTP 200) but was completely broken
+6. Gate missed this because it checks code structure, not file count
+
+**Fix Applied:**
+- ✅ Deleted `backend/app/core/celery_app.py`
+- ✅ Kept `backend/app/celery_app.py` (canonical)
+- ✅ Updated celery imports to use single source
+
+**Gate Enhancement:**
+- Added file-count checks for critical infrastructure
+- Now prevents duplicate celery_app.py, settings.py, config.py, database.py
+
+### Checklist for Every Commit
+
+Before committing ANY file:
+- [ ] No `**/celery_app.py` duplicates in backend
+- [ ] No `**/settings.py` duplicates anywhere
+- [ ] No `**/config.py` duplicates anywhere
+- [ ] No `**/database.py` duplicates anywhere
+- [ ] If refactoring these files, delete old versions
+- [ ] Gate passes with zero duplicate warnings
+
+This is non-negotiable. Duplicate infrastructure files cause silent, cascading failures that look like everything is working until production breaks.
+
+---
+
 ## 🚨 CODE REVIEW GATE: NEVER DISABLED (2026-09-05)
 
 **CRITICAL RULE: The code review gate will NEVER be disabled, bypassed, or circumvented.**
