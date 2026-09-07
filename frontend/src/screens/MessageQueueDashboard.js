@@ -237,16 +237,16 @@ export default function MessageQueueDashboard() {
                 <thead className="border-b-2">
                   <tr>
                     <th className="text-left py-2 px-4">Task Name</th>
+                    <th className="text-left py-2 px-4">Reason</th>
                     <th className="text-left py-2 px-4">Task ID</th>
-                    <th className="text-left py-2 px-4">Args</th>
                   </tr>
                 </thead>
                 <tbody>
                   {tasks.map((t, i) => (
                     <tr key={i} className="border-b hover:bg-gray-50">
                       <td className="py-2 px-4 font-semibold">{t.name}</td>
+                      <td className="py-2 px-4 text-gray-700">{t.reason || 'Processing...'}</td>
                       <td className="py-2 px-4 font-mono text-xs truncate">{t.id}</td>
-                      <td className="py-2 px-4 text-xs truncate">{JSON.stringify(t.args)}</td>
                     </tr>
                   ))}
                 </tbody>

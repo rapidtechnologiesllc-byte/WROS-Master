@@ -17,6 +17,36 @@ MAX_TASKS_PER_QUEUE = 100
 MAX_FINISHED_TASKS = 50
 
 
+def _generate_task_reason(task_name: str, args: dict) -> str:
+    """Generate a plain English reason why this task is pending."""
+    # Map task names to human-readable reasons
+    task_reasons = {
+        "assign_thunder_agent": "Assigning Thunder AI agent to handle candidate",
+        "process_candidate": f"Processing candidate profile for {args.get('candidate_email', 'unknown candidate')}",
+        "send_whatsapp": f"Sending WhatsApp message to {args.get('candidate_phone', 'candidate')}",
+        "send_email": f"Sending email to {args.get('candidate_email', 'candidate')}",
+        "send_sms": f"Sending SMS to {args.get('candidate_phone', 'candidate')}",
+        "schedule_interview": f"Scheduling interview for {args.get('candidate_name', 'candidate')}",
+        "generate_offer": f"Generating offer for {args.get('candidate_name', 'candidate')}",
+    }
+
+    # Return specific reason if found, otherwise generic message
+    if task_name in task_reasons:
+        return task_reasons[task_name]
+
+    # Generic fallback based on task type patterns
+    if "send_" in task_name:
+        return f"Sending message (pending delivery)"
+    elif "process_" in task_name:
+        return f"Processing {args.get('candidate_email', 'data')} (in progress)"
+    elif "schedule_" in task_name:
+        return "Scheduling event (waiting to confirm)"
+    elif "generate_" in task_name:
+        return "Generating document (in progress)"
+    else:
+        return "Waiting in queue for processing"
+
+
 @router.get("/workers", dependencies=[Depends(require_resource_permission("queue", "view"))])
 def get_workers_status():
     """Get Celery worker status (working/idle/stopped)."""
@@ -193,7 +223,10 @@ def get_queue_tasks(queue_name: str = "celery"):
                                 logger.warning(f"Failed to decode body for task {i}: {e}")
 
                             # Build display string based on task type and args
-                            display_name = headers.get('task', 'unknown')
+                            task_name = headers.get('task', 'unknown')
+                            display_name = task_name
+                            reason = _generate_task_reason(task_name, args_dict)
+
                             if args_dict:
                                 # Extract meaningful info based on task type
                                 if 'candidate_email' in args_dict:
@@ -204,6 +237,7 @@ def get_queue_tasks(queue_name: str = "celery"):
                             tasks.append({
                                 "id": headers.get('id', 'unknown'),
                                 "name": display_name,
+                                "reason": reason,
                                 "args": args_dict
                             })
                         except Exception as e:
