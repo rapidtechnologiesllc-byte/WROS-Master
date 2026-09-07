@@ -138,7 +138,7 @@ export default function MessageQueueDashboard() {
                 >
                   <div className="flex justify-between">
                     <span className="font-mono text-sm">{q.name}</span>
-                    <span className="font-bold text-amber-600">{q.pending_count} pending</span>
+                    <span className="font-bold text-amber-600">{q.pending} pending</span>
                   </div>
                 </button>
               ))}
