@@ -20,9 +20,12 @@ redis_url = getattr(settings, 'REDIS_URL', None) or 'redis://localhost:6379/0'
 app = Celery(
     'wros_backend',
     broker=redis_url,
-    backend=redis_url.replace('/0', '/1') if redis_url else 'redis://localhost:6379/1',
-    include=['app.tasks.candidate_tasks', 'app.tasks.notification_tasks']
+    backend=redis_url.replace('/0', '/1') if redis_url else 'redis://localhost:6379/1'
 )
+
+# Auto-discover all tasks from all modules in app.tasks package
+# This ensures ALL task modules are registered with the worker
+app.autodiscover_tasks(['app.tasks'])
 
 # Configuration
 app.conf.update(

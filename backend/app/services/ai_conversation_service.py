@@ -157,32 +157,48 @@ def run_auto_assign_ai_agent_in_background(candidate_id: str):
         db = SessionLocal()
 
         # Get candidate to verify it exists
-        candidate = db.query(Candidate).filter(
-            Candidate.candidateID == candidate_id
-        ).first()
+        try:
+            candidate = db.query(Candidate).filter(
+                Candidate.candidateID == candidate_id
+            ).first()
+        except Exception as e:
+            logger.error(f"[Thunder] Failed to query candidate: {e}", exc_info=True)
+            raise
 
         if not candidate:
             logger.error(f"[Thunder] Candidate {candidate_id} not found for outreach preparation")
             return
 
         # Check if conversation already exists (shouldn't, but defensive)
-        existing = db.query(CandidateConversation).filter(
-            CandidateConversation.candidate_id == candidate_id
-        ).first()
+        try:
+            existing = db.query(CandidateConversation).filter(
+                CandidateConversation.candidate_id == candidate_id
+            ).first()
+        except Exception as e:
+            logger.error(f"[Thunder] Failed to query conversation: {e}", exc_info=True)
+            raise
 
         if existing:
             logger.info(f"[Thunder] Candidate {candidate_id} already has conversation, skipping")
             return
 
         # Get system admin for tenant_id (required by FK constraint)
-        system_admin = db.query(Users).filter(
-            Users.UserRole == "Super User"
-        ).first()
+        try:
+            system_admin = db.query(Users).filter(
+                Users.UserRole == "Super User"
+            ).first()
+        except Exception as e:
+            logger.error(f"[Thunder] Failed to query system admin: {e}", exc_info=True)
+            raise
 
         if not system_admin:
-            system_admin = db.query(Users).filter(
-                Users.UserRole.ilike("%admin%")
-            ).first()
+            try:
+                system_admin = db.query(Users).filter(
+                    Users.UserRole.ilike("%admin%")
+                ).first()
+            except Exception as e:
+                logger.error(f"[Thunder] Failed to query admin by role: {e}", exc_info=True)
+                raise
 
         if not system_admin:
             logger.error(f"[Thunder] No system admin found, cannot prepare candidate {candidate_id}")
@@ -197,12 +213,8 @@ def run_auto_assign_ai_agent_in_background(candidate_id: str):
 
             # Queue message to create Thunder conversation
             MessageQueueService.enqueue(
-                message_type="thunder_create_conversation",
-                queue_type="SYSTEM_QUEUE",
-                resource_id=candidate_id,
-                created_by="system",
-                db=db,
-                payload={
+                task_name="create_conversation",
+                data={
                     "candidate_id": candidate_id,
                     "tenant_id": tenant_user_id,
                     "owner_type": "ai_agent",
@@ -222,12 +234,8 @@ def run_auto_assign_ai_agent_in_background(candidate_id: str):
             candidate_email = getattr(candidate, 'candidateEmail', None)
             if candidate_email:
                 MessageQueueService.enqueue(
-                    message_type="thunder_initial_email",
-                    queue_type="EMAIL_QUEUE",
-                    resource_id=candidate_id,
-                    created_by="system",
-                    db=db,
-                    payload={
+                    task_name="send_initial_email",
+                    data={
                         "candidate_id": candidate_id,
                         "candidate_email": candidate_email,
                         "candidate_name": f"{getattr(candidate, 'candidateFirstName', '')} {getattr(candidate, 'candidateLastName', '') or ''}".strip(),
@@ -247,10 +255,7 @@ def run_auto_assign_ai_agent_in_background(candidate_id: str):
             logger.error(f"[Thunder] Failed to queue messages for candidate {candidate_id}: {str(e)}", exc_info=True)
             raise
 
-        if conversation:
-            logger.info(f"[Thunder] Prepared candidate {candidate_id} for autonomous outreach (conversation_id={conversation.id})")
-        else:
-            logger.warning(f"[Thunder] Candidate {candidate_id} prepared but conversation object is missing")
+        logger.info(f"[Thunder] Prepared candidate {candidate_id} for autonomous outreach (tasks queued)")
 
     except Exception as e:
         logger.error(f"[Thunder] Failed to prepare candidate {candidate_id}: {str(e)}", exc_info=True)
