@@ -1,4 +1,7 @@
-"""Autonomous SDLC Cycle Service
+"""Autonomous SDLC Cycle Service (DEVELOPMENT ONLY)
+
+⚠️ WARNING: This service MUST NOT run in production!
+Only for local debugging, analysis, development, and testing.
 
 Runs every 90 seconds to:
 1. AUDIT: Check system health and queue status
@@ -12,10 +15,16 @@ This is the autonomous development loop that continuously improves the system.
 import logging
 import subprocess
 import json
+import os
 from datetime import datetime
 from typing import Dict, Any, List
 
 logger = logging.getLogger(__name__)
+
+# SAFETY: Refuse to run in production
+ENVIRONMENT = os.getenv("ENVIRONMENT", "local").lower()
+ALLOWED_ENVIRONMENTS = ["local", "development", "debug"]
+IS_PRODUCTION = ENVIRONMENT not in ALLOWED_ENVIRONMENTS
 
 
 class AutonomousSDLCError(Exception):
@@ -26,6 +35,8 @@ class AutonomousSDLCError(Exception):
 def run_autonomous_sdlc_cycle() -> Dict[str, Any]:
     """
     Run one 90-second autonomous SDLC cycle.
+
+    DEVELOPMENT ONLY - Will refuse to run in production.
 
     Returns:
         {
@@ -39,7 +50,16 @@ def run_autonomous_sdlc_cycle() -> Dict[str, Any]:
             "changes_deployed": bool,
             "timestamp": str
         }
+
+    Raises:
+        AutonomousSDLCError: If running in production environment
     """
+    # SAFETY CHECK: Refuse to run in production
+    if IS_PRODUCTION:
+        error_msg = f"SDLC cycle BLOCKED in production environment ({ENVIRONMENT}). Allowed: {ALLOWED_ENVIRONMENTS}"
+        logger.error(f"[SDLC] {error_msg}")
+        raise AutonomousSDLCError(error_msg)
+
     cycle_start = datetime.utcnow()
 
     try:

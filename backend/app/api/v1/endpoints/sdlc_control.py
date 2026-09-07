@@ -1,9 +1,13 @@
-"""SDLC Control Endpoints
+"""SDLC Control Endpoints (DEVELOPMENT ONLY)
+
+WARNING: These endpoints MUST NOT run in production!
+Only available in local/development environments for debugging and testing.
 
 On-demand autonomous SDLC cycle execution.
 Allows manual triggering of audit → develop → test → fix → deploy cycle.
 """
 import logging
+import os
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
@@ -16,6 +20,21 @@ from app.services.autonomous_sdlc_service import (
 router = APIRouter(prefix="/sdlc", tags=["sdlc"])
 logger = logging.getLogger(__name__)
 
+# SAFETY CHECK: Prevent running in production
+ENVIRONMENT = os.getenv("ENVIRONMENT", "local").lower()
+ALLOWED_ENVIRONMENTS = ["local", "development", "debug"]
+IS_PRODUCTION = ENVIRONMENT not in ALLOWED_ENVIRONMENTS
+
+
+def _check_development_environment():
+    """Verify this endpoint is NOT running in production."""
+    if IS_PRODUCTION:
+        logger.error(f"[SDLC] Attempted to access in {ENVIRONMENT} environment - BLOCKED")
+        raise HTTPException(
+            status_code=403,
+            detail=f"SDLC endpoints are DEVELOPMENT ONLY. Current environment: {ENVIRONMENT}. Allowed: {ALLOWED_ENVIRONMENTS}"
+        )
+
 
 @router.post(
     "/run-cycle",
@@ -24,6 +43,8 @@ logger = logging.getLogger(__name__)
 def trigger_sdlc_cycle(db: Session = Depends(get_db)):
     """
     Manually trigger autonomous SDLC cycle.
+
+    DEVELOPMENT ONLY - Will not run in production.
 
     Runs: audit → develop → test → fix → deploy
 
@@ -38,6 +59,8 @@ def trigger_sdlc_cycle(db: Session = Depends(get_db)):
             "timestamp": str
         }
     """
+    _check_development_environment()
+
     try:
         logger.info("[SDLC Control] User triggered autonomous SDLC cycle")
         result = run_autonomous_sdlc_cycle()
@@ -70,6 +93,8 @@ def get_sdlc_status(db: Session = Depends(get_db)):
     """
     Get current SDLC cycle status and health metrics.
 
+    DEVELOPMENT ONLY - Will not run in production.
+
     Returns:
         {
             "scheduler_running": bool,
@@ -86,6 +111,8 @@ def get_sdlc_status(db: Session = Depends(get_db)):
             }
         }
     """
+    _check_development_environment()
+
     try:
         from app.core.scheduler import scheduler
         from sqlalchemy import text
@@ -122,6 +149,8 @@ def run_audit_only(db: Session = Depends(get_db)):
     """
     Run AUDIT phase only (no fixes or deployment).
 
+    DEVELOPMENT ONLY - Will not run in production.
+
     Checks:
     - Database connection
     - Redis broker
@@ -130,6 +159,8 @@ def run_audit_only(db: Session = Depends(get_db)):
 
     Returns audit findings without applying fixes.
     """
+    _check_development_environment()
+
     try:
         from app.services.autonomous_sdlc_service import _audit_system_health
 
@@ -157,6 +188,8 @@ def run_tests_only(db: Session = Depends(get_db)):
     """
     Run TEST phase only (no fixes or deployment).
 
+    DEVELOPMENT ONLY - Will not run in production.
+
     Tests:
     - API health endpoint
     - Queue configuration
@@ -164,6 +197,8 @@ def run_tests_only(db: Session = Depends(get_db)):
 
     Returns test results.
     """
+    _check_development_environment()
+
     try:
         from app.services.autonomous_sdlc_service import _run_verification_tests
 
