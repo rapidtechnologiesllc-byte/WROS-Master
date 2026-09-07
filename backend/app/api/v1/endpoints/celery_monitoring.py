@@ -182,6 +182,20 @@ def get_queue_tasks(queue_name: str = "celery"):
 def get_queue_stats():
     """Get Celery queue statistics."""
     try:
+        # Count pending tasks from all configured queue keys in Redis
+        pending_count = 0
+        try:
+            result_keys = redis_client.keys('celery*')
+            if result_keys:
+                for key in result_keys:
+                    try:
+                        length = redis_client.llen(key)
+                        pending_count += length
+                    except Exception as e:
+                        logger.warning(f"Failed to get length for Redis key {key}: {e}")
+        except Exception as e:
+            logger.warning(f"Failed to get Redis keys for stats: {e}")
+
         inspect = celery_app.control.inspect()
         active = inspect.active() or {}
         scheduled = inspect.scheduled() or {}
@@ -201,7 +215,6 @@ def get_queue_stats():
         if reserved_vals:
             for v in reserved_vals:
                 reserved_count += len(v)
-        pending_count = redis_client.llen('celery')
         return {"pending": pending_count, "active": active_count, "reserved": reserved_count, "scheduled": scheduled_count}
     except Exception as e:
         logger.error(f"Failed to get stats: {e}", exc_info=True)
