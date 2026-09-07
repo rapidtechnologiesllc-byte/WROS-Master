@@ -3,13 +3,14 @@ from app.core.database import engine
 import logging
 from app.models import Base
 
+logger = logging.getLogger(__name__)
+
 # Create all tables from model definitions
 print("Creating database schema from models...")
 try:
     Base.metadata.create_all(bind=engine)
-    print("✅ Database schema initialized successfully")
+    print("[OK] Database schema initialized successfully")
 except Exception as e:
     logger.error(f"Error: {str(e)}", exc_info=True)
-    logger.error(f"Error: {str(e)}", exc_info=True)
-    print(f"⚠️  Some tables may already exist (expected): {e}")
-    print("✅ Schema initialization complete (table existence errors are ok)")
+    print(f"[WARN] Some tables may already exist (expected): {e}")
+    print("[OK] Schema initialization complete (table existence errors are ok)")

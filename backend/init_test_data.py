@@ -11,6 +11,8 @@ from datetime import datetime
 import logging
 import uuid
 
+logger = logging.getLogger(__name__)
+
 def init_test_data():
     """Create test data for referral flow testing"""
 
@@ -41,6 +43,7 @@ def init_test_data():
                     tenant_id=1,
                     bu_code="TEST",
                     name="Test Business Unit",
+                    display_name="Test BU",
                     description="Business unit for testing"
                 )
                 db.add(bu)
