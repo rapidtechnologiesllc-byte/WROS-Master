@@ -44,6 +44,33 @@ def start_scheduler():
             logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.warning(f"Could not register message queue worker scheduler: {exc}")
 
+        # ── Every 5 min: THUNDER AUTONOMOUS CYCLE (candidate engagement) ─────
+        try:
+            from app.core.database import SessionLocal
+            from app.services.thunder_autonomous_loop import run_thunder_autonomous_cycle
+
+            def _run_thunder_autonomous_cycle():
+                try:
+                    db = SessionLocal()
+                    result = run_thunder_autonomous_cycle(db)
+                    if result.get("candidates_contacted", 0) > 0 or result.get("sequences_advanced", 0) > 0:
+                        logger.info(f"[scheduler] Thunder cycle completed: {result}")
+                    db.close()
+                except Exception as exc:
+                    logger.error(f"[scheduler] Thunder autonomous cycle error: {exc}", exc_info=True)
+
+            scheduler.add_job(
+                _run_thunder_autonomous_cycle,
+                trigger="interval",
+                minutes=5,
+                id="thunder_autonomous_cycle",
+                replace_existing=True,
+            )
+            logger.info("[OK] Scheduled Thunder autonomous cycle (every 5 min)")
+        except Exception as exc:
+            logger.error(f"Error: {str(exc)}", exc_info=True)
+            logger.warning(f"Could not register Thunder autonomous cycle scheduler: {exc}")
+
         # ── DEVELOPMENT ONLY: Every 90 sec: AUTONOMOUS SDLC CYCLE (local debugging only) ──
         # WARNING: This job MUST NOT run in production - it makes automatic code changes!
         import os

@@ -79,7 +79,7 @@ def process_message_queue(batch_size: int = 10, timeout_minutes: int = 30) -> Di
                     # Route to appropriate processor based on message type
                     if message.type == "create_candidate":
                         result = CandidateQueueProcessor.process(message, db)
-                    elif message.type == "engage_candidate_with_thunder":
+                    elif message.type in ["engage_candidate_with_thunder", "assign_thunder_agent"]:
                         # Queue candidate to Thunder for autonomous engagement
                         candidate_id = message.payload.get('candidate_id')
                         result = {"status": "queued_to_thunder", "candidate_id": candidate_id}
