@@ -12,6 +12,7 @@ from app.models.base import Base
 from app.api.v1.routes import router
 from app.api.v1.endpoints.auth import router as auth_router
 from app.api.v1.endpoints.users_access_control import router as users_access_control_router
+from app.api.v1.endpoints.candidates import router as candidates_router
 from app.middleware import setup_cors, RequestLoggingMiddleware
 from app.middleware.auth_middleware import AuthenticationMiddleware
 # S-207 -- importing this here (rather than relying on it being pulled in
@@ -215,6 +216,8 @@ app.include_router(users_access_control_router)
 app.include_router(router)
 # Include configuration routes with /api/v1 prefix (dynamic config - never hardcode)
 app.include_router(config_router, prefix="/api/v1")
+# Include candidates routes with /candidates prefix (candidate creation, etc)
+app.include_router(candidates_router)
 
 # HRMS-0114 -- fail startup if any route has no explicit identity/
 # permission declaration at all. Runs synchronously at import time
