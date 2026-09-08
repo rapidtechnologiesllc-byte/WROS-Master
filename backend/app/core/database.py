@@ -107,34 +107,82 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 def get_db():
     """
-    Dependency for database session. Handles connection pooling and error cases.
+    Dependency for database session with retry logic for transient failures.
+
+    Implements exponential backoff for transient connection errors.
+    Returns 503 Service Unavailable if database remains unreachable after retries.
+
+    Yields:
+        Session: Database session for the request
 
     Raises:
-        RuntimeError: If database connection or schema setup fails
+        HTTPException: 503 Service Unavailable if database connection fails
     """
     from app.core.logging import logger
     from sqlalchemy import text
     from fastapi import HTTPException
+    import time
 
     db = None
-    try:
-        db = SessionLocal()
-        # Test connection immediately - fail fast if database is unreachable
-        db.execute(text("SELECT 1"))
-        logger.debug("Database connection established")
-        yield db
-    except HTTPException:
-        # Don't catch HTTPExceptions - let them propagate (e.g., 401 Unauthorized from login)
-        raise
-    except Exception as e:
-        logger.error(f"Database session creation failed: {str(e)}", exc_info=True)
-        raise RuntimeError(f"Database connection error: {str(e)}")
-    finally:
+    max_retries = 3
+    retry_count = 0
+
+    while retry_count < max_retries:
         try:
+            db = SessionLocal()
+            # Test connection - fail fast if database is unreachable
+            db.execute(text("SELECT 1"))
+            logger.debug("Database connection established")
+            yield db
+            return  # Success - exit after yielding
+        except HTTPException:
+            # Don't catch HTTPExceptions - let them propagate
             if db:
-                db.close()
+                try:
+                    db.close()
+                except:
+                    pass
+            raise
         except Exception as e:
-            logger.warning(f"Error closing database session: {str(e)}")
+            retry_count += 1
+
+            if retry_count >= max_retries:
+                # Final attempt failed - return 503
+                logger.error(
+                    f"Database connection failed after {max_retries} attempts: {str(e)}",
+                    exc_info=True
+                )
+                if db:
+                    try:
+                        db.close()
+                    except:
+                        pass
+                raise HTTPException(
+                    status_code=503,
+                    detail="Database service unavailable. Please try again in a moment."
+                )
+
+            # Exponential backoff before retry: 1s, 2s, 4s
+            wait_time = 2 ** (retry_count - 1)
+            logger.warning(
+                f"Database connection attempt {retry_count}/{max_retries} failed: {str(e)}. "
+                f"Retrying in {wait_time}s..."
+            )
+            time.sleep(wait_time)
+
+            # Close failed session before retry
+            if db:
+                try:
+                    db.close()
+                except:
+                    pass
+    finally:
+        # Ensure cleanup on any exit
+        if db:
+            try:
+                db.close()
+            except Exception as e:
+                logger.warning(f"Error closing database session: {str(e)}")
 
 def check_candidate(db: Session, email: str):
     # Import here to avoid circular import
