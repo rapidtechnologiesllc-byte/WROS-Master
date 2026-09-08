@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { apiRequest } from '../services/api';
+import { apiRequest } from '../services/api/client';
 import './MessageQueueMonitor.css';
 
 const MessageQueueMonitor = () => {

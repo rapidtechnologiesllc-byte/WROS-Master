@@ -57,6 +57,7 @@ import OfferListing from "../screens/OfferListing";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
 import AuthPage from "../pages/AuthPage";
 import Shell from "../layout/Shell";
+import { adminRoutes } from "./AdminRoutes";
 import AssignmentsScreen from "../screens/AssignmentsScreen";
 import CandidateCreate from "../screens/CandidateCreate";
 import CandidateSearch from "../screens/CandidateSearch";
@@ -850,6 +851,8 @@ export default function AppRoutes() {
                 />
               }
             />
+
+            {adminRoutes}
           </Route>
         </Routes>
         <ToastContainer position="top-right" autoClose={3000} />
