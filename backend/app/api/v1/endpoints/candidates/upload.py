@@ -1,10 +1,10 @@
 """
-Progressive Document Upload Endpoints (SharePoint + Celery)
-============================================================
+Progressive Document Upload Endpoints (SharePoint + Message Queue)
+====================================================================
 Integrates:
 - SharePoint backend (via DocumentService)
 - Progressive upload pattern (one document per request)
-- Celery async processing (queue immediately after upload)
+- PostgreSQL message queue for async processing
 """
 
 from fastapi import APIRouter, UploadFile, File, Depends, HTTPException, Query
@@ -19,12 +19,6 @@ from app.models.user import Users
 from app.services.document_service import DocumentService
 from app.services.message_queue_service import MessageQueueService
 from datetime import datetime
-
-# Lazy load celery for optional async processing
-try:
-    from app.celery_app import app as celery_app
-except ImportError:
-    celery_app = None
 
 router = APIRouter(prefix="/upload", tags=["Progressive Upload"])
 
