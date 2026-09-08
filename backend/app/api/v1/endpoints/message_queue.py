@@ -1,0 +1,83 @@
+"""
+Message Queue Monitoring Endpoints
+===================================
+Provides visibility into the PostgreSQL message queue (ChannelQueueItem table).
+Used by frontend Message Queue Monitor for debugging and monitoring.
+"""
+
+from fastapi import APIRouter, Depends, Query
+from sqlalchemy.orm import Session
+from app.core.database import get_db
+from app.core.dependencies import require_role_template_permission
+from app.core.permission_registry import Permissions
+from app.models.channel_queue import ChannelQueueItem
+from datetime import datetime
+
+router = APIRouter(prefix="/message-queue", tags=["Message Queue Monitor"])
+
+
+@router.get("/display", dependencies=[Depends(require_role_template_permission(*Permissions.ROLE_TEMPLATES_EDIT))])
+def get_message_queue_display(
+    status: str = Query("", description="Filter by status: PENDING, PROCESSING, COMPLETED, FAILED"),
+    message_type: str = Query("", description="Filter by message type"),
+    limit: int = Query(50, ge=1, le=500),
+    db: Session = Depends(get_db),
+):
+    """
+    Get message queue status for display/monitoring.
+
+    Returns recent messages from ChannelQueueItem table with optional filtering.
+    """
+    query = db.query(ChannelQueueItem)
+
+    # Apply filters
+    if status:
+        query = query.filter(ChannelQueueItem.status == status)
+    if message_type:
+        query = query.filter(ChannelQueueItem.type == message_type)
+
+    # Get recent messages (newest first)
+    messages = query.order_by(ChannelQueueItem.created_at.desc()).limit(limit).all()
+
+    # Format for display
+    return {
+        "total": db.query(ChannelQueueItem).count(),
+        "messages": [
+            {
+                "id": msg.id,
+                "type": msg.type,
+                "status": msg.status,
+                "created_at": msg.created_at.isoformat() if msg.created_at else None,
+                "completed_at": msg.completed_at.isoformat() if msg.completed_at else None,
+                "result": msg.result,
+                "error": msg.error,
+                "payload": msg.payload,
+            }
+            for msg in messages
+        ],
+        "status_counts": {
+            "pending": db.query(ChannelQueueItem).filter(ChannelQueueItem.status == "PENDING").count(),
+            "processing": db.query(ChannelQueueItem).filter(ChannelQueueItem.status == "PROCESSING").count(),
+            "completed": db.query(ChannelQueueItem).filter(ChannelQueueItem.status == "COMPLETED").count(),
+            "failed": db.query(ChannelQueueItem).filter(ChannelQueueItem.status == "FAILED").count(),
+        }
+    }
+
+
+@router.get("/stats", dependencies=[Depends(require_role_template_permission(*Permissions.ROLE_TEMPLATES_EDIT))])
+def get_queue_stats(db: Session = Depends(get_db)):
+    """Get overall queue statistics."""
+    total = db.query(ChannelQueueItem).count()
+    pending = db.query(ChannelQueueItem).filter(ChannelQueueItem.status == "PENDING").count()
+    processing = db.query(ChannelQueueItem).filter(ChannelQueueItem.status == "PROCESSING").count()
+    completed = db.query(ChannelQueueItem).filter(ChannelQueueItem.status == "COMPLETED").count()
+    failed = db.query(ChannelQueueItem).filter(ChannelQueueItem.status == "FAILED").count()
+
+    return {
+        "total_messages": total,
+        "pending": pending,
+        "processing": processing,
+        "completed": completed,
+        "failed": failed,
+        "timestamp": datetime.utcnow().isoformat(),
+    }
