@@ -119,20 +119,6 @@ def validate_email(request: ValidateEmailRequest, db: Session = Depends(get_db))
         logger.error(f"Failed to check user during email validation: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to validate email. Please try again.")
 
-    if user:
-        try:
-            if not hasattr(user, 'role_template_id') or not user.role_template_id:
-                logger.warning(f"Email validation: user {email} has no role_template_id")
-                raise HTTPException(
-                    status_code=403,
-                    detail="Your user account doesn't have permissions loaded. Please reach out to help desk.",
-                )
-        except HTTPException:
-            raise
-        except Exception as e:
-            logger.error(f"Error validating email {email}: {e}", exc_info=True)
-            raise HTTPException(status_code=500, detail="Failed to validate email. Please try again later.")
-
     return {"exists": bool(user)}
 
 
