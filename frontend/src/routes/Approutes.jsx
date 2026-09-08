@@ -117,7 +117,6 @@ import AdminWeeklyRecapDashboard from "../screens/AdminWeeklyRecapDashboard";
 import EmployeeConversionScreen from "../screens/EmployeeConversionScreen";
 import BusinessUnitsScreen from "../screens/BusinessUnitsScreen";
 import ForcePasswordReset from "../pages/ForcePasswordReset";
-import FlowerRedirectScreen from "../screens/FlowerRedirectScreen";
 import CEOExecutiveDashboardScreen from "../screens/CEOExecutiveDashboardScreen";
 import TrainingCertificationDashboard from "../screens/TrainingCertificationDashboard";
 import CertificationManagementScreen from "../screens/CertificationManagementScreen";
@@ -680,9 +679,6 @@ export default function AppRoutes() {
             <Route path="admin/users-access-control/business-units/create" element={<BusinessUnitFormPage />} />
             <Route path="admin/users-access-control/business-units/:buId/edit" element={<BusinessUnitFormPage />} />
             <Route path="admin/users-access-control/delivery-centers/create" element={<DeliveryCenterFormPage />} />
-
-            {/* Redirect old queue dashboard to Flower monitoring */}
-            <Route path="admin/messagequeue" element={<FlowerRedirectScreen />} />
 
             <Route path="training-certification" element={<TrainingCertificationDashboard />} />
             <Route path="troy-partner-dashboard" element={<TroyPartnerDashboard />} />
