@@ -19,6 +19,7 @@ from app.models import (
 from app.utils.uniq_id_generator import panel_id_generator
 from app.services.email_service import EmailService
 from app.services.message_queue_service import MessageQueueService
+from app.services.candidate_event_bus import CandidateEventBus
 from app.services.interview_sequencing_service import (
     PriorRoundNotPassed,
     enforce_interview_sequencing_gate,
@@ -1445,6 +1446,23 @@ def create_interview(
     # ATOMIC COMMIT
     db.commit()
     db.refresh(interview)
+
+    # Emit interview_scheduled event for Thunder and other handlers
+    try:
+        CandidateEventBus.publish_event(
+            event_type=CandidateEventBus.EVENT_CANDIDATE_STATUS_CHANGED,
+            candidate_id=request.candidate_id,
+            data={
+                "old_status": "Applied",  # Assume Applied before interview
+                "new_status": "INTERVIEW",
+                "status_change_reason": "Interview scheduled",
+                "interview_id": interview.id,
+                "interview_date": request.start_time.isoformat() if hasattr(request.start_time, 'isoformat') else str(request.start_time),
+                "interview_panel": []  # Panel members would be added by Thunder handlers
+            }
+        )
+    except Exception as e:
+        logger.warning(f"Failed to emit interview_scheduled event for candidate {request.candidate_id}: {e}")
 
     # Schedule pre-interview reminder (1 h and 15 min before start)
     _schedule_interview_reminder(interview, db)

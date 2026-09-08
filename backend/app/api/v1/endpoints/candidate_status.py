@@ -26,6 +26,7 @@ from app.models.user import CandidateAssignment, Jobs, Users
 from app.models.checklist import ChecklistTemplate, CandidateChecklist, CandidateChecklistItem
 from app.models.candidate_history import CandidateHistory
 from app.services.email_service import EmailService
+from app.services.candidate_event_bus import CandidateEventBus
 from app.core.logging import logger
 from app.schemas.candidate import CandidateStatusUpdateRequest, CandidateStatusResponse, AllCandidateStatusResponse, StatusActionResponse, ManagerApprovalRequest
 
@@ -326,6 +327,9 @@ def update_candidate_status(
         db.add(cs)
         db.flush()
 
+    # Track old status for event emission
+    old_pipeline_status = cs.piplineStatus if cs else None
+
     # Apply updates
     changed_fields = []
     if request.status is not None:
@@ -338,6 +342,18 @@ def update_candidate_status(
 
     db.commit()
     db.refresh(cs)
+
+    # Emit status_changed event if pipeline status changed
+    if request.pipeline_status is not None and old_pipeline_status != request.pipeline_status:
+        try:
+            CandidateEventBus.publish_status_changed(
+                candidate_id=candidate_id,
+                old_status=old_pipeline_status,
+                new_status=request.pipeline_status,
+                reason=f"Pipeline status changed by {getattr(user, 'UserName', 'system')}"
+            )
+        except Exception as e:
+            logger.warning(f"Failed to emit status_changed event for {candidate_id}: {e}")
 
     # ── Pool ownership transition: Rejected → Org Pool ────────────────────────
     if request.pipeline_status == "Rejected":
