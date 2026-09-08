@@ -48,7 +48,9 @@ class CandidateCreationHandler:
         try:
             # 1. CREATE CANDIDATE - Direct ORM mapping from payload
             # Map payload fields to Candidate model fields (payload uses candidate_* naming)
+            from app.utils.uniq_id_generator import candidate_id_generator
             candidate = Candidate(
+                candidateID=candidate_id_generator(),
                 candidateEmail=candidate_email,
                 candidateMobile=payload.get("candidate_mobile"),
                 candidatePassword=payload.get("password"),  # Hashed password from generate_password()
