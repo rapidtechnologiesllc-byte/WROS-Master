@@ -1450,19 +1450,23 @@ def create_interview(
     # Emit interview_scheduled event for Thunder and other handlers
     try:
         CandidateEventBus.publish_event(
-            event_type=CandidateEventBus.EVENT_CANDIDATE_STATUS_CHANGED,
+            event_type=CandidateEventBus.EVENT_INTERVIEW_SCHEDULED,
             candidate_id=request.candidate_id,
             data={
-                "old_status": "Applied",  # Assume Applied before interview
-                "new_status": "INTERVIEW",
-                "status_change_reason": "Interview scheduled",
                 "interview_id": interview.id,
+                "panel_id": request.panel_id,
                 "interview_date": request.start_time.isoformat() if hasattr(request.start_time, 'isoformat') else str(request.start_time),
-                "interview_panel": []  # Panel members would be added by Thunder handlers
+                "start_time": request.start_time.isoformat() if hasattr(request.start_time, 'isoformat') else str(request.start_time),
+                "end_time": request.end_time.isoformat() if hasattr(request.end_time, 'isoformat') else str(request.end_time),
+                "meeting_link": request.meeting_link,
+                "candidate_email": candidate.candidateEmail,
+                "candidate_name": f"{candidate.candidateFirstName or ''} {candidate.candidateLastName or ''}".strip(),
             }
         )
+        logger.info(f"[Interviews] Emitted interview_scheduled event for candidate {request.candidate_id}")
     except Exception as e:
-        logger.warning(f"Failed to emit interview_scheduled event for candidate {request.candidate_id}: {e}")
+        logger.error(f"[Interviews] Failed to emit interview_scheduled event for candidate {request.candidate_id}: {e}", exc_info=True)
+        # Don't fail interview creation if event emission fails
 
     # Schedule pre-interview reminder (1 h and 15 min before start)
     _schedule_interview_reminder(interview, db)

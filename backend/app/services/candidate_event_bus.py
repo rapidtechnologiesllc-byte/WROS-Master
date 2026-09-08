@@ -46,6 +46,7 @@ class CandidateEventBus:
     EVENT_CANDIDATE_REJECTED = "candidate_rejected"
     EVENT_CANDIDATE_ARCHIVED = "candidate_archived"
     EVENT_CANDIDATE_REACTIVATED = "candidate_reactivated"
+    EVENT_INTERVIEW_SCHEDULED = "interview_scheduled"
 
     @staticmethod
     def publish_event(
@@ -118,6 +119,7 @@ class CandidateEventBus:
             CandidateEventBus.EVENT_CANDIDATE_REJECTED: "handle_candidate_rejected",
             CandidateEventBus.EVENT_CANDIDATE_ARCHIVED: "handle_candidate_archived",
             CandidateEventBus.EVENT_CANDIDATE_REACTIVATED: "handle_candidate_reactivated",
+            CandidateEventBus.EVENT_INTERVIEW_SCHEDULED: "handle_interview_scheduled",
         }
 
         handler = mapping.get(event_type)

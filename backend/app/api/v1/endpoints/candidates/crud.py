@@ -1084,6 +1084,22 @@ def convert_candidate_to_employee(
 
         logger.info(f"Successfully converted Candidate {candidate_id} to Employee {employee.id}")
 
+        # Emit candidate_status_changed event with Thunder pause flag
+        try:
+            from app.services.candidate_event_bus import CandidateEventBus
+            CandidateEventBus.publish_status_changed(
+                candidate_id=candidate_id,
+                old_status=CANDIDATE_PIPELINE_STATUS_OFFER,
+                new_status=CANDIDATE_PIPELINE_STATUS_EMPLOYEE,
+                reason="Candidate converted to employee",
+                pause_thunder=True,  # CRITICAL: Signal Thunder to pause
+                employee_id=employee.id
+            )
+            logger.info(f"[CRUD] Emitted candidate_status_changed event with Thunder pause for {candidate_id}")
+        except Exception as e:
+            logger.error(f"[CRUD] Failed to emit event: {e}", exc_info=True)
+            # Don't fail conversion if event emission fails
+
         return {
             "status": "success",
             "candidate_id": candidate_id,
