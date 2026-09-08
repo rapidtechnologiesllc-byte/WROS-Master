@@ -47,7 +47,7 @@ class MessageQueueService:
             # Create queue item in database
             queue_item = ChannelQueueItem(
                 message_id=task_id,
-                message_type=task_name,
+                type=task_name,
                 channel_type=QUEUE_TYPE_CANDIDATE if 'candidate' in task_name.lower() else QUEUE_TYPE_THUNDER,
                 status='PENDING',
                 payload=data,

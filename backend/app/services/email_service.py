@@ -195,7 +195,15 @@ class EmailService:
         """
         sender = sender_email or cls.SERVICE_EMAIL
         try:
-            token = cls._get_token()
+            try:
+                token = cls._get_token()
+            except Exception as auth_error:
+                # Azure credentials not configured - gracefully skip email
+                logger.warning(
+                    f"[EmailService] Skipping email to {to_email}: Azure credentials not configured. "
+                    f"Set AZURE_TENANT_ID, AZURE_CLIENT_ID, AZURE_CLIENT_SECRET to enable emails."
+                )
+                return {"status": "skipped", "reason": "Azure credentials not configured"}
 
             to_recipients = [{"emailAddress": {"address": to_email}}]
             cc_recipients = [{"emailAddress": {"address": e}} for e in (cc_emails or [])]
