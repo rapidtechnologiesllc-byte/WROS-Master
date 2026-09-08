@@ -124,7 +124,7 @@ class CreateCandidateResponse(BaseModel):
 def create_candidate(
     request: CreateCandidateRequest,
     db: Session = Depends(get_db),
-    user: Optional[dict] = Depends(get_current_candidate),
+    user: Optional[dict] = None,
 ):
     """
     Create a new candidate asynchronously.
