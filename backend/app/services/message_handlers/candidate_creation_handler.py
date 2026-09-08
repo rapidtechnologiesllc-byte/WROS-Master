@@ -46,6 +46,9 @@ class CandidateCreationHandler:
         logger.info(f"[Handler] Processing queue message, candidate_email={candidate_email}, payload keys={list(payload.keys())}")
 
         try:
+            # ATOMIC TRANSACTION: All records (candidate, status, education, experience) created together
+            # Use db.flush() pattern: add all, flush once, commit once
+
             # 1. CREATE CANDIDATE - Direct ORM mapping from payload
             # Map payload fields to Candidate model fields (payload uses candidate_* naming)
             from app.utils.uniq_id_generator import candidate_id_generator
@@ -82,16 +85,17 @@ class CandidateCreationHandler:
             else:
                 db.add(candidate)
 
+            # Flush candidate to get candidateID (but don't commit yet)
             try:
-                db.commit()
+                db.flush()
                 db.refresh(candidate)
             except Exception as e:
                 db.rollback()
-                logger.error(f"[Handler] Commit failed for candidate: {e}", exc_info=True)
+                logger.error(f"[Handler] Flush failed for candidate: {e}", exc_info=True)
                 raise RuntimeError(f"Failed to create candidate: {str(e)}") from e
 
             candidate_id = candidate.candidateID
-            logger.info(f"[Handler] ✅ Candidate created: {candidate_id}")
+            logger.info(f"[Handler] ✅ Candidate flushed: {candidate_id}")
 
             # 2. CREATE STATUS
             try:
@@ -108,14 +112,8 @@ class CandidateCreationHandler:
                     ))
                 except Exception as e:
                     logger.error(f"[Handler] Failed to add status: {e}", exc_info=True)
-                    raise
-                try:
-                    db.commit()
-                    logger.info(f"[Handler] ✅ Status created for {candidate_id}")
-                except Exception as e:
                     db.rollback()
-                    logger.error(f"[Handler] Failed to commit status: {e}", exc_info=True)
-                    raise RuntimeError(f"Failed to create status: {str(e)}") from e
+                    raise
 
             # 3. CREATE EDUCATION RECORDS
             for edu in payload.get("education_records", []):
@@ -145,14 +143,8 @@ class CandidateCreationHandler:
                         ))
                     except Exception as e:
                         logger.error(f"[Handler] Failed to add education record: {e}", exc_info=True)
+                        db.rollback()
                         raise
-
-            try:
-                db.commit()
-                logger.info(f"[Handler] ✅ Education records created for {candidate_id}")
-            except Exception as e:
-                db.rollback()
-                logger.error(f"[Handler] Failed to commit education: {e}", exc_info=True)
 
             # 4. CREATE EXPERIENCE RECORDS
             for exp in payload.get("experience_records", []):
@@ -181,13 +173,17 @@ class CandidateCreationHandler:
                         ))
                     except Exception as e:
                         logger.error(f"[Handler] Failed to add experience record: {e}", exc_info=True)
+                        db.rollback()
                         raise
+
+            # ATOMIC COMMIT: All or nothing - single commit for all records
             try:
                 db.commit()
-                logger.info(f"[Handler] ✅ Experience records created for {candidate_id}")
+                logger.info(f"[Handler] ✅ All records created atomically for {candidate_id} (candidate, status, education, experience)")
             except Exception as e:
                 db.rollback()
-                logger.error(f"[Handler] Failed to commit experience: {e}", exc_info=True)
+                logger.error(f"[Handler] Atomic commit failed: {e}", exc_info=True)
+                raise RuntimeError(f"Failed to commit all records: {str(e)}") from e
 
             # 5. LOG HISTORY EVENTS
             try:
