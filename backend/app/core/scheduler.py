@@ -20,14 +20,14 @@ def start_scheduler():
         scheduler.start()
         logger.info("[OK] APScheduler started")
 
-        # ── Every 30 sec: MESSAGE QUEUE WORKER (candidate creation, etc) ──────
+        # ── Every 5 sec: MESSAGE QUEUE WORKER (candidate creation, etc) ──────
         try:
             from app.workers.message_queue_worker import process_message_queue
 
-            async def _run_message_queue_worker():
+            def _run_message_queue_worker():
                 try:
                     result = process_message_queue(batch_size=5)
-                    if result["messages_processed"] > 0:
+                    if result and result.get("messages_processed", 0) > 0:
                         logger.info(f"[scheduler] Message queue processed: {result}")
                 except Exception as exc:
                     logger.error(f"[scheduler] Message queue worker error: {exc}", exc_info=True)
@@ -53,11 +53,13 @@ def start_scheduler():
             try:
                 from app.services.autonomous_sdlc_service import run_autonomous_sdlc_cycle
 
-                async def _run_sdlc_cycle():
+                def _run_sdlc_cycle():
                     try:
                         result = run_autonomous_sdlc_cycle()
-                        if result.get("status") == "changes_deployed":
+                        if result and result.get("status") == "changes_deployed":
                             logger.info(f"[scheduler] SDLC cycle completed: {result}")
+                        elif result:
+                            logger.debug(f"[scheduler] SDLC cycle status: {result.get('status', 'unknown')}")
                     except Exception as exc:
                         logger.error(f"[scheduler] SDLC cycle error: {exc}", exc_info=True)
 

@@ -43,23 +43,42 @@ class CandidateCreationHandler:
 
         payload = message.payload
         candidate_email = payload.get("candidate_email")
-        logger.info(f"[Handler] Creating candidate: {candidate_email}")
+        logger.info(f"[Handler] Processing queue message, candidate_email={candidate_email}, payload keys={list(payload.keys())}")
 
         try:
-            # 1. CREATE CANDIDATE
-            candidate, is_new = create_candidate_safe(
-                db, email=candidate_email, mobile=payload.get("candidate_mobile"),
-                plain_password=payload.get("candidate_password"), tenant_id=payload.get("tenant_id"),
+            # 1. CREATE CANDIDATE - Direct ORM mapping from payload
+            # Map payload fields to Candidate model fields (payload uses candidate_* naming)
+            candidate = Candidate(
+                candidateEmail=candidate_email,
+                candidateMobile=payload.get("candidate_mobile"),
+                candidatePassword=payload.get("password"),  # Hashed password from generate_password()
                 candidateRole=payload.get("candidate_role", "Candidate"),
                 candidateEmployeeType=payload.get("candidate_employee_type"),
                 candidateJobTitle=payload.get("candidate_job_title"),
                 candidateFirstName=payload.get("candidate_first_name"),
+                candidateMiddleName=payload.get("candidate_middle_name"),
                 candidateLastName=payload.get("candidate_last_name"),
                 candidateGender=payload.get("candidate_gender"),
                 candidateDateOfBirth=payload.get("candidate_date_of_birth"),
                 candidateCurrentLocation=payload.get("candidate_current_location"),
+                candidateSource=payload.get("candidate_source"),
+                candidateExperience=payload.get("candidate_experience"),
+                candidateSkills=payload.get("candidate_skills"),
+                candidateJoiningDate=payload.get("candidate_joining_date"),
+                candidateExpectedSalary=payload.get("candidate_expected_salary"),
+                candidateCurrentSalary=payload.get("candidate_current_salary"),
                 candidateCreatedAt=datetime.now(),
             )
+
+            # Check for duplicates before adding
+            is_new = True
+            existing = db.query(Candidate).filter(Candidate.candidateEmail == candidate_email).first()
+            if existing:
+                is_new = False
+                candidate = existing
+                logger.info(f"[Handler] Candidate already exists: {candidate_email}")
+            else:
+                db.add(candidate)
 
             try:
                 db.commit()
