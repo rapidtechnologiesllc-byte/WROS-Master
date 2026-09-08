@@ -338,7 +338,7 @@ class CandidateCreationHandler:
 
     @staticmethod
     def on_success(message: ChannelQueueItem, result: Dict[str, Any], db: Session) -> None:
-        """Handle successful message processing."""
+        """Handle successful message processing - queue candidate to Thunder for autonomous engagement."""
         message.status = "COMPLETED"
         message.completed_at = datetime.utcnow()
         message.result = result
@@ -348,6 +348,18 @@ class CandidateCreationHandler:
             db.rollback()
             logger.error(f"[Handler] Failed to mark success: {e}", exc_info=True)
             raise
+
+        # Queue candidate to Thunder for autonomous engagement
+        candidate_id = result.get('candidate_id')
+        if candidate_id:
+            try:
+                MessageQueueService.enqueue(
+                    task_name='engage_candidate_with_thunder',
+                    data={'candidate_id': candidate_id}
+                )
+                logger.info(f"[Handler] Candidate {candidate_id} queued to THUNDER_QUEUE for autonomous engagement")
+            except Exception as e:
+                logger.error(f"[Handler] Failed to queue candidate {candidate_id} to Thunder: {e}", exc_info=True)
 
     @staticmethod
     def on_failed(message: ChannelQueueItem, final_error: str, db: Session) -> None:
