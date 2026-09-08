@@ -87,7 +87,7 @@ def handle_db_errors(func):
 
 
 # ============================================================================
-# Create Candidate Request/Response Models (Async via Celery)
+# Create Candidate Request/Response Models (Async via Message Queue)
 # ============================================================================
 
 class CreateCandidateRequest(BaseModel):
