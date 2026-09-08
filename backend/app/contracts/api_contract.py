@@ -141,7 +141,7 @@ class NavigationResponse(BaseModel):
 # ============================================================================
 
 MODULES_AND_RESOURCES = {
-    "Personal": ["dashboard", "my-tasks", "my-timesheet", "my-expenses", "my-referrals", "ask-flash"],
+    "Personal": ["dashboard", "my-tasks", "my-timesheet", "my-expenses", "my-referrals", "ask-flash", "notifications", "activity-feed"],
     "Recruitment": ["candidates", "jobs", "submissions", "interviews", "offer-letters",
                     "intervention-queue", "rehire-approval", "candidate-review",
                     "risk-dashboard", "thunder-analytics", "bulk-launch"],
