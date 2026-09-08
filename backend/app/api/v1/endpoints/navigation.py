@@ -109,20 +109,18 @@ def get_user_navigation(db: Session = Depends(get_db), current_user = Depends(ge
             "Admin": "Shield", "Executive Dashboards": "BarChart3", "AI & Automation": "Bot"
         }
 
-        # Build navigation from init_resources
+        # OPTIMIZATION: Batch load all user permissions in ONE query (not per-resource)
+        all_permissions = RoleTemplatePermissionService.get_user_permissions(db, user_id, tenant_id)
+
+        # Build navigation from init_resources using cached permissions
         import sys
         for module_name, resource_names in MODULES_AND_RESOURCES.items():
             module_icon = module_icons.get(module_name, "Briefcase")
             navigation_modules[module_name] = {"label": module_name, "icon": module_icon, "items": []}
 
             for resource_name in resource_names:
-                # Check if user has permission to view this resource
-                try:
-                    can_view = RoleTemplatePermissionService.can_view(db, user_id, resource_name, tenant_id)
-                except Exception as e:
-                    logger.error(f"Error: {str(e)}", exc_info=True)
-                    logger.warning(f"[NAV] Permission check failed for {resource_name}: {e}")
-                    can_view = False
+                # Check permission from cached dict (NO database query)
+                can_view = all_permissions.get(resource_name, {}).get("can_view", False)
 
                 if can_view:
                     route = RESOURCE_ROUTES.get(resource_name) or f"/{resource_name}"
