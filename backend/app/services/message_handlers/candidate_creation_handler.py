@@ -371,3 +371,44 @@ class CandidateCreationHandler:
             db.rollback()
             logger.error(f"[Handler] Failed to mark failure: {e}", exc_info=True)
             raise
+
+    @staticmethod
+    def prioritize_queue(db: Session) -> list:
+        """
+        Prioritize Thunder candidate queue by match score (descending).
+
+        Fetches all pending candidates and sorts by ATSScore.match_score.
+        Higher scores = better fit = higher priority.
+
+        Returns:
+            List of candidate IDs sorted by match_score DESC
+        """
+        try:
+            from app.models.candidate import Candidate
+            from app.models.ats import ATSScore
+
+            # Fetch all candidates with their match scores
+            candidates_with_scores = db.query(
+                Candidate.candidateID,
+                ATSScore.match_score
+            ).outerjoin(
+                ATSScore,
+                ATSScore.candidate_id == Candidate.candidateID
+            ).filter(
+                Candidate.candidateCreatedAt >= datetime.utcnow() - timedelta(days=7)  # Last 7 days
+            ).order_by(
+                ATSScore.match_score.desc()  # Highest scores first
+            ).all()
+
+            prioritized_candidates = [row.candidateID for row in candidates_with_scores]
+
+            logger.info(
+                f"[QueuePrioritization] Prioritized {len(prioritized_candidates)} candidates by match_score. "
+                f"Top 3: {prioritized_candidates[:3]}"
+            )
+
+            return prioritized_candidates
+
+        except Exception as e:
+            logger.error(f"[QueuePrioritization] Failed to prioritize queue: {e}", exc_info=True)
+            raise
