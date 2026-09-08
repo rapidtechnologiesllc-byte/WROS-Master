@@ -67,7 +67,6 @@ export const ROUTES = {
   CFO_DASHBOARD: "/cfo-dashboard",
   ERROR_LOG: "/admin/error-log",
   ADMIN_WEEKLY_RECAP: "/admin/weekly-recap",
-  MESSAGE_QUEUE_DASHBOARD: "/admin/messagequeue",
   TRAINING_CERTIFICATION: "/training-certification",
   TROY_PARTNER_DASHBOARD: "/troy-partner-dashboard",
   BI_EXPLORER: "/bi-explorer",
