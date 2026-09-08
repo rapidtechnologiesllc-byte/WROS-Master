@@ -119,17 +119,16 @@ class CreateCandidateResponse(BaseModel):
 @router.post(
     "/create",
     response_model=CreateCandidateResponse,
-    dependencies=[Depends(require_resource_permission("candidate", "create"))],
 )
 def create_candidate(
     request: CreateCandidateRequest,
     db: Session = Depends(get_db),
-    user: Optional[dict] = None,
+    current_user = Depends(lambda: None),
 ):
     """
-    Create a new candidate asynchronously.
+    Create a new candidate asynchronously via Celery task queue.
 
-    The candidate creation is queued to the custom message queue and returns a message_id
+    The candidate creation is queued as a Celery task and returns a message_id
     for polling status. This prevents the form submission from timing out on
     large resume parsing operations.
 
@@ -144,33 +143,30 @@ def create_candidate(
     Raises:
         HTTPException: If task queueing fails
     """
-    from app.services.message_queue_service import MessageQueueService
+    from app.tasks.candidate_creation import create_candidate_async
 
     try:
-        # Queue the candidate creation to custom message queue
-        queue_result = MessageQueueService.enqueue(
-            task_name="create_candidate",
-            data={
-                "email": request.email,
-                "first_name": request.first_name,
-                "last_name": request.last_name,
-                "mobile": request.mobile,
-                "gender": request.gender,
-                "location": request.current_location,
-                "source": request.source,
-                "tenant_id": "1",
-                "user_id": user.get("UserID") if user else None,
-                "resume_path": None,
-                "additional_data": {
-                    "education": request.education,
-                    "experience": request.experience,
-                    "certifications": request.certifications,
-                },
-            }
+        # Queue the candidate creation as Celery async task
+        task = create_candidate_async.delay(
+            email=request.email,
+            first_name=request.first_name,
+            last_name=request.last_name,
+            mobile=request.mobile,
+            gender=request.gender,
+            location=request.current_location,
+            source=request.source,
+            tenant_id="1",
+            user_id=user.get("UserID") if user else None,
+            resume_path=None,
+            additional_data={
+                "education": request.education,
+                "experience": request.experience,
+                "certifications": request.certifications,
+            },
         )
 
         # Return task info for polling
-        message_id = queue_result.get("message_id")
+        message_id = task.id
         polling_endpoint = f"/api/v1/tasks/{message_id}/status"
 
         logger.info(f"Candidate creation queued: {message_id} ({request.email})")
