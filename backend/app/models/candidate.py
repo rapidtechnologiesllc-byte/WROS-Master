@@ -98,8 +98,6 @@ class Candidate(Base):
     # Candidate visibility: unassociated (NULL) = visible to all HR, associated = visible only to that BU
     submission_bu_id = Column(Integer, ForeignKey("business_units.id"), nullable=True, index=True)
     associated_bu_id = Column(Integer, ForeignKey("business_units.id"), nullable=True, index=True)
-    # Tenant ID: which organization/tenant this candidate belongs to (required for multi-tenant isolation)
-    tenant_id = Column(Integer, nullable=False, server_default="1", default=1, index=True)
     submission_timestamp = Column(DateTime, nullable=True)  # When candidate was submitted to BU
     thunder_enabled = Column(Boolean, nullable=False, default=True, server_default="1")  # Enable/disable Thunder autonomous processing
 
@@ -119,6 +117,13 @@ class Candidate(Base):
     processing_completed_at = Column(DateTime, nullable=True)  # When Celery task completed
     upload_error = Column(Text, nullable=True)  # Error message if upload failed
     celery_task_id = Column(String(512), nullable=True)  # Task ID for monitoring
+
+    # Email Delivery Tracking
+    first_email_sent_at = Column(DateTime, nullable=True)  # When first engagement email was sent
+    first_email_delivery_status = Column(String(50), nullable=True)  # PENDING, SENT, BOUNCED, FAILED, OPENED
+    last_email_sent_at = Column(DateTime, nullable=True)  # When last email was sent
+    last_email_delivery_status = Column(String(50), nullable=True)  # PENDING, SENT, BOUNCED, FAILED, OPENED
+    email_delivery_failure_reason = Column(Text, nullable=True)  # Why email failed to deliver
 
     # Relationships
     documents = relationship("CandidateDocument", back_populates="candidate", foreign_keys="CandidateDocument.candidate_id")
