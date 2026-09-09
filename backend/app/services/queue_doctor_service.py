@@ -116,3 +116,17 @@ class QueueDoctorService:
         doctor_state.healing_strategy = strategy
         db.add(doctor_state)
         db.commit()
+
+    @staticmethod
+    def record_retry(message: ChannelQueueItem, db: Session):
+        """Record that a message is being retried."""
+        doctor_state = db.query(QueueDoctorState).filter(
+            QueueDoctorState.message_id == message.id
+        ).first()
+
+        if doctor_state:
+            doctor_state.attempt_count = (message.retry_count or 0) + 1
+            doctor_state.status = "PENDING"  # Reset to pending for retry
+            db.add(doctor_state)
+            db.commit()
+            logger.info(f"[QueueDoctor] Retry {message.id}: attempt {doctor_state.attempt_count}/{doctor_state.max_attempts}")

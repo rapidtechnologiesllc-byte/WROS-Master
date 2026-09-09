@@ -67,6 +67,8 @@ def get_message_queue_display(
 @router.post("/{message_id}/retry", dependencies=[Depends(require_role_template_permission(*Permissions.ROLE_TEMPLATES_EDIT))])
 def retry_queue_message(message_id: str, db: Session = Depends(get_db)):
     """Retry a failed queue message."""
+    from app.services.queue_doctor_service import QueueDoctorService
+
     message = db.query(ChannelQueueItem).filter(ChannelQueueItem.id == message_id).first()
     if not message:
         raise ValueError("Message not found")
@@ -80,6 +82,9 @@ def retry_queue_message(message_id: str, db: Session = Depends(get_db)):
     message.error = None
 
     db.commit()
+
+    # Track retry in QueueDoctor (Phase 2)
+    QueueDoctorService.record_retry(message, db)
 
     return {
         "status": "retry_queued",
