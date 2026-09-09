@@ -127,31 +127,6 @@ def get_db():
             db.close()
         except Exception as e:
             logger.warning(f"Error closing database session: {str(e)}")
-                    f"Database connection failed after {max_retries} attempts: {str(e)}",
-                    exc_info=True
-                )
-                if db:
-                    try:
-                        db.close()
-                    except:
-                        pass
-                raise HTTPException(
-                    status_code=503,
-                    detail="Database service unavailable. Please try again in a moment."
-                )
-
-            # Exponential backoff before retry: 1s, 2s, 4s
-            wait_time = 2 ** (retry_count - 1)
-            logger.warning(
-                f"Database connection attempt {retry_count}/{max_retries} failed: {str(e)}. "
-                f"Retrying in {wait_time}s..."
-            )
-            time.sleep(wait_time)
-
-            # Close failed session before retry
-            if db:
-                try:
-                    db.close()
                 except:
                     pass
 
