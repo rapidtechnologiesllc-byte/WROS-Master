@@ -4,6 +4,7 @@ Message Handlers - Process candidate lifecycle events
 Each handler responds to specific event types published by CandidateEventBus.
 """
 
+from .candidate_creation_handler import CandidateCreationHandler
 from .candidate_status_change_handler import handle_candidate_status_changed
 from .candidate_data_change_handler import handle_candidate_data_changed
 from .candidate_rejection_handler import handle_candidate_rejected
@@ -29,11 +30,12 @@ def handle_candidate_conversion(event_data, db_session):
     return CandidateConversionHandler.process(message, db_session)
 
 __all__ = [
+    "CandidateCreationHandler",
     "handle_candidate_status_changed",
     "handle_candidate_data_changed",
     "handle_candidate_rejected",
     "handle_candidate_archived",
-    "handle_candidate_reactivated",
+    "handle_candidate_reactivation",
     "handle_candidate_conversion",
     "handle_duplicate_candidate_analysis",
     "handle_interview_scheduled",
