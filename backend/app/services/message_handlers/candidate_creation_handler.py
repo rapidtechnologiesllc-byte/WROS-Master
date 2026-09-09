@@ -63,7 +63,8 @@ class CandidateCreationHandler:
                 candidateID=candidate_id_generator(),
                 candidateEmail=candidate_email,
                 candidateMobile=payload.get("candidate_mobile"),
-                candidatePassword=payload.get("password"),  # Hashed password from generate_password()
+                candidatePassword=payload.get("candidate_password"),  # Hashed password from API
+                candidateJobTitle=payload.get("candidate_job_title"),
                 candidateRole=payload.get("candidate_role", "Candidate"),
                 candidateEmployeeType=payload.get("candidate_employee_type"),
                 candidateJobTitle=payload.get("candidate_job_title"),

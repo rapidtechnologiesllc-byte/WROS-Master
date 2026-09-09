@@ -1,7 +1,9 @@
 from datetime import datetime
 import logging
-from typing import Optional
+from typing import Optional, Union
 from functools import wraps
+
+logger = logging.getLogger(__name__)
 
 from fastapi import APIRouter, Depends, FastAPI, Header, HTTPException, Response
 from fastapi.middleware.cors import CORSMiddleware
@@ -105,6 +107,8 @@ class CreateCandidateRequest(BaseModel):
     candidate_gender: Optional[str] = None
     current_location: Optional[str] = None
     candidate_current_location: Optional[str] = None
+    job_title: Optional[str] = None
+    candidate_job_title: Optional[str] = None
     source: Optional[str] = "form_submission"
     candidate_source: Optional[str] = None
     resume_data: Optional[dict] = None
@@ -152,10 +156,10 @@ class CreateCandidateResponse(BaseModel):
     "/create",
     response_model=CreateCandidateResponse,
 )
-def create_candidate(
+async def create_candidate(
     request: CreateCandidateRequest,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
+    current_user = Depends(get_current_user),
 ):
     """
     Create a new candidate asynchronously via message queue.
@@ -205,10 +209,16 @@ def create_candidate(
         gender = request.get_gender()
         current_location = request.get_current_location()
         source = request.get_source()
+        job_title = getattr(request, 'job_title', None) or getattr(request, 'candidate_job_title', None)
 
         # Validate required fields
         if not email or not first_name or not last_name:
             raise ValueError("Email, first name, and last name are required")
+
+        # Generate temporary password with hash for database storage
+        from app.utils.uniq_id_generator import generate_password
+        plain_password = generate_password()
+        hashed_password = get_password_hash(plain_password)
 
         # Queue the candidate creation to PostgreSQL message queue
         result = MessageQueueService.enqueue(
@@ -221,6 +231,9 @@ def create_candidate(
                 'candidate_gender': gender,
                 'candidate_current_location': current_location,
                 'candidate_source': source,
+                'candidate_job_title': job_title,
+                'candidate_password': hashed_password,
+                'candidate_temp_password': plain_password,  # For credential emails
                 'tenant_id': tenant_id,  # ✅ From authenticated user
                 'user_id': user_id,
                 'education_records': request.education or [],
@@ -284,7 +297,8 @@ class LinkedInImportResponse(BaseModel):
 )
 async def import_linkedin_candidate_endpoint(
     request: LinkedInImportRequest,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user)
 ):
     """
     Queue LinkedIn candidate import for async processing.
