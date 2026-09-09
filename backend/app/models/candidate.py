@@ -35,7 +35,7 @@ class Candidate(Base):
     # .create_candidate_safe() -- this field lets LinkedIn dedup run for
     # the first time in this codebase.
     linkedin_url = Column(String(512), nullable=True)
-    candidateGender = Column(String(10), nullable=True)
+    candidateGender = Column(String(100), nullable=True)
     candidateDateOfBirth = Column(Date, nullable=True)
     candidateSource = Column(String(512), nullable=True)
     candidateExperience = Column(String(512), nullable=True)
@@ -131,9 +131,9 @@ class CandidateInfoForm(Base):
     position = Column(String(512), nullable=True)
     department = Column(String(512), nullable=True)
     dob = Column(Date, nullable=True)
-    gender = Column(String(10), nullable=True)
-    marital_status = Column(String(10), nullable=True)
-    nationality = Column(String(10), nullable=True)
+    gender = Column(String(100), nullable=True)
+    marital_status = Column(String(100), nullable=True)
+    nationality = Column(String(100), nullable=True)
     current_address = Column(Text, nullable=True)
     permanent_address = Column(Text, nullable=True)
     submittedAt = Column(Date, nullable=True)
