@@ -23,6 +23,7 @@ from app.core import tenant_context as _tenant_context  # noqa: F401
 from app.api.v1.endpoints.config import router as config_router
 from app.api.v1.endpoints.message_queue import router as message_queue_router
 from app.api.v1.endpoints.business_units import router as business_units_router
+from app.api.v1.endpoints.rbac import router as rbac_router
 
 # Agent State models — imported here so Base.metadata.create_all() finds them
 from app.models import agent_phalanx  # noqa: F401
@@ -232,6 +233,8 @@ app.include_router(config_router, prefix="/api/v1")
 app.include_router(message_queue_router, prefix="/api/v1")
 # Include business units routes with /api/v1 prefix (BU → Client → Job workflow)
 app.include_router(business_units_router, prefix="/api/v1")
+# Include RBAC routes with /api/v1 prefix (business units, departments, role management)
+app.include_router(rbac_router, prefix="/api/v1")
 # Include candidates routes with /candidates prefix (candidate creation, etc)
 app.include_router(candidates_router)
 
