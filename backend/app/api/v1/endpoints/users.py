@@ -84,13 +84,8 @@ async def get_me(
     # Get all permissions for the user
     permission_resources = []
 
-    # Superusers bypass role_template system - they have all permissions
-    is_super = PermissionHelper.is_super_admin(current_user.UserID, db, tenant_id)
-
-    if is_super:
-        # Superuser has access to everything - empty list means "all resources"
-        permission_resources = []
-    elif current_user.UserID and current_user.role_template_id:
+    # Only check role_template if user has one assigned
+    if current_user.UserID and current_user.role_template_id:
         # Regular users: fetch permissions from role_template
         try:
             permissions_dict = RoleTemplatePermissionService.get_user_permissions(
