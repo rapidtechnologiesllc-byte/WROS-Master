@@ -241,12 +241,53 @@
   font-size: 16px;
   font-weight: 600;
   color: #1a1a1a;
+  flex: 0;
+}
+
+.queue-type-stats {
+  display: flex;
+  gap: 12px;
+  margin: 0 16px;
+  align-items: center;
   flex: 1;
+}
+
+.stat-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 8px;
+  border-radius: 4px;
+  background: #f0f0f0;
+  color: #333;
+}
+
+.stat-badge.stat-pending {
+  background: #fffbeb;
+  color: #92400e;
+}
+
+.stat-badge.stat-processing {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.stat-badge.stat-failed {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.stat-badge.stat-completed {
+  background: #dcfce7;
+  color: #166534;
 }
 
 .group-actions {
   display: flex;
   gap: 8px;
+  margin-left: auto;
 }
 
 /* Group Content */

@@ -180,11 +180,24 @@ const MessageQueueMonitorEnhanced = () => {
               groupedByQueue[queueType].push(row);
             });
 
-            return Object.entries(groupedByQueue).map(([queueType, rows]) => (
+            return Object.entries(groupedByQueue).map(([queueType, rows]) => {
+              const stats = {
+                pending: rows.filter(r => r.status === 'PENDING').length,
+                processing: rows.filter(r => r.status === 'PROCESSING').length,
+                failed: rows.filter(r => r.status === 'FAILED').length,
+                completed: rows.filter(r => r.status === 'COMPLETED').length
+              };
+              return (
               <div key={queueType} className="queue-group">
                 <div className="group-header" onClick={() => handleToggleGroup(queueType)}>
                   <span className="toggle-icon">{expandedGroups[queueType] ? '▼' : '▶'}</span>
                   <h4>{queueType} ({rows.length})</h4>
+                  <div className="queue-type-stats">
+                    {stats.pending > 0 && <span className="stat-badge pending">⏳ {stats.pending}</span>}
+                    {stats.processing > 0 && <span className="stat-badge processing">⚙️ {stats.processing}</span>}
+                    {stats.failed > 0 && <span className="stat-badge failed">❌ {stats.failed}</span>}
+                    {stats.completed > 0 && <span className="stat-badge completed">✅ {stats.completed}</span>}
+                  </div>
                   <div className="group-actions">
                     <button
                       onClick={(e) => {
@@ -261,7 +274,8 @@ const MessageQueueMonitorEnhanced = () => {
                   </div>
                 )}
               </div>
-            ));
+            );
+            });
           })()}
         </div>
       )}
