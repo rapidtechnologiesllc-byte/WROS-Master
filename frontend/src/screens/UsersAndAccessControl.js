@@ -195,11 +195,7 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
   const [selectedUserId, setSelectedUserId] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
 
-  const [businessUnits, setBusinessUnits] = useState([
-    { id: 1, name: "North America", bu_name: "North America" },
-    { id: 2, name: "Europe", bu_name: "Europe" },
-    { id: 3, name: "Asia Pacific", bu_name: "Asia Pacific" }
-  ]);
+  const [businessUnits, setBusinessUnits] = useState([]);
 
   const [partners, setPartners] = useState([
     { id: 1, name: "Partner 1" },
@@ -963,7 +959,7 @@ function BusinessUnitsSection() {
 
   const loadBusinessUnits = async () => {
     try {
-      const response = await apiRequest("/admin/certifications/business-units", {
+      const response = await apiRequest("/api/v1/business-units", {
         method: "GET"
       });
       const busData = Array.isArray(response) ? response : response?.data || [];
@@ -1102,7 +1098,7 @@ function OrganizationalHierarchySection() {
 
   const loadBusinessUnits = async () => {
     try {
-      const response = await apiRequest("/admin/certifications/business-units");
+      const response = await apiRequest("/api/v1/business-units");
       const busData = Array.isArray(response) ? response : response?.data || [];
       setBusinessUnits(busData);
     } catch (err) {

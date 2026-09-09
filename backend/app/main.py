@@ -22,6 +22,7 @@ from app.middleware.auth_middleware import AuthenticationMiddleware
 from app.core import tenant_context as _tenant_context  # noqa: F401
 from app.api.v1.endpoints.config import router as config_router
 from app.api.v1.endpoints.message_queue import router as message_queue_router
+from app.api.v1.endpoints.business_units import router as business_units_router
 
 # Agent State models — imported here so Base.metadata.create_all() finds them
 from app.models import agent_phalanx  # noqa: F401
@@ -193,7 +194,17 @@ async def startup_event():
     #     except Exception as exc:
     #         logger.error(f"[Startup] Non-retryable error during RBAC seed: {exc}", exc_info=True)
 
-    logger.info(f"[OK] {settings.APP_NAME} v{settings.APP_VERSION} started successfully (no seed data)")
+    # Seed default business units
+    try:
+        from app.core.seed_business_units import seed_business_units
+        db = SessionLocal()
+        result = seed_business_units(db)
+        db.close()
+        logger.info(f"[OK] Business units seeded: {result}")
+    except Exception as exc:
+        logger.warning(f"[Startup] Failed to seed business units: {exc}")
+
+    logger.info(f"[OK] {settings.APP_NAME} v{settings.APP_VERSION} started successfully")
     logger.info(f"[OK] Server running on http://{settings.HOST}:{settings.PORT}")
 
 @app.on_event("shutdown")
@@ -219,6 +230,8 @@ app.include_router(router)
 app.include_router(config_router, prefix="/api/v1")
 # Include message queue monitoring routes with /api/v1 prefix
 app.include_router(message_queue_router, prefix="/api/v1")
+# Include business units routes with /api/v1 prefix (BU → Client → Job workflow)
+app.include_router(business_units_router, prefix="/api/v1")
 # Include candidates routes with /candidates prefix (candidate creation, etc)
 app.include_router(candidates_router)
 
