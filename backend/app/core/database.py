@@ -127,8 +127,6 @@ def get_db():
             db.close()
         except Exception as e:
             logger.warning(f"Error closing database session: {str(e)}")
-                except:
-                    pass
 
 def check_candidate(db: Session, email: str):
     # Import here to avoid circular import
