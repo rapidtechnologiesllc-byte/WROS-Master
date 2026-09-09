@@ -52,6 +52,7 @@ def get_message_queue_display(
                 "result": msg.result,
                 "error": msg.error,
                 "payload": msg.payload,
+                "retry_count": msg.retry_count or 0,  # Include retry count for UI display
             }
             for msg in messages
         ],
