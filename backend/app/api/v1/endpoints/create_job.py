@@ -677,7 +677,7 @@ def create_job(request: JobCreateRequest, background_tasks: BackgroundTasks, db:
 
     # Queue job_created message (BEFORE commit for atomicity)
     MessageQueueService.enqueue(
-        task_name="job_created",
+        task_name="job_created_flash",
         data={
             "job_id": job_id,
             "job_title": request.job_title,
