@@ -113,6 +113,17 @@ const MessageQueueMonitor = () => {
     return { backgroundColor: statusColors[status] || '#6b7280' };
   };
 
+  const handleRetry = async (messageId) => {
+    try {
+      setError(null);
+      await apiRequest(`/api/v1/message-queue/${messageId}/retry`, 'POST');
+      // Refresh queue data after retry
+      await fetchQueueData();
+    } catch (err) {
+      setError(`Failed to retry message: ${err.message}`);
+    }
+  };
+
   if (loading && !queueDisplay) {
     return <div className="queue-loading">Loading queue data...</div>;
   }
@@ -207,48 +218,65 @@ const MessageQueueMonitor = () => {
                   <table>
                     <thead>
                       <tr>
-                        <th>Type</th>
-                        <th>Status</th>
-                        <th>Created At</th>
-                        <th>Completed At</th>
-                        <th>Retries</th>
-                        <th>Error</th>
-                        <th>Preview</th>
+                        <th style={{width: '20%'}}>Type</th>
+                        <th style={{width: '10%'}}>Status</th>
+                        <th style={{width: '15%'}}>Created At</th>
+                        <th style={{width: '15%'}}>Completed At</th>
+                        <th style={{width: '8%'}}>Retries</th>
+                        <th style={{width: '20%'}}>Error</th>
+                        <th style={{width: '12%'}}>Actions</th>
                       </tr>
                     </thead>
                     <tbody>
                       {rows.map((row) => (
                         <tr key={row.id} className={`status-${row.status.toLowerCase()}`}>
-                          <td>
+                          <td style={{width: '20%'}}>
                             <span className="queue-type">{row.type}</span>
                           </td>
-                          <td>
+                          <td style={{width: '10%'}}>
                             <span className="status-badge" style={getStatusBadge(row.status)}>
                               {row.status}
                             </span>
                           </td>
-                          <td className="timestamp">
+                          <td style={{width: '15%'}} className="timestamp">
                             {new Date(row.created_at).toLocaleString()}
                           </td>
-                          <td className="timestamp">
+                          <td style={{width: '15%'}} className="timestamp">
                             {row.completed_at ? new Date(row.completed_at).toLocaleString() : '-'}
                           </td>
-                          <td className="retry-count">{row.retry_count || 0}</td>
-                          <td className="error-message">
+                          <td style={{width: '8%'}} className="retry-count">{row.retry_count || 0}</td>
+                          <td style={{width: '20%', wordBreak: 'break-word', maxHeight: '100px', overflow: 'auto'}} className="error-message">
                             {row.error ? (
                               <details>
-                                <summary>Error</summary>
-                                <pre>{row.error}</pre>
+                                <summary style={{cursor: 'pointer', color: '#ef4444', fontWeight: 'bold'}}>
+                                  Error ({row.error.length > 50 ? '...' : ''})
+                                </summary>
+                                <pre style={{fontSize: '11px', margin: '8px 0', padding: '8px', backgroundColor: '#f5f5f5', borderRadius: '4px'}}>{row.error}</pre>
                               </details>
                             ) : (
                               '-'
                             )}
                           </td>
-                          <td className="preview">
-                            {row.payload ? (
+                          <td style={{width: '12%'}}>
+                            {row.status === 'FAILED' ? (
+                              <button
+                                onClick={() => handleRetry(row.id)}
+                                style={{
+                                  padding: '6px 12px',
+                                  backgroundColor: '#3b82f6',
+                                  color: 'white',
+                                  border: 'none',
+                                  borderRadius: '4px',
+                                  cursor: 'pointer',
+                                  fontSize: '12px'
+                                }}
+                              >
+                                Retry
+                              </button>
+                            ) : row.payload ? (
                               <details>
-                                <summary>View</summary>
-                                <pre>{JSON.stringify(row.payload, null, 2)}</pre>
+                                <summary style={{cursor: 'pointer', color: '#3b82f6'}}>View</summary>
+                                <pre style={{fontSize: '11px', margin: '8px 0', padding: '8px', backgroundColor: '#f5f5f5', maxHeight: '200px', overflow: 'auto'}}>{JSON.stringify(row.payload, null, 2)}</pre>
                               </details>
                             ) : (
                               '-'

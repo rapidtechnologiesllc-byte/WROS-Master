@@ -64,6 +64,30 @@ def get_message_queue_display(
     }
 
 
+@router.post("/{message_id}/retry", dependencies=[Depends(require_role_template_permission(*Permissions.ROLE_TEMPLATES_EDIT))])
+def retry_queue_message(message_id: str, db: Session = Depends(get_db)):
+    """Retry a failed queue message."""
+    message = db.query(ChannelQueueItem).filter(ChannelQueueItem.id == message_id).first()
+    if not message:
+        raise ValueError("Message not found")
+
+    if message.status != "FAILED":
+        raise ValueError("Only FAILED messages can be retried")
+
+    # Reset message to PENDING for retry
+    message.status = "PENDING"
+    message.retry_count = (message.retry_count or 0) + 1
+    message.error = None
+
+    db.commit()
+
+    return {
+        "status": "retry_queued",
+        "message_id": message_id,
+        "retry_count": message.retry_count
+    }
+
+
 @router.get("/stats", dependencies=[Depends(require_role_template_permission(*Permissions.ROLE_TEMPLATES_EDIT))])
 def get_queue_stats(db: Session = Depends(get_db)):
     """Get overall queue statistics."""
