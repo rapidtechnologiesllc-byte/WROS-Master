@@ -151,15 +151,15 @@ const MessageQueueMonitor = () => {
         <div className="stats-summary">
           <div className="stat-card">
             <div className="stat-label">Total Messages</div>
-            <div className="stat-value">{stats.total}</div>
+            <div className="stat-value">{stats.total_messages}</div>
           </div>
           <div className="stat-card">
             <div className="stat-label">Pending</div>
-            <div className="stat-value pending">{stats.pending_count}</div>
+            <div className="stat-value pending">{stats.pending}</div>
           </div>
           <div className="stat-card">
             <div className="stat-label">Failed</div>
-            <div className="stat-value failed">{stats.failed_count}</div>
+            <div className="stat-value failed">{stats.failed}</div>
           </div>
           <div className="stat-card">
             <div className="stat-label">Oldest Pending (sec)</div>
