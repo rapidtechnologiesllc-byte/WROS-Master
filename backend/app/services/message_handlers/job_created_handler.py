@@ -8,78 +8,111 @@ logger = logging.getLogger(__name__)
 
 
 def handle_job_created(message: Any, db: Session) -> Dict[str, Any]:
-    """Handle job_created message - triggered when a job is created in the system.
+    """Handle job_created message - CREATE job from queue data and assign AI recruiter.
 
-    Message is marked COMPLETED only when:
-    1. Job record updated with metadata
-    2. Candidate matching initiated (if applicable)
-    3. Recruiter notifications sent
+    Queue-driven flow:
+    1. Create job record in database from payload
+    2. Assign AI recruiter agent to job
+    3. Initiate candidate matching & sourcing autonomously
 
     Args:
-        message: ChannelQueueItem with type='job_created'
+        message: ChannelQueueItem with type='job_created' or 'job_created_flash'
         db: SQLAlchemy session
 
     Returns:
-        {status, job_id, matched_candidates, notifications_sent}
+        {status, job_id, recruiter_assigned, sourcing_initiated}
     """
     try:
+        from uuid import uuid4
+        from datetime import datetime
+
         payload = message.payload or {}
-        job_id = payload.get('job_id')
 
-        if not job_id:
-            raise ValueError("job_id is required in payload")
+        # Extract job data from payload
+        job_data = {
+            'job_id': payload.get('job_id') or str(uuid4()),
+            'job_title': payload.get('job_title'),
+            'job_description': payload.get('job_description'),
+            'job_location': payload.get('job_location'),
+            'job_skills': payload.get('job_skills', ''),
+            'no_of_positions': payload.get('no_of_positions', 1),
+            'hiring_manager_id': payload.get('hiring_manager_id'),
+            'business_unit_id': payload.get('business_unit_id'),
+            'job_status': 'Open',
+            'jobCreatedAt': datetime.utcnow()
+        }
 
-        # 1. Fetch job to verify it exists
-        job = db.query(Jobs).filter(Jobs.id == job_id).first()
-        if not job:
-            raise ValueError(f"Job {job_id} not found in database")
+        # 1. CREATE job in database (queue-driven)
+        job = Jobs(
+            jobID=job_data['job_id'],
+            jobTitle=job_data['job_title'],
+            jobDescription=job_data['job_description'],
+            jobLocation=job_data['job_location'],
+            jobSkills=job_data['job_skills'],
+            noOfPositions=job_data['no_of_positions'],
+            hiringManagerID=job_data['hiring_manager_id'],
+            business_unit_id=job_data['business_unit_id'],
+            jobStatus=job_data['job_status'],
+            jobCreatedAt=job_data['jobCreatedAt']
+        )
 
-        logger.info(f"[JobCreated] Processing job {job_id} ({payload.get('job_title', 'Unknown')})")
-
-        # 2. Update job metadata if needed (e.g., set processing flags, initial status)
-        # This ensures the job is "complete" in the system view
-        if not hasattr(job, 'processing_initiated'):
-            # Job model may have additional fields for tracking
-            pass
-
+        db.add(job)
         db.commit()
+        db.refresh(job)
 
-        # 3. Initiate candidate matching (if this system has matching logic)
-        matched_count = 0
-        try:
-            # Placeholder for candidate matching logic
-            # In production, this would call a candidate matching service
-            # and track which candidates matched this job
-            pass
-        except Exception as match_err:
-            logger.warning(f"[JobCreated] Could not initiate matching for {job_id}: {match_err}")
-            # Non-fatal - job is still "created" even if matching fails
+        logger.info(f"[JobCreatedFlash] ✅ Created job {job_data['job_id']} ({job_data['job_title']}) via queue")
 
-        # 4. Send recruiter notifications
-        notifications_sent = False
+        # 2. Assign AI recruiter agent to job
+        recruiter_assigned = False
         try:
-            # Placeholder for recruiter notification logic
-            # In production, this would send emails/messages to hiring managers
-            notifications_sent = True
-        except Exception as notify_err:
-            logger.warning(f"[JobCreated] Could not send notifications for {job_id}: {notify_err}")
-            # Non-fatal - job is still "created" even if notifications fail
+            from app.services.spartan_orchestration_service import SpartanOrchestrationService
+
+            recruiter_result = SpartanOrchestrationService.assign_recruiter_to_job(
+                job_id=job_data['job_id'],
+                job_title=job_data['job_title'],
+                db=db
+            )
+            recruiter_assigned = recruiter_result.get('assigned', False)
+
+            logger.info(f"[JobCreatedFlash] Recruiter assigned: {recruiter_assigned}")
+        except Exception as recruiter_err:
+            logger.warning(f"[JobCreatedFlash] Could not assign recruiter to {job_data['job_id']}: {recruiter_err}")
+
+        # 3. Initiate autonomous candidate sourcing
+        sourcing_initiated = False
+        try:
+            # Queue candidate sourcing task
+            from app.services.message_queue_service import MessageQueueService
+
+            sourcing_msg = MessageQueueService.enqueue(
+                task_name="source_candidates_for_job",
+                data={
+                    "job_id": job_data['job_id'],
+                    "job_title": job_data['job_title'],
+                    "job_skills": job_data['job_skills']
+                }
+            )
+            sourcing_initiated = sourcing_msg.get('status') == 'queued'
+
+            logger.info(f"[JobCreatedFlash] Candidate sourcing initiated: {sourcing_initiated}")
+        except Exception as source_err:
+            logger.warning(f"[JobCreatedFlash] Could not initiate sourcing for {job_data['job_id']}: {source_err}")
 
         result = {
             "status": "job_created",
-            "job_id": job_id,
-            "job_title": payload.get('job_title'),
-            "matched_candidates": matched_count,
-            "notifications_sent": notifications_sent,
-            "message": f"Job {job_id} created and available for candidate matching"
+            "job_id": job_data['job_id'],
+            "job_title": job_data['job_title'],
+            "recruiter_assigned": recruiter_assigned,
+            "sourcing_initiated": sourcing_initiated,
+            "message": f"Job created and AI recruiter assigned for autonomous candidate sourcing"
         }
 
-        logger.info(f"[JobCreated] ✅ Completed: {job_id}")
+        logger.info(f"[JobCreatedFlash] ✅ Completed: {job_data['job_id']}")
         return result
 
     except ValueError as ve:
-        logger.error(f"[JobCreated] Validation error: {ve}", exc_info=True)
+        logger.error(f"[JobCreatedFlash] Validation error: {ve}", exc_info=True)
         raise
     except Exception as e:
-        logger.error(f"[JobCreated] Failed to process job creation: {e}", exc_info=True)
+        logger.error(f"[JobCreatedFlash] Failed to process job creation from queue: {e}", exc_info=True)
         raise

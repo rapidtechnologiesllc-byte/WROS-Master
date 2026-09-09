@@ -50,6 +50,7 @@ def _initialize_default_handlers():
         from app.services.message_handlers.job_created_handler import handle_job_created
         from app.services.message_handlers.job_status_changed_handler import handle_job_status_changed
         MessageHandlerRegistry.register("job_created", handle_job_created)
+        MessageHandlerRegistry.register("job_created_flash", handle_job_created)  # Queue-driven version
         MessageHandlerRegistry.register("job_status_changed", handle_job_status_changed)
     except ImportError as e:
         logger.warning(f"[Registry] Could not import job handlers: {e}")
