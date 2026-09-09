@@ -203,25 +203,48 @@ const MessageQueueMonitorEnhanced = () => {
                     <table className="queue-table">
                       <thead>
                         <tr>
-                          <th>Message ID</th>
-                          <th>Status</th>
-                          <th>Created</th>
-                          <th>Retries</th>
-                          <th>Actions</th>
+                          <th style={{width: '12%'}}>Message ID</th>
+                          <th style={{width: '8%'}}>Status</th>
+                          <th style={{width: '12%'}}>Created</th>
+                          <th style={{width: '6%'}}>Retries</th>
+                          <th style={{width: '25%'}}>Error Message</th>
+                          <th style={{width: '25%'}}>Doctor's Advice</th>
+                          <th style={{width: '12%'}}>Actions</th>
                         </tr>
                       </thead>
                       <tbody>
                         {rows.map(row => (
                           <tr key={row.id} className={`status-${row.status.toLowerCase()}`}>
-                            <td title={row.id}>{row.id.substring(0, 16)}...</td>
-                            <td>
+                            <td title={row.id} style={{width: '12%'}}>{row.id.substring(0, 16)}...</td>
+                            <td style={{width: '8%'}}>
                               <span className={`badge badge-${row.status.toLowerCase()}`}>
                                 {row.status}
                               </span>
                             </td>
-                            <td>{new Date(row.created_at).toLocaleString()}</td>
-                            <td>{row.retry_count || 0}</td>
-                            <td>
+                            <td style={{width: '12%'}}>{new Date(row.created_at).toLocaleString()}</td>
+                            <td style={{width: '6%', fontWeight: 'bold', color: row.retry_count > 0 ? '#f59e0b' : '#000'}}>
+                              {row.retry_count || 0}
+                            </td>
+                            <td style={{width: '25%', maxHeight: '80px', overflow: 'auto', whiteSpace: 'normal', wordBreak: 'break-word'}}>
+                              <span className="error-text" title={row.error || 'None'}>
+                                {row.error ? row.error.substring(0, 100) + (row.error.length > 100 ? '...' : '') : '-'}
+                              </span>
+                            </td>
+                            <td style={{width: '25%', maxHeight: '80px', overflow: 'auto', whiteSpace: 'normal', wordBreak: 'break-word', fontSize: '12px', color: '#666'}}>
+                              <span className="doctor-advice">
+                                {row.status === 'FAILED' && row.retry_count < 5
+                                  ? `Scheduled for retry (Attempt ${row.retry_count + 1}/5)`
+                                  : row.status === 'FAILED' && row.retry_count >= 5
+                                  ? '❌ Max retries exceeded - requires manual intervention'
+                                  : row.status === 'PENDING'
+                                  ? '⏳ Queued for processing'
+                                  : row.status === 'PROCESSING'
+                                  ? '⚙️ Currently processing...'
+                                  : '✅ Successfully processed'
+                                }
+                              </span>
+                            </td>
+                            <td style={{width: '12%'}}>
                               {row.status === 'FAILED' && (
                                 <button className="btn-sm btn-primary">Retry</button>
                               )}
