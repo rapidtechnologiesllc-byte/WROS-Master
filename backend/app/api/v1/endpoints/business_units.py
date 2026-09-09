@@ -32,10 +32,9 @@ class ClientResponse(BaseModel):
         from_attributes = True
 
 
-@router.get("", response_model=List[BusinessUnitResponse])
+@router.get("", response_model=List[BusinessUnitResponse], dependencies=[Depends(get_current_internal_user)])
 async def get_business_units(
     db: Session = Depends(get_db),
-    user: Users = Depends(get_current_internal_user),
 ):
     """Get all business units from database"""
     try:
@@ -63,13 +62,12 @@ async def get_business_units(
         )
 
 
-@router.post("", response_model=BusinessUnitResponse)
+@router.post("", response_model=BusinessUnitResponse, dependencies=[Depends(get_current_internal_user)])
 async def create_business_unit(
     name: str,
     region: str = None,
     continent: str = None,
     db: Session = Depends(get_db),
-    user: Users = Depends(get_current_internal_user),
 ):
     """Create a new business unit"""
     try:
@@ -97,11 +95,10 @@ async def create_business_unit(
         )
 
 
-@router.get("/{bu_id}/clients", response_model=List[ClientResponse])
+@router.get("/{bu_id}/clients", response_model=List[ClientResponse], dependencies=[Depends(get_current_internal_user)])
 async def get_clients_for_bu(
     bu_id: int,
     db: Session = Depends(get_db),
-    user: Users = Depends(get_current_internal_user),
 ):
     """Get all clients for a business unit"""
     try:
@@ -128,14 +125,13 @@ async def get_clients_for_bu(
         )
 
 
-@router.post("/{bu_id}/clients", response_model=ClientResponse)
+@router.post("/{bu_id}/clients", response_model=ClientResponse, dependencies=[Depends(get_current_internal_user)])
 async def create_client(
     bu_id: int,
     name: str,
     email: str = None,
     phone: str = None,
     db: Session = Depends(get_db),
-    user: Users = Depends(get_current_internal_user),
 ):
     """Create a new client for a business unit"""
     try:
