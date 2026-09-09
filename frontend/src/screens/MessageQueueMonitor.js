@@ -116,7 +116,7 @@ const MessageQueueMonitor = () => {
   const handleRetry = async (messageId) => {
     try {
       setError(null);
-      await apiRequest(`/api/v1/message-queue/${messageId}/retry`, 'POST');
+      await apiRequest(`/api/v1/message-queue/${messageId}/retry`, { method: 'POST' });
       // Refresh queue data after retry
       await fetchQueueData();
     } catch (err) {
