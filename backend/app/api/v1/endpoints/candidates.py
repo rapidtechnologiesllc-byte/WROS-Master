@@ -155,7 +155,7 @@ class CreateCandidateResponse(BaseModel):
 def create_candidate(
     request: CreateCandidateRequest,
     db: Session = Depends(get_db),
-    current_user = Depends(lambda: None),
+    current_user: dict = Depends(get_current_user),
 ):
     """
     Create a new candidate asynchronously via message queue.
@@ -182,7 +182,10 @@ def create_candidate(
         tenant_id = 1  # Default fallback
         if current_user:
             if isinstance(current_user, dict):
-                tenant_id = current_user.get('tenant_id', 1)
+                # Try both tenant_id and tenant_ID
+                tenant_id = current_user.get('tenant_ID') or current_user.get('tenant_id', 1)
+            elif hasattr(current_user, 'tenant_ID'):
+                tenant_id = getattr(current_user, 'tenant_ID', 1)
             elif hasattr(current_user, 'tenant_id'):
                 tenant_id = getattr(current_user, 'tenant_id', 1)
 
