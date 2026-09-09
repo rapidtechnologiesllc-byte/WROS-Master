@@ -93,9 +93,9 @@ class Users(Base):
     terminated_at = Column(DateTime(timezone=False), nullable=True, index=True)
     terminated_by_user_id = Column(String(512), ForeignKey("users.UserID"), nullable=True, index=True)
 
-    business_unit = relationship("BusinessUnit", foreign_keys=[business_unit_id], lazy="select")
-    department = relationship("Department", foreign_keys=[department_id], lazy="select")
-    role_template = relationship("RoleTemplate", foreign_keys=[role_template_id], lazy="select")
+    business_unit = relationship("BusinessUnit", lazy="select")
+    department = relationship("Department", lazy="select")
+    role_template = relationship("RoleTemplate", lazy="select")
     terminated_by_user = relationship("Users", foreign_keys=[terminated_by_user_id], remote_side=[UserID], lazy="select")
 
     def is_active(self) -> bool:
