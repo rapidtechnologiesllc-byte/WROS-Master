@@ -154,6 +154,14 @@ def create_candidate(
             elif hasattr(current_user, 'tenant_id'):
                 tenant_id = getattr(current_user, 'tenant_id', 1)
 
+        # Extract user_id from current_user
+        user_id = None
+        if current_user:
+            if isinstance(current_user, dict):
+                user_id = current_user.get('UserID')
+            elif hasattr(current_user, 'id'):
+                user_id = getattr(current_user, 'id')
+
         # Queue the candidate creation to PostgreSQL message queue
         result = MessageQueueService.enqueue(
             task_name='create_candidate',
@@ -166,7 +174,7 @@ def create_candidate(
                 'candidate_current_location': request.current_location,
                 'candidate_source': request.source,
                 'tenant_id': tenant_id,  # ✅ From authenticated user
-                'user_id': current_user.get("UserID") if current_user else None,
+                'user_id': user_id,
                 'education_records': request.education or [],
                 'experience_records': request.experience or [],
                 'certifications': request.certifications or [],
