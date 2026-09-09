@@ -218,7 +218,7 @@ const MessageQueueMonitor = () => {
                   <table>
                     <thead>
                       <tr>
-                        <th style={{width: '20%'}}>Type</th>
+                        <th style={{width: '20%'}}>Message ID</th>
                         <th style={{width: '10%'}}>Status</th>
                         <th style={{width: '15%'}}>Created At</th>
                         <th style={{width: '15%'}}>Completed At</th>
@@ -231,7 +231,7 @@ const MessageQueueMonitor = () => {
                       {rows.map((row) => (
                         <tr key={row.id} className={`status-${row.status.toLowerCase()}`}>
                           <td style={{width: '20%'}}>
-                            <span className="queue-type">{row.type}</span>
+                            <span className="message-id" title={row.id}>{row.id.substring(0, 12)}...</span>
                           </td>
                           <td style={{width: '10%'}}>
                             <span className="status-badge" style={getStatusBadge(row.status)}>
