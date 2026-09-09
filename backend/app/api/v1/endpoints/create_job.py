@@ -61,8 +61,8 @@ def _can_auto_approve_job(user) -> bool:
     Checks the RBAC role first, then falls back to the legacy UserRole string.
     """
     role_name = ""
-    if user.role and user.role.name:
-        role_name = user.role.name
+    if user.role_template and user.role_template.name:
+        role_name = user.role_template.name
     elif user.UserRole:
         role_name = user.UserRole
     return role_name.lower() in AUTO_APPROVE_ROLES
