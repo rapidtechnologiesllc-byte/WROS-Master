@@ -175,19 +175,15 @@ def create_project_endpoint(
 
     try:
         msg_id = MessageQueueService.enqueue(
-            message_type="project_created",
-            payload={
+            task_name="project_created",
+            data={
                 "project_id": project.id,
                 "project_name": project.name,
                 "client_id": body.client_id,
                 "delivery_engine": delivery_engine,
                 "billing_type": body.billing_type,
                 "currency": body.currency,
-            },
-            resource_id=project.id,
-            queue_type="PROJECTS_QUEUE",
-            created_by=current_user.UserID,
-            db=db,
+            }
         )
         db.refresh(project)
         return _to_item(project)
@@ -249,16 +245,12 @@ def transition_status(
 
     try:
         msg_id = MessageQueueService.enqueue(
-            message_type="project_status_changed",
-            payload={
+            task_name="project_status_changed",
+            data={
                 "project_id": project.id,
                 "project_name": project.name,
                 "new_status": body.status,
-            },
-            resource_id=project.id,
-            queue_type="PROJECTS_QUEUE",
-            created_by=current_user.UserID,
-            db=db,
+            }
         )
         db.refresh(project)
         return _to_item(project)
@@ -288,17 +280,13 @@ def create_milestone_endpoint(
 
     try:
         msg_id = MessageQueueService.enqueue(
-            message_type="milestone_created",
-            payload={
+            task_name="milestone_created",
+            data={
                 "milestone_id": milestone.id,
                 "project_id": project.id,
                 "milestone_title": body.title,
                 "due_date": str(body.due_date) if body.due_date else None,
-            },
-            resource_id=milestone.id,
-            queue_type="PROJECTS_QUEUE",
-            created_by=current_user.UserID,
-            db=db,
+            }
         )
         db.refresh(milestone)
         return _milestone_to_item(milestone)
@@ -352,18 +340,14 @@ def complete_milestone_endpoint(
 
     try:
         msg_id = MessageQueueService.enqueue(
-            message_type="milestone_completed",
-            payload={
+            task_name="milestone_completed",
+            data={
                 "milestone_id": milestone.id,
                 "project_id": project_id,
                 "milestone_title": milestone.title,
                 "completion_date": str(body.completion_date) if body.completion_date else None,
                 "delay_days": milestone.delay_days,
-            },
-            resource_id=milestone.id,
-            queue_type="PROJECTS_QUEUE",
-            created_by=current_user.UserID,
-            db=db,
+            }
         )
         db.refresh(milestone)
         return _milestone_to_item(milestone)

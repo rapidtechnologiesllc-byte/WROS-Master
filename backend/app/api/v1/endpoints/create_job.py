@@ -677,8 +677,8 @@ def create_job(request: JobCreateRequest, background_tasks: BackgroundTasks, db:
 
     # Queue job_created message (BEFORE commit for atomicity)
     MessageQueueService.enqueue(
-        message_type="job_created",
-        payload={
+        task_name="job_created",
+        data={
             "job_id": job_id,
             "job_title": request.job_title,
             "job_location": request.job_location,
@@ -688,11 +688,7 @@ def create_job(request: JobCreateRequest, background_tasks: BackgroundTasks, db:
             "hiring_manager_id": request.hiring_manager_id,
             "business_unit_id": request.business_unit,
             "job_status": job_status,
-        },
-        resource_id=job_id,
-        queue_type="THUNDER_QUEUE",
-        created_by=user.UserID,
-        db=db,
+        }
     )
 
     # ATOMIC COMMIT

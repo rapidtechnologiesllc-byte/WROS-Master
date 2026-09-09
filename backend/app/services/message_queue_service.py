@@ -1,16 +1,10 @@
-"""Message Queue Service - Custom database-backed task queue (Celery removed)."""
+"""Message Queue Service - Custom database-backed task queue."""
 import logging
 from typing import Dict, Any, Optional
 from datetime import datetime
 from uuid import uuid4
 
 logger = logging.getLogger(__name__)
-
-
-CELERY_TASK_PROCESS_CANDIDATE = 'process_candidate'
-CELERY_TASK_ASSIGN_THUNDER = 'assign_thunder_agent'
-CELERY_TASK_SEND_NOTIFICATION = 'send_notification'
-CELERY_TASK_CREATE_CANDIDATE = 'create_candidate'
 
 QUEUE_TYPE_CANDIDATE = 'CANDIDATE_QUEUE'
 QUEUE_TYPE_THUNDER = 'THUNDER_QUEUE'
@@ -75,14 +69,3 @@ class MessageQueueService:
         finally:
             if 'db' in locals():
                 db.close()
-
-    @staticmethod
-    def _enqueue_celery(
-        task_name: str,
-        task_id: Optional[str],
-        data: Dict[str, Any],
-        delay_seconds: int
-    ) -> Dict[str, Any]:
-        """DEPRECATED: Celery removed. Use enqueue() instead."""
-        logger.warning("_enqueue_celery() is deprecated - use enqueue() instead")
-        return MessageQueueService.enqueue(task_name, task_id, data, delay_seconds)

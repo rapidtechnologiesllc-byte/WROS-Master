@@ -90,88 +90,20 @@ def process_message_queue(batch_size: int = 10, timeout_minutes: int = 30) -> Di
 
                     logger.info(f"[Worker] Processing {message.type} message {message.id}")
 
-                    # Route to appropriate processor based on message type
-                    if message.type == "create_candidate":
-                        result = CandidateQueueProcessor.process(message, db)
-                    elif message.type in ["engage_candidate_with_thunder", "assign_thunder_agent"]:
-                        # Immediately engage candidate with Thunder AND send first message (don't wait for 5-min cycle)
-                        candidate_id = message.payload.get('candidate_id')
-                        try:
-                            from app.models.candidate import Candidate
-                            from app.models.candidate_ai import CandidateConversation
-                            from app.services.thunder_service import send_thunder_message, has_active_consent
+                    # Route to appropriate processor using handler registry
+                    from app.services.message_handler_registry import MessageHandlerRegistry
 
-                            # 1. Get candidate
-                            candidate = db.query(Candidate).filter(Candidate.candidateID == candidate_id).first()
-                            if not candidate:
-                                raise ValueError(f"Candidate {candidate_id} not found")
-
-                            # 2. Create/fetch conversation
-                            conversation = db.query(CandidateConversation).filter(
-                                CandidateConversation.candidate_id == candidate_id
-                            ).first()
-
-                            if not conversation:
-                                conversation = CandidateConversation(
-                                    candidate_id=candidate_id,
-                                    owner_type="Thunder",
-                                    owner_id="Thunder_Autonomous",
-                                    status="ACTIVE",
-                                )
-                                db.add(conversation)
-                                db.flush()
-                                logger.info(f"[Worker] ✅ Created conversation for {candidate_id}")
-
-                            # 3. Check consent & send initial message
-                            if has_active_consent(db, candidate_id):
-                                try:
-                                    initial_message = f"Hi {candidate.candidateFirstName}, thanks for your interest! Let's explore this opportunity."
-                                    send_thunder_message(
-                                        db=db,
-                                        conversation=conversation,
-                                        candidate=candidate,
-                                        message_body=initial_message,
-                                        sender_type="ai_agent",
-                                        channel="whatsapp"
-                                    )
-                                    db.commit()
-                                    logger.info(f"[Worker] ✅ Sent initial message to {candidate_id}")
-                                except Exception as msg_err:
-                                    logger.warning(f"[Worker] Could not send message (no consent?): {msg_err}, marking candidate as engaged anyway")
-                                    db.commit()
-                            else:
-                                logger.info(f"[Worker] No consent for {candidate_id}, conversation created but no message sent")
-                                db.commit()
-
-                            result = {
-                                "status": "thunder_engaged_and_messaged",
-                                "candidate_id": candidate_id,
-                                "conversation_created": True,
-                                "message_sent": has_active_consent(db, candidate_id)
-                            }
-                            logger.info(f"[Worker] ✅ Thunder engagement complete for {candidate_id}")
-
-                        except Exception as thunder_err:
-                            logger.error(f"[Worker] Failed to engage Thunder for candidate {candidate_id}: {thunder_err}", exc_info=True)
-                            # Mark as FAILED for retry
-                            message.status = "FAILED"
-                            message.error = str(thunder_err)
-                            message.completed_at = datetime.utcnow()
-                            message.retry_count = (message.retry_count or 0) + 1
-                            message.next_retry_at = datetime.utcnow() + timedelta(minutes=5)
-                            try:
-                                db.commit()
-                            except Exception as commit_err:
-                                db.rollback()
-                                logger.error(f"[Worker] Failed to mark message as FAILED: {commit_err}", exc_info=True)
-                            raise
+                    handler = MessageHandlerRegistry.get_handler(message.type)
+                    if handler:
+                        result = handler(message, db)
                     else:
+                        # Unknown message type - mark as FAILED with retry scheduling
                         logger.warning(f"[Worker] Unknown message type: {message.type}")
                         message.status = "FAILED"
                         message.error = f"Unknown message type: {message.type}"
                         message.completed_at = datetime.utcnow()
                         message.retry_count = (message.retry_count or 0) + 1
-                        message.next_retry_at = datetime.utcnow() + timedelta(minutes=5)  # Schedule retry
+                        message.next_retry_at = datetime.utcnow() + timedelta(minutes=5)
                         try:
                             db.commit()
                         except Exception as commit_err:

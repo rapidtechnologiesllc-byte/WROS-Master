@@ -1426,8 +1426,8 @@ def create_interview(
 
     # Queue interview_scheduled message (BEFORE commit for atomicity)
     MessageQueueService.enqueue(
-        message_type="interview_scheduled",
-        payload={
+        task_name="interview_scheduled",
+        data={
             "interview_id": interview.id,
             "candidate_id": request.candidate_id,
             "panel_id": request.panel_id,
@@ -1436,11 +1436,7 @@ def create_interview(
             "meeting_link": request.meeting_link,
             "candidate_email": candidate.candidateEmail,
             "candidate_name": f"{candidate.candidateFirstName or ''} {candidate.candidateLastName or ''}".strip(),
-        },
-        resource_id=request.candidate_id,
-        queue_type="EMAIL_QUEUE",
-        created_by=user.UserID,
-        db=db,
+        }
     )
 
     # ATOMIC COMMIT
