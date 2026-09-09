@@ -232,16 +232,21 @@ const MessageQueueMonitorEnhanced = () => {
                             </td>
                             <td style={{width: '25%', maxHeight: '80px', overflow: 'auto', whiteSpace: 'normal', wordBreak: 'break-word', fontSize: '12px', color: '#666'}}>
                               <span className="doctor-advice">
-                                {row.status === 'FAILED' && row.retry_count < 5
-                                  ? `Scheduled for retry (Attempt ${row.retry_count + 1}/5)`
-                                  : row.status === 'FAILED' && row.retry_count >= 5
-                                  ? '❌ Max retries exceeded - requires manual intervention'
-                                  : row.status === 'PENDING'
-                                  ? '⏳ Queued for processing'
-                                  : row.status === 'PROCESSING'
-                                  ? '⚙️ Currently processing...'
-                                  : '✅ Successfully processed'
-                                }
+                                {(() => {
+                                  if (row.status === 'FAILED') {
+                                    if (row.retry_count >= 5) {
+                                      return '❌ Max retries exceeded - manual review required';
+                                    } else {
+                                      return `🔄 Scheduled for retry (Attempt ${(row.retry_count || 0) + 1}/5)`;
+                                    }
+                                  } else if (row.status === 'PENDING') {
+                                    return '⏳ Queued for processing';
+                                  } else if (row.status === 'PROCESSING') {
+                                    return '⚙️ Currently processing...';
+                                  } else {
+                                    return '✅ Successfully processed';
+                                  }
+                                })()}
                               </span>
                             </td>
                             <td style={{width: '12%'}}>
