@@ -5,7 +5,7 @@ Handles candidate creation, email delivery, interview scheduling, and other asyn
 Runs independently, processing batches of PENDING messages every 30 seconds.
 """
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Dict, Any
 
 from app.core.logging import logger
@@ -80,10 +80,33 @@ def process_message_queue(batch_size: int = 10, timeout_minutes: int = 30) -> Di
                     if message.type == "create_candidate":
                         result = CandidateQueueProcessor.process(message, db)
                     elif message.type in ["engage_candidate_with_thunder", "assign_thunder_agent"]:
-                        # Queue candidate to Thunder for autonomous engagement
+                        # Immediately engage candidate with Thunder (don't wait for 5-min cycle)
                         candidate_id = message.payload.get('candidate_id')
-                        result = {"status": "queued_to_thunder", "candidate_id": candidate_id}
-                        logger.info(f"[Worker] Candidate {candidate_id} queued for Thunder engagement")
+                        try:
+                            from app.services.thunder_autonomous_loop import run_thunder_autonomous_cycle
+
+                            # Run Thunder engagement cycle for this candidate
+                            thunder_result = run_thunder_autonomous_cycle(db)
+                            result = {
+                                "status": "thunder_engaged",
+                                "candidate_id": candidate_id,
+                                "thunder_response": thunder_result
+                            }
+                            logger.info(f"[Worker] ✅ Candidate {candidate_id} engaged with Thunder: {result}")
+                        except Exception as thunder_err:
+                            logger.error(f"[Worker] Failed to engage Thunder for candidate {candidate_id}: {thunder_err}", exc_info=True)
+                            # Mark as FAILED for retry, not COMPLETED
+                            message.status = "FAILED"
+                            message.error = str(thunder_err)
+                            message.completed_at = datetime.utcnow()
+                            message.retry_count = (message.retry_count or 0) + 1
+                            message.next_retry_at = datetime.utcnow() + timedelta(minutes=5)
+                            try:
+                                db.commit()
+                            except Exception as commit_err:
+                                db.rollback()
+                                logger.error(f"[Worker] Failed to mark message as FAILED: {commit_err}", exc_info=True)
+                            raise
                     else:
                         logger.warning(f"[Worker] Unknown message type: {message.type}")
                         message.status = "FAILED"
@@ -149,8 +172,8 @@ def process_candidate_queue(batch_size: int = 5) -> Dict[str, Any]:
             ChannelQueueItem.status == "PENDING"
         ).order_by(ChannelQueueItem.created_at).limit(batch_size).all()
 
-        if all_messages:
-            for message in all_messages:
+        if pending_messages:
+            for message in pending_messages:
                 try:
                     message.status = "PROCESSING"
                     db.commit()
