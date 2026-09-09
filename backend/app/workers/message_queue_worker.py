@@ -12,6 +12,8 @@ from app.core.logging import logger
 from app.core.database import SessionLocal
 from app.models.channel_queue import ChannelQueueItem
 from app.services.channel_processors.candidate_queue_processor import CandidateQueueProcessor
+from app.services.queue_doctor_service import QueueDoctorService
+from app.services.thunder_pause_service import is_thunder_paused
 
 logger = logging.getLogger(__name__)
 
@@ -31,6 +33,14 @@ def process_message_queue(batch_size: int = 10, timeout_minutes: int = 30) -> Di
     messages_processed = 0
 
     try:
+        # Phase 3: Check if Thunder is paused (kill switch)
+        if is_thunder_paused(db):
+            logger.info("[Worker] Thunder paused, skipping queue processing")
+            return {
+                "status": "paused",
+                "messages_processed": 0,
+                "note": "Thunder kill switch active"
+            }
         # Query PENDING messages (ordered by created_at for FIFO)
         # Process PENDING messages
         pending_messages = db.query(ChannelQueueItem).filter(
@@ -65,6 +75,10 @@ def process_message_queue(batch_size: int = 10, timeout_minutes: int = 30) -> Di
                     continue
 
                 try:
+                    # Phase 2: Start diagnostics tracking
+                    doctor_state = QueueDoctorService.start_tracking(message, db)
+                    doctor_state.started_at = datetime.utcnow()
+
                     # Mark as PROCESSING (already in session, no add needed)
                     message.status = "PROCESSING"
                     try:
@@ -172,6 +186,9 @@ def process_message_queue(batch_size: int = 10, timeout_minutes: int = 30) -> Di
                     except Exception as commit_err:
                         db.rollback()
                         logger.error(f"[Worker] Failed to mark COMPLETED: {commit_err}", exc_info=True)
+
+                    # Phase 2: Complete diagnostics tracking
+                    QueueDoctorService.complete_tracking(doctor_state, message, db)
 
                     logger.info(f"[Worker] ✅ Message {message.id} completed successfully")
                     messages_processed += 1
