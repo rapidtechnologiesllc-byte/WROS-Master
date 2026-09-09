@@ -85,17 +85,23 @@ async def get_me(
     permission_resources = []
 
     if current_user.UserID:
-        permissions_dict = RoleTemplatePermissionService.get_user_permissions(
-            db, current_user.UserID, tenant_id
-        )
+        try:
+            permissions_dict = RoleTemplatePermissionService.get_user_permissions(
+                db, current_user.UserID, tenant_id
+            )
 
-        # Extract resource names where user has at least one permission
-        if permissions_dict and isinstance(permissions_dict, dict):
-            for resource_name, perms in permissions_dict.items():
-                # Include resource if user has any permission (view/create/edit/delete)
-                if perms and (perms.get('can_view') or perms.get('can_create') or
-                             perms.get('can_edit') or perms.get('can_delete')):
-                    permission_resources.append(resource_name)
+            # Extract resource names where user has at least one permission
+            if permissions_dict and isinstance(permissions_dict, dict):
+                for resource_name, perms in permissions_dict.items():
+                    # Include resource if user has any permission (view/create/edit/delete)
+                    if perms and (perms.get('can_view') or perms.get('can_create') or
+                                 perms.get('can_edit') or perms.get('can_delete')):
+                        permission_resources.append(resource_name)
+        except (ValueError, AttributeError) as e:
+            # User might not have a role_template assigned yet
+            logger.warning(f"Failed to get permissions for user {current_user.UserID}: {e}")
+            # Continue without permissions - superuser without role_template is acceptable
+            permission_resources = []
 
     # Mint a fresh token using the same claims as login
     access_token = create_access_token(
