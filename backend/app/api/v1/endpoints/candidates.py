@@ -92,17 +92,49 @@ def handle_db_errors(func):
 
 class CreateCandidateRequest(BaseModel):
     """Request to create a new candidate (queued for async processing)"""
-    email: str
-    first_name: str
-    last_name: str
-    mobile: str
-    gender: str
-    current_location: str
+    # Accept both prefixed and unprefixed field names for compatibility
+    email: str = None
+    candidate_email: str = None
+    first_name: str = None
+    candidate_first_name: str = None
+    last_name: str = None
+    candidate_last_name: str = None
+    mobile: str = None
+    candidate_mobile: str = None
+    gender: str = None
+    candidate_gender: str = None
+    current_location: str = None
+    candidate_current_location: str = None
     source: str = "form_submission"
+    candidate_source: str = None
     resume_data: Optional[dict] = None
     education: Optional[list] = None
     experience: Optional[list] = None
     certifications: Optional[list] = None
+
+    class Config:
+        populate_by_name = True  # Allow both field names to be used
+
+    def get_email(self):
+        return self.email or self.candidate_email
+
+    def get_first_name(self):
+        return self.first_name or self.candidate_first_name
+
+    def get_last_name(self):
+        return self.last_name or self.candidate_last_name
+
+    def get_mobile(self):
+        return self.mobile or self.candidate_mobile
+
+    def get_gender(self):
+        return self.gender or self.candidate_gender
+
+    def get_current_location(self):
+        return self.current_location or self.candidate_current_location
+
+    def get_source(self):
+        return self.candidate_source or self.source or "form_submission"
 
 
 class CreateCandidateResponse(BaseModel):
@@ -162,17 +194,30 @@ def create_candidate(
             elif hasattr(current_user, 'id'):
                 user_id = getattr(current_user, 'id')
 
+        # Use getter methods to handle both prefixed and unprefixed field names
+        email = request.get_email()
+        first_name = request.get_first_name()
+        last_name = request.get_last_name()
+        mobile = request.get_mobile()
+        gender = request.get_gender()
+        current_location = request.get_current_location()
+        source = request.get_source()
+
+        # Validate required fields
+        if not email or not first_name or not last_name:
+            raise ValueError("Email, first name, and last name are required")
+
         # Queue the candidate creation to PostgreSQL message queue
         result = MessageQueueService.enqueue(
             task_name='create_candidate',
             data={
-                'candidate_email': request.email,
-                'candidate_first_name': request.first_name,
-                'candidate_last_name': request.last_name,
-                'candidate_mobile': request.mobile,
-                'candidate_gender': request.gender,
-                'candidate_current_location': request.current_location,
-                'candidate_source': request.source,
+                'candidate_email': email,
+                'candidate_first_name': first_name,
+                'candidate_last_name': last_name,
+                'candidate_mobile': mobile,
+                'candidate_gender': gender,
+                'candidate_current_location': current_location,
+                'candidate_source': source,
                 'tenant_id': tenant_id,  # ✅ From authenticated user
                 'user_id': user_id,
                 'education_records': request.education or [],
@@ -184,7 +229,7 @@ def create_candidate(
         message_id = result['message_id']
         polling_endpoint = f"/api/v1/tasks/{message_id}/status"
 
-        logger.info(f"Candidate creation queued: {message_id} ({request.email})")
+        logger.info(f"Candidate creation queued: {message_id} ({email})")
 
         return CreateCandidateResponse(
             status="pending",
