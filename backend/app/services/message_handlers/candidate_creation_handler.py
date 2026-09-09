@@ -52,6 +52,13 @@ class CandidateCreationHandler:
             # 1. CREATE CANDIDATE - Direct ORM mapping from payload
             # Map payload fields to Candidate model fields (payload uses candidate_* naming)
             from app.utils.uniq_id_generator import candidate_id_generator
+
+            # Extract and validate tenant_id (required for multi-tenant isolation)
+            tenant_id = payload.get("tenant_id", 1)
+            if not isinstance(tenant_id, int) or tenant_id < 1:
+                logger.error(f"[Handler] Invalid tenant_id {tenant_id} for {candidate_email}")
+                raise ValueError(f"Invalid tenant_id: {tenant_id}")
+
             candidate = Candidate(
                 candidateID=candidate_id_generator(),
                 candidateEmail=candidate_email,
@@ -73,6 +80,7 @@ class CandidateCreationHandler:
                 candidateExpectedSalary=payload.get("candidate_expected_salary"),
                 candidateCurrentSalary=payload.get("candidate_current_salary"),
                 candidateCreatedAt=datetime.now(),
+                tenant_id=tenant_id,  # ✅ Assign tenant_id from payload
             )
 
             # Check for duplicates before adding

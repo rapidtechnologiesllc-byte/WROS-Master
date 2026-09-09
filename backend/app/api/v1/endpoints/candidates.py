@@ -146,6 +146,14 @@ def create_candidate(
     from app.services.message_queue_service import MessageQueueService
 
     try:
+        # Extract tenant_id from authenticated user (required for multi-tenant isolation)
+        tenant_id = 1  # Default fallback
+        if current_user:
+            if isinstance(current_user, dict):
+                tenant_id = current_user.get('tenant_id', 1)
+            elif hasattr(current_user, 'tenant_id'):
+                tenant_id = getattr(current_user, 'tenant_id', 1)
+
         # Queue the candidate creation to PostgreSQL message queue
         result = MessageQueueService.enqueue(
             task_name='create_candidate',
@@ -157,7 +165,7 @@ def create_candidate(
                 'candidate_gender': request.gender,
                 'candidate_current_location': request.current_location,
                 'candidate_source': request.source,
-                'tenant_id': '1',
+                'tenant_id': tenant_id,  # ✅ From authenticated user
                 'user_id': current_user.get("UserID") if current_user else None,
                 'education_records': request.education or [],
                 'experience_records': request.experience or [],
@@ -275,6 +283,14 @@ async def import_linkedin_candidate_endpoint(
 
         logger.info(f"[LINKEDIN_ENDPOINT] Queueing LinkedIn import: {request.linkedin_url}")
 
+        # Extract tenant_id from authenticated user (LinkedIn import requires auth)
+        tenant_id = 1  # Default fallback
+        if current_user:
+            if isinstance(current_user, dict):
+                tenant_id = current_user.get('tenant_id', 1)
+            elif hasattr(current_user, 'tenant_id'):
+                tenant_id = getattr(current_user, 'tenant_id', 1)
+
         # Queue the LinkedIn import as async task
         # This allows:
         # 1. Quick HTTP response (no blocking on API calls or DB operations)
@@ -286,7 +302,7 @@ async def import_linkedin_candidate_endpoint(
             task_name='import_linkedin_candidate',
             data={
                 'linkedin_url': request.linkedin_url,
-                'tenant_id': 1  # TODO: get from current_user context
+                'tenant_id': tenant_id  # ✅ From authenticated user
             }
         )
 
