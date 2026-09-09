@@ -246,10 +246,34 @@
 
 .queue-type-stats {
   display: flex;
-  gap: 12px;
-  margin: 0 16px;
+  gap: 8px;
+  margin: 0 12px;
   align-items: center;
-  flex: 1;
+  flex: 0.5;
+}
+
+.queue-type-controls {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-left: auto;
+}
+
+.queue-status {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 8px;
+  border-radius: 4px;
+}
+
+.queue-status.running {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.queue-status.paused {
+  background: #fee2e2;
+  color: #991b1b;
 }
 
 .stat-badge {

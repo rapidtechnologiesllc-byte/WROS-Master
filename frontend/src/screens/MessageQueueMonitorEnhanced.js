@@ -116,56 +116,6 @@ const MessageQueueMonitorEnhanced = () => {
         )}
       </div>
 
-      {/* Stats Grid */}
-      {stats && (
-        <div className="stats-grid">
-          <div className="stat-box">
-            <div className="label">Total Messages</div>
-            <div className="value">{stats.total_messages}</div>
-          </div>
-          <div className="stat-box pending">
-            <div className="label">Pending</div>
-            <div className="value">{stats.pending}</div>
-          </div>
-          <div className="stat-box failed">
-            <div className="label">Failed</div>
-            <div className="value">{stats.failed}</div>
-          </div>
-          {healthMetrics && (
-            <>
-              <div className="stat-box">
-                <div className="label">Processing Rate</div>
-                <div className="value">{healthMetrics.processing_rate_per_min.toFixed(1)}/min</div>
-              </div>
-              <div className="stat-box">
-                <div className="label">Success Rate</div>
-                <div className="value">{healthMetrics.success_rate.toFixed(1)}%</div>
-              </div>
-              <div className="stat-box">
-                <div className="label">Avg Time</div>
-                <div className="value">{healthMetrics.avg_processing_ms}ms</div>
-              </div>
-            </>
-          )}
-        </div>
-      )}
-
-      {/* Queue Controls */}
-      <div className="queue-controls">
-        {!isPaused ? (
-          <button onClick={handlePauseQueue} className="btn btn-warning">
-            ⏸ Pause Queue
-          </button>
-        ) : (
-          <button onClick={handleResumeQueue} className="btn btn-success">
-            ▶ Resume Queue
-          </button>
-        )}
-        <span className={`pause-status ${isPaused ? 'paused' : 'running'}`}>
-          {isPaused ? 'Queue Paused' : 'Queue Running'}
-        </span>
-      </div>
-
       {error && <div className="error-message">⚠ {error}</div>}
 
       {/* Queue Groups with Compact/Expand */}
@@ -181,7 +131,7 @@ const MessageQueueMonitorEnhanced = () => {
             });
 
             return Object.entries(groupedByQueue).map(([queueType, rows]) => {
-              const stats = {
+              const queueStats = {
                 pending: rows.filter(r => r.status === 'PENDING').length,
                 processing: rows.filter(r => r.status === 'PROCESSING').length,
                 failed: rows.filter(r => r.status === 'FAILED').length,
@@ -192,13 +142,29 @@ const MessageQueueMonitorEnhanced = () => {
                 <div className="group-header" onClick={() => handleToggleGroup(queueType)}>
                   <span className="toggle-icon">{expandedGroups[queueType] ? '▼' : '▶'}</span>
                   <h4>{queueType} ({rows.length})</h4>
+
+                  {/* Per-Queue Stats */}
                   <div className="queue-type-stats">
-                    {stats.pending > 0 && <span className="stat-badge pending">⏳ {stats.pending}</span>}
-                    {stats.processing > 0 && <span className="stat-badge processing">⚙️ {stats.processing}</span>}
-                    {stats.failed > 0 && <span className="stat-badge failed">❌ {stats.failed}</span>}
-                    {stats.completed > 0 && <span className="stat-badge completed">✅ {stats.completed}</span>}
+                    {queueStats.pending > 0 && <span className="stat-badge pending">⏳ {queueStats.pending}</span>}
+                    {queueStats.processing > 0 && <span className="stat-badge processing">⚙️ {queueStats.processing}</span>}
+                    {queueStats.failed > 0 && <span className="stat-badge failed">❌ {queueStats.failed}</span>}
+                    {queueStats.completed > 0 && <span className="stat-badge completed">✅ {queueStats.completed}</span>}
                   </div>
-                  <div className="group-actions">
+
+                  {/* Per-Queue Controls */}
+                  <div className="queue-type-controls">
+                    {!isPaused ? (
+                      <button onClick={(e) => { e.stopPropagation(); handlePauseQueue(); }} className="btn-sm btn-warning">
+                        ⏸ Pause
+                      </button>
+                    ) : (
+                      <button onClick={(e) => { e.stopPropagation(); handleResumeQueue(); }} className="btn-sm btn-success">
+                        ▶ Resume
+                      </button>
+                    )}
+                    <span className={`queue-status ${isPaused ? 'paused' : 'running'}`}>
+                      {isPaused ? 'Paused' : 'Running'}
+                    </span>
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
