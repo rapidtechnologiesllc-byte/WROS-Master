@@ -74,7 +74,8 @@ async def get_current_user(
         if user_type == "user":
             # "sub" contains UserID
             logger.warning(f"[AUTH-DEBUG] Querying Users by UserID: {user_id}")
-            user = db.query(Users).filter(Users.UserID == user_id).first()
+            from sqlalchemy.orm import joinedload
+            user = db.query(Users).options(joinedload(Users.role_template)).filter(Users.UserID == user_id).first()
             if not user:
                 logger.error(f"[AUTH-DEBUG] User not found with UserID: {user_id}")
         else:
@@ -168,8 +169,10 @@ async def get_current_internal_user(
     """
     Resolve any internal (non-candidate) user from JWT. Used as a base for RBAC guards.
     Allows any user found in the Users table (any role). Candidates are excluded.
+    Eagerly loads role_template relationship to prevent lazy-loading errors.
     """
     try:
+        from sqlalchemy.orm import joinedload
 
         token = credentials.credentials
         payload = decode_access_token(token)
@@ -181,7 +184,8 @@ async def get_current_internal_user(
         if not user_id or user_type == "candidate":
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
 
-        user = db.query(Users).filter(Users.UserID == user_id).first()
+        # Eagerly load role_template to prevent lazy-loading errors outside session
+        user = db.query(Users).options(joinedload(Users.role_template)).filter(Users.UserID == user_id).first()
         if not user:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
 
