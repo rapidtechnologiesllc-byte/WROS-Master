@@ -332,13 +332,21 @@ class CandidateCreationHandler:
     @staticmethod
     def on_retry(message: ChannelQueueItem, error: str, db: Session) -> None:
         """Handle retry logic after failed attempt."""
-        message.retry_count += 1
-        message.error = error
-        message.next_retry_at = datetime.utcnow() + timedelta(minutes=CandidateCreationHandler.RETRY_DELAY_MINUTES)
         try:
+            # Rollback any aborted transaction first (critical for PostgreSQL)
+            db.rollback()
+
+            # Now update the message status in a fresh transaction
+            message.retry_count += 1
+            message.error = error
+            message.next_retry_at = datetime.utcnow() + timedelta(minutes=CandidateCreationHandler.RETRY_DELAY_MINUTES)
+
             db.commit()
         except Exception as e:
-            db.rollback()
+            try:
+                db.rollback()
+            except Exception as rollback_err:
+                logger.error(f"[Handler] Failed to rollback after error: {rollback_err}", exc_info=True)
             logger.error(f"[Handler] Failed to schedule retry: {e}", exc_info=True)
             raise
 
@@ -370,13 +378,21 @@ class CandidateCreationHandler:
     @staticmethod
     def on_failed(message: ChannelQueueItem, final_error: str, db: Session) -> None:
         """Handle final failure after all retries exhausted."""
-        message.status = "FAILED"
-        message.error = final_error
-        message.completed_at = datetime.utcnow()
         try:
+            # Rollback any aborted transaction first (critical for PostgreSQL)
+            db.rollback()
+
+            # Now update the message status in a fresh transaction
+            message.status = "FAILED"
+            message.error = final_error
+            message.completed_at = datetime.utcnow()
+
             db.commit()
         except Exception as e:
-            db.rollback()
+            try:
+                db.rollback()
+            except Exception as rollback_err:
+                logger.error(f"[Handler] Failed to rollback after error: {rollback_err}", exc_info=True)
             logger.error(f"[Handler] Failed to mark failure: {e}", exc_info=True)
             raise
 
