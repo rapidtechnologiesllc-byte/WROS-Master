@@ -94,6 +94,57 @@ def retry_queue_message(message_id: str, db: Session = Depends(get_db)):
     }
 
 
+@router.post("/retry-failed", dependencies=[Depends(require_role_template_permission(*Permissions.ROLE_TEMPLATES_EDIT))])
+def retry_failed_messages(
+    queue_type: str = Query("", description="Filter by queue type (optional)"),
+    db: Session = Depends(get_db),
+):
+    """
+    Retry all failed messages of a specific queue type.
+
+    If queue_type is empty, retries ALL failed messages across all types.
+    """
+    from app.services.queue_doctor_service import QueueDoctorService
+
+    # Query failed messages
+    query = db.query(ChannelQueueItem).filter(ChannelQueueItem.status == "FAILED")
+
+    if queue_type:
+        query = query.filter(ChannelQueueItem.type == queue_type)
+
+    failed_messages = query.all()
+
+    if not failed_messages:
+        return {
+            "status": "no_failed_messages",
+            "retried_count": 0,
+            "message": f"No failed messages found for queue type: {queue_type or 'all'}"
+        }
+
+    # Reset all failed messages to PENDING
+    retried_count = 0
+    for message in failed_messages:
+        message.status = "PENDING"
+        message.error = None
+        message.retry_count = (message.retry_count or 0) + 1
+        message.next_retry_at = datetime.utcnow()  # Pick up immediately
+        QueueDoctorService.record_retry(message, db)
+        retried_count += 1
+
+    try:
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        raise ValueError(f"Failed to retry messages: {str(e)}")
+
+    return {
+        "status": "success",
+        "retried_count": retried_count,
+        "queue_type": queue_type or "all",
+        "message": f"Reset {retried_count} failed messages to PENDING for immediate retry"
+    }
+
+
 @router.get("/stats", dependencies=[Depends(require_role_template_permission(*Permissions.ROLE_TEMPLATES_EDIT))])
 def get_queue_stats(db: Session = Depends(get_db)):
     """Get overall queue statistics."""
