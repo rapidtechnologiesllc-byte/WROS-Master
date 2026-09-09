@@ -93,20 +93,20 @@ def handle_db_errors(func):
 class CreateCandidateRequest(BaseModel):
     """Request to create a new candidate (queued for async processing)"""
     # Accept both prefixed and unprefixed field names for compatibility
-    email: str = None
-    candidate_email: str = None
-    first_name: str = None
-    candidate_first_name: str = None
-    last_name: str = None
-    candidate_last_name: str = None
-    mobile: str = None
-    candidate_mobile: str = None
-    gender: str = None
-    candidate_gender: str = None
-    current_location: str = None
-    candidate_current_location: str = None
-    source: str = "form_submission"
-    candidate_source: str = None
+    email: Optional[str] = None
+    candidate_email: Optional[str] = None
+    first_name: Optional[str] = None
+    candidate_first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    candidate_last_name: Optional[str] = None
+    mobile: Optional[str] = None
+    candidate_mobile: Optional[str] = None
+    gender: Optional[str] = None
+    candidate_gender: Optional[str] = None
+    current_location: Optional[str] = None
+    candidate_current_location: Optional[str] = None
+    source: Optional[str] = "form_submission"
+    candidate_source: Optional[str] = None
     resume_data: Optional[dict] = None
     education: Optional[list] = None
     experience: Optional[list] = None
