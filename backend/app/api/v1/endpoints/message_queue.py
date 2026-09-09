@@ -76,10 +76,11 @@ def retry_queue_message(message_id: str, db: Session = Depends(get_db)):
     if message.status != "FAILED":
         raise ValueError("Only FAILED messages can be retried")
 
-    # Reset message to PENDING for retry
+    # Reset message to PENDING for immediate retry
     message.status = "PENDING"
     message.retry_count = (message.retry_count or 0) + 1
     message.error = None
+    message.next_retry_at = datetime.utcnow()  # Pick up immediately in queue worker
 
     db.commit()
 
