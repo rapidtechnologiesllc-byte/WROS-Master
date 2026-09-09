@@ -16,6 +16,31 @@ from datetime import datetime
 router = APIRouter(prefix="/message-queue", tags=["Message Queue Monitor"])
 
 
+@router.get("/types", dependencies=[Depends(require_role_template_permission(*Permissions.ROLE_TEMPLATES_EDIT))])
+def get_queue_types(db: Session = Depends(get_db)):
+    """
+    Get all unique queue types currently in the system.
+
+    Returns a list of all message types that have been enqueued,
+    allowing the UI to display them dynamically without hardcoding.
+    """
+    from sqlalchemy import distinct
+
+    # Get all unique message types from ChannelQueueItem
+    queue_types = db.query(distinct(ChannelQueueItem.type)).filter(
+        ChannelQueueItem.type.isnot(None)
+    ).all()
+
+    # Extract type names and sort them
+    types = sorted([row[0] for row in queue_types if row[0]])
+
+    return {
+        "queue_types": types,
+        "count": len(types),
+        "description": "All message queue types currently in the system"
+    }
+
+
 @router.get("/display", dependencies=[Depends(require_role_template_permission(*Permissions.ROLE_TEMPLATES_EDIT))])
 def get_message_queue_display(
     status: str = Query("", description="Filter by status: PENDING, PROCESSING, COMPLETED, FAILED"),

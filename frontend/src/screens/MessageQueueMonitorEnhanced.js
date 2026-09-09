@@ -14,6 +14,7 @@ const MessageQueueMonitorEnhanced = () => {
   const [queueDisplay, setQueueDisplay] = useState(null);
   const [stats, setStats] = useState(null);
   const [healthMetrics, setHealthMetrics] = useState(null);
+  const [queueTypes, setQueueTypes] = useState([]);
   const [expandedGroups, setExpandedGroups] = useState({});
   const [expandedPayloads, setExpandedPayloads] = useState({});
   const [loading, setLoading] = useState(true);
@@ -21,6 +22,7 @@ const MessageQueueMonitorEnhanced = () => {
   const [isPaused, setIsPaused] = useState(false);
 
   useEffect(() => {
+    fetchQueueTypes();
     fetchQueueData();
     fetchHealthMetrics();
     const interval = setInterval(() => {
@@ -61,6 +63,17 @@ const MessageQueueMonitorEnhanced = () => {
       }
     } catch (err) {
       console.warn('Could not fetch health metrics:', err);
+    }
+  };
+
+  const fetchQueueTypes = async () => {
+    try {
+      const response = await apiRequest('/api/v1/message-queue/types', 'GET');
+      if (response?.queue_types) {
+        setQueueTypes(response.queue_types);
+      }
+    } catch (err) {
+      console.warn('Could not fetch queue types:', err);
     }
   };
 
