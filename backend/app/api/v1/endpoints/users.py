@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db, check_user
 from app.core.security import get_password_hash, create_access_token
 from app.core.dependencies import get_current_internal_user, require_resource_permission
+from app.services.permission_helper import PermissionHelper
 from app.models import Users, Candidate, CandidateAssignment, Interview, InterviewPanel, InterviewFeedback, PanelMember, BusinessUnit, Department
 
 # Alias for backward compatibility
@@ -80,12 +81,17 @@ async def get_me(
                 "name": rt.name,
             })
 
-    # Get all permissions for the user based on their role template permissions
-    # Returns dict: { "resource_name": { "can_view": True, ... }, ... }
+    # Get all permissions for the user
     permission_resources = []
 
-    # Only fetch permissions if user has a role_template assigned
-    if current_user.UserID and current_user.role_template_id:
+    # Superusers bypass role_template system - they have all permissions
+    is_super = PermissionHelper.is_super_admin(current_user.UserID, db, tenant_id)
+
+    if is_super:
+        # Superuser has access to everything - empty list means "all resources"
+        permission_resources = []
+    elif current_user.UserID and current_user.role_template_id:
+        # Regular users: fetch permissions from role_template
         try:
             permissions_dict = RoleTemplatePermissionService.get_user_permissions(
                 db, current_user.UserID, tenant_id
@@ -99,7 +105,6 @@ async def get_me(
                                  perms.get('can_edit') or perms.get('can_delete')):
                         permission_resources.append(resource_name)
         except Exception as e:
-            # Fallback on any error - superuser without role_template is acceptable
             logger.warning(f"Failed to get permissions for user {current_user.UserID}: {e}")
             permission_resources = []
 
