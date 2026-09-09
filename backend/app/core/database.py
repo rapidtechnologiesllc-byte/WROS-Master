@@ -107,56 +107,26 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 def get_db():
     """
-    Dependency for database session with retry logic for transient failures.
-
-    Implements exponential backoff for transient connection errors.
-    Returns 503 Service Unavailable if database remains unreachable after retries.
+    Dependency for database session.
 
     Yields:
         Session: Database session for the request
-
-    Raises:
-        HTTPException: 503 Service Unavailable if database connection fails
     """
     from app.core.logging import logger
-    from sqlalchemy import text
-    from fastapi import HTTPException
-    import time
 
-    db = None
-    max_retries = 3
-    retry_count = 0
-
-    while retry_count < max_retries:
+    db = SessionLocal()
+    try:
+        yield db
+    except Exception as e:
+        # Log but re-raise - let FastAPI handle the error
+        logger.error(f"Database error in endpoint: {str(e)}", exc_info=True)
+        raise
+    finally:
+        # Always close the session, even if an error occurred
         try:
-            db = SessionLocal()
-            # Test connection - fail fast if database is unreachable
-            db.execute(text("SELECT 1"))
-            logger.debug("Database connection established")
-            try:
-                yield db
-            finally:
-                # Cleanup after request completes
-                if db:
-                    try:
-                        db.close()
-                    except Exception as e:
-                        logger.warning(f"Error closing database session: {str(e)}")
-            return  # Success - exit after yielding
-        except HTTPException:
-            # Don't catch HTTPExceptions - let them propagate
-            if db:
-                try:
-                    db.close()
-                except:
-                    pass
-            raise
+            db.close()
         except Exception as e:
-            retry_count += 1
-
-            if retry_count >= max_retries:
-                # Final attempt failed - return 503
-                logger.error(
+            logger.warning(f"Error closing database session: {str(e)}")
                     f"Database connection failed after {max_retries} attempts: {str(e)}",
                     exc_info=True
                 )
