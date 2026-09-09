@@ -128,7 +128,7 @@ async def get_me(
     )
 
     # Add roles and permissions to response as extra fields
-    response_dict = response_data.dict()
+    response_dict = response_data.model_dump()
     response_dict["roles"] = roles_list
     response_dict["permissions"] = permission_resources
 
