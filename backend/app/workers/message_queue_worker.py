@@ -213,7 +213,11 @@ def process_candidate_queue(batch_size: int = 5) -> Dict[str, Any]:
 
 
 def process_email_queue(batch_size: int = 20) -> Dict[str, Any]:
-    """Process EMAIL_QUEUE messages."""
+    """Process EMAIL_QUEUE messages - actually send emails."""
+    from app.services.email_service import EmailService
+    from app.models.message_queue import EmailTracking
+    from app.models.candidate import Candidate
+
     db = SessionLocal()
     messages_processed = 0
 
@@ -227,13 +231,72 @@ def process_email_queue(batch_size: int = 20) -> Dict[str, Any]:
 
         for message in pending_messages:
             try:
-                message.status = "COMPLETED"
+                payload = message.payload or {}
+                candidate_id = payload.get("candidate_id")
+                recipient_email = payload.get("recipient_email")
+                email_type = payload.get("email_type", "FIRST_ENGAGEMENT")
+                subject = payload.get("subject")
+                body = payload.get("body")
+
+                if not recipient_email or not subject or not body:
+                    logger.warning(f"[EmailQueue] Skipping {message.id} - missing required fields")
+                    message.status = "FAILED"
+                    message.error = "Missing required email fields"
+                    db.commit()
+                    continue
+
+                # Send email via EmailService
+                result = EmailService.send_email(
+                    to=recipient_email,
+                    subject=subject,
+                    body=body
+                )
+
+                if result.get("status") == "success":
+                    # Create email tracking record
+                    tracking = EmailTracking(
+                        candidate_id=candidate_id,
+                        email_type=email_type,
+                        recipient_email=recipient_email,
+                        graph_message_id=result.get("message_id"),
+                        status="SENT",
+                        sent_at=datetime.utcnow()
+                    )
+                    db.add(tracking)
+
+                    # Update candidate email tracking fields
+                    if candidate_id:
+                        candidate = db.query(Candidate).filter(Candidate.candidateID == candidate_id).first()
+                        if candidate:
+                            candidate.first_email_sent_at = datetime.utcnow()
+                            candidate.first_email_delivery_status = "SENT"
+                            candidate.last_email_sent_at = datetime.utcnow()
+                            candidate.last_email_delivery_status = "SENT"
+
+                    message.status = "COMPLETED"
+                    logger.info(f"[EmailQueue] Sent {email_type} to {recipient_email}")
+                else:
+                    # Email send failed
+                    message.status = "FAILED"
+                    message.error = result.get("error", "Email send failed")
+                    if candidate_id:
+                        candidate = db.query(Candidate).filter(Candidate.candidateID == candidate_id).first()
+                        if candidate:
+                            candidate.first_email_delivery_status = "FAILED"
+                            candidate.email_delivery_failure_reason = message.error
+                    logger.error(f"[EmailQueue] Failed to send email: {message.error}")
+
                 message.completed_at = datetime.utcnow()
                 db.commit()
                 messages_processed += 1
+
             except Exception as e:
                 db.rollback()
-                logger.error(f"[EmailQueue] Error: {e}", exc_info=True)
+                logger.error(f"[EmailQueue] Error processing message {message.id}: {e}", exc_info=True)
+                message.status = "FAILED"
+                message.error = str(e)
+                message.completed_at = datetime.utcnow()
+                db.commit()
 
         return {
             "status": "success",

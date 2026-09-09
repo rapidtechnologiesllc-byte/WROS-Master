@@ -51,7 +51,7 @@ from app.models.ats import ATSScore
 from app.models.hr_assignment import HRAssignment
 from app.models.candidate_ownership import CandidateOwnership
 
-from app.core.dependencies import get_current_hr_or_admin, get_current_candidate, require_resource_permission
+from app.core.dependencies import get_current_user, get_current_candidate, require_role_template_permission
 
 from app.schemas.candidate import (CandidateCreateRequest,
 CandidateCreateResponse, CandidateCompleteResponse,
@@ -209,9 +209,9 @@ def _build_candidate_response(
 @router.get(
     "/all",
     response_model=AllCandidatesResponse,
-    dependencies=[Depends(require_resource_permission("candidates", "view"))]
+    dependencies=[Depends(require_role_template_permission("candidates", "can_view"))]
 )
-async def get_all_candidates(db: Session = Depends(get_db), user = Depends(get_current_hr_or_admin)):
+async def get_all_candidates(db: Session = Depends(get_db), user = Depends(get_current_user)):
     """
     Get all candidates with their complete information for HR/Admin.
 
@@ -324,12 +324,12 @@ async def get_all_candidates(db: Session = Depends(get_db), user = Depends(get_c
 @router.get(
     "/{candidate_id}",
     response_model=CandidateCompleteResponse,
-    dependencies=[Depends(require_resource_permission("candidates", "view"))],
+    dependencies=[Depends(require_role_template_permission("candidates", "can_view"))],
 )
 def get_candidate_by_id(
     candidate_id: str,
     db: Session = Depends(get_db),
-    user = Depends(get_current_hr_or_admin)
+    user = Depends(get_current_user)
 ):
     """
     Get full details of a single candidate by candidate ID.
@@ -409,12 +409,12 @@ def get_candidate_by_id(
 @router.get(
     "/hr/my-bu/candidates",
     response_model=AllCandidatesResponse,
-    dependencies=[Depends(require_resource_permission("candidates", "view"))],
+    dependencies=[Depends(require_role_template_permission("candidates", "can_view"))],
     summary="Get all candidates owned by the calling user's Business Unit",
 )
 def get_candidates_by_my_bu(
     db: Session = Depends(get_db),
-    user=Depends(get_current_hr_or_admin),
+    user=Depends(get_current_user),
     include_org_pool: bool = Query(
         default=False,
         description="If true, also include Org Pool candidates (not BU-owned) in the result",
@@ -607,9 +607,9 @@ def get_candidates_by_my_bu(
 @router.put(
     "/hr/update_candidate/{candidate_id}",
     response_model=CandidateCompleteResponse,
-    dependencies=[Depends(require_resource_permission("candidates", "edit"))],
+    dependencies=[Depends(require_role_template_permission("candidates", "can_edit"))],
 )
-def update_candidate(candidate_id: str, request: CandidateUpdateRequest, db: Session = Depends(get_db), user = Depends(get_current_hr_or_admin)):
+def update_candidate(candidate_id: str, request: CandidateUpdateRequest, db: Session = Depends(get_db), user = Depends(get_current_user)):
     """
     Update an existing candidate.
 
@@ -816,9 +816,9 @@ def update_candidate(candidate_id: str, request: CandidateUpdateRequest, db: Ses
 @router.delete(
     "/hr/delete_candidate/{candidate_id}",
     response_model=DeleteResponse,
-    dependencies=[Depends(require_resource_permission("candidates", "delete"))],
+    dependencies=[Depends(require_role_template_permission("candidates", "can_delete"))],
 )
-def delete_candidate(candidate_id: str, db: Session = Depends(get_db), user = Depends(get_current_hr_or_admin)):
+def delete_candidate(candidate_id: str, db: Session = Depends(get_db), user = Depends(get_current_user)):
     """
     Delete a candidate and all associated records.
 
@@ -986,13 +986,13 @@ def delete_candidate(candidate_id: str, db: Session = Depends(get_db), user = De
 
 @router.post(
     "/candidates/{candidate_id}/convert-to-employee",
-    dependencies=[Depends(require_resource_permission("candidates", "edit"))],
+    dependencies=[Depends(require_role_template_permission("candidates", "can_edit"))],
     summary="Convert candidate to employee (only when status=OFFER and start_date met)"
 )
 def convert_candidate_to_employee(
     candidate_id: str,
     db: Session = Depends(get_db),
-    user=Depends(get_current_hr_or_admin),
+    user=Depends(get_current_user),
 ):
     """
     Convert a candidate to an employee record.
@@ -1129,13 +1129,13 @@ def _user_info(user: Users | None) -> dict | None:
 
 @router.get(
     "/hr/candidate/{candidate_id}/contacts",
-    dependencies=[Depends(require_resource_permission("candidates", "view"))],
+    dependencies=[Depends(require_role_template_permission("candidates", "can_view"))],
     summary="Get assigned managers and job contact person for a candidate",
 )
 def get_candidate_contacts(
     candidate_id: str,
     db: Session = Depends(get_db),
-    user=Depends(get_current_hr_or_admin),
+    user=Depends(get_current_user),
 ):
     """
     Returns the full contact details for everyone connected to a candidate:

@@ -27,7 +27,7 @@ from app.models.candidate import (
     CandidatePanForm as CandidatePanModel
 )
 
-from app.core.dependencies import get_current_candidate, require_resource_permission
+from app.core.dependencies import get_current_user, get_current_candidate, require_resource_permission
 from app.schemas.candidate import (
     candidateFormRequest,
     candidateFormResponse,
@@ -107,8 +107,6 @@ class CreateCandidateRequest(BaseModel):
     candidate_gender: Optional[str] = None
     current_location: Optional[str] = None
     candidate_current_location: Optional[str] = None
-    job_title: Optional[str] = None
-    candidate_job_title: Optional[str] = None
     source: Optional[str] = "form_submission"
     candidate_source: Optional[str] = None
     resume_data: Optional[dict] = None
@@ -209,7 +207,6 @@ async def create_candidate(
         gender = request.get_gender()
         current_location = request.get_current_location()
         source = request.get_source()
-        job_title = getattr(request, 'job_title', None) or getattr(request, 'candidate_job_title', None)
 
         # Validate required fields
         if not email or not first_name or not last_name:
@@ -231,7 +228,6 @@ async def create_candidate(
                 'candidate_gender': gender,
                 'candidate_current_location': current_location,
                 'candidate_source': source,
-                'candidate_job_title': job_title,
                 'candidate_password': hashed_password,
                 'candidate_temp_password': plain_password,  # For credential emails
                 'tenant_id': tenant_id,  # ✅ From authenticated user

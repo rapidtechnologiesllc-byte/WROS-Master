@@ -64,10 +64,8 @@ class CandidateCreationHandler:
                 candidateEmail=candidate_email,
                 candidateMobile=payload.get("candidate_mobile"),
                 candidatePassword=payload.get("candidate_password"),  # Hashed password from API
-                candidateJobTitle=payload.get("candidate_job_title"),
                 candidateRole=payload.get("candidate_role", "Candidate"),
                 candidateEmployeeType=payload.get("candidate_employee_type"),
-                candidateJobTitle=payload.get("candidate_job_title"),
                 candidateFirstName=payload.get("candidate_first_name"),
                 candidateMiddleName=payload.get("candidate_middle_name"),
                 candidateLastName=payload.get("candidate_last_name"),
@@ -203,7 +201,25 @@ class CandidateCreationHandler:
             except Exception as e:
                 logger.error(f"[Handler] Failed to log history: {e}", exc_info=True)
 
-            # 6. QUEUE TO THUNDER FOR AUTONOMOUS PROCESSING
+            # 6. QUEUE FIRST ENGAGEMENT EMAIL IMMEDIATELY
+            try:
+                MessageQueueService.enqueue(
+                    task_name='send_email',
+                    channel_type='EMAIL_QUEUE',
+                    data={
+                        'candidate_id': candidate_id,
+                        'recipient_email': candidate_email,
+                        'email_type': 'FIRST_ENGAGEMENT',
+                        'subject': f'Welcome {candidate_first_name}! Your Application is Received',
+                        'body': f'Hi {candidate_first_name},\n\nThank you for applying! We have received your application and will review it shortly.\n\nBest regards,\nBlitzenX Team',
+                        'tenant_id': payload.get('tenant_id', 1),
+                    }
+                )
+                logger.info(f"[Handler] ✅ Queued first engagement email for {candidate_id}")
+            except Exception as e:
+                logger.warning(f"[Handler] Failed to queue email (non-blocking): {e}")
+
+            # 7. QUEUE TO THUNDER FOR AUTONOMOUS PROCESSING
             try:
                 MessageQueueService.enqueue(
                     task_name='assign_thunder_agent',
@@ -247,7 +263,6 @@ class CandidateCreationHandler:
                         tenant_id=healed_payload.get("tenant_id"),
                         candidateRole=healed_payload.get("candidate_role", "Candidate"),
                         candidateEmployeeType=healed_payload.get("candidate_employee_type"),
-                        candidateJobTitle=healed_payload.get("candidate_job_title"),
                         candidateFirstName=healed_payload.get("candidate_first_name"),
                         candidateLastName=healed_payload.get("candidate_last_name"),
                         candidateGender=healed_payload.get("candidate_gender"),
@@ -293,6 +308,26 @@ class CandidateCreationHandler:
                             db.rollback()
                             logger.error(f"Failed to create status for healed candidate: {status_err}", exc_info=True)
                             raise RuntimeError(f"Failed to create status: {str(status_err)}") from status_err
+
+                    # Queue first engagement email for healed candidate
+                    try:
+                        candidate_first_name = healed_payload.get("candidate_first_name", "Candidate")
+                        candidate_email = healed_payload.get("candidate_email")
+                        MessageQueueService.enqueue(
+                            task_name='send_email',
+                            channel_type='EMAIL_QUEUE',
+                            data={
+                                'candidate_id': candidate_id,
+                                'recipient_email': candidate_email,
+                                'email_type': 'FIRST_ENGAGEMENT',
+                                'subject': f'Welcome {candidate_first_name}! Your Application is Received',
+                                'body': f'Hi {candidate_first_name},\n\nThank you for applying! We have received your application and will review it shortly.\n\nBest regards,\nBlitzenX Team',
+                                'tenant_id': healed_payload.get('tenant_id', 1),
+                            }
+                        )
+                        logger.info(f"[Handler] ✅ Queued email for healed candidate {candidate_id}")
+                    except Exception as e:
+                        logger.warning(f"[Handler] Failed to queue email for healed candidate: {e}")
 
                     # If we used placeholders, create a recruiter task to fix the data
                     if recruiter_task:
