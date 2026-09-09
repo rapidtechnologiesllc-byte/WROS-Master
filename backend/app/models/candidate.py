@@ -118,13 +118,6 @@ class Candidate(Base):
     upload_error = Column(Text, nullable=True)  # Error message if upload failed
     celery_task_id = Column(String(512), nullable=True)  # Task ID for monitoring
 
-    # Email Delivery Tracking
-    first_email_sent_at = Column(DateTime, nullable=True)  # When first engagement email was sent
-    first_email_delivery_status = Column(String(50), nullable=True)  # PENDING, SENT, BOUNCED, FAILED, OPENED
-    last_email_sent_at = Column(DateTime, nullable=True)  # When last email was sent
-    last_email_delivery_status = Column(String(50), nullable=True)  # PENDING, SENT, BOUNCED, FAILED, OPENED
-    email_delivery_failure_reason = Column(Text, nullable=True)  # Why email failed to deliver
-
     # Relationships
     documents = relationship("CandidateDocument", back_populates="candidate", foreign_keys="CandidateDocument.candidate_id")
     job = relationship("Jobs", foreign_keys=[job_id], lazy="select", back_populates="candidates")
