@@ -45,7 +45,7 @@ router = APIRouter(prefix="/hr", tags=["hr"])
 
 @router.get(
     "/me",
-    dependencies=[Depends(get_current_internal_user), Depends(require_resource_permission("user", "view"))],
+    dependencies=[Depends(get_current_internal_user)],
     summary="Get current HR/Admin user's profile with a fresh access token",
 )
 async def get_me(
