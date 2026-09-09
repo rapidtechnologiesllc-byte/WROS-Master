@@ -240,6 +240,12 @@ def create_candidate(
             polling_endpoint=polling_endpoint,
         )
 
+    except ValueError as e:
+        logger.error(f"Validation error in candidate creation: {e}")
+        raise HTTPException(
+            status_code=400,
+            detail=str(e),
+        ) from e
     except Exception as e:
         logger.error(f"Failed to queue candidate creation: {e}", exc_info=True)
         raise HTTPException(
