@@ -189,58 +189,79 @@ const MessageQueueMonitor = () => {
 
       {queueDisplay && queueDisplay.rows && (
         <div className="queue-table">
-          <h3>Queue Operations (Newest First)</h3>
-          <div className="table-scroll">
-            <table>
-              <thead>
-                <tr>
-                  <th>Queue</th>
-                  <th>Action</th>
-                  <th>Status</th>
-                  <th>Resource ID</th>
-                  <th>Created By</th>
-                  <th>Created At</th>
-                  <th>Retries</th>
-                  <th>Preview</th>
-                </tr>
-              </thead>
-              <tbody>
-                {queueDisplay.rows.map((row) => (
-                  <tr key={row.id} className={`status-${row.status.toLowerCase()}`}>
-                    <td>
-                      <span className="queue-type">{row.queue_type}</span>
-                    </td>
-                    <td>
-                      <span className="action-badge" style={getActionBadge(row.action)}>
-                        {row.action}
-                      </span>
-                    </td>
-                    <td>
-                      <span className="status-badge" style={getStatusBadge(row.status)}>
-                        {row.status}
-                      </span>
-                    </td>
-                    <td className="resource-id">{row.resource_id || '-'}</td>
-                    <td className="created-by">{row.created_by}</td>
-                    <td className="timestamp">
-                      {new Date(row.created_at).toLocaleString()}
-                    </td>
-                    <td className="retry-count">{row.retry_count}</td>
-                    <td className="preview">
-                      {row.payload_preview && Object.keys(row.payload_preview).length > 0 ? (
-                        <details>
-                          <summary>View</summary>
-                          <pre>{JSON.stringify(row.payload_preview, null, 2)}</pre>
-                        </details>
-                      ) : (
-                        '-'
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <h3>Queue Operations by Type (Newest First)</h3>
+          {(() => {
+            const groupedByQueue = {};
+            queueDisplay.rows.forEach(row => {
+              const queueType = row.type || 'UNKNOWN';
+              if (!groupedByQueue[queueType]) {
+                groupedByQueue[queueType] = [];
+              }
+              groupedByQueue[queueType].push(row);
+            });
+
+            return Object.entries(groupedByQueue).map(([queueType, rows]) => (
+              <div key={queueType} className="queue-group">
+                <h4>{queueType} ({rows.length})</h4>
+                <div className="table-scroll">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Type</th>
+                        <th>Status</th>
+                        <th>Created At</th>
+                        <th>Completed At</th>
+                        <th>Retries</th>
+                        <th>Error</th>
+                        <th>Preview</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {rows.map((row) => (
+                        <tr key={row.id} className={`status-${row.status.toLowerCase()}`}>
+                          <td>
+                            <span className="queue-type">{row.type}</span>
+                          </td>
+                          <td>
+                            <span className="status-badge" style={getStatusBadge(row.status)}>
+                              {row.status}
+                            </span>
+                          </td>
+                          <td className="timestamp">
+                            {new Date(row.created_at).toLocaleString()}
+                          </td>
+                          <td className="timestamp">
+                            {row.completed_at ? new Date(row.completed_at).toLocaleString() : '-'}
+                          </td>
+                          <td className="retry-count">{row.retry_count || 0}</td>
+                          <td className="error-message">
+                            {row.error ? (
+                              <details>
+                                <summary>Error</summary>
+                                <pre>{row.error}</pre>
+                              </details>
+                            ) : (
+                              '-'
+                            )}
+                          </td>
+                          <td className="preview">
+                            {row.payload ? (
+                              <details>
+                                <summary>View</summary>
+                                <pre>{JSON.stringify(row.payload, null, 2)}</pre>
+                              </details>
+                            ) : (
+                              '-'
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ));
+          })()}
           {queueDisplay.rows.length === 0 && (
             <div className="empty-state">No messages in queue</div>
           )}

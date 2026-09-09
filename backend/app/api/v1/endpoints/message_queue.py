@@ -73,11 +73,17 @@ def get_queue_stats(db: Session = Depends(get_db)):
     completed = db.query(ChannelQueueItem).filter(ChannelQueueItem.status == "COMPLETED").count()
     failed = db.query(ChannelQueueItem).filter(ChannelQueueItem.status == "FAILED").count()
 
+    # Count messages by queue type
+    from sqlalchemy import func
+    queue_counts = db.query(ChannelQueueItem.type, func.count(ChannelQueueItem.id)).group_by(ChannelQueueItem.type).all()
+    by_queue = {queue_type: count for queue_type, count in queue_counts}
+
     return {
         "total_messages": total,
         "pending": pending,
         "processing": processing,
         "completed": completed,
         "failed": failed,
+        "by_queue": by_queue,
         "timestamp": datetime.utcnow().isoformat(),
     }
