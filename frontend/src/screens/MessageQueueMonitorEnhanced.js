@@ -108,6 +108,16 @@ const MessageQueueMonitorEnhanced = () => {
     }
   };
 
+  const handleRetryMessage = async (messageId) => {
+    try {
+      await apiRequest(`/api/v1/message-queue/${messageId}/retry`, { method: 'POST' });
+      await fetchQueueData();
+      setError(null);
+    } catch (err) {
+      setError(`Failed to retry message ${messageId}: ${err.message}`);
+    }
+  };
+
   if (loading) return <div className="queue-loading">Loading queue...</div>;
 
   return (
@@ -261,7 +271,12 @@ const MessageQueueMonitorEnhanced = () => {
                               </td>
                               <td style={{width: '12%'}}>
                                 {row.status === 'FAILED' && (
-                                  <button className="btn-sm btn-primary">Retry</button>
+                                  <button
+                                    onClick={() => handleRetryMessage(row.id)}
+                                    className="btn-sm btn-primary"
+                                  >
+                                    Retry
+                                  </button>
                                 )}
                               </td>
                             </tr>
