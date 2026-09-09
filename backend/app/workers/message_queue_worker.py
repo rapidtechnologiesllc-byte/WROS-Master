@@ -170,6 +170,8 @@ def process_message_queue(batch_size: int = 10, timeout_minutes: int = 30) -> Di
                         message.status = "FAILED"
                         message.error = f"Unknown message type: {message.type}"
                         message.completed_at = datetime.utcnow()
+                        message.retry_count = (message.retry_count or 0) + 1
+                        message.next_retry_at = datetime.utcnow() + timedelta(minutes=5)  # Schedule retry
                         try:
                             db.commit()
                         except Exception as commit_err:
