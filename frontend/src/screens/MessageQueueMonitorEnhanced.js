@@ -15,6 +15,7 @@ const MessageQueueMonitorEnhanced = () => {
   const [stats, setStats] = useState(null);
   const [healthMetrics, setHealthMetrics] = useState(null);
   const [expandedGroups, setExpandedGroups] = useState({});
+  const [expandedPayloads, setExpandedPayloads] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [isPaused, setIsPaused] = useState(false);
@@ -67,6 +68,13 @@ const MessageQueueMonitorEnhanced = () => {
     setExpandedGroups(prev => ({
       ...prev,
       [queueType]: !prev[queueType]
+    }));
+  };
+
+  const handleTogglePayload = (messageId) => {
+    setExpandedPayloads(prev => ({
+      ...prev,
+      [messageId]: !prev[messageId]
     }));
   };
 
@@ -143,12 +151,24 @@ const MessageQueueMonitorEnhanced = () => {
                   <span className="toggle-icon">{expandedGroups[queueType] ? '▼' : '▶'}</span>
                   <h4>{queueType} ({rows.length})</h4>
 
-                  {/* Per-Queue Stats */}
+                  {/* Per-Queue Stats - Column Display */}
                   <div className="queue-type-stats">
-                    {queueStats.pending > 0 && <span className="stat-badge pending">⏳ {queueStats.pending}</span>}
-                    {queueStats.processing > 0 && <span className="stat-badge processing">⚙️ {queueStats.processing}</span>}
-                    {queueStats.failed > 0 && <span className="stat-badge failed">❌ {queueStats.failed}</span>}
-                    {queueStats.completed > 0 && <span className="stat-badge completed">✅ {queueStats.completed}</span>}
+                    <div className="stat-column">
+                      <div className="stat-label">PENDING</div>
+                      <div className="stat-value pending">{queueStats.pending}</div>
+                    </div>
+                    <div className="stat-column">
+                      <div className="stat-label">PROCESSING</div>
+                      <div className="stat-value processing">{queueStats.processing}</div>
+                    </div>
+                    <div className="stat-column">
+                      <div className="stat-label">FAILED</div>
+                      <div className="stat-value failed">{queueStats.failed}</div>
+                    </div>
+                    <div className="stat-column">
+                      <div className="stat-label">COMPLETED</div>
+                      <div className="stat-value completed">{queueStats.completed}</div>
+                    </div>
                   </div>
 
                   {/* Per-Queue Controls */}
@@ -193,47 +213,80 @@ const MessageQueueMonitorEnhanced = () => {
                       </thead>
                       <tbody>
                         {rows.map(row => (
-                          <tr key={row.id} className={`status-${row.status.toLowerCase()}`}>
-                            <td title={row.id} style={{width: '12%'}}>{row.id.substring(0, 16)}...</td>
-                            <td style={{width: '8%'}}>
-                              <span className={`badge badge-${row.status.toLowerCase()}`}>
-                                {row.status}
-                              </span>
-                            </td>
-                            <td style={{width: '12%'}}>{new Date(row.created_at).toLocaleString()}</td>
-                            <td style={{width: '6%', fontWeight: 'bold', color: row.retry_count > 0 ? '#f59e0b' : '#000'}}>
-                              {row.retry_count || 0}
-                            </td>
-                            <td style={{width: '25%', maxHeight: '80px', overflow: 'auto', whiteSpace: 'normal', wordBreak: 'break-word'}}>
-                              <span className="error-text" title={row.error || 'None'}>
-                                {row.error ? row.error.substring(0, 100) + (row.error.length > 100 ? '...' : '') : '-'}
-                              </span>
-                            </td>
-                            <td style={{width: '25%', maxHeight: '80px', overflow: 'auto', whiteSpace: 'normal', wordBreak: 'break-word', fontSize: '12px', color: '#666'}}>
-                              <span className="doctor-advice">
-                                {(() => {
-                                  if (row.status === 'FAILED') {
-                                    if (row.retry_count >= 5) {
-                                      return '❌ Max retries exceeded - manual review required';
+                          <React.Fragment key={row.id}>
+                            <tr className={`status-${row.status.toLowerCase()}`}>
+                              <td title={row.id} style={{width: '12%'}}>
+                                <div style={{display: 'flex', alignItems: 'center', gap: '8px'}}>
+                                  <button
+                                    onClick={() => handleTogglePayload(row.id)}
+                                    style={{background: 'none', border: 'none', cursor: 'pointer', padding: '4px', fontSize: '12px'}}
+                                  >
+                                    {expandedPayloads[row.id] ? '▼' : '▶'}
+                                  </button>
+                                  <span title={row.id}>{row.id.substring(0, 12)}...</span>
+                                </div>
+                              </td>
+                              <td style={{width: '8%'}}>
+                                <span className={`badge badge-${row.status.toLowerCase()}`}>
+                                  {row.status}
+                                </span>
+                              </td>
+                              <td style={{width: '12%'}}>{new Date(row.created_at).toLocaleString()}</td>
+                              <td style={{width: '6%', fontWeight: 'bold', color: row.retry_count > 0 ? '#f59e0b' : '#000'}}>
+                                {row.retry_count || 0}
+                              </td>
+                              <td style={{width: '25%', maxHeight: '80px', overflow: 'auto', whiteSpace: 'normal', wordBreak: 'break-word'}}>
+                                <span className="error-text" title={row.error || 'None'}>
+                                  {row.error ? row.error.substring(0, 100) + (row.error.length > 100 ? '...' : '') : '-'}
+                                </span>
+                              </td>
+                              <td style={{width: '25%', maxHeight: '80px', overflow: 'auto', whiteSpace: 'normal', wordBreak: 'break-word', fontSize: '12px', color: '#666'}}>
+                                <span className="doctor-advice">
+                                  {(() => {
+                                    if (row.status === 'FAILED') {
+                                      if (row.retry_count >= 5) {
+                                        return '❌ Max retries exceeded - manual review required';
+                                      } else {
+                                        return `🔄 Scheduled for retry (Attempt ${(row.retry_count || 0) + 1}/5)`;
+                                      }
+                                    } else if (row.status === 'PENDING') {
+                                      return '⏳ Queued for processing';
+                                    } else if (row.status === 'PROCESSING') {
+                                      return '⚙️ Currently processing...';
                                     } else {
-                                      return `🔄 Scheduled for retry (Attempt ${(row.retry_count || 0) + 1}/5)`;
+                                      return '✅ Successfully processed';
                                     }
-                                  } else if (row.status === 'PENDING') {
-                                    return '⏳ Queued for processing';
-                                  } else if (row.status === 'PROCESSING') {
-                                    return '⚙️ Currently processing...';
-                                  } else {
-                                    return '✅ Successfully processed';
-                                  }
-                                })()}
-                              </span>
-                            </td>
-                            <td style={{width: '12%'}}>
-                              {row.status === 'FAILED' && (
-                                <button className="btn-sm btn-primary">Retry</button>
-                              )}
-                            </td>
-                          </tr>
+                                  })()}
+                                </span>
+                              </td>
+                              <td style={{width: '12%'}}>
+                                {row.status === 'FAILED' && (
+                                  <button className="btn-sm btn-primary">Retry</button>
+                                )}
+                              </td>
+                            </tr>
+                            {expandedPayloads[row.id] && (
+                              <tr className={`status-${row.status.toLowerCase()}`}>
+                                <td colSpan="7" style={{padding: '12px', background: '#f9fafb', borderTop: '1px solid #e5e7eb'}}>
+                                  <div style={{fontSize: '12px'}}>
+                                    <div style={{fontWeight: '600', marginBottom: '8px', color: '#1a1a1a'}}>Message Payload:</div>
+                                    <pre style={{
+                                      background: '#1a1a1a',
+                                      color: '#00ff00',
+                                      padding: '12px',
+                                      borderRadius: '4px',
+                                      overflow: 'auto',
+                                      maxHeight: '300px',
+                                      fontSize: '11px',
+                                      fontFamily: 'monospace'
+                                    }}>
+                                      {JSON.stringify(row.payload || {}, null, 2)}
+                                    </pre>
+                                  </div>
+                                </td>
+                              </tr>
+                            )}
+                          </React.Fragment>
                         ))}
                       </tbody>
                     </table>

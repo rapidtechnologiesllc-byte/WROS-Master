@@ -245,11 +245,55 @@
 }
 
 .queue-type-stats {
-  display: flex;
-  gap: 8px;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
   margin: 0 12px;
+  flex: 0.6;
   align-items: center;
-  flex: 0.5;
+}
+
+.stat-column {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 8px;
+  border-radius: 4px;
+  background: #f3f4f6;
+}
+
+.stat-label {
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #666;
+  width: 100%;
+  text-align: center;
+}
+
+.stat-value {
+  font-size: 20px;
+  font-weight: 700;
+  text-align: center;
+  line-height: 1;
+}
+
+.stat-value.pending {
+  color: #f59e0b;
+}
+
+.stat-value.processing {
+  color: #3b82f6;
+}
+
+.stat-value.failed {
+  color: #ef4444;
+}
+
+.stat-value.completed {
+  color: #10b981;
 }
 
 .queue-type-controls {
