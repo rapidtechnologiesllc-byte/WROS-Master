@@ -2,11 +2,11 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from app.core.database import get_db
-from app.core.dependencies import get_current_internal_user
-from app.models.user import Users
+from app.core.dependencies import get_current_internal_user, require_resource_permission
+from app.core.permission_registry import Permissions
+from app.models.business_unit import BusinessUnit
 from pydantic import BaseModel
-from typing import List
-from sqlalchemy import text
+from typing import List, Optional
 
 router = APIRouter(prefix="/business-units", tags=["business-units"])
 
@@ -14,11 +14,22 @@ router = APIRouter(prefix="/business-units", tags=["business-units"])
 class BusinessUnitResponse(BaseModel):
     id: int
     name: str
-    region: str = None
-    continent: str = None
+    display_name: str
+    bu_code: Optional[str] = None
+    description: Optional[str] = None
+    manager_id: Optional[str] = None
+    active: bool = True
 
     class Config:
         from_attributes = True
+
+
+class BusinessUnitCreateRequest(BaseModel):
+    name: str
+    display_name: str
+    bu_code: Optional[str] = None
+    description: Optional[str] = None
+    manager_id: Optional[str] = None
 
 
 class ClientResponse(BaseModel):
@@ -36,25 +47,10 @@ class ClientResponse(BaseModel):
 async def get_business_units(
     db: Session = Depends(get_db),
 ):
-    """Get all business units from database"""
+    """Get all active business units from database"""
     try:
-        # Query from database
-        result = db.execute(text("SELECT id, name, region, continent FROM business_units ORDER BY name"))
-        rows = result.fetchall()
-
-        if not rows:
-            # Return empty list if no BUs exist
-            return []
-
-        return [
-            {
-                "id": row[0],
-                "name": row[1],
-                "region": row[2],
-                "continent": row[3],
-            }
-            for row in rows
-        ]
+        business_units = db.query(BusinessUnit).filter(BusinessUnit.active == True).order_by(BusinessUnit.name).all()
+        return business_units
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -64,34 +60,115 @@ async def get_business_units(
 
 @router.post("", response_model=BusinessUnitResponse, dependencies=[Depends(get_current_internal_user)])
 async def create_business_unit(
-    name: str,
-    region: str = None,
-    continent: str = None,
+    request: BusinessUnitCreateRequest,
     db: Session = Depends(get_db),
 ):
     """Create a new business unit"""
     try:
-        result = db.execute(
-            text("""
-                INSERT INTO business_units (name, region, continent, created_at)
-                VALUES (:name, :region, :continent, NOW())
-                RETURNING id, name, region, continent
-            """),
-            {"name": name, "region": region, "continent": continent}
+        if not request.name.strip():
+            raise HTTPException(status_code=400, detail="Business unit name is required")
+
+        if not request.display_name.strip():
+            raise HTTPException(status_code=400, detail="Display name is required")
+
+        # Check for duplicate bu_code if provided
+        if request.bu_code:
+            existing = db.query(BusinessUnit).filter(BusinessUnit.bu_code == request.bu_code).first()
+            if existing:
+                raise HTTPException(status_code=409, detail=f"Business unit code '{request.bu_code}' already exists")
+
+        business_unit = BusinessUnit(
+            name=request.name,
+            display_name=request.display_name,
+            bu_code=request.bu_code,
+            description=request.description,
+            manager_id=request.manager_id,
+            active=True
         )
+        db.add(business_unit)
         db.commit()
-        row = result.fetchone()
-        return {
-            "id": row[0],
-            "name": row[1],
-            "region": row[2],
-            "continent": row[3],
-        }
+        db.refresh(business_unit)
+        return business_unit
+    except HTTPException:
+        db.rollback()
+        raise
     except Exception as e:
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to create business unit: {str(e)}"
+        )
+
+
+@router.put("/{bu_id}", response_model=BusinessUnitResponse, dependencies=[Depends(get_current_internal_user)])
+async def update_business_unit(
+    bu_id: int,
+    request: BusinessUnitCreateRequest,
+    db: Session = Depends(get_db),
+):
+    """Update a business unit"""
+    try:
+        business_unit = db.query(BusinessUnit).filter(BusinessUnit.id == bu_id).first()
+        if not business_unit:
+            raise HTTPException(status_code=404, detail=f"Business unit {bu_id} not found")
+
+        if not request.name.strip():
+            raise HTTPException(status_code=400, detail="Business unit name is required")
+
+        if not request.display_name.strip():
+            raise HTTPException(status_code=400, detail="Display name is required")
+
+        # Check for duplicate bu_code if changed
+        if request.bu_code and request.bu_code != business_unit.bu_code:
+            existing = db.query(BusinessUnit).filter(BusinessUnit.bu_code == request.bu_code).first()
+            if existing:
+                raise HTTPException(status_code=409, detail=f"Business unit code '{request.bu_code}' already exists")
+
+        business_unit.name = request.name
+        business_unit.display_name = request.display_name
+        business_unit.bu_code = request.bu_code
+        business_unit.description = request.description
+        business_unit.manager_id = request.manager_id
+
+        db.commit()
+        db.refresh(business_unit)
+        return business_unit
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to update business unit: {str(e)}"
+        )
+
+
+@router.delete("/{bu_id}")
+async def delete_business_unit(
+    bu_id: int,
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_internal_user)
+):
+    """Soft delete a business unit (sets active=False, preserves data relationships)"""
+    try:
+        business_unit = db.query(BusinessUnit).filter(BusinessUnit.id == bu_id).first()
+        if not business_unit:
+            raise HTTPException(status_code=404, detail=f"Business unit {bu_id} not found")
+
+        # Soft delete: set active=False instead of removing row
+        business_unit.active = False
+        db.commit()
+
+        return {"status": "success", "id": bu_id, "message": f"Business unit {bu_id} deleted"}
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to delete business unit: {str(e)}"
         )
 
 

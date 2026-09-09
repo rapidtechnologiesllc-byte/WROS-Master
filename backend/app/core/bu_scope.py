@@ -35,31 +35,68 @@ from sqlalchemy.orm import Query, Session
 from app.models.candidate import Candidate
 from app.models.candidate_ownership import CandidateOwnership, POOL_ORG
 from app.models.user import Users
+from app.core.visibility import should_bypass_bu_filter, get_user_bu_id
+
+logger = logging.getLogger(__name__)
+
 
 def is_bu_restricted(db: Session, user: Users) -> bool:
-    # RoleTemplate-based BU restriction check
-    # Users with business_unit_id set are BU-restricted (can only see their BU's data)
-    # Super users and global roles have no business_unit_id
-    return user.business_unit_id is not None
+    """
+    Check if user should have BU-restricted visibility.
+
+    Uses visibility.py to determine if user is org-level:
+    - Org-level users (via role_template.org_level_access) see ALL candidates (not restricted)
+    - Regular users (BU-scoped) see only their BU's candidates (restricted)
+    """
+    # If user should bypass BU filter (org-level), they are NOT restricted
+    if should_bypass_bu_filter(user):
+        return False
+
+    # If user has a BU assigned, they ARE restricted to that BU
+    return get_user_bu_id(user) is not None
 
 def apply_bu_scope_to_candidate_query(db: Session, query: Query, current_user: Users) -> Query:
-    """Narrows an existing Candidate query to Org Pool candidates plus
-    whatever the caller's own Business Unit owns. A no-op for
-    global-access roles (Super User, Partner, HR Operations -- whoever
-    isn't bu_restricted per the RBAC seed)."""
-    if not is_bu_restricted(db, current_user):
+    """
+    Narrows an existing Candidate query to Org Pool candidates plus
+    whatever the caller's own Business Unit owns.
+
+    For org-level users (CEO, Super User, etc. with org_level_access=True):
+    - Returns unmodified query (see all candidates)
+
+    For BU-scoped users (Recruiters, Hiring Managers, etc.):
+    - Filters to Org Pool candidates + their own BU's assigned candidates
+    - Fail closed: if no BU assigned, see only org-wide pool
+
+    This uses visibility.py to determine org-level status, so the rule is:
+    - role_template.org_level_access=True → org-level (no filtering)
+    - role_template.org_level_access=False → BU-scoped (filter by business_unit_id)
+    """
+    # Check if user should bypass BU filtering (org-level user)
+    if should_bypass_bu_filter(current_user):
+        # Org-level user: return unmodified query, they see everything
+        logger.debug(f"BU scoping bypassed for org-level user: {current_user.UserEmail}")
         return query
 
+    # BU-scoped user: apply filtering
+    user_bu_id = get_user_bu_id(current_user)
+
+    # Join with CandidateOwnership to determine BU ownership
     query = query.outerjoin(CandidateOwnership, CandidateOwnership.candidateID == Candidate.candidateID)
+
+    # Define org pool visibility: candidates not yet assigned to a BU, or explicitly in org pool
     org_pool_visible = or_(
         CandidateOwnership.id.is_(None),  # never assigned a BU-owning job -- Org Pool by default
         CandidateOwnership.pool_status == POOL_ORG,
     )
-    if current_user.business_unit_id is None:
-        # Fail closed: a bu_restricted user with no BU assigned sees
-        # only the org-wide pool, never another BU's owned candidates.
+
+    if user_bu_id is None:
+        # Fail closed: a BU-scoped user with no BU assigned sees only the org-wide pool
+        logger.debug(f"BU-scoped user {current_user.UserEmail} has no BU assigned, filtering to org pool only")
         return query.filter(org_pool_visible)
-    return query.filter(or_(org_pool_visible, CandidateOwnership.owned_by_bu_id == current_user.business_unit_id))
+
+    # BU-scoped user with assigned BU: see org pool + their own BU's candidates
+    logger.debug(f"Applying BU scope for user {current_user.UserEmail} to BU {user_bu_id}")
+    return query.filter(or_(org_pool_visible, CandidateOwnership.owned_by_bu_id == user_bu_id))
 
 def get_bu_scoped_candidate_ids(db: Session, current_user: Users) -> Optional[Set[str]]:
     """Returns the set of candidate IDs visible to current_user under

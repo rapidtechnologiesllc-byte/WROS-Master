@@ -63,6 +63,9 @@ class RoleTemplate(Base):
     is_system = Column(Boolean, default=False)  # True for built-in roles, False for custom
     # PRODUCTION SAFETY: enabled MUST default to True, never allow None
     enabled = Column(Boolean, default=True, nullable=False, server_default="true")
+    # Org-level access: True if role should see organization-level data (all BUs)
+    # False if role should be scoped to assigned Business Unit only
+    org_level_access = Column(Boolean, default=False, nullable=False, server_default="false")
     # PRODUCTION SAFETY: tenant_id MUST be set, never allow None. Default to 1 (single tenant)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False, server_default="1", default=1)
     created_by = Column(String(255))  # user email who created it
