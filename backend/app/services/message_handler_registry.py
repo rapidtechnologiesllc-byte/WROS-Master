@@ -45,8 +45,67 @@ def _initialize_default_handlers():
     MessageHandlerRegistry.register("engage_candidate_with_thunder", _handle_thunder_engagement)
     MessageHandlerRegistry.register("assign_thunder_agent", _handle_thunder_engagement)
 
-    # Note: Additional handlers (interview, offer, job, etc.) will be registered
-    # as they are created in Phase 2
+    # Register job handlers
+    try:
+        from app.services.message_handlers.job_created_handler import handle_job_created
+        from app.services.message_handlers.job_status_changed_handler import handle_job_status_changed
+        MessageHandlerRegistry.register("job_created", handle_job_created)
+        MessageHandlerRegistry.register("job_status_changed", handle_job_status_changed)
+    except ImportError as e:
+        logger.warning(f"[Registry] Could not import job handlers: {e}")
+
+    # Register offer handlers
+    try:
+        from app.services.message_handlers.offer_approved_handler import handle_offer_approved
+        from app.services.message_handlers.offer_sent_handler import handle_offer_sent
+        from app.services.message_handlers.offer_accepted_handler import handle_offer_accepted
+        from app.services.message_handlers.offer_rejected_handler import handle_offer_rejected
+        MessageHandlerRegistry.register("offer_approved", handle_offer_approved)
+        MessageHandlerRegistry.register("offer_sent", handle_offer_sent)
+        MessageHandlerRegistry.register("offer_accepted", handle_offer_accepted)
+        MessageHandlerRegistry.register("offer_rejected", handle_offer_rejected)
+    except ImportError as e:
+        logger.warning(f"[Registry] Could not import offer handlers: {e}")
+
+    # Register interview handlers (legacy signature, needs adapter)
+    try:
+        from app.services.message_handlers.interview_scheduled_handler import handle_interview_scheduled as legacy_handle_interview_scheduled
+
+        def _interview_scheduled_adapter(message: Any, db: Session) -> Dict[str, Any]:
+            """Adapter for legacy interview_scheduled handler."""
+            event_payload = {
+                "candidate_id": message.payload.get("candidate_id"),
+                "data": message.payload
+            }
+            return legacy_handle_interview_scheduled(event_payload, db)
+
+        MessageHandlerRegistry.register("interview_scheduled", _interview_scheduled_adapter)
+    except ImportError as e:
+        logger.warning(f"[Registry] Could not import interview handlers: {e}")
+
+    # Register project/milestone handlers
+    try:
+        from app.services.message_handlers.project_handlers import handle_project_created, handle_project_status_changed
+        MessageHandlerRegistry.register("project_created", handle_project_created)
+        MessageHandlerRegistry.register("project_status_changed", handle_project_status_changed)
+    except ImportError:
+        logger.info("[Registry] Project handlers not yet available")
+
+    # Register offer generation handler (existing - needs adapter)
+    try:
+        from app.services.message_handlers.offer_generated_handler import handle_offer_generated as legacy_handle_offer_generated
+
+        def _offer_generated_adapter(message: Any, db: Session) -> Dict[str, Any]:
+            """Adapter for legacy offer_generated handler."""
+            event_payload = {
+                "candidate_id": message.payload.get("candidate_id"),
+                "data": message.payload
+            }
+            return legacy_handle_offer_generated(event_payload, db)
+
+        MessageHandlerRegistry.register("offer_generated", _offer_generated_adapter)
+    except ImportError:
+        logger.info("[Registry] Offer generated handler not yet available")
 
 
 def _handle_thunder_engagement(message: Any, db: Session) -> Dict[str, Any]:
