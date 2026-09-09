@@ -49,7 +49,7 @@ router = APIRouter(prefix="/hr", tags=["hr"])
     dependencies=[Depends(get_current_internal_user)],
     summary="Get current HR/Admin user's profile with a fresh access token",
 )
-async def get_me(
+def get_me(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user),
 ):
