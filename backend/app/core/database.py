@@ -133,7 +133,15 @@ def get_db():
             # Test connection - fail fast if database is unreachable
             db.execute(text("SELECT 1"))
             logger.debug("Database connection established")
-            yield db
+            try:
+                yield db
+            finally:
+                # Cleanup after request completes
+                if db:
+                    try:
+                        db.close()
+                    except Exception as e:
+                        logger.warning(f"Error closing database session: {str(e)}")
             return  # Success - exit after yielding
         except HTTPException:
             # Don't catch HTTPExceptions - let them propagate
@@ -176,13 +184,6 @@ def get_db():
                     db.close()
                 except:
                     pass
-    finally:
-        # Ensure cleanup on any exit
-        if db:
-            try:
-                db.close()
-            except Exception as e:
-                logger.warning(f"Error closing database session: {str(e)}")
 
 def check_candidate(db: Session, email: str):
     # Import here to avoid circular import

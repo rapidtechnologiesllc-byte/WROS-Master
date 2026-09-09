@@ -42,11 +42,16 @@ const MessageQueueMonitor = () => {
         throw new Error(`Stats fetch failed: ${err.message}`);
       }
 
-      if (displayData && typeof displayData === 'object') {
-        setQueueDisplay(displayData);
+      if (displayData?.data && typeof displayData.data === 'object') {
+        // Backend returns 'messages', component expects 'rows'
+        const normalized = {
+          ...displayData.data,
+          rows: displayData.data.messages
+        };
+        setQueueDisplay(normalized);
       }
-      if (statsData && typeof statsData === 'object') {
-        setStats(statsData);
+      if (statsData?.data && typeof statsData.data === 'object') {
+        setStats(statsData.data);
       }
       setError(null);
     } catch (err) {

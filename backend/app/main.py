@@ -21,6 +21,7 @@ from app.middleware.auth_middleware import AuthenticationMiddleware
 # process startup. See app.core.tenant_context's module docstring.
 from app.core import tenant_context as _tenant_context  # noqa: F401
 from app.api.v1.endpoints.config import router as config_router
+from app.api.v1.endpoints.message_queue import router as message_queue_router
 
 # Agent State models — imported here so Base.metadata.create_all() finds them
 from app.models import agent_phalanx  # noqa: F401
@@ -216,6 +217,8 @@ app.include_router(users_access_control_router)
 app.include_router(router)
 # Include configuration routes with /api/v1 prefix (dynamic config - never hardcode)
 app.include_router(config_router, prefix="/api/v1")
+# Include message queue monitoring routes with /api/v1 prefix
+app.include_router(message_queue_router, prefix="/api/v1")
 # Include candidates routes with /candidates prefix (candidate creation, etc)
 app.include_router(candidates_router)
 
