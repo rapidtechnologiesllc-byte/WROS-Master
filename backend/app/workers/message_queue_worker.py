@@ -194,13 +194,15 @@ def process_message_queue(batch_size: int = 10, timeout_minutes: int = 30) -> Di
                     messages_processed += 1
 
                 except Exception as e:
-                    # Handle processing error
+                    # Handle processing error - CRITICAL: set retry_at for automatic retry
                     try:
                         message.status = "FAILED"
                         message.error = str(e)
                         message.completed_at = datetime.utcnow()
+                        message.retry_count = (message.retry_count or 0) + 1
+                        message.next_retry_at = datetime.utcnow() + timedelta(minutes=5)
                         db.commit()
-                        logger.error(f"[Worker] ❌ Message {message.id} failed: {str(e)}", exc_info=True)
+                        logger.error(f"[Worker] ❌ Message {message.id} failed: {str(e)} (retry {message.retry_count}/5)", exc_info=True)
                     except Exception as commit_error:
                         db.rollback()
                         logger.error(f"[Worker] Failed to mark message as failed: {commit_error}", exc_info=True)
