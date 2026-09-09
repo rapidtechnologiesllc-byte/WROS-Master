@@ -251,7 +251,7 @@ const MessageQueueMonitor = () => {
                                 <summary style={{cursor: 'pointer', color: '#ef4444', fontWeight: 'bold'}}>
                                   Error ({row.error.length > 50 ? '...' : ''})
                                 </summary>
-                                <pre style={{fontSize: '11px', margin: '8px 0', padding: '8px', backgroundColor: '#f5f5f5', borderRadius: '4px'}}>{row.error}</pre>
+                                <pre style={{fontSize: '11px', margin: '8px 0', padding: '8px', backgroundColor: '#f5f5f5', borderRadius: '4px', whiteSpace: 'pre-wrap', wordWrap: 'break-word', wordBreak: 'break-word', maxWidth: '600px', maxHeight: '300px', overflow: 'auto'}}>{row.error}</pre>
                               </details>
                             ) : (
                               '-'
