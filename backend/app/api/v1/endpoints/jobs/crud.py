@@ -162,7 +162,7 @@ def create_job(
 
         # Queue BEFORE commit (atomicity) - enqueue() commits the transaction
         msg_id = MessageQueueService.enqueue(
-            task_name='job_created',
+            task_name='job_created_flash',
             task_id=job_id,
             data={
                 "job_id": job_id,
@@ -273,7 +273,7 @@ def update_job(
     try:
         # Queue BEFORE commit (atomicity) - enqueue() commits the transaction
         msg_id = MessageQueueService.enqueue(
-            task_name='job_updated',
+            task_name='job_updated_flash',
             task_id=job_id,
             data={
                 "job_id": job_id,
@@ -311,7 +311,7 @@ def delete_job(
     # Queue BEFORE deletion (atomicity) - enqueue() commits the transaction
     try:
         msg_id = MessageQueueService.enqueue(
-            task_name='job_deleted',
+            task_name='job_deleted_flash',
             task_id=job_id,
             data={
                 "job_id": job_id,
