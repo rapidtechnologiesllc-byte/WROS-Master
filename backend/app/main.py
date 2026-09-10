@@ -254,6 +254,20 @@ async def startup_event():
         logger.error(f"[Startup] Failed to start queue processor: {exc}", exc_info=True)
         logger.warning("[Startup] Queue processor disabled - messages will not be processed")
 
+    # FLASH ORCHESTRATION: Train SLM on correct architecture (2026-09-10)
+    # Must happen BEFORE queue processor starts consuming messages
+    # Ensures FLASH learns to monitor neighbors, detect cascades, escalate correctly
+    try:
+        logger.info("[Startup] Initializing FLASH Orchestration Engine SLM training...")
+        from app.services.flash_orchestration_slm_training import initialize_flash_slm_training
+        db = SessionLocal()
+        initialize_flash_slm_training(db)
+        db.close()
+        logger.info("[OK] FLASH SLM training complete - ready to coordinate 50+ agents")
+    except Exception as exc:
+        logger.error(f"[Startup] FLASH SLM training failed: {exc}", exc_info=True)
+        logger.warning("[Startup] FLASH will operate without SLM training (degraded mode)")
+
     logger.info(f"[OK] {settings.APP_NAME} v{settings.APP_VERSION} started successfully")
     logger.info(f"[OK] Server running on http://{settings.HOST}:{settings.PORT}")
 

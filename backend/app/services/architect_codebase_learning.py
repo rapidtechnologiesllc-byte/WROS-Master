@@ -467,6 +467,42 @@ class ArchitectKnowledgeTeacher:
         memory.save()
         logger.info("✅ Root causes stored in architect memory")
 
+    def teach_pattern(self, pattern_type: str, pattern_data: Dict[str, Any]):
+        """
+        Teach a single pattern to SLM and persist to architect memory.
+        Used for continuous learning (e.g., FLASH orchestration patterns).
+        Synchronous version (doesn't require async).
+        """
+        logger.info(f"[ARCHITECT-PATTERN-TEACH] Teaching pattern: {pattern_type}")
+
+        # Store in architect memory for persistence
+        try:
+            from app.services.architect_persistent_memory import (
+                get_architect_memory,
+                ArchitectMemoryEntry,
+                LearningType,
+            )
+
+            memory = get_architect_memory()
+
+            # Create memory entry for the pattern
+            entry = ArchitectMemoryEntry(
+                cycle_number=0,
+                learning_type=LearningType.SYSTEM_PATTERN,
+                content=f"{pattern_type}: {pattern_data}",
+                affected_systems=[pattern_type],
+                severity="HIGH",
+            )
+            memory.remember(entry)
+            memory.save()
+
+            logger.info(f"✅ Pattern '{pattern_type}' stored in architect memory")
+            logger.info(f"   Content: {pattern_data}")
+
+        except Exception as e:
+            logger.warning(f"⚠️ Failed to store pattern '{pattern_type}' in memory: {e}")
+            # Non-fatal - continue even if memory storage fails
+
 
 # Global analyzer and teacher
 _analyzer: ArchitectCodebaseAnalyzer = None
