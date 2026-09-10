@@ -183,11 +183,17 @@ class SDLCOrchestrationService:
 
         Fallback specs are safe, low-risk changes that don't require architecture input.
         """
+        # Calculate timeout_at if architect was requested, otherwise use now
+        if cycle.architect_spec_requested_at:
+            timeout_at = (cycle.architect_spec_requested_at + timedelta(seconds=self.ARCHITECT_RESPONSE_TIMEOUT_SECONDS)).isoformat()
+        else:
+            timeout_at = datetime.utcnow().isoformat()
+
         spec = {
             "cycle": cycle.cycle_number,
             "status": "FALLBACK",
             "generated_at": datetime.utcnow().isoformat(),
-            "timeout_at": (cycle.architect_spec_requested_at + timedelta(seconds=self.ARCHITECT_RESPONSE_TIMEOUT_SECONDS)).isoformat(),
+            "timeout_at": timeout_at,
             "category": category.value,
             "details": self.FALLBACK_SPECS[category],
             "note": "Architect spec pending - executing under fallback protocol"
