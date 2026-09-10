@@ -84,13 +84,20 @@ def handle_job_created(message: Any, db: Session) -> Dict[str, Any]:
             # Queue candidate sourcing task
             from app.services.message_queue_service import MessageQueueService
 
+            # Spartan Pattern: Pass structured skills through queue so recruiter agents can leverage recency scoring
+            sourcing_data = {
+                "job_id": job_data['job_id'],
+                "job_title": job_data['job_title'],
+                "job_skills": job_data['job_skills']
+            }
+
+            # Include structured skills if available (Skill Matching Service will use these)
+            if 'structured_skills' in payload and payload['structured_skills']:
+                sourcing_data['structured_skills'] = payload['structured_skills']
+
             sourcing_msg = MessageQueueService.enqueue(
                 task_name="source_candidates_for_job",
-                data={
-                    "job_id": job_data['job_id'],
-                    "job_title": job_data['job_title'],
-                    "job_skills": job_data['job_skills']
-                }
+                data=sourcing_data
             )
             sourcing_initiated = sourcing_msg.get('status') == 'queued'
 
