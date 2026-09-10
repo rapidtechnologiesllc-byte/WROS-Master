@@ -819,7 +819,7 @@ export default function CandidateCreate({ onBack, onSave }) {
             />
           </div>
 
-          <div>
+          <div className="md:col-span-2">
             <Input
               label="First Name *"
               value={firstName}
@@ -837,18 +837,7 @@ export default function CandidateCreate({ onBack, onSave }) {
             ) : null}
           </div>
 
-          <div>
-            <Input
-              label="Current Job Title"
-              value={candidateJobTitle}
-              onChange={(value) => {
-                setCandidateJobTitle(value);
-              }}
-              placeholder="e.g., Senior Software Engineer, Product Manager"
-            />
-          </div>
-
-          <div>
+          <div className="md:col-span-2">
             <Input
               label="Last Name *"
               value={lastName}
@@ -863,6 +852,15 @@ export default function CandidateCreate({ onBack, onSave }) {
               <div className="mt-1 text-xs text-red-500">{errors.lastName}</div>
             ) : null}
           </div>
+
+          <Input
+            label="Current Job Title"
+            value={candidateJobTitle}
+            onChange={(value) => {
+              setCandidateJobTitle(value);
+            }}
+            placeholder="e.g., Senior Software Engineer, Product Manager"
+          />
 
           <div className="grid grid-cols-[minmax(0,7rem)_1fr] gap-2">
             <Select
