@@ -348,6 +348,8 @@ assert_all_routes_have_permission_declarations(
         "GET /celery/test-public",
         "GET /api/v1/careers/jobs",
         "GET /api/v1/careers/jobs/{job_id}",
+        "GET /flash/queue-health-pulse",
+        "GET /flash/queue-bottleneck-analysis",
     ],
 )
 logger.info("[OK] HRMS-0114 route permission audit passed")
