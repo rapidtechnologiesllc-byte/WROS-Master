@@ -1047,10 +1047,15 @@ export default function JobCreate({
                   id="job-skill-name-modal"
                 />
                 <Input
-                  label="Years Required"
+                  label="Years of Experience"
                   type="number"
                   placeholder="e.g., 5"
                   id="job-years-required-modal"
+                />
+                <Input
+                  label="Last Used Date"
+                  type="date"
+                  id="job-last-used-date-modal"
                 />
                 <div className="flex items-center gap-2">
                   <input
@@ -1069,9 +1074,11 @@ export default function JobCreate({
                     const primaryInput = document.getElementById('job-is-primary-skill');
 
                     if (nameInput.value.trim()) {
+                      const dateInput = document.getElementById('job-last-used-date-modal');
                       const newSkill = {
                         name: nameInput.value.trim(),
                         yearsOfExperience: yearsInput.value ? parseInt(yearsInput.value) : null,
+                        lastUsedDate: dateInput.value || null,
                         isPrimary: primaryInput.checked,
                       };
 
@@ -1084,6 +1091,7 @@ export default function JobCreate({
 
                       nameInput.value = '';
                       yearsInput.value = '';
+                      dateInput.value = '';
                       primaryInput.checked = false;
                     }
                   }}
