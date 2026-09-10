@@ -219,7 +219,7 @@ async def startup_event():
         # Run auto-fix in background (don't block startup)
         # FastAPI startup events are already async-capable, but auto-fix is pure-async
         import asyncio
-        result = await orchestrator.execute_auto_fix_cycle()
+        result = await orchestrator.execute_auto_fix_cycle_with_slm()
 
         if result["status"] == "complete":
             logger.info(f"✅ [AUTO-FIX] CYCLE COMPLETE: {result['before']} → {result['after']} hardcoded checks")
@@ -232,6 +232,27 @@ async def startup_event():
     except Exception as exc:
         logger.error(f"[Startup] Auto-fix cycle failed: {exc}", exc_info=True)
         # Don't crash startup if auto-fix fails, but log it clearly
+
+    # CYCLE 19: Start background queue processor with SLM integration
+    # Queue processor consumes PENDING messages and trains SLM on results
+    try:
+        logger.info("[Startup] Starting background queue processor (CYCLE 19)...")
+        from app.services.queue_processor_service import QueueProcessorService
+        from threading import Thread
+
+        # Start queue processor in background thread
+        queue_processor_thread = Thread(
+            target=QueueProcessorService.start_background_processor,
+            kwargs={"poll_interval": 2, "batch_size": 10},
+            daemon=True,  # Thread dies when main process exits
+            name="QueueProcessor"
+        )
+        queue_processor_thread.start()
+        logger.info("[OK] Queue processor started in background thread")
+
+    except Exception as exc:
+        logger.error(f"[Startup] Failed to start queue processor: {exc}", exc_info=True)
+        logger.warning("[Startup] Queue processor disabled - messages will not be processed")
 
     logger.info(f"[OK] {settings.APP_NAME} v{settings.APP_VERSION} started successfully")
     logger.info(f"[OK] Server running on http://{settings.HOST}:{settings.PORT}")
@@ -304,6 +325,8 @@ assert_all_routes_have_permission_declarations(
         "GET /config/candidate-statuses",
         "GET /config/app-config",
         "GET /celery/test-public",
+        "GET /api/v1/careers/jobs",
+        "GET /api/v1/careers/jobs/{job_id}",
     ],
 )
 logger.info("[OK] HRMS-0114 route permission audit passed")
