@@ -25,7 +25,12 @@ class OfferGenerationHandler:
     @staticmethod
     def process(message: Any, db: Session) -> Dict[str, Any]:
         """
-        Process: Generate and send offer letter
+        Process: Generate and send offer letter with SLM integration.
+
+        SLM Pattern:
+        - PLACE 1: Pre-flight analysis before handler logic
+        - Handler logic: Create offer record, queue notification
+        - PLACE 2: Post-flight outcome recording with business impact
 
         Args:
             message: ChannelQueueItem with type='offer_approved'
@@ -44,7 +49,37 @@ class OfferGenerationHandler:
             RuntimeError: DB operation failures (500 internal, retry eligible)
         """
         try:
+            from app.services.slm_service import SLMService
+
             payload = message.payload or {}
+            slm_analysis = None
+
+            # ============ PLACE 1: PRE-FLIGHT SLM ANALYSIS ============
+            try:
+                slm_analysis = SLMService.analyze_before_handler(
+                    message_id=str(message.id),
+                    message_type='offer_generated',
+                    payload=payload,
+                    context={
+                        'business_goal': 'Generate and track offer for candidate',
+                        'risk_level': 'HIGH',
+                        'candidate_id': payload.get('candidate_id'),
+                        'salary': payload.get('offer_details', {}).get('salary'),
+                        'offer_type': payload.get('offer_details', {}).get('offer_type', 'standard')
+                    },
+                    db=db
+                )
+                if not slm_analysis.get('should_proceed'):
+                    logger.warning(f"[OfferGeneration] SLM escalation: {slm_analysis.get('reasoning')}")
+                    return {
+                        'status': 'escalated',
+                        'reason': slm_analysis.get('reasoning'),
+                        'slm_decision_id': slm_analysis.get('slm_decision_id')
+                    }
+            except Exception as slm_err:
+                logger.error(f"[OfferGeneration] SLM pre-flight analysis failed: {slm_err}")
+                # Continue anyway - don't block offer generation on SLM failure
+                pass
 
             # PHASE 1: VALIDATION
             candidate_id = payload.get('candidate_id')
@@ -141,7 +176,8 @@ class OfferGenerationHandler:
                 f"[OfferGeneration] ✅ Offer generated successfully for {candidate_id}"
             )
 
-            return {
+            # ============ PLACE 2: POST-FLIGHT OUTCOME RECORDING ============
+            handler_result = {
                 'status': 'success',
                 'offer_id': offer_id,
                 'candidate_id': candidate_id,
@@ -150,6 +186,34 @@ class OfferGenerationHandler:
                 'start_date': str(offer.start_date),
                 'offer_expiry': str(offer.offer_expiry),
             }
+
+            if slm_analysis:
+                try:
+                    SLMService.record_outcome(
+                        slm_analysis=slm_analysis,
+                        message_id=str(message.id),
+                        handler_name='offer_generation_handler',
+                        handler_result=handler_result,
+                        business_impact={
+                            'candidate_affected': True,
+                            'candidate_id': candidate_id,
+                            'offer_id': offer_id,
+                            'salary': offer.salary,
+                            'offer_acceptance_deadline': str(offer.offer_expiry),
+                            'expected_outcome': 'offer_accepted',
+                            'validation_method': 'Track offer acceptance within 7 days',
+                            '90_day_plan': 'Measure offer acceptance rate, time-to-hire, retention',
+                            'can_be_reversed': True,
+                            'cost_impact': offer.salary * 0.25,  # Estimated cost
+                        },
+                        db=db
+                    )
+                    logger.info(f"[OfferGeneration] SLM outcome recorded for offer {offer_id}")
+                except Exception as slm_record_err:
+                    logger.error(f"[OfferGeneration] Failed to record SLM outcome: {slm_record_err}")
+                    # Non-blocking - offer already created
+
+            return handler_result
 
         except ValueError as ve:
             logger.error(f"[OfferGeneration] Validation error: {ve}")

@@ -24,7 +24,12 @@ def handle_interview_scheduled(
     db: Optional[object] = None
 ) -> Dict[str, Any]:
     """
-    Handle interview scheduled events.
+    Handle interview scheduled events with SLM integration.
+
+    SLM Pattern:
+    - PLACE 1: Pre-flight analysis before handler logic
+    - Handler logic: Create interview record, pause Thunder
+    - PLACE 2: Post-flight outcome recording with business impact
 
     Args:
         event_payload: Event data including interview details
@@ -36,6 +41,7 @@ def handle_interview_scheduled(
     try:
         from app.core.database import SessionLocal
         from app.models.candidate import Candidate
+        from app.services.slm_service import SLMService
 
         if db is None:
             db = SessionLocal()
@@ -48,6 +54,35 @@ def handle_interview_scheduled(
         interview_id = data.get("interview_id")
         interview_date = data.get("interview_date")
         interview_panel = data.get("interview_panel", [])
+
+        # ============ PLACE 1: PRE-FLIGHT SLM ANALYSIS ============
+        message_id = event_payload.get("message_id", "unknown")
+        slm_analysis = None
+        try:
+            slm_analysis = SLMService.analyze_before_handler(
+                message_id=message_id,
+                message_type='interview_scheduled',
+                payload=event_payload,
+                context={
+                    'business_goal': f'Schedule interview for candidate {candidate_id}',
+                    'risk_level': 'MEDIUM',
+                    'candidate_id': candidate_id,
+                    'interview_date': interview_date,
+                    'panel_size': len(interview_panel)
+                },
+                db=db
+            )
+            if not slm_analysis.get('should_proceed'):
+                logger.warning(f"[INTERVIEW_HANDLER] SLM escalation: {slm_analysis.get('reasoning')}")
+                return {
+                    'status': 'escalated',
+                    'reason': slm_analysis.get('reasoning'),
+                    'slm_decision_id': slm_analysis.get('slm_decision_id')
+                }
+        except Exception as slm_err:
+            logger.error(f"[INTERVIEW_HANDLER] SLM pre-flight analysis failed: {slm_err}")
+            # Continue anyway - don't block interview scheduling on SLM failure
+            pass
 
         # PHASE 1: Fetch candidate
         candidate = db.query(Candidate).filter(Candidate.candidateID == candidate_id).first()
@@ -113,6 +148,40 @@ def handle_interview_scheduled(
 
         # PHASE 6: Commit transaction
         db.commit()
+
+        # ============ PLACE 2: POST-FLIGHT OUTCOME RECORDING ============
+        handler_result = {
+            "status": "processed",
+            "candidate_id": candidate_id,
+            "interview_id": created_interview_id,
+            "interview_date": interview_date,
+            "actions": actions_taken
+        }
+
+        if slm_analysis:
+            try:
+                SLMService.record_outcome(
+                    slm_analysis=slm_analysis,
+                    message_id=message_id,
+                    handler_name='interview_scheduled_handler',
+                    handler_result=handler_result,
+                    business_impact={
+                        'candidate_affected': True,
+                        'candidate_id': candidate_id,
+                        'interview_id': created_interview_id,
+                        'interview_date': interview_date,
+                        'position_id': getattr(candidate, 'position_id', None),
+                        'expected_outcome': 'schedule_confirmed',
+                        'validation_method': 'Check if interview actually occurs on scheduled date',
+                        '90_day_plan': 'Monitor interview completion rate and hiring velocity',
+                        'can_be_reversed': False,
+                    },
+                    db=db
+                )
+                logger.info(f"[INTERVIEW_HANDLER] SLM outcome recorded for interview {created_interview_id}")
+            except Exception as slm_record_err:
+                logger.error(f"[INTERVIEW_HANDLER] Failed to record SLM outcome: {slm_record_err}")
+                # Non-blocking - interview already created
 
         return {
             "status": "processed",
