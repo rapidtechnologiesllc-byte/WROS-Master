@@ -8,7 +8,7 @@ import {
   generateJobWithAgent,
   generateJobComplete,
   updateJob,
-  getJob,
+  getJobById,
 } from "../services/api/jobs";
 import { Button, Card, Input, Select, TextArea, LocationCascadeSelect, formatLocation, parseLocation } from "../components/ui";
 import RateField from "../components/ui/RateField";
@@ -108,7 +108,7 @@ export default function JobCreate({
     if (current === 1 && draftJobId && mode !== "view") {
       const loadDraftData = async () => {
         try {
-          const draftJob = await getJob(draftJobId);
+          const draftJob = await getJobById(draftJobId);
           if (draftJob) {
             // Restore all fields from draft job
             if (draftJob.job_title && !title) setTitle(draftJob.job_title);
