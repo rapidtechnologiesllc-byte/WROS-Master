@@ -105,6 +105,33 @@ def receive_connect(dbapi_conn, connection_record):
 # SessionLocal class
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
+# CRITICAL FIX #11: Verify database migrations applied at startup
+def _verify_migrations():
+    """Verify required columns exist (migration check) - database-agnostic using SQLAlchemy"""
+    from app.core.logging import logger
+    try:
+        from sqlalchemy import inspect as sqlalchemy_inspect
+
+        inspector = sqlalchemy_inspect(engine)
+        if not inspector.has_table('channel_queue_item'):
+            logger.warning("🚨 MIGRATION MISSING: channel_queue_item table not found")
+            return False
+
+        existing_columns = {col['name'] for col in inspector.get_columns('channel_queue_item')}
+        required = {'handler_duration_ms', 'scheduled_for', 'idempotency_key'}
+        missing = required - existing_columns
+
+        if missing:
+            logger.warning(f"🚨 MIGRATION MISSING: {missing}. Run migrations to add these columns")
+            return False
+        logger.info("✅ Database migrations verified")
+        return True
+    except Exception as e:
+        logger.warning(f"Migration verification failed (non-blocking): {e}")
+        return True  # Don't fail startup
+
+_verify_migrations()
+
 def get_db():
     """
     Dependency for database session.

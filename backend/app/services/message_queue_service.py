@@ -22,7 +22,8 @@ class MessageQueueService:
         task_name: str,
         task_id: Optional[str] = None,
         data: Optional[Dict[str, Any]] = None,
-        delay_seconds: int = DEFAULT_DELAY_SECONDS
+        delay_seconds: int = DEFAULT_DELAY_SECONDS,
+        idempotency_key: Optional[str] = None
     ) -> Dict[str, Any]:
         """Queue a task to custom message queue. Uses database as primary store."""
         if not task_name:
@@ -47,6 +48,11 @@ class MessageQueueService:
                 status = 'PENDING'
                 scheduled_for = None
 
+            # ARCHITECT FIX: Populate idempotency key if provided (enables duplicate detection)
+            # If not provided, generate one from task_id (ensures at least basic idempotency)
+            if not idempotency_key:
+                idempotency_key = f"{task_name}:{task_id}"
+
             # Create queue item in database
             queue_item = ChannelQueueItem(
                 message_id=task_id,
@@ -56,7 +62,8 @@ class MessageQueueService:
                 payload=data,
                 retry_count=QUEUE_ITEM_RETRY_COUNT_INITIAL,
                 created_at=datetime.utcnow(),
-                scheduled_for=scheduled_for
+                scheduled_for=scheduled_for,
+                idempotency_key=idempotency_key
             )
 
             db.add(queue_item)

@@ -49,6 +49,7 @@ class QueueProcessorService:
     INITIAL_RETRY_DELAY = 5  # seconds
     BATCH_SIZE = 10
     POLL_INTERVAL = 2  # seconds
+    HANDLER_TIMEOUT_SECONDS = 30  # Max time for any handler to complete before timeout
 
     # Exponential backoff multiplier
     RETRY_BACKOFF_MULTIPLIER = 2
@@ -126,7 +127,22 @@ class QueueProcessorService:
                             )
                             stats["slm_updates"] += 1
                         except Exception as slm_err:
-                            logger.warning(f"[QueueProcessor] SLM training failed: {slm_err}")
+                            # CRITICAL FIX #5: Queue alert for ops when SLM training fails
+                            logger.error(f"[QueueProcessor] SLM training failed: {slm_err}", exc_info=True)
+                            try:
+                                from app.services.message_queue_service import MessageQueueService as MQS
+                                MQS.enqueue(
+                                    task_name='slm_training_alert',
+                                    task_id=f"slm_alert_{message.id}",
+                                    data={
+                                        'message_id': message.id,
+                                        'task_type': message.type,
+                                        'error': str(slm_err)[:500],
+                                        'severity': 'MEDIUM'
+                                    }
+                                )
+                            except Exception as alert_err:
+                                logger.warning(f"Failed to queue SLM alert: {alert_err}")
 
                 except Exception as msg_err:
                     logger.error(f"[QueueProcessor] Message {message.id} failed: {msg_err}", exc_info=True)
@@ -144,7 +160,7 @@ class QueueProcessorService:
 
     # Circuit breaker state (class variable)
     _consecutive_failures = 0
-    _FAILURE_THRESHOLD = 5
+    _FAILURE_THRESHOLD = 3  # CRITICAL FIX #4: Lowered from 5 (80s lag) to 3 (40s lag)
 
     @staticmethod
     def _process_single_message(db: Session, message: ChannelQueueItem) -> Dict[str, Any]:
@@ -174,11 +190,42 @@ class QueueProcessorService:
             if not handler:
                 raise ValueError(f"No handler registered for {message.type}")
 
-            # Execute handler with timing
+            # Execute handler with timing and TIMEOUT ENFORCEMENT
             try:
-                handler_result = handler(message, db)
+                # ARCHITECT FIX #6: Enforce handler timeout (30 seconds max)
+                # Prevents handlers from hanging indefinitely and blocking queue processor
+                import threading
+
+                handler_result = None
+                handler_exception = None
+
+                def _execute_handler_with_timeout():
+                    nonlocal handler_result, handler_exception
+                    try:
+                        handler_result = handler(message, db)
+                    except Exception as e:
+                        handler_exception = e
+
+                handler_thread = threading.Thread(target=_execute_handler_with_timeout, daemon=True)
+                handler_thread.start()
+                handler_thread.join(timeout=QueueProcessorService.HANDLER_TIMEOUT_SECONDS)
+
                 handler_duration_ms = int((time.time() - handler_start_time) * 1000)
                 message.handler_duration_ms = handler_duration_ms
+
+                # Check if handler timed out (thread still alive after timeout)
+                if handler_thread.is_alive():
+                    logger.critical(
+                        f"[QueueProcessor] ⚠️ HANDLER TIMEOUT: {message.type} exceeded "
+                        f"{QueueProcessorService.HANDLER_TIMEOUT_SECONDS}s limit (took {handler_duration_ms}ms)"
+                    )
+                    raise RuntimeError(
+                        f"Handler {message.type} timed out after {QueueProcessorService.HANDLER_TIMEOUT_SECONDS}s"
+                    )
+
+                # Check if handler raised exception
+                if handler_exception:
+                    raise handler_exception
 
                 # Log slow handlers (> 10 seconds)
                 if handler_duration_ms > 10000:
@@ -259,7 +306,7 @@ class QueueProcessorService:
                     })
                     db.commit()
 
-                    # ARCHITECT FIX: Escalate to manual review
+                    # CRITICAL FIX #3: Escalate to manual review with robust error handling
                     logger.critical(f"[QueueProcessor] Message {message.id} dead-lettered after {message.retry_count} retries: {handler_err}")
                     try:
                         # Queue escalation alert for ops team
@@ -270,14 +317,16 @@ class QueueProcessorService:
                             data={
                                 'dead_letter_message_id': message.id,
                                 'task_type': message.type,
-                                'error': str(handler_err),
+                                'error': str(handler_err)[:500],  # Truncate to prevent corruption
                                 'retry_count': message.retry_count,
                                 'created_at': message.created_at.isoformat() if message.created_at else None
                             }
                         )
                         logger.info(f"[QueueProcessor] Dead letter escalation queued for {message.id}")
                     except Exception as esc_err:
-                        logger.error(f"[QueueProcessor] Failed to escalate dead letter {message.id}: {esc_err}", exc_info=True)
+                        # CRITICAL FIX #3: Don't fail if escalation fails - message is already dead-lettered
+                        logger.error(f"[QueueProcessor] Escalation failed (non-blocking): {esc_err}")
+                        # Continue - don't re-raise
 
                     return {
                         "status": QueueStatus.DEAD_LETTER.value,

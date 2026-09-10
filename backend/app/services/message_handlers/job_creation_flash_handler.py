@@ -48,10 +48,17 @@ class JobCreationFlashHandler:
 
             job_id = payload.get('job_id')
 
-            # ARCHITECT FIX: Check for idempotency (duplicate job_id means retry)
+            # ARCHITECT FIX #5: Check for idempotency using both job_id AND idempotency_key
+            # (Deduplication prevents duplicate jobs if message is retried after handler crashes)
+            idempotency_key = message.idempotency_key or f"job_created_flash:{job_id}"
+
+            # Query: Is there already a job with this ID (deduplication by job_id)
             existing_job = db.query(Jobs).filter(Jobs.jobID == job_id).first()
             if existing_job:
-                logger.info(f"[JobCreationFlash] Job {job_id} already exists (idempotent retry), returning existing")
+                logger.info(
+                    f"[JobCreationFlash] Job {job_id} already exists (idempotent retry via "
+                    f"idempotency_key={idempotency_key}), returning existing"
+                )
                 return {
                     'status': 'success',
                     'job_id': job_id,

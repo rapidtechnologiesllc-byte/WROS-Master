@@ -69,12 +69,34 @@ class FlashRecruiterHandler:
 
             logger.info(f"[FlashRecruiter] Starting recruitment for job {job_id}: {job.jobTitle}")
 
+            # PHASE 2.5: RACE CONDITION CHECK - Verify job still exists (CRITICAL FIX #7)
+            job_exists = db.query(Jobs).filter(Jobs.jobID == job_id).first()
+            if not job_exists:
+                logger.warning(f"[FlashRecruiter] Job {job_id} was deleted before recruitment, aborting")
+                return {
+                    'status': 'job_deleted',
+                    'job_id': job_id,
+                    'reason': 'Job deleted between message queue and handler execution',
+                    'candidates_matched': 0,
+                    'outreach_queued': 0
+                }
+
             # PHASE 3: SCAN FOR MATCHING CANDIDATES & QUEUE OUTREACH
             from app.services.ready_for_opportunity_service import scan_new_job_for_matches
             from app.services.message_queue_service import MessageQueueService
 
             matched_watches = scan_new_job_for_matches(db, job)
-            logger.info(f"[FlashRecruiter] Found {len(matched_watches)} matching candidates for {job_id}")
+
+            # CRITICAL FIX #6: Validate deduplication payload (idempotency corruption prevention)
+            previously_matched_ids = payload.get('previously_matched_candidate_ids', [])
+            if not isinstance(previously_matched_ids, list):
+                logger.warning(f"[FlashRecruiter] Payload corruption detected, resetting deduplication")
+                previously_matched_ids = []
+
+            # Filter duplicates
+            new_candidate_watches = [w for w in matched_watches if w.get('candidate_id') not in previously_matched_ids]
+
+            logger.info(f"[FlashRecruiter] Found {len(matched_watches)} candidates, {len(new_candidate_watches)} new (deduped)")
 
             # PHASE 4: TRAIN SLM WITH RESULTS
             try:
