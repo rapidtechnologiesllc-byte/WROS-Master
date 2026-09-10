@@ -329,6 +329,44 @@ class QueueProcessorService:
 
                     logger.info(f"[QueueProcessor] Verified job {job_id} exists in database")
 
+                    # FLOW STEP 3: Analyze with SLM (job now in DB, ready for analysis)
+                    # SLM receives: job_id + JD + hiring_manager requirements
+                    try:
+                        slm_analysis = SLMService.analyze_job_creation(
+                            job_id=job_id,
+                            job_title=persisted_job.jobTitle,
+                            job_skills=persisted_job.jobSkills or "",
+                            no_of_positions=persisted_job.noOfPositions,
+                            db=db
+                        )
+                        logger.info(
+                            f"[QueueProcessor] SLM analyzed job {job_id}: "
+                            f"urgency={slm_analysis.get('urgency')} "
+                            f"strategy={slm_analysis.get('recruitment_strategy')}"
+                        )
+
+                        # FLOW STEP 4: Queue flash_recruiter with SLM instructions
+                        from app.services.message_queue_service import MessageQueueService as MQS
+                        recruiter_msg_id = MQS.enqueue(
+                            task_name='flash_recruiter',
+                            task_id=f"recruit_{job_id}",
+                            data={
+                                'job_id': job_id,
+                                'job_title': persisted_job.jobTitle,
+                                'job_skills': persisted_job.jobSkills or "",
+                                'no_of_positions': persisted_job.noOfPositions,
+                                'hiring_manager_id': persisted_job.hiringManagerID,
+                                'business_unit_id': persisted_job.business_unit_id,
+                                'slm_analysis': slm_analysis,
+                                'slm_strategy': slm_analysis.get('recruitment_strategy'),
+                                'slm_urgency': slm_analysis.get('urgency'),
+                            }
+                        )
+                        logger.info(f"[QueueProcessor] Queued flash_recruiter for job {job_id}: message_id={recruiter_msg_id}")
+                    except Exception as slm_err:
+                        logger.error(f"[QueueProcessor] SLM analysis failed for job {job_id}: {slm_err}", exc_info=True)
+                        # Don't fail - continue without SLM guidance (flash_recruiter will use defaults)
+
                 # Mark COMPLETED only after validation passes
                 message.status = QueueStatus.COMPLETED.value
                 message.last_attempted_at = datetime.utcnow()  # HIGH FIX #8: Track completion time

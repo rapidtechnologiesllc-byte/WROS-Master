@@ -180,30 +180,7 @@ def create_job(
         if request.structured_skills:
             queue_data["structured_skills"] = [s.dict() for s in request.structured_skills]
 
-        # CYCLE 19: Analyze job with SLM service IMMEDIATELY (before queueing)
-        # SLM decides recruitment strategy, urgency, and next actions
-        slm_analysis = None
-        try:
-            from app.services.slm_service import SLMService
-            slm_analysis = SLMService.analyze_job_creation(
-                job_id=job_id,
-                job_title=request.job_title,
-                job_skills=request.job_skills or "",
-                no_of_positions=request.no_of_positions,
-                db=db
-            )
-            logger.info(
-                f"Job {job_id} analyzed by SLM: "
-                f"urgency={slm_analysis.get('urgency')} "
-                f"next_action={slm_analysis.get('next_action')}"
-            )
-            # Include SLM analysis in queue message so handler can use it
-            queue_data["slm_analysis"] = slm_analysis
-        except Exception as slm_err:
-            logger.error(f"SLM analysis failed for job {job_id}: {slm_err}", exc_info=True)
-            # Don't fail job creation if SLM fails - queue message will proceed without analysis
-
-        # Queue message to FLASH (handler will do the DB write)
+        # Queue message to FLASH (handler will write to DB)
         msg_id = MessageQueueService.enqueue(
             task_name='job_created_flash',
             task_id=job_id,
