@@ -153,10 +153,20 @@ def create_job(
     )
 
     try:
-        # QUEUE-DRIVEN ARCHITECTURE: No direct DB write
-        # Message goes to FLASH queue → handler processes → DB write happens via handler
+        # FIX: PERSIST TO DATABASE FIRST (atomic)
+        # This ensures job exists even if async handler fails
+        db.add(job)
+        db.flush()
 
-        # Build queue message with complete job data
+        # Validation: Verify job was written
+        persisted_job = db.query(Jobs).filter(Jobs.jobID == job_id).first()
+        if not persisted_job:
+            raise RuntimeError(f"Write validation failed: job not found after flush")
+
+        db.commit()
+        logger.info(f"[JobCreate] Persisted job {job_id}: {request.job_title}")
+
+        # THEN: Queue message to FLASH for approval workflow & candidate matching
         queue_data = {
             "job_id": job_id,
             "job_title": request.job_title,
@@ -203,23 +213,24 @@ def create_job(
             logger.error(f"SLM analysis failed for job {job_id}: {slm_err}", exc_info=True)
             # Don't fail job creation if SLM fails - queue message will proceed without analysis
 
-        # Queue message to FLASH (handler will do the DB write)
+        # Queue message to FLASH for async processing
         msg_id = MessageQueueService.enqueue(
             task_name='job_created_flash',
             task_id=job_id,
             data=queue_data
         )
-        logger.info(f"Job {job_id} queued to FLASH: message_id={msg_id}")
+        logger.info(f"[JobCreate] Queued to FLASH: job_id={job_id}, message_id={msg_id}")
     except Exception as e:
-        logger.error(f"Failed to queue job {job_id}: {str(e)}", exc_info=True)
+        db.rollback()
+        logger.error(f"Failed to create job {job_id}: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to create job: {str(e)}")
 
-    # Job is now queued to FLASH handler
+    # Job is now PERSISTED to database + queued to FLASH handler
     # Handler will:
-    # 1. Persist job to database
-    # 2. Handle approval workflow if job_status != "active"
-    # 3. Scan for candidate matches if job_status == "active"
-    # 4. Train SLM with result
+    # 1. Handle approval workflow if job_status != "active"
+    # 2. Scan for candidate matches if job_status == "active"
+    # 3. Queue flash_recruiter for continuous scheduling
+    # 4. Train SLM with results
 
     return JobCreateResponse(job_id=job_id, response=response_message)
 

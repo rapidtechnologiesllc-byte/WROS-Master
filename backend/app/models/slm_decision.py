@@ -22,8 +22,8 @@ class SLMDecision(Base):
     # Primary key
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
 
-    # Message reference (FK to ChannelQueueItem)
-    message_id = Column(UUID(as_uuid=True), ForeignKey("channel_queue_items.id"), nullable=False)
+    # Message reference (FK to ChannelQueueItem - soft FK, doesn't enforce constraint)
+    message_id = Column(UUID(as_uuid=True), nullable=False)
     message_type = Column(String(100), nullable=False)  # interview_scheduled, offer_generated, etc.
 
     # Pre-flight analysis (PLACE 1)

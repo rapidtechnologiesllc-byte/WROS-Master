@@ -6,11 +6,20 @@ Creates table to store every SLM decision with:
 - Post-flight outcome (Place 2): What actually happened after handler
 - Business impact: Candidate affected, cost impact, 90-day validation plan
 - Accountability: Who decided, can it be reversed, audit trail
+
+Revision ID: slm_decision_table
+Revises: (Applies after all current migrations)
+Create Date: 2026-09-10
 """
 
 from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
+
+revision = 'slm_decision_table'
+down_revision = '2_add_clients'  # Follows the latest applied migration
+branch_labels = None
+depends_on = None
 
 
 def upgrade():
