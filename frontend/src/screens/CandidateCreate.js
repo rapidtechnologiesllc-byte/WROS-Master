@@ -819,7 +819,7 @@ export default function CandidateCreate({ onBack, onSave }) {
             />
           </div>
 
-          <div className="md:col-span-2">
+          <div>
             <Input
               label="First Name *"
               value={firstName}
@@ -837,7 +837,7 @@ export default function CandidateCreate({ onBack, onSave }) {
             ) : null}
           </div>
 
-          <div className="md:col-span-2">
+          <div>
             <Input
               label="Last Name *"
               value={lastName}
