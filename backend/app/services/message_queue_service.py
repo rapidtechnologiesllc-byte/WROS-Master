@@ -18,6 +18,8 @@ QUEUE_ITEM_RETRY_COUNT_INITIAL = 0
 class MessageQueueService:
     """Queue async tasks to custom message queue system (database + Redis backend)."""
 
+    MAX_PAYLOAD_SIZE_BYTES = 10 * 1024 * 1024  # 10MB max payload (HIGH FIX #13: Prevent OOM crashes)
+
     @staticmethod
     def enqueue(
         task_name: str,
@@ -36,6 +38,19 @@ class MessageQueueService:
         task_id = task_id or str(uuid4())
         trace_id = trace_id or str(uuid4())  # Generate trace_id if not provided
         data['__trace_id'] = trace_id  # Embed trace_id in payload for propagation
+
+        # HIGH FIX #13: Validate payload size to prevent OOM crashes
+        import json as json_module
+        payload_json = json_module.dumps(data)
+        payload_size = len(payload_json.encode('utf-8'))
+        if payload_size > MessageQueueService.MAX_PAYLOAD_SIZE_BYTES:
+            logger.error(
+                f"[QUEUE] Payload too large for {task_name}: "
+                f"{payload_size / (1024*1024):.1f}MB > {MessageQueueService.MAX_PAYLOAD_SIZE_BYTES / (1024*1024):.1f}MB limit"
+            )
+            raise ValueError(
+                f"Payload exceeds maximum size ({payload_size} > {MessageQueueService.MAX_PAYLOAD_SIZE_BYTES} bytes)"
+            )
 
         try:
             from app.models.channel_queue import ChannelQueueItem

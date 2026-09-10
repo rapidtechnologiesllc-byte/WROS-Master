@@ -48,9 +48,11 @@ class QueueProcessorService:
     # Configuration
     MAX_RETRIES = 3
     INITIAL_RETRY_DELAY = 1  # seconds (HIGH FIX #3: Reduced from 5s to 1s, exponential: 1s→2s→4s→8s)
-    BATCH_SIZE = 10
+    BATCH_SIZE = 50  # HIGH FIX #11: Increased from 10 to 50 (better throughput, less polling)
     POLL_INTERVAL = 2  # seconds
     HANDLER_TIMEOUT_SECONDS = 30  # Max time for any handler to complete before timeout
+    MAX_RESULT_SIZE_BYTES = 5 * 1024 * 1024  # 5MB max for result JSON (HIGH FIX #14: Prevent DB truncation)
+    MAX_ERROR_SIZE_BYTES = 10 * 1024  # 10KB max for error field (already truncated at 500 chars)
 
     # Exponential backoff multiplier
     RETRY_BACKOFF_MULTIPLIER = 2
@@ -251,12 +253,34 @@ class QueueProcessorService:
 
                 # Mark COMPLETED only after validation passes
                 message.status = QueueStatus.COMPLETED.value
-                message.result = json.dumps({
+                result_data = {
                     "success": True,
                     "data": handler_result,
                     "completed_at": datetime.utcnow().isoformat(),
                     "handler_duration_ms": handler_duration_ms
-                })
+                }
+                result_json = json.dumps(result_data)
+
+                # HIGH FIX #14: Check result size and truncate if necessary
+                if len(result_json.encode('utf-8')) > QueueProcessorService.MAX_RESULT_SIZE_BYTES:
+                    logger.warning(
+                        f"[QueueProcessor] Result too large ({len(result_json) / (1024*1024):.1f}MB), "
+                        f"truncating handler_result"
+                    )
+                    # Remove large data field and keep only success flag + metadata
+                    result_data = {
+                        "success": True,
+                        "data_truncated": True,
+                        "data_size_bytes": len(str(handler_result).encode('utf-8')),
+                        "completed_at": datetime.utcnow().isoformat(),
+                        "handler_duration_ms": handler_duration_ms
+                    }
+                    result_json = json.dumps(result_data)
+
+                message.result = result_json
+
+                # HIGH FIX #10: Reset retry count to 0 on success (better retry logic)
+                message.retry_count = 0
                 db.commit()
 
                 # Reset circuit breaker on success (HIGH FIX #1: Thread-safe)
@@ -451,12 +475,26 @@ class QueueProcessorService:
                     if processor_stats["batches_processed"] % 10 == 0:
                         logger.info(f"[QueueProcessor] Processor stats: {processor_stats}")
 
+                    # HIGH FIX #12: Adaptive poll interval based on queue depth
+                    # If queue empty, wait longer; if queue full, process faster
+                    if batch_result["processed"] == 0:
+                        # Queue empty - wait longer (up to 10s max)
+                        adaptive_interval = min(poll_interval * 5, 10)
+                    elif batch_result["processed"] == batch_size:
+                        # Queue full - don't wait, process immediately
+                        adaptive_interval = 0.1
+                    else:
+                        # Queue partially full - use normal interval
+                        adaptive_interval = poll_interval
+
+                    time.sleep(adaptive_interval)
+
                 except Exception as e:
                     logger.error(f"[QueueProcessor] Batch error: {e}", exc_info=True)
+                    time.sleep(poll_interval)  # Sleep on error
 
                 finally:
                     db.close()
-                    time.sleep(poll_interval)
 
         except KeyboardInterrupt:
             logger.info("[QueueProcessor] Queue processor stopped")
