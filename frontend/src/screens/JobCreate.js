@@ -126,6 +126,7 @@ export default function JobCreate({
           // If draft job doesn't exist (404), clear it and continue without blocking
           if (err?.status === 404 || err?.response?.status === 404) {
             setDraftJobId(null);
+            setScreenError(null); // Clear any error message that might be displayed
           }
         }
       };
