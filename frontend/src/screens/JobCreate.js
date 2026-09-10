@@ -95,6 +95,13 @@ export default function JobCreate({
     }
   }, [mode, canCreateJobDirectly, navigate]);
 
+  // Ensure title is always empty for new job creation (not in view mode)
+  useEffect(() => {
+    if (mode !== "view" && !initialJob && title === "Job Title") {
+      setTitle("");
+    }
+  }, [mode, initialJob, title]);
+
   // Sync skills string to structured format when needed
   useEffect(() => {
     if (initialJob?.skills && mode === "view" && initialJob.skills.length > 0) {
@@ -154,7 +161,7 @@ export default function JobCreate({
         }
 
         const payload = {
-          job_title: title?.trim() || "Draft Job",
+          job_title: title?.trim() || "",
           job_description: internalJD?.trim(),
           job_skills: selectedSkills.length > 0 ? selectedSkills.map(s => s.name).join(", ") : skills?.trim(),
           job_experience: String(experienceLevel ?? "1").trim(),
@@ -679,7 +686,7 @@ export default function JobCreate({
         }
 
         const draftPayload = {
-          job_title: title?.trim() || "Draft Job",
+          job_title: title?.trim() || "",
           job_description: internalJD?.trim() || internalJdTemplate,
           job_skills: "",
           job_experience: "1",
