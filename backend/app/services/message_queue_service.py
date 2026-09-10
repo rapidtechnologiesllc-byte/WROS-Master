@@ -3,6 +3,7 @@ import logging
 from typing import Dict, Any, Optional
 from datetime import datetime
 from uuid import uuid4
+import random
 
 logger = logging.getLogger(__name__)
 
@@ -23,6 +24,7 @@ class MessageQueueService:
         task_id: Optional[str] = None,
         data: Optional[Dict[str, Any]] = None,
         delay_seconds: int = DEFAULT_DELAY_SECONDS,
+        trace_id: Optional[str] = None,  # HIGH FIX #4: Correlation ID for tracing
         idempotency_key: Optional[str] = None
     ) -> Dict[str, Any]:
         """Queue a task to custom message queue. Uses database as primary store."""
@@ -32,6 +34,8 @@ class MessageQueueService:
 
         data = data or {}
         task_id = task_id or str(uuid4())
+        trace_id = trace_id or str(uuid4())  # Generate trace_id if not provided
+        data['__trace_id'] = trace_id  # Embed trace_id in payload for propagation
 
         try:
             from app.models.channel_queue import ChannelQueueItem
@@ -65,6 +69,10 @@ class MessageQueueService:
                 scheduled_for=scheduled_for,
                 idempotency_key=idempotency_key
             )
+
+            # HIGH FIX #4: Store trace_id for end-to-end tracing (if column exists)
+            if hasattr(queue_item, 'trace_id'):
+                queue_item.trace_id = trace_id
 
             db.add(queue_item)
             db.commit()

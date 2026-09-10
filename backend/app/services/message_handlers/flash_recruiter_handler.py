@@ -215,10 +215,17 @@ class FlashRecruiterHandler:
                 logger.warning(f"[FlashRecruiter] Payload corruption detected, resetting deduplication")
                 previously_matched_ids = []
 
-            # Filter duplicates
-            new_candidate_watches = [w for w in matched_watches if w.get('candidate_id') not in previously_matched_ids]
+            # HIGH FIX #5: Filter duplicates using ORM attributes (not dict keys)
+            # matched_watches contains CandidateOpportunityWatch ORM objects
+            new_candidate_watches = [
+                w for w in matched_watches
+                if hasattr(w, 'candidate_id') and w.candidate_id not in previously_matched_ids
+            ]
 
-            logger.info(f"[FlashRecruiter] Found {len(matched_watches)} candidates, {len(new_candidate_watches)} new (deduped)")
+            logger.info(
+                f"[FlashRecruiter] Found {len(matched_watches)} candidates, "
+                f"{len(new_candidate_watches)} new (deduped)"
+            )
 
             # PHASE 4: TRAIN SLM WITH RESULTS
             try:

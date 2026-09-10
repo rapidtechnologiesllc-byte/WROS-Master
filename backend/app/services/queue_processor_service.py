@@ -15,6 +15,7 @@ Architecture: Works WITH SLMService to create feedback loop
 import json
 import logging
 import time
+import threading
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any
 from enum import Enum
@@ -46,7 +47,7 @@ class QueueProcessorService:
 
     # Configuration
     MAX_RETRIES = 3
-    INITIAL_RETRY_DELAY = 5  # seconds
+    INITIAL_RETRY_DELAY = 1  # seconds (HIGH FIX #3: Reduced from 5s to 1s, exponential: 1s→2s→4s→8s)
     BATCH_SIZE = 10
     POLL_INTERVAL = 2  # seconds
     HANDLER_TIMEOUT_SECONDS = 30  # Max time for any handler to complete before timeout
@@ -158,8 +159,9 @@ class QueueProcessorService:
             stats["errors"].append(str(e))
             return stats
 
-    # Circuit breaker state (class variable)
+    # Circuit breaker state (thread-safe with lock) - HIGH FIX #1: Thread safety
     _consecutive_failures = 0
+    _consecutive_failures_lock = threading.Lock()  # Protects concurrent access
     _FAILURE_THRESHOLD = 3  # CRITICAL FIX #4: Lowered from 5 (80s lag) to 3 (40s lag)
 
     @staticmethod
@@ -173,10 +175,11 @@ class QueueProcessorService:
         handler_start_time = time.time()
 
         try:
-            # Circuit breaker: Stop processing if too many consecutive failures
-            if QueueProcessorService._consecutive_failures >= QueueProcessorService._FAILURE_THRESHOLD:
-                logger.critical("[QueueProcessor] Circuit breaker triggered - stopping message processing")
-                raise RuntimeError("Circuit breaker triggered - database or system failures detected")
+            # Circuit breaker: Stop processing if too many consecutive failures (HIGH FIX #1: Thread-safe)
+            with QueueProcessorService._consecutive_failures_lock:
+                if QueueProcessorService._consecutive_failures >= QueueProcessorService._FAILURE_THRESHOLD:
+                    logger.critical("[QueueProcessor] Circuit breaker triggered - stopping message processing")
+                    raise RuntimeError("Circuit breaker triggered - database or system failures detected")
 
             # Mark as PROCESSING
             message.status = QueueStatus.PROCESSING.value
@@ -256,8 +259,9 @@ class QueueProcessorService:
                 })
                 db.commit()
 
-                # Reset circuit breaker on success
-                QueueProcessorService._consecutive_failures = 0
+                # Reset circuit breaker on success (HIGH FIX #1: Thread-safe)
+                with QueueProcessorService._consecutive_failures_lock:
+                    QueueProcessorService._consecutive_failures = 0
 
                 return {
                     "status": QueueStatus.COMPLETED.value,
@@ -272,11 +276,14 @@ class QueueProcessorService:
                 logger.error(f"[QueueProcessor] Handler failed for {message.type}: {handler_err}", exc_info=True)
 
                 if message.retry_count < QueueProcessorService.MAX_RETRIES:
-                    # Schedule retry with exponential backoff
-                    backoff_seconds = (
+                    # Schedule retry with exponential backoff + jitter (HIGH FIX #3: Thundering herd prevention)
+                    base_backoff = (
                         QueueProcessorService.INITIAL_RETRY_DELAY *
                         (QueueProcessorService.RETRY_BACKOFF_MULTIPLIER ** message.retry_count)
                     )
+                    # Add ±10% jitter to prevent synchronized retries
+                    jitter = random.uniform(0, 0.1 * base_backoff)
+                    backoff_seconds = base_backoff + jitter
                     message.retry_count += 1
                     message.next_retry_at = datetime.utcnow() + timedelta(seconds=backoff_seconds)
                     message.status = QueueStatus.RETRY.value
@@ -340,6 +347,14 @@ class QueueProcessorService:
             message.status = QueueStatus.FAILED.value
             message.result = json.dumps({"error": str(e), "failed_at": datetime.utcnow().isoformat()})
             db.commit()
+
+            # Increment circuit breaker counter (HIGH FIX #1: Thread-safe)
+            with QueueProcessorService._consecutive_failures_lock:
+                QueueProcessorService._consecutive_failures += 1
+                logger.warning(
+                    f"[QueueProcessor] Consecutive failures: "
+                    f"{QueueProcessorService._consecutive_failures}/{QueueProcessorService._FAILURE_THRESHOLD}"
+                )
 
             return {
                 "status": QueueStatus.FAILED.value,
