@@ -32,15 +32,13 @@ def upgrade() -> None:
         op.f('ix_jobs_deleted_at'),
         'jobs',
         ['deleted_at'],
-        unique=False,
-        comment='Index for filtering non-deleted jobs'
+        unique=False
     )
     op.create_index(
         op.f('ix_jobs_is_deleted'),
         'jobs',
         ['is_deleted'],
-        unique=False,
-        comment='Index for filtering non-deleted jobs'
+        unique=False
     )
 
 
