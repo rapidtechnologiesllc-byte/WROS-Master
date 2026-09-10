@@ -159,8 +159,14 @@ def create_job(
             raise HTTPException(status_code=409, detail=f"Job {job_id} already exists")
 
         db.add(job)
+        db.commit()  # PERSIST JOB TO DATABASE FIRST
 
-        # Queue BEFORE commit (atomicity) - enqueue() commits the transaction
+        # Validation: Verify job actually saved
+        persisted_job = db.query(Jobs).filter(Jobs.jobID == job_id).first()
+        if not persisted_job:
+            raise RuntimeError(f"Write validation failed: Job {job_id} not found in database after commit")
+
+        # Queue AFTER commit (job now exists in DB)
         msg_id = MessageQueueService.enqueue(
             task_name='job_created_flash',
             task_id=job_id,
@@ -271,7 +277,14 @@ def update_job(
         job.salaryRange = request.salary_range
 
     try:
-        # Queue BEFORE commit (atomicity) - enqueue() commits the transaction
+        db.commit()  # PERSIST UPDATES TO DATABASE FIRST
+
+        # Validation: Verify updates actually saved
+        persisted_job = db.query(Jobs).filter(Jobs.jobID == job_id).first()
+        if not persisted_job:
+            raise RuntimeError(f"Write validation failed: Job {job_id} not found in database after update")
+
+        # Queue AFTER commit (job updates now in DB)
         msg_id = MessageQueueService.enqueue(
             task_name='job_updated_flash',
             task_id=job_id,
