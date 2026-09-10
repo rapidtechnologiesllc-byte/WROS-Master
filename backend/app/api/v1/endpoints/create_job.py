@@ -243,7 +243,11 @@ def get_all_jobs(
         AllJobsResponse with list of all jobs and total count
     """
     # HRMS-0109 -- scoped to the caller's own tenant, never all tenants' jobs.
-    jobs = db.query(Jobs).all()
+    # Filter out soft-deleted jobs
+    jobs = db.query(Jobs).filter(
+        (Jobs.is_deleted == False) | (Jobs.is_deleted.is_(None)),
+        (Jobs.deleted_at.is_(None))
+    ).all()
     
     # Build response
     jobs_data = []

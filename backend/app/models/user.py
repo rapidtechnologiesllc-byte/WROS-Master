@@ -154,6 +154,10 @@ class Jobs(Base):
         Enum(*JOB_URGENCY_LEVELS, name="job_urgency", native_enum=False, create_constraint=True),
         nullable=True,
     )
+    # Soft delete support - jobs can be marked deleted without removing from DB
+    deleted_at = Column(DateTime, nullable=True, index=True)
+    is_deleted = Column(Boolean, default=False, nullable=False, index=True)
+
     business_unit = relationship("BusinessUnit", foreign_keys=[business_unit_id], lazy="select")
     department = relationship("Department", foreign_keys=[department_id], lazy="select")
     hiring_manager = relationship("Users", foreign_keys=[hiringManagerID], lazy="select")

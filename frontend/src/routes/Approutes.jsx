@@ -538,9 +538,13 @@ export default function AppRoutes() {
           );
         }
 
-        const mappedJobs = (jobRes?.jobs || []).map((j) =>
-          mapJobFromApi(j, usersRes || []),
-        );
+        // Deduplicate jobs by ID to prevent duplicate display
+        const jobMap = {};
+        (jobRes?.jobs || []).forEach((j) => {
+          const mapped = mapJobFromApi(j, usersRes || []);
+          jobMap[mapped.id] = mapped;  // Last one wins in case of duplicates
+        });
+        const mappedJobs = Object.values(jobMap);
 
         const mappedInterviews = mapInterviews(interviewRes);
 
