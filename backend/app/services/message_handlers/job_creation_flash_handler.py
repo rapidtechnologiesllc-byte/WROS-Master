@@ -133,27 +133,39 @@ class JobCreationFlashHandler:
                 db.commit()
                 logger.info(f"[JobCreate] ✅ Created job {job_id}: {job_title}")
 
-                # QUEUE 2: Flash_Recruiter handler will find candidates & queue outreach
-                from app.services.message_queue_service import MessageQueueService
-                recruiter_msg_id = MessageQueueService.enqueue(
-                    task_name='flash_recruiter',
-                    task_id=job_id,
-                    data={
-                        'job_id': job_id,
-                        'job_title': job_title,
-                        'job_skills': message.payload.get('job_skills', ''),
-                        'slm_analysis': message.payload.get('slm_analysis')
-                    }
-                )
-                logger.info(f"[JobCreate] Queued flash_recruiter for job {job_id}: message_id={recruiter_msg_id}")
+                # HANDLER LOGIC: Handle job-specific workflows (after persisted to DB)
+                # These were moved from endpoint to handler to follow queue-driven architecture
+
+                job_status = payload.get('job_status', 'active')
+
+                if job_status == "active":
+                    # Scan for ready candidates matching this job
+                    try:
+                        from app.services.ready_for_opportunity_service import scan_new_job_for_matches
+                        scan_new_job_for_matches(db, job)
+                        logger.info(f"[JobCreate] Scanned ready-for-opportunity candidates for {job_id}")
+                    except Exception as scan_err:
+                        logger.warning(f"[JobCreate] Ready-for-opportunity scan failed (non-blocking): {scan_err}")
+
+                elif job_status == "pending_approval":
+                    # Send approval notification
+                    try:
+                        from app.services.job_approval_workflow_service import handle_job_creation_approval_flow
+                        created_by = payload.get('created_by_user_id')
+                        approval_info = handle_job_creation_approval_flow(db, job, None, send_emails=True)
+                        logger.info(f"[JobCreate] Job {job_id} pending approval. {approval_info.get('routing_reason', 'Routing to approver')}")
+                    except Exception as approval_err:
+                        logger.warning(f"[JobCreate] Approval flow failed (non-blocking): {approval_err}")
+
+                # NOTE: flash_recruiter queue is handled by QueueProcessorService after SLM analysis
+                # (Don't queue it here - that's orchestration, not handler's job)
 
                 return {
                     'status': 'success',
                     'job_id': job_id,
                     'created_at': datetime.utcnow().isoformat(),
                     'job_status': job.jobStatus,
-                    'job_title': job_title,
-                    'recruiter_queue_id': recruiter_msg_id
+                    'job_title': job_title
                 }
 
             except IntegrityError as e:

@@ -722,16 +722,8 @@ def create_job(request: JobCreateRequest, background_tasks: BackgroundTasks, db:
         logger.error(f"[SLM] Failed to store job metadata: {e}", exc_info=True)
         # Continue - SLM failure shouldn't block job creation
 
-    if job_status == "active":
-        # Real trigger, never a scheduled poll -- a newly PUBLISHED job
-        # is exactly the "real match might now exist" event per
-        # [[wros_ready_for_opportunity_workflow]].
-        background_tasks.add_task(scan_new_job_for_matches, db, job)
-    elif job_status == "pending_approval":
-        # Send approval notification email
-        from app.services.job_approval_workflow_service import handle_job_creation_approval_flow
-        approval_info = handle_job_creation_approval_flow(db, job, user, send_emails=True)
-        logger.info(f"[JobCreation] Job {job_id} pending approval. {approval_info['routing_reason']}")
+    # NOTE: scan_new_job_for_matches and approval flow are handled by the handler after job is persisted to DB
+    # This keeps endpoint logic clean (queue only, no DB writes or background tasks)
 
     return JobCreateResponse(job_id=job_id, response=response_message)
 
