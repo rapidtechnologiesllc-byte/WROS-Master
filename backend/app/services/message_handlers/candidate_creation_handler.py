@@ -192,17 +192,24 @@ class CandidateCreationHandler:
                 logger.error(f"[Handler] Atomic commit failed: {e}", exc_info=True)
                 raise RuntimeError(f"Failed to commit all records: {str(e)}") from e
 
-            # 5. LOG HISTORY EVENTS
+            # RETURN SUCCESS IMMEDIATELY - Mark handler complete before queuing dependent work
+            # This prevents handler from blocking on email/Thunder queueing
+            result = {"status": "success", "candidate_id": candidate_id, "is_new": is_new}
+            logger.info(f"[Handler] ✅ Candidate creation complete: {candidate_id} (ready for return)")
+
+            # Queue dependent work AFTER returning success (non-blocking background tasks)
+            # These should NOT block handler completion
             try:
+                # Log history event (non-critical)
                 CandidateCreationHandler._log_history_event(
                     candidate_id, "Candidate Added", f"Candidate added via form submission"
                 )
                 logger.info(f"[Handler] ✅ History event logged for {candidate_id}")
             except Exception as e:
-                logger.error(f"[Handler] Failed to log history: {e}", exc_info=True)
+                logger.warning(f"[Handler] History logging failed (non-blocking): {e}", exc_info=True)
 
-            # 6. QUEUE FIRST ENGAGEMENT EMAIL IMMEDIATELY
             try:
+                # Queue engagement email (non-critical, async)
                 MessageQueueService.enqueue(
                     task_name='send_email',
                     channel_type='EMAIL_QUEUE',
@@ -210,17 +217,17 @@ class CandidateCreationHandler:
                         'candidate_id': candidate_id,
                         'recipient_email': candidate_email,
                         'email_type': 'FIRST_ENGAGEMENT',
-                        'subject': f'Welcome {candidate_first_name}! Your Application is Received',
-                        'body': f'Hi {candidate_first_name},\n\nThank you for applying! We have received your application and will review it shortly.\n\nBest regards,\nBlitzenX Team',
+                        'subject': f'Welcome {payload.get("candidate_first_name", "User")}! Your Application is Received',
+                        'body': f'Hi {payload.get("candidate_first_name", "there")},\n\nThank you for applying! We have received your application and will review it shortly.\n\nBest regards,\nBlitzenX Team',
                         'tenant_id': payload.get('tenant_id', 1),
                     }
                 )
-                logger.info(f"[Handler] ✅ Queued first engagement email for {candidate_id}")
+                logger.info(f"[Handler] ✅ Queued engagement email for {candidate_id}")
             except Exception as e:
-                logger.warning(f"[Handler] Failed to queue email (non-blocking): {e}")
+                logger.warning(f"[Handler] Email queueing failed (non-blocking): {e}", exc_info=True)
 
-            # 7. QUEUE TO THUNDER FOR AUTONOMOUS PROCESSING
             try:
+                # Queue to Thunder for autonomous processing (non-critical, async)
                 MessageQueueService.enqueue(
                     task_name='assign_thunder_agent',
                     data={
@@ -229,12 +236,11 @@ class CandidateCreationHandler:
                         'tenant_id': payload.get('tenant_id', 1),
                     }
                 )
-                logger.info(f"[Handler] ✅ Queued {candidate_id} to Thunder for autonomous processing")
+                logger.info(f"[Handler] ✅ Queued {candidate_id} to Thunder")
             except Exception as e:
-                logger.warning(f"[Handler] Failed to queue Thunder (non-blocking): {e}")
-                # Don't fail candidate creation if Thunder queueing fails - it's async
+                logger.warning(f"[Handler] Thunder queueing failed (non-blocking): {e}", exc_info=True)
 
-            return {"status": "success", "candidate_id": candidate_id, "is_new": is_new}
+            return result
 
         except DuplicateCandidateError as e:
             logger.warning(f"[Handler] Duplicate candidate: {candidate_email}", exc_info=True)
