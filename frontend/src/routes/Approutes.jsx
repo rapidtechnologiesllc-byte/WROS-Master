@@ -127,8 +127,6 @@ import BuHeadDashboardScreen from "../screens/BuHeadDashboardScreen";
 import MyReferralsScreen from "../screens/MyReferralsScreen";
 import LinkedInPipelineScreen from "../screens/LinkedInPipelineScreen";
 import DocumentUploadScreen from "../screens/DocumentUploadScreen";
-import MessageQueueMonitor from "../pages/MessageQueueMonitor";
-import SLMDashboard from "../pages/SLMDashboard";
 
 
 // Wrapper component that renders the appropriate dashboard based on user permissions
@@ -691,10 +689,6 @@ export default function AppRoutes() {
             <Route path="troy-partner-dashboard" element={<TroyPartnerDashboard />} />
             <Route path="bi-explorer" element={<BIExplorerScreen />} />
             <Route path="bu-head-dashboard" element={<BuHeadDashboardScreen />} />
-
-            {/* Phase B - Message Queue Monitor & SLM Dashboard */}
-            <Route path="admin/messagequeue" element={<MessageQueueMonitor />} />
-            <Route path="admin/slm-dashboard" element={<SLMDashboard />} />
 
             <Route
               path="candidates"
