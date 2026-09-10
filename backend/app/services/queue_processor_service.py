@@ -230,6 +230,44 @@ class QueueProcessorService:
 
             logger.info(f"[QueueProcessor] Processing message {message.id}: {message.type}")
 
+            # ============ PLACE 1: PRE-FLIGHT SLM ANALYSIS (ENFORCEMENT) ============
+            slm_analysis = None
+            try:
+                slm_analysis = SLMService.analyze_before_handler(
+                    message_id=str(message.id),
+                    message_type=message.type,
+                    payload=message.payload or {},
+                    context={
+                        'business_goal': f'Execute {message.type} handler',
+                        'risk_level': 'MEDIUM',
+                        'queue_retry_count': message.retry_count or 0,
+                        'message_age_seconds': (datetime.utcnow() - message.created_at).total_seconds() if message.created_at else 0
+                    },
+                    db=db
+                )
+
+                # Check if SLM says to escalate
+                if not slm_analysis.get('should_proceed'):
+                    logger.warning(f"[QueueProcessor] SLM pre-flight escalation for {message.id}: {slm_analysis.get('reasoning')}")
+                    message.status = QueueStatus.FAILED.value
+                    message.result = json.dumps({
+                        'success': False,
+                        'error': f"SLM escalation: {slm_analysis.get('reasoning')}",
+                        'slm_decision_id': slm_analysis.get('slm_decision_id'),
+                        'escalation_reason': slm_analysis.get('reasoning')
+                    })
+                    db.commit()
+                    return {
+                        'status': 'escalated',
+                        'message_id': str(message.id),
+                        'reason': slm_analysis.get('reasoning')
+                    }
+            except Exception as slm_precheck_err:
+                logger.error(f"[QueueProcessor] SLM pre-flight analysis failed: {slm_precheck_err}")
+                # Don't block - continue with handler execution
+                # SLM service being down shouldn't stop the queue processor
+                pass
+
             # Get handler for this task (type field contains task name like 'job_created_flash')
             handler = MessageHandlerRegistry.get_handler(message.type)
             if not handler:
