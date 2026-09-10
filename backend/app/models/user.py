@@ -95,6 +95,7 @@ class Users(Base):
 
     business_unit = relationship("BusinessUnit", foreign_keys=[business_unit_id], lazy="select")
     department = relationship("Department", foreign_keys=[department_id], lazy="select")
+    role_template = relationship("RoleTemplate", foreign_keys=[role_template_id], lazy="select")
     terminated_by_user = relationship("Users", foreign_keys=[terminated_by_user_id], remote_side=[UserID], lazy="select")
 
     def is_active(self) -> bool:

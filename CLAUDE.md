@@ -2,6 +2,74 @@
 
 ---
 
+## 🚨 CRITICAL: QUEUE ROUTING ARCHITECTURE (2026-09-09)
+
+**STATUS:** ✅ ENFORCED - Two distinct AI systems with specific queue routing
+
+### Queue System Overview
+
+**THUNDER Queue** = Candidate external-facing operations
+- Candidate creation
+- Candidate communications (emails, SMS, WhatsApp)
+- Candidate status updates
+- External engagement workflows
+- **Task names:** `create_candidate`, `import_linkedin_candidate`, etc.
+- **Processing:** Async Thunder workers handle candidate lifecycle
+
+**FLASH Queue** = Everything else (internal operations, recruitment agents)
+- Job creation / updates / deletion
+- Interview scheduling / updates
+- Offer generation / approvals
+- Project management
+- Timesheet operations
+- Internal recruiter agent tasks
+- **Task names:** `job_created_flash`, `job_updated_flash`, `job_deleted_flash`, `interview_scheduled`, etc.
+- **Processing:** Flash recruiter agents handle internal workflows
+
+### Queue Routing Rules (MANDATORY)
+
+**THUNDER (Candidate external):**
+```python
+MessageQueueService.enqueue(
+    task_name='create_candidate',  # ← Candidate-related
+    data={...}
+)
+```
+
+**FLASH (Everything else):**
+```python
+MessageQueueService.enqueue(
+    task_name='job_created_flash',  # ← Jobs route to Flash
+    data={...}
+)
+
+MessageQueueService.enqueue(
+    task_name='interview_scheduled',  # ← Interviews route to Flash
+    data={...}
+)
+```
+
+### Files Requiring Queue Routing Fixes
+
+| File | Issue | Fix |
+|------|-------|-----|
+| `backend/app/api/v1/endpoints/jobs/crud.py` | Routes to Thunder | Change to `job_created_flash`, `job_updated_flash`, `job_deleted_flash` |
+| `backend/app/api/v1/endpoints/timesheets.py` | Routes to DASHBOARD_QUEUE | Change to Flash task names |
+| `backend/app/api/v1/endpoints/interviews.py` | Routes to Thunder | Verify uses `interview_scheduled` (Flash) |
+| `backend/app/api/v1/endpoints/offers.py` | Routes to Thunder | Change to `offer_generated_flash` |
+| `backend/app/api/v1/endpoints/projects.py` | Routes to Thunder | Change to `project_*_flash` |
+
+### Verification Checklist
+
+Before committing ANY queue integration:
+- [ ] Candidate operations → THUNDER (task_name contains `candidate`)
+- [ ] Job/Interview/Offer/Project operations → FLASH (task_name ends with `_flash`)
+- [ ] No hardcoded `queue_type`, `resource_id`, `created_by`, `db` parameters
+- [ ] Uses correct signature: `enqueue(task_name, task_id=None, data=None, delay_seconds=0)`
+- [ ] Test messages appear in correct queue monitor
+
+---
+
 ## 🚨 MANDATORY: RUTHLESS ARCHITECT AGENT REVIEW (2026-09-07) - STRICT ENFORCEMENT
 
 **STATUS:** ✅ ENFORCED - ALL code changes require Ruthless Architect Agent review BEFORE writing

@@ -84,8 +84,8 @@ def create_offer(
         candidate = db.query(Candidate).filter(Candidate.candidateID == request.candidate_id).first()
         if offer and candidate:
             MessageQueueService.enqueue(
-                message_type="offer_generated",
-                payload={
+                task_name="offer_generated",
+                data={
                     "offer_id": offer.id,
                     "candidate_id": request.candidate_id,
                     "candidate_email": candidate.candidateEmail,
@@ -94,11 +94,7 @@ def create_offer(
                     "base_salary_usd_cents": request.base_salary_usd_cents,
                     "signing_bonus_usd_cents": request.signing_bonus_usd_cents,
                     "expected_start_date": str(request.expected_start_date),
-                },
-                resource_id=offer.id,
-                queue_type="APPROVAL_QUEUE",
-                created_by=user.UserID,
-                db=db,
+                }
             )
 
         return OfferResponse.from_orm(offer)

@@ -223,35 +223,14 @@ class AuthenticationMiddleware(BaseHTTPMiddleware):
             
             return response
             
-        except HTTPException as e:
-            # Token validation failed
+        except HTTPException:
+            # decode_access_token raised HTTPException (401 Unauthorized, etc.)
+            # Log and re-raise so FastAPI handles it with proper response format
             log_security_event(
                 "INVALID_TOKEN",
-                details=f"Path: {path} | Error: {e.detail}"
+                details=f"Path: {path} | Invalid JWT token"
             )
-            return JSONResponse(
-                status_code=e.status_code,
-                content={"detail": e.detail}
-            )
-            
-        except Exception as e:
-            logger.error(f"Error: {str(e)}", exc_info=True)
-            # Unexpected error
-            import traceback
-            import sys
-            error_detail = f"{type(e).__name__}: {str(e)}"
-            sys.stderr.write(f"\n[MW_ERROR] {error_detail}\n{traceback.format_exc()}\n")
-            sys.stderr.flush()
-
-            logger.error(f"Authentication error: {str(e)}", exc_info=True)
-            log_security_event(
-                "AUTH_ERROR",
-                details=f"Path: {path} | Error: {error_detail}"
-            )
-            return JSONResponse(
-                status_code=500,
-                content={"detail": f"Internal authentication error: {type(e).__name__}: {str(e)[:100]}"}
-            )
+            raise
 
     def _is_public_route(self, path: str) -> bool:
         """

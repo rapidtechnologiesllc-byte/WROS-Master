@@ -46,6 +46,7 @@ from app.services.salary_structure_generator import (
     calculate_salary,
 )
 from app.services.email_service import EmailService
+from app.services.candidate_event_bus import CandidateEventBus
 
 router = APIRouter(prefix="/offer-letter", tags=["offer-letter"])
 
@@ -343,6 +344,22 @@ def create_offer_letter(
     db.add(new_offer)
     db.commit()
     db.refresh(new_offer)
+
+    # Emit offer_generated event for Thunder and other handlers
+    try:
+        CandidateEventBus.publish_event(
+            event_type=CandidateEventBus.EVENT_CANDIDATE_STATUS_CHANGED,
+            candidate_id=request.candidate_id,
+            data={
+                "old_status": "INTERVIEW",
+                "new_status": "OFFER",
+                "status_change_reason": "Offer generated",
+                "offer_id": new_offer.id,
+                "offer_acceptance_deadline": request.offer_expire_date.isoformat() if hasattr(request.offer_expire_date, 'isoformat') else str(request.offer_expire_date)
+            }
+        )
+    except Exception as e:
+        logger.warning(f"Failed to emit offer_generated event for candidate {request.candidate_id}: {e}")
 
     # "" Update candidate pipeline status ' OfferApproval """""""""""""""""""""
     # Offer created - candidate is in the offer approval workflow

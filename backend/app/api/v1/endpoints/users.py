@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db, check_user
 from app.core.security import get_password_hash, create_access_token
 from app.core.dependencies import get_current_internal_user, require_resource_permission
+from app.services.permission_helper import PermissionHelper
 from app.models import Users, Candidate, CandidateAssignment, Interview, InterviewPanel, InterviewFeedback, PanelMember, BusinessUnit, Department
 
 # Alias for backward compatibility
@@ -45,10 +46,10 @@ router = APIRouter(prefix="/hr", tags=["hr"])
 
 @router.get(
     "/me",
-    dependencies=[Depends(get_current_internal_user), Depends(require_resource_permission("user", "view"))],
+    dependencies=[Depends(get_current_internal_user)],
     summary="Get current HR/Admin user's profile with a fresh access token",
 )
-async def get_me(
+def get_me(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user),
 ):
@@ -80,22 +81,27 @@ async def get_me(
                 "name": rt.name,
             })
 
-    # Get all permissions for the user based on their role template permissions
-    # Returns dict: { "resource_name": { "can_view": True, ... }, ... }
+    # Get all permissions for the user
     permission_resources = []
 
-    if current_user.UserID:
-        permissions_dict = RoleTemplatePermissionService.get_user_permissions(
-            db, current_user.UserID, tenant_id
-        )
+    # Only check role_template if user has one assigned
+    if current_user.UserID and current_user.role_template_id:
+        # Regular users: fetch permissions from role_template
+        try:
+            permissions_dict = RoleTemplatePermissionService.get_user_permissions(
+                db, current_user.UserID, tenant_id
+            )
 
-        # Extract resource names where user has at least one permission
-        if permissions_dict and isinstance(permissions_dict, dict):
-            for resource_name, perms in permissions_dict.items():
-                # Include resource if user has any permission (view/create/edit/delete)
-                if perms and (perms.get('can_view') or perms.get('can_create') or
-                             perms.get('can_edit') or perms.get('can_delete')):
-                    permission_resources.append(resource_name)
+            # Extract resource names where user has at least one permission
+            if permissions_dict and isinstance(permissions_dict, dict):
+                for resource_name, perms in permissions_dict.items():
+                    # Include resource if user has any permission (view/create/edit/delete)
+                    if perms and (perms.get('can_view') or perms.get('can_create') or
+                                 perms.get('can_edit') or perms.get('can_delete')):
+                        permission_resources.append(resource_name)
+        except Exception as e:
+            logger.warning(f"Failed to get permissions for user {current_user.UserID}: {e}")
+            permission_resources = []
 
     # Mint a fresh token using the same claims as login
     access_token = create_access_token(
@@ -122,7 +128,7 @@ async def get_me(
     )
 
     # Add roles and permissions to response as extra fields
-    response_dict = response_data.dict()
+    response_dict = response_data.model_dump()
     response_dict["roles"] = roles_list
     response_dict["permissions"] = permission_resources
 

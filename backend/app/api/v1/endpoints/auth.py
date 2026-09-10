@@ -25,7 +25,7 @@ from app.core.security import (
     security,
     decode_access_token
 )
-from app.core.dependencies import get_current_candidate, get_current_hr_or_admin, require_role_template_permission
+from app.core.dependencies import get_current_candidate, get_current_user, require_role_template_permission
 from app.core.mfa import (
     EMAIL_OTP_TTL_MINUTES,
     MFA_PENDING_TOKEN_MINUTES,
@@ -118,20 +118,6 @@ def validate_email(request: ValidateEmailRequest, db: Session = Depends(get_db))
     except Exception as e:
         logger.error(f"Failed to check user during email validation: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to validate email. Please try again.")
-
-    if user:
-        try:
-            if not hasattr(user, 'role_template_id') or not user.role_template_id:
-                logger.warning(f"Email validation: user {email} has no role_template_id")
-                raise HTTPException(
-                    status_code=403,
-                    detail="Your user account doesn't have permissions loaded. Please reach out to help desk.",
-                )
-        except HTTPException:
-            raise
-        except Exception as e:
-            logger.error(f"Error validating email {email}: {e}", exc_info=True)
-            raise HTTPException(status_code=500, detail="Failed to validate email. Please try again later.")
 
     return {"exists": bool(user)}
 
@@ -412,7 +398,7 @@ def unified_login(request: UnifiedLoginRequest, db: Session = Depends(get_db)):
 def refresh_token_endpoint(
     credentials: HTTPAuthorizationCredentials = Depends(security),
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_hr_or_admin)
+    current_user: Users = Depends(get_current_user)
 ):
     """Refresh an access token using a refresh token. Protected endpoint."""
     if not credentials:
@@ -564,7 +550,7 @@ def refresh_token_endpoint(
 @router.post("/reset-password", dependencies=[Depends(require_role_template_permission("user", "manage"))])
 async def reset_password(
     request: dict,
-    current_user: Users = Depends(get_current_hr_or_admin),
+    current_user: Users = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """Reset user password. Protected endpoint - requires authentication and permission."""

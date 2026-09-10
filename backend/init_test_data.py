@@ -50,7 +50,38 @@ def init_test_data():
                 db.commit()
                 print("OK: Created test business unit")
 
-            # 2. Create test recruiter user
+            # 2. Get or create role templates
+            from app.models.role_template import RoleTemplate
+
+            # Ensure Recruiter role exists
+            recruiter_role = db.query(RoleTemplate).filter(RoleTemplate.name == "Recruiter", RoleTemplate.tenant_id == 1).first()
+            if not recruiter_role:
+                recruiter_role = RoleTemplate(
+                    name="Recruiter",
+                    display_name="Recruiter",
+                    description="Recruiter role for test",
+                    is_system=False,
+                    tenant_id=1
+                )
+                db.add(recruiter_role)
+                db.commit()
+                print("OK: Created Recruiter role template")
+
+            # Ensure HR Manager role exists
+            hr_role = db.query(RoleTemplate).filter(RoleTemplate.name == "HR Manager", RoleTemplate.tenant_id == 1).first()
+            if not hr_role:
+                hr_role = RoleTemplate(
+                    name="HR Manager",
+                    display_name="HR Manager",
+                    description="HR Manager role for test",
+                    is_system=False,
+                    tenant_id=1
+                )
+                db.add(hr_role)
+                db.commit()
+                print("OK: Created HR Manager role template")
+
+            # 3. Create test recruiter user with role_template_id
             recruiter = db.query(Users).filter(Users.UserEmail == "recruiter@test.com").first()
             if not recruiter:
                 recruiter = Users(
@@ -59,13 +90,19 @@ def init_test_data():
                     UserName="Test Recruiter",
                     UserPassword="$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewY5YmMxSUmGEJey",  # password123 bcrypt
                     UserRole="Recruiter",
+                    role_template_id=recruiter_role.id,
                     tenant_id=1
                 )
                 db.add(recruiter)
                 db.commit()
-                print("OK: Created test recruiter user")
+                print("OK: Created test recruiter user with role_template_id")
+            elif not recruiter.role_template_id:
+                # Assign role_template_id if missing
+                recruiter.role_template_id = recruiter_role.id
+                db.commit()
+                print("OK: Assigned role_template_id to existing recruiter user")
 
-            # 3. Create test employee user
+            # 4. Create test employee user with role_template_id
             employee = db.query(Users).filter(Users.UserEmail == "employee@test.com").first()
             if not employee:
                 employee = Users(
@@ -74,24 +111,19 @@ def init_test_data():
                     UserName="Test Employee",
                     UserPassword="$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewY5YmMxSUmGEJey",  # password123 bcrypt
                     UserRole="Employee",
+                    role_template_id=hr_role.id,
                     tenant_id=1
                 )
                 db.add(employee)
                 db.commit()
-                print("OK: Created test employee user")
+                print("OK: Created test employee user with role_template_id")
+            elif not employee.role_template_id:
+                # Assign role_template_id if missing
+                employee.role_template_id = hr_role.id
+                db.commit()
+                print("OK: Assigned role_template_id to existing employee user")
 
-            # 3b. Assign Recruiter role template to recruiter user
-            from app.models.role_template import RoleTemplate
-            recruiter_role = db.query(RoleTemplate).filter(RoleTemplate.name == "Recruiter", RoleTemplate.tenant_id == 1).first()
-            if recruiter_role:
-                # Check if user already has a role template assigned
-                if not recruiter.role_template_id:
-                    recruiter.role_template_id = recruiter_role.id
-                    db.add(recruiter)
-                    db.commit()
-                    print("OK: Assigned Recruiter role to recruiter user")
-
-            # 4. Create test job
+            # 5. Create test job
             job = db.query(Jobs).filter(Jobs.jobTitle == "Test Position").first()
             if not job:
                 job = Jobs(

@@ -58,3 +58,46 @@ class ChannelMessage(Base):
         Index("ix_channel_message_created_at", "created_at"),
         Index("ix_channel_message_queue_type_status", "queue_type", "status"),
     )
+
+
+class EmailTracking(Base):
+    """Track email delivery status for each sent email"""
+    __tablename__ = "email_tracking"
+
+    id = Column(String(512), primary_key=True, default=_new_uuid)
+    candidate_id = Column(String(512), nullable=False, index=True)
+    email_type = Column(String(100), nullable=False)  # FIRST_ENGAGEMENT, INTERVIEW, OFFER, etc.
+    recipient_email = Column(String(512), nullable=False)
+    graph_message_id = Column(String(512), nullable=True)  # Microsoft Graph message ID
+    status = Column(String(50), nullable=False, default="PENDING")  # PENDING, SENDING, SENT, BOUNCED, FAILED, OPENED
+    retry_count = Column(Integer, default=0)
+    failure_reason = Column(Text(), nullable=True)
+    sent_at = Column(DateTime(timezone=False), nullable=True)
+    delivered_at = Column(DateTime(timezone=False), nullable=True)
+    opened_at = Column(DateTime(timezone=False), nullable=True)
+    bounced_at = Column(DateTime(timezone=False), nullable=True)
+    created_at = Column(DateTime(timezone=False), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=False), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    __table_args__ = (
+        Index("ix_email_tracking_candidate", "candidate_id"),
+        Index("ix_email_tracking_status", "status"),
+        Index("ix_email_tracking_created", "created_at"),
+    )
+
+
+class EmailTrackingEvent(Base):
+    """Track email events (bounce, open, click) from webhooks"""
+    __tablename__ = "email_tracking_event"
+
+    id = Column(String(512), primary_key=True, default=_new_uuid)
+    email_tracking_id = Column(String(512), nullable=False, index=True)
+    event_type = Column(String(50), nullable=False)  # BOUNCE, OPEN, CLICK, DELIVERY
+    event_data = Column(JSON(), nullable=True)
+    received_at = Column(DateTime(timezone=False), nullable=False)
+    created_at = Column(DateTime(timezone=False), server_default=func.now(), nullable=False)
+
+    __table_args__ = (
+        Index("ix_email_tracking_event_tracking", "email_tracking_id"),
+        Index("ix_email_tracking_event_type", "event_type"),
+    )

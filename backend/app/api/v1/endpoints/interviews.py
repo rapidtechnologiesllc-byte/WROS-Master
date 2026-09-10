@@ -19,6 +19,7 @@ from app.models import (
 from app.utils.uniq_id_generator import panel_id_generator
 from app.services.email_service import EmailService
 from app.services.message_queue_service import MessageQueueService
+from app.services.candidate_event_bus import CandidateEventBus
 from app.services.interview_sequencing_service import (
     PriorRoundNotPassed,
     enforce_interview_sequencing_gate,
@@ -1425,8 +1426,8 @@ def create_interview(
 
     # Queue interview_scheduled message (BEFORE commit for atomicity)
     MessageQueueService.enqueue(
-        message_type="interview_scheduled",
-        payload={
+        task_name="interview_scheduled",
+        data={
             "interview_id": interview.id,
             "candidate_id": request.candidate_id,
             "panel_id": request.panel_id,
@@ -1435,16 +1436,33 @@ def create_interview(
             "meeting_link": request.meeting_link,
             "candidate_email": candidate.candidateEmail,
             "candidate_name": f"{candidate.candidateFirstName or ''} {candidate.candidateLastName or ''}".strip(),
-        },
-        resource_id=request.candidate_id,
-        queue_type="EMAIL_QUEUE",
-        created_by=user.UserID,
-        db=db,
+        }
     )
 
     # ATOMIC COMMIT
     db.commit()
     db.refresh(interview)
+
+    # Emit interview_scheduled event for Thunder and other handlers
+    try:
+        CandidateEventBus.publish_event(
+            event_type=CandidateEventBus.EVENT_INTERVIEW_SCHEDULED,
+            candidate_id=request.candidate_id,
+            data={
+                "interview_id": interview.id,
+                "panel_id": request.panel_id,
+                "interview_date": request.start_time.isoformat() if hasattr(request.start_time, 'isoformat') else str(request.start_time),
+                "start_time": request.start_time.isoformat() if hasattr(request.start_time, 'isoformat') else str(request.start_time),
+                "end_time": request.end_time.isoformat() if hasattr(request.end_time, 'isoformat') else str(request.end_time),
+                "meeting_link": request.meeting_link,
+                "candidate_email": candidate.candidateEmail,
+                "candidate_name": f"{candidate.candidateFirstName or ''} {candidate.candidateLastName or ''}".strip(),
+            }
+        )
+        logger.info(f"[Interviews] Emitted interview_scheduled event for candidate {request.candidate_id}")
+    except Exception as e:
+        logger.error(f"[Interviews] Failed to emit interview_scheduled event for candidate {request.candidate_id}: {e}", exc_info=True)
+        # Don't fail interview creation if event emission fails
 
     # Schedule pre-interview reminder (1 h and 15 min before start)
     _schedule_interview_reminder(interview, db)

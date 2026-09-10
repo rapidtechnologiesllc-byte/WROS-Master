@@ -1,10 +1,10 @@
 """
-Progressive Document Upload Endpoints (SharePoint + Celery)
-============================================================
+Progressive Document Upload Endpoints (SharePoint + Message Queue)
+====================================================================
 Integrates:
 - SharePoint backend (via DocumentService)
 - Progressive upload pattern (one document per request)
-- Celery async processing (queue immediately after upload)
+- PostgreSQL message queue for async processing
 """
 
 from fastapi import APIRouter, UploadFile, File, Depends, HTTPException, Query
@@ -19,12 +19,6 @@ from app.models.user import Users
 from app.services.document_service import DocumentService
 from app.services.message_queue_service import MessageQueueService
 from datetime import datetime
-
-# Lazy load celery for optional async processing
-try:
-    from app.celery_app import app as celery_app
-except ImportError:
-    celery_app = None
 
 router = APIRouter(prefix="/upload", tags=["Progressive Upload"])
 
@@ -268,22 +262,21 @@ async def mark_upload_complete(
                 "task_id": getattr(candidate, "celery_task_id", None),
             }
 
-        # Queue Celery task FIRST (all or nothing)
+        # Queue task via custom message queue (all or nothing)
         try:
-            if not celery_app:
-                logger.warning(f"[UPLOAD] Celery not available, skipping async processing for {candidate_id}")
-                celery_task = type('obj', (object,), {'id': f'mock-{candidate_id}'})()
-            else:
-                celery_task = celery_app.send_task(
-                    "process_candidate",
-                    args=[candidate_id],
-                    kwargs={"tenant_id": 1},
-                )
+            from app.services.message_queue_service import MessageQueueService
 
-                if not celery_task.id:
-                    raise ValueError("Queue returned no task ID")
+            queue_result = MessageQueueService.enqueue(
+                task_name="process_candidate",
+                task_id=f"candidate-{candidate_id}",
+                data={"candidate_id": candidate_id, "tenant_id": 1}
+            )
 
-            logger.info(f"[UPLOAD] Queued task {celery_task.id} for {candidate_id}")
+            queue_message_id = queue_result.get("message_id")
+            if not queue_message_id:
+                raise ValueError("Queue returned no message ID")
+
+            logger.info(f"[UPLOAD] Queued task {queue_message_id} for {candidate_id}")
 
         except Exception as e:
             logger.error(f"[UPLOAD] Queue failed: {e}", exc_info=True)
@@ -295,7 +288,7 @@ async def mark_upload_complete(
         try:
             candidate.upload_status = "queued"
             candidate.queued_at = datetime.utcnow()
-            candidate.celery_task_id = celery_task.id
+            candidate.celery_task_id = queue_message_id
 
             try:
                 db.commit()
@@ -310,7 +303,7 @@ async def mark_upload_complete(
 
         return {
             "status": "queued",
-            "task_id": celery_task.id,
+            "task_id": queue_message_id,
             "documents_uploaded": candidate.actual_document_count,
             "message": f"Processing started for {candidate.actual_document_count} documents",
         }

@@ -35,7 +35,7 @@ class Candidate(Base):
     # .create_candidate_safe() -- this field lets LinkedIn dedup run for
     # the first time in this codebase.
     linkedin_url = Column(String(512), nullable=True)
-    candidateGender = Column(String(10), nullable=True)
+    candidateGender = Column(String(100), nullable=True)
     candidateDateOfBirth = Column(Date, nullable=True)
     candidateSource = Column(String(512), nullable=True)
     candidateExperience = Column(String(512), nullable=True)
@@ -101,6 +101,11 @@ class Candidate(Base):
     submission_timestamp = Column(DateTime, nullable=True)  # When candidate was submitted to BU
     thunder_enabled = Column(Boolean, nullable=False, default=True, server_default="1")  # Enable/disable Thunder autonomous processing
 
+    # Status tracking for event-driven architecture
+    status_changed_at = Column(DateTime, nullable=True)  # When status actually changed (not every commit)
+    previous_status = Column(String(100), nullable=True)  # Previous status for tracking transitions
+    status_change_reason = Column(String(500), nullable=True)  # Why status changed (interview scheduled, offer accepted, etc.)
+
     # Progressive Upload Status Tracking
     upload_status = Column(String(50), nullable=True, default="uploading")  # uploading, queued, processing, complete, error
     expected_document_count = Column(Integer, nullable=True, default=0)  # Total documents expected
@@ -126,9 +131,9 @@ class CandidateInfoForm(Base):
     position = Column(String(512), nullable=True)
     department = Column(String(512), nullable=True)
     dob = Column(Date, nullable=True)
-    gender = Column(String(10), nullable=True)
-    marital_status = Column(String(10), nullable=True)
-    nationality = Column(String(10), nullable=True)
+    gender = Column(String(100), nullable=True)
+    marital_status = Column(String(100), nullable=True)
+    nationality = Column(String(100), nullable=True)
     current_address = Column(Text, nullable=True)
     permanent_address = Column(Text, nullable=True)
     submittedAt = Column(Date, nullable=True)

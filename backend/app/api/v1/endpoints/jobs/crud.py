@@ -162,8 +162,9 @@ def create_job(
 
         # Queue BEFORE commit (atomicity) - enqueue() commits the transaction
         msg_id = MessageQueueService.enqueue(
-            message_type="job_created",
-            payload={
+            task_name='job_created_flash',
+            task_id=job_id,
+            data={
                 "job_id": job_id,
                 "job_title": request.job_title,
                 "job_location": request.job_location,
@@ -172,11 +173,7 @@ def create_job(
                 "hiring_manager_id": request.hiring_manager_id,
                 "business_unit_id": request.business_unit,
                 "job_status": job_status,
-            },
-            resource_id=job_id,
-            queue_type="THUNDER_QUEUE",
-            created_by=user.UserID,
-            db=db,
+            }
         )
         db.refresh(job)
     except Exception as e:
@@ -276,8 +273,9 @@ def update_job(
     try:
         # Queue BEFORE commit (atomicity) - enqueue() commits the transaction
         msg_id = MessageQueueService.enqueue(
-            message_type="job_updated",
-            payload={
+            task_name='job_updated_flash',
+            task_id=job_id,
+            data={
                 "job_id": job_id,
                 "job_title": job.jobTitle,
                 "job_location": job.jobLocation,
@@ -285,11 +283,7 @@ def update_job(
                 "job_status": job.jobStatus,
                 "hiring_manager_id": job.hiringManagerID,
                 "business_unit_id": job.business_unit_id,
-            },
-            resource_id=job_id,
-            queue_type="THUNDER_QUEUE",
-            created_by=user.UserID,
-            db=db,
+            }
         )
         db.refresh(job)
         return _build_job_response(job)
@@ -317,16 +311,13 @@ def delete_job(
     # Queue BEFORE deletion (atomicity) - enqueue() commits the transaction
     try:
         msg_id = MessageQueueService.enqueue(
-            message_type="job_deleted",
-            payload={
+            task_name='job_deleted_flash',
+            task_id=job_id,
+            data={
                 "job_id": job_id,
                 "job_title": job.jobTitle,
                 "business_unit_id": job.business_unit_id,
-            },
-            resource_id=job_id,
-            queue_type="THUNDER_QUEUE",
-            created_by=user.UserID,
-            db=db,
+            }
         )
     except Exception as e:
         logger.error(f"Failed to queue job deletion: {job_id}: {str(e)}", exc_info=True)

@@ -5,13 +5,15 @@ Handles candidate creation, email delivery, interview scheduling, and other asyn
 Runs independently, processing batches of PENDING messages every 30 seconds.
 """
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Dict, Any
 
 from app.core.logging import logger
 from app.core.database import SessionLocal
 from app.models.channel_queue import ChannelQueueItem
 from app.services.channel_processors.candidate_queue_processor import CandidateQueueProcessor
+from app.services.queue_doctor_service import QueueDoctorService
+from app.services.thunder_pause_service import is_thunder_paused
 
 logger = logging.getLogger(__name__)
 
@@ -31,6 +33,14 @@ def process_message_queue(batch_size: int = 10, timeout_minutes: int = 30) -> Di
     messages_processed = 0
 
     try:
+        # Phase 3: Check if Thunder is paused (kill switch)
+        if is_thunder_paused(db):
+            logger.info("[Worker] Thunder paused, skipping queue processing")
+            return {
+                "status": "paused",
+                "messages_processed": 0,
+                "note": "Thunder kill switch active"
+            }
         # Query PENDING messages (ordered by created_at for FIFO)
         # Process PENDING messages
         pending_messages = db.query(ChannelQueueItem).filter(
@@ -65,6 +75,10 @@ def process_message_queue(batch_size: int = 10, timeout_minutes: int = 30) -> Di
                     continue
 
                 try:
+                    # Phase 2: Start diagnostics tracking
+                    doctor_state = QueueDoctorService.start_tracking(message, db)
+                    doctor_state.started_at = datetime.utcnow()
+
                     # Mark as PROCESSING (already in session, no add needed)
                     message.status = "PROCESSING"
                     try:
@@ -76,14 +90,20 @@ def process_message_queue(batch_size: int = 10, timeout_minutes: int = 30) -> Di
 
                     logger.info(f"[Worker] Processing {message.type} message {message.id}")
 
-                    # Route to appropriate processor based on message type
-                    if message.type == "create_candidate":
-                        result = CandidateQueueProcessor.process(message, db)
+                    # Route to appropriate processor using handler registry
+                    from app.services.message_handler_registry import MessageHandlerRegistry
+
+                    handler = MessageHandlerRegistry.get_handler(message.type)
+                    if handler:
+                        result = handler(message, db)
                     else:
+                        # Unknown message type - mark as FAILED with retry scheduling
                         logger.warning(f"[Worker] Unknown message type: {message.type}")
                         message.status = "FAILED"
                         message.error = f"Unknown message type: {message.type}"
                         message.completed_at = datetime.utcnow()
+                        message.retry_count = (message.retry_count or 0) + 1
+                        message.next_retry_at = datetime.utcnow() + timedelta(minutes=5)
                         try:
                             db.commit()
                         except Exception as commit_err:
@@ -101,17 +121,22 @@ def process_message_queue(batch_size: int = 10, timeout_minutes: int = 30) -> Di
                         db.rollback()
                         logger.error(f"[Worker] Failed to mark COMPLETED: {commit_err}", exc_info=True)
 
+                    # Phase 2: Complete diagnostics tracking
+                    QueueDoctorService.complete_tracking(doctor_state, message, db)
+
                     logger.info(f"[Worker] ✅ Message {message.id} completed successfully")
                     messages_processed += 1
 
                 except Exception as e:
-                    # Handle processing error
+                    # Handle processing error - CRITICAL: set retry_at for automatic retry
                     try:
                         message.status = "FAILED"
                         message.error = str(e)
                         message.completed_at = datetime.utcnow()
+                        message.retry_count = (message.retry_count or 0) + 1
+                        message.next_retry_at = datetime.utcnow() + timedelta(minutes=5)
                         db.commit()
-                        logger.error(f"[Worker] ❌ Message {message.id} failed: {str(e)}", exc_info=True)
+                        logger.error(f"[Worker] ❌ Message {message.id} failed: {str(e)} (retry {message.retry_count}/5)", exc_info=True)
                     except Exception as commit_error:
                         db.rollback()
                         logger.error(f"[Worker] Failed to mark message as failed: {commit_error}", exc_info=True)
@@ -144,8 +169,8 @@ def process_candidate_queue(batch_size: int = 5) -> Dict[str, Any]:
             ChannelQueueItem.status == "PENDING"
         ).order_by(ChannelQueueItem.created_at).limit(batch_size).all()
 
-        if all_messages:
-            for message in all_messages:
+        if pending_messages:
+            for message in pending_messages:
                 try:
                     message.status = "PROCESSING"
                     db.commit()
@@ -188,7 +213,11 @@ def process_candidate_queue(batch_size: int = 5) -> Dict[str, Any]:
 
 
 def process_email_queue(batch_size: int = 20) -> Dict[str, Any]:
-    """Process EMAIL_QUEUE messages."""
+    """Process EMAIL_QUEUE messages - actually send emails."""
+    from app.services.email_service import EmailService
+    from app.models.message_queue import EmailTracking
+    from app.models.candidate import Candidate
+
     db = SessionLocal()
     messages_processed = 0
 
@@ -202,13 +231,72 @@ def process_email_queue(batch_size: int = 20) -> Dict[str, Any]:
 
         for message in pending_messages:
             try:
-                message.status = "COMPLETED"
+                payload = message.payload or {}
+                candidate_id = payload.get("candidate_id")
+                recipient_email = payload.get("recipient_email")
+                email_type = payload.get("email_type", "FIRST_ENGAGEMENT")
+                subject = payload.get("subject")
+                body = payload.get("body")
+
+                if not recipient_email or not subject or not body:
+                    logger.warning(f"[EmailQueue] Skipping {message.id} - missing required fields")
+                    message.status = "FAILED"
+                    message.error = "Missing required email fields"
+                    db.commit()
+                    continue
+
+                # Send email via EmailService
+                result = EmailService.send_email(
+                    to=recipient_email,
+                    subject=subject,
+                    body=body
+                )
+
+                if result.get("status") == "success":
+                    # Create email tracking record
+                    tracking = EmailTracking(
+                        candidate_id=candidate_id,
+                        email_type=email_type,
+                        recipient_email=recipient_email,
+                        graph_message_id=result.get("message_id"),
+                        status="SENT",
+                        sent_at=datetime.utcnow()
+                    )
+                    db.add(tracking)
+
+                    # Update candidate email tracking fields
+                    if candidate_id:
+                        candidate = db.query(Candidate).filter(Candidate.candidateID == candidate_id).first()
+                        if candidate:
+                            candidate.first_email_sent_at = datetime.utcnow()
+                            candidate.first_email_delivery_status = "SENT"
+                            candidate.last_email_sent_at = datetime.utcnow()
+                            candidate.last_email_delivery_status = "SENT"
+
+                    message.status = "COMPLETED"
+                    logger.info(f"[EmailQueue] Sent {email_type} to {recipient_email}")
+                else:
+                    # Email send failed
+                    message.status = "FAILED"
+                    message.error = result.get("error", "Email send failed")
+                    if candidate_id:
+                        candidate = db.query(Candidate).filter(Candidate.candidateID == candidate_id).first()
+                        if candidate:
+                            candidate.first_email_delivery_status = "FAILED"
+                            candidate.email_delivery_failure_reason = message.error
+                    logger.error(f"[EmailQueue] Failed to send email: {message.error}")
+
                 message.completed_at = datetime.utcnow()
                 db.commit()
                 messages_processed += 1
+
             except Exception as e:
                 db.rollback()
-                logger.error(f"[EmailQueue] Error: {e}", exc_info=True)
+                logger.error(f"[EmailQueue] Error processing message {message.id}: {e}", exc_info=True)
+                message.status = "FAILED"
+                message.error = str(e)
+                message.completed_at = datetime.utcnow()
+                db.commit()
 
         return {
             "status": "success",

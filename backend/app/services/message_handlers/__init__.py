@@ -1,10 +1,43 @@
-"""Message Handlers - Route specific message types to their handlers
+"""
+Message Handlers - Process candidate lifecycle events
 
-Each handler manages idempotent processing of a message type with automatic
-retry logic (5 max retries, 30-minute intervals).
+Each handler responds to specific event types published by CandidateEventBus.
 """
 
-from app.services.message_handlers.candidate_creation_handler import CandidateCreationHandler
-from app.services.message_handlers.candidate_conversion_handler import CandidateConversionHandler
+from .candidate_creation_handler import CandidateCreationHandler
+from .candidate_status_change_handler import handle_candidate_status_changed
+from .candidate_data_change_handler import handle_candidate_data_changed
+from .candidate_rejection_handler import handle_candidate_rejected
+from .candidate_archive_handler import handle_candidate_archived
+from .candidate_reactivation_handler import handle_candidate_reactivated
+from .candidate_conversion_handler import CandidateConversionHandler
+from .duplicate_candidate_analysis_handler import handle_duplicate_candidate_analysis
+from .interview_scheduled_handler import handle_interview_scheduled
+from .offer_generated_handler import handle_offer_generated
 
-__all__ = ["CandidateCreationHandler", "CandidateConversionHandler"]
+# Wrapper function for message queue compatibility
+def handle_candidate_conversion(event_data, db_session):
+    """Route candidate conversion events to handler."""
+    from app.models.channel_queue import ChannelQueueItem
+
+    # Create a mock ChannelQueueItem for the handler
+    message = ChannelQueueItem(
+        id="conversion_event",
+        payload=event_data,
+        task_name="candidate_conversion"
+    )
+
+    return CandidateConversionHandler.process(message, db_session)
+
+__all__ = [
+    "CandidateCreationHandler",
+    "handle_candidate_status_changed",
+    "handle_candidate_data_changed",
+    "handle_candidate_rejected",
+    "handle_candidate_archived",
+    "handle_candidate_reactivation",
+    "handle_candidate_conversion",
+    "handle_duplicate_candidate_analysis",
+    "handle_interview_scheduled",
+    "handle_offer_generated",
+]

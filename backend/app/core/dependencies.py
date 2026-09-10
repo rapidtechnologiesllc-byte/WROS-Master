@@ -161,42 +161,6 @@ async def get_current_candidate_otp_pending(
         logger.error(f"[get_current_candidate_otp_pending] Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Authentication failed: {str(e)}")
 
-async def get_current_hr_or_admin(
-    credentials: HTTPAuthorizationCredentials = Depends(security),
-    db: Session = Depends(get_db)
-):
-    """
-    Get the current authenticated internal user from JWT token.
-    Allows any user found in the Users table (any role). Candidates are excluded.
-    """
-    try:
-        token = credentials.credentials
-        payload = decode_access_token(token)
-        _reject_if_mfa_pending(payload)
-
-        user_id: str = payload.get("sub")
-        user_type: str = payload.get("type", "").lower()
-
-        if not user_id or user_type == "candidate":
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
-
-        # 'sub' now contains UserID (not email)
-        user = db.query(Users).filter(Users.UserID == user_id).first()
-        if not user:
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
-
-        # DISABLED - Single company deployment, no tenant scoping needed
-        # from app.core.tenant_context import activate_tenant_scope
-        # activate_tenant_scope(user.tenant_id)
-
-        return user
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error: {str(e)}", exc_info=True)
-        logger.error(f"[get_current_hr_or_admin] Error: {str(e)}", exc_info=True)
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=f"Authentication failed: {str(e)}")
-
 async def get_current_internal_user(
     credentials: HTTPAuthorizationCredentials = Depends(security),
     db: Session = Depends(get_db)
@@ -206,7 +170,6 @@ async def get_current_internal_user(
     Allows any user found in the Users table (any role). Candidates are excluded.
     """
     try:
-
         token = credentials.credentials
         payload = decode_access_token(token)
         _reject_if_mfa_pending(payload)
@@ -267,7 +230,6 @@ async def get_current_mfa_pending_user(
 # tighter, preferred pattern for anything beyond pure self-service.
 get_current_user.__wros_authn__ = "any_authenticated_user_or_candidate"
 get_current_candidate.__wros_authn__ = "candidate_self_service"
-get_current_hr_or_admin.__wros_authn__ = "any_internal_user"
 get_current_internal_user.__wros_authn__ = "any_internal_user"
 get_current_mfa_pending_user.__wros_authn__ = "mfa_pending_session"
 get_current_candidate_otp_pending.__wros_authn__ = "candidate_otp_pending_session"

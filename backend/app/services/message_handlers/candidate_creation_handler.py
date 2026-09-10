@@ -43,34 +43,66 @@ class CandidateCreationHandler:
 
         payload = message.payload
         candidate_email = payload.get("candidate_email")
-        logger.info(f"[Handler] Creating candidate: {candidate_email}")
+        logger.info(f"[Handler] Processing queue message, candidate_email={candidate_email}, payload keys={list(payload.keys())}")
 
         try:
-            # 1. CREATE CANDIDATE
-            candidate, is_new = create_candidate_safe(
-                db, email=candidate_email, mobile=payload.get("candidate_mobile"),
-                plain_password=payload.get("candidate_password"), tenant_id=payload.get("tenant_id"),
+            # ATOMIC TRANSACTION: All records (candidate, status, education, experience) created together
+            # Use db.flush() pattern: add all, flush once, commit once
+
+            # 1. CREATE CANDIDATE - Direct ORM mapping from payload
+            # Map payload fields to Candidate model fields (payload uses candidate_* naming)
+            from app.utils.uniq_id_generator import candidate_id_generator
+
+            # Extract and validate tenant_id (required for multi-tenant isolation)
+            tenant_id = payload.get("tenant_id", 1)
+            if not isinstance(tenant_id, int) or tenant_id < 1:
+                logger.error(f"[Handler] Invalid tenant_id {tenant_id} for {candidate_email}")
+                raise ValueError(f"Invalid tenant_id: {tenant_id}")
+
+            candidate = Candidate(
+                candidateID=candidate_id_generator(),
+                candidateEmail=candidate_email,
+                candidateMobile=payload.get("candidate_mobile"),
+                candidatePassword=payload.get("candidate_password"),  # Hashed password from API
                 candidateRole=payload.get("candidate_role", "Candidate"),
                 candidateEmployeeType=payload.get("candidate_employee_type"),
-                candidateJobTitle=payload.get("candidate_job_title"),
                 candidateFirstName=payload.get("candidate_first_name"),
+                candidateMiddleName=payload.get("candidate_middle_name"),
                 candidateLastName=payload.get("candidate_last_name"),
                 candidateGender=payload.get("candidate_gender"),
                 candidateDateOfBirth=payload.get("candidate_date_of_birth"),
                 candidateCurrentLocation=payload.get("candidate_current_location"),
+                candidateSource=payload.get("candidate_source"),
+                candidateExperience=payload.get("candidate_experience"),
+                candidateSkills=payload.get("candidate_skills"),
+                candidateJoiningDate=payload.get("candidate_joining_date"),
+                candidateExpectedSalary=payload.get("candidate_expected_salary"),
+                candidateCurrentSalary=payload.get("candidate_current_salary"),
                 candidateCreatedAt=datetime.now(),
+                tenant_id=tenant_id,  # ✅ Assign tenant_id from payload
             )
 
+            # Check for duplicates before adding
+            is_new = True
+            existing = db.query(Candidate).filter(Candidate.candidateEmail == candidate_email).first()
+            if existing:
+                is_new = False
+                candidate = existing
+                logger.info(f"[Handler] Candidate already exists: {candidate_email}")
+            else:
+                db.add(candidate)
+
+            # Flush candidate to get candidateID (but don't commit yet)
             try:
-                db.commit()
+                db.flush()
                 db.refresh(candidate)
             except Exception as e:
                 db.rollback()
-                logger.error(f"[Handler] Commit failed for candidate: {e}", exc_info=True)
+                logger.error(f"[Handler] Flush failed for candidate: {e}", exc_info=True)
                 raise RuntimeError(f"Failed to create candidate: {str(e)}") from e
 
             candidate_id = candidate.candidateID
-            logger.info(f"[Handler] ✅ Candidate created: {candidate_id}")
+            logger.info(f"[Handler] ✅ Candidate flushed: {candidate_id}")
 
             # 2. CREATE STATUS
             try:
@@ -87,14 +119,8 @@ class CandidateCreationHandler:
                     ))
                 except Exception as e:
                     logger.error(f"[Handler] Failed to add status: {e}", exc_info=True)
-                    raise
-                try:
-                    db.commit()
-                    logger.info(f"[Handler] ✅ Status created for {candidate_id}")
-                except Exception as e:
                     db.rollback()
-                    logger.error(f"[Handler] Failed to commit status: {e}", exc_info=True)
-                    raise RuntimeError(f"Failed to create status: {str(e)}") from e
+                    raise
 
             # 3. CREATE EDUCATION RECORDS
             for edu in payload.get("education_records", []):
@@ -124,14 +150,8 @@ class CandidateCreationHandler:
                         ))
                     except Exception as e:
                         logger.error(f"[Handler] Failed to add education record: {e}", exc_info=True)
+                        db.rollback()
                         raise
-
-            try:
-                db.commit()
-                logger.info(f"[Handler] ✅ Education records created for {candidate_id}")
-            except Exception as e:
-                db.rollback()
-                logger.error(f"[Handler] Failed to commit education: {e}", exc_info=True)
 
             # 4. CREATE EXPERIENCE RECORDS
             for exp in payload.get("experience_records", []):
@@ -160,13 +180,17 @@ class CandidateCreationHandler:
                         ))
                     except Exception as e:
                         logger.error(f"[Handler] Failed to add experience record: {e}", exc_info=True)
+                        db.rollback()
                         raise
+
+            # ATOMIC COMMIT: All or nothing - single commit for all records
             try:
                 db.commit()
-                logger.info(f"[Handler] ✅ Experience records created for {candidate_id}")
+                logger.info(f"[Handler] ✅ All records created atomically for {candidate_id} (candidate, status, education, experience)")
             except Exception as e:
                 db.rollback()
-                logger.error(f"[Handler] Failed to commit experience: {e}", exc_info=True)
+                logger.error(f"[Handler] Atomic commit failed: {e}", exc_info=True)
+                raise RuntimeError(f"Failed to commit all records: {str(e)}") from e
 
             # 5. LOG HISTORY EVENTS
             try:
@@ -177,7 +201,25 @@ class CandidateCreationHandler:
             except Exception as e:
                 logger.error(f"[Handler] Failed to log history: {e}", exc_info=True)
 
-            # 6. QUEUE TO THUNDER FOR AUTONOMOUS PROCESSING
+            # 6. QUEUE FIRST ENGAGEMENT EMAIL IMMEDIATELY
+            try:
+                MessageQueueService.enqueue(
+                    task_name='send_email',
+                    channel_type='EMAIL_QUEUE',
+                    data={
+                        'candidate_id': candidate_id,
+                        'recipient_email': candidate_email,
+                        'email_type': 'FIRST_ENGAGEMENT',
+                        'subject': f'Welcome {candidate_first_name}! Your Application is Received',
+                        'body': f'Hi {candidate_first_name},\n\nThank you for applying! We have received your application and will review it shortly.\n\nBest regards,\nBlitzenX Team',
+                        'tenant_id': payload.get('tenant_id', 1),
+                    }
+                )
+                logger.info(f"[Handler] ✅ Queued first engagement email for {candidate_id}")
+            except Exception as e:
+                logger.warning(f"[Handler] Failed to queue email (non-blocking): {e}")
+
+            # 7. QUEUE TO THUNDER FOR AUTONOMOUS PROCESSING
             try:
                 MessageQueueService.enqueue(
                     task_name='assign_thunder_agent',
@@ -221,7 +263,6 @@ class CandidateCreationHandler:
                         tenant_id=healed_payload.get("tenant_id"),
                         candidateRole=healed_payload.get("candidate_role", "Candidate"),
                         candidateEmployeeType=healed_payload.get("candidate_employee_type"),
-                        candidateJobTitle=healed_payload.get("candidate_job_title"),
                         candidateFirstName=healed_payload.get("candidate_first_name"),
                         candidateLastName=healed_payload.get("candidate_last_name"),
                         candidateGender=healed_payload.get("candidate_gender"),
@@ -268,6 +309,26 @@ class CandidateCreationHandler:
                             logger.error(f"Failed to create status for healed candidate: {status_err}", exc_info=True)
                             raise RuntimeError(f"Failed to create status: {str(status_err)}") from status_err
 
+                    # Queue first engagement email for healed candidate
+                    try:
+                        candidate_first_name = healed_payload.get("candidate_first_name", "Candidate")
+                        candidate_email = healed_payload.get("candidate_email")
+                        MessageQueueService.enqueue(
+                            task_name='send_email',
+                            channel_type='EMAIL_QUEUE',
+                            data={
+                                'candidate_id': candidate_id,
+                                'recipient_email': candidate_email,
+                                'email_type': 'FIRST_ENGAGEMENT',
+                                'subject': f'Welcome {candidate_first_name}! Your Application is Received',
+                                'body': f'Hi {candidate_first_name},\n\nThank you for applying! We have received your application and will review it shortly.\n\nBest regards,\nBlitzenX Team',
+                                'tenant_id': healed_payload.get('tenant_id', 1),
+                            }
+                        )
+                        logger.info(f"[Handler] ✅ Queued email for healed candidate {candidate_id}")
+                    except Exception as e:
+                        logger.warning(f"[Handler] Failed to queue email for healed candidate: {e}")
+
                     # If we used placeholders, create a recruiter task to fix the data
                     if recruiter_task:
                         logger.info(f"[Handler] Creating recruiter task: {recruiter_task}")
@@ -307,19 +368,27 @@ class CandidateCreationHandler:
     @staticmethod
     def on_retry(message: ChannelQueueItem, error: str, db: Session) -> None:
         """Handle retry logic after failed attempt."""
-        message.retry_count += 1
-        message.error = error
-        message.next_retry_at = datetime.utcnow() + timedelta(minutes=CandidateCreationHandler.RETRY_DELAY_MINUTES)
         try:
+            # Rollback any aborted transaction first (critical for PostgreSQL)
+            db.rollback()
+
+            # Now update the message status in a fresh transaction
+            message.retry_count += 1
+            message.error = error
+            message.next_retry_at = datetime.utcnow() + timedelta(minutes=CandidateCreationHandler.RETRY_DELAY_MINUTES)
+
             db.commit()
         except Exception as e:
-            db.rollback()
+            try:
+                db.rollback()
+            except Exception as rollback_err:
+                logger.error(f"[Handler] Failed to rollback after error: {rollback_err}", exc_info=True)
             logger.error(f"[Handler] Failed to schedule retry: {e}", exc_info=True)
             raise
 
     @staticmethod
     def on_success(message: ChannelQueueItem, result: Dict[str, Any], db: Session) -> None:
-        """Handle successful message processing."""
+        """Handle successful message processing - queue candidate to Thunder for autonomous engagement."""
         message.status = "COMPLETED"
         message.completed_at = datetime.utcnow()
         message.result = result
@@ -330,15 +399,76 @@ class CandidateCreationHandler:
             logger.error(f"[Handler] Failed to mark success: {e}", exc_info=True)
             raise
 
+        # Queue candidate to Thunder for autonomous engagement
+        candidate_id = result.get('candidate_id')
+        if candidate_id:
+            try:
+                MessageQueueService.enqueue(
+                    task_name='engage_candidate_with_thunder',
+                    data={'candidate_id': candidate_id}
+                )
+                logger.info(f"[Handler] Candidate {candidate_id} queued to THUNDER_QUEUE for autonomous engagement")
+            except Exception as e:
+                logger.error(f"[Handler] Failed to queue candidate {candidate_id} to Thunder: {e}", exc_info=True)
+
     @staticmethod
     def on_failed(message: ChannelQueueItem, final_error: str, db: Session) -> None:
         """Handle final failure after all retries exhausted."""
-        message.status = "FAILED"
-        message.error = final_error
-        message.completed_at = datetime.utcnow()
         try:
+            # Rollback any aborted transaction first (critical for PostgreSQL)
+            db.rollback()
+
+            # Now update the message status in a fresh transaction
+            message.status = "FAILED"
+            message.error = final_error
+            message.completed_at = datetime.utcnow()
+
             db.commit()
         except Exception as e:
-            db.rollback()
+            try:
+                db.rollback()
+            except Exception as rollback_err:
+                logger.error(f"[Handler] Failed to rollback after error: {rollback_err}", exc_info=True)
             logger.error(f"[Handler] Failed to mark failure: {e}", exc_info=True)
+            raise
+
+    @staticmethod
+    def prioritize_queue(db: Session) -> list:
+        """
+        Prioritize Thunder candidate queue by match score (descending).
+
+        Fetches all pending candidates and sorts by ATSScore.match_score.
+        Higher scores = better fit = higher priority.
+
+        Returns:
+            List of candidate IDs sorted by match_score DESC
+        """
+        try:
+            from app.models.candidate import Candidate
+            from app.models.ats import ATSScore
+
+            # Fetch all candidates with their match scores
+            candidates_with_scores = db.query(
+                Candidate.candidateID,
+                ATSScore.match_score
+            ).outerjoin(
+                ATSScore,
+                ATSScore.candidate_id == Candidate.candidateID
+            ).filter(
+                Candidate.candidateCreatedAt >= datetime.utcnow() - timedelta(days=7)  # Last 7 days
+            ).order_by(
+                ATSScore.match_score.desc()  # Highest scores first
+            ).all()
+
+            prioritized_candidates = [row.candidateID for row in candidates_with_scores]
+
+            logger.info(
+                f"[QueuePrioritization] Prioritized {len(prioritized_candidates)} candidates by match_score. "
+                f"Top 3: {prioritized_candidates[:3]}"
+            )
+
+            return prioritized_candidates
+
+        except Exception as e:
+            logger.error(f"[QueuePrioritization] Failed to prioritize queue: {e}", exc_info=True)
             raise

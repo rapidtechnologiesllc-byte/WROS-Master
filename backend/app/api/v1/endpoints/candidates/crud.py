@@ -51,7 +51,7 @@ from app.models.ats import ATSScore
 from app.models.hr_assignment import HRAssignment
 from app.models.candidate_ownership import CandidateOwnership
 
-from app.core.dependencies import get_current_hr_or_admin, get_current_candidate, require_resource_permission
+from app.core.dependencies import get_current_user, get_current_candidate, require_role_template_permission
 
 from app.schemas.candidate import (CandidateCreateRequest,
 CandidateCreateResponse, CandidateCompleteResponse,
@@ -209,9 +209,9 @@ def _build_candidate_response(
 @router.get(
     "/all",
     response_model=AllCandidatesResponse,
-    dependencies=[Depends(require_resource_permission("candidates", "view"))]
+    dependencies=[Depends(require_role_template_permission("candidates", "can_view"))]
 )
-async def get_all_candidates(db: Session = Depends(get_db), user = Depends(get_current_hr_or_admin)):
+async def get_all_candidates(db: Session = Depends(get_db), user = Depends(get_current_user)):
     """
     Get all candidates with their complete information for HR/Admin.
 
@@ -324,12 +324,12 @@ async def get_all_candidates(db: Session = Depends(get_db), user = Depends(get_c
 @router.get(
     "/{candidate_id}",
     response_model=CandidateCompleteResponse,
-    dependencies=[Depends(require_resource_permission("candidates", "view"))],
+    dependencies=[Depends(require_role_template_permission("candidates", "can_view"))],
 )
 def get_candidate_by_id(
     candidate_id: str,
     db: Session = Depends(get_db),
-    user = Depends(get_current_hr_or_admin)
+    user = Depends(get_current_user)
 ):
     """
     Get full details of a single candidate by candidate ID.
@@ -409,12 +409,12 @@ def get_candidate_by_id(
 @router.get(
     "/hr/my-bu/candidates",
     response_model=AllCandidatesResponse,
-    dependencies=[Depends(require_resource_permission("candidates", "view"))],
+    dependencies=[Depends(require_role_template_permission("candidates", "can_view"))],
     summary="Get all candidates owned by the calling user's Business Unit",
 )
 def get_candidates_by_my_bu(
     db: Session = Depends(get_db),
-    user=Depends(get_current_hr_or_admin),
+    user=Depends(get_current_user),
     include_org_pool: bool = Query(
         default=False,
         description="If true, also include Org Pool candidates (not BU-owned) in the result",
@@ -607,9 +607,9 @@ def get_candidates_by_my_bu(
 @router.put(
     "/hr/update_candidate/{candidate_id}",
     response_model=CandidateCompleteResponse,
-    dependencies=[Depends(require_resource_permission("candidates", "edit"))],
+    dependencies=[Depends(require_role_template_permission("candidates", "can_edit"))],
 )
-def update_candidate(candidate_id: str, request: CandidateUpdateRequest, db: Session = Depends(get_db), user = Depends(get_current_hr_or_admin)):
+def update_candidate(candidate_id: str, request: CandidateUpdateRequest, db: Session = Depends(get_db), user = Depends(get_current_user)):
     """
     Update an existing candidate.
 
@@ -752,6 +752,20 @@ def update_candidate(candidate_id: str, request: CandidateUpdateRequest, db: Ses
             detail=f"Failed to update candidate: {str(e)}"
         )
 
+    # Emit candidate_data_changed event with all changed fields
+    if corrections:
+        try:
+            from app.services.candidate_event_bus import CandidateEventBus
+            CandidateEventBus.publish_data_changed(
+                candidate_id=candidate_id,
+                changed_fields=list(corrections.keys()),
+                **{field: corrections[field][1] for field in corrections}  # new values
+            )
+            logger.info(f"[CRUD] Emitted candidate_data_changed event for {candidate_id} ({len(corrections)} fields)")
+        except Exception as e:
+            logger.error(f"[CRUD] Failed to emit event: {e}", exc_info=True)
+            # Don't fail update if event emission fails
+
     # Wire SLM: Record corrections for learning
     if corrections:
         try:
@@ -802,9 +816,9 @@ def update_candidate(candidate_id: str, request: CandidateUpdateRequest, db: Ses
 @router.delete(
     "/hr/delete_candidate/{candidate_id}",
     response_model=DeleteResponse,
-    dependencies=[Depends(require_resource_permission("candidates", "delete"))],
+    dependencies=[Depends(require_role_template_permission("candidates", "can_delete"))],
 )
-def delete_candidate(candidate_id: str, db: Session = Depends(get_db), user = Depends(get_current_hr_or_admin)):
+def delete_candidate(candidate_id: str, db: Session = Depends(get_db), user = Depends(get_current_user)):
     """
     Delete a candidate and all associated records.
 
@@ -948,6 +962,19 @@ def delete_candidate(candidate_id: str, db: Session = Depends(get_db), user = De
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Failed to delete candidate: {str(e)}")
 
+    # Emit candidate_deleted event
+    try:
+        from app.services.candidate_event_bus import CandidateEventBus
+        CandidateEventBus.publish_event(
+            event_type="candidate_deleted",
+            candidate_id=candidate_id,
+            data={"deleted_at": datetime.utcnow().isoformat(), "deleted_by_user_id": user.UserID if hasattr(user, 'UserID') else None}
+        )
+        logger.info(f"[CRUD] Emitted candidate_deleted event for {candidate_id}")
+    except Exception as e:
+        logger.error(f"[CRUD] Failed to emit candidate_deleted event: {e}", exc_info=True)
+        # Don't fail delete if event emission fails
+
     return DeleteResponse(
         status="Success",
         message=f"Candidate with ID {candidate_id} and all associated records deleted successfully"
@@ -959,13 +986,13 @@ def delete_candidate(candidate_id: str, db: Session = Depends(get_db), user = De
 
 @router.post(
     "/candidates/{candidate_id}/convert-to-employee",
-    dependencies=[Depends(require_resource_permission("candidates", "edit"))],
+    dependencies=[Depends(require_role_template_permission("candidates", "can_edit"))],
     summary="Convert candidate to employee (only when status=OFFER and start_date met)"
 )
 def convert_candidate_to_employee(
     candidate_id: str,
     db: Session = Depends(get_db),
-    user=Depends(get_current_hr_or_admin),
+    user=Depends(get_current_user),
 ):
     """
     Convert a candidate to an employee record.
@@ -1057,6 +1084,22 @@ def convert_candidate_to_employee(
 
         logger.info(f"Successfully converted Candidate {candidate_id} to Employee {employee.id}")
 
+        # Emit candidate_status_changed event with Thunder pause flag
+        try:
+            from app.services.candidate_event_bus import CandidateEventBus
+            CandidateEventBus.publish_status_changed(
+                candidate_id=candidate_id,
+                old_status=CANDIDATE_PIPELINE_STATUS_OFFER,
+                new_status=CANDIDATE_PIPELINE_STATUS_EMPLOYEE,
+                reason="Candidate converted to employee",
+                pause_thunder=True,  # CRITICAL: Signal Thunder to pause
+                employee_id=employee.id
+            )
+            logger.info(f"[CRUD] Emitted candidate_status_changed event with Thunder pause for {candidate_id}")
+        except Exception as e:
+            logger.error(f"[CRUD] Failed to emit event: {e}", exc_info=True)
+            # Don't fail conversion if event emission fails
+
         return {
             "status": "success",
             "candidate_id": candidate_id,
@@ -1086,13 +1129,13 @@ def _user_info(user: Users | None) -> dict | None:
 
 @router.get(
     "/hr/candidate/{candidate_id}/contacts",
-    dependencies=[Depends(require_resource_permission("candidates", "view"))],
+    dependencies=[Depends(require_role_template_permission("candidates", "can_view"))],
     summary="Get assigned managers and job contact person for a candidate",
 )
 def get_candidate_contacts(
     candidate_id: str,
     db: Session = Depends(get_db),
-    user=Depends(get_current_hr_or_admin),
+    user=Depends(get_current_user),
 ):
     """
     Returns the full contact details for everyone connected to a candidate:

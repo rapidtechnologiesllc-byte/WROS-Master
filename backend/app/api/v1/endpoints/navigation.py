@@ -48,10 +48,7 @@ def get_icon_for_resource(resource_name: str) -> str:
     }
     return icon_map.get(resource_name, "Briefcase")
 
-@router.get(
-    "/navigation",
-    dependencies=[Depends(require_resource_permission("navigation", "view"))]
-)
+@router.get("/navigation")
 def get_user_navigation(db: Session = Depends(get_db), current_user = Depends(get_current_user)):
     """
     Get personalized navigation structure for the logged-in user.
@@ -109,6 +106,21 @@ def get_user_navigation(db: Session = Depends(get_db), current_user = Depends(ge
             "Admin": "Shield", "Executive Dashboards": "BarChart3", "AI & Automation": "Bot"
         }
 
+        # SUPER USER BYPASS: Skip permission checks for super users (emergency optimization)
+        is_super = RoleTemplatePermissionService.is_super_user(db, user_id, tenant_id)
+        print(f"[NAV-SUPER-USER] {is_super}", file=sys.stderr)
+        sys.stderr.flush()
+
+        # OPTIMIZATION: Batch load all user permissions ONCE (not per-resource)
+        if not is_super:
+            try:
+                all_permissions = RoleTemplatePermissionService.get_user_permissions(db, user_id, tenant_id)
+            except Exception as e:
+                logger.error(f"Failed to load user permissions: {e}")
+                all_permissions = {}
+        else:
+            all_permissions = {}  # Not needed for super user
+
         # Build navigation from init_resources
         import sys
         for module_name, resource_names in MODULES_AND_RESOURCES.items():
@@ -116,13 +128,12 @@ def get_user_navigation(db: Session = Depends(get_db), current_user = Depends(ge
             navigation_modules[module_name] = {"label": module_name, "icon": module_icon, "items": []}
 
             for resource_name in resource_names:
-                # Check if user has permission to view this resource
-                try:
-                    can_view = RoleTemplatePermissionService.can_view(db, user_id, resource_name, tenant_id)
-                except Exception as e:
-                    logger.error(f"Error: {str(e)}", exc_info=True)
-                    logger.warning(f"[NAV] Permission check failed for {resource_name}: {e}")
-                    can_view = False
+                # SUPER USER: Allow all resources without permission check
+                if is_super:
+                    can_view = True
+                else:
+                    # Regular user: Check from cached permissions (already loaded once above)
+                    can_view = all_permissions.get(resource_name, {}).get("can_view", False)
 
                 if can_view:
                     route = RESOURCE_ROUTES.get(resource_name) or f"/{resource_name}"

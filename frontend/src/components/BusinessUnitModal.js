@@ -67,8 +67,8 @@ const BusinessUnitModal = ({ isOpen, onClose, onSuccess, mode = 'create', bu = n
       };
 
       const endpoint = mode === 'create'
-        ? '/api/admin/users-access-control/business-units'
-        : `/api/admin/users-access-control/business-units/${bu.id}`;
+        ? '/api/v1/business-units'
+        : `/api/v1/business-units/${bu.id}`;
 
       await apiRequest(endpoint, {
         method: mode === 'create' ? 'POST' : 'PUT',

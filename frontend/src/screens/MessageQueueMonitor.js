@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { apiRequest } from '../services/api';
+import { apiRequest } from '../services/api/client';
 import './MessageQueueMonitor.css';
 
 const MessageQueueMonitor = () => {
@@ -42,11 +42,16 @@ const MessageQueueMonitor = () => {
         throw new Error(`Stats fetch failed: ${err.message}`);
       }
 
-      if (displayData && typeof displayData === 'object') {
-        setQueueDisplay(displayData);
+      if (displayData?.data && typeof displayData.data === 'object') {
+        // Backend returns 'messages', component expects 'rows'
+        const normalized = {
+          ...displayData.data,
+          rows: displayData.data.messages
+        };
+        setQueueDisplay(normalized);
       }
-      if (statsData && typeof statsData === 'object') {
-        setStats(statsData);
+      if (statsData?.data && typeof statsData.data === 'object') {
+        setStats(statsData.data);
       }
       setError(null);
     } catch (err) {
@@ -108,6 +113,17 @@ const MessageQueueMonitor = () => {
     return { backgroundColor: statusColors[status] || '#6b7280' };
   };
 
+  const handleRetry = async (messageId) => {
+    try {
+      setError(null);
+      await apiRequest(`/api/v1/message-queue/${messageId}/retry`, { method: 'POST' });
+      // Refresh queue data after retry
+      await fetchQueueData();
+    } catch (err) {
+      setError(`Failed to retry message: ${err.message}`);
+    }
+  };
+
   if (loading && !queueDisplay) {
     return <div className="queue-loading">Loading queue data...</div>;
   }
@@ -151,15 +167,15 @@ const MessageQueueMonitor = () => {
         <div className="stats-summary">
           <div className="stat-card">
             <div className="stat-label">Total Messages</div>
-            <div className="stat-value">{stats.total}</div>
+            <div className="stat-value">{stats.total_messages}</div>
           </div>
           <div className="stat-card">
             <div className="stat-label">Pending</div>
-            <div className="stat-value pending">{stats.pending_count}</div>
+            <div className="stat-value pending">{stats.pending}</div>
           </div>
           <div className="stat-card">
             <div className="stat-label">Failed</div>
-            <div className="stat-value failed">{stats.failed_count}</div>
+            <div className="stat-value failed">{stats.failed}</div>
           </div>
           <div className="stat-card">
             <div className="stat-label">Oldest Pending (sec)</div>
@@ -184,58 +200,96 @@ const MessageQueueMonitor = () => {
 
       {queueDisplay && queueDisplay.rows && (
         <div className="queue-table">
-          <h3>Queue Operations (Newest First)</h3>
-          <div className="table-scroll">
-            <table>
-              <thead>
-                <tr>
-                  <th>Queue</th>
-                  <th>Action</th>
-                  <th>Status</th>
-                  <th>Resource ID</th>
-                  <th>Created By</th>
-                  <th>Created At</th>
-                  <th>Retries</th>
-                  <th>Preview</th>
-                </tr>
-              </thead>
-              <tbody>
-                {queueDisplay.rows.map((row) => (
-                  <tr key={row.id} className={`status-${row.status.toLowerCase()}`}>
-                    <td>
-                      <span className="queue-type">{row.queue_type}</span>
-                    </td>
-                    <td>
-                      <span className="action-badge" style={getActionBadge(row.action)}>
-                        {row.action}
-                      </span>
-                    </td>
-                    <td>
-                      <span className="status-badge" style={getStatusBadge(row.status)}>
-                        {row.status}
-                      </span>
-                    </td>
-                    <td className="resource-id">{row.resource_id || '-'}</td>
-                    <td className="created-by">{row.created_by}</td>
-                    <td className="timestamp">
-                      {new Date(row.created_at).toLocaleString()}
-                    </td>
-                    <td className="retry-count">{row.retry_count}</td>
-                    <td className="preview">
-                      {row.payload_preview && Object.keys(row.payload_preview).length > 0 ? (
-                        <details>
-                          <summary>View</summary>
-                          <pre>{JSON.stringify(row.payload_preview, null, 2)}</pre>
-                        </details>
-                      ) : (
-                        '-'
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <h3>Queue Operations by Type (Newest First)</h3>
+          {(() => {
+            const groupedByQueue = {};
+            queueDisplay.rows.forEach(row => {
+              const queueType = row.type || 'UNKNOWN';
+              if (!groupedByQueue[queueType]) {
+                groupedByQueue[queueType] = [];
+              }
+              groupedByQueue[queueType].push(row);
+            });
+
+            return Object.entries(groupedByQueue).map(([queueType, rows]) => (
+              <div key={queueType} className="queue-group">
+                <h4>{queueType} ({rows.length})</h4>
+                <div className="table-scroll">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th style={{width: '20%'}}>Message ID</th>
+                        <th style={{width: '10%'}}>Status</th>
+                        <th style={{width: '15%'}}>Created At</th>
+                        <th style={{width: '15%'}}>Completed At</th>
+                        <th style={{width: '8%'}}>Retries</th>
+                        <th style={{width: '20%'}}>Error</th>
+                        <th style={{width: '12%'}}>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {rows.map((row) => (
+                        <tr key={row.id} className={`status-${row.status.toLowerCase()}`}>
+                          <td style={{width: '20%'}}>
+                            <span className="message-id" title={row.id}>{row.id.substring(0, 12)}...</span>
+                          </td>
+                          <td style={{width: '10%'}}>
+                            <span className="status-badge" style={getStatusBadge(row.status)}>
+                              {row.status}
+                            </span>
+                          </td>
+                          <td style={{width: '15%'}} className="timestamp">
+                            {new Date(row.created_at).toLocaleString()}
+                          </td>
+                          <td style={{width: '15%'}} className="timestamp">
+                            {row.completed_at ? new Date(row.completed_at).toLocaleString() : '-'}
+                          </td>
+                          <td style={{width: '8%'}} className="retry-count">{row.retry_count || 0}</td>
+                          <td style={{width: '20%', wordBreak: 'break-word', maxHeight: '100px', overflow: 'auto'}} className="error-message">
+                            {row.error ? (
+                              <details>
+                                <summary style={{cursor: 'pointer', color: '#ef4444', fontWeight: 'bold'}}>
+                                  Error ({row.error.length > 50 ? '...' : ''})
+                                </summary>
+                                <pre style={{fontSize: '11px', margin: '8px 0', padding: '8px', backgroundColor: '#f5f5f5', borderRadius: '4px', whiteSpace: 'pre-wrap', wordWrap: 'break-word', wordBreak: 'break-word', maxWidth: '1200px', maxHeight: '300px', overflow: 'auto'}}>{row.error}</pre>
+                              </details>
+                            ) : (
+                              '-'
+                            )}
+                          </td>
+                          <td style={{width: '12%'}}>
+                            {row.status === 'FAILED' ? (
+                              <button
+                                onClick={() => handleRetry(row.id)}
+                                style={{
+                                  padding: '6px 12px',
+                                  backgroundColor: '#3b82f6',
+                                  color: 'white',
+                                  border: 'none',
+                                  borderRadius: '4px',
+                                  cursor: 'pointer',
+                                  fontSize: '12px'
+                                }}
+                              >
+                                Retry
+                              </button>
+                            ) : row.payload ? (
+                              <details>
+                                <summary style={{cursor: 'pointer', color: '#3b82f6'}}>View</summary>
+                                <pre style={{fontSize: '11px', margin: '8px 0', padding: '8px', backgroundColor: '#f5f5f5', maxHeight: '200px', overflow: 'auto'}}>{JSON.stringify(row.payload, null, 2)}</pre>
+                              </details>
+                            ) : (
+                              '-'
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ));
+          })()}
           {queueDisplay.rows.length === 0 && (
             <div className="empty-state">No messages in queue</div>
           )}

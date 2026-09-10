@@ -61,8 +61,8 @@ def _can_auto_approve_job(user) -> bool:
     Checks the RBAC role first, then falls back to the legacy UserRole string.
     """
     role_name = ""
-    if user.role and user.role.name:
-        role_name = user.role.name
+    if user.role_template and user.role_template.name:
+        role_name = user.role_template.name
     elif user.UserRole:
         role_name = user.UserRole
     return role_name.lower() in AUTO_APPROVE_ROLES
@@ -651,7 +651,34 @@ def create_job(request: JobCreateRequest, background_tasks: BackgroundTasks, db:
     # Generate unique job ID
     job_id = job_id_generator()
 
-    # Create new job
+    # QUEUE-DRIVEN: Send job creation to FLASH queue instead of direct DB write
+    # The message handler will create the job and assign AI recruiter
+    MessageQueueService.enqueue(
+        task_name="job_created_flash",
+        task_id=job_id,
+        data={
+            "job_id": job_id,
+            "job_title": request.job_title,
+            "job_location": request.job_location,
+            "job_description": request.job_description,
+            "job_skills": request.job_skills,
+            "job_experience": request.job_experience,
+            "company_type": request.company_type,
+            "company_name": request.company_name,
+            "contact_person": request.contact_person,
+            "no_of_positions": request.no_of_positions,
+            "start_date": request.start_date.isoformat() if request.start_date else None,
+            "hiring_manager_id": request.hiring_manager_id,
+            "recuriter_id": request.recuriter_id,
+            "business_unit_id": request.business_unit,
+            "department_id": request.department_id,
+            "salary_range": request.salary_range,
+            "job_status": job_status,
+            "created_by_user_id": user.UserID
+        }
+    )
+
+    # Create job object for response (frontend UI needs immediate feedback)
     job = Jobs(
         jobID=job_id,
         jobTitle=request.job_title,
@@ -663,7 +690,7 @@ def create_job(request: JobCreateRequest, background_tasks: BackgroundTasks, db:
         companyType=request.company_type,
         companyName=request.company_name,
         contactPerson=request.contact_person,
-        jobStatus=job_status,          # role-based, never from request
+        jobStatus=job_status,
         noOfPositions=request.no_of_positions,
         startDate=request.start_date,
         hiringManagerID=request.hiring_manager_id,
@@ -672,32 +699,6 @@ def create_job(request: JobCreateRequest, background_tasks: BackgroundTasks, db:
         department_id=request.department_id,
         salaryRange=request.salary_range
     )
-
-    db.add(job)
-
-    # Queue job_created message (BEFORE commit for atomicity)
-    MessageQueueService.enqueue(
-        message_type="job_created",
-        payload={
-            "job_id": job_id,
-            "job_title": request.job_title,
-            "job_location": request.job_location,
-            "job_description": request.job_description,
-            "job_skills": request.job_skills,
-            "no_of_positions": request.no_of_positions,
-            "hiring_manager_id": request.hiring_manager_id,
-            "business_unit_id": request.business_unit,
-            "job_status": job_status,
-        },
-        resource_id=job_id,
-        queue_type="THUNDER_QUEUE",
-        created_by=user.UserID,
-        db=db,
-    )
-
-    # ATOMIC COMMIT
-    db.commit()
-    db.refresh(job)
 
     # Wire SLM: Store job metadata for continuous learning
     try:
