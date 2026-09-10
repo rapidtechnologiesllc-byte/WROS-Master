@@ -107,6 +107,10 @@ export default function CandidateCreate({ onBack, onSave }) {
   const [selectedSkills, setSelectedSkills] = useState([]);
   const [customSource, setCustomSource] = useState("");
   const [showEmployeeReferralList, setShowEmployeeReferralList] = useState(false);
+  const [skillName, setSkillName] = useState("");
+  const [skillYears, setSkillYears] = useState("");
+  const [skillDate, setSkillDate] = useState("");
+  const [skillPrimary, setSkillPrimary] = useState(false);
   const navigate = useNavigate();
 
   // Redirect if user tries to create candidate without permission
@@ -777,6 +781,22 @@ export default function CandidateCreate({ onBack, onSave }) {
 
         <div className="grid gap-3 md:grid-cols-2">
           <div>
+            <Input
+              label="Email *"
+              value={email}
+              onChange={(value) => {
+                setEmail(value);
+                clearFieldError("email");
+              }}
+              actionNotice={actionNotice}
+              error={errors.email}
+            />
+            {errors.email ? (
+              <div className="mt-1 text-xs text-red-500">{errors.email}</div>
+            ) : null}
+          </div>
+
+          <div>
             <Select
               label="Open Jobs (Optional)"
               value={selectedJobId}
@@ -798,21 +818,6 @@ export default function CandidateCreate({ onBack, onSave }) {
               ]}
             />
           </div>
-          <div>
-            <Input
-              label="Email *"
-              value={email}
-              onChange={(value) => {
-                setEmail(value);
-                clearFieldError("email");
-              }}
-              actionNotice={actionNotice}
-              error={errors.email}
-            />
-            {errors.email ? (
-              <div className="mt-1 text-xs text-red-500">{errors.email}</div>
-            ) : null}
-          </div>
 
           <div>
             <Input
@@ -832,11 +837,16 @@ export default function CandidateCreate({ onBack, onSave }) {
             ) : null}
           </div>
 
-          <Input
-            label="Middle Name"
-            value={middleName}
-            onChange={setMiddleName}
-          />
+          <div>
+            <Input
+              label="Current Job Title"
+              value={candidateJobTitle}
+              onChange={(value) => {
+                setCandidateJobTitle(value);
+              }}
+              placeholder="e.g., Senior Software Engineer, Product Manager"
+            />
+          </div>
 
           <div>
             <Input
@@ -940,15 +950,6 @@ export default function CandidateCreate({ onBack, onSave }) {
               <p className="text-xs text-gray-500">Employee list will be populated here</p>
             </div>
           )}
-
-          <Input
-            label="Current Job Title"
-            value={candidateJobTitle}
-            onChange={(value) => {
-              setCandidateJobTitle(value);
-            }}
-            placeholder="e.g., Senior Software Engineer, Product Manager"
-          />
 
           <Input
             label="Availability Date"
@@ -1323,55 +1324,54 @@ export default function CandidateCreate({ onBack, onSave }) {
               <Input
                 label="Skill Name"
                 placeholder="e.g., Java, React, Project Management"
-                id="skill-name-modal"
+                value={skillName}
+                onChange={setSkillName}
               />
               <Input
                 label="Years of Experience"
                 type="number"
                 placeholder="e.g., 5"
-                id="years-exp-modal"
+                value={skillYears}
+                onChange={setSkillYears}
               />
               <Input
                 label="Last Used Date"
                 type="date"
-                id="last-used-modal"
+                value={skillDate}
+                onChange={setSkillDate}
               />
               <div className="flex items-center gap-2">
                 <input
                   type="checkbox"
-                  id="is-primary-skill"
+                  checked={skillPrimary}
+                  onChange={(e) => setSkillPrimary(e.target.checked)}
                   className="w-4 h-4"
                 />
-                <label htmlFor="is-primary-skill" className="text-sm font-medium">
+                <label className="text-sm font-medium">
                   Mark as Primary Skill
                 </label>
               </div>
               <Button
                 onClick={() => {
-                  const nameInput = document.getElementById('skill-name-modal');
-                  const yearsInput = document.getElementById('years-exp-modal');
-                  const dateInput = document.getElementById('last-used-modal');
-                  const primaryInput = document.getElementById('is-primary-skill');
-
-                  if (nameInput.value.trim()) {
+                  if (skillName.trim()) {
                     const newSkill = {
-                      name: nameInput.value.trim(),
-                      yearsOfExperience: yearsInput.value ? parseInt(yearsInput.value) : null,
-                      lastUsedDate: dateInput.value || null,
-                      isPrimary: primaryInput.checked,
+                      name: skillName.trim(),
+                      yearsOfExperience: skillYears ? parseInt(skillYears) : null,
+                      lastUsedDate: skillDate || null,
+                      isPrimary: skillPrimary,
                     };
 
                     setSelectedSkills(prev => {
-                      if (primaryInput.checked) {
+                      if (skillPrimary) {
                         return [...prev.map(s => ({ ...s, isPrimary: false })), newSkill];
                       }
                       return [...prev, newSkill];
                     });
 
-                    nameInput.value = '';
-                    yearsInput.value = '';
-                    dateInput.value = '';
-                    primaryInput.checked = false;
+                    setSkillName('');
+                    setSkillYears('');
+                    setSkillDate('');
+                    setSkillPrimary(false);
                   }
                 }}
                 className="w-full"
