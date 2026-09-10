@@ -333,10 +333,13 @@ class SLMService:
             decision_record = SLMDecision(
                 id=decision_id,
                 message_id=message_id,
-                decision_type=decision.get("decision_type", SLMService.DECISION_AUTO_PROCEED),
-                decision_details=decision,
-                confidence_score=decision.get("confidence_score", 0.5),
-                next_action=decision.get("next_action", SLMService.ACTION_NONE),
+                message_type="generic_analysis",
+                handler_name="slm_service",
+                slm_confidence=decision.get("confidence_score", 0.5),
+                risk_level=decision.get("risk_level", "MEDIUM"),
+                was_escalated=decision.get("decision_type") == SLMService.DECISION_ESCALATE,
+                escalation_reason=decision.get("reasoning"),
+                slm_analysis=decision,
             )
 
             db.add(decision_record)

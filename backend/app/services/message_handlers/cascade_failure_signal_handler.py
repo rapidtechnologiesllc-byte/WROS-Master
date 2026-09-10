@@ -7,6 +7,7 @@ import logging
 from typing import Dict, Any
 from sqlalchemy.orm import Session
 from datetime import datetime
+from app.services.slm_service import SLMService
 
 logger = logging.getLogger(__name__)
 
@@ -42,6 +43,31 @@ class CascadeFailureSignalHandler:
         """
         try:
             payload = message.payload or {}
+
+            # ============ PLACE 1: PRE-FLIGHT SLM ANALYSIS ============
+            slm_analysis = None
+            try:
+                slm_analysis = SLMService.analyze_before_handler(
+                    message_id=str(message.id),
+                    message_type="cascade_failure_signal",
+                    payload=payload,
+                    context={
+                        'business_goal': 'Handle cascade failure signal from Thunder',
+                        'risk_level': payload.get('thunder_health', {}).get('success_rate', 0.0) < 0.5 and 'CRITICAL' or 'HIGH',
+                        'signal_type': payload.get('signal_type'),
+                        'success_rate': payload.get('thunder_health', {}).get('success_rate'),
+                    },
+                    db=db
+                )
+                if not slm_analysis.get('should_proceed'):
+                    logger.warning(f"[CascadeSignal] SLM escalation: {slm_analysis.get('reasoning')}")
+                    return {
+                        'status': 'escalated',
+                        'signal_type': payload.get('signal_type'),
+                        'reason': slm_analysis.get('reasoning')
+                    }
+            except Exception as slm_err:
+                logger.error(f"[CascadeSignal] SLM pre-flight failed: {slm_err}")
 
             # Parse signal
             signal_type = payload.get('signal_type')
@@ -153,6 +179,31 @@ class CascadeFailureSignalHandler:
                     logger.info("[CascadeSignal] Ops alert queued")
                 except Exception as alert_err:
                     logger.warning(f"[CascadeSignal] Failed to queue ops alert: {alert_err}")
+
+            # ============ PLACE 2: POST-FLIGHT SLM ANALYSIS (after action taken) ============
+            try:
+                slm_result = SLMService.analyze_message_result(
+                    message_id=str(message.id),
+                    message_type="cascade_failure_signal",
+                    handler_name="cascade_failure_signal_handler",
+                    result={
+                        'status': 'success',
+                        'action_taken': action,
+                        'thunder_success_rate': success_rate,
+                        'recruitment_state': (
+                            'paused'
+                            if action in ['pause_recruitment', 'alert_ops_and_pause']
+                            else 'resumed'
+                            if action == 'resume_recruitment'
+                            else 'unchanged'
+                        ),
+                        'priority': priority,
+                    },
+                    db=db
+                )
+                logger.info(f"[CascadeSignal] SLM post-flight completed: confidence={slm_result.get('confidence')}, escalated={slm_result.get('was_escalated')}")
+            except Exception as slm_err:
+                logger.warning(f"[CascadeSignal] SLM post-flight failed (non-blocking): {slm_err}")
 
             return {
                 'status': 'success',
