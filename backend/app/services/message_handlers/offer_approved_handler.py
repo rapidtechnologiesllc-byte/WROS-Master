@@ -3,7 +3,6 @@ import logging
 from typing import Dict, Any
 from sqlalchemy.orm import Session
 from app.models.offer import Offer
-from app.services.slm_service import SLMService
 
 logger = logging.getLogger(__name__)
 
@@ -31,31 +30,6 @@ def handle_offer_approved(message: Any, db: Session) -> Dict[str, Any]:
         if not offer_id:
             raise ValueError("offer_id is required in payload")
 
-        # ============ PLACE 1: PRE-FLIGHT SLM ANALYSIS ============
-        slm_analysis = None
-        try:
-            slm_analysis = SLMService.analyze_before_handler(
-                message_id=str(message.id),
-                message_type="offer_approved",
-                payload=payload,
-                context={
-                    'business_goal': 'Approve and process offer for candidate',
-                    'risk_level': 'HIGH',
-                    'offer_id': offer_id,
-                    'approver_id': approver_id,
-                },
-                db=db
-            )
-            if not slm_analysis.get('should_proceed'):
-                logger.warning(f"[OfferApproved] SLM escalation for offer {offer_id}: {slm_analysis.get('reasoning')}")
-                return {
-                    'status': 'escalated',
-                    'offer_id': offer_id,
-                    'reason': slm_analysis.get('reasoning')
-                }
-        except Exception as slm_err:
-            logger.error(f"[OfferApproved] SLM pre-flight failed: {slm_err}")
-
         # 1. Fetch offer to verify it exists
         offer = db.query(Offer).filter(Offer.id == offer_id).first()
         if not offer:
@@ -72,27 +46,6 @@ def handle_offer_approved(message: Any, db: Session) -> Dict[str, Any]:
                 from datetime import datetime
                 offer.approved_at = datetime.utcnow()
             db.commit()
-
-        # ============ PLACE 2: POST-FLIGHT SLM ANALYSIS (after DB commit) ============
-        try:
-            persisted_offer = db.query(Offer).filter(Offer.id == offer_id).first()
-            if persisted_offer:
-                slm_result = SLMService.analyze_message_result(
-                    message_id=str(message.id),
-                    message_type="offer_approved",
-                    handler_name="offer_approved_handler",
-                    result={
-                        'status': 'success',
-                        'offer_id': offer_id,
-                        'candidate_id': candidate_id,
-                        'approver_id': approver_id,
-                        'offer_status': 'APPROVED',
-                    },
-                    db=db
-                )
-                logger.info(f"[OfferApproved] SLM post-flight completed: confidence={slm_result.get('confidence')}, escalated={slm_result.get('was_escalated')}")
-        except Exception as slm_err:
-            logger.warning(f"[OfferApproved] SLM post-flight failed (non-blocking): {slm_err}")
 
         # 3. Send candidate notification
         candidate_id = offer.candidate_id if hasattr(offer, 'candidate_id') else None

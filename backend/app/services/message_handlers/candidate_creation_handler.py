@@ -17,7 +17,6 @@ from app.models.candidate import Candidate, CandidateStatus, CandidateEducationF
 from app.services.candidate_service import create_candidate_safe, DuplicateCandidateError
 from app.services.data_healer_service import DataHealerService
 from app.services.message_queue_service import MessageQueueService
-from app.services.slm_service import SLMService
 
 logger = logging.getLogger(__name__)
 
@@ -47,31 +46,6 @@ class CandidateCreationHandler:
         logger.info(f"[Handler] Processing queue message, candidate_email={candidate_email}, payload keys={list(payload.keys())}")
 
         try:
-            # ============ PLACE 1: PRE-FLIGHT SLM ANALYSIS ============
-            slm_analysis = None
-            try:
-                slm_analysis = SLMService.analyze_before_handler(
-                    message_id=str(message.id),
-                    message_type="candidate_creation",
-                    payload=payload,
-                    context={
-                        'business_goal': 'Create candidate from Thunder outreach',
-                        'risk_level': 'MEDIUM',
-                        'candidate_email': candidate_email,
-                        'candidate_source': payload.get('candidate_source')
-                    },
-                    db=db
-                )
-                if not slm_analysis.get('should_proceed'):
-                    logger.warning(f"[CandidateCreation] SLM escalation for {candidate_email}: {slm_analysis.get('reasoning')}")
-                    return {
-                        'status': 'escalated',
-                        'candidate_email': candidate_email,
-                        'reason': slm_analysis.get('reasoning')
-                    }
-            except Exception as slm_err:
-                logger.error(f"[CandidateCreation] SLM pre-flight failed: {slm_err}")
-
             # ATOMIC TRANSACTION: All records (candidate, status, education, experience) created together
             # Use db.flush() pattern: add all, flush once, commit once
 
@@ -217,27 +191,6 @@ class CandidateCreationHandler:
                 db.rollback()
                 logger.error(f"[Handler] Atomic commit failed: {e}", exc_info=True)
                 raise RuntimeError(f"Failed to commit all records: {str(e)}") from e
-
-            # ============ PLACE 2: POST-FLIGHT SLM ANALYSIS (after DB commit) ============
-            try:
-                persisted_candidate = db.query(Candidate).filter(Candidate.candidateID == candidate_id).first()
-                if persisted_candidate:
-                    slm_result = SLMService.analyze_message_result(
-                        message_id=str(message.id),
-                        message_type="candidate_creation",
-                        handler_name="candidate_creation_handler",
-                        result={
-                            'status': 'success',
-                            'candidate_id': candidate_id,
-                            'candidate_email': persisted_candidate.candidateEmail,
-                            'candidate_name': f"{persisted_candidate.candidateFirstName} {persisted_candidate.candidateLastName}".strip(),
-                            'is_new': is_new,
-                        },
-                        db=db
-                    )
-                    logger.info(f"[CandidateCreation] SLM post-flight completed: confidence={slm_result.get('confidence')}, escalated={slm_result.get('was_escalated')}")
-            except Exception as slm_err:
-                logger.warning(f"[CandidateCreation] SLM post-flight failed (non-blocking): {slm_err}")
 
             # 5. LOG HISTORY EVENTS
             try:
