@@ -100,6 +100,26 @@ class FlashRecruiterHandler:
             except Exception as slm_err:
                 logger.warning(f"[FlashRecruiter] SLM training failed (non-blocking): {slm_err}")
 
+            # PHASE 5: SCHEDULE NEXT RUN (if job still active)
+            # Flash_Recruiter continues every 4 hours until job closes (1-N months)
+            if job.jobStatus and job.jobStatus.lower() == 'active':
+                try:
+                    from app.services.message_queue_service import MessageQueueService
+
+                    # Schedule next recruitment run in 4 hours (14400 seconds)
+                    next_recruiter_msg_id = MessageQueueService.enqueue(
+                        task_name='flash_recruiter',
+                        task_id=f"{job_id}_next",
+                        data=payload,
+                        delay_seconds=14400  # 4 hours
+                    )
+                    logger.info(
+                        f"[FlashRecruiter] Scheduled next run for {job_id} in 4 hours: "
+                        f"message_id={next_recruiter_msg_id}"
+                    )
+                except Exception as schedule_err:
+                    logger.warning(f"[FlashRecruiter] Failed to schedule next run: {schedule_err}")
+
             logger.info(
                 f"[FlashRecruiter] ✅ Completed recruitment for {job_id}: "
                 f"{len(matched_watches)} candidates matched and outreach queued"
@@ -110,7 +130,9 @@ class FlashRecruiterHandler:
                 'job_id': job_id,
                 'job_title': job.jobTitle,
                 'candidates_matched': len(matched_watches),
-                'outreach_queued': len(matched_watches)
+                'outreach_queued': len(matched_watches),
+                'job_status': job.jobStatus,
+                'next_run_in_hours': 4 if (job.jobStatus and job.jobStatus.lower() == 'active') else 0
             }
 
         except ValueError as ve:
