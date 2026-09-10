@@ -167,19 +167,26 @@ def create_job(
             raise RuntimeError(f"Write validation failed: Job {job_id} not found in database after commit")
 
         # Queue AFTER commit (job now exists in DB)
+        # Include structured_skills if provided, otherwise will be auto-converted from job_skills
+        queue_data = {
+            "job_id": job_id,
+            "job_title": request.job_title,
+            "job_location": request.job_location,
+            "job_skills": request.job_skills,
+            "no_of_positions": request.no_of_positions,
+            "hiring_manager_id": request.hiring_manager_id,
+            "business_unit_id": request.business_unit,
+            "job_status": job_status,
+        }
+
+        # Add structured skills if provided
+        if request.structured_skills:
+            queue_data["structured_skills"] = [s.dict() for s in request.structured_skills]
+
         msg_id = MessageQueueService.enqueue(
             task_name='job_created_flash',
             task_id=job_id,
-            data={
-                "job_id": job_id,
-                "job_title": request.job_title,
-                "job_location": request.job_location,
-                "job_skills": request.job_skills,
-                "no_of_positions": request.no_of_positions,
-                "hiring_manager_id": request.hiring_manager_id,
-                "business_unit_id": request.business_unit,
-                "job_status": job_status,
-            }
+            data=queue_data
         )
         db.refresh(job)
     except Exception as e:

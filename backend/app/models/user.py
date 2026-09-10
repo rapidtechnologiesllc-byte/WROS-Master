@@ -125,9 +125,10 @@ class Jobs(Base):
     department_id = Column(String(512), ForeignKey("departments.id"), nullable=True, index=True)
     # HRMS-0109 — same nullable-first pattern as Users.tenant_id.
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
-    # S-037/HRMS-0437 -- structured requirements with boolean AND/OR matching
-    # Skills format: [{"name": "Java", "years": 5, "mandatory": true}, ...]
-    # mandatory=true means AND (all mandatory skills required), false means OR (optional)
+    # S-037/HRMS-0437 -- structured requirements with metadata for skill matching
+    # Skills format (NEW): [{"name": "Java", "years_of_experience": 5, "last_used_date": "2026-09-01", "is_primary": true}, ...]
+    # Skills format (OLD - auto-converted): ["Java", "Python", "SQL"] → structured format with null metadata
+    # Supports both formats for backward compatibility. Lazy-converts flat lists to structured on first score.
     required_skills_canonical = Column(JSON, nullable=True, default=list)
     # job_skills_boolean_mode: "AND" requires all mandatory skills, "OR" allows any skill
     job_skills_boolean_mode = Column(String(10), nullable=False, server_default="AND", default="AND")

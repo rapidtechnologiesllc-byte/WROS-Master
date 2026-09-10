@@ -2,6 +2,163 @@
 
 ---
 
+## 🚨 CRITICAL: 90-SECOND AUTONOMOUS SDLC CYCLE (2026-09-10) - SPARTAN FORMATION PATTERN
+
+**STATUS:** ✅ ENFORCED - Strict orchestrated cycle with Architect in-the-loop every 90 seconds
+
+### Autonomous SDLC Cycle Workflow (Non-Negotiable)
+
+**CRITICAL CLARIFICATION:** Step 1 happens DURING the 90-second pause between cycles
+
+Each cycle executes Steps 2-9 (Step 1 comes from previous cycle's Step 9):
+
+```
+CYCLE 1: STEPS 2-9 (Development through Architect Review)
+  
+PHASE 1: ARCHITECT REQUIREMENTS (Happens BEFORE cycle starts)
+  Step 1: Architect reviews previous test results, provides next requirement
+  └─ Architect provides: specific changes, affected files, rollback plan
+
+CYCLE EXECUTION:
+PHASE 2: DEVELOPMENT (Claude)
+  Step 2: Develop per architect spec
+  Step 3: Run code review gate (MUST PASS)
+  Step 4: Commit with gate approval
+  Step 5: Kill and restart frontend + backend (hard restart)
+  
+PHASE 3: VERIFICATION (Claude)
+  Step 6: Test changes end-to-end
+  Step 7: Collect test results with evidence
+  
+PHASE 4: REVIEW & ITERATION (Architect)
+  Step 8: Send test results to Architect for review
+  Step 9: Architect decides: Continue to CYCLE 2 OR Rollback
+  
+⏱️  90-SECOND COUNTDOWN BEGINS
+  → Step 1 happens here: Architect reviews findings from Step 9
+  → Architect provides requirement for next cycle
+  → All other processes quiet, waiting
+  
+CYCLE 2: STEPS 2-9 (repeat with new requirement from Step 1)
+  → Development through testing with new requirement
+  → Step 9: Architect decides again
+  → 90-second pause
+  → CYCLE 3 starts...
+```
+
+**Key Point:** The 90-second pause includes Step 1 (architect analysis of previous results + next requirement spec)
+
+### Critical Rules
+
+- ⛔ **NO CODE without Architect spec** - Phase 1 is non-negotiable
+- ⛔ **NO COMMIT without code review gate PASS** - gate blocks all merges
+- ⛔ **NO TESTING without hard restart** - stale processes invalidate tests
+- ⛔ **NO ITERATION without Architect review** - architect decides rollback/continue
+- ✅ **ARCHITECT IN LOOP** - every cycle begins and ends with architect decision
+
+### What Each Phase Does
+
+**PHASE 1 - ARCHITECT REQUIREMENTS**
+```
+Input: System findings, current state, error patterns
+Analysis: Root cause assessment, multiple solution approaches
+Output: 
+  - Specific change: "Add field X to model Y, line 42"
+  - Files affected: [list]
+  - Rollback: "Revert Z if changes cause..."
+  - Test criteria: "Success if endpoint returns..."
+```
+
+**PHASE 2 - DEVELOPMENT & GATE**
+```
+Step 2: Write code PER ARCHITECT SPEC (not improvised)
+Step 3: Run gate:
+  - Code review checks all changes
+  - Gate must show: "Critical Issues: 0"
+  - If gate fails → STOP, fix violations, loop back
+Step 4: Commit only AFTER gate passes
+Step 5: KILL both services (hard shutdown)
+        RESTART both services (cold start)
+        Wait for health checks
+```
+
+**PHASE 3 - VERIFICATION TESTING**
+```
+Step 6: Test the exact scenario architect specified
+        Document: Expected vs Actual
+        Capture: Screenshots, logs, response data
+Step 7: Compile results with evidence
+        - Test passed/failed
+        - Side effects (if any)
+        - Performance impact
+        - Error logs (if any)
+```
+
+**PHASE 4 - ARCHITECT REVIEW & DECISION**
+```
+Step 8: Send to Architect:
+        - What changed (commits)
+        - What was tested
+        - Results with evidence
+Step 9: Architect responds:
+        - ✅ OK → Continue to next cycle
+        - ⚠️ Rollback → Revert and restart
+        - 🔍 Investigate further → More analysis needed
+```
+
+### Why Hard Restart (Step 5) Is Non-Negotiable
+
+- Stale processes hide bugs (cached state, old connections)
+- Code hot-reload can mask failures
+- True test = fresh start from source
+- Every commit deserves clean test environment
+- If restart fails → problem found BEFORE production
+
+### Example Cycle: Fix Job Title Propagation
+
+```
+CYCLE 1 (0-90 seconds):
+
+PHASE 1 - Architect:
+  "Job title lost Step 1→2. Fix: Add useEffect to load draft 
+   job data when entering Step 2. Affected: JobCreate.js line 825.
+   Success: Title persists after navigation."
+
+PHASE 2 - Development:
+  - Write useEffect per spec (3 min)
+  - Code review gate (2 min) → PASS ✓
+  - Commit (1 min)
+  - Kill frontend/backend (2 min)
+  - Restart, health check (3 min)
+
+PHASE 3 - Testing:
+  - Create draft job with title "Senior Engineer"
+  - Navigate Step 1→2
+  - Verify title still shows as "Senior Engineer"
+  - Screenshot evidence
+  - Test passed ✓
+
+PHASE 4 - Architect Review:
+  - Send: Commit, screenshot, test result
+  - Architect: "✅ OK, ship to main"
+
+CYCLE 2 BEGINS (90 seconds later)...
+```
+
+### The 90-Second Countdown
+
+```
+⏱️ COUNTDOWN STARTS
+T = 90s: All work paused
+T = 60s: System quiet, waiting
+T = 30s: Preparing for next cycle
+T = 0s: CYCLE 2 BEGINS
+       Architect provides next requirement
+       Claude starts PHASE 1 again
+```
+
+---
+
 ## 🚨 CRITICAL: QUEUE ROUTING ARCHITECTURE (2026-09-09)
 
 **STATUS:** ✅ ENFORCED - Two distinct AI systems with specific queue routing

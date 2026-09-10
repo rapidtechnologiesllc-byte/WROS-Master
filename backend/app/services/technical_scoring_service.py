@@ -88,13 +88,42 @@ class JobNotFound(Exception):
 
 def _ensure_job_requirements_parsed(db: Session, job: Jobs) -> None:
     """Lazily populates the structured requirement columns the first
-    time this job is scored. See module docstring."""
-    if job.required_skills_canonical is not None:
-        return
+    time this job is scored. Handles both old flat-list format and new
+    structured format with metadata (years_of_experience, last_used_date, is_primary).
 
+    If already structured (has "name" key), uses as-is.
+    If flat list or None, auto-converts from old format."""
+
+    # Check if already structured format
+    if job.required_skills_canonical:
+        if isinstance(job.required_skills_canonical, list) and len(job.required_skills_canonical) > 0:
+            first_item = job.required_skills_canonical[0]
+            # If it's already a structured object with "name" key, we're done
+            if isinstance(first_item, dict) and "name" in first_item:
+                logger.debug(f"Job {job.jobID}: skills already structured, skipping parse")
+                return
+            # If it's a flat string, convert to structured format
+            if isinstance(first_item, str):
+                logger.debug(f"Job {job.jobID}: converting flat skills to structured format")
+                flat_skills = job.required_skills_canonical
+                job.required_skills_canonical = [{"name": skill, "years_of_experience": None, "last_used_date": None, "is_primary": False} for skill in flat_skills]
+                db.add(job)
+                db.flush()
+                return
+
+    # Parse from jobSkills string (old format)
     raw_skills = [s.strip() for s in re.split(r"[,;]", job.jobSkills or "") if s.strip()]
     normalized = normalize_skills(raw_skills)
-    job.required_skills_canonical = [item["canonical"] for item in normalized]
+    # Store as structured format with metadata fields
+    job.required_skills_canonical = [
+        {
+            "name": item["canonical"],
+            "years_of_experience": None,
+            "last_used_date": None,
+            "is_primary": False
+        }
+        for item in normalized
+    ]
 
     match = re.search(r"\d+", job.jobExperience or "")
     job.min_experience_years = int(match.group()) if match else 0
@@ -104,12 +133,25 @@ def _ensure_job_requirements_parsed(db: Session, job: Jobs) -> None:
     db.add(job)
     db.flush()
 
-def _skill_match_score(required_skills: List[str], candidate_skills: set) -> Dict:
+def _skill_match_score(required_skills: List, candidate_skills: set) -> Dict:
+    """Match required skills against candidate skills.
+
+    Handles both formats:
+    - Old: List[str] - flat list of skill names
+    - New: List[Dict] - structured skills with metadata
+    """
     if not required_skills:
         return {"score": 100, "matched": [], "missing": []}
-    matched = [s for s in required_skills if s in candidate_skills]
-    missing = [s for s in required_skills if s not in candidate_skills]
-    return {"score": round(len(matched) / len(required_skills) * 100), "matched": matched, "missing": missing}
+
+    # Extract skill names from structured format if needed
+    if required_skills and isinstance(required_skills[0], dict):
+        skill_names = [s.get("name", s) for s in required_skills]
+    else:
+        skill_names = required_skills
+
+    matched = [s for s in skill_names if s in candidate_skills]
+    missing = [s for s in skill_names if s not in candidate_skills]
+    return {"score": round(len(matched) / len(skill_names) * 100), "matched": matched, "missing": missing}
 
 def _experience_score(candidate_years: float, min_years: int) -> int:
     """BR-02: more than 2 years below the requirement is capped at 20,

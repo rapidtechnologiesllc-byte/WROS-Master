@@ -121,11 +121,20 @@ class AllUsersResponse(BaseModel):
     total_users: int
     users: list[UserResponse]
 
+# Job Skills Schema - Structured skill objects with metadata
+class SkillRequirement(BaseModel):
+    """Skill requirement with metadata for matching and recency validation."""
+    name: str
+    years_of_experience: Optional[int] = None
+    last_used_date: Optional[str] = None  # ISO format: "2026-09-01"
+    is_primary: bool = False
+
 # Job Schemas
 class JobCreateRequest(BaseModel):
     job_title: str
     job_description: str
-    job_skills: str
+    job_skills: str  # Keep for backward compatibility (flat list: "Java, Python, SQL")
+    structured_skills: Optional[List[SkillRequirement]] = None  # New: structured metadata
     job_experience: str
     job_location: str
     company_type: str
