@@ -248,6 +248,53 @@ Output JSON as before: {{"code_before": "...", "code_after": "...", "explanation
                 for violation_type, count in audit.get("by_type", {}).items():
                     pattern = self.pattern_library.find_pattern(violation_type, min_confidence=0.90)
 
+    # CYCLE 19: Architect-Approved Training Scenarios
+    @staticmethod
+    def get_cycle19_training_scenarios():
+        """Training scenarios from Ruthless Architect review"""
+        return [
+            {
+                "scenario": "job_deleted_mid_processing",
+                "trigger": "Job creation with queue retry",
+                "error": "Job not found in database after handler runs",
+                "slm_decision": "Always check entity exists before operating",
+                "confidence": 0.95,
+                "pattern_to_learn": "validation_before_operation"
+            },
+            {
+                "scenario": "delayed_message_not_implemented",
+                "trigger": "Recruiter schedules next run in 4 hours",
+                "error": "Message processes immediately instead of waiting",
+                "slm_decision": "Implement SCHEDULED status + scheduled_for check",
+                "confidence": 0.98,
+                "pattern_to_learn": "delayed_message_delivery"
+            },
+            {
+                "scenario": "message_reordering",
+                "trigger": "flash_recruiter runs before job_created_flash persists",
+                "error": "Job not found, message retries 3x, dead-lettered",
+                "slm_decision": "Implement message ordering guarantees",
+                "confidence": 0.92,
+                "pattern_to_learn": "ordered_processing"
+            },
+            {
+                "scenario": "idempotency_missing",
+                "trigger": "Message retried after timeout",
+                "error": "Duplicate job created, IntegrityError",
+                "slm_decision": "Check for duplicate before creating",
+                "confidence": 0.96,
+                "pattern_to_learn": "idempotent_operations"
+            },
+            {
+                "scenario": "dead_letter_silent_failure",
+                "trigger": "Message fails 3 retries",
+                "error": "Goes to dead-letter but no one notified",
+                "slm_decision": "Queue escalation alert on dead-letter",
+                "confidence": 0.94,
+                "pattern_to_learn": "failure_escalation"
+            }
+        ]
+
                     if not pattern and count > 0:
                         logger.info(f"[SLM-TRAIN] Training pattern for new violation: {violation_type} ({count} instances)")
                         # TODO: Spawn training for this type

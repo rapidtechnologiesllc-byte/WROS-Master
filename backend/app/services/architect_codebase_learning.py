@@ -212,6 +212,59 @@ class ArchitectCodebaseAnalyzer:
                 ],
                 "fix_approach": "Use generic get_current_internal_user + role-template permissions",
             },
+            # CYCLE 19: Queue Handler Patterns (Architect Review)
+            "queue_handler_missing_validation": {
+                "root_cause": "Queue handlers don't validate entity existence before operating",
+                "why_it_breaks": [
+                    "flash_recruiter queries deleted job, fails",
+                    "Message retries 3x, goes to dead-letter",
+                    "Recruitment workflow orphaned (never starts)",
+                    "User creates job but recruitment never begins",
+                ],
+                "fix_approach": "Check entity exists BEFORE processing, return early if not found",
+                "example_fix": "persisted_job = db.query(Jobs).filter(Jobs.jobID == job_id).first(); if not persisted_job: raise ValueError(...)",
+            },
+            "missing_database_columns": {
+                "root_cause": "Code references database columns that don't exist in schema",
+                "why_it_breaks": [
+                    "message.last_attempted_at raises AttributeError",
+                    "Queue processor crashes on EVERY message",
+                    "All queue processing stops immediately",
+                    "System completely broken at startup",
+                ],
+                "fix_approach": "Add missing columns to model before using them",
+                "columns_added": ["last_attempted_at", "scheduled_for", "handler_duration_ms", "idempotency_key"],
+            },
+            "delayed_message_not_implemented": {
+                "root_cause": "Parameter accepted (delay_seconds) but never actually implemented",
+                "why_it_breaks": [
+                    "Recruiter scheduled for 4 hours actually runs every 2 seconds",
+                    "Job processed 7200x instead of 1x",
+                    "Database/CPU overload",
+                    "Massive duplicate messages to candidates",
+                ],
+                "fix_approach": "Implement SCHEDULED status, check scheduled_for <= now before processing",
+            },
+            "idempotency_missing": {
+                "root_cause": "Handlers don't check for duplicate work before executing",
+                "why_it_breaks": [
+                    "Message retried on timeout",
+                    "Handler runs twice with same job_id",
+                    "Duplicate job created in database",
+                    "IntegrityError on primary key constraint",
+                ],
+                "fix_approach": "Check if entity already exists, return existing if duplicate found",
+            },
+            "dead_letter_silent_failure": {
+                "root_cause": "Messages go to dead-letter but no escalation happens",
+                "why_it_breaks": [
+                    "Dead-letter messages accumulate silently",
+                    "No one notices broken messages",
+                    "Production issues undetected",
+                    "Manual cleanup required",
+                ],
+                "fix_approach": "Queue escalation alert when message dead-lettered",
+            },
         }
 
         logger.info(f"[ARCHITECT] Root causes analyzed: {len(self.root_cause_analysis)}")
