@@ -719,13 +719,14 @@ export default function JobCreate({
       // Get questions from Flash
       const { questions } = await generateJobWithAgent(oneLiner);
 
-      // Provide default answers from form fields (job_title may be empty in Step 1)
+      // Provide default answers from form fields (Step 1 may not have all fields)
       const defaultAnswers = {
         job_title: title || "",
         position_type: positionType || "Full time",
         pay_range: payAmount ? `${payAmount} ${payRateType}` : "",
         job_location: location || "Remote",
-        job_experience: String(experienceLevel || "1"),
+        // Only include job_experience if it's been filled in (it's in Step 2)
+        ...(experienceLevel && { job_experience: String(experienceLevel) }),
       };
 
       // Generate complete job with defaults
