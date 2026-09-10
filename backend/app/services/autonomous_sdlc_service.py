@@ -4,12 +4,13 @@
 Only for local debugging, analysis, development, and testing.
 
 Runs every 90 seconds to:
-1. AUDIT: Check system health and queue status
+1. AUDIT: Check system health (database, message queue, API)
 2. DEVELOP: Identify and fix broken components
-3. TEST: Verify all endpoints and queues work
+3. TEST: Verify all critical endpoints work
 4. FIX: Apply patches and retry
 5. DEPLOY: Push changes to git if all tests pass
 
+Architecture: PostgreSQL-based message queue (no Redis/Celery)
 This is the autonomous development loop that continuously improves the system.
 """
 import logging
@@ -161,11 +162,8 @@ def _audit_system_health() -> Dict[str, Any]:
 
     Checks:
     - Database connection
-    - Redis/Celery broker
-    - Message queue status
-    - Candidate creation flow
-    - Thunder autonomous processing
-    - API endpoints
+    - Message queue status (PostgreSQL-based)
+    - API endpoints (backend health)
     """
     issues = []
 
@@ -182,17 +180,7 @@ def _audit_system_health() -> Dict[str, Any]:
         finally:
             db.close()
 
-        # Check Redis/Celery
-        try:
-            from redis import Redis
-            redis_client = Redis.from_url('redis://localhost:6379/0', decode_responses=True)
-            redis_client.ping()
-            logger.info("[AUDIT] Redis: OK")
-        except Exception as e:
-            issues.append({"type": "redis", "error": str(e)})
-            logger.error(f"[AUDIT] Redis FAILED: {e}")
-
-        # Check message queue status
+        # Check message queue status (PostgreSQL-based, no Redis/Celery)
         try:
             db = SessionLocal()
             result = db.execute(text("SELECT COUNT(*) FROM app_schema.channel_message WHERE status='pending' LIMIT 10"))
@@ -227,7 +215,7 @@ def _audit_system_health() -> Dict[str, Any]:
         logger.error(f"[AUDIT] Critical error: {e}", exc_info=True)
         return {"status": "error", "error": str(e), "issues": issues}
 
-    return {"status": "ok", "issues": issues, "critical_issues": len([i for i in issues if i.get("type") in ["database", "redis", "api"]])}
+    return {"status": "ok", "issues": issues, "critical_issues": len([i for i in issues if i.get("type") in ["database", "api"]])}
 
 
 def _develop_fixes(issues: List[Dict[str, Any]]) -> Dict[str, Any]:
@@ -276,9 +264,9 @@ def _run_verification_tests() -> Dict[str, Any]:
     endpoints_tested = 0
 
     test_endpoints = [
-        ("GET", "/admin/health", True),
-        ("GET", "/api/v1/config/app-config", True),
-        ("GET", "/celery/queues", True),
+        ("GET", "/health", True),
+        ("GET", "/api/v1/health", True),
+        ("POST", "/auth/login", False),
     ]
 
     try:
