@@ -35,6 +35,10 @@ from app.models import referral  # noqa: F401
 # Channel Queue models — imported here for database table creation
 from app.models import channel_queue  # noqa: F401
 
+# Message Handler Registry — imported here to register all queue handlers at startup
+# CRITICAL FIX: This initialization MUST happen before queue processor starts
+from app.services.message_handler_registry import MessageHandlerRegistry as _MessageHandlerRegistry  # noqa: F401
+
 # Create FastAPI application
 # Swagger/(/docs) and ReDoc (/redoc) are interactive, "Try it out"-capable
 # API explorers against this HR system's real PII (employee bank details,
