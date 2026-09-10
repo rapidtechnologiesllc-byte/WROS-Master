@@ -8,6 +8,7 @@ import {
   generateJobWithAgent,
   generateJobComplete,
   updateJob,
+  getJob,
 } from "../services/api/jobs";
 import { Button, Card, Input, Select, TextArea, LocationCascadeSelect, formatLocation, parseLocation } from "../components/ui";
 import RateField from "../components/ui/RateField";
@@ -101,6 +102,28 @@ export default function JobCreate({
       setSelectedSkills(structuredSkills);
     }
   }, [initialJob, mode]);
+
+  // Load draft job data when entering Step 2
+  useEffect(() => {
+    if (current === 1 && draftJobId && mode !== "view") {
+      const loadDraftData = async () => {
+        try {
+          const draftJob = await getJob(draftJobId);
+          if (draftJob) {
+            // Restore all fields from draft job
+            if (draftJob.job_title && !title) setTitle(draftJob.job_title);
+            if (draftJob.job_description && !internalJD) setInternalJD(draftJob.job_description);
+            if (draftJob.no_of_positions) setNoOfPositions(draftJob.no_of_positions);
+            if (draftJob.job_location) setLocation(draftJob.job_location);
+            if (draftJob.job_experience) setExperienceLevel(draftJob.job_experience);
+          }
+        } catch (err) {
+          console.error("Error loading draft job:", err);
+        }
+      };
+      loadDraftData();
+    }
+  }, [current, draftJobId, mode]);
 
   // Auto-save draft effect
   useEffect(() => {
@@ -646,8 +669,8 @@ export default function JobCreate({
         }
 
         const draftPayload = {
-          job_title: "Draft Job",
-          job_description: internalJdTemplate,
+          job_title: title?.trim() || "Draft Job",
+          job_description: internalJD?.trim() || internalJdTemplate,
           job_skills: "",
           job_experience: "1",
           job_location: locationLabel,
