@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.logging import logger
 from app.core.dependencies import get_current_internal_user, require_resource_permission
-from app.models.user import Jobs, Users
+from app.models.user import Jobs, Users, Role
 from app.services.message_queue_service import MessageQueueService
 from app.services.ready_for_opportunity_service import scan_new_job_for_matches
 from app.schemas.user import (

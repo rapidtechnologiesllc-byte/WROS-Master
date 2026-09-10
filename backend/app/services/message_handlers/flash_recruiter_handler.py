@@ -55,6 +55,18 @@ class FlashRecruiterHandler:
             if not job:
                 raise RuntimeError(f"Job {job_id} not found in database")
 
+            # ARCHITECT FIX: Validate job status before recruitment
+            if not job.jobStatus or job.jobStatus.lower() != 'active':
+                logger.warning(f"[FlashRecruiter] Job {job_id} is {job.jobStatus}, not active. Skipping recruitment.")
+                return {
+                    'status': 'skipped',
+                    'job_id': job_id,
+                    'job_title': job.jobTitle,
+                    'reason': f'Job status is {job.jobStatus}, not active',
+                    'candidates_matched': 0,
+                    'outreach_queued': 0
+                }
+
             logger.info(f"[FlashRecruiter] Starting recruitment for job {job_id}: {job.jobTitle}")
 
             # PHASE 3: SCAN FOR MATCHING CANDIDATES & QUEUE OUTREACH

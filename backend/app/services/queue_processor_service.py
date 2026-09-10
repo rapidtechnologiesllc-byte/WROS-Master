@@ -259,8 +259,25 @@ class QueueProcessorService:
                     })
                     db.commit()
 
-                    # Escalate to manual review
-                    logger.critical(f"[QueueProcessor] Message {message.id} dead-lettered after {message.retry_count} retries")
+                    # ARCHITECT FIX: Escalate to manual review
+                    logger.critical(f"[QueueProcessor] Message {message.id} dead-lettered after {message.retry_count} retries: {handler_err}")
+                    try:
+                        # Queue escalation alert for ops team
+                        from app.services.message_queue_service import MessageQueueService as MQS
+                        MQS.enqueue(
+                            task_name='dead_letter_escalation',
+                            task_id=f"escalation_{message.id}",
+                            data={
+                                'dead_letter_message_id': message.id,
+                                'task_type': message.type,
+                                'error': str(handler_err),
+                                'retry_count': message.retry_count,
+                                'created_at': message.created_at.isoformat() if message.created_at else None
+                            }
+                        )
+                        logger.info(f"[QueueProcessor] Dead letter escalation queued for {message.id}")
+                    except Exception as esc_err:
+                        logger.error(f"[QueueProcessor] Failed to escalate dead letter {message.id}: {esc_err}", exc_info=True)
 
                     return {
                         "status": QueueStatus.DEAD_LETTER.value,

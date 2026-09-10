@@ -47,6 +47,19 @@ class JobCreationFlashHandler:
                     raise ValueError(f"Missing required field: {field}")
 
             job_id = payload.get('job_id')
+
+            # ARCHITECT FIX: Check for idempotency (duplicate job_id means retry)
+            existing_job = db.query(Jobs).filter(Jobs.jobID == job_id).first()
+            if existing_job:
+                logger.info(f"[JobCreationFlash] Job {job_id} already exists (idempotent retry), returning existing")
+                return {
+                    'status': 'success',
+                    'job_id': job_id,
+                    'created_at': existing_job.jobCreatedAt.isoformat(),
+                    'job_status': existing_job.jobStatus,
+                    'job_title': existing_job.jobTitle,
+                    'idempotent': True
+                }
             job_title = payload.get('job_title')
             job_location = payload.get('job_location')
 

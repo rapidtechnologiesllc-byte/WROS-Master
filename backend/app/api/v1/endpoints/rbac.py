@@ -2,7 +2,8 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from app.core.database import get_db
-from app.core.dependencies import get_current_internal_user
+from app.core.dependencies import get_current_internal_user, require_role_template_permission
+from app.core.permission_registry import Permissions
 from app.models.business_unit import BusinessUnit
 from pydantic import BaseModel
 from typing import List, Optional
@@ -130,7 +131,7 @@ def update_business_unit(
         )
 
 
-@router.delete("/business-units/{business_unit_id}", status_code=204, response_model=dict, dependencies=[Depends(require_role_template_permission(*Permissions.SYSTEM_MANAGE))])
+@router.delete("/business-units/{business_unit_id}", status_code=204, dependencies=[Depends(require_role_template_permission(*Permissions.USERS_DELETE))])
 def delete_business_unit(
     business_unit_id: int,
     db: Session = Depends(get_db),

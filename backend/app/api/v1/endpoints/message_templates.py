@@ -10,7 +10,8 @@ from sqlalchemy.orm import Session
 from typing import Optional, List
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_internal_user
+from app.core.dependencies import get_current_internal_user, require_role_template_permission
+from app.core.permission_registry import Permissions
 from app.models.user import Users
 from app.models.message_template import MessageTemplate, TEMPLATE_KEYS, TEMPLATE_CHANNELS
 from app.services.template_service import TemplateService
@@ -44,7 +45,7 @@ class TemplateResponse(BaseModel):
         from_attributes = True
 
 
-@router.get("/keys", response_model=dict, dependencies=[Depends(require_role_template_permission(*Permissions.SYSTEM_MANAGE))])
+@router.get("/keys", response_model=dict, dependencies=[Depends(require_role_template_permission(*Permissions.USERS_VIEW))])
 def get_template_keys():
     """Get available template keys and channels."""
     return {

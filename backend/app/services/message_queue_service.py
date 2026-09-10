@@ -38,15 +38,25 @@ class MessageQueueService:
 
             db = SessionLocal()
 
+            # ARCHITECT FIX: Support delayed message delivery
+            from datetime import timedelta
+            if delay_seconds > 0:
+                status = 'SCHEDULED'
+                scheduled_for = datetime.utcnow() + timedelta(seconds=delay_seconds)
+            else:
+                status = 'PENDING'
+                scheduled_for = None
+
             # Create queue item in database
             queue_item = ChannelQueueItem(
                 message_id=task_id,
                 type=task_name,
                 channel_type=QUEUE_TYPE_THUNDER if 'engage_candidate_with_thunder' in task_name.lower() or 'assign_thunder' in task_name.lower() else (QUEUE_TYPE_CANDIDATE if 'candidate' in task_name.lower() else QUEUE_TYPE_THUNDER),
-                status='PENDING',
+                status=status,
                 payload=data,
                 retry_count=QUEUE_ITEM_RETRY_COUNT_INITIAL,
-                created_at=datetime.utcnow()
+                created_at=datetime.utcnow(),
+                scheduled_for=scheduled_for
             )
 
             db.add(queue_item)

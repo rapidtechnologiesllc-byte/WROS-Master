@@ -1,0 +1,106 @@
+{
+  "last_updated": "2026-09-10T15:00:00",
+  "memories": [
+    {
+      "cycle_number": 999,
+      "learning_type": "ARCHITECTURAL_RULE_CRITICAL",
+      "content": "PRIORITY 1: Eliminate all hardcoded role checks globally. Pattern: is_super_user, get_current_hr_or_admin, UserRole==string. Replace ONLY with require_role_template_permission(*Permissions.RESOURCE_ACTION). Found 49 instances across 21 files. BLOCKING: No feature work until 49 → 0.",
+      "affected_systems": [
+        "backend/app/api/v1/endpoints/users_access_control.py (18 instances)",
+        "backend/app/api/v1/endpoints/finance_monitoring.py (3 instances)",
+        "backend/app/api/v1/endpoints/jobs/crud.py (1 instance)",
+        "backend/app/core/dependencies.py (3 instances)",
+        "backend/app/services/rbac_service.py (1 instance)",
+        "backend/app/services/role_template_permission_service.py (3 instances)",
+        "backend/app/api/v1/endpoints/navigation.py (1 instance)",
+        "backend/app/core/visibility.py (1 instance)",
+        "backend/app/core/webhook_auth.py (1 instance)",
+        "backend/app/api/v1/endpoints/create_job.py (1 instance)",
+        "backend/app/services/candidate_isolation_service.py (1 instance)",
+        "backend/app/services/employee_self_service.py (1 instance)",
+        "backend/app/services/finance_agent.py (1 instance)",
+        "backend/app/services/personal_goal_agents.py (1 instance)",
+        "backend/app/services/agent_pyramid_reporting.py (1 instance)",
+        "backend/app/core/permission_registry.py (2 instances)",
+        "backend/app/core/route_security_audit.py (1 instance)",
+        "backend/tests/ (multiple test files with 8 instances total)"
+      ],
+      "severity": "CRITICAL_SECURITY",
+      "confidence": 0.95,
+      "action_items": [
+        "Phase 1: Block new hardcoded checks (code review gate) - IMMEDIATE",
+        "Phase 2: Fix users_access_control.py (18 instances) - TODAY",
+        "Phase 3: Fix finance_monitoring.py (3 instances) - THIS WEEK",
+        "Phase 4: Fix remaining files (25 instances) - THIS WEEK",
+        "Phase 5: Re-scan to verify (49 → 0) - BEFORE DEPLOYMENT"
+      ],
+      "blocking": true,
+      "no_feature_work_until_fixed": true,
+      "retrieval_count": 1,
+      "created_at": "2026-09-10T15:00:00",
+      "last_applied_cycle": null,
+      "next_action": "Architect will automatically reject any new code with hardcoded role patterns at code review gate. Will systematically fix all 49 instances."
+    },
+    {
+      "cycle_number": 999,
+      "learning_type": "ANTI_PATTERN_GLOBAL",
+      "content": "Hardcoded role-based permission checks (is_super_user, UserRole==string): Found 49 instances. This is a CRITICAL anti-pattern that allows security bypasses and makes permission logic scattered across 21 files instead of centralized.",
+      "affected_systems": [
+        "All endpoints using hardcoded is_super_user",
+        "All endpoints with UserRole string comparisons",
+        "All endpoints with get_current_hr_or_admin dependencies"
+      ],
+      "severity": "CRITICAL_SECURITY",
+      "confidence": 0.95,
+      "retrieval_count": 1,
+      "created_at": "2026-09-10T15:00:00"
+    },
+    {
+      "cycle_number": 999,
+      "learning_type": "PERMISSION_SYSTEM_RULE",
+      "content": "ONLY valid permission pattern: @dependencies=[Depends(require_role_template_permission(*Permissions.RESOURCE_ACTION))] in FastAPI decorator. NO permission logic in function body. NO hardcoded role checks. NO Depends(get_current_hr_or_admin). This is non-negotiable across entire application.",
+      "affected_systems": ["All endpoints"],
+      "severity": "CRITICAL_SECURITY",
+      "confidence": 0.95,
+      "retrieval_count": 1,
+      "created_at": "2026-09-10T15:00:00"
+    }
+  ],
+  "cascade_matrix": {
+    "permission_system": ["authentication", "authorization", "security"],
+    "hardcoded_checks": ["security_bypass_risk", "maintenance_nightmare", "audit_failure"]
+  },
+  "anti_patterns": {
+    "hardcoded_role_checks": 49,
+    "is_super_user_pattern": 18,
+    "UserRole_string_comparison": 15,
+    "get_current_hr_or_admin_dependency": 10,
+    "get_current_manager_dependency": 6
+  },
+  "pattern_library": {
+    "correct_permission_pattern": {
+      "description": "Use require_role_template_permission in FastAPI dependencies",
+      "example": "@router.post('/endpoint', dependencies=[Depends(require_role_template_permission(*Permissions.RESOURCE_ACTION))])",
+      "verified": true,
+      "confidence": 0.95
+    },
+    "wrong_permission_pattern": {
+      "description": "Hardcoded role checks in function body",
+      "examples": [
+        "is_super_user = UserRole.lower() == 'super user'",
+        "Depends(get_current_hr_or_admin)",
+        "if not (UserRole in ['admin', 'super user']):"
+      ],
+      "never_use": true,
+      "found_instances": 49
+    }
+  },
+  "priority_1_rules": [
+    {
+      "rule": "Eliminate all 49 hardcoded role checks globally",
+      "status": "ACTIVE",
+      "blocking": true,
+      "enforcement": "Code review gate will reject any new violations"
+    }
+  ]
+}
