@@ -78,12 +78,24 @@ class QueueProcessorService:
         }
 
         try:
-            # Get PENDING messages, ordered by created_at (FIFO)
+            # CYCLE 19: Get both PENDING and ready-to-process SCHEDULED messages
+            # PENDING: Normal queue items
+            # SCHEDULED: Delayed messages where scheduled_for <= now
             pending_messages = db.query(ChannelQueueItem).filter(
-                ChannelQueueItem.status == QueueStatus.PENDING.value,
                 or_(
-                    ChannelQueueItem.retry_count == 0,
-                    ChannelQueueItem.next_retry_at <= datetime.utcnow()
+                    # PENDING messages (ready to process immediately)
+                    and_(
+                        ChannelQueueItem.status == QueueStatus.PENDING.value,
+                        or_(
+                            ChannelQueueItem.retry_count == 0,
+                            ChannelQueueItem.next_retry_at <= datetime.utcnow()
+                        )
+                    ),
+                    # SCHEDULED messages (delayed, now ready)
+                    and_(
+                        ChannelQueueItem.status == 'SCHEDULED',
+                        ChannelQueueItem.scheduled_for <= datetime.utcnow()
+                    )
                 )
             ).order_by(ChannelQueueItem.created_at.asc()).limit(batch_size).all()
 
@@ -130,6 +142,10 @@ class QueueProcessorService:
             stats["errors"].append(str(e))
             return stats
 
+    # Circuit breaker state (class variable)
+    _consecutive_failures = 0
+    _FAILURE_THRESHOLD = 5
+
     @staticmethod
     def _process_single_message(db: Session, message: ChannelQueueItem) -> Dict[str, Any]:
         """
@@ -137,7 +153,15 @@ class QueueProcessorService:
 
         Returns result dict with status and outcome.
         """
+        import time
+        handler_start_time = time.time()
+
         try:
+            # Circuit breaker: Stop processing if too many consecutive failures
+            if QueueProcessorService._consecutive_failures >= QueueProcessorService._FAILURE_THRESHOLD:
+                logger.critical("[QueueProcessor] Circuit breaker triggered - stopping message processing")
+                raise RuntimeError("Circuit breaker triggered - database or system failures detected")
+
             # Mark as PROCESSING
             message.status = QueueStatus.PROCESSING.value
             message.last_attempted_at = datetime.utcnow()
@@ -150,9 +174,15 @@ class QueueProcessorService:
             if not handler:
                 raise ValueError(f"No handler registered for {message.type}")
 
-            # Execute handler
+            # Execute handler with timing
             try:
                 handler_result = handler(message, db)
+                handler_duration_ms = int((time.time() - handler_start_time) * 1000)
+                message.handler_duration_ms = handler_duration_ms
+
+                # Log slow handlers (> 10 seconds)
+                if handler_duration_ms > 10000:
+                    logger.warning(f"[QueueProcessor] Slow handler {message.type}: {handler_duration_ms}ms")
 
                 # VALIDATION: Verify result contains expected data before marking COMPLETED
                 # For job_created_flash: verify job_id exists in result and in database
@@ -174,20 +204,25 @@ class QueueProcessorService:
                 message.result = json.dumps({
                     "success": True,
                     "data": handler_result,
-                    "completed_at": datetime.utcnow().isoformat()
+                    "completed_at": datetime.utcnow().isoformat(),
+                    "handler_duration_ms": handler_duration_ms
                 })
                 db.commit()
+
+                # Reset circuit breaker on success
+                QueueProcessorService._consecutive_failures = 0
 
                 return {
                     "status": QueueStatus.COMPLETED.value,
                     "message_id": message.id,
                     "task": message.type,
-                    "result": handler_result
+                    "result": handler_result,
+                    "handler_duration_ms": handler_duration_ms
                 }
 
             except Exception as handler_err:
                 # Handler failed - check retry logic
-                logger.error(f"[QueueProcessor] Handler failed for {message.task_name}: {handler_err}")
+                logger.error(f"[QueueProcessor] Handler failed for {message.type}: {handler_err}", exc_info=True)
 
                 if message.retry_count < QueueProcessorService.MAX_RETRIES:
                     # Schedule retry with exponential backoff
