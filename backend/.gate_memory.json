@@ -2,7 +2,18 @@
   "issues_seen": {},
   "true_positives": {},
   "false_positives": {},
-  "new_patterns": [],
+  "new_patterns": [
+    {
+      "pattern": "handle_test_message_missing_slm_analysis",
+      "issue_type": "MISSING_SLM_CALL",
+      "discovered_at": "2026-09-10T14:34:48.262421"
+    },
+    {
+      "pattern": "handle_test_message_missing_slm_recording",
+      "issue_type": "MISSING_SLM_CALL",
+      "discovered_at": "2026-09-10T14:34:48.262421"
+    }
+  ],
   "check_effectiveness": {},
   "learned_at": "2026-09-03T11:42:51.606464"
 }

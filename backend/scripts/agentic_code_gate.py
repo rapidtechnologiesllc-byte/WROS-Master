@@ -112,6 +112,7 @@ class AgenticCodeGate:
             'MISSING_NULL_CHECK': {'impact': 'RUNTIME CRASH', 'severity': 'HIGH'},
             'MALFORMED_IMPORT': {'impact': 'SYNTAX ERROR', 'severity': 'CRITICAL'},
             'DUPLICATE_IMPORT': {'impact': 'SYNTAX ERROR', 'severity': 'CRITICAL'},
+            'MISSING_SLM_CALL': {'impact': 'UNACCOUNTABLE PIPELINE DECISION', 'severity': 'CRITICAL'},
         }
 
     def validate_file(self, file_path):
@@ -158,6 +159,9 @@ class AgenticCodeGate:
 
             # ADAPTIVE: Magic numbers (learn context)
             self._check_magic_numbers(i, line)
+
+            # PRODUCTION GATE: SLM integration enforcement (Phase A)
+            self._check_slm_integration(i, line)
 
     def _check_imports(self, line_num, line):
         """Adaptively check for malformed imports (learned from current session)."""
@@ -253,6 +257,97 @@ class AgenticCodeGate:
                     'fix': 'Extract as named constant (TIMEOUT_SECONDS, etc)',
                     'impact_type': 'MAGIC_NUMBER'
                 })
+
+    def _check_slm_integration(self, line_num, line):
+        """Check that queue handlers and pipeline APIs have SLM integration (CRITICAL)."""
+        # Only check handler and API files
+        is_handler = 'message_handlers' in self.file_path
+        is_endpoint = 'endpoints' in self.file_path or 'api/v1' in self.file_path
+
+        if not (is_handler or is_endpoint):
+            return
+
+        # Skip library/utility files
+        if any(x in self.file_path for x in ['utils/', 'core/', '__pycache__', 'lib/']):
+            return
+
+        # Only check function definitions that look like handlers or endpoints
+        if not line.strip().startswith('def '):
+            return
+
+        func_name = line.split('(')[0].replace('def ', '').strip()
+
+        # Skip private methods and utility functions
+        if func_name.startswith('_'):
+            return
+
+        # Look for handler/endpoint patterns in function name
+        is_handler_func = any(x in func_name.lower() for x in ['handle', 'process', 'execute'])
+        is_endpoint_func = any(x in func_name.lower() for x in ['endpoint', 'route', 'api'])
+
+        # For API endpoints, check decorators
+        if is_endpoint:
+            # Look at decorator line (line before function)
+            if line_num > 1:
+                decorator_lines = '\n'.join(self.lines[max(0, line_num-5):line_num])
+                if any(x in decorator_lines for x in ['@router.get', '@router.post', '@router.put', '@router.delete']):
+                    is_endpoint_func = True
+
+        if not (is_handler_func or is_endpoint_func):
+            return
+
+        # Extract function body (next 50 lines)
+        func_start = line_num - 1
+        func_end = min(func_start + 50, len(self.lines))
+        func_body = '\n'.join(self.lines[func_start:func_end])
+
+        # Check for SLM integration
+        has_slm_analysis = any(x in func_body for x in [
+            'analyze_before_handler',
+            'SLMService.analyze',
+            'slm_analysis'
+        ])
+
+        has_slm_recording = any(x in func_body for x in [
+            'record_outcome',
+            'SLMService.record'
+        ])
+
+        # CRITICAL: Handler/endpoint must have both SLM calls
+        if is_handler_func and not has_slm_analysis:
+            confidence = self.learning_db.get_check_confidence('MISSING_SLM_CALL')
+            self.issues.append({
+                'severity': 'CRITICAL',
+                'line': line_num,
+                'issue': f'Handler "{func_name}" missing SLM pre-flight analysis (Place 1)',
+                'fix': 'Add: slm_analysis = SLMService.analyze_before_handler(...)',
+                'impact_type': 'MISSING_SLM_CALL',
+                'confidence': confidence
+            })
+            self.learning_db.discover_pattern(f'{func_name}_missing_slm_analysis', 'MISSING_SLM_CALL')
+
+        if is_handler_func and not has_slm_recording:
+            confidence = self.learning_db.get_check_confidence('MISSING_SLM_CALL')
+            self.issues.append({
+                'severity': 'CRITICAL',
+                'line': line_num,
+                'issue': f'Handler "{func_name}" missing SLM outcome recording (Place 2)',
+                'fix': 'Add: SLMService.record_outcome(...)',
+                'impact_type': 'MISSING_SLM_CALL',
+                'confidence': confidence
+            })
+            self.learning_db.discover_pattern(f'{func_name}_missing_slm_recording', 'MISSING_SLM_CALL')
+
+        if is_endpoint_func and not has_slm_analysis:
+            confidence = self.learning_db.get_check_confidence('MISSING_SLM_CALL')
+            self.issues.append({
+                'severity': 'CRITICAL',
+                'line': line_num,
+                'issue': f'Endpoint "{func_name}" missing SLM integration',
+                'fix': 'Add: SLM check before queuing/processing',
+                'impact_type': 'MISSING_SLM_CALL',
+                'confidence': confidence
+            })
 
     def _check_javascript(self):
         """Check JavaScript files."""
