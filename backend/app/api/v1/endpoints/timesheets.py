@@ -159,7 +159,7 @@ def _get_timesheet_or_404(db: Session, timesheet_id: str) -> Timesheet:
     "/weekly-draft",
     response_model=TimesheetItem,
     summary="Create (or return existing) a weekly timesheet draft",
-    dependencies=[Depends(require_role_template_permission(*Permissions.TIMESHEETS_CREATE))]
+    dependencies=[Depends(require_role_template_permission(*Permissions.TIMESHEETS_EDIT))]
 )
 def create_draft(
     body: CreateWeeklyDraftRequest,
@@ -246,7 +246,7 @@ def upsert_timesheet_entries(
     "/{timesheet_id}/submit",
     response_model=TimesheetItem,
     summary="Submit a draft timesheet",
-    dependencies=[Depends(require_role_template_permission(*Permissions.TIMESHEETS_VIEW))]
+    dependencies=[Depends(require_role_template_permission(*Permissions.TIMESHEETS_EDIT))]
 )
 def submit(
     timesheet_id: str,
