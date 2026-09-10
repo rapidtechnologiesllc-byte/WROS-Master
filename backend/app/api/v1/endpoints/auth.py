@@ -103,7 +103,7 @@ def signup(request: SignupRequest, db: Session = Depends(get_db)):
     return SignupResponse(response="User created successfully")
 
 
-@router.post("/validate-email")
+@router.post("/validate-email", response_model=dict)
 def validate_email(request: ValidateEmailRequest, db: Session = Depends(get_db)):
     """Validate if an email exists as an employee user. PUBLIC ENDPOINT."""
     if not request or not request.email:

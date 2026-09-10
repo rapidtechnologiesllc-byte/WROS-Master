@@ -44,7 +44,7 @@ class TemplateResponse(BaseModel):
         from_attributes = True
 
 
-@router.get("/keys")
+@router.get("/keys", response_model=dict, dependencies=[Depends(require_role_template_permission(*Permissions.SYSTEM_MANAGE))])
 def get_template_keys():
     """Get available template keys and channels."""
     return {

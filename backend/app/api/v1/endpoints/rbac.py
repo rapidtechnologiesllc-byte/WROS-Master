@@ -130,7 +130,7 @@ def update_business_unit(
         )
 
 
-@router.delete("/business-units/{business_unit_id}", status_code=204)
+@router.delete("/business-units/{business_unit_id}", status_code=204, response_model=dict, dependencies=[Depends(require_role_template_permission(*Permissions.SYSTEM_MANAGE))])
 def delete_business_unit(
     business_unit_id: int,
     db: Session = Depends(get_db),
