@@ -942,6 +942,15 @@ export default function CandidateCreate({ onBack, onSave }) {
           )}
 
           <Input
+            label="Current Job Title"
+            value={candidateJobTitle}
+            onChange={(value) => {
+              setCandidateJobTitle(value);
+            }}
+            placeholder="e.g., Senior Software Engineer, Product Manager"
+          />
+
+          <Input
             label="Availability Date"
             value={joiningDate}
             onChange={(value) => {

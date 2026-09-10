@@ -2,7 +2,7 @@
 import logging
 from typing import Dict, Any
 from sqlalchemy.orm import Session
-from app.models.jobs import Jobs
+from app.models.user import Jobs
 
 logger = logging.getLogger(__name__)
 
