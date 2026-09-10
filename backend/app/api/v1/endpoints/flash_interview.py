@@ -10,7 +10,7 @@ from app.services.flash_transcript_service import FlashTranscriptService
 
 router = APIRouter(prefix="/flash/interviews", tags=["Flash Interview Analysis"])
 
-@router.get("/{interview_id}/analysis", dependencies=[Depends(require_resource_permission("candidates", "view"))])
+@router.get("/{interview_id}/analysis", response_model=dict, dependencies=[Depends(require_resource_permission("candidates", "view"))])
 def get_flash_interview_analysis(
     interview_id: str,
     use_mock: bool = Query(False, description="Use mock transcript for testing (local only)"),
@@ -50,7 +50,7 @@ def get_flash_interview_analysis(
         logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.get("/{interview_id}/comparison", dependencies=[Depends(require_resource_permission("candidates", "view"))])
+@router.get("/{interview_id}/comparison", response_model=dict, dependencies=[Depends(require_resource_permission("candidates", "view"))])
 def get_flash_panel_comparison(
     interview_id: str,
     db: Session = Depends(get_db),
@@ -75,7 +75,7 @@ def get_flash_panel_comparison(
         logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/{interview_id}/coaching-email", dependencies=[Depends(require_resource_permission("candidates", "edit"))])
+@router.post("/{interview_id}/coaching-email", response_model=dict, dependencies=[Depends(require_resource_permission("candidates", "edit"))])
 def send_coaching_email_to_panel_member(
     interview_id: str,
     payload: dict,
