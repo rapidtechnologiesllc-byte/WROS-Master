@@ -1,17 +1,34 @@
-"""Autonomous SDLC Cycle Service (DEVELOPMENT ONLY)
+"""Autonomous SDLC Cycle Service (DEVELOPMENT ONLY) - SPARTAN FORMATION PATTERN
 
 ⚠️ WARNING: This service MUST NOT run in production!
 Only for local debugging, analysis, development, and testing.
 
-Runs every 90 seconds to:
-1. AUDIT: Check system health (database, message queue, API)
-2. DEVELOP: Identify and fix broken components
-3. TEST: Verify all critical endpoints work
-4. FIX: Apply patches and retry
-5. DEPLOY: Push changes to git if all tests pass
+MANDATORY 90-SECOND CYCLE WORKFLOW (Non-Negotiable):
+
+PHASE 1: ARCHITECT REQUIREMENTS (Architect → Claude)
+  ✓ Architect analyzes findings, proposes specific changes
+  ✓ Architect provides: file paths, line numbers, rollback plan
+
+PHASE 2: DEVELOPMENT & GATE (Claude)
+  ✓ Develop per architect specification (no improvisation)
+  ✓ Code review gate MUST PASS (Critical Issues: 0)
+  ✓ Commit only after gate approval
+  ✓ HARD KILL and RESTART both frontend + backend (cold start)
+
+PHASE 3: VERIFICATION (Claude)
+  ✓ Test end-to-end scenarios
+  ✓ Collect evidence and results
+
+PHASE 4: ARCHITECT REVIEW & ITERATE (Architect)
+  ✓ Architect reviews test results
+  ✓ Architect decides: Continue to next cycle OR Rollback
+
+⏱️ 90-SECOND COUNTDOWN BEGINS
+  → All processes quiet, waiting
+  → Next cycle starts automatically
 
 Architecture: PostgreSQL-based message queue (no Redis/Celery)
-This is the autonomous development loop that continuously improves the system.
+Pattern: Spartan Formation - Architect leads each cycle, full orchestration
 """
 import logging
 import subprocess
