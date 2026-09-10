@@ -501,7 +501,11 @@ export default function JobCreate({
     setIsAnswering(true);
     try {
       // Step 2: Call agent with answers to generate complete job
-      const data = await generateJobComplete(hmOneLiner.trim(), flashAnswers);
+      // Ensure all answer values are strings (backend expects dict[str, str])
+      const stringifiedAnswers = Object.fromEntries(
+        Object.entries(flashAnswers).map(([key, value]) => [key, String(value ?? "")])
+      );
+      const data = await generateJobComplete(hmOneLiner.trim(), stringifiedAnswers);
 
       // Auto-populate all fields from agent response
       if (data?.job_title) setTitle(data.job_title);
@@ -726,7 +730,8 @@ export default function JobCreate({
         pay_range: payAmount ? `${payAmount} ${payRateType}` : "",
         job_location: location || "Remote",
         // Only include job_experience if it's been filled in (it's in Step 2)
-        ...(experienceLevel && { job_experience: String(experienceLevel) }),
+        // Check for null/undefined, not falsy, to allow 0 as valid value
+        ...(experienceLevel != null ? { job_experience: String(experienceLevel) } : {}),
       };
 
       // Generate complete job with defaults
