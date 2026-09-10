@@ -725,7 +725,7 @@ export default function JobCreate({
         position_type: positionType || "Full time",
         pay_range: payAmount ? `${payAmount} ${payRateType}` : "",
         job_location: location || "Remote",
-        job_experience: experienceLevel || "1",
+        job_experience: String(experienceLevel || "1"),
       };
 
       // Generate complete job with defaults
