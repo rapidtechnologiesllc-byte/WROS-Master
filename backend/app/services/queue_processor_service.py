@@ -154,7 +154,22 @@ class QueueProcessorService:
             try:
                 handler_result = handler(message, db)
 
-                # Mark COMPLETED
+                # VALIDATION: Verify result contains expected data before marking COMPLETED
+                # For job_created_flash: verify job_id exists in result and in database
+                if message.type == 'job_created_flash':
+                    job_id = handler_result.get('job_id') if isinstance(handler_result, dict) else None
+                    if not job_id:
+                        raise ValueError(f"Handler did not return job_id in result: {handler_result}")
+
+                    # Verify job actually exists in database (double-check)
+                    from app.models.user import Jobs
+                    persisted_job = db.query(Jobs).filter(Jobs.jobID == job_id).first()
+                    if not persisted_job:
+                        raise ValueError(f"Job {job_id} not found in database after handler completion")
+
+                    logger.info(f"[QueueProcessor] Verified job {job_id} exists in database")
+
+                # Mark COMPLETED only after validation passes
                 message.status = QueueStatus.COMPLETED.value
                 message.result = json.dumps({
                     "success": True,
@@ -166,7 +181,7 @@ class QueueProcessorService:
                 return {
                     "status": QueueStatus.COMPLETED.value,
                     "message_id": message.id,
-                    "task": message.task_name,
+                    "task": message.type,
                     "result": handler_result
                 }
 
