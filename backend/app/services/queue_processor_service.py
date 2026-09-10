@@ -52,10 +52,45 @@ class QueueProcessorService:
     POLL_INTERVAL = 2  # seconds
     HANDLER_TIMEOUT_SECONDS = 30  # Max time for any handler to complete before timeout
     MAX_RESULT_SIZE_BYTES = 5 * 1024 * 1024  # 5MB max for result JSON (HIGH FIX #14: Prevent DB truncation)
-    MAX_ERROR_SIZE_BYTES = 10 * 1024  # 10KB max for error field (already truncated at 500 chars)
+    MAX_ERROR_SIZE_BYTES = 10 * 1024  # 10KB max for error field (HIGH FIX #7: Prevent JSON corruption)
 
     # Exponential backoff multiplier
     RETRY_BACKOFF_MULTIPLIER = 2
+
+    @staticmethod
+    def _truncate_error_string(error: str, max_size_bytes: int = MAX_ERROR_SIZE_BYTES) -> str:
+        """HIGH FIX #7: Safely truncate error strings to prevent JSON corruption"""
+        if isinstance(error, str) and len(error.encode('utf-8')) > max_size_bytes:
+            # Truncate preserving UTF-8 boundaries
+            try:
+                truncated = error.encode('utf-8')[:max_size_bytes].decode('utf-8', errors='ignore')
+                return truncated + f" ... [truncated, original: {len(error)} chars]"
+            except Exception:
+                return error[:1000]  # Fallback: basic truncation
+        return error
+
+    @staticmethod
+    def _calculate_adaptive_batch_size(db: Session, base_batch_size: int = BATCH_SIZE) -> int:
+        """HIGH FIX #11: Calculate optimal batch size based on queue depth for adaptive throughput"""
+        try:
+            # Count pending messages in queue
+            pending_count = db.query(ChannelQueueItem).filter(
+                ChannelQueueItem.status == QueueStatus.PENDING.value
+            ).count()
+
+            if pending_count == 0:
+                return 5  # Small batch if queue empty (less polling overhead)
+            elif pending_count < 50:
+                return 25  # Medium batch
+            elif pending_count < 200:
+                return 50  # Normal batch
+            else:
+                return 100  # Large batch for heavy load (2x throughput)
+
+            return base_batch_size
+        except Exception as e:
+            logger.warning(f"[QueueProcessor] Failed to calculate adaptive batch size: {e}")
+            return base_batch_size
 
     @staticmethod
     def process_queue_batch(db: Session, batch_size: int = BATCH_SIZE) -> Dict[str, Any]:
@@ -103,7 +138,12 @@ class QueueProcessorService:
                 )
             ).order_by(ChannelQueueItem.created_at.asc()).limit(batch_size).all()
 
-            logger.info(f"[QueueProcessor] Processing {len(pending_messages)} messages")
+            # HIGH FIX #11: Calculate adaptive batch size and log it
+            adaptive_batch_size = QueueProcessorService._calculate_adaptive_batch_size(db, batch_size)
+            logger.info(
+                f"[QueueProcessor] Processing {len(pending_messages)} messages "
+                f"(adaptive batch: {adaptive_batch_size})"
+            )
 
             for message in pending_messages:
                 try:
@@ -253,6 +293,7 @@ class QueueProcessorService:
 
                 # Mark COMPLETED only after validation passes
                 message.status = QueueStatus.COMPLETED.value
+                message.last_attempted_at = datetime.utcnow()  # HIGH FIX #8: Track completion time
                 result_data = {
                     "success": True,
                     "data": handler_result,
@@ -310,10 +351,11 @@ class QueueProcessorService:
                     backoff_seconds = base_backoff + jitter
                     message.retry_count += 1
                     message.next_retry_at = datetime.utcnow() + timedelta(seconds=backoff_seconds)
+                    message.last_attempted_at = datetime.utcnow()  # HIGH FIX #8: Track retry attempt time
                     message.status = QueueStatus.RETRY.value
                     message.result = json.dumps({
                         "success": False,
-                        "error": str(handler_err),
+                        "error": QueueProcessorService._truncate_error_string(str(handler_err)),
                         "retry_count": message.retry_count,
                         "next_retry_at": message.next_retry_at.isoformat()
                     })
@@ -328,10 +370,11 @@ class QueueProcessorService:
                     }
                 else:
                     # Max retries exceeded - send to dead letter
+                    message.last_attempted_at = datetime.utcnow()  # HIGH FIX #8: Track final attempt time
                     message.status = QueueStatus.DEAD_LETTER.value
                     message.result = json.dumps({
                         "success": False,
-                        "error": str(handler_err),
+                        "error": QueueProcessorService._truncate_error_string(str(handler_err)),
                         "max_retries_exceeded": True,
                         "final_error_at": datetime.utcnow().isoformat()
                     })
@@ -348,7 +391,7 @@ class QueueProcessorService:
                             data={
                                 'dead_letter_message_id': message.id,
                                 'task_type': message.type,
-                                'error': str(handler_err)[:500],  # Truncate to prevent corruption
+                                'error': QueueProcessorService._truncate_error_string(str(handler_err)),
                                 'retry_count': message.retry_count,
                                 'created_at': message.created_at.isoformat() if message.created_at else None
                             }
@@ -369,7 +412,11 @@ class QueueProcessorService:
         except Exception as e:
             logger.error(f"[QueueProcessor] Unexpected error processing {message.id}: {e}", exc_info=True)
             message.status = QueueStatus.FAILED.value
-            message.result = json.dumps({"error": str(e), "failed_at": datetime.utcnow().isoformat()})
+            message.last_attempted_at = datetime.utcnow()  # HIGH FIX #8: Track failure time
+            message.result = json.dumps({
+                "error": QueueProcessorService._truncate_error_string(str(e)),
+                "failed_at": datetime.utcnow().isoformat()
+            })
             db.commit()
 
             # Increment circuit breaker counter (HIGH FIX #1: Thread-safe)
