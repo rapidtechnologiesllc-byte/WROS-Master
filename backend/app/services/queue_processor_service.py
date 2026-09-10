@@ -25,7 +25,7 @@ from app.core.database import SessionLocal
 from app.models.channel_queue import ChannelQueueItem
 from app.services.message_handler_registry import MessageHandlerRegistry
 from app.services.slm_service import SLMService
-from app.services.architect_codebase_learning import ArchitectCodebaseLearning
+from app.services.architect_codebase_learning import ArchitectKnowledgeTeacher
 from app.core.logging import logger
 
 logger = logging.getLogger(__name__)
@@ -270,7 +270,8 @@ class QueueProcessorService:
 
             # Push to architect learning system
             try:
-                ArchitectCodebaseLearning.record_pattern(
+                teacher = ArchitectKnowledgeTeacher()
+                teacher.teach_pattern(
                     pattern_type="queue_processing",
                     pattern_data=learning_record
                 )
