@@ -25,6 +25,7 @@ from app.api.v1.endpoints.message_queue import router as message_queue_router
 from app.api.v1.endpoints.business_units import router as business_units_router
 from app.api.v1.endpoints.rbac import router as rbac_router
 from app.api.v1.endpoints.career_portal import router as career_portal_router
+from app.api.v1.endpoints.flash_queue_metrics import router as flash_queue_metrics_router
 
 # Agent State models — imported here so Base.metadata.create_all() finds them
 from app.models import agent_phalanx  # noqa: F401
@@ -306,6 +307,8 @@ app.include_router(rbac_router, prefix="/api/v1")
 app.include_router(career_portal_router)
 # Include candidates routes with /candidates prefix (candidate creation, etc)
 app.include_router(candidates_router)
+# Include Flash queue metrics routes with /api/v1/flash prefix (queue health monitoring)
+app.include_router(flash_queue_metrics_router, prefix="/api/v1")
 
 # HRMS-0114 -- fail startup if any route has no explicit identity/
 # permission declaration at all. Runs synchronously at import time
