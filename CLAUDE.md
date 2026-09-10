@@ -227,6 +227,53 @@ Before committing ANY queue integration:
 
 ---
 
+## 🚨 SPARTAN PHALANX FORMATION - ARCHITECTURAL MANDATE (2026-09-10) - BLOCKING
+
+**STATUS:** 🚨 BLOCKING PRODUCTION - All solutions must implement Spartan formation pattern
+
+### Phalanx Positions (MANDATORY)
+
+**Position 1 (Alpha Wolf) = FLASH**
+- Orchestrates entire job/interview/offer workflow
+- Monitors neighbor health (Thunder output, Interview speed, Offer quality)
+- Measures: "Can neighbors succeed with my output?"
+- Action: Escalates if any neighbor health < threshold
+
+**Position 2 = THUNDER**
+- Candidate external operations (sourcing, outreach)
+- Monitors: Candidate quality metrics
+- Depends on: Flash job creation quality
+- Reports health back to Flash
+
+**Position 3 = INTERVIEW/OFFER**
+- Interview scheduling, offer generation
+- Monitors: Conversion rates, success metrics
+- Depends on: Thunder candidate quality, Flash job clarity
+- Escalates to Flash if metrics fall below threshold
+
+### CRITICAL RULE: Every Solution Must Answer These Questions
+
+Before any code is written, architect MUST verify:
+
+1. **Position Clarity:** "What is this agent's Phalanx position?"
+2. **Neighbor Monitoring:** "How does it monitor neighbor health (not self-success)?"
+3. **Cascade Detection:** "What cascade failures does it predict 15 minutes ahead?"
+4. **Escalation Trigger:** "When does it escalate (not complete its task alone)?"
+
+❌ **REJECT** solutions that:
+- Measure self-success ("I completed my task") instead of neighbor health
+- Ignore cascade failure detection
+- Lack formation integrity checks
+- Don't escalate on neighbor failure
+
+✅ **APPROVE** solutions that:
+- Monitor neighbor success metrics
+- Predict cascade failures early
+- Include formation health reporting
+- Escalate when phalanx integrity < 70%
+
+---
+
 ## 🚨 MANDATORY: RUTHLESS ARCHITECT AGENT REVIEW (2026-09-07) - STRICT ENFORCEMENT
 
 **STATUS:** ✅ ENFORCED - ALL code changes require Ruthless Architect Agent review BEFORE writing
