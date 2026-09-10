@@ -1744,7 +1744,16 @@ def get_all_interviews(
         # Get panel details
         panel = db.query(InterviewPanel).filter(InterviewPanel.id == interview.panel_id).first()
         panel_round_name = panel.round_name if panel else "N/A"
-        
+
+        # Get job details (job_id and job_title) for grouping
+        job_id = None
+        job_title = None
+        if panel and panel.job_id:
+            job = db.query(Jobs).filter(Jobs.jobID == panel.job_id).first()
+            if job:
+                job_id = job.jobID
+                job_title = job.jobTitle
+
         # Get candidate details
         candidate = db.query(Candidate).filter(Candidate.candidateID == interview.candidate_id).first()
         candidate_name = "N/A"
@@ -1757,12 +1766,12 @@ def get_all_interviews(
             ]
             candidate_name = " ".join(filter(None, name_parts)).strip() or "N/A"
             candidate_email = candidate.candidateEmail
-        
+
         # Count feedback
         feedback_count = db.query(InterviewFeedback).filter(
             InterviewFeedback.interview_id == interview.id
         ).count()
-        
+
         results.append(InterviewDetailedResponse(
             id=interview.id,
             panel_id=interview.panel_id,
@@ -1777,6 +1786,8 @@ def get_all_interviews(
             status=interview.status,
             feedback_count=feedback_count,
             feedback_status=interview.feedback_status,
+            job_id=job_id,
+            job_title=job_title,
         ))
     
     return results
