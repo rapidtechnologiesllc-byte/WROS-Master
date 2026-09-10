@@ -72,6 +72,16 @@ class ChannelQueueItem(Base):
     retry_count = Column(Integer, nullable=False, default=0)
     error = Column(Text(), nullable=True)
     next_retry_at = Column(DateTime(timezone=False), nullable=True, index=True)
+    last_attempted_at = Column(DateTime(timezone=False), nullable=True)  # CYCLE 19: Track when handler last ran
+
+    # Delayed message support (CYCLE 19)
+    scheduled_for = Column(DateTime(timezone=False), nullable=True, index=True)  # For delayed message delivery
+
+    # Performance tracking (CYCLE 19)
+    handler_duration_ms = Column(Integer, nullable=True)  # How long handler took
+
+    # Idempotency support (CYCLE 19)
+    idempotency_key = Column(String(512), nullable=True, index=True)  # For deduplication
 
     # Timestamps
     processed_at = Column(DateTime(timezone=False), nullable=True)
