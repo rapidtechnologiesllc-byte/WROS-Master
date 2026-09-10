@@ -123,6 +123,10 @@ export default function JobCreate({
           }
         } catch (err) {
           console.error("Error loading draft job:", err);
+          // If draft job doesn't exist (404), clear it and continue without blocking
+          if (err?.status === 404 || err?.response?.status === 404) {
+            setDraftJobId(null);
+          }
         }
       };
       loadDraftData();
