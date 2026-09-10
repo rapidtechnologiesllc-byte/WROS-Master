@@ -153,21 +153,36 @@ def create_job(
     )
 
     try:
-        # Verify job doesn't already exist (idempotency check)
-        existing_job = db.query(Jobs).filter(Jobs.jobID == job_id).first()
-        if existing_job:
-            raise HTTPException(status_code=409, detail=f"Job {job_id} already exists")
+        # QUEUE-DRIVEN ARCHITECTURE: No direct DB write
+        # Message goes to FLASH queue → handler processes → DB write happens via handler
 
-        db.add(job)
-        db.commit()  # PERSIST JOB TO DATABASE FIRST
+        # Build queue message with complete job data
+        queue_data = {
+            "job_id": job_id,
+            "job_title": request.job_title,
+            "job_location": request.job_location,
+            "job_description": request.job_description,
+            "job_skills": request.job_skills,
+            "job_experience": request.job_experience,
+            "no_of_positions": request.no_of_positions,
+            "hiring_manager_id": request.hiring_manager_id,
+            "business_unit_id": request.business_unit,
+            "department_id": request.department_id,
+            "company_type": request.company_type,
+            "company_name": request.company_name,
+            "contact_person": request.contact_person,
+            "salary_range": request.salary_range,
+            "start_date": str(request.start_date) if request.start_date else None,
+            "job_status": job_status,
+        }
 
-        # Validation: Verify job actually saved
-        persisted_job = db.query(Jobs).filter(Jobs.jobID == job_id).first()
-        if not persisted_job:
-            raise RuntimeError(f"Write validation failed: Job {job_id} not found in database after commit")
+        # Add structured skills if provided
+        if request.structured_skills:
+            queue_data["structured_skills"] = [s.dict() for s in request.structured_skills]
 
-        # CYCLE 19: Analyze job with SLM service IMMEDIATELY (not waiting for queue)
+        # CYCLE 19: Analyze job with SLM service IMMEDIATELY (before queueing)
         # SLM decides recruitment strategy, urgency, and next actions
+        slm_analysis = None
         try:
             from app.services.slm_service import SLMService
             slm_analysis = SLMService.analyze_job_creation(
@@ -182,43 +197,29 @@ def create_job(
                 f"urgency={slm_analysis.get('urgency')} "
                 f"next_action={slm_analysis.get('next_action')}"
             )
+            # Include SLM analysis in queue message so handler can use it
+            queue_data["slm_analysis"] = slm_analysis
         except Exception as slm_err:
             logger.error(f"SLM analysis failed for job {job_id}: {slm_err}", exc_info=True)
-            # Don't fail job creation if SLM fails - continue with queue
+            # Don't fail job creation if SLM fails - queue message will proceed without analysis
 
-        # Queue AFTER commit (job now exists in DB)
-        # Include structured_skills if provided, otherwise will be auto-converted from job_skills
-        queue_data = {
-            "job_id": job_id,
-            "job_title": request.job_title,
-            "job_location": request.job_location,
-            "job_skills": request.job_skills,
-            "no_of_positions": request.no_of_positions,
-            "hiring_manager_id": request.hiring_manager_id,
-            "business_unit_id": request.business_unit,
-            "job_status": job_status,
-        }
-
-        # Add structured skills if provided
-        if request.structured_skills:
-            queue_data["structured_skills"] = [s.dict() for s in request.structured_skills]
-
+        # Queue message to FLASH (handler will do the DB write)
         msg_id = MessageQueueService.enqueue(
             task_name='job_created_flash',
             task_id=job_id,
             data=queue_data
         )
-        db.refresh(job)
+        logger.info(f"Job {job_id} queued to FLASH: message_id={msg_id}")
     except Exception as e:
-        db.rollback()
-        logger.error(f"Failed to create job {job_id}: {str(e)}", exc_info=True)
+        logger.error(f"Failed to queue job {job_id}: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to create job: {str(e)}")
 
-    if job_status == "active":
-        background_tasks.add_task(scan_new_job_for_matches, db, job)
-    else:
-        from app.services.job_approval_workflow_service import handle_job_creation_approval_flow
-        handle_job_creation_approval_flow(db, job, user, send_emails=True)
+    # Job is now queued to FLASH handler
+    # Handler will:
+    # 1. Persist job to database
+    # 2. Handle approval workflow if job_status != "active"
+    # 3. Scan for candidate matches if job_status == "active"
+    # 4. Train SLM with result
 
     return JobCreateResponse(job_id=job_id, response=response_message)
 
