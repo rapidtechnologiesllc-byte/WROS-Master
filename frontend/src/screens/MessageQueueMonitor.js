@@ -13,7 +13,7 @@ const MessageQueueMonitor = () => {
 
   const fetchQueueTypes = async () => {
     try {
-      const response = await apiRequest('/api/v1/config/queue-types', 'GET');
+      const response = await apiRequest('/api/v1/message-queue/types', 'GET');
       setQueueTypes(response.queue_types || []);
     } catch (err) {
       console.error('Failed to load queue types:', err);
@@ -24,34 +24,22 @@ const MessageQueueMonitor = () => {
 
   const fetchQueueData = async () => {
     setLoading(true);
-    let displayData, statsData;
 
     try {
       const params = new URLSearchParams();
-      if (selectedQueue) params.append('queue_type', selectedQueue);
+      if (selectedQueue) params.append('message_type', selectedQueue);
 
-      try {
-        displayData = await apiRequest(`/api/v1/message-queue/display?${params}`, 'GET');
-      } catch (err) {
-        throw new Error(`Display fetch failed: ${err.message}`);
-      }
+      const displayData = await apiRequest(`/api/v1/message-queue/display?${params}`, 'GET');
 
-      try {
-        statsData = await apiRequest('/api/v1/message-queue/stats', 'GET');
-      } catch (err) {
-        throw new Error(`Stats fetch failed: ${err.message}`);
-      }
-
-      if (displayData?.data && typeof displayData.data === 'object') {
-        // Backend returns 'messages', component expects 'rows'
+      if (displayData && typeof displayData === 'object') {
+        // Backend returns 'messages' and 'status_counts'
         const normalized = {
-          ...displayData.data,
-          rows: displayData.data.messages
+          messages: displayData.messages || [],
+          total: displayData.total || 0,
+          status_counts: displayData.status_counts || {}
         };
         setQueueDisplay(normalized);
-      }
-      if (statsData?.data && typeof statsData.data === 'object') {
-        setStats(statsData.data);
+        setStats(displayData.status_counts || {});
       }
       setError(null);
     } catch (err) {
@@ -116,7 +104,7 @@ const MessageQueueMonitor = () => {
   const handleRetry = async (messageId) => {
     try {
       setError(null);
-      await apiRequest(`/api/v1/message-queue/${messageId}/retry`, { method: 'POST' });
+      await apiRequest(`/api/v1/message-queue/${messageId}/retry`, 'POST');
       // Refresh queue data after retry
       await fetchQueueData();
     } catch (err) {
@@ -167,43 +155,33 @@ const MessageQueueMonitor = () => {
         <div className="stats-summary">
           <div className="stat-card">
             <div className="stat-label">Total Messages</div>
-            <div className="stat-value">{stats.total_messages}</div>
+            <div className="stat-value">{queueDisplay?.total || 0}</div>
           </div>
           <div className="stat-card">
             <div className="stat-label">Pending</div>
-            <div className="stat-value pending">{stats.pending}</div>
+            <div className="stat-value pending">{stats.pending || 0}</div>
+          </div>
+          <div className="stat-card">
+            <div className="stat-label">Processing</div>
+            <div className="stat-value processing">{stats.processing || 0}</div>
+          </div>
+          <div className="stat-card">
+            <div className="stat-label">Completed</div>
+            <div className="stat-value completed">{stats.completed || 0}</div>
           </div>
           <div className="stat-card">
             <div className="stat-label">Failed</div>
-            <div className="stat-value failed">{stats.failed}</div>
-          </div>
-          <div className="stat-card">
-            <div className="stat-label">Oldest Pending (sec)</div>
-            <div className="stat-value">{stats.oldest_pending_age_seconds || 'N/A'}</div>
+            <div className="stat-value failed">{stats.failed || 0}</div>
           </div>
         </div>
       )}
 
-      {stats && stats.by_queue && (
-        <div className="queue-breakdown">
-          <h3>Messages by Queue Type</h3>
-          <div className="breakdown-list">
-            {Object.entries(stats.by_queue).map(([queue, count]) => (
-              <div key={queue} className="breakdown-item">
-                <span className="queue-name">{queue}</span>
-                <span className="message-count">{count}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {queueDisplay && queueDisplay.rows && (
+      {queueDisplay && queueDisplay.messages && queueDisplay.messages.length > 0 && (
         <div className="queue-table">
-          <h3>Queue Operations by Type (Newest First)</h3>
+          <h3>Queue Messages (Newest First)</h3>
           {(() => {
             const groupedByQueue = {};
-            queueDisplay.rows.forEach(row => {
+            queueDisplay.messages.forEach(row => {
               const queueType = row.type || 'UNKNOWN';
               if (!groupedByQueue[queueType]) {
                 groupedByQueue[queueType] = [];
