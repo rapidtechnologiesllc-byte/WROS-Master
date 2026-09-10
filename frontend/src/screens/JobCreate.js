@@ -83,6 +83,10 @@ export default function JobCreate({
   const [screenError, setScreenError] = useState(null);
   const [showSkillsModal, setShowSkillsModal] = useState(false);
   const [selectedSkills, setSelectedSkills] = useState([]);
+  const [skillName, setSkillName] = useState("");
+  const [skillYears, setSkillYears] = useState("");
+  const [skillLastUsed, setSkillLastUsed] = useState("");
+  const [skillIsPrimary, setSkillIsPrimary] = useState(false);
 
   // Redirect if user tries to create job without permission
   useEffect(() => {
@@ -546,7 +550,7 @@ export default function JobCreate({
       .map(({ label }) => label);
     if (missing.length) {
       const err = `Please fill required fields: ${missing.join(", ")}.`;
-      setScreenError(err?.message || "Please fill required fields.");
+      setScreenError(err);
       setIsSaving(false);
       return;
     }
@@ -564,10 +568,11 @@ export default function JobCreate({
     try {
       // Format: "150 $/Year" for easy comparison with Expected Salary
       const payRangeString = payAmount ? `${payAmount} ${payRateType}` : null;
+      const skillsString = selectedSkills.length > 0 ? selectedSkills.map(s => s.name).join(", ") : "";
       const payload = {
         job_title: title?.trim(),
         job_description: internalJD?.trim(),
-        job_skills: skills?.trim(),
+        job_skills: skillsString,
         job_experience: String(experienceLevel ?? "").trim(),
         job_location: location?.trim(),
         company_type: companyType?.trim(),
@@ -1067,55 +1072,54 @@ export default function JobCreate({
                 <Input
                   label="Skill Name"
                   placeholder="e.g., Java, React, Project Management"
-                  id="job-skill-name-modal"
+                  value={skillName}
+                  onChange={setSkillName}
                 />
                 <Input
                   label="Years of Experience"
                   type="number"
                   placeholder="e.g., 5"
-                  id="job-years-required-modal"
+                  value={skillYears}
+                  onChange={setSkillYears}
                 />
                 <Input
                   label="Last Used Date"
                   type="date"
-                  id="job-last-used-date-modal"
+                  value={skillLastUsed}
+                  onChange={setSkillLastUsed}
                 />
                 <div className="flex items-center gap-2">
                   <input
                     type="checkbox"
-                    id="job-is-primary-skill"
+                    checked={skillIsPrimary}
+                    onChange={(e) => setSkillIsPrimary(e.target.checked)}
                     className="w-4 h-4"
                   />
-                  <label htmlFor="job-is-primary-skill" className="text-sm font-medium">
+                  <label className="text-sm font-medium">
                     Mark as Primary Skill
                   </label>
                 </div>
                 <Button
                   onClick={() => {
-                    const nameInput = document.getElementById('job-skill-name-modal');
-                    const yearsInput = document.getElementById('job-years-required-modal');
-                    const primaryInput = document.getElementById('job-is-primary-skill');
-
-                    if (nameInput.value.trim()) {
-                      const dateInput = document.getElementById('job-last-used-date-modal');
+                    if (skillName.trim()) {
                       const newSkill = {
-                        name: nameInput.value.trim(),
-                        yearsOfExperience: yearsInput.value ? parseInt(yearsInput.value) : null,
-                        lastUsedDate: dateInput.value || null,
-                        isPrimary: primaryInput.checked,
+                        name: skillName.trim(),
+                        yearsOfExperience: skillYears ? parseInt(skillYears) : null,
+                        lastUsedDate: skillLastUsed || null,
+                        isPrimary: skillIsPrimary,
                       };
 
                       setSelectedSkills(prev => {
-                        if (primaryInput.checked) {
+                        if (skillIsPrimary) {
                           return [...prev.map(s => ({ ...s, isPrimary: false })), newSkill];
                         }
                         return [...prev, newSkill];
                       });
 
-                      nameInput.value = '';
-                      yearsInput.value = '';
-                      dateInput.value = '';
-                      primaryInput.checked = false;
+                      setSkillName('');
+                      setSkillYears('');
+                      setSkillLastUsed('');
+                      setSkillIsPrimary(false);
                     }
                   }}
                   className="w-full"
