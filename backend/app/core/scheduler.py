@@ -1,4 +1,6 @@
 import asyncio
+import os
+from datetime import datetime
 from typing import Optional
 from sqlalchemy.orm import Session
 from sqlalchemy.future import select
@@ -7,6 +9,11 @@ import logging
 from apscheduler.jobstores.memory import MemoryJobStore
 
 from app.core.logging import logger
+
+# Environment configuration (used for SDLC cycle and production safety checks)
+ENVIRONMENT = os.getenv("ENVIRONMENT", "local").lower()
+ALLOWED_ENVIRONMENTS = ["local", "development", "debug"]
+IS_PRODUCTION = ENVIRONMENT not in ALLOWED_ENVIRONMENTS
 
 # Initialize the scheduler
 jobstores = {
@@ -73,22 +80,55 @@ def start_scheduler():
 
         # ── DEVELOPMENT ONLY: Every 90 sec: AUTONOMOUS SDLC CYCLE (local debugging only) ──
         # WARNING: This job MUST NOT run in production - it makes automatic code changes!
-        import os
-        environment = os.getenv("ENVIRONMENT", "local").lower()
-
-        if environment in ["local", "development", "debug"]:
+        if ENVIRONMENT in ALLOWED_ENVIRONMENTS:
             try:
                 from app.services.autonomous_sdlc_service import run_autonomous_sdlc_cycle
 
-                def _run_sdlc_cycle():
+                async def _run_sdlc_cycle():
+                    """
+                    ASYNC wrapper for autonomous SDLC cycle (every 90 seconds)
+
+                    Handles:
+                    - System audit (database, Redis, API health)
+                    - Issue detection and fixing
+                    - Verification testing
+                    - Autonomous deployment to git
+
+                    Max duration: 85 seconds (leaves 5-sec buffer before next cycle)
+                    """
+                    db = SessionLocal()
+                    cycle_start = datetime.utcnow()
+                    MAX_DURATION_SECONDS = 85
+
                     try:
+                        logger.debug("[scheduler] SDLC cycle starting (90-second check)")
                         result = run_autonomous_sdlc_cycle()
-                        if result and result.get("status") == "changes_deployed":
-                            logger.info(f"[scheduler] SDLC cycle completed: {result}")
-                        elif result:
-                            logger.debug(f"[scheduler] SDLC cycle status: {result.get('status', 'unknown')}")
+
+                        if not result:
+                            logger.warning("[scheduler] SDLC cycle returned no result")
+                            return
+
+                        status = result.get("status", "unknown")
+                        phase = result.get("phase", "unknown")
+                        cycle_duration = result.get("cycle_duration_seconds", 0)
+
+                        # Check if cycle exceeded max duration
+                        if cycle_duration > MAX_DURATION_SECONDS:
+                            logger.warning(f"[scheduler] SDLC cycle exceeded max duration: {cycle_duration:.1f}s > {MAX_DURATION_SECONDS}s. May cause scheduling delays.")
+
+                        if status == "changes_deployed":
+                            logger.info(f"[scheduler] SDLC cycle DEPLOYED: {result['issues_fixed']} fixed, {result['tests_passed']} tests passed, duration: {cycle_duration:.1f}s")
+                        elif status == "error":
+                            logger.warning(f"[scheduler] SDLC cycle ERROR in {phase}: {result.get('error', 'unknown error')}")
+                        elif status == "no_changes":
+                            logger.debug(f"[scheduler] SDLC cycle: No changes needed (phase: {phase}), duration: {cycle_duration:.1f}s")
+                        else:
+                            logger.debug(f"[scheduler] SDLC cycle {status} (phase: {phase}), duration: {cycle_duration:.1f}s")
+
                     except Exception as exc:
                         logger.error(f"[scheduler] SDLC cycle error: {exc}", exc_info=True)
+                    finally:
+                        db.close()
 
                 scheduler.add_job(
                     _run_sdlc_cycle,
@@ -98,12 +138,13 @@ def start_scheduler():
                     replace_existing=True,
                 )
                 logger.info("[OK] Scheduled autonomous SDLC cycle job (DEVELOPMENT ONLY - every 90 sec)")
+                logger.info(f"[OK] ENVIRONMENT={ENVIRONMENT} ✓ SDLC cycle ENABLED (max duration: 85s per cycle)")
             except Exception as exc:
                 logger.error(f"Error: {str(exc)}", exc_info=True)
                 logger.warning(f"Could not register autonomous SDLC cycle scheduler: {exc}")
         else:
-            logger.warning("[OK] Autonomous SDLC cycle DISABLED (not in local environment)")
-            logger.warning(f"     Current ENVIRONMENT={environment} (allowed: local, development, debug)")
+            logger.warning("[WARN] Autonomous SDLC cycle DISABLED (not in development environment)")
+            logger.warning(f"[WARN] Current ENVIRONMENT={ENVIRONMENT} (allowed: {', '.join(ALLOWED_ENVIRONMENTS)})")
 
         # ── Daily job: expire 90-day BU ownerships ────────────────────────────
         try:
