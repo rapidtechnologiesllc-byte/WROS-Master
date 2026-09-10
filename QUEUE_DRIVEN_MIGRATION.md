@@ -72,11 +72,57 @@ Queue-driven allows:
 - ✅ Explicit db.commit() (no silent failures)
 - ✅ Async processing (handlers can escalate if needed)
 
+## CRITICAL RULE
+
+**If queue handler doesn't exist: CREATE IT FIRST**
+
+```
+Do NOT: Write to DB directly because no handler exists
+DO:    Create the handler, then queue the message
+
+Pattern:
+1. Identify: "API needs to write X to database"
+2. Check: "Does a queue handler for X exist?"
+3. If YES: Use queue
+4. If NO: CREATE handler first, THEN use queue
+```
+
 ## CYCLE 4 Task
 
 1. Audit: Find endpoints with direct db.add() + db.commit()
 2. Count: How many violations exist?
-3. Plan: Queue name for each migration
+3. Plan: Queue name for each (create handlers if needed)
 4. Next cycle: Migrate one endpoint family (candidates, jobs, etc.)
 
 This is the ARCHITECTURAL FIX that Spartan pattern requires.
+
+## Queue Handler Template
+
+For ANY new DB operation:
+
+```python
+# File: app/services/message_handlers/thing_created_handler.py
+def handle_thing_created(message: Any, db: Session) -> Dict[str, Any]:
+    try:
+        payload = message.payload or {}
+        thing = Thing(**payload)
+        db.add(thing)
+        db.commit()  # ← Explicit commit in handler
+        return {"status": "created", "id": thing.id}
+    except Exception as e:
+        db.rollback()
+        raise
+
+# File: app/services/message_handler_registry.py
+# Add registration:
+MessageHandlerRegistry.register("thing_created_flash", handle_thing_created)
+
+# File: API endpoint
+# Use queue, don't write directly:
+MessageQueueService.enqueue(
+    task_name="thing_created_flash",
+    data={"...payload..."}
+)
+```
+
+This is mandatory for ALL database writes.
