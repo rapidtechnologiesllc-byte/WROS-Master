@@ -716,19 +716,12 @@ export default function JobCreate({
         }
       }
 
-      // Require job title before generating details
-      if (!title || !title.trim()) {
-        setScreenError("Please enter a Job Title before generating job details.");
-        setIsGenerating(false);
-        return;
-      }
-
       // Get questions from Flash
       const { questions } = await generateJobWithAgent(oneLiner);
 
-      // Provide default answers from form fields
+      // Provide default answers from form fields (job_title may be empty in Step 1)
       const defaultAnswers = {
-        job_title: title,
+        job_title: title || "",
         position_type: positionType || "Full time",
         pay_range: payAmount ? `${payAmount} ${payRateType}` : "",
         job_location: location || "Remote",
