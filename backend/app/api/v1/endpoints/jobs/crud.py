@@ -166,6 +166,26 @@ def create_job(
         if not persisted_job:
             raise RuntimeError(f"Write validation failed: Job {job_id} not found in database after commit")
 
+        # CYCLE 19: Analyze job with SLM service IMMEDIATELY (not waiting for queue)
+        # SLM decides recruitment strategy, urgency, and next actions
+        try:
+            from app.services.slm_service import SLMService
+            slm_analysis = SLMService.analyze_job_creation(
+                job_id=job_id,
+                job_title=request.job_title,
+                job_skills=request.job_skills or "",
+                no_of_positions=request.no_of_positions,
+                db=db
+            )
+            logger.info(
+                f"Job {job_id} analyzed by SLM: "
+                f"urgency={slm_analysis.get('urgency')} "
+                f"next_action={slm_analysis.get('next_action')}"
+            )
+        except Exception as slm_err:
+            logger.error(f"SLM analysis failed for job {job_id}: {slm_err}", exc_info=True)
+            # Don't fail job creation if SLM fails - continue with queue
+
         # Queue AFTER commit (job now exists in DB)
         # Include structured_skills if provided, otherwise will be auto-converted from job_skills
         queue_data = {

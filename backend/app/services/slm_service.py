@@ -242,6 +242,71 @@ class SLMService:
         }
 
     @staticmethod
+    def analyze_job_creation(
+        job_id: str,
+        job_title: str,
+        job_skills: str,
+        no_of_positions: int,
+        db: Optional[Session] = None,
+    ) -> Dict[str, Any]:
+        """
+        Analyze newly created job and decide on recruitment strategy.
+
+        Args:
+            job_id: Job ID
+            job_title: Job title
+            job_skills: Required skills (comma-separated)
+            no_of_positions: Number of open positions
+            db: Database session
+
+        Returns:
+            Decision dict with recruitment strategy, urgency level, recommended actions
+
+        Raises:
+            ValueError: If inputs invalid
+        """
+        try:
+            if not job_id or not job_title:
+                raise ValueError("job_id and job_title required")
+
+            # Assess urgency based on number of positions
+            urgency = "HIGH" if no_of_positions >= 3 else "MEDIUM" if no_of_positions >= 1 else "LOW"
+
+            # Assess skill complexity based on number of skills
+            skills_list = [s.strip() for s in (job_skills or "").split(",") if s.strip()]
+            skill_complexity = "HIGH" if len(skills_list) >= 5 else "MEDIUM" if len(skills_list) >= 2 else "LOW"
+
+            decision = {
+                "decision_type": SLMService.DECISION_AUTO_PROCEED,
+                "next_action": SLMService.ACTION_SEND_EMAIL,  # Thunder should start sourcing
+                "confidence_score": 0.95,
+                "urgency": urgency,
+                "skill_complexity": skill_complexity,
+                "job_title": job_title,
+                "positions_open": no_of_positions,
+                "skills_required": len(skills_list),
+                "reason": f"Job created: {job_title} ({no_of_positions} positions, urgency: {urgency})",
+                "details": {
+                    "start_sourcing": True,
+                    "priority": urgency,
+                    "skills": skills_list,
+                    "estimated_time_to_hire": "2-3 weeks" if urgency == "HIGH" else "3-4 weeks",
+                },
+            }
+
+            logger.info(
+                f"SLM job analysis: job_id={job_id} "
+                f"title={job_title} urgency={urgency} "
+                f"complexity={skill_complexity}"
+            )
+
+            return decision
+
+        except Exception as e:
+            logger.error(f"Failed to analyze job creation: {e}", exc_info=True)
+            raise RuntimeError(f"Failed to analyze job creation: {str(e)}")
+
+    @staticmethod
     def _store_decision(
         message_id: str,
         decision: Dict[str, Any],
