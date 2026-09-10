@@ -47,14 +47,19 @@ class GitHubIssue:
 
 
 class GitHubIssueCreator:
-    """Creates GitHub issues via API."""
+    """Creates GitHub issues via API with rate limiting and error handling."""
 
-    def __init__(self, repo: str, token: str = None):
+    def __init__(self, repo: str, token: str = None, api_delay: float = 2.0, max_retries: int = 3):
         """Initialize with repo and optional token."""
         self.repo = repo
         self.token = token or self._get_token_from_env()
         self.issues_created = 0
         self.issues_failed = 0
+        self.api_delay = api_delay  # Seconds between API calls (GitHub: ~1.4/sec max)
+        self.max_retries = max_retries
+        self.last_request_time = 0
+        import time
+        self.time = time
 
     @staticmethod
     def _get_token_from_env() -> str:
@@ -65,8 +70,15 @@ class GitHubIssueCreator:
             raise ValueError("GITHUB_TOKEN environment variable not set")
         return token
 
+    def _rate_limit_delay(self) -> None:
+        """Enforce rate limiting between API calls."""
+        elapsed = self.time.time() - self.last_request_time
+        if elapsed < self.api_delay:
+            self.time.sleep(self.api_delay - elapsed)
+        self.last_request_time = self.time.time()
+
     def create_issue(self, issue: GitHubIssue, dry_run: bool = True) -> bool:
-        """Create a single GitHub issue."""
+        """Create a single GitHub issue with retry logic."""
         cmd = [
             "gh", "issue", "create",
             "--repo", self.repo,
@@ -82,21 +94,32 @@ class GitHubIssueCreator:
             print(f"  Labels: {', '.join(issue.labels)}")
             return True
 
-        try:
-            result = subprocess.run(cmd, capture_output=True, text=True, check=True)
-            self.issues_created += 1
-            print(f"✓ Created: {issue.title}")
-            print(f"  URL: {result.stdout.strip()}")
-            return True
-        except subprocess.CalledProcessError as e:
-            self.issues_failed += 1
-            print(f"✗ Failed: {issue.title}")
-            print(f"  Error: {e.stderr}")
-            return False
+        # Retry logic for transient failures
+        for attempt in range(self.max_retries):
+            try:
+                self._rate_limit_delay()  # Rate limiting
+                result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+                self.issues_created += 1
+                print(f"✓ Created: {issue.title}")
+                print(f"  URL: {result.stdout.strip()}")
+                return True
+            except subprocess.CalledProcessError as e:
+                if attempt < self.max_retries - 1:
+                    # Transient error - retry with backoff
+                    wait_time = 2 ** attempt  # 1s, 2s, 4s exponential backoff
+                    print(f"⚠ Attempt {attempt + 1}/{self.max_retries} failed, retrying in {wait_time}s...")
+                    self.time.sleep(wait_time)
+                else:
+                    # Final attempt failed
+                    self.issues_failed += 1
+                    print(f"✗ Failed (all retries exhausted): {issue.title}")
+                    if e.stderr:
+                        print(f"  Error: {e.stderr[:200]}")
+                    return False
 
     def create_batch(self, issues: List[GitHubIssue], dry_run: bool = True) -> None:
-        """Create multiple issues in batch."""
-        # Sort by priority
+        """Create multiple issues in batch with priority ordering."""
+        # Sort by priority (lower = higher priority)
         sorted_issues = sorted(issues, key=lambda x: x.priority)
 
         print(f"\n{'='*60}")
@@ -104,15 +127,22 @@ class GitHubIssueCreator:
         print(f"Repo: {self.repo}")
         print(f"Total Issues: {len(sorted_issues)}")
         print(f"Mode: {'DRY-RUN' if dry_run else 'CREATE'}")
+        if not dry_run:
+            print(f"Rate Limit: {self.api_delay}s between calls")
+            print(f"Estimated Duration: ~{len(sorted_issues) * self.api_delay / 60:.1f} minutes")
         print(f"{'='*60}\n")
 
-        for issue in sorted_issues:
-            self.create_issue(issue, dry_run=dry_run)
+        for idx, issue in enumerate(sorted_issues, 1):
+            print(f"[{idx}/{len(sorted_issues)}] Priority {issue.priority}...", end=" ")
+            success = self.create_issue(issue, dry_run=dry_run)
+            if not success and not dry_run:
+                print(f"  (continuing with next issue)")
 
         print(f"\n{'='*60}")
         print(f"Summary:")
         print(f"  Created: {self.issues_created}")
         print(f"  Failed: {self.issues_failed}")
+        print(f"  Success Rate: {100*self.issues_created//(self.issues_created+self.issues_failed) if (self.issues_created+self.issues_failed) > 0 else 0}%")
         print(f"{'='*60}\n")
 
 
