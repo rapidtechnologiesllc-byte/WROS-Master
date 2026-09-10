@@ -66,6 +66,13 @@ def _initialize_default_handlers():
     except ImportError as e:
         logger.warning(f"[Registry] Could not import job handlers: {e}")
 
+    # Register cascade failure signal handler (CRITICAL FIX #7)
+    try:
+        from app.services.message_handlers.cascade_failure_signal_handler import CascadeFailureSignalHandler
+        MessageHandlerRegistry.register("cascade_failure_signal", CascadeFailureSignalHandler.process)
+    except ImportError as e:
+        logger.warning(f"[Registry] Could not import cascade failure signal handler: {e}")
+
     # Register offer handlers
     try:
         from app.services.message_handlers.offer_approved_handler import handle_offer_approved

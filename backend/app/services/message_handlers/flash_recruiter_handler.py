@@ -21,6 +21,64 @@ class FlashRecruiterHandler:
     """Flash Recruiter - autonomous candidate matching and outreach orchestration."""
 
     @staticmethod
+    def _get_thunder_health(db: Session) -> Dict[str, Any]:
+        """
+        Calculate Thunder's recent success rate from ChannelQueueItem (CRITICAL FIX #7)
+
+        Returns:
+            {
+                'success_rate': float (0.0-1.0),
+                'sample_size': int,
+                'completed': int,
+                'failed': int,
+                'health_status': 'healthy' | 'degraded' | 'unknown'
+            }
+        """
+        try:
+            from datetime import datetime, timedelta
+            from app.models.channel_queue import ChannelQueueItem
+
+            # Query last 100 Thunder tasks (or 24 hours)
+            recent_cutoff = datetime.utcnow() - timedelta(hours=24)
+            recent_tasks = db.query(ChannelQueueItem).filter(
+                ChannelQueueItem.channel_type == 'THUNDER_QUEUE',
+                ChannelQueueItem.status.in_(['COMPLETED', 'FAILED']),
+                ChannelQueueItem.created_at >= recent_cutoff
+            ).order_by(ChannelQueueItem.created_at.desc()).limit(100).all()
+
+            if not recent_tasks:
+                # No recent Thunder activity - assume healthy
+                return {
+                    'success_rate': 1.0,
+                    'sample_size': 0,
+                    'completed': 0,
+                    'failed': 0,
+                    'health_status': 'unknown'
+                }
+
+            completed = sum(1 for t in recent_tasks if t.status == 'COMPLETED')
+            failed = sum(1 for t in recent_tasks if t.status == 'FAILED')
+            total = len(recent_tasks)
+            success_rate = completed / total if total > 0 else 0.0
+
+            return {
+                'success_rate': success_rate,
+                'sample_size': total,
+                'completed': completed,
+                'failed': failed,
+                'health_status': 'degraded' if success_rate < 0.7 else 'healthy'
+            }
+        except Exception as e:
+            logger.warning(f"[FlashRecruiter] Failed to get Thunder health: {e}")
+            return {
+                'success_rate': 1.0,
+                'sample_size': 0,
+                'completed': 0,
+                'failed': 0,
+                'health_status': 'unknown'
+            }
+
+    @staticmethod
     def process(message: Any, db: Session) -> Dict[str, Any]:
         """
         Process: Find matching candidates and queue Thunder outreach
@@ -69,7 +127,44 @@ class FlashRecruiterHandler:
 
             logger.info(f"[FlashRecruiter] Starting recruitment for job {job_id}: {job.jobTitle}")
 
-            # PHASE 2.5: RACE CONDITION CHECK - Verify job still exists (CRITICAL FIX #7)
+            # PHASE 2.2: CHECK THUNDER HEALTH & QUEUE CASCADE SIGNAL (CRITICAL FIX #7)
+            import time
+            from datetime import datetime
+            thunder_health = FlashRecruiterHandler._get_thunder_health(db)
+            logger.info(f"[FlashRecruiter] Thunder health: {thunder_health['success_rate']:.1%} ({thunder_health['sample_size']} tasks)")
+
+            # If Thunder is degraded, queue cascade failure signal
+            if thunder_health['success_rate'] < 0.7 and thunder_health['sample_size'] >= 10:
+                logger.warning(
+                    f"[FlashRecruiter] ⚠️ Thunder degraded: "
+                    f"{thunder_health['success_rate']:.1%} < 70% threshold"
+                )
+                try:
+                    from app.services.message_queue_service import MessageQueueService
+                    MessageQueueService.enqueue(
+                        task_name='cascade_failure_signal',
+                        task_id=f"cascade_{job_id}_{int(time.time())}",
+                        data={
+                            'from': 'Thunder',
+                            'to': 'Flash',
+                            'signal_type': 'stop_recruitment',
+                            'reason': (
+                                f'Success rate {thunder_health["success_rate"]:.1%} '
+                                f'below 70% threshold'
+                            ),
+                            'thunder_health': thunder_health,
+                            'job_id': job_id,
+                            'timestamp': datetime.utcnow().isoformat()
+                        }
+                    )
+                    logger.info(f"[FlashRecruiter] Cascade failure signal queued for {job_id}")
+                except Exception as signal_err:
+                    # Non-blocking - don't prevent recruitment
+                    logger.warning(
+                        f"[FlashRecruiter] Failed to queue cascade signal: {signal_err}"
+                    )
+
+            # PHASE 2.3: RACE CONDITION CHECK - Verify job still exists (CRITICAL FIX #7)
             job_exists = db.query(Jobs).filter(Jobs.jobID == job_id).first()
             if not job_exists:
                 logger.warning(f"[FlashRecruiter] Job {job_id} was deleted before recruitment, aborting")
@@ -81,7 +176,34 @@ class FlashRecruiterHandler:
                     'outreach_queued': 0
                 }
 
-            # PHASE 3: SCAN FOR MATCHING CANDIDATES & QUEUE OUTREACH
+            # PHASE 3: CHECK IF RECRUITMENT IS PAUSED (CRITICAL FIX #7 - CASCADE SIGNAL)
+            try:
+                from app.services.intervention_queue_service import get_queue
+                intervention_items = get_queue(db, tenant_id=job.tenant_id)
+                is_paused = any(
+                    item.get('queue_reason') == 'THUNDER_DEGRADATION_PAUSE'
+                    for item in intervention_items
+                )
+
+                if is_paused:
+                    logger.info(
+                        f"[FlashRecruiter] Recruitment PAUSED for {job_id}: "
+                        f"Thunder degraded (waiting for recovery)"
+                    )
+                    return {
+                        'status': 'paused_cascade_failure',
+                        'job_id': job_id,
+                        'reason': 'Thunder service degraded, recruitment paused',
+                        'candidates_matched': 0,
+                        'outreach_queued': 0
+                    }
+            except Exception as pause_check_err:
+                # Non-critical - log but continue
+                logger.warning(
+                    f"[FlashRecruiter] Failed to check pause state: {pause_check_err}"
+                )
+
+            # PHASE 3.2: SCAN FOR MATCHING CANDIDATES & QUEUE OUTREACH
             from app.services.ready_for_opportunity_service import scan_new_job_for_matches
             from app.services.message_queue_service import MessageQueueService
 
