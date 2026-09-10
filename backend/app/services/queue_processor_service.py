@@ -126,7 +126,10 @@ class QueueProcessorService:
                             )
                             stats["slm_updates"] += 1
                         except Exception as slm_err:
-                            logger.warning(f"[QueueProcessor] SLM training failed: {slm_err}")
+                            # ARCHITECT FIX: Log error but don't fail message completion
+                            logger.error(f"[QueueProcessor] SLM training failed (non-blocking): {slm_err}", exc_info=True)
+                            # Message already COMPLETED, don't rollback
+                            # SLM training is supplementary to core queue processing
 
                 except Exception as msg_err:
                     logger.error(f"[QueueProcessor] Message {message.id} failed: {msg_err}", exc_info=True)
@@ -145,6 +148,7 @@ class QueueProcessorService:
     # Circuit breaker state (class variable)
     _consecutive_failures = 0
     _FAILURE_THRESHOLD = 5
+    HANDLER_TIMEOUT_SECONDS = 30  # ARCHITECT FIX: Timeout for long-running handlers
 
     @staticmethod
     def _process_single_message(db: Session, message: ChannelQueueItem) -> Dict[str, Any]:
@@ -369,6 +373,8 @@ class QueueProcessorService:
             "start_time": datetime.utcnow().isoformat()
         }
 
+        empty_batch_count = 0  # ARCHITECT FIX: Adaptive backoff
+
         try:
             while True:
                 db = SessionLocal()
@@ -383,16 +389,27 @@ class QueueProcessorService:
                     processor_stats["total_retried"] += batch_result["retried"]
                     processor_stats["total_failed"] += batch_result["failed"]
 
+                    # ARCHITECT FIX: Adaptive backoff when queue empty
+                    if batch_result["processed"] == 0:
+                        empty_batch_count += 1
+                        # Backoff: 2s → 4s → 8s → 16s (max 16s)
+                        backoff = min(16, 2 * (2 ** empty_batch_count))
+                        logger.debug(f"[QueueProcessor] Queue empty, backing off for {backoff}s")
+                        time.sleep(backoff)
+                    else:
+                        empty_batch_count = 0
+                        time.sleep(poll_interval)
+
                     # Log periodic stats
                     if processor_stats["batches_processed"] % 10 == 0:
                         logger.info(f"[QueueProcessor] Processor stats: {processor_stats}")
 
                 except Exception as e:
                     logger.error(f"[QueueProcessor] Batch error: {e}", exc_info=True)
+                    QueueProcessorService._consecutive_failures += 1
 
                 finally:
                     db.close()
-                    time.sleep(poll_interval)
 
         except KeyboardInterrupt:
             logger.info("[QueueProcessor] Queue processor stopped")

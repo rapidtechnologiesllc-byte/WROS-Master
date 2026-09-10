@@ -66,6 +66,32 @@ def _initialize_default_handlers():
     except ImportError as e:
         logger.warning(f"[Registry] Could not import job handlers: {e}")
 
+    # CYCLE 20A: Spartan Phalanx Formation Feedback (Thunder reports back to Flash)
+    try:
+        from app.services.message_handlers.thunder_outreach_handler import ThunderOutreachHandler
+
+        # Thunder sends outreach and reports delivery metrics back to Flash
+        MessageHandlerRegistry.register("engage_candidate_with_thunder", ThunderOutreachHandler.process)
+
+        # Formation feedback: Thunder → Flash (health metrics)
+        def _handle_formation_feedback(message: Any, db: Session) -> Dict[str, Any]:
+            """Formation feedback handler: Receive health reports from downstream neighbors."""
+            logger.info(f"[FormationFeedback] {message.payload.get('source')} → {message.payload.get('target')}: "
+                       f"{message.payload.get('metric')} = {message.payload.get('value'):.1%}")
+            return {
+                'status': 'feedback_received',
+                'source': message.payload.get('source'),
+                'target': message.payload.get('target'),
+                'metric': message.payload.get('metric'),
+                'value': message.payload.get('value')
+            }
+
+        MessageHandlerRegistry.register("formation_feedback_thunder_to_flash", _handle_formation_feedback)
+        MessageHandlerRegistry.register("formation_integrity_escalation", _handle_formation_feedback)
+
+    except ImportError as e:
+        logger.warning(f"[Registry] Could not import Thunder/Formation handlers: {e}")
+
     # Register offer handlers
     try:
         from app.services.message_handlers.offer_approved_handler import handle_offer_approved
