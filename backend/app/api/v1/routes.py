@@ -114,6 +114,8 @@ from app.api.v1.endpoints.finance_monitoring import router as finance_monitoring
 from app.api.v1.endpoints.agent_pyramid_reporting import router as agent_pyramid_router
 from app.api.v1.endpoints.goals_management import router as goals_router
 from app.api.v1.endpoints.slm_feedback import router as slm_feedback_router
+from app.api.v1.endpoints.slm_analytics import router as slm_analytics_router
+from app.api.v1.endpoints.message_queue import router as message_queue_router
 from app.api.v1.endpoints.linkedin_candidate_pipeline import router as linkedin_pipeline_router
 
 try:
@@ -234,4 +236,6 @@ router.include_router(router=agent_pyramid_router)
 router.include_router(router=goals_router)
 router.include_router(router=certifications_admin_router)
 router.include_router(router=slm_feedback_router)
+router.include_router(router=slm_analytics_router)
+router.include_router(router=message_queue_router)
 router.include_router(router=sdlc_control_router)
