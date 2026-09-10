@@ -13,7 +13,7 @@ from sqlalchemy.orm import relationship
 from sqlalchemy.dialects.postgresql import UUID
 import uuid
 from datetime import datetime
-from app.core.database import Base
+from app.models.base import Base
 
 
 class SLMDecision(Base):
