@@ -349,13 +349,6 @@ def create_business_unit(
     current_user: Users = Depends(get_current_internal_user)
 ):
     """Create a new business unit (Admin and Super User only)."""
-    # Check permissions (RBAC-aware)
-    is_super_user = (current_user.UserRole and current_user.UserRole.lower() == "super user") or \
-                    (hasattr(current_user, 'roles') and any(r.name.lower() == "super user" for r in current_user.roles))
-
-    if not is_super_user:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions - Super User access required")
-
     # Validate input
     if not req.name or not req.display_name:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Business Unit name and display name are required")
@@ -394,13 +387,6 @@ def update_business_unit(
     current_user: Users = Depends(get_current_internal_user)
 ):
     """Update business unit (Admin and Super User only)."""
-    # Check permissions (RBAC-aware)
-    is_super_user = (current_user.UserRole and current_user.UserRole.lower() == "super user") or \
-                    (hasattr(current_user, 'roles') and any(r.name.lower() == "super user" for r in current_user.roles))
-
-    if not is_super_user:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions - Super User access required")
-
     bu = db.query(BusinessUnit).filter(BusinessUnit.id == bu_id).first()
     if not bu:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Business Unit not found")
@@ -436,13 +422,6 @@ def delete_business_unit(
     current_user: Users = Depends(get_current_internal_user)
 ):
     """Delete business unit (Super User only)."""
-    # Check permissions - Super User only (RBAC-aware)
-    is_super_user = (current_user.UserRole and current_user.UserRole.lower() == "super user") or \
-                    (hasattr(current_user, 'roles') and any(r.name.lower() == "super user" for r in current_user.roles))
-
-    if not is_super_user:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Super User access required")
-
     bu = db.query(BusinessUnit).filter(BusinessUnit.id == bu_id).first()
     if not bu:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Business Unit not found")
