@@ -107,8 +107,8 @@ class QueueProcessorService:
                         try:
                             QueueProcessorService._train_slm_with_result(
                                 db=db,
-                                message_type=message.queue_type,
-                                task_name=message.task_name,
+                                message_type=message.channel_type,
+                                task_name=message.type,
                                 payload=message.payload,
                                 result=result
                             )
@@ -143,12 +143,12 @@ class QueueProcessorService:
             message.last_attempted_at = datetime.utcnow()
             db.commit()
 
-            logger.info(f"[QueueProcessor] Processing message {message.id}: {message.task_name}")
+            logger.info(f"[QueueProcessor] Processing message {message.id}: {message.type}")
 
-            # Get handler for this task
-            handler = MessageHandlerRegistry.get_handler(message.task_name)
+            # Get handler for this task (type field contains task name like 'job_created_flash')
+            handler = MessageHandlerRegistry.get_handler(message.type)
             if not handler:
-                raise ValueError(f"No handler registered for {message.task_name}")
+                raise ValueError(f"No handler registered for {message.type}")
 
             # Execute handler
             try:
