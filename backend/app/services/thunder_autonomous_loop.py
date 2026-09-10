@@ -227,10 +227,59 @@ def run_thunder_autonomous_cycle(db: Session) -> dict:
 
             db.commit()
 
+        # PHASE 3B: AUTONOMOUS PROGRESSION (Qualify → Screen → Interview → Offer → Onboard)
+        from app.services.thunder_autonomous_progression_service import ThunderAutonomousProgression
+
+        progression_stats = {
+            "qualified": 0,
+            "screened": 0,
+            "interviewed": 0,
+            "offers_generated": 0,
+            "onboarded": 0,
+        }
+
+        try:
+            # Find engaged candidates for progression
+            engaged_candidates = db.query(Candidate).filter(
+                Candidate.candidate_status == "ENGAGED"
+            ).limit(10).all()
+
+            for candidate in engaged_candidates:
+                # Stage 1: Qualify
+                qual_result = ThunderAutonomousProgression.attempt_qualify_candidate(db, candidate.candidateID)
+                if qual_result["status"] == "progressed":
+                    progression_stats["qualified"] += 1
+
+                    # Stage 2: Screen
+                    screen_result = ThunderAutonomousProgression.attempt_screen_candidate(db, candidate.candidateID)
+                    if screen_result["status"] == "screened":
+                        progression_stats["screened"] += 1
+                        job_id = screen_result.get("job_id")
+
+                        # Stage 3: Interview
+                        interview_result = ThunderAutonomousProgression.attempt_schedule_interview(db, candidate.candidateID, job_id)
+                        if interview_result["status"] == "scheduled":
+                            progression_stats["interviewed"] += 1
+
+                        # Stage 4: Offer (check after some time passes)
+                        offer_result = ThunderAutonomousProgression.attempt_generate_offer(db, candidate.candidateID, job_id)
+                        if offer_result["status"] == "generated":
+                            progression_stats["offers_generated"] += 1
+
+                        # Stage 5: Onboard
+                        onboard_result = ThunderAutonomousProgression.attempt_onboard_candidate(db, candidate.candidateID)
+                        if onboard_result["status"] == "onboarded":
+                            progression_stats["onboarded"] += 1
+
+        except Exception as e:
+            logger.error(f"Phase 3B progression error: {e}", exc_info=True)
+            errors.append(f"Phase 3B: {str(e)}")
+
         return {
             "status": "success",
             "candidates_contacted": contacted,
             "sequences_advanced": advanced,
+            "phase_3b": progression_stats,
             "paused": False,
             "errors": errors if errors else None,
             "timestamp": datetime.utcnow().isoformat(),
