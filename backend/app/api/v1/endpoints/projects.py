@@ -172,6 +172,12 @@ def create_project_endpoint(
         raise HTTPException(status_code=409, detail=f"Project {project.id} already exists")
 
     db.add(project)
+    db.commit()  # PERSIST PROJECT TO DATABASE FIRST
+
+    # Validation: Verify project actually saved
+    persisted_project = db.query(Project).filter(Project.id == project.id).first()
+    if not persisted_project:
+        raise HTTPException(status_code=500, detail=f"Write validation failed: Project {project.id} not found in database after commit")
 
     try:
         msg_id = MessageQueueService.enqueue(
