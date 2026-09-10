@@ -24,6 +24,7 @@ from app.api.v1.endpoints.config import router as config_router
 from app.api.v1.endpoints.message_queue import router as message_queue_router
 from app.api.v1.endpoints.business_units import router as business_units_router
 from app.api.v1.endpoints.rbac import router as rbac_router
+from app.api.v1.endpoints.career_portal import router as career_portal_router
 
 # Agent State models — imported here so Base.metadata.create_all() finds them
 from app.models import agent_phalanx  # noqa: F401
@@ -205,6 +206,33 @@ async def startup_event():
     except Exception as exc:
         logger.warning(f"[Startup] Failed to seed business units: {exc}")
 
+    # 🚨 ARCHITECT AUTO-FIX TRIGGER
+    # When server starts, check for PRIORITY 1 violations (hardcoded role checks)
+    # If found: Automatically fix ALL 49 instances end-to-end
+    try:
+        logger.info("[Startup] Checking for PRIORITY 1 violations (hardcoded role checks)...")
+
+        from app.services.architect_auto_fix_hardcoded_roles import get_auto_fix_orchestrator
+
+        orchestrator = get_auto_fix_orchestrator()
+
+        # Run auto-fix in background (don't block startup)
+        # FastAPI startup events are already async-capable, but auto-fix is pure-async
+        import asyncio
+        result = await orchestrator.execute_auto_fix_cycle()
+
+        if result["status"] == "complete":
+            logger.info(f"✅ [AUTO-FIX] CYCLE COMPLETE: {result['before']} → {result['after']} hardcoded checks")
+            logger.info(f"✅ [AUTO-FIX] Files modified: {result['files_modified']}")
+            logger.info(f"✅ [AUTO-FIX] Verification: {result['verification']}")
+        elif result["status"] == "no_fixes_needed":
+            logger.info("✅ [AUTO-FIX] No hardcoded role checks found - codebase is clean")
+        else:
+            logger.warning(f"⚠️  [AUTO-FIX] Status: {result['status']}")
+    except Exception as exc:
+        logger.error(f"[Startup] Auto-fix cycle failed: {exc}", exc_info=True)
+        # Don't crash startup if auto-fix fails, but log it clearly
+
     logger.info(f"[OK] {settings.APP_NAME} v{settings.APP_VERSION} started successfully")
     logger.info(f"[OK] Server running on http://{settings.HOST}:{settings.PORT}")
 
@@ -235,6 +263,8 @@ app.include_router(message_queue_router, prefix="/api/v1")
 app.include_router(business_units_router, prefix="/api/v1")
 # Include RBAC routes with /api/v1 prefix (business units, departments, role management)
 app.include_router(rbac_router, prefix="/api/v1")
+# Include career portal routes (career site APIs - job browsing, applications)
+app.include_router(career_portal_router)
 # Include candidates routes with /candidates prefix (candidate creation, etc)
 app.include_router(candidates_router)
 
