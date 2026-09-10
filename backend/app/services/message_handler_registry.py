@@ -45,13 +45,22 @@ def _initialize_default_handlers():
     MessageHandlerRegistry.register("engage_candidate_with_thunder", _handle_thunder_engagement)
     MessageHandlerRegistry.register("assign_thunder_agent", _handle_thunder_engagement)
 
-    # Register job handlers
+    # Register job handlers (CYCLE 19: Queue-driven architecture)
     try:
         from app.services.message_handlers.job_created_handler import handle_job_created
         from app.services.message_handlers.job_status_changed_handler import handle_job_status_changed
         from app.services.message_handlers.source_candidates_handler import handle_source_candidates_for_job
+        from app.services.message_handlers.job_creation_flash_handler import JobCreationFlashHandler
+        from app.services.message_handlers.flash_recruiter_handler import FlashRecruiterHandler
+
         MessageHandlerRegistry.register("job_created", handle_job_created)
-        MessageHandlerRegistry.register("job_created_flash", handle_job_created)  # Queue-driven version
+
+        # CYCLE 19: Queue-driven job creation (two handlers)
+        # 1. job_created_flash → Creates job in database
+        # 2. flash_recruiter → Finds candidates & queues outreach
+        MessageHandlerRegistry.register("job_created_flash", JobCreationFlashHandler.process)
+        MessageHandlerRegistry.register("flash_recruiter", FlashRecruiterHandler.process)
+
         MessageHandlerRegistry.register("job_status_changed", handle_job_status_changed)
         MessageHandlerRegistry.register("source_candidates_for_job", handle_source_candidates_for_job)  # Skill matching + cascade detection
     except ImportError as e:

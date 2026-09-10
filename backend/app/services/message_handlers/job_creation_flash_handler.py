@@ -111,14 +111,29 @@ class JobCreationFlashHandler:
                     raise RuntimeError(f"Write validation failed: job not found after flush")
 
                 db.commit()
-                logger.info(f"[JobCreationFlash] ✅ Created job {job_id}: {job_title}")
+                logger.info(f"[JobCreate] ✅ Created job {job_id}: {job_title}")
+
+                # QUEUE 2: Flash_Recruiter handler will find candidates & queue outreach
+                from app.services.message_queue_service import MessageQueueService
+                recruiter_msg_id = MessageQueueService.enqueue(
+                    task_name='flash_recruiter',
+                    task_id=job_id,
+                    data={
+                        'job_id': job_id,
+                        'job_title': job_title,
+                        'job_skills': message.payload.get('job_skills', ''),
+                        'slm_analysis': message.payload.get('slm_analysis')
+                    }
+                )
+                logger.info(f"[JobCreate] Queued flash_recruiter for job {job_id}: message_id={recruiter_msg_id}")
 
                 return {
                     'status': 'success',
                     'job_id': job_id,
                     'created_at': datetime.utcnow().isoformat(),
                     'job_status': job.jobStatus,
-                    'job_title': job_title
+                    'job_title': job_title,
+                    'recruiter_queue_id': recruiter_msg_id
                 }
 
             except IntegrityError as e:
