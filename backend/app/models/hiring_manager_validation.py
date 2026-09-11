@@ -61,7 +61,7 @@ class HiringManagerValidation(Base):
 
     # Downstream impact
     interview_scheduled_at = Column(DateTime(timezone=False), nullable=True)
-    interview_id = Column(String(512), ForeignKey("interviews.interviewID"), nullable=True)
+    interview_id = Column(Integer, ForeignKey("interviews.id"), nullable=True)
     next_candidate_tried = Column(Boolean, nullable=False, server_default="0", default=False)  # If rejected, tried next
 
     # Escalation tracking
