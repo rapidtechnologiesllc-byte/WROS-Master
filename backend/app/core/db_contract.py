@@ -38,7 +38,8 @@ def initialize_database():
     try:
         # Step 1: Create all tables from models
         logger.info("[Contract] Step 1: Creating database tables...")
-        from app import models  # Import all models to register with Base
+        # Import models package - this triggers _auto_import_all_models()
+        import app.models
         Base.metadata.create_all(bind=engine)
         logger.info("[OK] Database tables created")
 

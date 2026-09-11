@@ -32,7 +32,8 @@ def bootstrap_database():
 
         # Step 1: Create all tables from models
         logger.info("[BOOTSTRAP] Step 1: Creating all tables from SQLAlchemy models...")
-        from app import models  # Import all models to register with Base
+        # Import models package - this triggers _auto_import_all_models()
+        import app.models
         Base.metadata.create_all(bind=engine)
         logger.info("[BOOTSTRAP] OK: All tables created")
 

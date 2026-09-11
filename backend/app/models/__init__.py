@@ -1,10 +1,40 @@
 """
 Models package initialization.
-Exports all models for easy importing.
+Auto-imports ALL model modules to register with SQLAlchemy Base.
+This ensures Base.metadata.create_all() creates ALL tables, not just a subset.
 """
 import logging
+import importlib
+import pkgutil
+from pathlib import Path
 
+# Import Base first
 from app.models.base import Base
+
+logger = logging.getLogger(__name__)
+
+def _auto_import_all_models():
+    """
+    Automatically import all model modules in this package.
+    This registers every model class with SQLAlchemy Base,
+    ensuring Base.metadata.create_all() creates all required tables.
+    """
+    models_dir = Path(__file__).parent
+    count = 0
+
+    for importer, modname, ispkg in pkgutil.iter_modules([str(models_dir)]):
+        if modname.startswith('_') or modname in ('base', 'enums'):
+            continue
+        try:
+            importlib.import_module(f'app.models.{modname}')
+            count += 1
+        except Exception as e:
+            logger.warning(f"Failed to auto-import {modname}: {e}")
+
+    logger.info(f"✅ Auto-imported {count} model modules")
+
+_auto_import_all_models()
+
 from app.models.tenant import Tenant
 from app.models.audit_log import AuditLog
 from app.models.consent import ConsentRecord
