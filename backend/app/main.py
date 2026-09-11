@@ -160,6 +160,27 @@ async def startup_event():
         logger.error(f"[Startup] Failed to create DB tables: {exc}", exc_info=True)
         return  # Don't crash startup, but tables won't exist
 
+    # Check if Alembic was mistakenly run (incomplete schema)
+    try:
+        from sqlalchemy import inspect as sqlalchemy_inspect
+        inspector = sqlalchemy_inspect(engine)
+
+        # If alembic_version exists but key tables are missing, Alembic was run
+        alembic_exists = inspector.has_table('alembic_version', schema='app_schema')
+        users_exists = inspector.has_table('users', schema='app_schema')
+
+        if alembic_exists and not users_exists:
+            logger.error("🚨 CRITICAL: Alembic migrations were run!")
+            logger.error("Alembic creates incomplete schema (8 tables instead of 132).")
+            logger.error("This BREAKS the application. Schema is missing required tables.")
+            logger.error("FIX: Restore from backup or run scripts/bootstrap_db.py on fresh database")
+            logger.error("NEVER run 'alembic upgrade head' - Alembic is deprecated")
+            raise RuntimeError("Incomplete schema detected - Alembic created wrong structure")
+    except Exception as exc:
+        if "Incomplete schema detected" in str(exc):
+            raise  # Re-raise the critical error
+        logger.warning(f"[Startup] Schema check failed (non-critical): {exc}")
+
     # Initialize database contract (tenant, RBAC, admin user)
     try:
         from app.core.db_contract import initialize_database
