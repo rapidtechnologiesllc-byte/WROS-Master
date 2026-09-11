@@ -2,6 +2,131 @@
 
 ---
 
+## 🚨 CRITICAL: DATABASE INITIALIZATION AT STARTUP (2026-09-10) - SINGLE SOURCE OF TRUTH
+
+**STATUS:** ✅ ENFORCED - ONE centralized initialization function at startup
+
+### The Rule: One Startup Initialization Function
+
+**MANDATORY:** All database initialization happens in `backend/app/core/db_contract.py` ONLY.
+- NO separate initialization scripts
+- NO manual setup commands
+- NO duplicate startup files
+- ONE function: `initialize_database()` called from `app/main.py` at startup
+
+### What Gets Initialized (Idempotent, Runs Every Startup)
+
+1. **Schema & Tables:** `Base.metadata.create_all()` - creates missing tables
+2. **Tenant:** tenant_id=1 (BlitzenX) - created if missing
+3. **Modules:** All 12+ modules (Recruitment, Workforce, Finance, etc.) - created if missing
+4. **Resources & Permissions:** All resources and role-based permissions - created if missing
+5. **Role Templates:** Admin, Super Admin, Manager, User roles - created if missing
+6. **Admin User:** admin@blitzenx.com (password: Admin@123) - created if missing
+7. **Superuser:** superuser@blitzenx.com (password: TestUser@123) - created if missing
+
+### File Locations (Single Source of Truth)
+
+**CANONICAL STARTUP INITIALIZATION:**
+```
+backend/app/core/db_contract.py ← ONLY file that initializes database
+  ├── initialize_database() ← MAIN ENTRY POINT (called from main.py line 154)
+  ├── _initialize_tenant()
+  ├── _initialize_rbac()
+  ├── _initialize_admin_user() ← Creates both admin AND superuser
+  └── _verify_admin_screen_permissions()
+```
+
+**NEVER CREATE:**
+- `backend/fix_schema_now.py` - DELETED ✓
+- `backend/fix_user_final.py` - DELETED ✓
+- `backend/update_pwd.py` - DELETED ✓
+- `backend/verify_user_location.py` - DELETED ✓
+- ANY other `backend/*init*.py` or `backend/*setup*.py` files
+
+### Code Review Gate Enforcement
+
+**Gate BLOCKS any commit containing:**
+- New files: `*init*.py`, `*setup*.py`, `*migrate*.py` (outside backend/alembic)
+- Duplicate initialization logic outside db_contract.py
+- Direct user/role/permission creation in endpoints (use db_contract.py instead)
+
+**Gate ALLOWS:**
+- Changes to db_contract.py (the canonical source)
+- Changes to app/main.py if calling db_contract.initialize_database()
+
+### Adding New Initialization Requirements
+
+**When adding new data that needs to exist at startup:**
+
+1. **Add function to db_contract.py:**
+   ```python
+   def _initialize_new_feature():
+       """Create new_feature data if missing (idempotent)."""
+       db = SessionLocal()
+       try:
+           # Check if exists
+           # If not, create it
+           # Commit
+       finally:
+           db.close()
+   ```
+
+2. **Call from initialize_database():**
+   ```python
+   def initialize_database():
+       ...
+       _initialize_rbac()
+       _initialize_admin_user()
+       _initialize_new_feature()  ← Add here
+   ```
+
+3. **Never create separate script files.**
+
+### Testing & Verification
+
+**Local Testing (Force Fresh Initialization):**
+```bash
+# Kill backend to close all connections
+pkill -f "uvicorn"
+sleep 1
+
+# Restart backend - initialize_database() runs at startup
+python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8081
+
+# Check logs for:
+# [OK] Database tables initialized
+# [OK] Tenant initialized
+# [OK] RBAC initialized
+# [OK] Admin user initialized
+# [OK] Database contract validated - all systems ready
+```
+
+**Production Deployment:**
+1. Run migrations: `python -m alembic upgrade heads`
+2. Start backend service
+3. Backend startup runs `initialize_database()` automatically
+4. Verify logs show "all systems ready"
+5. NO additional manual setup needed
+
+### Why This Matters
+
+**Before (Broken):**
+- Migrations create tables
+- Manual script 1: creates users
+- Manual script 2: fixes permissions
+- Manual script 3: fixes schema search_path
+- Manual script 4: verifies everything
+- Result: Fragile, easy to miss a step, production inconsistency
+
+**After (Production-Ready):**
+- ONE startup function handles everything
+- Idempotent: safe to run every startup
+- No manual steps, no forgotten scripts
+- Every instance initializes identically
+- Production ready from day 1
+
+---
+
 ## 🚨 CRITICAL: 90-SECOND AUTONOMOUS SDLC CYCLE (2026-09-10) - SPARTAN FORMATION PATTERN
 
 **STATUS:** ✅ ENFORCED - Strict orchestrated cycle with Architect in-the-loop every 90 seconds

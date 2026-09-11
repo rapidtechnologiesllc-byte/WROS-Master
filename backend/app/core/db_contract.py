@@ -194,47 +194,77 @@ def _initialize_rbac():
         db.close()
 
 def _initialize_admin_user():
-    """Ensure admin@blitzenx.com user exists with proper configuration and permissions."""
+    """Ensure admin@blitzenx.com and superuser@blitzenx.com users exist with proper configuration and permissions."""
     db = SessionLocal()
     try:
-        # Check if admin user exists
+        # Get Admin role template
+        admin_role = db.query(RoleTemplate).filter(RoleTemplate.name == "Admin").first()
+        if not admin_role:
+            logger.error("[Contract] Admin role template not found - cannot create admin user")
+            return
+
+        # Create or verify admin user
         admin_user = db.query(Users).filter(Users.UserEmail == "admin@blitzenx.com").first()
-
         if not admin_user:
-            # Get Admin role template
-            admin_role = db.query(RoleTemplate).filter(RoleTemplate.name == "Admin").first()
-            if not admin_role:
-                logger.error("[Contract] Admin role template not found - cannot create admin user")
-                return
-
-            # Create admin user
             admin_user = Users(
-                UserID=str(uuid.uuid4()),
+                UserID="admin@blitzenx.com",
                 UserEmail="admin@blitzenx.com",
                 UserPassword=get_password_hash("Admin@123"),
                 UserRole="Admin",
                 UserName="Admin User",
                 role_template_id=admin_role.id,
                 tenant_id=1,
-                timezone="Asia/Kolkata"
+                timezone="Asia/Kolkata",
+                password_reset_required=False,
+                mfa_enabled=False
             )
             db.add(admin_user)
             db.commit()
             logger.info("[Contract] Created admin user: admin@blitzenx.com (password: Admin@123)")
         else:
-            # Verify admin user has role template
-            admin_role = db.query(RoleTemplate).filter(RoleTemplate.name == "Admin").first()
-            if not admin_user.role_template_id and admin_role:
+            if not admin_user.role_template_id:
                 admin_user.role_template_id = admin_role.id
                 db.commit()
                 logger.info("[Contract] Assigned Admin role template to existing admin user")
-            elif admin_user.role_template_id:
-                logger.info("[Contract] Admin user verified: admin@blitzenx.com")
-            else:
-                logger.warning("[Contract] Admin user exists but has no role template")
+            logger.info("[Contract] Admin user verified: admin@blitzenx.com")
+
+        # Create or verify superuser (for testing/initialization)
+        superuser = db.query(Users).filter(Users.UserEmail == "superuser@blitzenx.com").first()
+        if not superuser:
+            # Create Super Admin role if it doesn't exist
+            super_admin_role = db.query(RoleTemplate).filter(RoleTemplate.name == "Super Admin").first()
+            if not super_admin_role:
+                super_admin_role = RoleTemplate(
+                    name="Super Admin",
+                    display_name="Super Administrator",
+                    description="Super admin role with full system access",
+                    is_system=True,
+                    tenant_id=1
+                )
+                db.add(super_admin_role)
+                db.flush()
+                logger.info("[Contract] Created Super Admin role template")
+
+            superuser = Users(
+                UserID="superuser@blitzenx.com",
+                UserEmail="superuser@blitzenx.com",
+                UserPassword=get_password_hash("TestUser@123"),
+                UserRole="SuperUser",
+                UserName="Super User",
+                role_template_id=super_admin_role.id,
+                tenant_id=1,
+                timezone="Asia/Kolkata",
+                password_reset_required=False,
+                mfa_enabled=False
+            )
+            db.add(superuser)
+            db.commit()
+            logger.info("[Contract] Created superuser: superuser@blitzenx.com (password: TestUser@123)")
+        else:
+            logger.info("[Contract] Superuser verified: superuser@blitzenx.com")
 
         # Verify admin user has all admin screen permissions
-        _verify_admin_screen_permissions(db, admin_role if admin_role else db.query(RoleTemplate).filter(RoleTemplate.name == "Admin").first())
+        _verify_admin_screen_permissions(db, admin_role)
 
     finally:
         db.close()
