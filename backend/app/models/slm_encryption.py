@@ -1,5 +1,4 @@
 """
-import logging
 SLM Encryption Models
 
 Database tables for encrypted SLM data and decryption access logs.
@@ -14,6 +13,7 @@ All data is encrypted using Fernet (symmetric encryption).
 Only authorized users can decrypt based on role/permission checks.
 """
 
+import logging
 from datetime import datetime
 from sqlalchemy import Column, String, Float, Date, DateTime, Boolean, JSON, func
 from sqlalchemy.ext.declarative import declarative_base

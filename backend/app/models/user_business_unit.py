@@ -1,7 +1,7 @@
 import logging
 """User-BusinessUnit junction table for many-to-many relationship."""
 
-from sqlalchemy import Column, String, Integer, ForeignKey, DateTime, func
+from sqlalchemy import Column, String, Integer, ForeignKey, DateTime, func, UniqueConstraint
 from sqlalchemy.orm import relationship
 from app.models.base import Base
 
@@ -21,6 +21,5 @@ class UserBusinessUnit(Base):
     bu_context = relationship("BusinessUnitContext", foreign_keys=[bu_context_id])
 
     __table_args__ = (
-        # Ensure each user-BU combination is unique (composite unique constraint)
-        {"uniqueConstraint": "uq_user_business_unit"},
+        UniqueConstraint("user_id", "bu_context_id", name="uq_user_business_unit"),
     )

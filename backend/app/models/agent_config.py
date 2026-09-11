@@ -23,7 +23,7 @@ from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 import uuid
 
-from app.core.database import Base
+from app.models.base import Base
 
 logger = logging.getLogger(__name__)
 
