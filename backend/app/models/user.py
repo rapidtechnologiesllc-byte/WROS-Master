@@ -97,6 +97,7 @@ class Users(Base):
     department = relationship("Department", foreign_keys=[department_id], lazy="select")
     role_template = relationship("RoleTemplate", foreign_keys=[role_template_id], lazy="select")
     terminated_by_user = relationship("Users", foreign_keys=[terminated_by_user_id], remote_side=[UserID], lazy="select")
+    user_business_units = relationship("UserBusinessUnit", foreign_keys="UserBusinessUnit.user_id", back_populates="user", lazy="select")
 
     def is_active(self) -> bool:
         """Return True if user is not terminated."""
