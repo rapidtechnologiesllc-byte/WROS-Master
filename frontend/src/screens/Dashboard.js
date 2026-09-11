@@ -111,8 +111,9 @@ export default function Dashboard({
   const inPipeline = filteredCandidates.filter((c) => {
     const p = (c.pipelineStatus || "").trim();
     if (p === "Rejected") return false;
-    const a = (c.accountStatus || "").trim();
-    if (a === "Inactive") return false;
+    // Check status from CandidateStatus table (mapped to candidate.status in API response)
+    const s = (c.status || "").trim();
+    if (s === "Inactive") return false;
     return true;
   }).length;
   const scheduled = interviews.filter((i) => i.status === "Scheduled").length;
