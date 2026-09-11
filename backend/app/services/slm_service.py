@@ -42,6 +42,7 @@ class SLMService:
         message_type: str,
         result: Dict[str, Any],
         db: Optional[Session] = None,
+        handler_name: str = None,  # CYCLE 19: Handler name for decision recording
     ) -> Dict[str, Any]:
         """
         Analyze message processing result and return decision.
@@ -334,7 +335,7 @@ class SLMService:
                 id=decision_id,
                 message_id=message_id,
                 message_type="generic_analysis",
-                handler_name="slm_service",
+                handler_name=handler_name or "slm_service",  # CYCLE 19: Use passed handler name or default to slm_service
                 slm_confidence=decision.get("confidence_score", 0.5),
                 risk_level=decision.get("risk_level", "MEDIUM"),
                 was_escalated=decision.get("decision_type") == SLMService.DECISION_ESCALATE,
@@ -361,6 +362,7 @@ class SLMService:
         payload: Dict[str, Any],
         context: Dict[str, Any],
         db: Optional[Session] = None,
+        handler_name: str = None,  # CYCLE 20: Handler name for decision recording
     ) -> Dict[str, Any]:
         """
         PLACE 1: Pre-flight SLM analysis BEFORE handler execution.
@@ -437,6 +439,7 @@ class SLMService:
                 id=decision_id,
                 message_id=message_id,
                 message_type=message_type,
+                handler_name=handler_name or "slm_precheck",  # CYCLE 20: Use passed handler name or default
                 slm_analysis={
                     'confidence': confidence,
                     'risk_level': risk_level,

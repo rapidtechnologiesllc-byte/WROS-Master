@@ -159,14 +159,19 @@ class QueueProcessorService:
                         stats["failed"] += 1
 
                     # Train SLM with result if message completed
-                    if result["status"] == QueueStatus.COMPLETED.value:
+                    # SKIP SLM training for simple CRUD operations (create_candidate, etc.)
+                    # Those don't need SLM analysis - they just create records
+                    skip_slm_training = message.type in ['create_candidate', 'job_created']
+
+                    if result["status"] == QueueStatus.COMPLETED.value and not skip_slm_training:
                         try:
                             QueueProcessorService._train_slm_with_result(
                                 db=db,
                                 message_type=message.channel_type,
                                 task_name=message.type,
                                 payload=message.payload,
-                                result=result
+                                result=result,
+                                handler_name=f"{message.type}_handler"  # CYCLE 19: Pass handler name for SLM
                             )
                             stats["slm_updates"] += 1
                         except Exception as slm_err:
@@ -231,20 +236,25 @@ class QueueProcessorService:
             logger.info(f"[QueueProcessor] Processing message {message.id}: {message.type}")
 
             # ============ PLACE 1: PRE-FLIGHT SLM ANALYSIS (ENFORCEMENT) ============
+            # Skip PLACE 1 analysis for simple CRUD operations - they don't need pre-flight checks
+            skip_place1_analysis = message.type in ['create_candidate', 'job_created', 'job_created_flash', 'job_deleted_flash', 'job_updated_flash']
+
             slm_analysis = None
             try:
-                slm_analysis = SLMService.analyze_before_handler(
-                    message_id=str(message.id),
-                    message_type=message.type,
-                    payload=message.payload or {},
-                    context={
-                        'business_goal': f'Execute {message.type} handler',
-                        'risk_level': 'MEDIUM',
-                        'queue_retry_count': message.retry_count or 0,
-                        'message_age_seconds': (datetime.utcnow() - message.created_at).total_seconds() if message.created_at else 0
-                    },
-                    db=db
-                )
+                if not skip_place1_analysis:  # Only analyze complex operations
+                    slm_analysis = SLMService.analyze_before_handler(
+                        message_id=str(message.id),
+                        message_type=message.type,
+                        payload=message.payload or {},
+                        context={
+                            'business_goal': f'Execute {message.type} handler',
+                            'risk_level': 'MEDIUM',
+                            'queue_retry_count': message.retry_count or 0,
+                            'message_age_seconds': (datetime.utcnow() - message.created_at).total_seconds() if message.created_at else 0
+                        },
+                        db=db,
+                        handler_name=f"{message.type}_handler"  # Pass handler name for decision recording
+                    )
 
                 # Check if SLM says to escalate
                 if not slm_analysis.get('should_proceed'):
@@ -428,7 +438,7 @@ class QueueProcessorService:
                     message.retry_count += 1
                     message.next_retry_at = datetime.utcnow() + timedelta(seconds=backoff_seconds)
                     message.last_attempted_at = datetime.utcnow()  # HIGH FIX #8: Track retry attempt time
-                    message.status = QueueStatus.RETRY.value
+                    message.status = QueueStatus.PENDING.value  # CRITICAL FIX #9: Keep PENDING so retry is picked up
                     message.result = json.dumps({
                         "success": False,
                         "error": QueueProcessorService._truncate_error_string(str(handler_err)),
@@ -438,7 +448,7 @@ class QueueProcessorService:
                     db.commit()
 
                     return {
-                        "status": QueueStatus.RETRY.value,
+                        "status": QueueStatus.PENDING.value,  # CRITICAL FIX #9: Return PENDING for retry
                         "message_id": message.id,
                         "retry_count": message.retry_count,
                         "next_retry_at": message.next_retry_at.isoformat(),
@@ -515,7 +525,8 @@ class QueueProcessorService:
         message_type: str,
         task_name: str,
         payload: Dict[str, Any],
-        result: Dict[str, Any]
+        result: Dict[str, Any],
+        handler_name: str = None  # CYCLE 19: Handler name for SLM decision recording
     ):
         """
         Train SLM with successful message result.
@@ -531,7 +542,8 @@ class QueueProcessorService:
                 message_id=result.get("message_id", "unknown"),
                 message_type=message_type,
                 result=result,
-                db=db
+                db=db,
+                handler_name=handler_name  # CYCLE 19: Pass handler name for decision recording
             )
 
             # Record learning pattern

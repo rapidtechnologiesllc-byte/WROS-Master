@@ -91,6 +91,21 @@ const MessageQueueMonitorEnhanced = () => {
     }));
   };
 
+  const handleCopyMessageId = (messageId) => {
+    navigator.clipboard.writeText(messageId);
+    // Show visual feedback
+    const btn = event.target;
+    const originalText = btn.textContent;
+    btn.textContent = '✓ Copied';
+    setTimeout(() => { btn.textContent = originalText; }, 2000);
+  };
+
+  const getProcessingAge = (createdAt) => {
+    const now = new Date();
+    const created = new Date(createdAt);
+    return Math.floor((now - created) / 1000); // seconds
+  };
+
   const handlePauseQueue = async () => {
     try {
       await apiRequest('/api/v1/thunder/pause', { method: 'POST' });
@@ -235,18 +250,34 @@ const MessageQueueMonitorEnhanced = () => {
                         </tr>
                       </thead>
                       <tbody>
-                        {rows.map(row => (
+                        {rows.map(row => {
+                          const isStuck = row.status === 'PROCESSING' && getProcessingAge(row.created_at) > 10;
+                          return (
                           <React.Fragment key={row.id}>
-                            <tr className={`status-${row.status.toLowerCase()}`}>
+                            <tr className={`status-${row.status.toLowerCase()} ${isStuck ? 'stuck-message' : ''}`}>
                               <td title={row.id} style={{width: '12%'}}>
-                                <div style={{display: 'flex', alignItems: 'center', gap: '8px'}}>
+                                <div style={{display: 'flex', alignItems: 'center', gap: '6px'}}>
                                   <button
                                     onClick={() => handleTogglePayload(row.id)}
+                                    title="Expand payload"
                                     style={{background: 'none', border: 'none', cursor: 'pointer', padding: '4px', fontSize: '12px'}}
                                   >
                                     {expandedPayloads[row.id] ? '▼' : '▶'}
                                   </button>
-                                  <span title={row.id}>{row.id.substring(0, 12)}...</span>
+                                  <span title={row.id} style={{fontSize: '12px', fontFamily: 'monospace'}}>
+                                    {row.id.substring(0, 8)}...
+                                  </span>
+                                  <button
+                                    onClick={(e) => {
+                                      navigator.clipboard.writeText(row.id);
+                                      e.target.textContent = '✓';
+                                      setTimeout(() => { e.target.textContent = '📋'; }, 1500);
+                                    }}
+                                    title="Copy full message ID"
+                                    style={{background: 'none', border: 'none', cursor: 'pointer', padding: '2px 4px', fontSize: '12px', opacity: 0.6}}
+                                  >
+                                    📋
+                                  </button>
                                 </div>
                               </td>
                               <td style={{width: '8%'}}>
@@ -275,6 +306,12 @@ const MessageQueueMonitorEnhanced = () => {
                                     } else if (row.status === 'PENDING') {
                                       return '⏳ Queued for processing';
                                     } else if (row.status === 'PROCESSING') {
+                                      const duration = getProcessingAge(row.created_at);
+                                      if (duration > 10) {
+                                        return `🚨 STUCK ${duration}s (threshold: 10s) - Should have completed by now. Check handler logs.`;
+                                      } else if (duration > 5) {
+                                        return `⏱️ Processing ${duration}s (will timeout at 10s)`;
+                                      }
                                       return '⚙️ Currently processing...';
                                     } else {
                                       return '✅ Successfully processed';
@@ -315,7 +352,8 @@ const MessageQueueMonitorEnhanced = () => {
                               </tr>
                             )}
                           </React.Fragment>
-                        ))}
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>

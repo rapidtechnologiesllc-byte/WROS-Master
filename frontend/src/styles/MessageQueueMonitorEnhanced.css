@@ -406,6 +406,17 @@
   background: #fffbeb;
 }
 
+.queue-table tbody tr.stuck-message {
+  background: #fef2f2 !important;
+  border-left: 4px solid #dc2626;
+  animation: stuck-pulse 1s infinite;
+}
+
+@keyframes stuck-pulse {
+  0%, 100% { background: #fef2f2; }
+  50% { background: #fee2e2; }
+}
+
 /* Error and Doctor columns */
 .error-text {
   display: block;
