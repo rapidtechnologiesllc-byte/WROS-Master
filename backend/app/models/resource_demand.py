@@ -31,7 +31,7 @@ class ResourceDemand(Base):
     end_date = Column(Date, nullable=False)
 
     # Organization context
-    business_unit_id = Column(String(512), ForeignKey("business_units.id"), nullable=False, index=True)
+    business_unit_id = Column(Integer, ForeignKey("business_units.id"), nullable=False, index=True)
     project_id = Column(String(512), ForeignKey("projects.id"), nullable=True, index=True)
 
     # Status tracking
