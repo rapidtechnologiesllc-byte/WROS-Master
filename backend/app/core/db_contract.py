@@ -154,41 +154,59 @@ def _initialize_rbac():
 
         db.commit()
 
-        # Create/verify Admin role template
-        admin_role = db.query(RoleTemplate).filter(RoleTemplate.name == "Admin").first()
-        if not admin_role:
-            admin_role = RoleTemplate(
-                name="Admin",
-                display_name="Administrator",
-                description="Admin role with full access",
-                is_system=True,
-                tenant_id=1
-            )
-            db.add(admin_role)
-            db.flush()
-            logger.info("[Contract] Created Admin role template")
+        # Create all role templates if they don't exist
+        role_template_configs = [
+            ('Super Admin', 'Super Administrator', 'Super admin role with full system access'),
+            ('Admin', 'Administrator', 'Admin role with full access'),
+            ('Manager', 'Manager', 'Manager role with team management access'),
+            ('User', 'Regular User', 'Regular user role with basic access'),
+        ]
 
-        # Grant all permissions to Admin role
-        resources = db.query(Resource).all()
-        for resource in resources:
-            perm = db.query(RoleTemplatePermission).filter(
-                RoleTemplatePermission.role_template_id == admin_role.id,
-                RoleTemplatePermission.resource_id == resource.id
-            ).first()
-
-            if not perm:
-                perm = RoleTemplatePermission(
-                    role_template_id=admin_role.id,
-                    resource_id=resource.id,
-                    can_view=True,
-                    can_create=True,
-                    can_edit=True,
-                    can_delete=True
+        for role_name, display_name, description in role_template_configs:
+            role_template = db.query(RoleTemplate).filter(RoleTemplate.name == role_name).first()
+            if not role_template:
+                role_template = RoleTemplate(
+                    name=role_name,
+                    display_name=display_name,
+                    description=description,
+                    is_system=True,
+                    tenant_id=1
                 )
-                db.add(perm)
+                db.add(role_template)
+                db.flush()
+                logger.info(f"[Contract] Created role template: {role_name}")
 
         db.commit()
-        logger.info(f"[Contract] Granted {len(resources)} permissions to Admin role")
+
+        # Ensure all role templates have full permissions
+        resources = db.query(Resource).all()
+        role_templates = db.query(RoleTemplate).all()
+
+        for role_template in role_templates:
+            permissions_granted = 0
+            for resource in resources:
+                perm = db.query(RoleTemplatePermission).filter(
+                    RoleTemplatePermission.role_template_id == role_template.id,
+                    RoleTemplatePermission.resource_id == resource.id
+                ).first()
+
+                if not perm:
+                    perm = RoleTemplatePermission(
+                        role_template_id=role_template.id,
+                        resource_id=resource.id,
+                        can_view=True,
+                        can_create=True,
+                        can_edit=True,
+                        can_delete=True
+                    )
+                    db.add(perm)
+                    permissions_granted += 1
+
+            if permissions_granted > 0:
+                db.commit()
+                logger.info(f"[Contract] Granted {permissions_granted} permissions to role: {role_template.name}")
+            else:
+                logger.info(f"[Contract] Role {role_template.name} already has all permissions")
 
     finally:
         db.close()
