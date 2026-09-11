@@ -209,20 +209,18 @@ class CandidateCreationHandler:
                 logger.warning(f"[Handler] History logging failed (non-blocking): {e}", exc_info=True)
 
             try:
-                # Queue engagement email (non-critical, async)
+                # Queue engagement through Thunder (handles email + outreach)
                 MessageQueueService.enqueue(
-                    task_name='send_email',
-                    channel_type='EMAIL_QUEUE',
+                    task_name='engage_candidate_with_thunder',
                     data={
                         'candidate_id': candidate_id,
                         'recipient_email': candidate_email,
-                        'email_type': 'FIRST_ENGAGEMENT',
-                        'subject': f'Welcome {payload.get("candidate_first_name", "User")}! Your Application is Received',
-                        'body': f'Hi {payload.get("candidate_first_name", "there")},\n\nThank you for applying! We have received your application and will review it shortly.\n\nBest regards,\nBlitzenX Team',
+                        'first_name': payload.get("candidate_first_name", "User"),
+                        'action': 'send_welcome_email',
                         'tenant_id': payload.get('tenant_id', 1),
                     }
                 )
-                logger.info(f"[Handler] ✅ Queued engagement email for {candidate_id}")
+                logger.info(f"[Handler] ✅ Queued engagement email through Thunder for {candidate_id}")
             except Exception as e:
                 logger.warning(f"[Handler] Email queueing failed (non-blocking): {e}", exc_info=True)
 
@@ -239,6 +237,19 @@ class CandidateCreationHandler:
                 logger.info(f"[Handler] ✅ Queued {candidate_id} to Thunder")
             except Exception as e:
                 logger.warning(f"[Handler] Thunder queueing failed (non-blocking): {e}", exc_info=True)
+
+            try:
+                # Queue SLM pre-flight analysis for training data collection
+                from app.services.slm_service import SLMService
+                SLMService.analyze_before_handler(
+                    candidate_id=candidate_id,
+                    handler_name='candidate_creation',
+                    analysis_type='PLACE_1',
+                    db=db
+                )
+                logger.info(f"[Handler] ✅ SLM pre-flight analysis queued for {candidate_id}")
+            except Exception as e:
+                logger.warning(f"[Handler] SLM analysis failed (non-blocking): {e}", exc_info=True)
 
             return result
 
