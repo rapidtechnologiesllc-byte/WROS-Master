@@ -120,6 +120,63 @@ def retry_queue_message(message_id: str, db: Session = Depends(get_db)):
     }
 
 
+@router.post("/{message_id}/stop-and-retry", dependencies=[Depends(require_role_template_permission(*Permissions.ROLE_TEMPLATES_EDIT))])
+def stop_and_retry_message(message_id: str, db: Session = Depends(get_db)):
+    """Stop a PROCESSING message and mark it for retry (fail current attempt, queue next)."""
+    from app.services.queue_doctor_service import QueueDoctorService
+
+    message = db.query(ChannelQueueItem).filter(ChannelQueueItem.id == message_id).first()
+    if not message:
+        raise ValueError("Message not found")
+
+    if message.status != "PROCESSING":
+        raise ValueError(f"Only PROCESSING messages can be stopped. Current status: {message.status}")
+
+    # Mark as FAILED (stop current processing), then reset to PENDING for retry
+    message.status = "PENDING"
+    message.retry_count = (message.retry_count or 0) + 1
+    message.error = "Manually stopped by user (stop-and-retry)"
+    message.next_retry_at = datetime.utcnow()  # Pick up immediately
+
+    db.commit()
+    QueueDoctorService.record_retry(message, db)
+
+    return {
+        "status": "stopped_and_queued_for_retry",
+        "message_id": message_id,
+        "retry_count": message.retry_count,
+        "message": f"Message stopped from PROCESSING and queued for immediate retry (attempt {message.retry_count})"
+    }
+
+
+@router.post("/{message_id}/fail", dependencies=[Depends(require_role_template_permission(*Permissions.ROLE_TEMPLATES_EDIT))])
+def fail_queue_message(message_id: str, reason: str = Query("Manual failure"), db: Session = Depends(get_db)):
+    """Manually mark a message as FAILED (for PROCESSING messages stuck > 10 seconds)."""
+    from app.services.queue_doctor_service import QueueDoctorService
+
+    message = db.query(ChannelQueueItem).filter(ChannelQueueItem.id == message_id).first()
+    if not message:
+        raise ValueError("Message not found")
+
+    if message.status != "PROCESSING":
+        raise ValueError(f"Only PROCESSING messages can be failed. Current status: {message.status}")
+
+    # Mark as FAILED
+    message.status = "FAILED"
+    message.error = f"User-initiated failure: {reason}"
+    message.completed_at = datetime.utcnow()
+
+    db.commit()
+    QueueDoctorService.record_error(message, db)
+
+    return {
+        "status": "message_failed",
+        "message_id": message_id,
+        "error": message.error,
+        "message": f"Message marked as FAILED. Can be retried with /retry endpoint."
+    }
+
+
 @router.post("/retry-failed", dependencies=[Depends(require_role_template_permission(*Permissions.ROLE_TEMPLATES_EDIT))])
 def retry_failed_messages(
     queue_type: str = Query("", description="Filter by queue type (optional)"),

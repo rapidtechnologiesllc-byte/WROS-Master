@@ -146,6 +146,26 @@ const MessageQueueMonitorEnhanced = () => {
     }
   };
 
+  const handleStopAndRetry = async (messageId) => {
+    try {
+      await apiRequest(`/api/v1/message-queue/${messageId}/stop-and-retry`, { method: 'POST' });
+      await fetchQueueData();
+      setError(null);
+    } catch (err) {
+      setError(`Failed to stop and retry message: ${err.message}`);
+    }
+  };
+
+  const handleFailMessage = async (messageId) => {
+    try {
+      await apiRequest(`/api/v1/message-queue/${messageId}/fail?reason=Stuck+PROCESSING+%3E+10s`, { method: 'POST' });
+      await fetchQueueData();
+      setError(null);
+    } catch (err) {
+      setError(`Failed to mark message as failed: ${err.message}`);
+    }
+  };
+
   if (loading) return <div className="queue-loading">Loading queue...</div>;
 
   return (
@@ -319,14 +339,38 @@ const MessageQueueMonitorEnhanced = () => {
                                   })()}
                                 </span>
                               </td>
-                              <td style={{width: '12%'}}>
+                              <td style={{width: '12%', display: 'flex', gap: '4px', flexWrap: 'wrap'}}>
                                 {row.status === 'FAILED' && (
                                   <button
                                     onClick={() => handleRetryMessage(row.id)}
                                     className="btn-sm btn-primary"
+                                    title="Retry failed message"
                                   >
                                     Retry
                                   </button>
+                                )}
+                                {row.status === 'PROCESSING' && isStuck && (
+                                  <>
+                                    <button
+                                      onClick={() => handleStopAndRetry(row.id)}
+                                      className="btn-sm btn-warning"
+                                      title="Stop current processing and queue for retry"
+                                      style={{background: '#f97316', color: 'white'}}
+                                    >
+                                      Stop & Retry
+                                    </button>
+                                    <button
+                                      onClick={() => handleFailMessage(row.id)}
+                                      className="btn-sm btn-danger"
+                                      title="Mark as failed (requires manual retry)"
+                                      style={{background: '#ef4444', color: 'white'}}
+                                    >
+                                      Fail
+                                    </button>
+                                  </>
+                                )}
+                                {row.status === 'PROCESSING' && !isStuck && (
+                                  <span style={{fontSize: '11px', color: '#666'}}>Processing...</span>
                                 )}
                               </td>
                             </tr>
