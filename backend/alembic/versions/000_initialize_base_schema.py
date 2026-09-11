@@ -165,7 +165,6 @@ def upgrade() -> None:
         sa.Column('specialization', sa.String(length=512), nullable=False, server_default='General', default='General'),
         sa.Column('is_system', sa.Boolean(), nullable=False, server_default='false', default=False),
         sa.Column('enabled', sa.Boolean(), nullable=False, server_default='true', default=True),
-        sa.Column('org_level_access', sa.Boolean(), nullable=False, server_default='false', default=False),
         sa.Column('tenant_id', sa.Integer(), nullable=False, server_default='1', default=1),
         sa.Column('created_by', sa.String(length=255), nullable=True),
         sa.Column('created_at', sa.DateTime(), server_default=sa.func.now()),
