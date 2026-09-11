@@ -142,6 +142,17 @@ async def startup_event():
     # Run DB operations synchronously (not in background thread)
     # This ensures tables exist before app accepts requests
     try:
+        logger.info("[Startup] Creating app_schema if missing...")
+        from sqlalchemy import text
+        with engine.connect() as conn:
+            conn.execute(text('CREATE SCHEMA IF NOT EXISTS app_schema'))
+            conn.commit()
+        logger.info("[OK] app_schema verified")
+    except Exception as exc:
+        logger.error(f"[Startup] Failed to create schema: {exc}", exc_info=True)
+        return
+
+    try:
         logger.info("[Startup] Creating database tables...")
         Base.metadata.create_all(bind=engine, checkfirst=True)
         logger.info("[OK] Database tables initialized")
