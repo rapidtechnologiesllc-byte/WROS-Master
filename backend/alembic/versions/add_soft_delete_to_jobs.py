@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 # Revision identifiers
 revision = 'add_soft_delete_001'
-down_revision = None
+down_revision = '2_add_clients'
 branch_labels = None
 depends_on = None
 

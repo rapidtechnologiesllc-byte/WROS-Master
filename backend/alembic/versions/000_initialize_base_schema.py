@@ -111,9 +111,94 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint('jobID'),
     )
 
+    # Create tenants table (needed by RBAC)
+    op.create_table(
+        'tenants',
+        sa.Column('id', sa.Integer(), nullable=False, autoincrement=True),
+        sa.Column('name', sa.String(length=512), nullable=False),
+        sa.Column('created_at', sa.DateTime(), server_default=sa.func.now()),
+        sa.PrimaryKeyConstraint('id'),
+    )
+
+    # Create modules table (top-level modules like Recruitment, Finance, Admin)
+    op.create_table(
+        'modules',
+        sa.Column('id', sa.Integer(), nullable=False, autoincrement=True),
+        sa.Column('name', sa.String(length=512), nullable=False),
+        sa.Column('display_name', sa.String(length=150), nullable=False),
+        sa.Column('description', sa.Text(), nullable=True),
+        sa.Column('enabled', sa.Boolean(), nullable=False, server_default='true', default=True),
+        sa.Column('tenant_id', sa.Integer(), nullable=False),
+        sa.Column('created_at', sa.DateTime(), server_default=sa.func.now()),
+        sa.Column('updated_at', sa.DateTime(), server_default=sa.func.now()),
+        sa.PrimaryKeyConstraint('id'),
+        sa.ForeignKeyConstraint(['tenant_id'], ['tenants.id'], ),
+        sa.UniqueConstraint('name', 'tenant_id', name='uq_module_name_tenant'),
+    )
+
+    # Create resources table (like Candidates, Jobs, Invoices under modules)
+    op.create_table(
+        'resources',
+        sa.Column('id', sa.Integer(), nullable=False, autoincrement=True),
+        sa.Column('module_id', sa.Integer(), nullable=False),
+        sa.Column('name', sa.String(length=512), nullable=False),
+        sa.Column('display_name', sa.String(length=150), nullable=False),
+        sa.Column('route_path', sa.String(length=200), nullable=True),
+        sa.Column('description', sa.Text(), nullable=True),
+        sa.Column('enabled', sa.Boolean(), nullable=False, server_default='true', default=True),
+        sa.Column('tenant_id', sa.Integer(), nullable=False),
+        sa.Column('created_at', sa.DateTime(), server_default=sa.func.now()),
+        sa.Column('updated_at', sa.DateTime(), server_default=sa.func.now()),
+        sa.PrimaryKeyConstraint('id'),
+        sa.ForeignKeyConstraint(['module_id'], ['modules.id'], ),
+        sa.ForeignKeyConstraint(['tenant_id'], ['tenants.id'], ),
+    )
+
+    # Create role_templates table (like Recruiter, HR Manager, CEO)
+    op.create_table(
+        'role_templates',
+        sa.Column('id', sa.Integer(), nullable=False, autoincrement=True),
+        sa.Column('name', sa.String(length=512), nullable=False),
+        sa.Column('display_name', sa.String(length=150), nullable=False),
+        sa.Column('description', sa.Text(), nullable=True),
+        sa.Column('hierarchy_level', sa.Integer(), nullable=False, server_default='5', default=5),
+        sa.Column('specialization', sa.String(length=512), nullable=False, server_default='General', default='General'),
+        sa.Column('is_system', sa.Boolean(), nullable=False, server_default='false', default=False),
+        sa.Column('enabled', sa.Boolean(), nullable=False, server_default='true', default=True),
+        sa.Column('org_level_access', sa.Boolean(), nullable=False, server_default='false', default=False),
+        sa.Column('tenant_id', sa.Integer(), nullable=False, server_default='1', default=1),
+        sa.Column('created_by', sa.String(length=255), nullable=True),
+        sa.Column('created_at', sa.DateTime(), server_default=sa.func.now()),
+        sa.Column('updated_at', sa.DateTime(), server_default=sa.func.now()),
+        sa.PrimaryKeyConstraint('id'),
+        sa.ForeignKeyConstraint(['tenant_id'], ['tenants.id'], ),
+    )
+
+    # Create role_template_permissions table (permissions matrix)
+    op.create_table(
+        'role_template_permissions',
+        sa.Column('id', sa.Integer(), nullable=False, autoincrement=True),
+        sa.Column('role_template_id', sa.Integer(), nullable=False),
+        sa.Column('resource_id', sa.Integer(), nullable=False),
+        sa.Column('can_view', sa.Boolean(), nullable=False, server_default='false', default=False),
+        sa.Column('can_create', sa.Boolean(), nullable=False, server_default='false', default=False),
+        sa.Column('can_edit', sa.Boolean(), nullable=False, server_default='false', default=False),
+        sa.Column('can_delete', sa.Boolean(), nullable=False, server_default='false', default=False),
+        sa.Column('created_at', sa.DateTime(), server_default=sa.func.now()),
+        sa.Column('updated_at', sa.DateTime(), server_default=sa.func.now()),
+        sa.PrimaryKeyConstraint('id'),
+        sa.ForeignKeyConstraint(['role_template_id'], ['role_templates.id'], ),
+        sa.ForeignKeyConstraint(['resource_id'], ['resources.id'], ),
+    )
+
 
 def downgrade() -> None:
     """Drop base schema tables"""
+    op.drop_table('role_template_permissions')
+    op.drop_table('role_templates')
+    op.drop_table('resources')
+    op.drop_table('modules')
+    op.drop_table('tenants')
     op.drop_table('jobs')
     op.drop_table('business_units')
     op.drop_table('candidates')

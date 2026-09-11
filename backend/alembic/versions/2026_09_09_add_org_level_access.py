@@ -15,17 +15,14 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision = '2026_09_09_001'
-down_revision = None
+down_revision = '2_add_clients'
 branch_labels = None
 depends_on = None
 
 
 def upgrade() -> None:
-    # Add org_level_access column to role_templates
-    op.add_column(
-        'role_templates',
-        sa.Column('org_level_access', sa.Boolean(), nullable=False, server_default='false')
-    )
+    # org_level_access column is now created in base migration
+    # This migration just sets values for org-level roles
 
     # Set org_level_access=True for predefined org-level roles
     # This uses raw SQL to update based on role name
@@ -36,10 +33,15 @@ def upgrade() -> None:
         AND is_system = true
     """)
 
-    print("[MIGRATION] Added org_level_access column to role_templates")
     print("[MIGRATION] Set org_level_access=true for org-level roles")
 
 
 def downgrade() -> None:
-    # Remove org_level_access column
-    op.drop_column('role_templates', 'org_level_access')
+    # org_level_access column is managed by base migration
+    # This migration just reverses the org-level role updates
+    op.execute("""
+        UPDATE role_templates
+        SET org_level_access = false
+        WHERE name IN ('Super User', 'CEO', 'CFO', 'Admin', 'Partner')
+        AND is_system = true
+    """)
