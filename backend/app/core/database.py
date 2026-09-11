@@ -87,8 +87,8 @@ def receive_connect(dbapi_conn, connection_record):
     if "sqlite" not in DATABASE_URL.lower():
         cursor = dbapi_conn.cursor()
 
-        # Set schema search path
-        cursor.execute("SET search_path TO public, app_schema")
+        # Set schema search path - app_schema FIRST (application canonical)
+        cursor.execute("SET search_path TO app_schema, public")
 
         # Transaction isolation: READ COMMITTED (default PostgreSQL level)
         # Prevents dirty reads and lost updates while allowing more concurrency than SERIALIZABLE
