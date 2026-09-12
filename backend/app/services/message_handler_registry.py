@@ -36,14 +36,23 @@ class MessageHandlerRegistry:
 
 def _initialize_default_handlers():
     """Initialize built-in message handlers."""
-    from app.services.channel_processors.candidate_queue_processor import CandidateQueueProcessor
+    # Register candidate handlers (CRITICAL - must succeed)
+    try:
+        from app.services.channel_processors.candidate_queue_processor import CandidateQueueProcessor
+        MessageHandlerRegistry.register("create_candidate", CandidateQueueProcessor.process)
+        logger.info("[Registry] Registered create_candidate handler")
+    except ImportError as e:
+        logger.error(f"[Registry] CRITICAL: Failed to import CandidateQueueProcessor: {e}")
+        logger.error("[Registry] Candidate creation will fail without this handler")
 
-    # Register candidate handlers
-    MessageHandlerRegistry.register("create_candidate", CandidateQueueProcessor.process)
-
-    # Register Thunder/engagement handlers
-    MessageHandlerRegistry.register("engage_candidate_with_thunder", _handle_thunder_engagement)
-    MessageHandlerRegistry.register("assign_thunder_agent", _handle_thunder_engagement)
+    # Register Thunder/engagement handlers (CRITICAL - must succeed)
+    try:
+        MessageHandlerRegistry.register("engage_candidate_with_thunder", _handle_thunder_engagement)
+        MessageHandlerRegistry.register("assign_thunder_agent", _handle_thunder_engagement)
+        logger.info("[Registry] Registered Thunder engagement handlers")
+    except Exception as e:
+        logger.error(f"[Registry] CRITICAL: Failed to register Thunder handlers: {e}")
+        logger.error("[Registry] Thunder candidate engagement will fail without this handler")
 
     # Register job handlers (CYCLE 19: Queue-driven architecture)
     try:

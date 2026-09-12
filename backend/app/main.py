@@ -276,6 +276,7 @@ async def startup_event():
         logger.info("[Startup] Starting background queue processor (CYCLE 19)...")
         from app.services.queue_processor_service import QueueProcessorService
         from threading import Thread
+        import time
 
         # Start queue processor in background thread
         queue_processor_thread = Thread(
@@ -285,7 +286,42 @@ async def startup_event():
             name="QueueProcessor"
         )
         queue_processor_thread.start()
+
+        # Wait for thread to start and verify it's alive
+        time.sleep(0.5)
+        if not queue_processor_thread.is_alive():
+            raise RuntimeError("Queue processor thread failed to start (not alive after 0.5s)")
+
         logger.info("[OK] Queue processor started in background thread")
+
+        # Verify ChannelQueueItem table exists
+        try:
+            from sqlalchemy import inspect
+            db = SessionLocal()
+            inspector = inspect(db.get_bind())
+            tables = inspector.get_table_names()
+            if 'channel_queue_item' not in tables:
+                logger.error("[Startup] ChannelQueueItem table missing from database schema")
+                logger.warning("[Startup] Queue processor cannot run without channel_queue_item table")
+            else:
+                logger.info("[OK] ChannelQueueItem table verified in database")
+            db.close()
+        except Exception as table_check_err:
+            logger.warning(f"[Startup] Could not verify ChannelQueueItem table: {table_check_err}")
+
+        # Verify critical handlers are registered
+        try:
+            from app.services.message_handler_registry import MessageHandlerRegistry
+            handlers = MessageHandlerRegistry.get_all_handlers()
+            critical_handlers = ['engage_candidate_with_thunder', 'create_candidate']
+            missing = [h for h in critical_handlers if h not in handlers]
+            if missing:
+                logger.warning(f"[Startup] Missing critical handlers: {missing}")
+                logger.warning(f"[Startup] Registered handlers: {list(handlers.keys())}")
+            else:
+                logger.info(f"[OK] All {len(handlers)} message handlers registered")
+        except Exception as handler_check_err:
+            logger.warning(f"[Startup] Could not verify handler registry: {handler_check_err}")
 
     except Exception as exc:
         logger.error(f"[Startup] Failed to start queue processor: {exc}", exc_info=True)

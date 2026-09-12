@@ -397,7 +397,7 @@ class QueueProcessorService:
                             f"Handler result: {handler_result}. FAILING message instead of completing."
                         )
                         message.status = QueueStatus.FAILED.value
-                        message.error_message = "Handler did not confirm message delivery"
+                        message.error = "Handler did not confirm message delivery"
                         message.last_attempted_at = datetime.utcnow()
                         result_data = {
                             "success": False,
@@ -645,9 +645,23 @@ class QueueProcessorService:
                     processor_stats["total_retried"] += batch_result["retried"]
                     processor_stats["total_failed"] += batch_result["failed"]
 
-                    # Log periodic stats
+                    # HEARTBEAT: Log every batch for monitoring
+                    logger.debug(
+                        f"[QueueProcessor] Batch {processor_stats['batches_processed']}: "
+                        f"processed={batch_result['processed']}, "
+                        f"completed={batch_result['completed']}, "
+                        f"failed={batch_result['failed']}, "
+                        f"retried={batch_result['retried']}"
+                    )
+
+                    # Log periodic stats (every 10 batches)
                     if processor_stats["batches_processed"] % 10 == 0:
-                        logger.info(f"[QueueProcessor] Processor stats: {processor_stats}")
+                        logger.info(
+                            f"[QueueProcessor] STATS (batch {processor_stats['batches_processed']}): "
+                            f"total_processed={processor_stats['total_messages']}, "
+                            f"total_completed={processor_stats['total_completed']}, "
+                            f"total_failed={processor_stats['total_failed']}"
+                        )
 
                     # HIGH FIX #12: Adaptive poll interval based on queue depth
                     # If queue empty, wait longer; if queue full, process faster
