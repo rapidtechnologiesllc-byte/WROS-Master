@@ -1218,3 +1218,233 @@ def get_candidate_contacts(
         "job_recruiter":      job_recruiter,
     }
 
+
+# ============================================
+# Message Display Endpoints (BLOCKER-1 FIX)
+# ============================================
+
+from pydantic import BaseModel
+from typing import List
+
+class MessageDeliveryResponse(BaseModel):
+    """Single message delivery record"""
+    id: int
+    delivery_type: str  # "whatsapp" | "email"
+    recipient: str
+    subject: Optional[str]
+    body: str
+    status: str  # "pending" | "sent" | "delivered" | "failed"
+    delivery_id: str
+    error: Optional[str]
+    created_at: datetime
+    sent_at: Optional[datetime]
+    delivered_at: Optional[datetime]
+
+    class Config:
+        from_attributes = True
+
+
+class MessagesResponse(BaseModel):
+    """List of messages for a candidate"""
+    candidate_id: str
+    total_messages: int
+    messages: List[MessageDeliveryResponse]
+
+
+@router.get(
+    "/{candidate_id}/messages",
+    response_model=MessagesResponse,
+    dependencies=[Depends(require_role_template_permission("candidates", "can_view"))],
+)
+def get_candidate_messages(
+    candidate_id: str,
+    db: Session = Depends(get_db),
+    user = Depends(get_current_user),
+):
+    """Get all messages (WhatsApp, Email) sent to a candidate."""
+    from app.models.message_delivery import MessageDeliveryLog
+    from app.models.candidate_ai import CandidateConversation
+
+    # Verify candidate exists
+    candidate = get_candidate_by_id_with_bu_scope(db, candidate_id, current_user=user)
+    if not candidate:
+        raise HTTPException(status_code=404, detail=f"Candidate {candidate_id} not found")
+
+    # Get all conversations for this candidate
+    conversations = db.query(CandidateConversation).filter(
+        CandidateConversation.candidate_id == candidate_id
+    ).all()
+
+    if not conversations:
+        return MessagesResponse(
+            candidate_id=candidate_id,
+            total_messages=0,
+            messages=[]
+        )
+
+    conversation_ids = [c.id for c in conversations]
+
+    # Get all message delivery logs for these conversations
+    messages = db.query(MessageDeliveryLog).filter(
+        MessageDeliveryLog.conversation_id.in_(conversation_ids)
+    ).order_by(MessageDeliveryLog.created_at.desc()).all()
+
+    return MessagesResponse(
+        candidate_id=candidate_id,
+        total_messages=len(messages),
+        messages=[
+            MessageDeliveryResponse(
+                id=m.id,
+                delivery_type=m.delivery_type,
+                recipient=m.recipient,
+                subject=m.subject,
+                body=m.body,
+                status=m.status,
+                delivery_id=m.delivery_id,
+                error=m.error,
+                created_at=m.created_at,
+                sent_at=m.sent_at,
+                delivered_at=m.delivered_at,
+            )
+            for m in messages
+        ]
+    )
+
+
+class ActivityFeedItemResponse(BaseModel):
+    """Single activity feed item"""
+    id: int
+    event_type: str
+    timestamp: datetime
+    description: str
+    event_data: Optional[dict]
+
+    class Config:
+        from_attributes = True
+
+
+class ActivityFeedResponse(BaseModel):
+    """Activity feed for a candidate"""
+    candidate_id: str
+    total_activities: int
+    activities: List[ActivityFeedItemResponse]
+
+
+@router.get(
+    "/{candidate_id}/activity-feed",
+    response_model=ActivityFeedResponse,
+    dependencies=[Depends(require_role_template_permission("candidates", "can_view"))],
+)
+def get_candidate_activity_feed(
+    candidate_id: str,
+    db: Session = Depends(get_db),
+    user = Depends(get_current_user),
+):
+    """Get activity timeline for a candidate (status changes, messages, interviews)."""
+    from app.models.activity_timeline import ActivityTimeline
+
+    # Verify candidate exists
+    candidate = get_candidate_by_id_with_bu_scope(db, candidate_id, current_user=user)
+    if not candidate:
+        raise HTTPException(status_code=404, detail=f"Candidate {candidate_id} not found")
+
+    # Get activity timeline for this candidate
+    activities = db.query(ActivityTimeline).filter(
+        ActivityTimeline.candidate_id == candidate_id
+    ).order_by(ActivityTimeline.timestamp.desc()).all()
+
+    return ActivityFeedResponse(
+        candidate_id=candidate_id,
+        total_activities=len(activities),
+        activities=[
+            ActivityFeedItemResponse(
+                id=a.id,
+                event_type=a.event_type,
+                timestamp=a.timestamp,
+                description=a.description or a.event_type,
+                event_data=a.event_data,
+            )
+            for a in activities
+        ]
+    )
+
+
+class EngagementTimelineResponse(BaseModel):
+    """Combined engagement timeline (messages + activities + interviews)"""
+    candidate_id: str
+    total_events: int
+    messages: List[MessageDeliveryResponse]
+    activities: List[ActivityFeedItemResponse]
+
+
+@router.get(
+    "/{candidate_id}/engagement-timeline",
+    response_model=EngagementTimelineResponse,
+    dependencies=[Depends(require_role_template_permission("candidates", "can_view"))],
+)
+def get_candidate_engagement_timeline(
+    candidate_id: str,
+    db: Session = Depends(get_db),
+    user = Depends(get_current_user),
+):
+    """Get complete engagement timeline combining messages and activity feed."""
+    from app.models.message_delivery import MessageDeliveryLog
+    from app.models.candidate_ai import CandidateConversation
+    from app.models.activity_timeline import ActivityTimeline
+
+    # Verify candidate exists
+    candidate = get_candidate_by_id_with_bu_scope(db, candidate_id, current_user=user)
+    if not candidate:
+        raise HTTPException(status_code=404, detail=f"Candidate {candidate_id} not found")
+
+    # Get conversations and messages
+    conversations = db.query(CandidateConversation).filter(
+        CandidateConversation.candidate_id == candidate_id
+    ).all()
+
+    messages = []
+    if conversations:
+        conversation_ids = [c.id for c in conversations]
+        messages_db = db.query(MessageDeliveryLog).filter(
+            MessageDeliveryLog.conversation_id.in_(conversation_ids)
+        ).order_by(MessageDeliveryLog.created_at.desc()).all()
+        messages = [
+            MessageDeliveryResponse(
+                id=m.id,
+                delivery_type=m.delivery_type,
+                recipient=m.recipient,
+                subject=m.subject,
+                body=m.body,
+                status=m.status,
+                delivery_id=m.delivery_id,
+                error=m.error,
+                created_at=m.created_at,
+                sent_at=m.sent_at,
+                delivered_at=m.delivered_at,
+            )
+            for m in messages_db
+        ]
+
+    # Get activities
+    activities_db = db.query(ActivityTimeline).filter(
+        ActivityTimeline.candidate_id == candidate_id
+    ).order_by(ActivityTimeline.timestamp.desc()).all()
+
+    activities = [
+        ActivityFeedItemResponse(
+            id=a.id,
+            event_type=a.event_type,
+            timestamp=a.timestamp,
+            description=a.description or a.event_type,
+            event_data=a.event_data,
+        )
+        for a in activities_db
+    ]
+
+    return EngagementTimelineResponse(
+        candidate_id=candidate_id,
+        total_events=len(messages) + len(activities),
+        messages=messages,
+        activities=activities,
+    )
+
