@@ -122,9 +122,9 @@ def _verify_migrations():
         missing = required - existing_columns
 
         if missing:
-            logger.warning(f"🚨 MIGRATION MISSING: {missing}. Run migrations to add these columns")
+            logger.warning(f"[ALERT] MIGRATION MISSING: {missing}. Run migrations to add these columns")
             return False
-        logger.info("✅ Database migrations verified")
+        logger.info("[OK] Database migrations verified")
         return True
     except Exception as e:
         logger.warning(f"Migration verification failed (non-blocking): {e}")
