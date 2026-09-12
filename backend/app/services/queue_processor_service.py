@@ -657,6 +657,7 @@ class QueueProcessorService:
                 # Mark COMPLETED only after validation passes
                 message.status = QueueStatus.COMPLETED.value
                 message.last_attempted_at = datetime.utcnow()  # HIGH FIX #8: Track completion time
+                message.handler_duration_ms = handler_duration_ms  # PHASE2C: Track actual handler duration
                 result_data = {
                     "success": True,
                     "data": handler_result,
@@ -774,11 +775,14 @@ class QueueProcessorService:
 
         except Exception as e:
             logger.error(f"[QueueProcessor] Unexpected error processing {message.id}: {e}", exc_info=True)
+            handler_duration_ms = int((time.time() - handler_start_time) * 1000)  # PHASE2C: Record duration even on failure
             message.status = QueueStatus.FAILED.value
             message.last_attempted_at = datetime.utcnow()  # HIGH FIX #8: Track failure time
+            message.handler_duration_ms = handler_duration_ms  # PHASE2C: Track actual handler duration
             message.result = json.dumps({
                 "error": QueueProcessorService._truncate_error_string(str(e)),
-                "failed_at": datetime.utcnow().isoformat()
+                "failed_at": datetime.utcnow().isoformat(),
+                "handler_duration_ms": handler_duration_ms
             })
             db.commit()
 

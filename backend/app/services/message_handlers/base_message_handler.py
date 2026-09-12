@@ -10,6 +10,7 @@ CRITICAL RULES:
 import logging
 import time
 import functools
+import threading
 from datetime import datetime, timedelta
 from typing import Callable, Any, Dict
 from sqlalchemy.orm import Session
@@ -29,44 +30,69 @@ class ValidationError(Exception):
 
 def time_bound(timeout_seconds: float = 15):
     """
-    Decorator to enforce timeout on handler execution.
+    Decorator to ENFORCE (not just monitor) timeout on handler execution.
+
+    Uses threading with join() timeout to actually interrupt hanging handlers.
+    If handler exceeds timeout, raises RuntimeError (retryable).
 
     Args:
         timeout_seconds: Maximum execution time (default 15 seconds)
 
     Raises:
-        TimeoutError: If execution exceeds timeout
+        RuntimeError: If execution exceeds timeout (handler hangs)
 
     Example:
         @time_bound(timeout_seconds=15)
         def process(message, db):
-            # Handler logic here - must complete within 15 seconds
+            # MUST complete within 15 seconds or raises RuntimeError
             pass
     """
     def decorator(func: Callable) -> Callable:
         @functools.wraps(func)
         def wrapper(*args, **kwargs) -> Any:
+            result = [None]
+            exception = [None]
             start_time = time.time()
 
-            try:
-                result = func(*args, **kwargs)
-                elapsed = time.time() - start_time
+            def target():
+                try:
+                    result[0] = func(*args, **kwargs)
+                except Exception as e:
+                    exception[0] = e
 
-                if elapsed > timeout_seconds:
-                    logger.warning(
-                        f"[TimeBinding] Handler {func.__name__} completed but took {elapsed:.2f}s "
-                        f"(timeout: {timeout_seconds}s). Consider optimizing DB queries or logic."
-                    )
+            # Run handler in thread
+            thread = threading.Thread(target=target, daemon=False)
+            thread.start()
+            thread.join(timeout=timeout_seconds)
 
-                return result
+            elapsed = time.time() - start_time
 
-            except Exception as e:
-                elapsed = time.time() - start_time
+            # Check if thread is still alive (timeout occurred)
+            if thread.is_alive():
                 logger.error(
-                    f"[TimeBinding] Handler {func.__name__} failed after {elapsed:.2f}s: {e}",
+                    f"[TIMEOUT-CRITICAL] Handler {func.__name__} EXCEEDED {timeout_seconds}s timeout! "
+                    f"Thread still running after {elapsed:.2f}s. Marking as FAILED for retry."
+                )
+                raise RuntimeError(
+                    f"Handler {func.__name__} exceeded {timeout_seconds}s timeout (still running after {elapsed:.2f}s)"
+                )
+
+            # If exception occurred in thread, re-raise it
+            if exception[0]:
+                logger.error(
+                    f"[Handler-Error] {func.__name__} failed after {elapsed:.2f}s: {exception[0]}",
                     exc_info=True
                 )
-                raise
+                raise exception[0]
+
+            # Success - log duration
+            if elapsed > timeout_seconds * 0.8:  # Warn if >80% of timeout
+                logger.warning(
+                    f"[Slow-Handler] {func.__name__} took {elapsed:.2f}s (timeout: {timeout_seconds}s). "
+                    f"Consider optimizing DB queries."
+                )
+
+            return result[0]
 
         return wrapper
     return decorator
