@@ -260,13 +260,13 @@ async def startup_event():
         result = await orchestrator.execute_auto_fix_cycle_with_slm()
 
         if result["status"] == "complete":
-            logger.info(f"✅ [AUTO-FIX] CYCLE COMPLETE: {result['before']} → {result['after']} hardcoded checks")
-            logger.info(f"✅ [AUTO-FIX] Files modified: {result['files_modified']}")
-            logger.info(f"✅ [AUTO-FIX] Verification: {result['verification']}")
+            logger.info(f"[OK] [AUTO-FIX] CYCLE COMPLETE: {result['before']} -> {result['after']} hardcoded checks")
+            logger.info(f"[OK] [AUTO-FIX] Files modified: {result['files_modified']}")
+            logger.info(f"[OK] [AUTO-FIX] Verification: {result['verification']}")
         elif result["status"] == "no_fixes_needed":
-            logger.info("✅ [AUTO-FIX] No hardcoded role checks found - codebase is clean")
+            logger.info("[OK] [AUTO-FIX] No hardcoded role checks found - codebase is clean")
         else:
-            logger.warning(f"⚠️  [AUTO-FIX] Status: {result['status']}")
+            logger.warning(f"[WARN] [AUTO-FIX] Status: {result['status']}")
     except Exception as exc:
         logger.error(f"[Startup] Auto-fix cycle failed: {exc}", exc_info=True)
         # Don't crash startup if auto-fix fails, but log it clearly

@@ -67,7 +67,7 @@ router = APIRouter(prefix="/thunder", tags=["thunder"])
         "Sends `message` as if it came from a candidate over WhatsApp, generates "
         "Thunder's reply with the real LLM (Gemini) using the candidate's full "
         "cross-channel context, and sends it back through the real, governed send "
-        "path â€" R-08 ownership lock, consent, and the 60s duplicate-message "
+        "path - R-08 ownership lock, consent, and the 60s duplicate-message "
         "debounce all still apply. Only the outbound WhatsApp transport is mocked "
         "(no live WhatsApp Business API is provisioned in this codebase)."
     ),
@@ -122,7 +122,7 @@ def get_test_chat_history_endpoint(
     summary="Start a fresh Test Thunder conversation",
     description=(
         "Closes the current tester's test conversation so the next message "
-        "starts a clean thread. Nothing is deleted â€" the prior conversation and "
+        "starts a clean thread. Nothing is deleted - the prior conversation and "
         "its events stay in the database."
     ),
 )
