@@ -4,7 +4,8 @@ from typing import Dict, Any
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError, OperationalError
 from app.models.user import Jobs, Users
-from datetime import datetime
+from datetime import datetime, timedelta
+from app.services.message_handlers.base_message_handler import time_bound
 
 logger = logging.getLogger(__name__)
 
@@ -16,6 +17,7 @@ class JobUpdateFlashHandler:
     RETRY_DELAY_MINUTES = 15
 
     @staticmethod
+    @time_bound(timeout_seconds=15)
     def process(message: Any, db: Session) -> Dict[str, Any]:
         """
         Process: Update existing job from queue payload
@@ -178,3 +180,136 @@ class JobUpdateFlashHandler:
             db.rollback()
             logger.error(f"[JobUpdateFlash] Unexpected error: {e}", exc_info=True)
             raise RuntimeError(f"Unexpected error: {str(e)}") from e
+
+    @staticmethod
+    def should_retry(message: Any) -> bool:
+        """Determine if message should be retried."""
+        if message.retry_count >= JobUpdateFlashHandler.MAX_RETRIES:
+            logger.error(f"[JobUpdateFlash] Max retries exceeded for {message.id}")
+            return False
+
+        if hasattr(message, 'next_retry_at') and message.next_retry_at:
+            if datetime.utcnow() < message.next_retry_at:
+                return False
+
+        return True
+
+    @staticmethod
+    def on_retry(message: Any, error: str, db: Session) -> None:
+        """Schedule message for retry after failed attempt."""
+        try:
+            db.rollback()
+
+            message.retry_count += 1
+            message.error = error[:1000] if error else "Unknown error"
+            message.next_retry_at = datetime.utcnow() + timedelta(
+                minutes=JobUpdateFlashHandler.RETRY_DELAY_MINUTES
+            )
+
+            db.commit()
+            logger.info(
+                f"[JobUpdateFlash] Scheduled retry for {message.id}: "
+                f"retry_count={message.retry_count}/{JobUpdateFlashHandler.MAX_RETRIES}"
+            )
+        except Exception as e:
+            db.rollback()
+            logger.error(f"[JobUpdateFlash] Failed to schedule retry: {e}", exc_info=True)
+            raise RuntimeError(f"Failed to schedule retry: {str(e)}") from e
+
+    @staticmethod
+    def on_success(message: Any, result: Dict[str, Any], db: Session) -> None:
+        """Handle successful message processing with validation before marking COMPLETED."""
+        try:
+            # ===== VALIDATION STEP 1: Check result structure =====
+            if not isinstance(result, dict):
+                raise ValueError(f"Handler returned invalid type: {type(result)}")
+
+            required_fields = ['job_id', 'status']
+            for field in required_fields:
+                if field not in result:
+                    raise ValueError(f"Handler result missing required field: {field}")
+                if not result[field]:
+                    raise ValueError(f"Handler result has empty field: {field}")
+
+            job_id = result['job_id']
+            logger.info(f"[Handler] ✅ Step 1: Result structure valid (job_id={job_id})")
+
+            # ===== VALIDATION STEP 2: Database verification =====
+            # Query to verify job actually exists in database
+            job = db.query(Jobs).filter(Jobs.jobID == job_id).first()
+
+            if not job:
+                raise RuntimeError(
+                    f"Record {job_id} not found in database after handler completed. "
+                    f"Handler returned ID but record was not persisted."
+                )
+
+            logger.info(f"[Handler] ✅ Step 2: Database verification passed, job exists")
+
+            # ===== VALIDATION STEP 3: Related records consistency =====
+            # Verify updates persisted (spot-check first updated field)
+            updated_fields = result.get('updated_fields', [])
+            if updated_fields:
+                new_values = result.get('new_values', {})
+                first_field = updated_fields[0]
+                if first_field in new_values:
+                    expected_value = new_values[first_field]
+                    persisted_value = getattr(job, first_field, None)
+                    if persisted_value != expected_value:
+                        raise RuntimeError(
+                            f"Update validation failed: {first_field} not persisted correctly "
+                            f"(expected={expected_value}, got={persisted_value})"
+                        )
+
+            logger.info(f"[Handler] ✅ Step 3: Related records valid, updates persisted")
+
+            # ===== FINAL: Mark COMPLETED after all validations pass =====
+            message.status = "COMPLETED"
+            message.completed_at = datetime.utcnow()
+            message.result = result
+
+            try:
+                db.commit()
+            except Exception as commit_err:
+                db.rollback()
+                raise RuntimeError(f"Failed to commit success status: {str(commit_err)}") from commit_err
+
+            logger.info(f"[Handler] ✅✅✅ ALL VALIDATIONS PASSED - Message marked COMPLETED")
+
+        except ValueError as e:
+            # Non-retryable error
+            db.rollback()
+            logger.error(f"[Handler] ❌ NON-RETRYABLE validation failure: {e}")
+            raise
+
+        except RuntimeError as e:
+            # Retryable error
+            db.rollback()
+            logger.error(f"[Handler] ❌ RETRYABLE validation failure: {e}")
+            raise
+
+        except Exception as e:
+            # Unexpected error
+            db.rollback()
+            logger.error(f"[Handler] ❌ Unexpected validation error: {e}", exc_info=True)
+            raise RuntimeError(f"Validation error: {str(e)}") from e
+
+    @staticmethod
+    def on_failed(message: Any, final_error: str, db: Session) -> None:
+        """Mark message as FAILED after all retries exhausted."""
+        try:
+            db.rollback()
+
+            message.status = "FAILED"
+            message.error = final_error[:1000] if final_error else "Unknown error"
+            message.completed_at = datetime.utcnow()
+
+            db.commit()
+            logger.error(
+                f"[JobUpdateFlash] Message {message.id} FAILED after "
+                f"{message.retry_count} retries: {final_error}"
+            )
+        except Exception as e:
+            db.rollback()
+            logger.error(f"[JobUpdateFlash] Failed to mark as FAILED: {e}", exc_info=True)
+            raise

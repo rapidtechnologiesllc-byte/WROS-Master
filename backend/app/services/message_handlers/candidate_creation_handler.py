@@ -17,6 +17,7 @@ from app.models.candidate import Candidate, CandidateStatus, CandidateEducationF
 from app.services.candidate_service import create_candidate_safe, DuplicateCandidateError
 from app.services.data_healer_service import DataHealerService
 from app.services.message_queue_service import MessageQueueService
+from app.services.message_handlers.base_message_handler import time_bound
 
 logger = logging.getLogger(__name__)
 
@@ -28,6 +29,7 @@ class CandidateCreationHandler:
     RETRY_DELAY_MINUTES = 30
 
     @staticmethod
+    @time_bound(timeout_seconds=15)
     def process(message: ChannelQueueItem, db: Session) -> Dict[str, Any]:
         """Process candidate creation message - creates ALL records asynchronously.
 
@@ -437,28 +439,111 @@ class CandidateCreationHandler:
 
     @staticmethod
     def on_success(message: ChannelQueueItem, result: Dict[str, Any], db: Session) -> None:
-        """Handle successful message processing - queue candidate to Thunder for autonomous engagement."""
-        message.status = "COMPLETED"
-        message.completed_at = datetime.utcnow()
-        message.result = result
+        """Handle successful message processing with validation before marking COMPLETED."""
         try:
-            db.commit()
-        except Exception as e:
-            db.rollback()
-            logger.error(f"[Handler] Failed to mark success: {e}", exc_info=True)
-            raise
+            # ===== VALIDATION STEP 1: Check result structure =====
+            if not isinstance(result, dict):
+                raise ValueError(f"Handler returned invalid type: {type(result)}")
 
-        # Queue candidate to Thunder for autonomous engagement
-        candidate_id = result.get('candidate_id')
-        if candidate_id:
-            try:
-                MessageQueueService.enqueue(
-                    task_name='engage_candidate_with_thunder',
-                    data={'candidate_id': candidate_id}
+            required_fields = ['candidate_id', 'status', 'is_new']
+            for field in required_fields:
+                if field not in result:
+                    raise ValueError(f"Handler result missing required field: {field}")
+                if result[field] is None and field != 'is_new':
+                    raise ValueError(f"Handler result has null field: {field}")
+
+            candidate_id = result['candidate_id']
+            logger.info(f"[Handler] ✅ Step 1: Result structure valid (candidate_id={candidate_id})")
+
+            # ===== VALIDATION STEP 2: Database verification =====
+            # Query to verify candidate actually exists in database
+            candidate = db.query(Candidate).filter(
+                Candidate.candidateID == candidate_id
+            ).first()
+
+            if not candidate:
+                raise RuntimeError(
+                    f"Record {candidate_id} not found in database after handler completed. "
+                    f"Handler returned ID but record was not persisted."
                 )
-                logger.info(f"[Handler] Candidate {candidate_id} queued to THUNDER_QUEUE for autonomous engagement")
-            except Exception as e:
-                logger.error(f"[Handler] Failed to queue candidate {candidate_id} to Thunder: {e}", exc_info=True)
+
+            logger.info(f"[Handler] ✅ Step 2: Database verification passed, candidate exists")
+
+            # ===== VALIDATION STEP 3: Related records consistency =====
+            # Verify status record exists
+            status = db.query(CandidateStatus).filter(
+                CandidateStatus.candidateID == candidate_id
+            ).first()
+
+            if not status:
+                raise RuntimeError(
+                    f"Required status record missing for {candidate_id}. "
+                    f"Candidate exists but status was not created."
+                )
+
+            if status.piplineStatus != "Applied":
+                raise RuntimeError(
+                    f"Status is '{status.piplineStatus}', expected 'Applied'. "
+                    f"Pipeline state incorrect."
+                )
+
+            logger.info(f"[Handler] ✅ Step 3: Related records valid, status exists and correct")
+
+            # ===== VALIDATION STEP 4: Data integrity =====
+            # Verify email matches what was in payload
+            payload = message.payload
+            expected_email = payload.get('candidate_email')
+            if expected_email and candidate.candidateEmail != expected_email:
+                raise RuntimeError(
+                    f"Email mismatch: handler created with '{candidate.candidateEmail}' "
+                    f"but payload specified '{expected_email}'. "
+                    f"Data corruption detected."
+                )
+
+            logger.info(f"[Handler] ✅ Step 4: Data integrity verified, email matches")
+
+            # ===== FINAL: Mark COMPLETED after all validations pass =====
+            message.status = "COMPLETED"
+            message.completed_at = datetime.utcnow()
+            message.result = result
+
+            try:
+                db.commit()
+            except Exception as commit_err:
+                db.rollback()
+                raise RuntimeError(f"Failed to commit success status: {str(commit_err)}") from commit_err
+
+            logger.info(f"[Handler] ✅✅✅ ALL VALIDATIONS PASSED - Message marked COMPLETED")
+
+            # ===== QUEUE DEPENDENT WORK (after validation confirms success) =====
+            # Queue candidate to Thunder for autonomous engagement
+            if candidate_id:
+                try:
+                    MessageQueueService.enqueue(
+                        task_name='engage_candidate_with_thunder',
+                        data={'candidate_id': candidate_id}
+                    )
+                    logger.info(f"[Handler] Candidate {candidate_id} queued to THUNDER_QUEUE for autonomous engagement")
+                except Exception as e:
+                    logger.error(f"[Handler] Failed to queue candidate {candidate_id} to Thunder: {e}", exc_info=True)
+
+        except ValueError as e:
+            # Non-retryable error (handler code bug)
+            db.rollback()
+            logger.error(f"[Handler] ❌ NON-RETRYABLE validation failure: {e}")
+            raise  # Will be caught by processor
+
+        except RuntimeError as e:
+            # Retryable error (temporary DB issue)
+            db.rollback()
+            logger.error(f"[Handler] ❌ RETRYABLE validation failure: {e}")
+            raise  # Will be caught by processor
+
+        except Exception as e:
+            # Unexpected error
+            db.rollback()
+            logger.error(f"[Handler] ❌ Unexpected validation error: {e}", exc_info=True)
+            raise RuntimeError(f"Validation error: {str(e)}") from e
 
     @staticmethod
     def on_failed(message: ChannelQueueItem, final_error: str, db: Session) -> None:

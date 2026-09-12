@@ -6,7 +6,7 @@ Implements idempotent candidate-to-employee conversion through message queue.
 - Creates employee record atomically
 """
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any, Dict
 
 from sqlalchemy.orm import Session
@@ -16,6 +16,7 @@ from app.models.channel_queue import ChannelQueueItem
 from app.models.candidate import Candidate, CandidateStatus
 from app.models.employee import Employee
 from app.models.candidate_ai import ConversationEvent
+from app.services.message_handlers.base_message_handler import time_bound
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +28,7 @@ class CandidateConversionHandler:
     RETRY_DELAY_MINUTES = 30
 
     @staticmethod
+    @time_bound(timeout_seconds=15)
     def process(
         message: ChannelQueueItem,
         db: Session,
@@ -199,24 +201,108 @@ class CandidateConversionHandler:
 
     @staticmethod
     def on_success(message: ChannelQueueItem, result: Dict[str, Any], db: Session) -> None:
-        """Handle successful message processing."""
-        message.status = "COMPLETED"
-        message.completed_at = datetime.utcnow()
-        message.result = result
-
+        """Handle successful message processing with validation before marking COMPLETED."""
         try:
-            db.commit()
-        except Exception as e:
-            db.rollback()
-            logger.error(
-                f"[CandidateConversionHandler] Failed to mark message {message.id} as completed: {e}",
-                exc_info=True,
-            )
-            raise RuntimeError(f"Failed to mark success: {str(e)}") from e
+            # ===== VALIDATION STEP 1: Check result structure =====
+            if not isinstance(result, dict):
+                raise ValueError(f"Handler returned invalid type: {type(result)}")
 
-        logger.info(
-            f"[CandidateConversionHandler] Message {message.id} completed successfully"
-        )
+            required_fields = ['candidate_id', 'employee_id', 'status']
+            for field in required_fields:
+                if field not in result:
+                    raise ValueError(f"Handler result missing required field: {field}")
+                if not result[field]:
+                    raise ValueError(f"Handler result has empty field: {field}")
+
+            candidate_id = result['candidate_id']
+            employee_id = result['employee_id']
+            logger.info(f"[Handler] ✅ Step 1: Result structure valid (candidate_id={candidate_id}, employee_id={employee_id})")
+
+            # ===== VALIDATION STEP 2: Database verification - candidate exists =====
+            candidate = db.query(Candidate).filter(
+                Candidate.candidateID == candidate_id
+            ).first()
+
+            if not candidate:
+                raise RuntimeError(
+                    f"Record {candidate_id} not found in database after handler completed. "
+                    f"Handler returned ID but record was not persisted."
+                )
+
+            logger.info(f"[Handler] ✅ Step 2a: Database verification passed, candidate exists")
+
+            # ===== VALIDATION STEP 2b: Database verification - employee exists =====
+            employee = db.query(Employee).filter(Employee.id == employee_id).first()
+
+            if not employee:
+                raise RuntimeError(
+                    f"Employee {employee_id} not found in database after conversion. "
+                    f"Handler returned ID but employee record was not created."
+                )
+
+            logger.info(f"[Handler] ✅ Step 2b: Database verification passed, employee exists")
+
+            # ===== VALIDATION STEP 3: Related records consistency =====
+            # Verify candidate status was updated to EMPLOYEE
+            status = db.query(CandidateStatus).filter(
+                CandidateStatus.candidateID == candidate_id
+            ).first()
+
+            if not status:
+                raise RuntimeError(
+                    f"Required status record missing for {candidate_id}. "
+                    f"Candidate exists but status was not created."
+                )
+
+            if status.piplineStatus != "EMPLOYEE":
+                raise RuntimeError(
+                    f"Candidate {candidate_id} status is '{status.piplineStatus}', "
+                    f"expected 'EMPLOYEE'. Conversion not properly recorded."
+                )
+
+            logger.info(f"[Handler] ✅ Step 3: Related records valid, status updated to EMPLOYEE")
+
+            # ===== VALIDATION STEP 4: Data integrity =====
+            # Verify employee details match candidate
+            if employee.email != candidate.candidateEmail:
+                raise RuntimeError(
+                    f"Email mismatch: employee has '{employee.email}' "
+                    f"but candidate has '{candidate.candidateEmail}'. "
+                    f"Data corruption detected."
+                )
+
+            logger.info(f"[Handler] ✅ Step 4: Data integrity verified, email matches")
+
+            # ===== FINAL: Mark COMPLETED after all validations pass =====
+            message.status = "COMPLETED"
+            message.completed_at = datetime.utcnow()
+            message.result = result
+
+            try:
+                db.commit()
+            except Exception as commit_err:
+                db.rollback()
+                raise RuntimeError(f"Failed to commit success status: {str(commit_err)}") from commit_err
+
+            logger.info(f"[Handler] ✅✅✅ ALL VALIDATIONS PASSED - Message marked COMPLETED")
+
+        except ValueError as e:
+            # Non-retryable error (handler code bug)
+            db.rollback()
+            logger.error(f"[Handler] ❌ NON-RETRYABLE validation failure: {e}")
+            raise  # Will be caught by processor
+
+        except RuntimeError as e:
+            # Retryable error (temporary DB issue)
+            db.rollback()
+            logger.error(f"[Handler] ❌ RETRYABLE validation failure: {e}")
+            raise  # Will be caught by processor
+
+        except Exception as e:
+            # Unexpected error
+            db.rollback()
+            logger.error(f"[Handler] ❌ Unexpected validation error: {e}", exc_info=True)
+            raise RuntimeError(f"Validation error: {str(e)}") from e
 
     @staticmethod
     def on_failed(message: ChannelQueueItem, final_error: str, db: Session) -> None:
