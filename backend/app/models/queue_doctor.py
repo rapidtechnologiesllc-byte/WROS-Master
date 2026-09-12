@@ -53,6 +53,24 @@ class QueueDoctorState(Base):
     healing_succeeded = Column(Boolean, nullable=True)
     healing_strategy = Column(String(100), nullable=True)  # ALTERNATIVE_CONTACT, DATA_CORRECTION, SERVICE_RETRY, ESCALATE
 
+    # Diagnosis fields (Phase 3 - Stale Detection)
+    diagnosed_at = Column(DateTime, nullable=True)  # When diagnosis ran
+    diagnosis_classification = Column(String(100), nullable=True)  # TIMEOUT_LOOP, LARGE_PAYLOAD, DB_POOL, MISSING_DEPENDENCY, TRANSACTION_DEADLOCK, STATE_CORRUPTION, RESOURCE_EXHAUSTION, UNKNOWN
+    safety_score = Column(Integer, nullable=True)  # 0-100: how safe is it to auto-recover?
+    root_cause = Column(Text, nullable=True)  # Detailed root cause analysis
+    recommended_action = Column(String(200), nullable=True)  # What should be done about this message
+
+    # Recovery fields (Phase 3 - Recovery Attempts)
+    recovery_attempted_at = Column(DateTime, nullable=True)  # When recovery attempt started
+    recovery_action = Column(String(100), nullable=True)  # Action taken: TIMEOUT_EXTEND, PAYLOAD_SPLIT, DELAY, DEPENDENCY_QUEUE, ROLLBACK
+    recovery_succeeded = Column(Boolean, nullable=True)  # Did recovery work?
+    recovery_details = Column(Text, nullable=True)  # Details about recovery attempt
+
+    # Escalation fields (Phase 3 - Ops Escalation)
+    escalated_at = Column(DateTime, nullable=True)  # When escalated to ops
+    escalation_reason = Column(Text, nullable=True)  # Why was this escalated?
+    ops_alert_task_id = Column(String(512), nullable=True)  # Reference to ops_alert task queued
+
     # Audit
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())

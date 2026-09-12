@@ -85,6 +85,7 @@ class ChannelQueueItem(Base):
 
     # Timestamps
     processed_at = Column(DateTime(timezone=False), nullable=True)
+    processing_started_at = Column(DateTime(timezone=False), nullable=True)  # When message transitioned to PROCESSING (for stale detection)
     completed_at = Column(DateTime(timezone=False), nullable=True)  # When processing completed (success or failure)
     created_at = Column(DateTime(timezone=False), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=False), server_default=func.now(), onupdate=func.now(), nullable=False)

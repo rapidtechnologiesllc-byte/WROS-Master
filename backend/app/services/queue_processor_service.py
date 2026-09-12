@@ -73,6 +73,167 @@ class QueueProcessorService:
         return error
 
     @staticmethod
+    def process_stale_messages(db: Session) -> Dict[str, Any]:
+        """
+        Phase 3 + Phase 4: Detect stuck messages and attempt tiered recovery.
+
+        Runs at regular intervals to:
+        1. Find messages stuck > 5 minutes in PROCESSING status
+        2. Diagnose why they're stuck
+        3. Attempt safe recovery if safety_score >= 80
+        4. Escalate to ops if recovery fails or not safe
+
+        Timeline integration points:
+        - T+5m: diagnose_stuck_message() - understand what's wrong
+        - T+8m: attempt_safe_recovery() - try automatic fix if safety_score >= 80
+        - T+12m: escalate_to_ops() - alert ops with diagnosis if needed
+        - T+15m: final escalation - all messages stuck > 15m escalated
+        """
+        from app.services.queue_doctor_service import QueueDoctorService
+        from app.models.queue_doctor import QueueDoctorState
+
+        stats = {
+            'checked': 0,
+            'diagnosed': 0,
+            'recovered': 0,
+            'escalated': 0,
+            'errors': []
+        }
+
+        try:
+            now = datetime.utcnow()
+
+            # Find all PROCESSING messages
+            processing_messages = db.query(ChannelQueueItem).filter(
+                ChannelQueueItem.status == 'PROCESSING'
+            ).all()
+
+            for message in processing_messages:
+                try:
+                    # Calculate how long message has been in PROCESSING
+                    message_age_seconds = int((now - message.processing_started_at).total_seconds()) if message.processing_started_at else 0
+
+                    if message_age_seconds < 300:  # Less than 5 minutes
+                        continue
+
+                    stats['checked'] += 1
+
+                    # Get or create doctor state
+                    doctor_state = db.query(QueueDoctorState).filter(
+                        QueueDoctorState.message_id == message.id
+                    ).first()
+
+                    if not doctor_state:
+                        doctor_state = QueueDoctorState(
+                            id=f"qds-{uuid.uuid4().hex[:12]}",
+                            message_id=message.id,
+                            message_type=message.type,
+                            queued_at=message.created_at,
+                            status="PROCESSING"
+                        )
+                        db.add(doctor_state)
+                        db.commit()
+
+                    # ========== TIMELINE CHECK 1: T+5m - DIAGNOSE ==========
+                    if message_age_seconds >= 300 and not doctor_state.diagnosed_at:
+                        logger.warning(f"[StaleDetector] Message {message.id} stuck {message_age_seconds}s - diagnosing")
+
+                        diagnosis = QueueDoctorService.diagnose_stuck_message(
+                            message=message,
+                            doctor_state=doctor_state,
+                            db=db
+                        )
+                        stats['diagnosed'] += 1
+
+                    # ========== TIMELINE CHECK 2: T+8m - ATTEMPT SAFE RECOVERY ==========
+                    elif message_age_seconds >= 480 and doctor_state.diagnosed_at and not doctor_state.recovery_attempted_at:
+                        logger.warning(f"[StaleDetector] Message {message.id} stuck {message_age_seconds}s - attempting recovery")
+
+                        diagnosis = {
+                            'error_classification': doctor_state.diagnosis_classification,
+                            'safety_score': doctor_state.safety_score,
+                            'root_cause': doctor_state.root_cause,
+                            'recommended_action': doctor_state.recommended_action
+                        }
+
+                        recovery_result = QueueDoctorService.attempt_safe_recovery(
+                            diagnosis=diagnosis,
+                            message=message,
+                            doctor_state=doctor_state,
+                            db=db
+                        )
+
+                        if recovery_result.get('success'):
+                            stats['recovered'] += 1
+
+                    # ========== TIMELINE CHECK 3: T+12m - ESCALATE IF RECOVERY FAILED ==========
+                    elif message_age_seconds >= 720 and doctor_state.recovery_attempted_at and not doctor_state.recovery_succeeded and not doctor_state.escalated_at:
+                        logger.critical(f"[StaleDetector] Message {message.id} recovery failed - escalating to ops")
+
+                        diagnosis = {
+                            'error_classification': doctor_state.diagnosis_classification,
+                            'safety_score': doctor_state.safety_score,
+                            'root_cause': doctor_state.root_cause,
+                            'recommended_action': doctor_state.recommended_action,
+                            'diagnostic_summary': f"Message stuck {message_age_seconds}s. Recovery attempted but failed."
+                        }
+
+                        recovery_result = {
+                            'action_taken': doctor_state.recovery_action,
+                            'success': False,
+                            'reason': doctor_state.recovery_details or 'Recovery failed'
+                        }
+
+                        QueueDoctorService.escalate_to_ops(
+                            diagnosis=diagnosis,
+                            message=message,
+                            recovery_result=recovery_result,
+                            doctor_state=doctor_state,
+                            db=db
+                        )
+                        stats['escalated'] += 1
+
+                    # ========== TIMELINE CHECK 4: T+15m - FINAL ESCALATION ==========
+                    elif message_age_seconds >= 900 and not doctor_state.escalated_at:
+                        logger.critical(f"[StaleDetector] Message {message.id} stuck {message_age_seconds}s - FINAL ESCALATION")
+
+                        diagnosis = {
+                            'error_classification': doctor_state.diagnosis_classification or 'UNKNOWN',
+                            'safety_score': doctor_state.safety_score or 0,
+                            'root_cause': doctor_state.root_cause or 'Unknown - message stuck > 15 minutes',
+                            'recommended_action': 'Manual intervention required',
+                            'diagnostic_summary': f"Message stuck {message_age_seconds}s - exceeded 15-minute threshold"
+                        }
+
+                        recovery_result = {
+                            'action_taken': None,
+                            'success': False,
+                            'reason': 'Message exceeded 15-minute processing limit'
+                        }
+
+                        QueueDoctorService.escalate_to_ops(
+                            diagnosis=diagnosis,
+                            message=message,
+                            recovery_result=recovery_result,
+                            doctor_state=doctor_state,
+                            db=db
+                        )
+                        stats['escalated'] += 1
+
+                except Exception as msg_err:
+                    logger.error(f"[StaleDetector] Error processing message {message.id}: {msg_err}", exc_info=True)
+                    stats['errors'].append(str(msg_err))
+
+            logger.info(f"[StaleDetector] Stale detection complete: {stats}")
+            return stats
+
+        except Exception as e:
+            logger.error(f"[StaleDetector] Batch processing failed: {e}", exc_info=True)
+            db.rollback()
+            stats['errors'].append(str(e))
+            return stats
+
+    @staticmethod
     def _calculate_adaptive_batch_size(db: Session, base_batch_size: int = BATCH_SIZE) -> int:
         """HIGH FIX #11: Calculate optimal batch size based on queue depth for adaptive throughput"""
         try:
@@ -241,6 +402,7 @@ class QueueProcessorService:
                 logger.info(f"[QueueProcessor] Message {message.id} waiting for SLM - routing to slm_generate_email handler")
                 try:
                     message.status = QueueStatus.PROCESSING.value
+                    message.processing_started_at = datetime.utcnow()  # Phase 3: Track when processing begins
                     message.last_attempted_at = datetime.utcnow()
                     db.commit()
 
@@ -279,6 +441,7 @@ class QueueProcessorService:
 
             # Mark as PROCESSING
             message.status = QueueStatus.PROCESSING.value
+            message.processing_started_at = datetime.utcnow()  # Phase 3: Track when processing begins (for stale detection)
             message.last_attempted_at = datetime.utcnow()
             db.commit()
 
