@@ -114,7 +114,7 @@ def _verify_migrations():
 
         inspector = sqlalchemy_inspect(engine)
         if not inspector.has_table('channel_queue_item'):
-            logger.warning("🚨 MIGRATION MISSING: channel_queue_item table not found")
+            logger.warning("[MIGRATION] CRITICAL: channel_queue_item table not found")
             return False
 
         existing_columns = {col['name'] for col in inspector.get_columns('channel_queue_item')}

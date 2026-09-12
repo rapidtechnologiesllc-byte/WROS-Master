@@ -154,12 +154,15 @@ def _initialize_default_handlers():
 
 
 def _handle_thunder_engagement(message: Any, db: Session) -> Dict[str, Any]:
-    """Handle Thunder engagement messages."""
+    """Handle Thunder engagement messages with timeout protection."""
+    import threading
+    import time
     from app.models.candidate import Candidate
     from app.models.candidate_ai import CandidateConversation
     from app.services.thunder_service import send_thunder_message, has_active_consent
 
     candidate_id = message.payload.get('candidate_id')
+    SEND_MESSAGE_TIMEOUT = 10  # 10 second max for sending message
 
     try:
         # 1. Get candidate
@@ -197,14 +200,33 @@ def _handle_thunder_engagement(message: Any, db: Session) -> Dict[str, Any]:
                 else:
                     logger.info(f"[Thunder] Using SLM-generated email for {candidate_id} ({len(initial_message)} chars)")
 
-                send_thunder_message(
-                    db=db,
-                    conversation=conversation,
-                    candidate=candidate,
-                    message_body=initial_message,
-                    sender_type="ai_agent",
-                    channel="whatsapp"
-                )
+                # TIMEOUT PROTECTION: Send message in thread with timeout
+                send_result = {'success': False, 'exception': None}
+
+                def _send_with_timeout():
+                    try:
+                        send_thunder_message(
+                            db=db,
+                            conversation=conversation,
+                            candidate=candidate,
+                            message_body=initial_message,
+                            sender_type="ai_agent",
+                            channel="whatsapp"
+                        )
+                        send_result['success'] = True
+                    except Exception as e:
+                        send_result['exception'] = e
+
+                send_thread = threading.Thread(target=_send_with_timeout, daemon=True)
+                send_thread.start()
+                send_thread.join(timeout=SEND_MESSAGE_TIMEOUT)
+
+                if send_thread.is_alive():
+                    raise RuntimeError(f"Thunder message send timed out after {SEND_MESSAGE_TIMEOUT}s for {candidate_id}")
+
+                if send_result['exception']:
+                    raise send_result['exception']
+
                 db.commit()
                 logger.info(f"[Thunder] Sent initial message to {candidate_id}")
                 message_sent = True
