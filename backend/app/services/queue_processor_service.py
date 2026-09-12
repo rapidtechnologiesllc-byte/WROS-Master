@@ -56,6 +56,7 @@ class QueueProcessorService:
     HANDLER_TIMEOUT_SECONDS = 30  # Max time for any handler to complete before timeout
     MAX_RESULT_SIZE_BYTES = 5 * 1024 * 1024  # 5MB max for result JSON (HIGH FIX #14: Prevent DB truncation)
     MAX_ERROR_SIZE_BYTES = 10 * 1024  # 10KB max for error field (HIGH FIX #7: Prevent JSON corruption)
+    MAX_PAYLOAD_SIZE_BYTES = 10 * 1024 * 1024  # 10MB max payload (PHASE3.6: Prevent JSON parser crash)
 
     # Exponential backoff multiplier
     RETRY_BACKOFF_MULTIPLIER = 2
@@ -394,7 +395,24 @@ class QueueProcessorService:
         Returns result dict with status and outcome.
         """
         import time
+        import json
         handler_start_time = time.time()
+
+        # PHASE3.6: Validate payload size to prevent JSON parser crash
+        if message.payload:
+            try:
+                payload_json = json.dumps(message.payload)
+                payload_size = len(payload_json.encode('utf-8'))
+                if payload_size > QueueProcessorService.MAX_PAYLOAD_SIZE_BYTES:
+                    raise RuntimeError(
+                        f"Payload too large ({payload_size / (1024*1024):.1f}MB, max {QueueProcessorService.MAX_PAYLOAD_SIZE_BYTES / (1024*1024):.0f}MB). "
+                        f"Message rejected for safety."
+                    )
+            except RuntimeError:
+                raise
+            except Exception as e:
+                logger.error(f"[QueueProcessor] Error validating payload size: {e}")
+                # Continue anyway, handler will deal with it
 
         try:
             # ========== PHASE 2: Route WAITING_FOR_SLM messages ==========
@@ -940,5 +958,30 @@ def queue_processor_task():
     try:
         result = QueueProcessorService.process_queue_batch(db)
         return result
+    finally:
+        db.close()
+
+
+# PHASE3.5: Dead Letter Queue Cleanup
+def cleanup_dead_letter_queue():
+    """
+    Periodically delete failed messages older than 7 days.
+    Prevents storage leaks from accumulating dead messages.
+    """
+    from app.models.channel_queue import ChannelQueueItem
+    db = SessionLocal()
+    try:
+        cutoff_date = datetime.utcnow() - timedelta(days=7)
+        deleted_count = db.query(ChannelQueueItem).filter(
+            ChannelQueueItem.status == QueueStatus.FAILED.value,
+            ChannelQueueItem.created_at < cutoff_date
+        ).delete()
+        db.commit()
+        logger.info(f"[DLQ-Cleanup] Deleted {deleted_count} failed messages older than 7 days")
+        return {"deleted": deleted_count}
+    except Exception as e:
+        logger.error(f"[DLQ-Cleanup] Error deleting old messages: {e}", exc_info=True)
+        db.rollback()
+        raise
     finally:
         db.close()
