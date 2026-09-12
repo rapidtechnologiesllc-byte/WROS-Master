@@ -24,6 +24,7 @@ class ErrorClassification(str, Enum):
     TRANSACTION_DEADLOCK = "TRANSACTION_DEADLOCK"  # Database transaction deadlock
     STATE_CORRUPTION = "STATE_CORRUPTION"  # Data inconsistency or corruption
     RESOURCE_EXHAUSTION = "RESOURCE_EXHAUSTION"  # Memory, CPU, or other resource limits
+    DELIVERY_FAILURE = "DELIVERY_FAILURE"  # Message created but delivery failed (Twilio/SendGrid/etc)
     UNKNOWN = "UNKNOWN"  # Unable to classify
 
 
@@ -121,6 +122,15 @@ class StaleMessageDetector:
                 'root_cause': 'System resource limits exceeded. Memory, CPU, or file descriptors exhausted.'
             }
 
+        # Pattern: Delivery failures (Twilio, SendGrid, etc.)
+        if StaleMessageDetector._match_delivery_failure_pattern(error_lower):
+            return {
+                'classification': ErrorClassification.DELIVERY_FAILURE,
+                'confidence': 90,
+                'indicators': ['delivery failed', 'twilio', 'sendgrid', 'email failed', 'whatsapp failed', 'api error'],
+                'root_cause': 'Message created but delivery provider failed. Check Twilio/SendGrid/Azure credentials and API health.'
+            }
+
         # Default: Unknown
         return {
             'classification': ErrorClassification.UNKNOWN,
@@ -215,6 +225,21 @@ class StaleMessageDetector:
         return any(re.search(pattern, error_lower) for pattern in resource_patterns)
 
     @staticmethod
+    def _match_delivery_failure_pattern(error_lower: str) -> bool:
+        """Check for delivery provider failures (Twilio, SendGrid, etc.)"""
+        delivery_patterns = [
+            r'delivery.*fail',
+            r'twilio.*error',
+            r'sendgrid.*fail',
+            r'azure.*email.*fail',
+            r'whatsapp.*fail',
+            r'email.*provider.*fail',
+            r'provider.*not.*configured',
+            r'api.*credentials',
+        ]
+        return any(re.search(pattern, error_lower) for pattern in delivery_patterns)
+
+    @staticmethod
     def calculate_safety_score(
         error_classification: str,
         handler_duration_ms: int,
@@ -249,6 +274,7 @@ class StaleMessageDetector:
             ErrorClassification.TRANSACTION_DEADLOCK: 65,  # Moderately safe to rollback and retry
             ErrorClassification.STATE_CORRUPTION: 20,  # Very risky - data may be corrupted
             ErrorClassification.RESOURCE_EXHAUSTION: 60,  # Moderately safe to retry after delay
+            ErrorClassification.DELIVERY_FAILURE: 45,  # Requires credential/provider investigation
             ErrorClassification.UNKNOWN: 30,  # Risky - don't know what's wrong
         }
 
@@ -342,6 +368,13 @@ class StaleMessageDetector:
                 return "Delay 30 seconds to allow connections to free up, then retry"
             elif classification == ErrorClassification.TRANSACTION_DEADLOCK:
                 return "Rollback transaction state and retry from beginning"
+
+        # Delivery failures - check credentials
+        if classification == ErrorClassification.DELIVERY_FAILURE:
+            if safety_score >= 60:
+                return "Verify Twilio/SendGrid/Azure credentials are set. Check API health status, then retry"
+            else:
+                return "Escalate to ops: Delivery provider misconfigured. Verify credentials and API permissions"
 
         # If safety score is moderate, escalate with recommendation
         if safety_score >= 60:

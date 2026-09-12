@@ -591,6 +591,7 @@ class QueueProcessorService:
 
                 # CRITICAL FIX #5: Verify delivery was actually confirmed before marking COMPLETED
                 # Messages stuck in PROCESSING suggests we're marking COMPLETED without delivery confirmation
+                # Now uses MessageDeliveryLog instead of handler result to verify real delivery
                 requires_delivery_confirmation = message.type in [
                     'engage_candidate_with_thunder',
                     'send_email_to_candidate',
@@ -598,22 +599,48 @@ class QueueProcessorService:
                 ]
 
                 if requires_delivery_confirmation:
-                    delivery_confirmed = handler_result.get('delivery_confirmed', False) if isinstance(handler_result, dict) else False
-                    message_sent = handler_result.get('message_sent', False) if isinstance(handler_result, dict) else False
+                    # Check MessageDeliveryLog for actual delivery confirmation
+                    from app.models.message_delivery import MessageDeliveryLog
+                    from app.models.candidate_ai import CandidateConversation
 
-                    if not (delivery_confirmed or message_sent):
+                    delivery_confirmed = False
+                    delivery_status = None
+
+                    try:
+                        # Find associated conversation and check for delivery logs
+                        if isinstance(handler_result, dict) and 'conversation_id' in handler_result:
+                            conversation_id = handler_result['conversation_id']
+                            delivery_log = db.query(MessageDeliveryLog).filter(
+                                MessageDeliveryLog.conversation_id == conversation_id
+                            ).order_by(MessageDeliveryLog.created_at.desc()).first()
+
+                            if delivery_log:
+                                delivery_status = delivery_log.status
+                                delivery_confirmed = delivery_log.status in ('sent', 'delivered')
+                                logger.info(f"[QueueProcessor] Found delivery log for conversation {conversation_id}: status={delivery_status}")
+                    except Exception as delivery_check_err:
+                        logger.warning(f"[QueueProcessor] Could not verify delivery via MessageDeliveryLog: {delivery_check_err}")
+
+                    # Fallback to handler result if MessageDeliveryLog check fails
+                    if not delivery_confirmed:
+                        delivery_confirmed = handler_result.get('delivery_confirmed', False) if isinstance(handler_result, dict) else False
+                        message_sent = handler_result.get('message_sent', False) if isinstance(handler_result, dict) else False
+                        delivery_confirmed = delivery_confirmed or message_sent
+
+                    if not delivery_confirmed:
                         # Delivery was not confirmed - mark as FAILED instead of COMPLETED
                         logger.error(
                             f"[QueueProcessor] Message {message.id} ({message.type}) did not confirm delivery. "
-                            f"Handler result: {handler_result}. FAILING message instead of completing."
+                            f"Handler result: {handler_result}, Delivery Status: {delivery_status}. FAILING message instead of completing."
                         )
                         message.status = QueueStatus.FAILED.value
-                        message.error = "Handler did not confirm message delivery"
+                        message.error = "Handler did not confirm message delivery (no delivery log found)"
                         message.last_attempted_at = datetime.utcnow()
                         result_data = {
                             "success": False,
-                            "error": "Delivery not confirmed by handler",
+                            "error": "Delivery not confirmed by handler or delivery log",
                             "handler_result": handler_result,
+                            "delivery_status": delivery_status,
                             "failed_at": datetime.utcnow().isoformat(),
                             "handler_duration_ms": handler_duration_ms
                         }

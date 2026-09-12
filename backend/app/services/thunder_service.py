@@ -63,6 +63,8 @@ from app.services.whatsapp_routing_service import (  # noqa: F401 -- re-exported
     send_whatsapp_message,
     take_over_conversation,
 )
+from app.services.delivery_factory import get_delivery_service
+from app.models.message_delivery import MessageDeliveryLog
 
 WHATSAPP_OUTREACH_CONSENT_TYPE = "whatsapp_outreach"
 # 2026-07-23 -- public web chat (see app.services.public_chat_service) is a
@@ -273,16 +275,54 @@ def send_outbound_campaign_message(db: Session, conversation: CandidateConversat
         logger.warning(f"[Thunder] Email consent not given for candidate {candidate.candidateID!r}, skipping outreach")
         return
 
-    from app.services.email_service import EmailService
     from app.services.message_queue_service import MessageQueueService
 
     try:
-        EmailService.send_email(candidate.candidateEmail, email_subject, message_body, is_html=False)
+        # Use delivery service for email sending (instead of EmailService.send_email)
+        delivery_service = get_delivery_service(db=db)
+        result = delivery_service.send_email(
+            to_email=candidate.candidateEmail,
+            subject=email_subject,
+            body=message_body,
+            html=False
+        )
+
+        # Create MessageDeliveryLog for tracking
+        try:
+            log_entry = MessageDeliveryLog(
+                conversation_id=conversation.id,
+                delivery_type="email",
+                recipient=candidate.candidateEmail,
+                subject=email_subject,
+                body=message_body,
+                status=result.status,
+                delivery_id=result.delivery_id,
+                external_message_id=result.external_id,
+                error=result.error,
+                created_at=datetime.utcnow(),
+                sent_at=datetime.utcnow() if result.status in ("sent", "delivered") else None,
+            )
+            db.add(log_entry)
+            db.flush()
+            logger.debug(f"[Thunder] Created MessageDeliveryLog for email: {result.delivery_id}")
+        except Exception as log_err:
+            logger.error(f"[Thunder] Failed to create MessageDeliveryLog: {log_err}")
+            db.rollback()
+
+        # Check delivery result
+        if result.status == "failed":
+            logger.error(f"[Thunder] Email delivery failed for {candidate.candidateEmail}: {result.error}")
+            raise RuntimeError(f"Email delivery failed: {result.error}")
 
         # Email sent successfully - record the event
         db.add(ConversationEvent(
             conversation_id=conversation.id, event_type="ai_message_sent",
-            event_data={"channel": "email", "body": message_body, "auto_generated": True},
+            event_data={
+                "channel": "email",
+                "body": message_body,
+                "auto_generated": True,
+                "delivery_id": result.delivery_id
+            },
             triggered_by="ai_agent",
         ))
         db.flush()

@@ -43,9 +43,11 @@ from sqlalchemy.orm import Session
 
 from app.models.candidate import Candidate
 from app.models.candidate_ai import CandidateConversation, ConversationEvent
+from app.models.message_delivery import MessageDeliveryLog
 from app.models.user import Users
 from app.services.ai_conversation_service import AI_AGENT_NAME
 from app.services.notification_service import ChannelNotConfigured
+from app.services.delivery_factory import get_delivery_service
 from app.core.logging import logger
 
 # The shared/Thunder number -- used when the AI owns the conversation, or
@@ -153,19 +155,51 @@ def send_whatsapp_message(
         )
 
     to_number = candidate.candidateMobile
-    client = whatsapp_client or _send_whatsapp_unconfigured
 
-    try:
-        delivered = bool(client(to_number, from_number, message_body))
-    except ChannelNotConfigured as e:
-        # WhatsApp not configured - this is a retriable error, not a success
-        logger.error(f"[WhatsApp] Channel not configured: {e}")
-        raise  # RE-RAISE so handler and queue processor can retry
+    # Use delivery service if not overridden with whatsapp_client
+    if whatsapp_client is None:
+        delivery_service = get_delivery_service(db=db)
+        result = delivery_service.send_whatsapp(to_number=to_number, body=message_body, from_number=from_number)
 
-    # If delivery returned False, treat as failure
-    if not delivered:
-        logger.error(f"[WhatsApp] Delivery returned False for {to_number}")
-        raise RuntimeError(f"WhatsApp delivery failed (client returned False) for {to_number}")
+        # Create MessageDeliveryLog for tracking
+        try:
+            log_entry = MessageDeliveryLog(
+                conversation_id=conversation.id,
+                delivery_type="whatsapp",
+                recipient=to_number,
+                subject=None,
+                body=message_body,
+                status=result.status,
+                delivery_id=result.delivery_id,
+                external_message_id=result.external_id,
+                error=result.error,
+                created_at=datetime.utcnow(),
+                sent_at=datetime.utcnow() if result.status in ("sent", "delivered") else None,
+            )
+            db.add(log_entry)
+            db.commit()
+            logger.debug(f"[WhatsApp] Created MessageDeliveryLog: {result.delivery_id}")
+        except Exception as e:
+            logger.error(f"[WhatsApp] Failed to create MessageDeliveryLog: {e}")
+            db.rollback()
+
+        # Check delivery result
+        if result.status == "failed":
+            logger.error(f"[WhatsApp] Delivery failed for {to_number}: {result.error}")
+            raise RuntimeError(f"WhatsApp delivery failed for {to_number}: {result.error}")
+    else:
+        # Legacy whatsapp_client path (for backward compatibility in tests)
+        try:
+            delivered = bool(whatsapp_client(to_number, from_number, message_body))
+        except ChannelNotConfigured as e:
+            # WhatsApp not configured - this is a retriable error, not a success
+            logger.error(f"[WhatsApp] Channel not configured: {e}")
+            raise  # RE-RAISE so handler and queue processor can retry
+
+        # If delivery returned False, treat as failure
+        if not delivered:
+            logger.error(f"[WhatsApp] Delivery returned False for {to_number}")
+            raise RuntimeError(f"WhatsApp delivery failed (client returned False) for {to_number}")
 
     # Only create event if delivery actually succeeded
     event = ConversationEvent(
@@ -184,4 +218,5 @@ def send_whatsapp_message(
     db.add(event)
     conversation.updated_at = datetime.utcnow()
     db.add(conversation)
+    db.commit()
     return event
