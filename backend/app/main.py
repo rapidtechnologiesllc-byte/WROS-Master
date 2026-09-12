@@ -300,7 +300,7 @@ async def startup_event():
             from sqlalchemy import inspect
             db = SessionLocal()
             inspector = inspect(db.get_bind())
-            tables = inspector.get_table_names()
+            tables = inspector.get_table_names(schema='app_schema')
             if 'channel_queue_item' not in tables:
                 logger.error("[Startup] ChannelQueueItem table missing from database schema")
                 logger.warning("[Startup] Queue processor cannot run without channel_queue_item table")
