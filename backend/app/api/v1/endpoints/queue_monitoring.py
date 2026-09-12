@@ -1,244 +1,266 @@
 """
-Queue Monitoring API - Proxies Celery Flower REST API with auth & error handling
+Queue Monitoring API - Database-driven queue status and management
 
-Production: Calls Flower on localhost:5555
-Development: Calls Flower on localhost:5555
-
-Provides dashboard access to queue stats, worker status, and task management.
+Provides dashboard access to message queue stats, task status, and health.
+Uses ChannelQueueItem table (database-driven, not Celery/Redis/Flower).
 All endpoints require system.manage permission (admin only).
 """
 
-from fastapi import APIRouter, Depends, HTTPException
-import httpx
 import logging
-from typing import Optional
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import func
+from sqlalchemy.orm import Session
 
+from app.core.dependencies import get_db
 from app.core.dependencies import get_current_user, require_role_template_permission
 from app.models.user import Users
+from app.models.channel_queue import ChannelQueueItem
 from app.core.permission_registry import Permissions
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/admin/api/queue", tags=["queue-monitoring"])
 
-# Flower REST API base URL (localhost, not exposed externally)
-FLOWER_API_URL = "http://localhost:5555/api"
-FLOWER_TIMEOUT = 5.0
-MAX_TASK_LIMIT = 1000
-QUERY_PARAMS_LIMIT = 10000
-
 
 @router.get(
-    "/workers",
-    dependencies=[Depends(require_role_template_permission(*Permissions.USERS_EDIT))],
+    "/status",
 )
-async def get_workers(current_user: Users = Depends(get_current_user)):
+def get_queue_status(db: Session = Depends(get_db), current_user: Users = Depends(get_current_user)):
     """
-    Get active Celery workers status
+    Get overall queue health status
 
-    Response format (from Flower):
+    Returns:
     {
-      "worker1": {
-        "status": "online",
-        "processed": 1234,
-        "active": 5,
-        "pool": {"max-concurrency": 4, "processes": [123, 124, ...]}
-      }
+      "total_messages": 150,
+      "by_status": {
+        "PENDING": 10,
+        "PROCESSING": 5,
+        "PROCESSING_SLOW": 2,
+        "READY_TO_SEND": 20,
+        "COMPLETED": 100,
+        "FAILED": 13
+      },
+      "health": "HEALTHY" | "DEGRADED" | "CRITICAL",
+      "stalled_messages": 2,
+      "avg_processing_time_seconds": 45
     }
-
-    Error responses:
-    - 503: Flower not running
-    - 401: User lacks permissions
     """
     try:
-        async with httpx.AsyncClient(timeout=FLOWER_TIMEOUT) as client:  # noqa: timeout constant
-            response = await client.get(f"{FLOWER_API_URL}/workers")
+        # Get message counts by status
+        status_counts = db.query(
+            ChannelQueueItem.status,
+            func.count(ChannelQueueItem.id).label("count")
+        ).group_by(ChannelQueueItem.status).all()
 
-            if response.status_code == 404:
-                raise HTTPException(
-                    status_code=503,
-                    detail="Queue monitoring service unavailable (Flower not running)"
-                )
+        by_status = {status: count for status, count in status_counts}
+        total = sum(by_status.values())
 
-            response.raise_for_status()
-            return response.json()
+        # Count stalled messages (PROCESSING > 15 minutes)
+        from datetime import datetime, timedelta
+        stalled_threshold = datetime.utcnow() - timedelta(minutes=15)
+        stalled_count = db.query(func.count(ChannelQueueItem.id)).filter(
+            ChannelQueueItem.status.in_(["PROCESSING", "PROCESSING_SLOW"]),
+            ChannelQueueItem.created_at < stalled_threshold
+        ).scalar() or 0
 
-    except httpx.TimeoutException:
-        logger.error("Flower API timeout calling /workers")
-        raise HTTPException(
-            status_code=504,
-            detail="Queue monitoring service timeout"
-        )
+        # Determine health
+        failed_count = by_status.get("FAILED", 0)
+        failed_ratio = failed_count / total if total > 0 else 0
+
+        if stalled_count > 10 or failed_ratio > 0.1:
+            health = "CRITICAL"
+        elif stalled_count > 5 or failed_ratio > 0.05:
+            health = "DEGRADED"
+        else:
+            health = "HEALTHY"
+
+        return {
+            "total_messages": total,
+            "by_status": by_status,
+            "health": health,
+            "stalled_messages": stalled_count,
+            "failed_messages": failed_count,
+        }
+
     except Exception as e:
-        logger.error(f"Failed to get workers: {str(e)}", exc_info=True)
-        raise HTTPException(
-            status_code=500,
-            detail="Failed to retrieve queue workers"
-        )
+        logger.error(f"Failed to get queue status: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to retrieve queue status")
 
 
 @router.get(
-    "/tasks",
-    dependencies=[Depends(require_role_template_permission(*Permissions.USERS_EDIT))],
+    "/messages",
 )
-async def get_tasks(
-    state: Optional[str] = None,
-    limit: int = 100,
+def get_messages(
+    status: str = Query(None, description="Filter by status (PENDING, PROCESSING, etc.)"),
+    task_name: str = Query(None, description="Filter by task name"),
+    limit: int = Query(100, ge=1, le=1000),
     current_user: Users = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
     """
-    Get Celery tasks by state
+    Get queue messages with optional filters
 
     Query params:
-    - state: Filter by task state (optional, default: all)
-      Valid values: PENDING, RECEIVED, STARTED, SUCCESS, FAILURE
-    - limit: Max tasks to return (default: 100, max: 1000)
-
-    Response format:
-    {
-      "tasks": [
-        {
-          "uuid": "abc-123",
-          "name": "app.tasks.send_email",
-          "state": "SUCCESS",
-          "received": 1234567890,
-          "started": 1234567891,
-          "succeeded": 1234567892,
-          "result": "Email sent",
-          "worker": "worker1"
-        }
-      ]
-    }
+    - status: Filter by status (PENDING, PROCESSING, PROCESSING_SLOW, READY_TO_SEND, COMPLETED, FAILED)
+    - task_name: Filter by task type
+    - limit: Max messages to return (default: 100, max: 1000)
     """
     try:
-        limit = min(limit, MAX_TASK_LIMIT)
+        query = db.query(ChannelQueueItem)
 
-        params = {"limit": limit}
-        if state:
-            params["state"] = state.upper()
+        if status:
+            query = query.filter(ChannelQueueItem.status == status.upper())
+        if task_name:
+            query = query.filter(ChannelQueueItem.task_name == task_name)
 
-        async with httpx.AsyncClient(timeout=FLOWER_TIMEOUT) as client:  # noqa: timeout constant
-            response = await client.get(
-                f"{FLOWER_API_URL}/tasks",
-                params=params
-            )
-            response.raise_for_status()
-            return response.json()
+        messages = query.order_by(ChannelQueueItem.created_at.desc()).limit(limit).all()
 
-    except httpx.TimeoutException:
-        logger.error("Flower API timeout calling /tasks")
-        raise HTTPException(status_code=504, detail="Queue monitoring timeout")
+        return {
+            "messages": [
+                {
+                    "id": str(m.id),
+                    "task_name": m.task_name,
+                    "status": m.status,
+                    "created_at": m.created_at.isoformat() if m.created_at else None,
+                    "retries": m.retries,
+                    "error": m.error,
+                    "last_attempted": m.last_attempted.isoformat() if m.last_attempted else None,
+                }
+                for m in messages
+            ],
+            "count": len(messages),
+        }
+
     except Exception as e:
-        logger.error(f"Failed to get tasks: {str(e)}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Failed to retrieve tasks")
+        logger.error(f"Failed to get messages: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to retrieve messages")
 
 
 @router.get(
-    "/tasks/{task_id}",
-    dependencies=[Depends(require_role_template_permission(*Permissions.USERS_EDIT))],
+    "/messages/{message_id}",
 )
-async def get_task(task_id: str, current_user: Users = Depends(get_current_user)):
-    """Get single task details"""
+def get_message(
+    message_id: str,
+    current_user: Users = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Get detailed message information"""
     try:
-        async with httpx.AsyncClient(timeout=FLOWER_TIMEOUT) as client:  # noqa: timeout constant
-            response = await client.get(f"{FLOWER_API_URL}/tasks/{task_id}")
+        message = db.query(ChannelQueueItem).filter(ChannelQueueItem.id == message_id).first()
 
-            if response.status_code == 404:
-                raise HTTPException(status_code=404, detail="Task not found")
+        if not message:
+            raise HTTPException(status_code=404, detail="Message not found")
 
-            response.raise_for_status()
-            return response.json()
+        return {
+            "id": str(message.id),
+            "task_name": message.task_name,
+            "status": message.status,
+            "payload": message.payload,
+            "created_at": message.created_at.isoformat() if message.created_at else None,
+            "retries": message.retries,
+            "max_retries": message.max_retries,
+            "error": message.error,
+            "last_attempted": message.last_attempted.isoformat() if message.last_attempted else None,
+        }
 
-    except httpx.TimeoutException:
-        raise HTTPException(status_code=504, detail="Queue monitoring timeout")
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"Failed to get task {task_id}: {str(e)}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Failed to retrieve task")
+        logger.error(f"Failed to get message {message_id}: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to retrieve message")
+
+
+@router.post(
+    "/messages/{message_id}/retry",
+)
+def retry_message(
+    message_id: str,
+    current_user: Users = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Manually retry a failed message
+
+    Resets message to PENDING status and clears error.
+    """
+    try:
+        message = db.query(ChannelQueueItem).filter(ChannelQueueItem.id == message_id).first()
+
+        if not message:
+            raise HTTPException(status_code=404, detail="Message not found")
+
+        if message.status != "FAILED":
+            raise HTTPException(status_code=400, detail="Only FAILED messages can be retried")
+
+        # Reset message for retry
+        message.status = "PENDING"
+        message.error = None
+        message.last_attempted = None
+        db.commit()
+
+        logger.info(f"Message {message_id} manually retried by {current_user.UserEmail}")
+        return {
+            "status": "retry_requested",
+            "message_id": message_id,
+            "new_status": "PENDING"
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to retry message {message_id}: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to retry message")
 
 
 @router.get(
     "/stats",
-    dependencies=[Depends(require_role_template_permission(*Permissions.USERS_EDIT))],
 )
-async def get_stats(current_user: Users = Depends(get_current_user)):
+def get_stats(
+    current_user: Users = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
     """
-    Get queue statistics (total tasks, success rate, etc.)
+    Get queue statistics
 
-    Response format:
+    Returns:
     {
-      "total_tasks": 5000,
-      "succeeded": 4950,
-      "failed": 50,
-      "active": 12,
-      "reserved": 8,
-      "workers_online": 2,
-      "state_breakdown": {
-        "SUCCESS": 4950,
-        "FAILURE": 50,
-        "STARTED": 12
-      }
+      "total_messages": 500,
+      "completed": 450,
+      "failed": 20,
+      "processing": 15,
+      "pending": 15,
+      "success_rate": 95.7,
+      "average_retries": 0.5
     }
     """
     try:
-        async with httpx.AsyncClient(timeout=FLOWER_TIMEOUT) as client:  # noqa: timeout constant
-            workers = await client.get(f"{FLOWER_API_URL}/workers")
-            tasks = await client.get(f"{FLOWER_API_URL}/tasks?limit={QUERY_PARAMS_LIMIT}")
+        total = db.query(func.count(ChannelQueueItem.id)).scalar() or 0
+        completed = db.query(func.count(ChannelQueueItem.id)).filter(
+            ChannelQueueItem.status == "COMPLETED"
+        ).scalar() or 0
+        failed = db.query(func.count(ChannelQueueItem.id)).filter(
+            ChannelQueueItem.status == "FAILED"
+        ).scalar() or 0
+        processing = db.query(func.count(ChannelQueueItem.id)).filter(
+            ChannelQueueItem.status.in_(["PROCESSING", "PROCESSING_SLOW"])
+        ).scalar() or 0
+        pending = db.query(func.count(ChannelQueueItem.id)).filter(
+            ChannelQueueItem.status == "PENDING"
+        ).scalar() or 0
 
-            workers.raise_for_status()
-            tasks.raise_for_status()
+        success_rate = (completed / total * 100) if total > 0 else 0
+        avg_retries = db.query(func.avg(ChannelQueueItem.retries)).scalar() or 0
 
-            workers_data = workers.json()
-            tasks_data = tasks.json()
-
-            # Calculate stats
-            if not workers_data or not isinstance(workers_data, dict):
-                workers_data = {}
-            if not tasks_data or not isinstance(tasks_data, dict):
-                tasks_data = {}
-
-            total_processed = sum(
-                w.get("processed", 0)
-                for w in workers_data.values()
-            )
-
-            task_states = {}
-            for task in tasks_data.get("tasks", []):
-                state = task.get("state", "UNKNOWN")
-                task_states[state] = task_states.get(state, 0) + 1
-
-            return {
-                "total_tasks": total_processed,
-                "succeeded": task_states.get("SUCCESS", 0),
-                "failed": task_states.get("FAILURE", 0),
-                "active": sum(w.get("active", 0) for w in workers_data.values()),
-                "workers_online": len(workers_data),
-                "state_breakdown": task_states,
-            }
+        return {
+            "total_messages": total,
+            "completed": completed,
+            "failed": failed,
+            "processing": processing,
+            "pending": pending,
+            "success_rate": round(success_rate, 1),
+            "average_retries": round(float(avg_retries), 2),
+        }
 
     except Exception as e:
         logger.error(f"Failed to get stats: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to retrieve queue stats")
-
-
-@router.post(
-    "/tasks/{task_id}/retry",
-    dependencies=[Depends(require_role_template_permission(*Permissions.USERS_EDIT))],
-)
-async def retry_task(task_id: str, current_user: Users = Depends(get_current_user)):
-    """
-    Retry a failed task
-
-    Note: Only works for specific task types that support retry.
-    Some tasks (like email sends) may not support retries.
-    """
-    try:
-        async with httpx.AsyncClient(timeout=FLOWER_TIMEOUT) as client:  # noqa: timeout constant
-            response = await client.post(f"{FLOWER_API_URL}/tasks/{task_id}/retry")
-            response.raise_for_status()
-
-            logger.info(f"Task {task_id} retry requested by {current_user.email}")
-            return {"status": "retry_requested", "task_id": task_id}
-
-    except Exception as e:
-        logger.error(f"Failed to retry task {task_id}: {str(e)}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Failed to retry task")

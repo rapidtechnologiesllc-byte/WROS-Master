@@ -1589,7 +1589,14 @@ function LocationsSection() {
   const hrmsRole = localStorage.getItem("hrms_role") || "";
   const permissionRole = localStorage.getItem("permission_role") || "";
   const hrmsPermissionsStr = localStorage.getItem("hrms_permissions") || "[]";
-  const hrmsPermissions = JSON.parse(hrmsPermissionsStr) || [];
+  let hrmsPermissions = [];
+  try {
+    const parsed = JSON.parse(hrmsPermissionsStr);
+    hrmsPermissions = Array.isArray(parsed) ? parsed : [];
+  } catch (e) {
+    // If parsing fails, use empty array
+    hrmsPermissions = [];
+  }
 
   const canManageRoleTemplates = hrmsRole.toLowerCase() === "admin" ||
                                  hrmsRole.toLowerCase() === "super user" ||

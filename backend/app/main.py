@@ -22,6 +22,7 @@ from app.middleware.auth_middleware import AuthenticationMiddleware
 from app.core import tenant_context as _tenant_context  # noqa: F401
 from app.api.v1.endpoints.config import router as config_router
 from app.api.v1.endpoints.message_queue import router as message_queue_router
+from app.api.v1.endpoints.queue_monitoring import router as queue_monitoring_router
 from app.api.v1.endpoints.business_units import router as business_units_router
 from app.api.v1.endpoints.rbac import router as rbac_router
 from app.api.v1.endpoints.career_portal import router as career_portal_router
@@ -367,6 +368,8 @@ app.include_router(router)
 app.include_router(config_router, prefix="/api/v1")
 # Include message queue monitoring routes with /api/v1 prefix
 app.include_router(message_queue_router, prefix="/api/v1")
+# Include database queue monitoring routes (replaces Flower/Celery monitoring)
+app.include_router(queue_monitoring_router)
 # Include business units routes with /api/v1 prefix (BU → Client → Job workflow)
 app.include_router(business_units_router, prefix="/api/v1")
 # Include RBAC routes with /api/v1 prefix (business units, departments, role management)
