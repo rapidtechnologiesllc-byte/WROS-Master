@@ -417,13 +417,11 @@ def get_all_referrals(
     # if not current_user:
     #     raise HTTPException(status_code=401, detail="Unauthorized")
 
-    user_role = "EMPLOYEE"  # TODO: Get from current_user.role
     user_bu = None  # TODO: Get from current_user.business_unit
 
     referrals = ReferralAccessControl.get_referrals_for_user(
         db,
         "temp_user_id",  # TODO: Use current_user.id when auth is implemented
-        user_role,
         user_bu,
     )
 
