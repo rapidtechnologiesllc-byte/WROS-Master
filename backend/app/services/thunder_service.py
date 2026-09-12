@@ -279,6 +279,14 @@ def send_outbound_campaign_message(db: Session, conversation: CandidateConversat
     try:
         EmailService.send_email(candidate.candidateEmail, email_subject, message_body, is_html=False)
 
+        # Email sent successfully - record the event
+        db.add(ConversationEvent(
+            conversation_id=conversation.id, event_type="ai_message_sent",
+            event_data={"channel": "email", "body": message_body, "auto_generated": True},
+            triggered_by="ai_agent",
+        ))
+        db.flush()
+
         # Mark candidate_created message as COMPLETED after email sent successfully
         try:
             from app.models.message_queue import MessageQueue
@@ -298,13 +306,8 @@ def send_outbound_campaign_message(db: Session, conversation: CandidateConversat
     except Exception as exc:
         logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.error(f"[Thunder] Email send failed for candidate {candidate.candidateID!r}: {exc}")
-
-    db.add(ConversationEvent(
-        conversation_id=conversation.id, event_type="ai_message_sent",
-        event_data={"channel": "email", "body": message_body, "auto_generated": True},
-        triggered_by="ai_agent",
-    ))
-    db.flush()
+        # RE-RAISE so handler and queue processor know delivery failed and can retry
+        raise
 
 # Real-world bug, reported directly by Avinash: a candidate asked "what
 # roles do you have" for a Lead Guidewire Business Analyst-shaped

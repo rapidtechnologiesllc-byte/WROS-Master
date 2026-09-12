@@ -15,6 +15,7 @@ Architecture: Works WITH SLMService to create feedback loop
 import json
 import logging
 import time
+import random
 import threading
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any
@@ -376,6 +377,44 @@ class QueueProcessorService:
                     except Exception as slm_err:
                         logger.error(f"[QueueProcessor] SLM analysis failed for job {job_id}: {slm_err}", exc_info=True)
                         # Don't fail - continue without SLM guidance (flash_recruiter will use defaults)
+
+                # CRITICAL FIX #5: Verify delivery was actually confirmed before marking COMPLETED
+                # Messages stuck in PROCESSING suggests we're marking COMPLETED without delivery confirmation
+                requires_delivery_confirmation = message.type in [
+                    'engage_candidate_with_thunder',
+                    'send_email_to_candidate',
+                    'send_whatsapp_message',
+                ]
+
+                if requires_delivery_confirmation:
+                    delivery_confirmed = handler_result.get('delivery_confirmed', False) if isinstance(handler_result, dict) else False
+                    message_sent = handler_result.get('message_sent', False) if isinstance(handler_result, dict) else False
+
+                    if not (delivery_confirmed or message_sent):
+                        # Delivery was not confirmed - mark as FAILED instead of COMPLETED
+                        logger.error(
+                            f"[QueueProcessor] Message {message.id} ({message.type}) did not confirm delivery. "
+                            f"Handler result: {handler_result}. FAILING message instead of completing."
+                        )
+                        message.status = QueueStatus.FAILED.value
+                        message.error_message = "Handler did not confirm message delivery"
+                        message.last_attempted_at = datetime.utcnow()
+                        result_data = {
+                            "success": False,
+                            "error": "Delivery not confirmed by handler",
+                            "handler_result": handler_result,
+                            "failed_at": datetime.utcnow().isoformat(),
+                            "handler_duration_ms": handler_duration_ms
+                        }
+                        result_json = json.dumps(result_data)
+                        message.result = result_json
+                        db.commit()
+
+                        return {
+                            "status": QueueStatus.FAILED.value,
+                            "message": f"Delivery not confirmed: {handler_result}",
+                            "duration_ms": handler_duration_ms
+                        }
 
                 # Mark COMPLETED only after validation passes
                 message.status = QueueStatus.COMPLETED.value

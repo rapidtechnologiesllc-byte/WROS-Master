@@ -157,9 +157,17 @@ def send_whatsapp_message(
 
     try:
         delivered = bool(client(to_number, from_number, message_body))
-    except ChannelNotConfigured:
-        delivered = False
+    except ChannelNotConfigured as e:
+        # WhatsApp not configured - this is a retriable error, not a success
+        logger.error(f"[WhatsApp] Channel not configured: {e}")
+        raise  # RE-RAISE so handler and queue processor can retry
 
+    # If delivery returned False, treat as failure
+    if not delivered:
+        logger.error(f"[WhatsApp] Delivery returned False for {to_number}")
+        raise RuntimeError(f"WhatsApp delivery failed (client returned False) for {to_number}")
+
+    # Only create event if delivery actually succeeded
     event = ConversationEvent(
         conversation_id=conversation.id,
         event_type="ai_message_sent" if sender_type == "ai_agent" else "hr_message_sent",
@@ -168,7 +176,7 @@ def send_whatsapp_message(
             "from_number": from_number,
             "to_number": to_number,
             "body": message_body,
-            "delivered": delivered,
+            "delivered": True,
             "auto_generated": auto_generated,
         },
         triggered_by=sender_type,

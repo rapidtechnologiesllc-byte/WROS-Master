@@ -155,6 +155,7 @@ def _handle_thunder_engagement(message: Any, db: Session) -> Dict[str, Any]:
             logger.info(f"[Thunder] Created conversation for {candidate_id}")
 
         # 3. Check consent & send initial message
+        message_sent = False
         if has_active_consent(db, candidate_id):
             try:
                 initial_message = f"Hi {candidate.candidateFirstName}, thanks for your interest! Let's explore this opportunity."
@@ -168,9 +169,11 @@ def _handle_thunder_engagement(message: Any, db: Session) -> Dict[str, Any]:
                 )
                 db.commit()
                 logger.info(f"[Thunder] Sent initial message to {candidate_id}")
+                message_sent = True
             except Exception as msg_err:
-                logger.warning(f"[Thunder] Could not send message (no consent?): {msg_err}, marking candidate as engaged anyway")
-                db.commit()
+                logger.error(f"[Thunder] Failed to send message to {candidate_id}: {msg_err}", exc_info=True)
+                # RE-RAISE so queue processor retries on delivery failure (not just missing consent)
+                raise
         else:
             logger.info(f"[Thunder] No consent for {candidate_id}, conversation created but no message sent")
             db.commit()
@@ -179,7 +182,8 @@ def _handle_thunder_engagement(message: Any, db: Session) -> Dict[str, Any]:
             "status": "thunder_engaged_and_messaged",
             "candidate_id": candidate_id,
             "conversation_created": True,
-            "message_sent": has_active_consent(db, candidate_id)
+            "message_sent": message_sent,
+            "delivery_confirmed": message_sent
         }
 
     except Exception as e:
