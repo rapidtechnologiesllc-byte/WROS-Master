@@ -27,6 +27,7 @@ from app.models.checklist import ChecklistTemplate, CandidateChecklist, Candidat
 from app.models.candidate_history import CandidateHistory
 from app.services.email_service import EmailService
 from app.services.candidate_event_bus import CandidateEventBus
+from app.services.candidate_activity_service import log_candidate_status_change
 from app.core.logging import logger
 from app.schemas.candidate import CandidateStatusUpdateRequest, CandidateStatusResponse, AllCandidateStatusResponse, StatusActionResponse, ManagerApprovalRequest
 
@@ -342,6 +343,24 @@ def update_candidate_status(
 
     db.commit()
     db.refresh(cs)
+
+    # LOG ACTIVITY - Phase 2.3: Status change logging
+    # Wrap in try/except so logging failure doesn't block the status update
+    if request.pipeline_status is not None and old_pipeline_status != request.pipeline_status:
+        try:
+            log_candidate_status_change(
+                db,
+                candidate_id=candidate_id,
+                old_status=old_pipeline_status,
+                new_status=request.pipeline_status,
+                reason=f"Pipeline status updated via API",
+                changed_by_user_id=getattr(user, "UserID", None),
+                changed_by_name=getattr(user, "UserName", None) or "System"
+            )
+            db.commit()
+            logger.info(f"Logged status change for candidate {candidate_id}: {old_pipeline_status} -> {request.pipeline_status}")
+        except Exception as log_err:
+            logger.warning(f"Failed to log status change for {candidate_id}: {log_err}, but status update succeeded")
 
     # Emit status_changed event if pipeline status changed
     if request.pipeline_status is not None and old_pipeline_status != request.pipeline_status:
