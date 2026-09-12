@@ -1,8 +1,7 @@
 """
-"Test Thunder" â€” API Endpoints
+"Test Thunder" - API Endpoints
 ================================
 Prefix: /thunder
-import logging
 Tag:    thunder
 
 Internal QA harness, gated behind the "thunder.test" RBAC permission
@@ -17,8 +16,8 @@ depth for anyone still hitting the route directly by URL.
 Lets a permitted internal user chat with Thunder as if they were a
 candidate, without a live WhatsApp Business API (none is provisioned in
 this codebase). The real send path
-(app.services.thunder_service.send_thunder_message) still runs underneath â€”
-R-08 ownership lock, consent, and the 60s debounce are all live â€” only the
+(app.services.thunder_service.send_thunder_message) still runs underneath -
+R-08 ownership lock, consent, and the 60s debounce are all live - only the
 outbound WhatsApp transport is mocked.
 
 Routes:
@@ -68,7 +67,7 @@ router = APIRouter(prefix="/thunder", tags=["thunder"])
         "Sends `message` as if it came from a candidate over WhatsApp, generates "
         "Thunder's reply with the real LLM (Gemini) using the candidate's full "
         "cross-channel context, and sends it back through the real, governed send "
-        "path â€” R-08 ownership lock, consent, and the 60s duplicate-message "
+        "path â€" R-08 ownership lock, consent, and the 60s duplicate-message "
         "debounce all still apply. Only the outbound WhatsApp transport is mocked "
         "(no live WhatsApp Business API is provisioned in this codebase)."
     ),
@@ -123,7 +122,7 @@ def get_test_chat_history_endpoint(
     summary="Start a fresh Test Thunder conversation",
     description=(
         "Closes the current tester's test conversation so the next message "
-        "starts a clean thread. Nothing is deleted â€” the prior conversation and "
+        "starts a clean thread. Nothing is deleted â€" the prior conversation and "
         "its events stay in the database."
     ),
 )
