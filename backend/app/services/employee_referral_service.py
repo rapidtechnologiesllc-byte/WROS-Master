@@ -7,6 +7,7 @@ from datetime import datetime, timedelta
 from typing import Dict, Any, List
 from app.models.referral import EmployeeReferral, JobReferralSettings, ReferralBonus
 from app.models.employee import Employee
+from app.models.candidate import Candidate
 import uuid
 
 logger = logging.getLogger(__name__)
@@ -153,6 +154,72 @@ class EmployeeReferralService:
 
         except Exception as e:
             logger.error(f"Error: {str(e)}", exc_info=True)
+            db.rollback()
+            return {"status": "error", "message": str(e)}
+
+    @staticmethod
+    def link_candidate_to_referral(
+        db: Session,
+        candidate_id: str,
+        referral_id: str,
+    ) -> Dict[str, Any]:
+        """Link an existing candidate to a referral after creation.
+
+        Called when a candidate is created via referral flow.
+        Logs the linking event for audit trail.
+        """
+        try:
+            from app.services.candidate_activity_service import (
+                log_referral_linked,
+                log_referral_status_changed,
+            )
+
+            # Get candidate and referral
+            candidate = db.query(Candidate).filter(Candidate.candidateID == candidate_id).first()
+            if not candidate:
+                return {"status": "error", "message": f"Candidate {candidate_id} not found"}
+
+            referral = db.query(EmployeeReferral).filter(
+                EmployeeReferral.referral_id == referral_id
+            ).first()
+            if not referral:
+                return {"status": "error", "message": f"Referral {referral_id} not found"}
+
+            # Link candidate to referral
+            candidate.referral_id = referral_id
+            candidate.recruitment_source = "EMPLOYEE_REFERRAL"
+            db.commit()
+
+            # Log the linking and status change
+            try:
+                log_referral_linked(
+                    db,
+                    candidate_id=candidate_id,
+                    referral_id=referral_id,
+                    referred_by_employee_id=referral.referring_employee_id,
+                    referred_by_employee_name=f"Employee {referral.referring_employee_id}",
+                )
+                log_referral_status_changed(
+                    db,
+                    candidate_id=candidate_id,
+                    referral_id=referral_id,
+                    old_status="NONE",
+                    new_status=referral.referral_status,
+                )
+                db.commit()
+                logger.info(f"Logged referral linking for candidate {candidate_id} to referral {referral_id}")
+            except Exception as log_err:
+                logger.warning(f"Failed to log referral linking: {log_err}, but linking succeeded")
+
+            return {
+                "status": "linked",
+                "candidate_id": candidate_id,
+                "referral_id": referral_id,
+                "referral_status": referral.referral_status,
+            }
+
+        except Exception as e:
+            logger.error(f"Error linking candidate to referral: {str(e)}", exc_info=True)
             db.rollback()
             return {"status": "error", "message": str(e)}
 
