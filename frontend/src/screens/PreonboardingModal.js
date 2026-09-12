@@ -1,4 +1,4 @@
-import { react, useEffect, useRef, useState, useLayoutEffect } from "react";
+import React, { useEffect, useRef, useState, useLayoutEffect } from "react";
 import { Button, Card, Input, Select, TextArea } from "../components/ui";
 import { hasPermission } from "../utils/permissionsRoleTemplate";
 import { toast } from "react-toastify";
