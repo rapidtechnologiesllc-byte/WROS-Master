@@ -161,6 +161,7 @@ def _initialize_rbac():
             ('Admin', 'Administrator', 'Admin role with full access'),
             ('Manager', 'Manager', 'Manager role with team management access'),
             ('User', 'Regular User', 'Regular user role with basic access'),
+            ('Ops', 'Operations', 'Operations team - receives system alerts and diagnostics'),
         ]
 
         for role_name, display_name, description in role_template_configs:

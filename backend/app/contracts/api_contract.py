@@ -156,7 +156,7 @@ MODULES_AND_RESOURCES = {
     "Reporting": ["analytics", "kpi-dashboard", "data-export", "scheduled-reports", "bi-explorer"],
     "System": ["configuration", "api-keys", "webhooks", "audit-logs", "error-logs",
                "system-health", "slm-training-data", "message-queue", "ticket-routing",
-               "ai-config", "locale-currency"],
+               "ai-config", "locale-currency", "ops-alerts"],
     "Executive": ["ceo-dashboard", "cfo-dashboard", "partner-dashboard", "executive-signal",
                   "admin-agent-state", "admin-weekly-recap", "bu-head-dashboard"],
     "Admin": ["users-access-control", "admin-settings", "certifications"],

@@ -64,6 +64,16 @@ def _initialize_default_handlers():
     except Exception as e:
         logger.error(f"[Registry] Failed to register SLM email generation handler: {e}", exc_info=True)
 
+    # Register ops alert handler (NEW - Phase 3/4 stale message detection)
+    try:
+        from app.services.message_handlers.ops_alert_handler import OpsAlertHandler
+        MessageHandlerRegistry.register("ops_alert", OpsAlertHandler.process)
+        logger.info("[Registry] Registered ops alert handler")
+    except ImportError as e:
+        logger.warning(f"[Registry] Could not import ops alert handler: {e}")
+    except Exception as e:
+        logger.error(f"[Registry] Failed to register ops alert handler: {e}", exc_info=True)
+
     # Register job handlers (CYCLE 19: Queue-driven architecture)
     try:
         from app.services.message_handlers.job_status_changed_handler import handle_job_status_changed
