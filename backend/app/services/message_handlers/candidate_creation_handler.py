@@ -18,6 +18,7 @@ from app.services.candidate_service import create_candidate_safe, DuplicateCandi
 from app.services.data_healer_service import DataHealerService
 from app.services.message_queue_service import MessageQueueService
 from app.services.message_handlers.base_message_handler import time_bound
+from app.services.candidate_activity_service import log_candidate_created
 
 logger = logging.getLogger(__name__)
 
@@ -193,6 +194,21 @@ class CandidateCreationHandler:
                 db.rollback()
                 logger.error(f"[Handler] Atomic commit failed: {e}", exc_info=True)
                 raise RuntimeError(f"Failed to commit all records: {str(e)}") from e
+
+            # LOG ACTIVITY - Phase 2.1: Candidate creation logging
+            # Wrapped in try/except so logging failure doesn't block creation success
+            try:
+                log_candidate_created(
+                    db,
+                    candidate_id=candidate_id,
+                    created_by_user_id=None,  # Queue doesn't have user context
+                    created_by_name="System",
+                    recruitment_source=payload.get("candidate_source", "DIRECT")
+                )
+                db.commit()
+                logger.info(f"[Handler] ✅ Activity logged for candidate creation: {candidate_id}")
+            except Exception as log_err:
+                logger.warning(f"[Handler] Failed to log candidate creation activity: {log_err}, but creation succeeded")
 
             # RETURN SUCCESS IMMEDIATELY - Mark handler complete before queuing dependent work
             # This prevents handler from blocking on email/Thunder queueing
