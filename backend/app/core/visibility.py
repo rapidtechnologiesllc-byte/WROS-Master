@@ -39,10 +39,6 @@ def is_org_level_user(user: Users) -> bool:
         logger.debug(f"User {user.UserEmail} is org-level via legacy UserRole: {user.UserRole}")
         return True
 
-    if user.role and user.role.name and user.role.name.lower() in legacy_org_level_roles:
-        logger.debug(f"User {user.UserEmail} is org-level via legacy role: {user.role.name}")
-        return True
-
     return False
 
 
