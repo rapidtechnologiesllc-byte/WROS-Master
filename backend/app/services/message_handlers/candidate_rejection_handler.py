@@ -15,6 +15,7 @@ Note: Actual implementation requires CandidateRejection table creation in Phase 
 import logging
 from typing import Dict, Any, Optional
 from datetime import datetime, timedelta
+from app.services.candidate_activity_service import log_thunder_operation
 
 logger = logging.getLogger(__name__)
 
@@ -64,6 +65,20 @@ def handle_candidate_rejected(
         logger.info(f"[REJECTION_HANDLER] Candidate {candidate_id} flagged no-contact until {no_contact_until}: {reason}")
 
         db.commit()
+
+        # LOG ACTIVITY - Phase 2.5: Rejection logging
+        # Wrap in try/except so logging failure doesn't block rejection
+        try:
+            log_thunder_operation(
+                db,
+                candidate_id=candidate_id,
+                operation="REJECTED",
+                metadata={"reason": reason, "no_contact_until": no_contact_until.isoformat()}
+            )
+            db.commit()
+            logger.info(f"[REJECTION_HANDLER] Logged rejection for candidate {candidate_id}")
+        except Exception as log_err:
+            logger.warning(f"[REJECTION_HANDLER] Failed to log rejection: {log_err}, but rejection processed successfully")
 
         return {
             "status": "processed",

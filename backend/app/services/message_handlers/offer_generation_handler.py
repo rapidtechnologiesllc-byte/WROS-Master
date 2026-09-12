@@ -15,6 +15,7 @@ from typing import Dict, Any
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import OperationalError
 from datetime import datetime, timedelta
+from app.services.candidate_activity_service import log_thunder_operation
 
 logger = logging.getLogger(__name__)
 
@@ -171,6 +172,26 @@ class OfferGenerationHandler:
 
             # PHASE 5: COMMIT TRANSACTION
             db.commit()
+
+            # LOG ACTIVITY - Phase 2.4: Offer release logging
+            # Wrap in try/except so logging failure doesn't block offer generation
+            try:
+                log_thunder_operation(
+                    db,
+                    candidate_id=candidate_id,
+                    operation="OFFER_RELEASED",
+                    metadata={
+                        "offer_id": str(offer_id),
+                        "position": job.jobTitle,
+                        "salary": str(offer.salary),
+                        "start_date": str(offer.start_date),
+                        "currency": offer.currency,
+                    }
+                )
+                db.commit()
+                logger.info(f"[OfferGeneration] Logged offer release for candidate {candidate_id}, offer {offer_id}")
+            except Exception as log_err:
+                logger.warning(f"[OfferGeneration] Failed to log offer release: {log_err}, but offer created successfully")
 
             logger.info(
                 f"[OfferGeneration] ✅ Offer generated successfully for {candidate_id}"

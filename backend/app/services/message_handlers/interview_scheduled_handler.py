@@ -19,6 +19,7 @@ from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
 from app.models.channel_queue import ChannelQueueItem
 from app.services.message_handlers.base_message_handler import time_bound
+from app.services.candidate_activity_service import log_thunder_operation
 
 logger = logging.getLogger(__name__)
 
@@ -182,6 +183,27 @@ class InterviewScheduledHandler:
                 db.rollback()
                 logger.error(f"[InterviewHandler] Commit failed: {commit_err}", exc_info=True)
                 raise RuntimeError(f"Failed to commit interview: {str(commit_err)}") from commit_err
+
+            # LOG ACTIVITY - Phase 2.4: Interview scheduling logging
+            # Wrap in try/except so logging failure doesn't block interview creation
+            try:
+                log_thunder_operation(
+                    db,
+                    candidate_id=candidate_id,
+                    operation="INTERVIEW_SCHEDULED",
+                    metadata={
+                        "interview_id": str(interview_id),
+                        "interview_date": str(interview_date),
+                        "start_time": str(start_time) if start_time else None,
+                        "end_time": str(end_time) if end_time else None,
+                        "panel_id": str(panel_id) if panel_id else None,
+                        "meeting_link": meeting_link
+                    }
+                )
+                db.commit()
+                logger.info(f"[InterviewHandler] Logged interview scheduled for candidate {candidate_id}, interview {interview_id}")
+            except Exception as log_err:
+                logger.warning(f"[InterviewHandler] Failed to log interview: {log_err}, but interview created successfully")
 
             # ===== PHASE 6: SLM post-flight outcome recording =====
             try:
