@@ -291,7 +291,6 @@ export default function CandidateSelfService({ onLogout }) {
       const assignment = await getHrAssignmentByCandidate(candidateId);
       const hr = assignment?.hr1;
       if (!hr?.user_email) {
-        console.warn("No HR email found for candidate");
         return;
       }
       const candidateName = profile?.candidate_name || "Candidate";
@@ -314,13 +313,11 @@ export default function CandidateSelfService({ onLogout }) {
     try {
       const candidateId = offer?.candidate_id;
       if (!candidateId) {
-        console.warn("Candidate ID not found for offer");
         return;
       }
       const assignment = await getHrAssignmentByCandidate(candidateId);
       const hr = assignment?.hr1;
       if (!hr?.user_email) {
-        console.warn("No assigned HR email found");
         return;
       }
       const notification = getOfferAcceptedNotificationTemplate({

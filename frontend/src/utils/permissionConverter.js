@@ -1,8 +1,3 @@
-/**
- * Convert permission object from backend to array format for frontend
- * Backend returns: {"candidates": {"can_create": true, "can_view": true}}
- * Frontend expects: ["candidates.create", "candidates.view"]
- */
 export const convertPermissionsToArray = (permissionsData) => {
   let permissionsArray = [];
 

@@ -33,7 +33,6 @@ export function RevenueLeakageScanStatusHeader({ lastScannedAt, frequency, onRes
 }
 
 export function LeakageSeverityBadge({ type, amount }) {
-  // type = "CRITICAL" | "WARNING" | "INFO"
   const styles = {
     CRITICAL: "bg-red-100 text-red-800 border-red-300",
     WARNING: "bg-yellow-100 text-yellow-800 border-yellow-300",

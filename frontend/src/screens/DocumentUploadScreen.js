@@ -1,10 +1,3 @@
-/**
- * Progressive Document Upload Screen
- * ====================================
- * Multi-document upload with live status tracking
- * Uses SharePoint backend via DocumentService
- * Integrates with Celery async processing
- */
 
 import React, { useState, useEffect } from 'react';
 import styles from '../styles/DocumentUpload.module.css';

@@ -34,7 +34,6 @@ export const canAccessMyWorkspace = ({ permissionRole, jobTitle }) => {
   return jobTitle === 'Super User' || role !== "candidate";
 };
 
-// ============ NEW RBAC SYSTEM ============
 // Permission checking against localStorage (set by AuthPage.js after login)
 
 export function hasPermission(permission) {
@@ -95,11 +94,6 @@ export function hasRole(roleName) {
   return roles.some(role => role.toLowerCase() === roleName.toLowerCase());
 }
 
-/**
- * RBAC-driven: Check if user has wildcard permission ('*.*')
- * This permission is ONLY assigned by the SuperUser role template
- * NOT based on hardcoded role name matching
- */
 export function isSuperUser() {
   let permissions = JSON.parse(localStorage.getItem('hrms_permissions') || '[]');
 
@@ -112,11 +106,6 @@ export function isSuperUser() {
   return Array.isArray(permissions) && permissions.includes('*.*');
 }
 
-/**
- * RBAC-driven: Check if user has 'administration.manage' permission
- * This permission is assigned by the Admin role template
- * NOT based on hardcoded role name matching
- */
 export function isAdmin() {
   // Check for administration.manage permission (assigned by Admin role template)
   // Do NOT check for hardcoded role names

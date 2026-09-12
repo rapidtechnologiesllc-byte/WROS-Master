@@ -11,7 +11,6 @@ const BonusModal = ({ onClose }) => {
   const [type, setType] = useState();
   const [description, setDescription] = useState("");
   const onDateChange = (date, dateString) => {
-    console.log(date, dateString);
   };
 
   return (

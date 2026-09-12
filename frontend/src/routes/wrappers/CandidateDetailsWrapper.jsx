@@ -50,13 +50,11 @@ export default function CandidateDetailsWrapper({
               setCandidate(updatedCandidate);
             }
           } catch (fetchErr) {
-            console.warn("Could not refresh candidate data:", fetchErr?.message);
           }
           if (typeof refreshCandidates === "function") {
             try {
               await refreshCandidates();
             } catch (refreshErr) {
-              console.warn("Could not refresh candidates list:", refreshErr?.message);
             }
           }
           toast.success("Candidate Updated")

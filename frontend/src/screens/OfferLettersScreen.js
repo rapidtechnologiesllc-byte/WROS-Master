@@ -23,7 +23,6 @@ import { hasPermission } from "../utils/permissions";
 const { Search } = Input;
 
 function OfferLettersScreen() {
-  // Permission checks: view = read-only, create = can generate/edit
   const canViewOffers = hasPermission("offer-letters.view") || hasPermission("offer-letters");
   const canCreateOffers = hasPermission("offer-letters.create");
 

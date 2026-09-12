@@ -120,7 +120,6 @@ export default function CandidateCreate({ onBack, onSave }) {
     }
   }, [navigate]);
 
-  // Helper function to check if user is in recruitment department
   const isRecruitmentUser = () => {
     try {
       const userInfo = localStorage.getItem("user_info");
@@ -155,7 +154,6 @@ export default function CandidateCreate({ onBack, onSave }) {
           }
         }
       } catch (error) {
-        console.log("Could not auto-initialize recruiter source:", error);
       }
     };
 
@@ -182,7 +180,6 @@ export default function CandidateCreate({ onBack, onSave }) {
       const openJobs = jobsList.filter(job => job.jobStatus === "OPEN" || job.status === "OPEN");
       setAvailableJobs(openJobs);
     } catch (error) {
-      console.log("Could not load jobs", error);
     }
   };
 
@@ -663,8 +660,6 @@ export default function CandidateCreate({ onBack, onSave }) {
       const status = data?.status || "pending";
 
       // Log the response for debugging
-      console.log("Queue response:", { messageId, pollingEndpoint, status, data });
-
       // Return queue response for parent handlers to use
       return { message_id: messageId, polling_endpoint: pollingEndpoint, status };
     } catch (err) {
@@ -690,7 +685,6 @@ export default function CandidateCreate({ onBack, onSave }) {
         const message = `✓ Candidate queued successfully!\n\nMessage ID: ${messageId}\n\nYou will receive an email notification when the candidate is created. You can also check the status at:\n${pollingEndpoint}\n\nOnce created, you can assign jobs from the candidate detail page.`;
         showSuccess(message);
 
-        // Close form and return to candidates list
         setTimeout(() => {
           navigate("/candidates");
         }, 3000);
@@ -715,7 +709,6 @@ export default function CandidateCreate({ onBack, onSave }) {
         const message = `✓ Candidate creation queued successfully!\n\nMessage ID: ${messageId}\n\n📧 You will receive an email notification when the candidate is created.\n\n🔍 You can also check status anytime at:\n${pollingEndpoint}\n\nOnce created, you'll be able to upload a resume and manage the candidate.`;
         showSuccess(message);
 
-        // Close form and return to candidates list
         setTimeout(() => {
           navigate("/candidates");
         }, 3000);

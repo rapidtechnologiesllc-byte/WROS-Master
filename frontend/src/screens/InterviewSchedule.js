@@ -522,8 +522,6 @@ export default function InterviewSchedule({
                 });
                 setStatusNotice("Interview scheduled.");
               } catch (err) {
-                // Rehire guard: 400 = justification required (first
-                // attempt), 409 = justification submitted but AI did not
                 // clear it, routed to the hiring manager instead.
                 if (
                   err.status === 400 &&

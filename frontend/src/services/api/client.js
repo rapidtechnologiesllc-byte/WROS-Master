@@ -127,8 +127,6 @@ const refreshAccessToken = async () => {
     if (data.refresh_token) {
       localStorage.setItem("hrms_refresh_token", data.refresh_token);
     }
-
-    console.log("[API] ✓ Token refreshed successfully");
     return data.access_token;
   } catch (error) {
     console.error("[API] Token refresh error:", error);
@@ -156,8 +154,6 @@ export const apiRequest = async (path, options = {}) => {
   // Automatically add /api/v1 prefix if not already present (backend routes registered with this prefix)
   const normalizedPath = path.startsWith("/api") ? path : `/api/v1${path}`;
   const url = `${API_BASE_URL}${normalizedPath}`;
-  console.log(`[API] ${method} ${normalizedPath}`);
-
   let response;
   try {
     response = await fetch(url, {
@@ -181,20 +177,15 @@ export const apiRequest = async (path, options = {}) => {
   } catch (err) {
     data = null;
   }
-
-  console.log(`[API] ${method} ${normalizedPath} - Status: ${response.status}`, data);
-
   if (!response.ok) {
     // Backend often returns 404 when optional candidate form rows do not exist yet.
     if (allow404 && response.status === 404) {
-      console.warn(`[API] 404 allowed for ${normalizedPath}`);
       return { data: null, response };
     }
     if (
       Array.isArray(allowStatuses) &&
       allowStatuses.includes(response.status)
     ) {
-      console.warn(`[API] Status ${response.status} allowed for ${normalizedPath}`);
       return { data: null, response };
     }
 
@@ -216,7 +207,6 @@ export const apiRequest = async (path, options = {}) => {
           refreshPromise = null;
 
           // Retry the original request with new token
-          console.log(`[API] Retrying ${method} ${normalizedPath} with refreshed token`);
           const retryHeaders = withAuthHeaders(baseHeaders);
           retryHeaders.Authorization = `Bearer ${newAccessToken}`;
 
@@ -234,9 +224,7 @@ export const apiRequest = async (path, options = {}) => {
             retryData = null;
           }
 
-          if (retryResponse.ok) {
-            console.log(`[API] ✓ ${method} ${normalizedPath} (after refresh)`);
-            return { data: retryData, response: retryResponse };
+          if (retryResponse.ok) {return { data: retryData, response: retryResponse };
           } else {
             // Retry still failed
             if (retryResponse.status === 401) {
@@ -268,7 +256,5 @@ export const apiRequest = async (path, options = {}) => {
     error.detail = data && typeof data === "object" ? data.detail : undefined;
     throw error;
   }
-
-  console.log(`[API] ✓ ${method} ${normalizedPath}`);
   return { data, response };
 };

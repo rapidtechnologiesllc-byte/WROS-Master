@@ -3,16 +3,6 @@ import { Table, Button, Modal, Form, Card, Space, Tag, Empty, Spin, message } fr
 import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
 import { toast } from 'react-toastify';
 
-/**
- * AdminAgentConfig - Agent Configuration Management Screen
- *
- * Allows admins to:
- * - View all configured agents in pipeline order
- * - Create new agents with queue settings
- * - Edit existing agent configurations
- * - Delete agents (with confirmation)
- * - Auto-syncs permissions when agents are created/updated
- */
 
 const AdminAgentConfig = () => {
   const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8080';

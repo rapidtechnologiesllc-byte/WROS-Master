@@ -110,7 +110,6 @@ export default function ProfileTabEditable({ candidateId, candidate = {}, onRefr
             setResumeData(docs.resume);
           }
         } catch (docErr) {
-          console.warn("Could not load resume:", docErr?.message);
         }
       } catch (err) {
         setError(err?.message || "Failed to load profile");
@@ -223,7 +222,6 @@ export default function ProfileTabEditable({ candidateId, candidate = {}, onRefr
             setCandidateFullDetails(fullDetails);
           }
         } catch (refreshErr) {
-          console.warn("Could not refresh complete profile data:", refreshErr?.message);
         }
       }, 300);
 

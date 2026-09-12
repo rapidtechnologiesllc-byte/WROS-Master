@@ -437,7 +437,6 @@ export default function ProfileTab({
 // S-030/HRMS-0430 -- Resume Completeness Score. Backend already computes
 // and stores this (candidate.resume_completeness_score, see
 // resume_completeness_service.py); this was the missing frontend half,
-// previously deferred. Null/undefined = no resume parsed yet, not 0%.
 function ResumeCompletenessBar({ score }) {
   if (score === null || score === undefined) {
     return null;

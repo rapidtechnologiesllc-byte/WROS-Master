@@ -150,7 +150,6 @@ export default function CandidateSearch({
       const filteredCandidates = canData?.candidates;
       setPreOnboardingCandidates(filteredCandidates);
     } catch (err) {
-      console.log(err);
       throw err;
     } finally {
       setLoading(false);
@@ -170,7 +169,6 @@ export default function CandidateSearch({
         ) || [];
       setApprovalCandidates(filteredCandidates);
     } catch (err) {
-      console.log(err);
       throw err;
     } finally {
       setLoading(false);
@@ -258,7 +256,6 @@ export default function CandidateSearch({
       }
     } catch (err) {
       setScreenError(err?.message || "Failed to update candidate status");
-      console.log(err);
       throw err;
     }
   };

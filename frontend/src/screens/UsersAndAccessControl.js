@@ -183,9 +183,7 @@ function safeText(v) {
   return v == null ? "" : String(v);
 }
 
-// ============================================================================
 // USERS SECTION
-// ============================================================================
 
 function UsersSection({ loading, error, users, roles, currentUserPermissions = {}, employees = [] }) {
   const navigate = useNavigate();
@@ -342,9 +340,7 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
 }
 
 
-// ============================================================================
 // ROLE TEMPLATES SECTION (showing all templates with their permissions)
-// ============================================================================
 
 function RoleTemplatesSection({ loading, error, modules, roles, setRoles, users }) {
   const [editingTemplateId, setEditingTemplateId] = useState(null);
@@ -842,9 +838,7 @@ function RoleTemplatesSection({ loading, error, modules, roles, setRoles, users 
   );
 }
 
-// ============================================================================
 // MAIN COMPONENT
-// ============================================================================
 
 export default function UsersAndAccessControl() {
   const { section } = useParams();
@@ -897,9 +891,7 @@ export default function UsersAndAccessControl() {
       try {
         const rolesRes = await listRoleTemplates();
         setRoles(Array.isArray(rolesRes.role_templates || rolesRes) ? (rolesRes.role_templates || rolesRes) : []);
-      } catch (rolesErr) {
-        console.warn("Failed to load role templates (may require permission):", rolesErr);
-        setRoles([]);
+      } catch (rolesErr) {setRoles([]);
       }
 
       // Load modules/resources (optional - may fail due to permissions)
@@ -908,9 +900,7 @@ export default function UsersAndAccessControl() {
         const modsRes = await listModulesAndResources();
         modulesRes = { modules: modsRes };
         setModules(modulesRes?.modules || []);
-      } catch (modulesErr) {
-        console.warn("Failed to load modules and verbs (may require rbac.view permission):", modulesErr);
-        setModules([]);
+      } catch (modulesErr) {setModules([]);
       }
 
       // Fetch current user permissions
@@ -920,7 +910,6 @@ export default function UsersAndAccessControl() {
           setCurrentUserPermissions(meData.permissions);
         }
       } catch (permErr) {
-        console.warn("Failed to load user permissions:", permErr);
       }
 
       // Convert verb_matrix from array-based to object-based structure
@@ -945,9 +934,7 @@ export default function UsersAndAccessControl() {
     }
   };
 
-// ============================================================================
 // BUSINESS UNITS SECTION (from AdminSettings)
-// ============================================================================
 
 function BusinessUnitsSection() {
   const navigate = useNavigate();
@@ -1024,9 +1011,7 @@ function BusinessUnitsSection() {
   );
 }
 
-// ============================================================================
 // ORGANIZATIONAL HIERARCHY SECTION
-// ============================================================================
 
 function OrganizationalHierarchySection() {
   const POSITIONS = [
@@ -1504,9 +1489,7 @@ function OrganizationalHierarchySection() {
   );
 }
 
-// ============================================================================
 // LOCATIONS SECTION (DELIVERY CENTERS)
-// ============================================================================
 
 function LocationsSection() {
   const navigate = useNavigate();

@@ -1,8 +1,6 @@
 import { apiRequest } from "./client";
 
-// ============================================================================
 // Agent Fear State Dashboard
-// ============================================================================
 
 export const getAgentFearDashboard = async () => {
   const { data } = await apiRequest("/admin/agents/fear", { method: "GET" });
@@ -19,9 +17,7 @@ export const checkAgentRetirementStatus = async (agentName) => {
   return data;
 };
 
-// ============================================================================
 // Agent Maturity Dashboard
-// ============================================================================
 
 export const getAllAgentsMaturities = async () => {
   const { data } = await apiRequest("/admin/agents/maturity", { method: "GET" });

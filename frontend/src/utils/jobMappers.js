@@ -1,6 +1,3 @@
-/**
- * Utility functions for mapping job data from API responses
- */
 
 export const mapJobFromApi = (j, users = []) => {
   const usersList = Array.isArray(users) ? users : [];

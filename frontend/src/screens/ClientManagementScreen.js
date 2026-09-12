@@ -14,7 +14,6 @@
 // client record shown as reference: contacts are their own tab, not a
 // field that blocks creating the company). Contacts are now captured
 // after creation, in the client detail view -- see ClientContactsPanel
-// below. A client still can't go status=ACTIVE without at least one
 // contact (enforced server-side, unchanged).
 import { useEffect, useState, useMemo } from "react";
 import { Building2, Plus, Pencil, TrendingUp, Users, X } from "lucide-react";

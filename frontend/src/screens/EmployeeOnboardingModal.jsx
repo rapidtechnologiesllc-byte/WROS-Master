@@ -2,17 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { X, AlertCircle } from 'lucide-react';
 import { apiRequest } from '../services/api/client';
 
-/**
- * Employee Onboarding Modal
- * Called from: Offer Screen (Convert Candidate to Employee)
- *
- * Purpose: Capture organizational details when creating an employee
- * - Position (org_node_id)
- * - Reporting Manager (reporting_manager_id, filtered by BU + position)
- * - Delivery Center (delivery_center_id, from DB)
- * - Business Unit (business_unit_id)
- * - User Link (email to link to existing login)
- */
 export default function EmployeeOnboardingModal({
   isOpen,
   onClose,
@@ -63,7 +52,6 @@ export default function EmployeeOnboardingModal({
     return employees.filter(emp =>
       emp.business_unit_id === formData.business_unit_id &&
       emp.org_node_id && // Must have a position
-      // Employee position must be higher (lower position_level number = higher in hierarchy)
       parseInt(emp.org_node_id) < parseInt(formData.org_node_id)
     );
   };

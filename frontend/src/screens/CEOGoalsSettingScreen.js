@@ -4,24 +4,6 @@ import { Target, TrendingUp, Users, DollarSign, Zap, Loader } from "lucide-react
 import { Card, Button, Input } from "../components/ui"
 import { apiRequest } from "../services/api"
 
-/**
- * CEO Goals Setting Screen
- *
- * CEO sets ONE strategic goal.
- * System AUTOMATICALLY cascades to all departments.
- *
- * Instead of 6 people manually setting targets,
- * CEO sets constraints and Workforce Ops, Sales, etc.
- * automatically inherit their piece of the goal.
- *
- * Example:
- *   CEO: "I want 150 consultants by EOY"
- *   System Auto-Sets:
- *     - Workforce Ops: 150 hires/year
- *     - Sales: Revenue targets
- *     - Partners: $5M per partner annual
- *     - BU Heads: Revenue per BU
- */
 
 const DEFAULT_GOALS = [
   {

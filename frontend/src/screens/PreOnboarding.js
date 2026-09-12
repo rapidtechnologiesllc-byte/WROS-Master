@@ -20,7 +20,6 @@ const PreOnboardingPage = ({ candidates }) => {
         const candidateList = await getAllCandidates();
         setPreBoardingCandidates(candidateList?.candidates);
       } catch (err) {
-        console.log(err);
       } finally {
         setLoading(false);
       }
@@ -58,7 +57,6 @@ const PreOnboardingPage = ({ candidates }) => {
                    bg-blue-50 hover:bg-blue-100 transition"
             onClick={() => {
               if (isAssigned) {
-                console.log("Verify clicked", record);
               } else {
                 setSelectedRecord(record);
                 setDrawerOpen(true);

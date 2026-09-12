@@ -1,8 +1,5 @@
 import { apiRequest } from "./client";
 
-/**
- * Send a plain text or HTML email using the HRMS mailbox service.
- */
 export const sendPlainEmail = async ({
   toEmail,
   subject,
@@ -28,10 +25,6 @@ export const sendPlainEmail = async ({
   return data;
 };
 
-/**
- * Send an interview invite for an already created interview.
- * Backend uses interview details from DB and can generate Teams event details.
- */
 export const sendInterviewInvite = async ({
   interviewId,
   extraNotes,

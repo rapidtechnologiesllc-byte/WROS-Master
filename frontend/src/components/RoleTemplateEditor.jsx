@@ -97,7 +97,6 @@ const RoleTemplateEditor = ({ mode = 'create', templateId = null, onClose, onSuc
       });
       setPermissions(newPerms);
     }
-    // If enable=true, just expand module - user must add at least one permission to close it
   };
 
   const handleEnableAllForModule = (moduleName, resources) => {
@@ -155,7 +154,6 @@ const RoleTemplateEditor = ({ mode = 'create', templateId = null, onClose, onSuc
           }
         } catch (err) {
           // If search fails, continue with creation (endpoint may not support search)
-          console.warn(`[RoleTemplateEditor] Template duplicate check failed for "${formData.name}": ${err.message}`, err);
         }
 
         const response = await apiRequest('/admin/role-templates', {

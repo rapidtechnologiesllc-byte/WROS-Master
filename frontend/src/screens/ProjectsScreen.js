@@ -1,7 +1,6 @@
 // HRMS-0801 (Project Lifecycle) + HRMS-0804 (Milestones) + HRMS-0805
 // (Unfilled Roles) + HRMS-0806 (Revenue Estimate, "not a finance
 // figure") + S-358/HRMS-0519 (SI Partner Engagement Tagging -- required
-// whenever delivery_engine=SPECIALITY).
 import { useEffect, useState } from "react";
 import { FolderKanban, RefreshCw, Flag, Users, TrendingUp, CheckCircle2 } from "lucide-react";
 import { Card, Button, Input, Select } from "../components/ui";
@@ -35,10 +34,8 @@ const STATUS_TRANSITIONS = {
   CLOSED: [],
 };
 
-// Backlog item, 2026-08-05: Avinash -- "If Speciality then always =
 // Staff Augmentation so you don't need another field, but when it is
 // core we need to break down the subtype of revenue." Only shown (and
-// only required) when Delivery Engine = Core.
 const BUSINESS_TYPES = ["T_AND_M", "MANAGED_SERVICES", "PROJECT", "POD", "PILOT"];
 const SPECIALITY_CURRENCIES = ["INR", "USD"];
 const CORE_CURRENCIES = ["USD"];
@@ -51,7 +48,6 @@ function CreateProjectForm({ onCreated }) {
   // Delivery Engine is fully derived from the selected client's own
   // Line Type -- not a separate manual choice. There is no SI Partner
   // field: client_id IS the SI partner (PWC/EY/etc. are just Client
-  // rows with line_type=SPECIALITY, same Client Master concept).
   const [deliveryEngine, setDeliveryEngine] = useState("");
   const [endClient, setEndClient] = useState("");
   const [clientPartner, setClientPartner] = useState("");

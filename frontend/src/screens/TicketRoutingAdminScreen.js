@@ -1,7 +1,6 @@
 // Help Desk/IT-HR Ticketing -- admin config for category->department
 // routing + per-priority SLA policies. No hardcoded category list --
 // an admin adds one row per real category, routed to ANY real
-// department, covering every function per Avinash's explicit
 // direction, not just HR/IT.
 import { useEffect, useState } from "react";
 import { Route, Timer } from "lucide-react";

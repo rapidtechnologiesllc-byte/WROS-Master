@@ -116,13 +116,8 @@ const RESOURCE_KEY_TO_PATH = {
 async function fetchNavigationFromBackend() {
   try {
     const { apiRequest } = await import("../services/api/client");
-    console.debug("Fetching navigation from /hr/me/navigation...");
-
     const result = await apiRequest("/api/v1/hr/me/navigation", { method: "GET" });
-    console.debug("Navigation API response:", result?.data);
-
     // apiRequest returns { data, response } where data is already parsed JSON
-    // Backend returns { data: { groups: [...] } }, which becomes result.data = { data: { groups: [...] } }
     // So we need result?.data?.data to get the nested structure
     let navData = result?.data?.data;
 
@@ -130,9 +125,6 @@ async function fetchNavigationFromBackend() {
     if (!navData && result?.data?.groups) {
       navData = result.data;
     }
-
-    console.debug("Extracted navData:", navData);
-
     if (!navData) {
       throw new Error("Navigation response missing data structure");
     }
@@ -140,9 +132,6 @@ async function fetchNavigationFromBackend() {
     if (!navData.groups || !Array.isArray(navData.groups)) {
       throw new Error(`Navigation response missing or invalid groups array. navData.groups=${navData.groups}`);
     }
-
-    console.debug(`Processing ${navData.groups.length} groups...`);
-
     // Backend returns: { groups: [ { label, icon, items: [{key, label, icon, route}] } ] }
     // Transform items to use route for navigation - REQUIRES all fields to be present
     const groups = navData.groups.map(group => {
@@ -159,15 +148,7 @@ async function fetchNavigationFromBackend() {
           path: item.route || RESOURCE_KEY_TO_PATH[item.key] || `/${item.key.replace(/_/g, "-")}`, // Admin path mapping, then fallback
         }))
       };
-    });
-
-    console.debug("Navigation fetched from backend:", {
-      groupCount: groups.length,
-      totalItems: groups.reduce((sum, g) => sum + g.items.length, 0),
-      modules: groups.map(g => `${g.label}(${g.items.length})`).join(", "),
-    });
-
-    return groups;
+    });return groups;
   } catch (error) {
     console.error(`Failed to fetch navigation from backend: ${error.message}`, error);
     throw error;
@@ -279,13 +260,10 @@ export default function Shell({
           if (user.permissions !== undefined) {
             // Store permissions even if empty - means we got a response
             localStorage.setItem("hrms_permissions", JSON.stringify(user.permissions || []));
-            setPermissionsLoaded(true); // Trigger re-render with new permissions
-            console.debug(`Permissions loaded: ${(user.permissions || []).length} permissions`);
-            return true; // Success, stop retrying
+            setPermissionsLoaded(true); // Trigger re-render with new permissionsreturn true; // Success, stop retrying
           }
         }
       } catch (error) {
-        console.debug(`Permission refresh attempt ${retryCount + 1} failed:`, error);
         if (retryCount >= MAX_RETRIES - 1) {
           throw new Error(`Failed to refresh permissions after ${MAX_RETRIES} attempts: ${error.message}`);
         }
@@ -358,13 +336,7 @@ export default function Shell({
         // Backend returns only items the user has permission to see - no frontend filtering needed
         const navGroups = await fetchNavigationFromBackend();
 
-        setNav({ standalone: [], groups: navGroups });
-        console.debug("Navigation loaded:", {
-          groupCount: navGroups.length,
-          totalItems: navGroups.reduce((sum, g) => sum + g.items.length, 0),
-          groups: navGroups.map(g => `${g.label}(${g.items.length})`).join(", ")
-        });
-      } catch (error) {
+        setNav({ standalone: [], groups: navGroups });} catch (error) {
         console.error("Failed to load navigation:", error);
         // Fallback: try loading again with no special handling
         try {

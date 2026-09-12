@@ -2,13 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { apiRequest } from '../services/api/client';
 import '../styles/MessageQueueMonitorEnhanced.css';
 
-/**
- * Phase 5: Enhanced Message Queue Monitor
- * - Compact/expand queue group toggle
- * - Queue control buttons (pause, resume, retry, purge)
- * - Health metrics from QueueDoctor
- * - Worker status indicator
- */
 
 const MessageQueueMonitorEnhanced = () => {
   const [queueDisplay, setQueueDisplay] = useState(null);
@@ -62,7 +55,6 @@ const MessageQueueMonitorEnhanced = () => {
         setHealthMetrics(health.data);
       }
     } catch (err) {
-      console.warn('Could not fetch health metrics:', err);
     }
   };
 
@@ -73,7 +65,6 @@ const MessageQueueMonitorEnhanced = () => {
         setQueueTypes(response.queue_types);
       }
     } catch (err) {
-      console.warn('Could not fetch queue types:', err);
     }
   };
 

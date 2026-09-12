@@ -197,10 +197,6 @@ function guessLocation(text) {
   return "";
 }
 
-/**
- * @param {string} raw
- * @returns {Record<string, string>}
- */
 export function inferFieldsFromResumeText(raw) {
   const text = raw.replace(/\r/g, "\n");
   const lines = text
@@ -234,10 +230,6 @@ export function inferFieldsFromResumeText(raw) {
   return out;
 }
 
-/**
- * @param {File} file
- * @returns {Promise<string>}
- */
 export async function extractResumeText(file) {
   const name = (file.name || "").toLowerCase();
   const type = file.type || "";

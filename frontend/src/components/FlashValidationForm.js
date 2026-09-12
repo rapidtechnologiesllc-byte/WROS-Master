@@ -2,17 +2,6 @@ import { useState } from "react"
 import { Card, Button } from "./ui"
 import { AlertCircle, CheckCircle, AlertTriangle, TrendingUp, Clock, Calendar, Week } from "lucide-react"
 
-/**
- * Flash Validation Form Component
- *
- * Displays Flash orchestrator's progress validation and coaching.
- *
- * States:
- * - ON_TRACK: Progress within 5% of expected. Submit button enabled.
- * - SLIGHT_LAG: 10% behind pace. Requires confirmation. Submit blocked until addressed.
- * - CRITICAL_LAG: >10% behind pace. Escalation required. Submit disabled.
- * - AHEAD: Exceeding pace. Encouragement. Submit enabled.
- */
 
 const StatusConfig = {
   ON_TRACK: {

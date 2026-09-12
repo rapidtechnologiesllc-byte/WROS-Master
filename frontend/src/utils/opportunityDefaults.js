@@ -7,8 +7,6 @@ export function getDefaultOpportunityOwner() {
   // Returns current logged-in user's ID for auto-population
   try {
     // Placeholder: would use useAuth() or get from context
-    // const { currentUser } = useAuth();
-    // return currentUser?.id;
     return null; // Will be set by form component
   } catch (e) {
     return null;

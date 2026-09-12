@@ -1,26 +1,9 @@
-/**
- * Permission Context - Global permission state management for React
- *
- * Provides:
- * - Centralized permission state
- * - Permission caching after login
- * - Permission refresh capability
- * - Context-aware permission checks throughout the app
- */
 
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import * as permUtils from '../utils/permissionsRbac';
 
 const PermissionContext = createContext();
 
-/**
- * Permission provider component - wrap your app with this
- *
- * Usage:
- *   <PermissionProvider>
- *     <App />
- *   </PermissionProvider>
- */
 export const PermissionProvider = ({ children }) => {
   const [permissions, setPermissions] = useState([]);
   const [modules, setModules] = useState([]);
@@ -28,9 +11,6 @@ export const PermissionProvider = ({ children }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  /**
-   * Fetch user permissions from backend
-   */
   const fetchPermissions = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -81,9 +61,6 @@ export const PermissionProvider = ({ children }) => {
     }
   }, []);
 
-  /**
-   * Load cached permissions on mount
-   */
   useEffect(() => {
     const cached = permUtils.getUserPermissions();
     if (cached && cached.length > 0) {
@@ -100,58 +77,34 @@ export const PermissionProvider = ({ children }) => {
     }
   }, []);
 
-  /**
-   * Check if user has a specific permission
-   */
   const hasPermission = useCallback((permission) => {
     return permissions.includes(permission.toLowerCase());
   }, [permissions]);
 
-  /**
-   * Check if user has any of the given permissions
-   */
   const hasAnyPermission = useCallback((permissionList) => {
     return permissionList.some(perm => permissions.includes(perm.toLowerCase()));
   }, [permissions]);
 
-  /**
-   * Check if user has all of the given permissions
-   */
   const hasAllPermissions = useCallback((permissionList) => {
     return permissionList.every(perm => permissions.includes(perm.toLowerCase()));
   }, [permissions]);
 
-  /**
-   * Check if user can perform an action in a module
-   */
   const canAction = useCallback((moduleName, action) => {
     return hasPermission(`${moduleName}.${action}`);
   }, [hasPermission]);
 
-  /**
-   * Check if user can view a module
-   */
   const canViewModule = useCallback((moduleName) => {
     return isSuperAdmin || hasPermission(`${moduleName}.view`);
   }, [isSuperAdmin, hasPermission]);
 
-  /**
-   * Check if user can create in a module
-   */
   const canCreateInModule = useCallback((moduleName) => {
     return isSuperAdmin || hasPermission(`${moduleName}.create`);
   }, [isSuperAdmin, hasPermission]);
 
-  /**
-   * Check if user can edit in a module
-   */
   const canEditInModule = useCallback((moduleName) => {
     return isSuperAdmin || hasPermission(`${moduleName}.edit`);
   }, [isSuperAdmin, hasPermission]);
 
-  /**
-   * Check if user can delete in a module
-   */
   const canDeleteInModule = useCallback((moduleName) => {
     return isSuperAdmin || hasPermission(`${moduleName}.delete`);
   }, [isSuperAdmin, hasPermission]);
@@ -180,16 +133,6 @@ export const PermissionProvider = ({ children }) => {
   );
 };
 
-/**
- * Hook to use permission context
- *
- * Usage:
- *   const { hasPermission, canCreateInModule } = usePermissions();
- *
- *   if (!hasPermission('candidates.view')) {
- *     return <div>You don't have permission to view candidates</div>;
- *   }
- */
 export const usePermissions = () => {
   const context = useContext(PermissionContext);
   if (!context) {
@@ -198,25 +141,11 @@ export const usePermissions = () => {
   return context;
 };
 
-/**
- * Hook to require a specific permission
- * Renders nothing if permission is not granted
- *
- * Usage:
- *   const CanCreateCandidates = useRequirePermission('candidates.create');
- *   return CanCreateCandidates ? <Button>Create Candidate</Button> : null;
- */
 export const useRequirePermission = (permission) => {
   const { hasPermission } = usePermissions();
   return hasPermission(permission);
 };
 
-/**
- * HOC to require permission - wraps component and conditionally renders
- *
- * Usage:
- *   const ProtectedComponent = withPermission(MyComponent, 'candidates.create');
- */
 export const withPermission = (Component, permission) => {
   return (props) => {
     const { hasPermission } = usePermissions();
@@ -229,23 +158,11 @@ export const withPermission = (Component, permission) => {
   };
 };
 
-/**
- * Hook to require any of multiple permissions
- *
- * Usage:
- *   const canManageRecruitment = useRequireAnyPermission(['recruitment.view', 'recruitment.manage']);
- */
 export const useRequireAnyPermission = (permissions) => {
   const { hasAnyPermission } = usePermissions();
   return hasAnyPermission(permissions);
 };
 
-/**
- * Hook to require all of multiple permissions
- *
- * Usage:
- *   const canApproveOffers = useRequireAllPermissions(['offers.view', 'offers.approve']);
- */
 export const useRequireAllPermissions = (permissions) => {
   const { hasAllPermissions } = usePermissions();
   return hasAllPermissions(permissions);

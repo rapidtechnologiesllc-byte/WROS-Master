@@ -1,10 +1,3 @@
-/**
- * Admin Weekly Recap Dashboard
- *
- * CEO's executive view: Everything that happened this week at a glance
- * Shows: Weekly Standup Summary, HTD Pipeline Progress, Opportunity Pipeline,
- * Partner Performance, Flash Directives, Agent Health, Forecast vs Reality
- */
 
 import React, { useState, useEffect } from 'react';
 import { Card, Row, Col, Statistic, Table, Tag, Button, Tabs, Spin, Alert, Empty, Badge } from 'antd';

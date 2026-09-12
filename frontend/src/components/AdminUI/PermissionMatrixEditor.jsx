@@ -2,11 +2,6 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { roleTemplatesAPI } from '../../services/api/roleTemplates';
 import './PermissionMatrixEditor.css';
 
-/**
- * PermissionMatrixEditor - Interactive matrix editor for all 175 resources
- * Displays resources grouped by module with V/C/E/D checkboxes
- * Allows real-time toggle and bulk save of permissions
- */
 const PermissionMatrixEditor = ({ templateId, templateName, onSave, onCancel, loading }) => {
   const [resources, setResources] = useState([]);
   const [resourcesByModule, setResourcesByModule] = useState({});

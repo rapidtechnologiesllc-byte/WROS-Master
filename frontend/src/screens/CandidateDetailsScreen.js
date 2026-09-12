@@ -151,7 +151,6 @@ function UsersBUDetailsPanel({ candidate, onUpdate }) {
         const recruitersList = Array.isArray(allUsers)
           ? allUsers.filter(u => u.user.job_title === 'Recruiter' || u.job_title === 'Recruiter')
           : allUsers?.users?.filter(u => u.user.job_title === 'Recruiter' || u.job_title === 'Recruiter') || [];
-        console.log("Loaded recruiters:", recruitersList);
         setRecruiters(recruitersList);
       } catch (error) {
         console.error("Failed to load recruiters:", error);
@@ -170,7 +169,6 @@ function UsersBUDetailsPanel({ candidate, onUpdate }) {
         if (response.ok) {
           const buData = await response.json();
           const buList = Array.isArray(buData) ? buData : buData.business_units || [];
-          console.log("Loaded business units:", buList);
           setBusinessUnits(buList);
         } else {
           setBusinessUnits([]);
@@ -641,13 +639,7 @@ export default function CandidateDetailsScreen({
   }, [candidate?.id, limitedMode]);
 
   // Load full candidate details to populate all form fields (commented out - CandidateDetailsWrapper already loads this)
-  // useEffect(() => {
-  //   const loadFullCandidateDetails = async () => {
   //     try {
-  //       const candidateId = candidate?.candidate_id ?? candidate?.id ?? candidate?._id;
-  //       if (candidateId) {
-  //         const fullCandidate = await getCandidateById(candidateId);
-  //         if (fullCandidate && onUpdateCandidate) {
   //           onUpdateCandidate(fullCandidate);  // This was calling onUpdateCandidate(fullCandidate) with 1 arg instead of 2
   //         }
   //       }
@@ -655,7 +647,6 @@ export default function CandidateDetailsScreen({
   //       console.error("Failed to fetch full candidate details:", error);
   //     }
   //   };
-  //   if (candidate?.id && !limitedMode) {
   //     loadFullCandidateDetails();
   //   }
   // }, [candidate?.id, limitedMode, onUpdateCandidate]);

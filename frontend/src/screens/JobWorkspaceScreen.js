@@ -98,8 +98,6 @@ export default function JobWorkspaceScreen({
               candidate: candidateDetails,
             };
           } catch (err) {
-            console.log(`Error fetching candidate ${app?.candidate_id}`, err);
-
             return {
               ...app,
               candidate: null,
@@ -111,7 +109,6 @@ export default function JobWorkspaceScreen({
       setFinalCandidates(enrichedCandidates);
       setLoading(false);
     } catch (err) {
-      console.log(err);
     }
   };
   useEffect(() => {
@@ -327,7 +324,6 @@ export default function JobWorkspaceScreen({
       }
     } catch (err) {
       toast.error(err);
-      console.log(err);
     }
   };
 

@@ -380,7 +380,6 @@ export default function AppRoutes() {
           }
         }
       } catch (error) {
-        console.debug("Could not refresh user data from /hr/me:", error);
       } finally {
         // CRITICAL: Mark loading as complete so Shell can render
         setPermissionsLoading(false);

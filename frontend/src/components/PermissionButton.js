@@ -1,32 +1,8 @@
-/**
- * PermissionButton - Button component that respects user permissions
- *
- * Automatically disables or hides button based on permission checks.
- * Shows tooltip explaining why button is disabled if no permission.
- */
 
 import React from 'react';
 import { usePermissions } from '../context/PermissionContext';
 import * as permUtils from '../utils/permissionsRbac';
 
-/**
- * Button that requires a specific permission to be enabled
- *
- * Usage:
- *   <PermissionButton
- *     permission="candidates.create"
- *     onClick={handleCreateCandidate}
- *   >
- *     Create Candidate
- *   </PermissionButton>
- *
- * Props:
- *   - permission: Permission string (e.g., 'candidates.create')
- *   - onClick: Click handler
- *   - hideIfDenied: If true, hide button instead of disabling it (default false)
- *   - children: Button text
- *   - ... any other Button props (className, style, etc.)
- */
 export const PermissionButton = ({
   permission,
   onClick,
@@ -60,14 +36,6 @@ export const PermissionButton = ({
   );
 };
 
-/**
- * Link component that requires permission
- *
- * Usage:
- *   <PermissionLink to="/admin" permission="administration.view">
- *     Admin Panel
- *   </PermissionLink>
- */
 export const PermissionLink = ({
   permission,
   to,
@@ -109,18 +77,6 @@ export const PermissionLink = ({
   );
 };
 
-/**
- * Conditional render component - renders children only if permission is granted
- *
- * Usage:
- *   <IfPermission permission="candidates.create">
- *     <CreateCandidateForm />
- *   </IfPermission>
- *
- *   <IfPermission permission="candidates.delete" fallback={<p>No delete access</p>}>
- *     <DeleteButton />
- *   </IfPermission>
- */
 export const IfPermission = ({ permission, children, fallback = null }) => {
   const { hasPermission } = usePermissions();
 
@@ -131,14 +87,6 @@ export const IfPermission = ({ permission, children, fallback = null }) => {
   return fallback;
 };
 
-/**
- * Conditional render if user has ANY of the permissions
- *
- * Usage:
- *   <IfAnyPermission permissions={['candidates.edit', 'candidates.manage']}>
- *     <EditCandidateForm />
- *   </IfAnyPermission>
- */
 export const IfAnyPermission = ({ permissions, children, fallback = null }) => {
   const { hasAnyPermission } = usePermissions();
 
@@ -149,14 +97,6 @@ export const IfAnyPermission = ({ permissions, children, fallback = null }) => {
   return fallback;
 };
 
-/**
- * Conditional render if user has ALL permissions
- *
- * Usage:
- *   <IfAllPermissions permissions={['offers.view', 'offers.approve']}>
- *     <ApproveOfferForm />
- *   </IfAllPermissions>
- */
 export const IfAllPermissions = ({ permissions, children, fallback = null }) => {
   const { hasAllPermissions } = usePermissions();
 
@@ -167,14 +107,6 @@ export const IfAllPermissions = ({ permissions, children, fallback = null }) => 
   return fallback;
 };
 
-/**
- * Conditional render based on module access
- *
- * Usage:
- *   <IfCanViewModule module="administration">
- *     <AdminPanel />
- *   </IfCanViewModule>
- */
 export const IfCanViewModule = ({ module, children, fallback = null }) => {
   const { canViewModule } = usePermissions();
 
@@ -185,14 +117,6 @@ export const IfCanViewModule = ({ module, children, fallback = null }) => {
   return fallback;
 };
 
-/**
- * Conditional render for action in module
- *
- * Usage:
- *   <IfCanAction module="candidates" action="create">
- *     <CreateButton />
- *   </IfCanAction>
- */
 export const IfCanAction = ({ module, action, children, fallback = null }) => {
   const { canAction } = usePermissions();
 
@@ -203,16 +127,6 @@ export const IfCanAction = ({ module, action, children, fallback = null }) => {
   return fallback;
 };
 
-/**
- * Permission-aware input component
- *
- * Usage:
- *   <PermissionInput
- *     permission="candidates.edit"
- *     value={candidateName}
- *     onChange={handleChange}
- *   />
- */
 export const PermissionInput = ({
   permission,
   children,
@@ -235,12 +149,6 @@ export const PermissionInput = ({
   );
 };
 
-/**
- * Permission denied fallback component
- *
- * Usage:
- *   <PermissionDeniedFallback permission="candidates.delete" />
- */
 export const PermissionDeniedFallback = ({ permission }) => {
   const message = permUtils.getPermissionErrorMessage(
     permission.split('.')[1],

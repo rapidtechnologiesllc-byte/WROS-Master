@@ -1,8 +1,6 @@
 // Flash -- internal query API wrapper (authenticated). Renamed
 // 2026-08-06 from "Ask Thunder"/askThunder.js -- functionally
 // unchanged at rename time. See app/api/v1/endpoints/flash.py for the
-// Thunder-vs-Flash product split rationale (Thunder = external
-// candidate-facing agent, Flash = internal staff/employee agent).
 import { apiRequest } from "./client";
 
 // Backlog item, 2026-08-05 (wros_ask_thunder_bugs_and_memory_backlog):

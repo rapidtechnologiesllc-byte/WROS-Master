@@ -4,19 +4,6 @@ import { Target, Edit2, Save, X, AlertCircle, Loader } from "lucide-react"
 import { Card, Button, Input } from "../components/ui"
 import { apiRequest } from "../services/api"
 
-/**
- * Goals Management Screen
- *
- * Allows admins/partners to set annual targets for Flash validation.
- * Flash validates all reporting against these goals.
- *
- * Goals hierarchy:
- * - Annual Goal (e.g., 100 hires, 500 commits, $5M revenue)
- * - Q1-Q4 breakdown (25% each, typically)
- * - Monthly breakdown (1/12 of annual)
- * - Weekly breakdown (1/52 of annual)
- * - Daily breakdown (1/365 of annual) - calculated automatically
- */
 
 const GOAL_DEFINITIONS = [
   {

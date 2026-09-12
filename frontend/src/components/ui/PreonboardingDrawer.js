@@ -85,7 +85,6 @@ const PreboardingDrawer = ({ open, onClose, record, onSuccess }) => {
         const res = await getChecklistTemplate(5);
         setItems(mapItemsToTableData(res?.items));
       } catch (err) {
-        console.log(err);
       }
     };
     listTemplates();
@@ -134,7 +133,6 @@ const PreboardingDrawer = ({ open, onClose, record, onSuccess }) => {
       }
     } catch (err) {
       setScreenError(err?.message || "Failed to assign task");
-      console.log(err);
       onClose();
     } finally {
       setSubmitting(false);

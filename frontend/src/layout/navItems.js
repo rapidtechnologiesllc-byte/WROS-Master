@@ -39,7 +39,6 @@ import { ROUTES } from "../utils/Routes";
 export const NAV_ITEMS = {
   dashboard: { path: ROUTES.DASHBOARD, label: "Dashboard", icon: LayoutDashboard },
   // S-434 -- org-wide Task Dashboard. Visible to every internal role
-  // (every branch below), not gated to any one department/function --
   // Task serves the whole org, per Avinash's explicit direction.
   myTasks: { path: ROUTES.MY_TASKS, label: "My Tasks", icon: CalendarCheck2 },
   // Employee self-service timesheet, 2026-08-04 -- visible to every

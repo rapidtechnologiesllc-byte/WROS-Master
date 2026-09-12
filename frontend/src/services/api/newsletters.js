@@ -1,7 +1,6 @@
 // Newsletter API wrappers.
 import { apiRequest } from "./client";
 
-// ========== Subscriber Endpoints ==========
 
 export const subscribeNewsletter = async (payload) => {
   const { data } = await apiRequest("/newsletters/subscribe", {
@@ -29,7 +28,6 @@ export const getSubscribers = async (skip = 0, limit = 100) => {
   return data;
 };
 
-// ========== Newsletter Endpoints ==========
 
 export const createNewsletter = async (payload) => {
   const { data } = await apiRequest("/newsletters/create", {

@@ -1,7 +1,3 @@
-/**
- * Frontend permission checking utility - checks permissions from role templates
- * Complements backend RoleTemplatePermissionService
- */
 
 export const getStoredPermissions = () => {
   try {
@@ -85,10 +81,6 @@ export const hasPermission = (resourceName, action) => {
   return checker(resourceName);
 };
 
-/**
- * Module-level permission checkers
- * These check if user has a specific permission in a module
- */
 
 export const canViewModule = (moduleName) => {
   const permissions = getStoredPermissions();
@@ -143,10 +135,6 @@ export const canDeleteInModule = (moduleName) => {
   return false;
 };
 
-/**
- * Combined module permission check
- * Returns object with all permission flags for a module
- */
 export const getModulePermissions = (moduleName) => {
   return {
     canView: canViewModule(moduleName),

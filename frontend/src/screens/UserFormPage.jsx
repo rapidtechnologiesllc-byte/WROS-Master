@@ -61,22 +61,12 @@ export default function UserFormPage() {
   const loadUserData = async () => {
     try {
       setLoading(true);
-      console.log('[DEBUG] loadUserData: Starting, userId from URL:', userId);
-
       const usersRes = await apiRequest('/hr/users/all');
-      console.log('[DEBUG] loadUserData: Users response:', usersRes);
-      console.log('[DEBUG] loadUserData: Users array:', usersRes.data?.users);
 
       const user = usersRes.data?.users?.find(u => {
-        console.log('[DEBUG] loadUserData: Comparing u.user_id:', u.user_id, 'type:', typeof u.user_id, 'with userId:', userId, 'type:', typeof userId, 'match:', u.user_id === userId);
         return u.user_id === userId;
       });
-
-      console.log('[DEBUG] loadUserData: Found user:', user);
-
       if (user) {
-        console.log('[DEBUG] loadUserData: User found, loaded from users list');
-        console.log('[DEBUG] loadUserData: job_title =', user.job_title, 'role_template_id =', user.role_template_id, 'permission_role =', user.permission_role);
 
         // If role_template_id is not returned, try to find it by matching permission_role
         let roleTemplateId = user.role_template_id || '';
@@ -86,7 +76,6 @@ export default function UserFormPage() {
           );
           if (matchingTemplate) {
             roleTemplateId = matchingTemplate.id || matchingTemplate.TemplateID;
-            console.log('[DEBUG] loadUserData: Mapped permission_role to role_template_id:', roleTemplateId);
           }
         }
 
@@ -98,10 +87,7 @@ export default function UserFormPage() {
           business_unit_id: user.business_unit_id || '',
           role_template_id: roleTemplateId
         });
-
-        console.log('[DEBUG] loadUserData: formData set to:', { job_title: user.job_title, role_template_id: roleTemplateId });
       } else {
-        console.log('[DEBUG] loadUserData: User not found - showing error and navigating');
         toast.error('User not found');
         navigate('/admin/users-access-control/users');
       }

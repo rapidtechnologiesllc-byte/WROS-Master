@@ -292,7 +292,6 @@ export const getAssignedInterviews = async () => {
 
 // S-102/HRMS-P207 -- Hiring Manager Candidate Review.
 // Real fix, 2026-08-05 -- no longer takes a hiring manager ID at all.
-// The old version let any logged-in internal user view any OTHER
 // hiring manager's candidate review by typing an arbitrary ID; the
 // backend now derives "my candidates" from the authenticated caller.
 export const getMyHmCandidateReview = async () => {
@@ -310,7 +309,6 @@ export const getFlashAnalysisForInterview = async (interviewId) => {
     });
     return data?.data || null;
   } catch (err) {
-    console.warn(`Failed to load Flash analysis for interview ${interviewId}:`, err);
     return null;
   }
 };

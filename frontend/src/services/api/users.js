@@ -3,7 +3,6 @@ import { apiRequest } from "./client";
 
 // 2026-08-12 real bug fix -- Avinash: "users.map is not a function."
 // The backend returns {total_users, users: [...]} (AllUsersResponse), but
-// this used to return that wrapped object as-is, leaving every one of its
 // ~11 callers to defensively re-unwrap `.users` themselves -- most did,
 // two didn't (OpportunityPipelineScreen.js, ProfileTabEditable.js) and
 // crashed on `.map()`. Unwrapped once here, so the function's real

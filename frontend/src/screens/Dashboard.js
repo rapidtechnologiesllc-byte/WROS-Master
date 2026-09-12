@@ -58,7 +58,6 @@ export default function Dashboard({
         // If user has CEO/CFO/Partner permissions, redirect to their dashboard
         // The role template name is NOT used for routing
         if (Array.isArray(perms) && perms.includes('*.*')) {
-          // Wildcard permission = SuperUser/CEO
           window.location.replace("/ceo-fy-progress");
           return;
         }
@@ -79,7 +78,6 @@ export default function Dashboard({
         }
 
         // Default: stay on general dashboard if no special permissions
-        console.log("No special dashboard permissions found, showing general dashboard");
       } catch (err) {
         console.error("Failed to check permissions and redirect:", err);
         // Default: stay on general dashboard on error

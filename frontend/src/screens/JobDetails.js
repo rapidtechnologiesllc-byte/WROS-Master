@@ -58,7 +58,6 @@ export default function JobDetails({ job, onSubmit, onGoApproval, onUpdate, mode
         const result = await listClients();
         setClientList(result?.clients || []);
       } catch (err) {
-        console.warn("Could not load clients:", err?.message);
       }
     };
     loadClients();
@@ -70,7 +69,6 @@ export default function JobDetails({ job, onSubmit, onGoApproval, onUpdate, mode
         const response = await searchUsers({ limit: 200 });
         setAvailableContacts(Array.isArray(response?.users) ? response.users : []);
       } catch (err) {
-        console.warn("Could not load contact people:", err?.message);
         setAvailableContacts([]);
       }
     };

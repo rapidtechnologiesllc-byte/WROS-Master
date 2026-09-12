@@ -316,7 +316,6 @@ const OfferListing = () => {
           toast.success("Offer Approved, and release");
         }
 
-        // const emailResult = await sendMailAttachments({
         //   toEmail: candidateData?.candidate_email,
         //   subject: `BlitzenX-Employment Offer ${candidateData?.candidate_name} | ${candidateData?.position} `,
         //   bodyContent: OfferConfirmationEmail(

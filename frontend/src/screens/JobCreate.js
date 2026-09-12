@@ -362,7 +362,6 @@ export default function JobCreate({
         const listResult = await listBusinessUnits();
         setBusinessUnitList(listResult);
       } catch (err) {
-        console.log(err);
       }
     };
     listingBusinessUnits();
@@ -616,7 +615,6 @@ export default function JobCreate({
         // Get the selected hiring manager's info
         const hiringManager = hiringManagers?.find(hm => hm.user_id === hmUserId);
 
-        // Check if hiring manager == BU head (no approval needed)
         if (hiringManager?.user_id === hiringManager?.bu_head_id) {
           // Hiring manager is also the BU Head - create task for recruiter to start work
           if (rmUserId) {

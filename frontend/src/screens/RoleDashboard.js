@@ -212,6 +212,5 @@ export function CEODashboard() {
 export default function RoleDashboardRouter() {
   // Determines which dashboard to show based on user role
   // TODO: Use useAuth() to determine role
-  // return role === "PARTNER" || role === "BU_HEAD" ? <PartnerBUDashboard /> : <CEODashboard />
   return <CEODashboard />;
 }

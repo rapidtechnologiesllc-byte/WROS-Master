@@ -1,7 +1,6 @@
 // Offer letter API wrappers (HR and candidate).
 import { apiRequest } from "./client";
 
-// ========== HR/Recruiter Endpoints ==========
 
 export const createOfferLetter = async (payload) => {
   const { data } = await apiRequest("/offer-letter/create", {
@@ -63,7 +62,6 @@ export const cancelOfferLetter = async (offerId, payload) => {
   return data;
 };
 
-// ========== Candidate Endpoints ==========
 
 export const getMyOffers = async () => {
   const { data } = await apiRequest("/offer-letter/my-offers", {

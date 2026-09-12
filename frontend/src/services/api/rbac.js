@@ -222,9 +222,7 @@ export const setDepartmentForUser = async (userId, departmentId) => {
   return data;
 };
 
-// ===================================================================
 // NEW: RBAC Matrix & Permission Grid Management (UI-focused endpoints)
-// ===================================================================
 
 export const getModulesAndVerbs = async () => {
   const { data } = await apiRequest("/rbac/modules-and-verbs", {

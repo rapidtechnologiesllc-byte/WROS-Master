@@ -166,7 +166,6 @@ const PreonboardingModal = ({
         const listResult = await departmentList();
         setDepartmentList(listResult);
       } catch (err) {
-        console.log(err);
       }
     };
     listingDepartments();
@@ -248,7 +247,6 @@ const PreonboardingModal = ({
   };
 
   const bonusCheckboxHandler = (e) => {
-    console.log(e?.target?.checked);
   };
 
   const salaryTableHandler = async () => {
@@ -374,15 +372,12 @@ const PreonboardingModal = ({
     // try {
     //   setIsSaving(true);
 
-    //   const payload = {
     //     offer_id: offerIdData,
     //     candidate_id: candidate?.id,
     //     job_id: selectedJob?.id,
     //   };
 
-    //   const response = await sendOfferApprovalEmail(payload);
 
-    //   if (response?.success) {
     //     toast.success("Email sent successfully to HR Head");
     //     onSuccess?.();
     //     onClose?.();
@@ -406,7 +401,6 @@ const PreonboardingModal = ({
     } catch (error) {
       toast.error("Offer Already Approved");
     }
-    //  const emailResult = sendMailAttachments({
     //    email,
     //    subject: `BlitzenX-Employment Offer ${fullName} | ${candidate?.jobTitle} `,
     //    bodyContent: OfferConfirmationEmail(fullName,candidate?.jobTitle,"BlitzenX",selectedJobId,worker,)
