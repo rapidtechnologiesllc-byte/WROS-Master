@@ -24,7 +24,7 @@ export const PermissionProvider = ({ children }) => {
         return;
       }
 
-      const response = await fetch('/api/v1/users/me/permissions', {
+      const response = await fetch('/api/v1/hr/me/permissions', {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'

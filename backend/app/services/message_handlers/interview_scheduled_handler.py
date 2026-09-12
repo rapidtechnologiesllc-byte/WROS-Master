@@ -23,6 +23,30 @@ from app.services.message_handlers.base_message_handler import time_bound
 logger = logging.getLogger(__name__)
 
 
+def handle_interview_scheduled(event_payload: dict, db: Session) -> Dict[str, Any]:
+    """
+    Wrapper function for legacy handler interface.
+
+    Args:
+        event_payload: {'candidate_id': str, 'data': dict}
+        db: Database session
+
+    Returns:
+        {'status': str, 'interview_id': str, ...}
+    """
+    # Convert legacy format to ChannelQueueItem format
+    from app.models.channel_queue import ChannelQueueItem
+
+    mock_message = ChannelQueueItem(
+        id="legacy_interview_scheduled",
+        task_name="interview_scheduled",
+        status="PROCESSING",
+        payload=event_payload.get('data', event_payload)
+    )
+
+    return InterviewScheduledHandler.process(mock_message, db)
+
+
 class InterviewScheduledHandler:
     """Handles interview scheduled messages with validation and timeout."""
 
