@@ -54,6 +54,16 @@ def _initialize_default_handlers():
         logger.error(f"[Registry] CRITICAL: Failed to register Thunder handlers: {e}")
         logger.error("[Registry] Thunder candidate engagement will fail without this handler")
 
+    # Register SLM email generation handler (NEW - Phase 2)
+    try:
+        from app.services.message_handlers.slm_email_generation_handler import SLMEmailGenerationHandler
+        MessageHandlerRegistry.register("slm_generate_email", SLMEmailGenerationHandler.process)
+        logger.info("[Registry] Registered SLM email generation handler")
+    except ImportError as e:
+        logger.warning(f"[Registry] Could not import SLM email generation handler: {e}")
+    except Exception as e:
+        logger.error(f"[Registry] Failed to register SLM email generation handler: {e}", exc_info=True)
+
     # Register job handlers (CYCLE 19: Queue-driven architecture)
     try:
         from app.services.message_handlers.job_status_changed_handler import handle_job_status_changed
@@ -167,7 +177,16 @@ def _handle_thunder_engagement(message: Any, db: Session) -> Dict[str, Any]:
         message_sent = False
         if has_active_consent(db, candidate_id):
             try:
-                initial_message = f"Hi {candidate.candidateFirstName}, thanks for your interest! Let's explore this opportunity."
+                # Phase 2: Check if SLM generated email content (from READY_TO_SEND state)
+                initial_message = message.payload.get('slm_generated_email_body') if message else None
+
+                # Fallback: Use generic message if SLM didn't generate one
+                if not initial_message:
+                    initial_message = f"Hi {candidate.candidateFirstName}, thanks for your interest! Let's explore this opportunity."
+                    logger.debug(f"[Thunder] No SLM-generated email for {candidate_id}, using fallback message")
+                else:
+                    logger.info(f"[Thunder] Using SLM-generated email for {candidate_id} ({len(initial_message)} chars)")
+
                 send_thunder_message(
                     db=db,
                     conversation=conversation,

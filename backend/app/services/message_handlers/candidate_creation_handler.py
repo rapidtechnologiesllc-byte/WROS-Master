@@ -209,8 +209,11 @@ class CandidateCreationHandler:
                 logger.warning(f"[Handler] History logging failed (non-blocking): {e}", exc_info=True)
 
             try:
-                # Queue engagement through Thunder (handles email + outreach)
-                MessageQueueService.enqueue(
+                # Phase 2: Queue engagement with SLM email generation
+                # Queue will be in WAITING_FOR_SLM state until SLM generates personalized email
+                from app.core.database import SessionLocal as DBSession
+
+                result = MessageQueueService.enqueue(
                     task_name='engage_candidate_with_thunder',
                     data={
                         'candidate_id': candidate_id,
@@ -220,7 +223,25 @@ class CandidateCreationHandler:
                         'tenant_id': payload.get('tenant_id', 1),
                     }
                 )
-                logger.info(f"[Handler] ✅ Queued engagement email through Thunder for {candidate_id}")
+
+                # Update message status to WAITING_FOR_SLM for async email generation
+                try:
+                    temp_db = DBSession()
+                    from app.models.channel_queue import ChannelQueueItem
+                    message_id = result.get('message_id') or result.get('id')
+                    queued_message = temp_db.query(ChannelQueueItem).filter(
+                        ChannelQueueItem.message_id == message_id
+                    ).first()
+                    if queued_message:
+                        queued_message.status = 'WAITING_FOR_SLM'
+                        temp_db.commit()
+                        logger.info(f"[Handler] ✅ Queued engagement with SLM email generation for {candidate_id} (status: WAITING_FOR_SLM)")
+                    else:
+                        logger.warning(f"[Handler] Could not find queued message {message_id} to set WAITING_FOR_SLM status")
+                    temp_db.close()
+                except Exception as status_err:
+                    logger.warning(f"[Handler] Failed to set WAITING_FOR_SLM status: {status_err}", exc_info=True)
+
             except Exception as e:
                 logger.warning(f"[Handler] Email queueing failed (non-blocking): {e}", exc_info=True)
 

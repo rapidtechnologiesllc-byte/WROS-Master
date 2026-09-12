@@ -36,7 +36,9 @@ logger = logging.getLogger(__name__)
 class QueueStatus(str, Enum):
     """Queue message status"""
     PENDING = "PENDING"
+    WAITING_FOR_SLM = "WAITING_FOR_SLM"  # NEW: Waiting for SLM to generate content (Phase 2)
     PROCESSING = "PROCESSING"
+    READY_TO_SEND = "READY_TO_SEND"  # NEW: SLM completed, ready for delivery (Phase 2)
     COMPLETED = "COMPLETED"
     FAILED = "FAILED"
     RETRY = "RETRY"
@@ -118,8 +120,10 @@ class QueueProcessorService:
         }
 
         try:
-            # CYCLE 19: Get both PENDING and ready-to-process SCHEDULED messages
-            # PENDING: Normal queue items
+            # CYCLE 19 + Phase 2: Get messages in various states for processing
+            # PENDING: Normal queue items (ready to process)
+            # WAITING_FOR_SLM: Need SLM email generation (Phase 2)
+            # READY_TO_SEND: SLM completed, ready for Thunder handler (Phase 2)
             # SCHEDULED: Delayed messages where scheduled_for <= now
             pending_messages = db.query(ChannelQueueItem).filter(
                 or_(
@@ -131,6 +135,10 @@ class QueueProcessorService:
                             ChannelQueueItem.next_retry_at <= datetime.utcnow()
                         )
                     ),
+                    # WAITING_FOR_SLM messages (need email generation)
+                    ChannelQueueItem.status == QueueStatus.WAITING_FOR_SLM.value,
+                    # READY_TO_SEND messages (SLM done, ready to execute)
+                    ChannelQueueItem.status == QueueStatus.READY_TO_SEND.value,
                     # SCHEDULED messages (delayed, now ready)
                     and_(
                         ChannelQueueItem.status == 'SCHEDULED',
@@ -217,12 +225,52 @@ class QueueProcessorService:
         """
         Process a single queue message through appropriate handler.
 
+        Handles three workflow paths:
+        1. PENDING → Handler execution (normal path)
+        2. WAITING_FOR_SLM → SLM email generation handler → READY_TO_SEND
+        3. READY_TO_SEND → Direct handler execution (SLM already completed)
+
         Returns result dict with status and outcome.
         """
         import time
         handler_start_time = time.time()
 
         try:
+            # ========== PHASE 2: Route WAITING_FOR_SLM messages ==========
+            if message.status == QueueStatus.WAITING_FOR_SLM.value:
+                logger.info(f"[QueueProcessor] Message {message.id} waiting for SLM - routing to slm_generate_email handler")
+                try:
+                    message.status = QueueStatus.PROCESSING.value
+                    message.last_attempted_at = datetime.utcnow()
+                    db.commit()
+
+                    # Call SLM handler to generate email content
+                    slm_handler = MessageHandlerRegistry.get_handler('slm_generate_email')
+                    if not slm_handler:
+                        raise ValueError("SLM email generation handler not registered")
+
+                    slm_result = slm_handler(message, db)
+                    logger.info(f"[QueueProcessor] SLM generation completed for {message.id}: {slm_result}")
+                    # Message status is set to READY_TO_SEND by the SLM handler
+                    return {
+                        'status': QueueStatus.READY_TO_SEND.value,
+                        'message_id': str(message.id),
+                        'slm_result': slm_result
+                    }
+                except Exception as slm_err:
+                    logger.error(f"[QueueProcessor] SLM generation failed for {message.id}: {slm_err}", exc_info=True)
+                    message.status = QueueStatus.FAILED.value
+                    message.error = f"SLM generation failed: {str(slm_err)[:1000]}"
+                    db.commit()
+                    raise
+
+            # ========== PHASE 2: Route READY_TO_SEND messages directly to handler ==========
+            if message.status == QueueStatus.READY_TO_SEND.value:
+                logger.info(f"[QueueProcessor] Message {message.id} ready to send - routing to handler {message.type}")
+                # Message has SLM-generated content, proceed directly to target handler
+                # Don't re-run SLM analysis, just execute
+
+            # ========== NORMAL PATH: PENDING messages ==========
             # Circuit breaker: Stop processing if too many consecutive failures (HIGH FIX #1: Thread-safe)
             with QueueProcessorService._consecutive_failures_lock:
                 if QueueProcessorService._consecutive_failures >= QueueProcessorService._FAILURE_THRESHOLD:
