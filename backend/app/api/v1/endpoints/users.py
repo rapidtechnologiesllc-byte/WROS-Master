@@ -82,26 +82,20 @@ async def get_me(
             })
 
     # Get all permissions for the user
-    permission_resources = []
+    permissions_dict = {}
 
     # Only check role_template if user has one assigned
     if current_user.UserID and current_user.role_template_id:
         # Regular users: fetch permissions from role_template
         try:
-            permissions_dict = RoleTemplatePermissionService.get_user_permissions(
+            perms_result = RoleTemplatePermissionService.get_user_permissions(
                 db, current_user.UserID, tenant_id
             )
-
-            # Extract resource names where user has at least one permission
-            if permissions_dict and isinstance(permissions_dict, dict):
-                for resource_name, perms in permissions_dict.items():
-                    # Include resource if user has any permission (view/create/edit/delete)
-                    if perms and (perms.get('can_view') or perms.get('can_create') or
-                                 perms.get('can_edit') or perms.get('can_delete')):
-                        permission_resources.append(resource_name)
+            permissions_dict = perms_result or {}
+            logger.debug(f"get_user_permissions returned type={type(permissions_dict)}, len={len(permissions_dict)}")
         except Exception as e:
             logger.warning(f"Failed to get permissions for user {current_user.UserID}: {e}")
-            permission_resources = []
+            permissions_dict = {}
 
     # Mint a fresh token using the same claims as login
     access_token = create_access_token(
@@ -113,26 +107,23 @@ async def get_me(
         }
     )
 
-    response_data = HrMeResponse(
-        user_id=current_user.UserID,
-        user_name=current_user.UserName,
-        user_email=current_user.UserEmail,
-        user_role=current_user.UserRole,
-        job_title=current_user.job_title,
-        permission_role=roles_list[0] if roles_list else None,
-        role_template_id=current_user.role_template_id,
-        business_unit_id=current_user.business_unit_id,
-        created_at=current_user.CreatedAt,
-        access_token=access_token,
-        digest_enabled=current_user.digest_enabled,
-    )
-
-    # Add roles and permissions to response as extra fields
-    response_dict = response_data.model_dump()
-    response_dict["roles"] = roles_list
-    response_dict["permissions"] = permission_resources
-
-    return response_dict
+    # Return response matching the login endpoint format
+    return {
+        "user_id": current_user.UserID,
+        "user_name": current_user.UserName,
+        "user_email": current_user.UserEmail,
+        "user_role": current_user.UserRole,
+        "job_title": current_user.job_title,
+        "permission_role": roles_list[0] if roles_list else None,
+        "role_template_id": current_user.role_template_id,
+        "business_unit_id": current_user.business_unit_id,
+        "permissions": permissions_dict,
+        "created_at": current_user.CreatedAt,
+        "access_token": access_token,
+        "token_type": "bearer",
+        "digest_enabled": current_user.digest_enabled,
+        "roles": roles_list,
+    }
 
 @router.patch(
     "/me/digest-preference",

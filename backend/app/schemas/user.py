@@ -1,5 +1,5 @@
 from pydantic import BaseModel, EmailStr, constr, Field
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 import logging
 from datetime import datetime, date
 from app.core.logging import logger
@@ -385,6 +385,7 @@ class HrMeResponse(BaseModel):
     permission_role: Optional[str] = None
     role_template_id: Optional[int] = None
     business_unit_id: Optional[int] = None
+    permissions: Dict[str, Any] = Field(default_factory=dict)  # Resource permissions from role template (required by frontend)
     created_at: datetime
     access_token: str
     token_type: str = "bearer"

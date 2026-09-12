@@ -162,26 +162,6 @@ class RoleTemplatePermissionService:
             return False
 
     @staticmethod
-    def is_super_user(db: Session, user_id: str, tenant_id: int = 1) -> bool:
-        """Check if user is a super user (has all permissions)."""
-        try:
-            user = db.query(Users).filter(Users.UserID == user_id).first()
-            if not user:
-                return False
-
-            # Check if user has a super user role
-            role = RoleTemplatePermissionService.get_user_role(db, user_id, tenant_id)
-            if not role:
-                return False
-
-            # Super user roles typically have a name like "Super User" or "Admin"
-            # or have a super_user flag in the database
-            return getattr(role, 'is_super_user', False) or role.name in ['Super User', 'Admin']
-        except Exception as e:
-            logger.error(f"is_super_user({user_id}): {e}", exc_info=True)
-            return False
-
-    @staticmethod
     def can_view(db: Session, user_id: str, resource_name: str, tenant_id: int = 1) -> bool:
         """Check if user can VIEW a resource."""
         return RoleTemplatePermissionService.has_permission(db, user_id, resource_name, 'view', tenant_id)
@@ -200,6 +180,39 @@ class RoleTemplatePermissionService:
     def can_delete(db: Session, user_id: str, resource_name: str, tenant_id: int = 1) -> bool:
         """Check if user can DELETE from a resource."""
         return RoleTemplatePermissionService.has_permission(db, user_id, resource_name, 'delete', tenant_id)
+
+    @staticmethod
+    def is_super_user(db: Session, user_id: str, tenant_id: int = 1) -> bool:
+        """
+        Check if user has the 'Super User' role template.
+
+        Super users bypass all permission checks.
+
+        Args:
+            db: Database session
+            user_id: User ID to check
+            tenant_id: Tenant ID (for multi-tenancy)
+
+        Returns:
+            True if user is Super User, False otherwise
+        """
+        try:
+            user = db.query(Users).filter(Users.UserID == user_id).first()
+            if not user or not user.role_template_id:
+                return False
+
+            role_template = db.query(RoleTemplate).filter(
+                RoleTemplate.id == user.role_template_id,
+                RoleTemplate.name == "Super Admin",
+                RoleTemplate.tenant_id == tenant_id,
+                RoleTemplate.enabled == True
+            ).first()
+
+            return role_template is not None
+
+        except (AttributeError, ValueError, TypeError) as e:
+            logger.error(f"is_super_user({user_id}, tenant={tenant_id}): {e}", exc_info=True)
+            return False
 
     @staticmethod
     def get_user_permissions(db: Session, user_id: str, tenant_id: int = 1) -> dict:
