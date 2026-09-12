@@ -4,6 +4,7 @@ import { Card, Button } from "../components/ui";
 import { toast } from "react-toastify";
 import { useNavigate } from "react-router-dom";
 import { hasPermission } from "../utils/permissionsRoleTemplate";
+import { getMyReferrals } from "../services/api/referrals";
 
 const STATUS_COLORS = {
   PENDING: "bg-yellow-100 text-yellow-800",
@@ -40,18 +41,7 @@ export default function MyReferralsScreen() {
   const loadMyReferrals = async () => {
     setLoading(true);
     try {
-      const response = await fetch("http://127.0.0.1:8080/referrals/my-referrals", {
-        headers: { Authorization: `Bearer ${localStorage.getItem("hrms_token")}` },
-      });
-
-      if (!response.ok) throw new Error("Failed to load referrals");
-
-      const text = await response.text();
-      if (!text || text.startsWith('<')) {
-        throw new Error("Server returned invalid response. Check backend connection.");
-      }
-
-      const data = JSON.parse(text);
+      const data = await getMyReferrals();
 
       setReferrals(data.referrals || []);
       setStats({
