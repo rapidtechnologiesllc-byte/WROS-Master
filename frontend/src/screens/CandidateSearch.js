@@ -28,7 +28,7 @@ import { getEmailBodyHTML } from "../utils/preboardingEmailTemplate";
 import { getRejectionEmailHTML } from "../utils/rejectionEmailTemplate";
 import { useNavigate } from "react-router-dom";
 import CandidateActionMenu from "../components/ui/CandidateActionMenu";
-import { hasPermission } from "../utils/permissionsRbac";
+import { hasPermission } from "../utils/permissionsRoleTemplate";
 import { updateCandidateThunderEnabled } from "../services/api/candidates";
 
 export default function CandidateSearch({
