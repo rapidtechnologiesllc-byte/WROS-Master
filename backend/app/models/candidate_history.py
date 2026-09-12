@@ -70,5 +70,5 @@ class CandidateHistory(Base):
         "Candidate",
         foreign_keys=[candidateID],
         lazy="select",
-        backref="history",
+        back_populates="history_entries",
     )

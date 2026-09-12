@@ -103,6 +103,21 @@ class Candidate(Base):
     submission_timestamp = Column(DateTime, nullable=True)  # When candidate was submitted to BU
     thunder_enabled = Column(Boolean, nullable=False, default=True, server_default="1")  # Enable/disable Thunder autonomous processing
 
+    # Referral tracking - link to employee referral if this candidate was referred
+    referral_id = Column(
+        String(512),
+        ForeignKey("employee_referrals.referral_id", ondelete="SET NULL"),
+        nullable=True,
+        index=True
+    )
+
+    # Creation audit trail
+    created_by_user_id = Column(String(512), nullable=True, index=True)
+    created_by_name = Column(String(512), nullable=True)
+
+    # Recruitment source (EMPLOYEE_REFERRAL, LINKEDIN, DIRECT, SUBVENDOR, etc.)
+    recruitment_source = Column(String(512), nullable=True, index=True)
+
     # Status tracking for event-driven architecture
     status_changed_at = Column(DateTime, nullable=True)  # When status actually changed (not every commit)
     previous_status = Column(String(100), nullable=True)  # Previous status for tracking transitions
@@ -125,6 +140,30 @@ class Candidate(Base):
     job = relationship("Jobs", foreign_keys=[job_id], lazy="select", back_populates="candidates")
     submission_bu = relationship("BusinessUnit", foreign_keys=[submission_bu_id], lazy="select")
     associated_bu = relationship("BusinessUnit", foreign_keys=[associated_bu_id], lazy="select")
+
+    # Referral relationship
+    referral = relationship(
+        "EmployeeReferral",
+        foreign_keys=[referral_id],
+        lazy="select",
+        backref="candidates_referred"
+    )
+
+    # Created by user relationship
+    created_by_user = relationship(
+        "Users",
+        foreign_keys=[created_by_user_id],
+        lazy="select",
+        primaryjoin="Candidate.created_by_user_id==Users.UserID"
+    )
+
+    # History entries relationship
+    history_entries = relationship(
+        "CandidateHistory",
+        back_populates="candidate",
+        foreign_keys="CandidateHistory.candidateID",
+        cascade="all, delete-orphan"
+    )
 
 class CandidateInfoForm(Base):
     __tablename__ = "candidate_forms"
