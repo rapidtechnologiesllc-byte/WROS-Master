@@ -1448,3 +1448,124 @@ def get_candidate_engagement_timeline(
         activities=activities,
     )
 
+
+@router.post("/candidate-form/", response_model=schema.candidateFormResponse, dependencies=[Depends(require_role_template_permission("candidates", "can_create"))])
+def candidate_info(request: schema.candidateFormRequest, db: Session = Depends(get_db)):
+    """
+    Create or update candidate and fill information form.
+    Creates candidate if doesn't exist, then fills in form details.
+
+    Args:
+        request: candidateFormRequest containing candidate and form details
+        db: Database session
+
+    Returns:
+        candidateFormResponse with status and message
+
+    Raises:
+        HTTPException: If validation fails
+    """
+    from app.utils.uniq_id_generator import candidate_id_generator
+    from app.core.security import get_password_hash
+
+    # Find or create candidate by email
+    candidate = db.query(Candidate).filter(Candidate.candidateEmail == request.candidate_email).first()
+
+    if not candidate:
+        try:
+            candidate_id = candidate_id_generator()
+            candidate = Candidate(
+                candidateID=candidate_id,
+                candidateEmail=request.candidate_email,
+                candidateFirstName=request.candidate_first_name,
+                candidateLastName=request.candidate_last_name,
+                candidateMobile=request.candidate_mobile,
+                candidatePassword=get_password_hash("TempPass123!"),
+                candidate_source=request.candidate_source,
+                candidate_current_location=request.candidate_current_location,
+            )
+            db.add(candidate)
+            db.flush()
+            db.commit()
+
+            # Log candidate creation
+            try:
+                from app.services.candidate_activity_service import log_candidate_created
+                log_candidate_created(
+                    db,
+                    candidate_id=candidate.candidateID,
+                    created_by_name="System",
+                    recruitment_source=request.candidate_source or "Form Submission"
+                )
+            except Exception as log_err:
+                logger.warning(f"Failed to log candidate creation: {log_err}")
+        except Exception as e:
+            db.rollback()
+            logger.error(f"Failed to create candidate: {e}", exc_info=True)
+            raise HTTPException(
+                status_code=500,
+                detail=f"Failed to create candidate: {str(e)}"
+            ) from e
+
+    # Check if form already exists for this candidate
+    existing_form = db.query(CandidateInfoForm).filter(
+        CandidateInfoForm.candidateID == candidate.candidateID
+    ).first()
+
+    if existing_form:
+        try:
+            existing_form.position = request.position
+            existing_form.department = request.department
+            existing_form.dob = request.dob
+            existing_form.gender = request.gender
+            existing_form.marital_status = request.marital_status
+            existing_form.nationality = request.nationality
+            existing_form.current_address = request.current_address
+            existing_form.permanent_address = request.permanent_address
+            existing_form.submittedAt = request.submitted_at
+
+            db.commit()
+            db.refresh(existing_form)
+        except Exception as e:
+            db.rollback()
+            logger.error(f"Failed to update candidate form: {e}", exc_info=True)
+            raise HTTPException(
+                status_code=500,
+                detail=f"Failed to update candidate form: {str(e)}"
+            ) from e
+
+        return schema.candidateFormResponse(
+            status="Success",
+            message="Candidate form updated successfully"
+        )
+    else:
+        try:
+            new_form = CandidateInfoForm(
+                candidateID=candidate.candidateID,
+                position=request.position,
+                department=request.department,
+                dob=request.dob,
+                gender=request.gender,
+                marital_status=request.marital_status,
+                nationality=request.nationality,
+                current_address=request.current_address,
+                permanent_address=request.permanent_address,
+                submittedAt=request.submitted_at
+            )
+
+            db.add(new_form)
+            db.commit()
+            db.refresh(new_form)
+        except Exception as e:
+            db.rollback()
+            logger.error(f"Failed to create candidate form: {e}", exc_info=True)
+            raise HTTPException(
+                status_code=500,
+                detail=f"Failed to create candidate form: {str(e)}"
+            ) from e
+
+        return schema.candidateFormResponse(
+            status="Success",
+            message="Candidate form submitted successfully"
+        )
+
