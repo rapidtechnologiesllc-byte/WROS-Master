@@ -34,6 +34,7 @@ def initialize_database():
     - Tenants initialized
     - RBAC structure created
     - Default admin user exists
+    - Channel queue templates initialized
     """
     try:
         # Step 1: Create all tables from models
@@ -57,6 +58,11 @@ def initialize_database():
         logger.info("[Contract] Step 4: Initializing admin user...")
         _initialize_admin_user()
         logger.info("[OK] Admin user initialized")
+
+        # Step 5: Initialize channel queue templates
+        logger.info("[Contract] Step 5: Initializing channel queue templates...")
+        _initialize_channel_templates()
+        logger.info("[OK] Channel templates initialized")
 
         logger.info("[OK] Database contract validated - all systems ready")
 
@@ -331,6 +337,114 @@ def _verify_admin_screen_permissions(db: Session, admin_role: RoleTemplate):
             db.add(perm)
             db.commit()
             logger.info(f"[Contract] Created admin screen permission for: {resource_name}")
+
+def _initialize_channel_templates():
+    """Initialize default email templates and commission rules for channel queue system."""
+    db = SessionLocal()
+    try:
+        from app.models.email_template import EmailTemplate
+        from app.models.commission_rule import CommissionRule
+
+        # Create default email templates
+        default_templates = [
+            {
+                "name": "candidate_welcome",
+                "display_name": "Candidate Welcome Email",
+                "description": "Welcome email sent to new candidates",
+                "subject_template": "Welcome to {{company_name}} - {{job_title}} Opportunity",
+                "body_template": """Dear {{candidate_name}},
+
+Thank you for your interest in the {{job_title}} position at {{company_name}}.
+
+We are excited to learn more about you. Our team will be in touch shortly with next steps.
+
+Best regards,
+{{company_name}} Recruitment Team"""
+            },
+            {
+                "name": "interview_invitation",
+                "display_name": "Interview Invitation",
+                "description": "Interview invitation email",
+                "subject_template": "Interview Invitation - {{job_title}} at {{company_name}}",
+                "body_template": """Dear {{candidate_name}},
+
+You are invited to interview for the {{job_title}} position.
+
+Date & Time: {{interview_date}} at {{interview_time}}
+Round: {{interview_round}}
+Interview Type: {{interview_type}}
+Meeting Link: {{meeting_link}}
+
+Please confirm your availability.
+
+Best regards,
+{{company_name}} Recruitment Team"""
+            },
+            {
+                "name": "offer_letter",
+                "display_name": "Offer Letter",
+                "description": "Job offer letter",
+                "subject_template": "Job Offer - {{job_title}} at {{company_name}}",
+                "body_template": """Dear {{candidate_name}},
+
+We are pleased to offer you the position of {{job_title}} at {{company_name}}.
+
+Offer Details:
+- Position: {{job_title}}
+- Salary: {{salary}}
+- Start Date: {{start_date}}
+- Department: {{department}}
+
+Please sign and return this offer by {{offer_expiry_date}}.
+
+Best regards,
+{{company_name}} Human Resources Team"""
+            }
+        ]
+
+        for template_data in default_templates:
+            existing = db.query(EmailTemplate).filter(EmailTemplate.name == template_data["name"]).first()
+            if not existing:
+                template = EmailTemplate(
+                    name=template_data["name"],
+                    display_name=template_data["display_name"],
+                    description=template_data["description"],
+                    subject_template=template_data["subject_template"],
+                    body_template=template_data["body_template"],
+                    version=1,
+                    is_active=True,
+                    created_by="system"
+                )
+                db.add(template)
+                logger.info(f"[Contract] Created email template: {template_data['name']}")
+
+        db.commit()
+
+        # Create default commission rule (global default: 10%)
+        default_rule = db.query(CommissionRule).filter(
+            CommissionRule.partner_id == None,
+            CommissionRule.deal_type == None
+        ).first()
+
+        if not default_rule:
+            default_rule = CommissionRule(
+                partner_id=None,  # Applies to all partners
+                deal_type=None,  # Applies to all deal types
+                commission_percent=10.0,
+                withholding_percent=0,
+                is_active=True,
+                description="Default global commission rule"
+            )
+            db.add(default_rule)
+            db.commit()
+            logger.info("[Contract] Created default commission rule: 10%")
+
+    except Exception as e:
+        logger.warning(f"[Contract] Could not initialize channel templates: {e}")
+        # Don't fail the entire startup if templates can't initialize
+    finally:
+        db.close()
+
 
 if __name__ == "__main__":
     # Can be run manually to verify/initialize database
