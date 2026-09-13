@@ -59,10 +59,15 @@ export default function AuthPage() {
 
     setLoading(true);
     try {
+      console.log("[AuthPage] Validating email:", email);
       const result = await validateEmail(email);
+      console.log("[AuthPage] Email validation result:", result);
+      console.log("[AuthPage] result?.exists:", result?.exists);
       if (result?.exists) {
+        console.log("[AuthPage] Email exists - transitioning to password form");
         setStep("password");
       } else {
+        console.log("[AuthPage] Email does not exist - showing error");
         setError("User not found. Please check your email and try again.");
       }
     } catch (err) {
