@@ -180,14 +180,20 @@ class AllCandidatesResponse(BaseModel):
     candidates: list[CandidateCompleteResponse]
 
 class candidateFormRequest(BaseModel):
+    candidate_email: EmailStr
+    candidate_first_name: str
+    candidate_last_name: str
+    candidate_mobile: str
+    candidate_source: Optional[str] = None
+    candidate_current_location: str
     position: str | None = None
     department: str | None = None
-    dob: date 
+    dob: date
     gender: str
-    marital_status: str 
-    nationality: str 
-    current_address: str 
-    permanent_address: str 
+    marital_status: str
+    nationality: str
+    current_address: str
+    permanent_address: str
     submitted_at: date
 
 class candidateFormResponse(BaseModel):
