@@ -415,7 +415,7 @@ class ChannelProcessors:
     # ==================== COMMISSION PROCESSOR ====================
 
     @staticmethod
-    def process_commission(item_id: str, item_data: Dict[str, Any], db: Session) -> bool:
+    def process_commission(item_id: str, recipient: str, payload: Dict[str, Any], db: Session) -> bool:
         """
         Process COMMISSION channel - calculate and record commission.
 
@@ -456,7 +456,7 @@ class ChannelProcessors:
     # ==================== CRM PROCESSOR ====================
 
     @staticmethod
-    def process_crm(item_id: str, item_data: Dict[str, Any], db: Session) -> bool:
+    def process_crm(item_id: str, recipient: str, payload: Dict[str, Any], db: Session) -> bool:
         """
         Process CRM channel - sync data with CRM.
 
@@ -494,7 +494,7 @@ class ChannelProcessors:
     # ==================== DASHBOARD PROCESSOR ====================
 
     @staticmethod
-    def process_dashboard(item_id: str, item_data: Dict[str, Any], db: Session) -> bool:
+    def process_dashboard(item_id: str, recipient: str, payload: Dict[str, Any], db: Session) -> bool:
         """
         Process DASHBOARD channel - push real-time update to dashboard.
 
@@ -535,7 +535,7 @@ class ChannelProcessors:
     # ==================== CALENDAR PROCESSOR ====================
 
     @staticmethod
-    def process_calendar(item_id: str, item_data: Dict[str, Any], db: Session) -> bool:
+    def process_calendar(item_id: str, recipient: str, payload: Dict[str, Any], db: Session) -> bool:
         """
         Process CALENDAR channel - create calendar events.
 
@@ -575,7 +575,7 @@ class ChannelProcessors:
     # ==================== SIGNATURE PROCESSOR ====================
 
     @staticmethod
-    def process_signature(item_id: str, item_data: Dict[str, Any], db: Session) -> bool:
+    def process_signature(item_id: str, recipient: str, payload: Dict[str, Any], db: Session) -> bool:
         """
         Process SIGNATURE channel - request e-signatures.
 
