@@ -58,7 +58,7 @@ CandidateCreateResponse, CandidateCompleteResponse,
 CandidateEducationResponse, CandidateExperienceResponse,
 CandidateInfoResponse, CandidatePanResponse,
 CandidateAadharResponse, DeleteResponse,
-AllCandidatesResponse)
+AllCandidatesResponse, candidateFormRequest, candidateFormResponse)
 from app.schemas.user import CandidateUpdateRequest
 
 from app.utils.uniq_id_generator import generate_password
@@ -1449,8 +1449,8 @@ def get_candidate_engagement_timeline(
     )
 
 
-@router.post("/candidate-form/", response_model=schema.candidateFormResponse, dependencies=[Depends(require_role_template_permission("candidates", "can_create"))])
-def candidate_info(request: schema.candidateFormRequest, db: Session = Depends(get_db)):
+@router.post("/candidate-form/", response_model=candidateFormResponse, dependencies=[Depends(require_role_template_permission("candidates", "can_create"))])
+def candidate_info(request: candidateFormRequest, db: Session = Depends(get_db)):
     """
     Create or update candidate and fill information form.
     Creates candidate if doesn't exist, then fills in form details.
@@ -1534,7 +1534,7 @@ def candidate_info(request: schema.candidateFormRequest, db: Session = Depends(g
                 detail=f"Failed to update candidate form: {str(e)}"
             ) from e
 
-        return schema.candidateFormResponse(
+        return candidateFormResponse(
             status="Success",
             message="Candidate form updated successfully"
         )
@@ -1564,7 +1564,7 @@ def candidate_info(request: schema.candidateFormRequest, db: Session = Depends(g
                 detail=f"Failed to create candidate form: {str(e)}"
             ) from e
 
-        return schema.candidateFormResponse(
+        return candidateFormResponse(
             status="Success",
             message="Candidate form submitted successfully"
         )
