@@ -557,6 +557,54 @@ def candidate_info(request: candidateFormRequest, db: Session = Depends(get_db))
                 )
             except Exception as log_err:
                 logger.warning(f"Failed to log candidate creation: {log_err}")
+
+            # Queue EMAIL and WHATSAPP welcome messages to candidate
+            try:
+                from app.models.channel_queue import ChannelQueueItem
+                import uuid
+
+                # Queue EMAIL message
+                email_item = ChannelQueueItem(
+                    id=f"email-welcome-{uuid.uuid4().hex[:8]}",
+                    message_id=f"msg-{uuid.uuid4().hex[:8]}",
+                    type="candidate_welcome_email",
+                    channel_type="EMAIL",
+                    status="PENDING",
+                    payload={
+                        "subject": f"Welcome to BlitzenX HRMS - {request.candidate_first_name}",
+                        "body": f"""Dear {request.candidate_first_name},
+
+Thank you for registering with BlitzenX. We're excited to have you on board!
+
+You can now log in to your candidate portal and view opportunities that match your profile.
+
+Best regards,
+BlitzenX Recruitment Team""",
+                        "is_html": False,
+                    },
+                    recipient=request.candidate_email,
+                )
+                db.add(email_item)
+
+                # Queue WHATSAPP message (if phone provided)
+                if request.candidate_mobile:
+                    whatsapp_item = ChannelQueueItem(
+                        id=f"whatsapp-welcome-{uuid.uuid4().hex[:8]}",
+                        message_id=f"msg-{uuid.uuid4().hex[:8]}",
+                        type="candidate_welcome_whatsapp",
+                        channel_type="WHATSAPP",
+                        status="PENDING",
+                        payload={
+                            "message": f"Hi {request.candidate_first_name}! Welcome to BlitzenX. Check your email for next steps. Reply here if you have any questions!",
+                        },
+                        recipient=request.candidate_mobile,
+                    )
+                    db.add(whatsapp_item)
+
+                db.commit()
+                logger.info(f"Queued welcome messages for candidate {candidate.candidateID}")
+            except Exception as queue_err:
+                logger.warning(f"Failed to queue welcome messages: {queue_err}")
         except Exception as e:
             db.rollback()
             logger.error(f"Failed to create candidate: {e}", exc_info=True)
