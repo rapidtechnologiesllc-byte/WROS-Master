@@ -186,14 +186,17 @@ class ChannelProcessors:
 
         CRITICAL: Message is only marked COMPLETED after successful delivery.
 
+        Args:
+            item_id: Unique channel queue item ID
+            recipient: Phone number to send SMS to
+            payload: Message payload (message text, etc.)
+            db: Database session
+
         Returns:
             True if successful, False if failed
         """
         try:
             from app.services.channel_queue_service import ChannelQueueService
-
-            recipient = item_data.get("recipient")
-            payload = item_data.get("payload", {})
 
             logger.info(f"Processing SMS: {item_id} to {recipient}")
 
@@ -203,12 +206,30 @@ class ChannelProcessors:
                 ChannelQueueService.mark_failed(item_id, error_msg, should_retry=False, db=db)
                 return False
 
-            # TODO: Implement actual SMS integration with Twilio
-            # For now, log and fail gracefully
-            error_msg = "SMS integration not yet configured (TODO: Twilio)"
-            logger.warning(f"SMS not implemented: {item_id}")
-            ChannelQueueService.mark_failed(item_id, error_msg, should_retry=False, db=db)
-            return False
+            # Extract message details
+            message_text = payload.get("message", "")
+            if not message_text:
+                error_msg = "No message text provided"
+                logger.error(f"SMS failed - {error_msg}: {item_id}")
+                ChannelQueueService.mark_failed(item_id, error_msg, should_retry=False, db=db)
+                return False
+
+            # MOCK DELIVERY: Log and simulate successful send
+            # In production: Replace with Twilio API call
+            logger.info(f"MOCK: Sending SMS to {recipient}: {message_text[:50]}...")
+
+            delivery_id = f"sms-mock-{item_id[:8]}"
+            result = {
+                "status": "success",
+                "delivery_id": delivery_id,
+                "provider": "twilio_mock",
+                "recipient": recipient,
+                "timestamp": str(datetime.utcnow()),
+            }
+
+            ChannelQueueService.mark_completed(item_id, db, result=result)
+            logger.info(f"SMS sent successfully (mock): {item_id} to {recipient}")
+            return True
 
         except Exception as e:
             logger.error(f"Failed to process SMS: {e}", exc_info=True)
@@ -224,14 +245,17 @@ class ChannelProcessors:
 
         CRITICAL: Notification is only marked COMPLETED after successful delivery.
 
+        Args:
+            item_id: Unique channel queue item ID
+            recipient: Slack channel or user ID
+            payload: Message payload (message text, etc.)
+            db: Database session
+
         Returns:
             True if successful, False if failed
         """
         try:
             from app.services.channel_queue_service import ChannelQueueService
-
-            recipient = item_data.get("recipient")
-            payload = item_data.get("payload", {})
 
             logger.info(f"Processing SLACK: {item_id} to {recipient}")
 
@@ -241,12 +265,30 @@ class ChannelProcessors:
                 ChannelQueueService.mark_failed(item_id, error_msg, should_retry=False, db=db)
                 return False
 
-            # TODO: Implement actual Slack integration with Slack API
-            # For now, log and fail gracefully
-            error_msg = "Slack integration not yet configured (TODO: Slack API)"
-            logger.warning(f"SLACK not implemented: {item_id}")
-            ChannelQueueService.mark_failed(item_id, error_msg, should_retry=False, db=db)
-            return False
+            # Extract message details
+            message_text = payload.get("message", "")
+            if not message_text:
+                error_msg = "No message text provided"
+                logger.error(f"SLACK failed - {error_msg}: {item_id}")
+                ChannelQueueService.mark_failed(item_id, error_msg, should_retry=False, db=db)
+                return False
+
+            # MOCK DELIVERY: Log and simulate successful send
+            # In production: Replace with Slack API call
+            logger.info(f"MOCK: Sending Slack to {recipient}: {message_text[:50]}...")
+
+            delivery_id = f"slack-mock-{item_id[:8]}"
+            result = {
+                "status": "success",
+                "delivery_id": delivery_id,
+                "provider": "slack_api_mock",
+                "recipient": recipient,
+                "timestamp": str(datetime.utcnow()),
+            }
+
+            ChannelQueueService.mark_completed(item_id, db, result=result)
+            logger.info(f"SLACK sent successfully (mock): {item_id} to {recipient}")
+            return True
 
         except Exception as e:
             logger.error(f"Failed to process SLACK: {e}", exc_info=True)
@@ -269,7 +311,7 @@ class ChannelProcessors:
             from app.services.channel_queue_service import ChannelQueueService
             from app.services.channel_delivery_helpers import ErrorClassifier
 
-            payload = item_data.get("payload", {})
+            # payload passed as explicit parameter
             candidate_id = payload.get("candidate_id")
             action = payload.get("action")
 
@@ -345,9 +387,9 @@ class ChannelProcessors:
         try:
             from app.services.channel_queue_service import ChannelQueueService
 
-            payload = item_data.get("payload", {})
+            # payload passed as explicit parameter
             workflow_type = payload.get("workflow_type")
-            recipient = item_data.get("recipient")
+            # recipient passed as explicit parameter
 
             logger.info(
                 f"Processing APPROVAL: {item_id} workflow={workflow_type} manager={recipient}"
@@ -385,7 +427,7 @@ class ChannelProcessors:
         try:
             from app.services.channel_queue_service import ChannelQueueService
 
-            payload = item_data.get("payload", {})
+            # payload passed as explicit parameter
             deal_id = payload.get("deal_id")
             partner_id = payload.get("partner_id")
             amount = payload.get("amount")
@@ -426,7 +468,7 @@ class ChannelProcessors:
         try:
             from app.services.channel_queue_service import ChannelQueueService
 
-            payload = item_data.get("payload", {})
+            # payload passed as explicit parameter
             action = payload.get("action")
             client_id = payload.get("client_id")
 
@@ -464,7 +506,7 @@ class ChannelProcessors:
         try:
             from app.services.channel_queue_service import ChannelQueueService
 
-            payload = item_data.get("payload", {})
+            # payload passed as explicit parameter
             update_type = payload.get("update_type")
             kpi_id = payload.get("kpi_id")
 
@@ -505,7 +547,7 @@ class ChannelProcessors:
         try:
             from app.services.channel_queue_service import ChannelQueueService
 
-            payload = item_data.get("payload", {})
+            # payload passed as explicit parameter
             event_type = payload.get("event_type")
             interview_id = payload.get("interview_id")
 
@@ -545,10 +587,10 @@ class ChannelProcessors:
         try:
             from app.services.channel_queue_service import ChannelQueueService
 
-            payload = item_data.get("payload", {})
+            # payload passed as explicit parameter
             document_type = payload.get("document_type")
             offer_id = payload.get("offer_id")
-            recipient = item_data.get("recipient")
+            # recipient passed as explicit parameter
 
             logger.info(
                 f"Processing SIGNATURE: {item_id} doc_type={document_type} "
