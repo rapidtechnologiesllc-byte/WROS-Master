@@ -28,7 +28,7 @@ export default function MessageQueueDashboard() {
 
   const fetchWorkers = () => {
     const token = localStorage.getItem('hrms_token');
-    fetch('http://localhost:8080/api/v1/celery/workers', {
+    fetch('http://localhost:8081/api/v1/celery/workers', {
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${token}`,
@@ -43,7 +43,7 @@ export default function MessageQueueDashboard() {
 
   const fetchQueues = () => {
     const token = localStorage.getItem('hrms_token');
-    fetch('http://localhost:8080/api/v1/celery/queues', {
+    fetch('http://localhost:8081/api/v1/celery/queues', {
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${token}`,
@@ -58,7 +58,7 @@ export default function MessageQueueDashboard() {
 
   const fetchStats = () => {
     const token = localStorage.getItem('hrms_token');
-    fetch('http://localhost:8080/api/v1/celery/stats', {
+    fetch('http://localhost:8081/api/v1/celery/stats', {
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${token}`,
@@ -75,7 +75,7 @@ export default function MessageQueueDashboard() {
 
   const fetchQueueTasks = (queueName) => {
     const token = localStorage.getItem('hrms_token');
-    fetch(`http://localhost:8080/api/v1/celery/queue/${queueName}/tasks`, {
+    fetch(`http://localhost:8081/api/v1/celery/queue/${queueName}/tasks`, {
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${token}`,
