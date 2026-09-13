@@ -23,20 +23,24 @@ from app.services.channel_queue_service import ChannelQueueService
 
 logger = logging.getLogger(__name__)
 
-logger = logging.getLogger(__name__)
-
 class ChannelProcessors:
     """Processors for each channel type"""
 
     # ==================== EMAIL PROCESSOR ====================
 
     @staticmethod
-    def process_email(item_id: str, item_data: Dict[str, Any], db: Session) -> bool:
+    def process_email(item_id: str, recipient: str, payload: Dict[str, Any], db: Session) -> bool:
         """
         Process EMAIL channel - send email via Microsoft Graph API.
 
         CRITICAL: Email is only marked COMPLETED after successful delivery.
         Does not mark complete if send fails.
+
+        Args:
+            item_id: Unique channel queue item ID
+            recipient: Email address to send to
+            payload: Message payload (subject, body, is_html, etc.)
+            db: Database session
 
         Returns:
             True if successful, False if failed (will retry)
@@ -45,9 +49,6 @@ class ChannelProcessors:
             from app.services.email_service import EmailService
             from app.services.channel_delivery_helpers import ErrorClassifier, DeliveryStatus
             from app.services.channel_queue_service import ChannelQueueService
-
-            recipient = item_data.get("recipient")
-            payload = item_data.get("payload", {})
 
             logger.info(f"Processing EMAIL: {item_id} to {recipient}")
 
@@ -117,21 +118,24 @@ class ChannelProcessors:
     # ==================== WHATSAPP PROCESSOR ====================
 
     @staticmethod
-    def process_whatsapp(item_id: str, item_data: Dict[str, Any], db: Session) -> bool:
+    def process_whatsapp(item_id: str, recipient: str, payload: Dict[str, Any], db: Session) -> bool:
         """
         Process WHATSAPP channel - send WhatsApp message via Twilio.
 
         CRITICAL: Message is only marked COMPLETED after successful delivery.
         Currently uses mock delivery for testing.
 
+        Args:
+            item_id: Unique channel queue item ID
+            recipient: WhatsApp phone number
+            payload: Message payload (message text, etc.)
+            db: Database session
+
         Returns:
             True if successful, False if failed
         """
         try:
             from app.services.channel_queue_service import ChannelQueueService
-
-            recipient = item_data.get("recipient")
-            payload = item_data.get("payload", {})
 
             logger.info(f"Processing WHATSAPP: {item_id} to {recipient}")
 
@@ -176,7 +180,7 @@ class ChannelProcessors:
     # ==================== SMS PROCESSOR ====================
 
     @staticmethod
-    def process_sms(item_id: str, item_data: Dict[str, Any], db: Session) -> bool:
+    def process_sms(item_id: str, recipient: str, payload: Dict[str, Any], db: Session) -> bool:
         """
         Process SMS channel - send SMS message via Twilio.
 
@@ -214,7 +218,7 @@ class ChannelProcessors:
     # ==================== SLACK PROCESSOR ====================
 
     @staticmethod
-    def process_slack(item_id: str, item_data: Dict[str, Any], db: Session) -> bool:
+    def process_slack(item_id: str, recipient: str, payload: Dict[str, Any], db: Session) -> bool:
         """
         Process SLACK channel - send Slack notification.
 
@@ -252,7 +256,7 @@ class ChannelProcessors:
     # ==================== THUNDER PROCESSOR ====================
 
     @staticmethod
-    def process_thunder(item_id: str, item_data: Dict[str, Any], db: Session) -> bool:
+    def process_thunder(item_id: str, recipient: str, payload: Dict[str, Any], db: Session) -> bool:
         """
         Process THUNDER channel - execute Thunder autonomous action.
 
@@ -329,7 +333,7 @@ class ChannelProcessors:
     # ==================== APPROVAL PROCESSOR ====================
 
     @staticmethod
-    def process_approval(item_id: str, item_data: Dict[str, Any], db: Session) -> bool:
+    def process_approval(item_id: str, recipient: str, payload: Dict[str, Any], db: Session) -> bool:
         """
         Process APPROVAL channel - route to approval workflow.
 
@@ -574,16 +578,18 @@ class ChannelProcessors:
     def process_by_channel(
         channel_type: str,
         item_id: str,
-        item_data: Dict[str, Any],
+        recipient: str,
+        payload: Dict[str, Any],
         db: Session,
     ) -> bool:
         """
         Dispatch to appropriate processor based on channel type.
 
         Args:
-            channel_type: Channel type
+            channel_type: Channel type (EMAIL, WHATSAPP, SMS, etc.)
             item_id: Item ID
-            item_data: Item data
+            recipient: Recipient email/phone
+            payload: Message payload
             db: Database session
 
         Returns:
@@ -591,27 +597,27 @@ class ChannelProcessors:
         """
         try:
             if channel_type == ChannelQueueService.CHANNEL_EMAIL:
-                return ChannelProcessors.process_email(item_id, item_data, db)
+                return ChannelProcessors.process_email(item_id, recipient, payload, db)
             elif channel_type == ChannelQueueService.CHANNEL_WHATSAPP:
-                return ChannelProcessors.process_whatsapp(item_id, item_data, db)
+                return ChannelProcessors.process_whatsapp(item_id, recipient, payload, db)
             elif channel_type == ChannelQueueService.CHANNEL_SMS:
-                return ChannelProcessors.process_sms(item_id, item_data, db)
+                return ChannelProcessors.process_sms(item_id, recipient, payload, db)
             elif channel_type == ChannelQueueService.CHANNEL_SLACK:
-                return ChannelProcessors.process_slack(item_id, item_data, db)
+                return ChannelProcessors.process_slack(item_id, recipient, payload, db)
             elif channel_type == ChannelQueueService.CHANNEL_THUNDER:
-                return ChannelProcessors.process_thunder(item_id, item_data, db)
+                return ChannelProcessors.process_thunder(item_id, recipient, payload, db)
             elif channel_type == ChannelQueueService.CHANNEL_APPROVAL:
-                return ChannelProcessors.process_approval(item_id, item_data, db)
+                return ChannelProcessors.process_approval(item_id, recipient, payload, db)
             elif channel_type == ChannelQueueService.CHANNEL_COMMISSION:
-                return ChannelProcessors.process_commission(item_id, item_data, db)
+                return ChannelProcessors.process_commission(item_id, recipient, payload, db)
             elif channel_type == ChannelQueueService.CHANNEL_CRM:
-                return ChannelProcessors.process_crm(item_id, item_data, db)
+                return ChannelProcessors.process_crm(item_id, recipient, payload, db)
             elif channel_type == ChannelQueueService.CHANNEL_DASHBOARD:
-                return ChannelProcessors.process_dashboard(item_id, item_data, db)
+                return ChannelProcessors.process_dashboard(item_id, recipient, payload, db)
             elif channel_type == ChannelQueueService.CHANNEL_CALENDAR:
-                return ChannelProcessors.process_calendar(item_id, item_data, db)
+                return ChannelProcessors.process_calendar(item_id, recipient, payload, db)
             elif channel_type == ChannelQueueService.CHANNEL_SIGNATURE:
-                return ChannelProcessors.process_signature(item_id, item_data, db)
+                return ChannelProcessors.process_signature(item_id, recipient, payload, db)
             else:
                 logger.warning(f"Unknown channel type: {channel_type}")
                 ChannelQueueService.mark_failed(
