@@ -31,33 +31,84 @@ class ChannelProcessors:
     @staticmethod
     def process_email(item_id: str, item_data: Dict[str, Any], db: Session) -> bool:
         """
-        Process EMAIL channel - send email via provider.
+        Process EMAIL channel - send email via Microsoft Graph API.
+
+        CRITICAL: Email is only marked COMPLETED after successful delivery.
+        Does not mark complete if send fails.
 
         Returns:
             True if successful, False if failed (will retry)
         """
         try:
+            from app.services.email_service import EmailService
+            from app.services.channel_delivery_helpers import ErrorClassifier, DeliveryStatus
+            from app.services.channel_queue_service import ChannelQueueService
+
             recipient = item_data.get("recipient")
-            template = item_data.get("payload", {}).get("template")
             payload = item_data.get("payload", {})
 
-            logger.info(f"Processing EMAIL: {item_id} to {recipient} template={template}")
+            logger.info(f"Processing EMAIL: {item_id} to {recipient}")
 
-            # TODO: Implement actual email sending
-            # For now, just log it
-            # In production:
-            # - Use SendGrid, AWS SES, or similar
-            # - Render template with payload
-            # - Handle failures with proper error messages
+            if not recipient or not recipient.strip():
+                error_msg = "No recipient email address provided"
+                logger.error(f"EMAIL failed - {error_msg}: {item_id}")
+                ChannelQueueService.mark_failed(item_id, error_msg, should_retry=False, db=db)
+                return False
 
-            # Mark as completed
-            ChannelQueueService.mark_completed(item_id, db)
-            logger.info(f"EMAIL processed successfully: {item_id}")
-            return True
+            # Extract email details from payload
+            subject = payload.get("subject", "BlitzenX HRMS Notification")
+            body = payload.get("body", "")
+            html_body = payload.get("html_body") or payload.get("body", "")
+
+            # Attempt actual email delivery via Microsoft Graph
+            logger.info(f"Sending email via Microsoft Graph: {recipient}")
+            try:
+                response = EmailService._graph_post(
+                    endpoint="https://graph.microsoft.com/v1.0/me/sendMail",
+                    payload={
+                        "message": {
+                            "subject": subject,
+                            "body": {
+                                "contentType": "HTML" if payload.get("is_html") else "text",
+                                "content": html_body,
+                            },
+                            "toRecipients": [{"emailAddress": {"address": recipient}}],
+                            "isReadReceiptRequested": False,
+                        },
+                        "saveToSentItems": "true",
+                    },
+                    access_token=EmailService._get_token(),
+                )
+
+                # Email sent successfully (Graph API returns 202)
+                logger.info(f"EMAIL sent successfully: {item_id} to {recipient}")
+                result = DeliveryStatus.success(
+                    delivery_id=item_id,
+                    provider="microsoft_graph",
+                )
+                ChannelQueueService.mark_completed(item_id, db, result=result)
+                return True
+
+            except Exception as send_error:
+                error_msg = str(send_error)
+                error_code = getattr(send_error, "status_code", None)
+                is_transient = ErrorClassifier.is_transient(error_code, error_msg)
+
+                logger.error(
+                    f"Failed to send EMAIL: {item_id} to {recipient} - "
+                    f"Error: {error_msg} (transient={is_transient})",
+                    exc_info=True,
+                )
+                ChannelQueueService.mark_failed(
+                    item_id,
+                    error_msg,
+                    should_retry=is_transient,
+                    db=db,
+                )
+                return False
 
         except Exception as e:
-            logger.error(f"Failed to process EMAIL: {e}", exc_info=True)
-            # Mark as failed but allow retry
+            logger.error(f"Unexpected error processing EMAIL {item_id}: {e}", exc_info=True)
             ChannelQueueService.mark_failed(item_id, str(e), should_retry=True, db=db)
             return False
 
@@ -68,21 +119,32 @@ class ChannelProcessors:
         """
         Process WHATSAPP channel - send WhatsApp message.
 
+        CRITICAL: Message is only marked COMPLETED after successful delivery.
+
         Returns:
             True if successful, False if failed
         """
         try:
+            from app.services.channel_delivery_helpers import ErrorClassifier
+            from app.services.channel_queue_service import ChannelQueueService
+
             recipient = item_data.get("recipient")
-            template = item_data.get("payload", {}).get("template")
+            payload = item_data.get("payload", {})
 
             logger.info(f"Processing WHATSAPP: {item_id} to {recipient}")
 
-            # TODO: Implement WhatsApp integration
-            # Use Twilio, MessageBird, or similar
+            if not recipient or not recipient.strip():
+                error_msg = "No WhatsApp number provided"
+                logger.error(f"WHATSAPP failed - {error_msg}: {item_id}")
+                ChannelQueueService.mark_failed(item_id, error_msg, should_retry=False, db=db)
+                return False
 
-            ChannelQueueService.mark_completed(item_id, db)
-            logger.info(f"WHATSAPP processed successfully: {item_id}")
-            return True
+            # TODO: Implement actual WhatsApp integration with Twilio/MessageBird
+            # For now, log and fail gracefully
+            error_msg = "WhatsApp integration not yet configured (TODO: Twilio/MessageBird)"
+            logger.warning(f"WHATSAPP not implemented: {item_id}")
+            ChannelQueueService.mark_failed(item_id, error_msg, should_retry=False, db=db)
+            return False
 
         except Exception as e:
             logger.error(f"Failed to process WHATSAPP: {e}", exc_info=True)
@@ -94,20 +156,33 @@ class ChannelProcessors:
     @staticmethod
     def process_sms(item_id: str, item_data: Dict[str, Any], db: Session) -> bool:
         """
-        Process SMS channel - send SMS message.
+        Process SMS channel - send SMS message via Twilio.
+
+        CRITICAL: Message is only marked COMPLETED after successful delivery.
 
         Returns:
             True if successful, False if failed
         """
         try:
+            from app.services.channel_queue_service import ChannelQueueService
+
             recipient = item_data.get("recipient")
+            payload = item_data.get("payload", {})
+
             logger.info(f"Processing SMS: {item_id} to {recipient}")
 
-            # TODO: Implement SMS integration
-            # Use Twilio or similar
+            if not recipient or not recipient.strip():
+                error_msg = "No phone number provided"
+                logger.error(f"SMS failed - {error_msg}: {item_id}")
+                ChannelQueueService.mark_failed(item_id, error_msg, should_retry=False, db=db)
+                return False
 
-            ChannelQueueService.mark_completed(item_id, db)
-            return True
+            # TODO: Implement actual SMS integration with Twilio
+            # For now, log and fail gracefully
+            error_msg = "SMS integration not yet configured (TODO: Twilio)"
+            logger.warning(f"SMS not implemented: {item_id}")
+            ChannelQueueService.mark_failed(item_id, error_msg, should_retry=False, db=db)
+            return False
 
         except Exception as e:
             logger.error(f"Failed to process SMS: {e}", exc_info=True)
@@ -121,18 +196,31 @@ class ChannelProcessors:
         """
         Process SLACK channel - send Slack notification.
 
+        CRITICAL: Notification is only marked COMPLETED after successful delivery.
+
         Returns:
             True if successful, False if failed
         """
         try:
+            from app.services.channel_queue_service import ChannelQueueService
+
             recipient = item_data.get("recipient")
+            payload = item_data.get("payload", {})
+
             logger.info(f"Processing SLACK: {item_id} to {recipient}")
 
-            # TODO: Implement Slack integration
-            # Use Slack API
+            if not recipient or not recipient.strip():
+                error_msg = "No Slack channel/user provided"
+                logger.error(f"SLACK failed - {error_msg}: {item_id}")
+                ChannelQueueService.mark_failed(item_id, error_msg, should_retry=False, db=db)
+                return False
 
-            ChannelQueueService.mark_completed(item_id, db)
-            return True
+            # TODO: Implement actual Slack integration with Slack API
+            # For now, log and fail gracefully
+            error_msg = "Slack integration not yet configured (TODO: Slack API)"
+            logger.warning(f"SLACK not implemented: {item_id}")
+            ChannelQueueService.mark_failed(item_id, error_msg, should_retry=False, db=db)
+            return False
 
         except Exception as e:
             logger.error(f"Failed to process SLACK: {e}", exc_info=True)
@@ -146,22 +234,70 @@ class ChannelProcessors:
         """
         Process THUNDER channel - execute Thunder autonomous action.
 
+        CRITICAL: Action is only marked COMPLETED after successful execution.
+
         Returns:
             True if successful, False if failed
         """
         try:
-            candidate_id = item_data.get("payload", {}).get("candidate_id")
-            action = item_data.get("payload", {}).get("action")
+            from app.services.channel_queue_service import ChannelQueueService
+            from app.services.channel_delivery_helpers import ErrorClassifier
 
-            logger.info(f"Processing THUNDER: {item_id} action={action} candidate={candidate_id}")
+            payload = item_data.get("payload", {})
+            candidate_id = payload.get("candidate_id")
+            action = payload.get("action")
 
-            # TODO: Implement Thunder action
-            # - Call Thunder service
-            # - Initiate qualification flow
+            logger.info(
+                f"Processing THUNDER: {item_id} action={action} candidate={candidate_id}"
+            )
 
-            ChannelQueueService.mark_completed(item_id, db)
-            logger.info(f"THUNDER processed successfully: {item_id}")
-            return True
+            if not candidate_id:
+                error_msg = "No candidate_id provided for Thunder action"
+                logger.error(f"THUNDER failed - {error_msg}: {item_id}")
+                ChannelQueueService.mark_failed(item_id, error_msg, should_retry=False, db=db)
+                return False
+
+            if not action:
+                error_msg = "No action specified for Thunder"
+                logger.error(f"THUNDER failed - {error_msg}: {item_id}")
+                ChannelQueueService.mark_failed(item_id, error_msg, should_retry=False, db=db)
+                return False
+
+            # Execute Thunder action based on type
+            try:
+                if action == "initiate_qualification":
+                    # TODO: Call Thunder service to initiate qualification flow
+                    logger.warning(
+                        f"Thunder qualification flow not yet implemented for {candidate_id}"
+                    )
+                    error_msg = "Thunder qualification flow not yet implemented"
+                    ChannelQueueService.mark_failed(item_id, error_msg, should_retry=False, db=db)
+                    return False
+
+                elif action == "send_outreach":
+                    # TODO: Call Thunder service to send initial outreach
+                    logger.warning(f"Thunder outreach not yet implemented for {candidate_id}")
+                    error_msg = "Thunder outreach not yet implemented"
+                    ChannelQueueService.mark_failed(item_id, error_msg, should_retry=False, db=db)
+                    return False
+
+                else:
+                    error_msg = f"Unknown Thunder action: {action}"
+                    logger.error(f"THUNDER failed - {error_msg}: {item_id}")
+                    ChannelQueueService.mark_failed(item_id, error_msg, should_retry=False, db=db)
+                    return False
+
+            except Exception as action_error:
+                error_msg = str(action_error)
+                is_transient = ErrorClassifier.is_transient(None, error_msg)
+                logger.error(
+                    f"Thunder action failed: {item_id} - {error_msg} (transient={is_transient})",
+                    exc_info=True,
+                )
+                ChannelQueueService.mark_failed(
+                    item_id, error_msg, should_retry=is_transient, db=db
+                )
+                return False
 
         except Exception as e:
             logger.error(f"Failed to process THUNDER: {e}", exc_info=True)
@@ -175,21 +311,33 @@ class ChannelProcessors:
         """
         Process APPROVAL channel - route to approval workflow.
 
+        CRITICAL: Approval is only marked COMPLETED after workflow is created.
+
         Returns:
             True if successful, False if failed
         """
         try:
-            workflow_type = item_data.get("payload", {}).get("workflow_type")
+            from app.services.channel_queue_service import ChannelQueueService
+
+            payload = item_data.get("payload", {})
+            workflow_type = payload.get("workflow_type")
             recipient = item_data.get("recipient")
 
-            logger.info(f"Processing APPROVAL: {item_id} workflow={workflow_type} manager={recipient}")
+            logger.info(
+                f"Processing APPROVAL: {item_id} workflow={workflow_type} manager={recipient}"
+            )
 
-            # TODO: Implement approval workflow
-            # - Create approval task
-            # - Notify manager
+            if not workflow_type:
+                error_msg = "No workflow_type specified"
+                logger.error(f"APPROVAL failed - {error_msg}: {item_id}")
+                ChannelQueueService.mark_failed(item_id, error_msg, should_retry=False, db=db)
+                return False
 
-            ChannelQueueService.mark_completed(item_id, db)
-            return True
+            # TODO: Implement approval workflow creation
+            error_msg = "Approval workflow creation not yet implemented"
+            logger.warning(f"APPROVAL not implemented: {item_id}")
+            ChannelQueueService.mark_failed(item_id, error_msg, should_retry=False, db=db)
+            return False
 
         except Exception as e:
             logger.error(f"Failed to process APPROVAL: {e}", exc_info=True)
@@ -203,22 +351,34 @@ class ChannelProcessors:
         """
         Process COMMISSION channel - calculate and record commission.
 
+        CRITICAL: Commission is only marked COMPLETED after ledger entry recorded.
+
         Returns:
             True if successful, False if failed
         """
         try:
-            deal_id = item_data.get("payload", {}).get("deal_id")
-            partner_id = item_data.get("payload", {}).get("partner_id")
-            amount = item_data.get("payload", {}).get("amount")
+            from app.services.channel_queue_service import ChannelQueueService
 
-            logger.info(f"Processing COMMISSION: {item_id} deal={deal_id} partner={partner_id} amount={amount}")
+            payload = item_data.get("payload", {})
+            deal_id = payload.get("deal_id")
+            partner_id = payload.get("partner_id")
+            amount = payload.get("amount")
 
-            # TODO: Implement commission calculation
-            # - Apply commission rules
-            # - Record in ledger
+            logger.info(
+                f"Processing COMMISSION: {item_id} deal={deal_id} partner={partner_id} amount={amount}"
+            )
 
-            ChannelQueueService.mark_completed(item_id, db)
-            return True
+            if not deal_id or not partner_id:
+                error_msg = "Missing deal_id or partner_id for commission"
+                logger.error(f"COMMISSION failed - {error_msg}: {item_id}")
+                ChannelQueueService.mark_failed(item_id, error_msg, should_retry=False, db=db)
+                return False
+
+            # TODO: Implement commission calculation and ledger recording
+            error_msg = "Commission calculation not yet implemented"
+            logger.warning(f"COMMISSION not implemented: {item_id}")
+            ChannelQueueService.mark_failed(item_id, error_msg, should_retry=False, db=db)
+            return False
 
         except Exception as e:
             logger.error(f"Failed to process COMMISSION: {e}", exc_info=True)
@@ -232,21 +392,31 @@ class ChannelProcessors:
         """
         Process CRM channel - sync data with CRM.
 
+        CRITICAL: Sync is only marked COMPLETED after CRM API confirms success.
+
         Returns:
             True if successful, False if failed
         """
         try:
-            action = item_data.get("payload", {}).get("action")
-            client_id = item_data.get("payload", {}).get("client_id")
+            from app.services.channel_queue_service import ChannelQueueService
+
+            payload = item_data.get("payload", {})
+            action = payload.get("action")
+            client_id = payload.get("client_id")
 
             logger.info(f"Processing CRM: {item_id} action={action} client={client_id}")
 
-            # TODO: Implement CRM sync
-            # - Call CRM API
-            # - Sync client/contact data
+            if not action or not client_id:
+                error_msg = "Missing action or client_id for CRM sync"
+                logger.error(f"CRM failed - {error_msg}: {item_id}")
+                ChannelQueueService.mark_failed(item_id, error_msg, should_retry=False, db=db)
+                return False
 
-            ChannelQueueService.mark_completed(item_id, db)
-            return True
+            # TODO: Implement CRM sync
+            error_msg = "CRM sync not yet implemented"
+            logger.warning(f"CRM not implemented: {item_id}")
+            ChannelQueueService.mark_failed(item_id, error_msg, should_retry=False, db=db)
+            return False
 
         except Exception as e:
             logger.error(f"Failed to process CRM: {e}", exc_info=True)
@@ -260,25 +430,37 @@ class ChannelProcessors:
         """
         Process DASHBOARD channel - push real-time update to dashboard.
 
+        CRITICAL: Update is only marked COMPLETED after WebSocket push.
+
         Returns:
             True if successful, False if failed
         """
         try:
-            update_type = item_data.get("payload", {}).get("update_type")
-            kpi_id = item_data.get("payload", {}).get("kpi_id")
+            from app.services.channel_queue_service import ChannelQueueService
 
-            logger.info(f"Processing DASHBOARD: {item_id} update_type={update_type} kpi={kpi_id}")
+            payload = item_data.get("payload", {})
+            update_type = payload.get("update_type")
+            kpi_id = payload.get("kpi_id")
 
-            # TODO: Implement dashboard update
-            # - Push to WebSocket
-            # - Update real-time data
+            logger.info(
+                f"Processing DASHBOARD: {item_id} update_type={update_type} kpi={kpi_id}"
+            )
 
-            ChannelQueueService.mark_completed(item_id, db)
-            return True
+            if not update_type:
+                error_msg = "No update_type specified for dashboard"
+                logger.error(f"DASHBOARD failed - {error_msg}: {item_id}")
+                ChannelQueueService.mark_failed(item_id, error_msg, should_retry=False, db=db)
+                return False
+
+            # TODO: Implement dashboard update via WebSocket
+            error_msg = "Dashboard WebSocket push not yet implemented"
+            logger.warning(f"DASHBOARD not implemented: {item_id}")
+            # Dashboard updates don't retry (non-critical)
+            ChannelQueueService.mark_failed(item_id, error_msg, should_retry=False, db=db)
+            return False
 
         except Exception as e:
             logger.error(f"Failed to process DASHBOARD: {e}", exc_info=True)
-            # Dashboard updates don't retry (non-critical)
             ChannelQueueService.mark_failed(item_id, str(e), should_retry=False, db=db)
             return False
 
@@ -289,21 +471,33 @@ class ChannelProcessors:
         """
         Process CALENDAR channel - create calendar events.
 
+        CRITICAL: Event is only marked COMPLETED after calendar creation confirmed.
+
         Returns:
             True if successful, False if failed
         """
         try:
-            event_type = item_data.get("payload", {}).get("event_type")
-            interview_id = item_data.get("payload", {}).get("interview_id")
+            from app.services.channel_queue_service import ChannelQueueService
 
-            logger.info(f"Processing CALENDAR: {item_id} event_type={event_type} interview={interview_id}")
+            payload = item_data.get("payload", {})
+            event_type = payload.get("event_type")
+            interview_id = payload.get("interview_id")
 
-            # TODO: Implement calendar integration
-            # - Create Google Calendar events
-            # - Add to panel members' calendars
+            logger.info(
+                f"Processing CALENDAR: {item_id} event_type={event_type} interview={interview_id}"
+            )
 
-            ChannelQueueService.mark_completed(item_id, db)
-            return True
+            if not event_type or not interview_id:
+                error_msg = "Missing event_type or interview_id for calendar"
+                logger.error(f"CALENDAR failed - {error_msg}: {item_id}")
+                ChannelQueueService.mark_failed(item_id, error_msg, should_retry=False, db=db)
+                return False
+
+            # TODO: Implement calendar event creation
+            error_msg = "Calendar event creation not yet implemented"
+            logger.warning(f"CALENDAR not implemented: {item_id}")
+            ChannelQueueService.mark_failed(item_id, error_msg, should_retry=False, db=db)
+            return False
 
         except Exception as e:
             logger.error(f"Failed to process CALENDAR: {e}", exc_info=True)
@@ -317,12 +511,17 @@ class ChannelProcessors:
         """
         Process SIGNATURE channel - request e-signatures.
 
+        CRITICAL: Request is only marked COMPLETED after e-signature service confirms.
+
         Returns:
             True if successful, False if failed
         """
         try:
-            document_type = item_data.get("payload", {}).get("document_type")
-            offer_id = item_data.get("payload", {}).get("offer_id")
+            from app.services.channel_queue_service import ChannelQueueService
+
+            payload = item_data.get("payload", {})
+            document_type = payload.get("document_type")
+            offer_id = payload.get("offer_id")
             recipient = item_data.get("recipient")
 
             logger.info(
@@ -330,12 +529,17 @@ class ChannelProcessors:
                 f"offer={offer_id} recipient={recipient}"
             )
 
-            # TODO: Implement e-signature
-            # - Use DocuSign, SignNow, or similar
-            # - Send signature request
+            if not document_type or not offer_id or not recipient:
+                error_msg = "Missing required fields for signature request"
+                logger.error(f"SIGNATURE failed - {error_msg}: {item_id}")
+                ChannelQueueService.mark_failed(item_id, error_msg, should_retry=False, db=db)
+                return False
 
-            ChannelQueueService.mark_completed(item_id, db)
-            return True
+            # TODO: Implement e-signature request
+            error_msg = "E-signature request not yet implemented"
+            logger.warning(f"SIGNATURE not implemented: {item_id}")
+            ChannelQueueService.mark_failed(item_id, error_msg, should_retry=False, db=db)
+            return False
 
         except Exception as e:
             logger.error(f"Failed to process SIGNATURE: {e}", exc_info=True)

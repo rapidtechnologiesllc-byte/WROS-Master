@@ -2,7 +2,7 @@
 //
 // Use relative URLs so dev server proxy (setupProxy.js) can forward to backend.
 // In production, REACT_APP_API_BASE_URL can be set to the actual backend URL.
-const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || "";
+const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || "http://localhost:8000";
 
 export const getApiBaseUrl = () => API_BASE_URL;
 

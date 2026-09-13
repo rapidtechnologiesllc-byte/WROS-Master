@@ -12,7 +12,7 @@
 // PII. Falling back to localhost instead means a misconfigured
 // environment fails loudly and obviously (connection refused) rather
 // than quietly reading/writing real data.
-const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || "http://localhost:8080";
+const API_BASE_URL = "http://localhost:8000"; // TEMP: Testing direct backend connection
 console.log("[DEBUG] API_BASE_URL from env:", process.env.REACT_APP_API_BASE_URL);
 console.log("[DEBUG] Final API_BASE_URL:", API_BASE_URL);
 
