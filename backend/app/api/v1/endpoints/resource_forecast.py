@@ -65,13 +65,11 @@ def expiring_allocations(
 @router.get(
     "/gap-analysis",
     dependencies=[
-        Depends(require_resource_permission("forecast",
-        "view")),
+        Depends(require_resource_permission("forecast", "view")),
         Depends(get_current_internal_user),
     ],
-    "/gap-analysis", response_model=SkillGapAnalysisResponse,
+    response_model=SkillGapAnalysisResponse,
     summary="Per-skill projected bench supply vs open demand, optionally scoped to one Business Unit's own demand",
-)
 )
 def gap_analysis(
     business_unit_id: Optional[int] = None,

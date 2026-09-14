@@ -76,14 +76,11 @@ def _process_webhook_payload(payload: dict) -> None:
 @router.post(
     "/whatsapp",
     dependencies=[
-        Depends(require_resource_permission("webhook",
-        "create")),
+        Depends(require_resource_permission("webhook", "create")),
         Depends(get_current_internal_user),
     ],
-    "/whatsapp",
     status_code=200,
     summary="Receive inbound WhatsApp messages and delivery status updates",
-)
 )
 async def whatsapp_webhook_receive(request: Request, background_tasks: BackgroundTasks):
     raw_body = await request.body()

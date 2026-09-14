@@ -96,16 +96,14 @@ def list_employee_milestones(
     milestones = get_employee_milestones(db, employee_id)
     return EmployeeMilestoneListResponse(milestones=[_to_item(m) for m in milestones])
 
-@router.get(
+@router.post(
     "/{milestone_id}/complete",
     dependencies=[
-        Depends(require_resource_permission("milestone",
-        "create")),
+        Depends(require_resource_permission("milestone", "create")),
         Depends(get_current_internal_user),
     ],
-    "/{milestone_id}/complete", response_model=EmployeeMilestoneItem,
+    response_model=EmployeeMilestoneItem,
     summary="Complete a milestone -- completed_date is always today, never caller-supplied",
-)
 )
 def complete_milestone_endpoint(
     milestone_id: str,

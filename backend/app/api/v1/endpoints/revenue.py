@@ -110,16 +110,14 @@ def scan_leakage(
     db.refresh(flag)
     return _flag_to_item(flag)
 
-@router.get(
+@router.post(
     "/leakage/{flag_id}/log-reason",
     dependencies=[
-        Depends(require_resource_permission("resource",
-        "create")),
+        Depends(require_resource_permission("resource", "create")),
         Depends(get_current_internal_user),
     ],
-    "/leakage/{flag_id}/log-reason", response_model=LeakageFlagItem,
+    response_model=LeakageFlagItem,
     summary="Log a reason (e.g. client-negotiated cap) that suppresses a leakage flag",
-)
 )
 def log_leakage_reason(
     flag_id: str,

@@ -137,14 +137,11 @@ def trigger_scan(
 @router.get(
     "/recommendations",
     dependencies=[
-        Depends(require_resource_permission("management",
-        "view")),
+        Depends(require_resource_permission("management", "view")),
         Depends(get_current_internal_user),
     ],
-    "/recommendations",
     response_model=RecommendationQueueResponse,
     summary="Get the pending bench-allocation recommendation queue",
-)
 )
 def get_queue(
     db: Session = Depends(get_db),

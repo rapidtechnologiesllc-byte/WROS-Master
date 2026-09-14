@@ -138,17 +138,14 @@ def confirm_sow(
         sow_received_date=demand.sow_received_date,
     )
 
-@router.get(
+@router.post(
     "/demands/{demand_id}/employees/{employee_id}/schedule-call",
     dependencies=[
-        Depends(require_resource_permission("confirmation",
-        "create")),
+        Depends(require_resource_permission("confirmation", "create")),
         Depends(get_current_internal_user),
     ],
-    "/demands/{demand_id}/employees/{employee_id}/schedule-call",
     response_model=AlignmentCallItem,
     summary="Book (or return the existing) 3-way alignment call",
-)
 )
 def schedule_call(
     demand_id: str,

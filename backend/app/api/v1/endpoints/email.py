@@ -131,16 +131,13 @@ def send_mail(
         cc_emails=request.cc_emails,
     )
 
-@router.get(
+@router.post(
     "/send-with-attachments",
     dependencies=[
-        Depends(require_resource_permission("resource",
-        "create")),
+        Depends(require_resource_permission("email", "create")),
         Depends(get_current_internal_user),
     ],
-    "/send-with-attachments",
     summary="Send an email with one or more file attachments",
-)
 )
 async def send_mail_with_attachments(
     to_email: str = Form(..., description="Recipient email address"),

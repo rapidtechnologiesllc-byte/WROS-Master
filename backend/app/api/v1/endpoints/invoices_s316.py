@@ -197,14 +197,11 @@ def generate_invoice_endpoint(
 @router.get(
     "/{invoice_id}/calculate",
     dependencies=[
-        Depends(require_resource_permission("s316",
-        "view")),
+        Depends(require_resource_permission("s316", "view")),
         Depends(get_current_internal_user),
     ],
-    "/{invoice_id}/calculate",
     response_model=CalculateBillAmountResponse,
     summary="Calculate bill amount for an invoice",
-)
 )
 def calculate_bill_amount_endpoint(
     invoice_id: str,

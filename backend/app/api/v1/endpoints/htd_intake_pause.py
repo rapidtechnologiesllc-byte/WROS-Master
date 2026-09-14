@@ -101,16 +101,14 @@ def get_status_endpoint(
         return HtdIntakeStatusResponse(is_paused=False)
     return HtdIntakeStatusResponse(is_paused=status.is_paused, paused_at=status.paused_at, pause_reason=status.pause_reason)
 
-@router.get(
+@router.post(
     "/resume",
     dependencies=[
-        Depends(require_resource_permission("pause",
-        "create")),
+        Depends(require_resource_permission("pause", "create")),
         Depends(get_current_internal_user),
     ],
-    "/resume", response_model=HtdIntakeStatusResponse,
+    response_model=HtdIntakeStatusResponse,
     summary="Resume HTD intake -- requires 200+ char audit findings and corrective actions",
-)
 )
 def resume_endpoint(
     body: ResumeIntakeRequest,

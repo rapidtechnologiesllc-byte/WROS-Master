@@ -148,15 +148,12 @@ def recognize_revenue(
 @router.post(
     "/entries",
     dependencies=[
-        Depends(require_resource_permission("recognition",
-        "create")),
+        Depends(require_resource_permission("recognition", "create")),
         Depends(get_current_internal_user),
     ],
-    "/entries",
     response_model=RevenueEntriesResponse,
     summary="Create revenue entries for invoice",
     description="Creates individual or aggregated revenue entries based on recognition method"
-)
 )
 def create_entries(
     request: CreateRevenueEntriesRequest,

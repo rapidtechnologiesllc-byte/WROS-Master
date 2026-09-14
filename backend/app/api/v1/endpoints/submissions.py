@@ -166,14 +166,11 @@ def list_submissions(
 @router.get(
     "/violations",
     dependencies=[
-        Depends(require_resource_permission("resource",
-        "view")),
+        Depends(require_resource_permission("resource", "view")),
         Depends(get_current_internal_user),
     ],
-    "/violations",
     response_model=SubmissionViolationListResponse,
     summary="Compliance violation audit log",
-)
 )
 def list_violations(
     db: Session = Depends(get_db),

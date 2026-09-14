@@ -69,14 +69,11 @@ def post_portal_message(
 @router.get(
     "/{conversation_id}/messages",
     dependencies=[
-        Depends(require_resource_permission("message",
-        "view")),
+        Depends(require_resource_permission("message", "view")),
         Depends(get_current_internal_user),
     ],
-    "/{conversation_id}/messages",
     response_model=PortalMessageHistoryResponse,
     summary="Candidate retrieves their portal conversation history",
-)
 )
 def list_portal_messages(
     conversation_id: int,
