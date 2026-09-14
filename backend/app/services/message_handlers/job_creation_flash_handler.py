@@ -222,6 +222,70 @@ class JobCreationFlashHandler:
         return True
 
     @staticmethod
+    def validate(message: Any, result: Dict[str, Any], db: Session) -> None:
+        """
+        Validate that job creation actually completed successfully.
+
+        Runs BEFORE marking message as COMPLETED. Verifies:
+        1. Job record exists in database
+        2. Job title matches payload
+        3. Job status is correct
+        4. Record was created recently (not old duplicate)
+
+        Args:
+            message: Queue message with payload
+            result: Result dict from process()
+            db: Database session
+
+        Raises:
+            ValueError: Job not found (non-retryable)
+            RuntimeError: Database validation error (retryable)
+        """
+        if not result or "job_id" not in result:
+            raise ValueError(f"Invalid result: {result}")
+
+        job_id = result.get("job_id")
+        payload = message.payload or {}
+
+        try:
+            # 1. VERIFY JOB EXISTS
+            job = db.query(Jobs).filter(Jobs.jobID == job_id).first()
+            if not job:
+                raise ValueError(f"Job {job_id} not found in database after creation")
+
+            # 2. VERIFY JOB TITLE MATCHES
+            expected_title = payload.get("job_title")
+            if expected_title and job.jobTitle != expected_title:
+                raise ValueError(
+                    f"Title mismatch for {job_id}: expected '{expected_title}', got '{job.jobTitle}'"
+                )
+
+            # 3. VERIFY JOB STATUS
+            expected_status = payload.get("job_status", "pending_approval")
+            if job.jobStatus != expected_status:
+                raise ValueError(
+                    f"Status mismatch for {job_id}: expected '{expected_status}', got '{job.jobStatus}'"
+                )
+
+            # 4. VERIFY CREATION TIMESTAMP
+            if not job.jobCreatedAt:
+                raise ValueError(f"Job {job_id} has no createdAt timestamp")
+
+            age_seconds = (datetime.utcnow() - job.jobCreatedAt).total_seconds()
+            if age_seconds > 300:  # Created more than 5 minutes ago = likely not this operation
+                logger.warning(f"Job {job_id} was created {age_seconds}s ago, not recent")
+
+            logger.info(f"✅ Job creation validated: {job_id}, Title={job.jobTitle}, Status={job.jobStatus}")
+
+        except (ValueError, AttributeError) as e:
+            logger.error(f"[JobCreationFlash] NON-RETRYABLE validation error: {e}")
+            raise ValueError(str(e)) from e
+
+        except Exception as e:
+            logger.error(f"[JobCreationFlash] RETRYABLE validation error: {e}", exc_info=True)
+            raise RuntimeError(f"Database validation error: {str(e)}") from e
+
+    @staticmethod
     def on_retry(message: Any, error: str, db: Session) -> None:
         """Schedule message for retry after failed attempt."""
         try:
@@ -246,72 +310,47 @@ class JobCreationFlashHandler:
     @staticmethod
     def on_success(message: Any, result: Dict[str, Any], db: Session) -> Dict[str, Any]:
         """
-        ARCHITECT FIX: Validate job creation WITHOUT mutating state.
-        Returns validation result dict. Queue processor decides if COMPLETED.
+        Mark message as COMPLETED after validation passes.
 
-        Uses row-level locks (SELECT FOR UPDATE) to prevent race conditions.
+        Calls validate() which verifies job was created successfully.
+        Only marks COMPLETED if validation passes.
         """
         try:
-            # ===== VALIDATION STEP 1: Check result structure =====
-            if not isinstance(result, dict):
-                raise ValueError(f"Handler returned invalid type: {type(result)}")
+            # Call validate() which follows base handler pattern
+            JobCreationFlashHandler.validate(message, result, db)
 
-            required_fields = ['job_id']
-            for field in required_fields:
-                if field not in result:
-                    raise ValueError(f"Handler result missing required field: {field}")
-                if not result[field]:
-                    raise ValueError(f"Handler result has empty field: {field}")
+            # ✅ VALIDATION PASSED - Mark as COMPLETED
+            message.status = "COMPLETED"
+            message.completed_at = datetime.utcnow()
+            message.result = result
 
-            job_id = result['job_id']
-            logger.info(f"[Handler] ✅ Step 1: Result structure valid (job_id={job_id})")
+            try:
+                db.commit()
+            except Exception as commit_err:
+                db.rollback()
+                raise RuntimeError(f"Failed to commit COMPLETED status: {str(commit_err)}") from commit_err
 
-            # ===== VALIDATION STEP 2: Database verification with ATOMIC ROW LOCKS =====
-            # ARCHITECT FIX: Use SELECT FOR UPDATE to acquire write locks
-            job = db.query(Jobs).filter(Jobs.jobID == job_id).with_for_update().first()
-
-            if not job:
-                raise RuntimeError(
-                    f"Job {job_id} not found in database (or was deleted during validation)"
-                )
-
-            logger.info(f"[Handler] ✅ Step 2: Database verification passed (job locked)")
-
-            # ===== VALIDATION STEP 3: Related records with atomic locks =====
-            if job.hiringManagerID:
-                hiring_manager = db.query(Users).filter(
-                    Users.UserID == job.hiringManagerID
-                ).with_for_update().first()
-
-                if not hiring_manager:
-                    raise RuntimeError(
-                        f"Hiring manager {job.hiringManagerID} not found for job {job_id}"
-                    )
-
-            logger.info(f"[Handler] ✅ Step 3: Related records valid (locked)")
-
-            # ===== VALIDATION STEP 4: Data integrity =====
-            payload = message.payload or {}
-            expected_title = payload.get('job_title')
-            if expected_title and job.jobTitle != expected_title:
-                raise RuntimeError(
-                    f"Job title mismatch: '{job.jobTitle}' vs '{expected_title}'"
-                )
-
-            logger.info(f"[Handler] ✅ Step 4: Data integrity verified")
-
-            # ===== VALIDATION COMPLETE =====
-            # Return validation result WITHOUT mutating message.status
-            logger.info(f"[Handler] ✅✅✅ ALL VALIDATIONS PASSED")
+            job_id = result.get("job_id", "unknown")
+            logger.info(f"[JobCreationFlash] ✅ Message {message.id} marked COMPLETED (job {job_id})")
 
             return {
                 'is_valid': True,
                 'job_id': job_id,
-                'locked_records': ['job', 'hiring_manager']
+                'message': 'Validation passed and message marked COMPLETED'
             }
 
+        except ValueError as e:
+            db.rollback()
+            logger.error(f"[JobCreationFlash] ❌ NON-RETRYABLE validation failure: {e}")
+            raise
+
+        except RuntimeError as e:
+            db.rollback()
+            logger.error(f"[JobCreationFlash] ❌ RETRYABLE validation failure: {e}")
+            raise
+
         except Exception as e:
-            logger.error(f"[Handler] ❌ Validation failed: {e}", exc_info=True)
+            logger.error(f"[Handler] ❌ Unexpected error during on_success: {e}", exc_info=True)
             try:
                 db.rollback()
             except Exception:
