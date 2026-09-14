@@ -57,10 +57,22 @@ class FlashTranscriptService:
                 logger.warning(f"[Flash] Failed to get transcript from Office365: {response.status_code}")
                 return None
 
+        except requests.Timeout as e:
+            logger.error(f"[Flash] Office 365 timeout fetching transcript: {str(e)}", exc_info=True)
+            raise RuntimeError(f"Office 365 API timeout: {str(e)}")  # Retryable
+        except requests.ConnectionError as e:
+            logger.error(f"[Flash] Office 365 connection error: {str(e)}", exc_info=True)
+            raise RuntimeError(f"Office 365 connection error: {str(e)}")  # Retryable
+        except requests.HTTPError as e:
+            if e.response.status_code in [429, 503]:  # Rate limit or service unavailable
+                logger.error(f"[Flash] Office 365 API error {e.response.status_code}: {str(e)}", exc_info=True)
+                raise RuntimeError(f"Office 365 API error {e.response.status_code}: {str(e)}")  # Retryable
+            else:
+                logger.error(f"[Flash] Office 365 HTTP error {e.response.status_code}: {str(e)}", exc_info=True)
+                raise ValueError(f"Office 365 HTTP error {e.response.status_code}: {str(e)}")  # Non-retryable
         except Exception as e:
-            logger.error(f"Error: {str(e)}", exc_info=True)
-            logger.error(f"[Flash] Error fetching transcript: {str(e)}")
-            raise ValueError("Operation failed")
+            logger.error(f"[Flash] Unexpected error fetching transcript: {str(e)}", exc_info=True)
+            raise RuntimeError(f"Unexpected error: {str(e)}")  # Retryable
 
     @staticmethod
     def get_mock_transcript(candidate_name: str, role: str) -> str:
@@ -227,10 +239,20 @@ Respond ONLY with valid JSON (no markdown, no extra text):
         # Analyze with Claude
         decision = FlashTranscriptService.analyze_transcript_with_claude(transcript, candidate_name, role)
 
-        # Log decision event
+        # BLOCKER #2: Log decision event with proper conversation linkage
         if "error" not in decision:
+            # Find the conversation for this candidate
+            conversation_id = None
+            if candidate:
+                from app.models.candidate_ai import CandidateConversation
+                conversation = db.query(CandidateConversation).filter(
+                    CandidateConversation.candidate_id == candidate.candidateID
+                ).first()
+                if conversation:
+                    conversation_id = conversation.id
+
             db.add(ConversationEvent(
-                conversation_id=None,
+                conversation_id=conversation_id,
                 event_type="FLASH_INTERVIEW_DECISION",
                 triggered_by="flash_agent",
                 event_data={

@@ -141,6 +141,21 @@ class JobCreationFlashHandler:
                 job_status = payload.get('job_status', 'active')
 
                 if job_status == "active":
+                    # BLOCKER #5: Queue Flash analysis for candidates on this job
+                    try:
+                        from app.services.message_queue_service import MessageQueueService
+                        MessageQueueService.enqueue(
+                            task_name="flash_analysis_for_job",
+                            data={
+                                "job_id": job_id,
+                                "job_title": job_title,
+                                "tenant_id": job.tenant_id,
+                            }
+                        )
+                        logger.info(f"[JobCreate] Queued Flash analysis for job {job_id}")
+                    except Exception as flash_err:
+                        logger.warning(f"[JobCreate] Failed to queue Flash analysis (non-blocking): {flash_err}")
+
                     # Scan for ready candidates matching this job
                     try:
                         from app.services.ready_for_opportunity_service import scan_new_job_for_matches
@@ -229,14 +244,19 @@ class JobCreationFlashHandler:
             raise RuntimeError(f"Failed to schedule retry: {str(e)}") from e
 
     @staticmethod
-    def on_success(message: Any, result: Dict[str, Any], db: Session) -> None:
-        """Handle successful message processing with validation before marking COMPLETED."""
+    def on_success(message: Any, result: Dict[str, Any], db: Session) -> Dict[str, Any]:
+        """
+        ARCHITECT FIX: Validate job creation WITHOUT mutating state.
+        Returns validation result dict. Queue processor decides if COMPLETED.
+
+        Uses row-level locks (SELECT FOR UPDATE) to prevent race conditions.
+        """
         try:
             # ===== VALIDATION STEP 1: Check result structure =====
             if not isinstance(result, dict):
                 raise ValueError(f"Handler returned invalid type: {type(result)}")
 
-            required_fields = ['job_id', 'status', 'created_at']
+            required_fields = ['job_id']
             for field in required_fields:
                 if field not in result:
                     raise ValueError(f"Handler result missing required field: {field}")
@@ -246,76 +266,62 @@ class JobCreationFlashHandler:
             job_id = result['job_id']
             logger.info(f"[Handler] ✅ Step 1: Result structure valid (job_id={job_id})")
 
-            # ===== VALIDATION STEP 2: Database verification =====
-            # Query to verify job actually exists in database
-            job = db.query(Jobs).filter(Jobs.jobID == job_id).first()
+            # ===== VALIDATION STEP 2: Database verification with ATOMIC ROW LOCKS =====
+            # ARCHITECT FIX: Use SELECT FOR UPDATE to acquire write locks
+            job = db.query(Jobs).filter(Jobs.jobID == job_id).with_for_update().first()
 
             if not job:
                 raise RuntimeError(
-                    f"Record {job_id} not found in database after handler completed. "
-                    f"Handler returned ID but record was not persisted."
+                    f"Job {job_id} not found in database (or was deleted during validation)"
                 )
 
-            logger.info(f"[Handler] ✅ Step 2: Database verification passed, job exists")
+            logger.info(f"[Handler] ✅ Step 2: Database verification passed (job locked)")
 
-            # ===== VALIDATION STEP 3: Related records consistency =====
-            # Verify hiring manager exists if specified
+            # ===== VALIDATION STEP 3: Related records with atomic locks =====
             if job.hiringManagerID:
                 hiring_manager = db.query(Users).filter(
                     Users.UserID == job.hiringManagerID
-                ).first()
+                ).with_for_update().first()
 
                 if not hiring_manager:
                     raise RuntimeError(
-                        f"Hiring manager {job.hiringManagerID} not found for job {job_id}. "
-                        f"FK constraint violation."
+                        f"Hiring manager {job.hiringManagerID} not found for job {job_id}"
                     )
 
-            logger.info(f"[Handler] ✅ Step 3: Related records valid, hiring manager exists")
+            logger.info(f"[Handler] ✅ Step 3: Related records valid (locked)")
 
             # ===== VALIDATION STEP 4: Data integrity =====
-            # Verify job title matches
             payload = message.payload or {}
             expected_title = payload.get('job_title')
             if expected_title and job.jobTitle != expected_title:
                 raise RuntimeError(
-                    f"Job title mismatch: handler created '{job.jobTitle}' "
-                    f"but payload specified '{expected_title}'. "
-                    f"Data corruption detected."
+                    f"Job title mismatch: '{job.jobTitle}' vs '{expected_title}'"
                 )
 
-            logger.info(f"[Handler] ✅ Step 4: Data integrity verified, job title matches")
+            logger.info(f"[Handler] ✅ Step 4: Data integrity verified")
 
-            # ===== FINAL: Mark COMPLETED after all validations pass =====
-            message.status = "COMPLETED"
-            message.completed_at = datetime.utcnow()
-            message.result = result
+            # ===== VALIDATION COMPLETE =====
+            # Return validation result WITHOUT mutating message.status
+            logger.info(f"[Handler] ✅✅✅ ALL VALIDATIONS PASSED")
 
-            try:
-                db.commit()
-            except Exception as commit_err:
-                db.rollback()
-                raise RuntimeError(f"Failed to commit success status: {str(commit_err)}") from commit_err
-
-            logger.info(f"[Handler] ✅✅✅ ALL VALIDATIONS PASSED - Message marked COMPLETED")
-
-        except ValueError as e:
-            # Non-retryable error (handler code bug)
-            db.rollback()
-            logger.error(f"[Handler] ❌ NON-RETRYABLE validation failure: {e}")
-            raise  # Will be caught by processor
-
-        except RuntimeError as e:
-            # Retryable error (temporary DB issue)
-            db.rollback()
-            logger.error(f"[Handler] ❌ RETRYABLE validation failure: {e}")
-            raise  # Will be caught by processor
+            return {
+                'is_valid': True,
+                'job_id': job_id,
+                'locked_records': ['job', 'hiring_manager']
+            }
 
         except Exception as e:
-            # Unexpected error
-            db.rollback()
-            logger.error(f"[Handler] ❌ Unexpected validation error: {e}", exc_info=True)
-            raise RuntimeError(f"Validation error: {str(e)}") from e
+            logger.error(f"[Handler] ❌ Validation failed: {e}", exc_info=True)
+            try:
+                db.rollback()
+            except Exception:
+                pass
+            # Return failure dict instead of raising
+            return {
+                'is_valid': False,
+                'error': str(e),
+                'error_type': type(e).__name__
+            }
 
     @staticmethod
     def on_failed(message: Any, final_error: str, db: Session) -> None:

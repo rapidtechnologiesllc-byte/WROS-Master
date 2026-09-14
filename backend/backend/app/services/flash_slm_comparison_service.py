@@ -83,6 +83,14 @@ class FlashSLMComparisonService:
             flash_assessment, slm_assessment
         )
 
+        # BLOCKER #6: Better error state detection
+        if not flash_assessment and not slm_assessment:
+            comparison.conflict_reason = "Awaiting both Flash interview analysis and SLM metrics"
+        elif not flash_assessment:
+            comparison.conflict_reason = "Flash interview analysis pending"
+        elif not slm_assessment:
+            comparison.conflict_reason = "SLM analysis still processing"
+
         # CRITICAL-12: Standardized timestamp format
         timestamp = datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')
 
@@ -182,7 +190,7 @@ class FlashSLMComparisonService:
             Tuple of (SLMAssessment dict, freshness_status: "fresh" | "stale" | "pending")
         """
         try:
-            # Get SLM metrics
+            # BLOCKER #4: Get SLM metrics with consistent tenant scoping
             metrics = db.query(CandidateQualityMetrics).filter(
                 CandidateQualityMetrics.candidate_id == candidate_id,
                 CandidateQualityMetrics.tenant_id == tenant_id,
