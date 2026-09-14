@@ -119,13 +119,21 @@ def _initialize_default_handlers():
         from app.services.message_handlers.invoice_sent_handler import InvoiceSentHandler
         from app.services.message_handlers.invoice_paid_handler import InvoicePaidHandler
         from app.services.message_handlers.revenue_recognized_handler import RevenueRecognizedHandler
+        from app.services.message_handlers.s316_milestone_completion_handler import S316MilestoneCompletionHandler
+        from app.services.message_handlers.s316_invoice_handler import S316InvoiceHandler
 
+        # Standard timesheet-based invoicing (5 handlers)
         MessageHandlerRegistry.register("invoice_generation", InvoiceGenerationHandler.process)
         MessageHandlerRegistry.register("invoice_approved", InvoiceApprovedHandler.process)
         MessageHandlerRegistry.register("invoice_sent", InvoiceSentHandler.process)
         MessageHandlerRegistry.register("invoice_paid", InvoicePaidHandler.process)
         MessageHandlerRegistry.register("revenue_recognized", RevenueRecognizedHandler.process)
-        logger.info("[Registry] Registered Phase 2 invoice & revenue handlers (5 handlers)")
+
+        # S316 service-based invoicing (2 handlers)
+        MessageHandlerRegistry.register("s316_milestone_completion", S316MilestoneCompletionHandler.process)
+        MessageHandlerRegistry.register("s316_invoice_generation", S316InvoiceHandler.process)
+
+        logger.info("[Registry] Registered Phase 2 invoice & revenue handlers (7 handlers total)")
     except ImportError as e:
         logger.warning(f"[Registry] Could not import invoice/revenue handlers: {e}")
     except Exception as e:
