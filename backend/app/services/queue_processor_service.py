@@ -53,13 +53,27 @@ class QueueProcessorService:
     INITIAL_RETRY_DELAY = 1  # seconds (HIGH FIX #3: Reduced from 5s to 1s, exponential: 1s→2s→4s→8s)
     BATCH_SIZE = 50  # HIGH FIX #11: Increased from 10 to 50 (better throughput, less polling)
     POLL_INTERVAL = 2  # seconds
-    HANDLER_TIMEOUT_SECONDS = 30  # Max time for any handler to complete before timeout
+    HANDLER_TIMEOUT_SECONDS = 30  # Default timeout (HIGH FIX #13: Per-handler timeout mapping below)
     MAX_RESULT_SIZE_BYTES = 5 * 1024 * 1024  # 5MB max for result JSON (HIGH FIX #14: Prevent DB truncation)
     MAX_ERROR_SIZE_BYTES = 10 * 1024  # 10KB max for error field (HIGH FIX #7: Prevent JSON corruption)
     MAX_PAYLOAD_SIZE_BYTES = 10 * 1024 * 1024  # 10MB max payload (PHASE3.6: Prevent JSON parser crash)
 
     # Exponential backoff multiplier
     RETRY_BACKOFF_MULTIPLIER = 2
+
+    # HIGH FIX #13: Per-handler timeout mapping (different handlers need different time)
+    # Thunder handlers call external APIs and need more time
+    # Email/SMS handlers are quick, webhook calls vary
+    HANDLER_TIMEOUTS = {
+        'engage_candidate_with_thunder': 60,  # Thunder: WhatsApp/Email API calls (network latency)
+        'send_whatsapp_message': 60,  # WhatsApp API calls
+        'send_email_message': 30,  # Email typically fast
+        'send_sms_message': 30,  # SMS typically fast
+        'webhook_callback': 45,  # HTTP webhooks
+        'create_candidate': 30,  # DB operation
+        'update_candidate': 30,  # DB operation
+        # Default: use HANDLER_TIMEOUT_SECONDS
+    }
 
     @staticmethod
     def _truncate_error_string(error: str, max_size_bytes: int = MAX_ERROR_SIZE_BYTES) -> str:
@@ -330,9 +344,9 @@ class QueueProcessorService:
                         stats["failed"] += 1
 
                     # Train SLM with result if message completed
-                    # SKIP SLM training for simple CRUD operations (create_candidate, etc.)
-                    # Those don't need SLM analysis - they just create records
-                    skip_slm_training = message.type in ['create_candidate', 'job_created']
+                    # HIGH FIX #4: Include create_candidate in SLM training to optimize candidate sourcing
+                    # SLM learns which sources produce best-quality candidates for hiring pipeline
+                    skip_slm_training = message.type in ['job_created']  # Only skip non-critical CRUD
 
                     if result["status"] == QueueStatus.COMPLETED.value and not skip_slm_training:
                         try:
@@ -471,23 +485,31 @@ class QueueProcessorService:
 
             slm_analysis = None
             try:
-                if not skip_place1_analysis:  # Only analyze complex operations
-                    slm_analysis = SLMService.analyze_before_handler(
-                        message_id=str(message.id),
-                        message_type=message.type,
-                        payload=message.payload or {},
-                        context={
-                            'business_goal': f'Execute {message.type} handler',
-                            'risk_level': 'MEDIUM',
-                            'queue_retry_count': message.retry_count or 0,
-                            'message_age_seconds': (datetime.utcnow() - message.created_at).total_seconds() if message.created_at else 0
-                        },
-                        db=db,
-                        handler_name=f"{message.type}_handler"  # Pass handler name for decision recording
-                    )
+                # HIGH FIX #1: Validate SLMService.analyze_before_handler exists before calling
+                if not skip_place1_analysis and hasattr(SLMService, 'analyze_before_handler'):
+                    try:
+                        slm_analysis = SLMService.analyze_before_handler(
+                            message_id=str(message.id),
+                            message_type=message.type,
+                            payload=message.payload or {},
+                            context={
+                                'business_goal': f'Execute {message.type} handler',
+                                'risk_level': 'MEDIUM',
+                                'queue_retry_count': message.retry_count or 0,
+                                'message_age_seconds': (datetime.utcnow() - message.created_at).total_seconds() if message.created_at else 0
+                            },
+                            db=db,
+                            handler_name=f"{message.type}_handler"  # Pass handler name for decision recording
+                        )
+                    except AttributeError as attr_err:
+                        logger.warning(f"[QueueProcessor] SLMService.analyze_before_handler not available: {attr_err}")
+                        slm_analysis = None  # Continue without SLM analysis
+                elif not skip_place1_analysis:
+                    logger.debug(f"[QueueProcessor] SLMService.analyze_before_handler not available for {message.type}")
+                    slm_analysis = None
 
-                # Check if SLM says to escalate
-                if not slm_analysis.get('should_proceed'):
+                # Check if SLM says to escalate (only if analysis succeeded)
+                if slm_analysis and not slm_analysis.get('should_proceed'):
                     logger.warning(f"[QueueProcessor] SLM pre-flight escalation for {message.id}: {slm_analysis.get('reasoning')}")
                     message.status = QueueStatus.FAILED.value
                     message.result = json.dumps({
@@ -529,9 +551,15 @@ class QueueProcessorService:
                     except Exception as e:
                         handler_exception = e
 
+                # HIGH FIX #13: Use per-handler timeout mapping instead of fixed timeout
+                handler_timeout = QueueProcessorService.HANDLER_TIMEOUTS.get(
+                    message.type,
+                    QueueProcessorService.HANDLER_TIMEOUT_SECONDS
+                )
+
                 handler_thread = threading.Thread(target=_execute_handler_with_timeout, daemon=True)
                 handler_thread.start()
-                handler_thread.join(timeout=QueueProcessorService.HANDLER_TIMEOUT_SECONDS)
+                handler_thread.join(timeout=handler_timeout)
 
                 handler_duration_ms = int((time.time() - handler_start_time) * 1000)
                 message.handler_duration_ms = handler_duration_ms
@@ -540,10 +568,10 @@ class QueueProcessorService:
                 if handler_thread.is_alive():
                     logger.critical(
                         f"[QueueProcessor] ⚠️ HANDLER TIMEOUT: {message.type} exceeded "
-                        f"{QueueProcessorService.HANDLER_TIMEOUT_SECONDS}s limit (took {handler_duration_ms}ms)"
+                        f"{handler_timeout}s limit (took {handler_duration_ms}ms)"
                     )
                     raise RuntimeError(
-                        f"Handler {message.type} timed out after {QueueProcessorService.HANDLER_TIMEOUT_SECONDS}s"
+                        f"Handler {message.type} timed out after {handler_timeout}s"
                     )
 
                 # Check if handler raised exception
@@ -705,6 +733,24 @@ class QueueProcessorService:
                 # HIGH FIX #10: Reset retry count to 0 on success (better retry logic)
                 message.retry_count = 0
                 db.commit()
+
+                # BLOCKING FIX #3: Queue to Thunder after candidate creation completes
+                if message.type == 'create_candidate' and handler_result and isinstance(handler_result, dict) and 'candidate_id' in handler_result:
+                    try:
+                        from app.services.message_queue_service import MessageQueueService
+                        tenant_id = message.payload.get('tenant_id', '1') if isinstance(message.payload, dict) else '1'
+                        thunder_result = MessageQueueService.enqueue(
+                            task_name='engage_candidate_with_thunder',
+                            data={
+                                'candidate_id': handler_result['candidate_id'],
+                                'tenant_id': tenant_id,
+                                'source': 'candidate_creation_handler'
+                            }
+                        )
+                        logger.info(f"[QueueProcessor] Queued Thunder engagement for candidate {handler_result['candidate_id']}: {thunder_result}")
+                    except Exception as thunder_err:
+                        logger.error(f"[QueueProcessor] Failed to queue Thunder engagement after candidate creation: {thunder_err}", exc_info=True)
+                        # Continue even if Thunder queueing fails - candidate was created successfully
 
                 # Reset circuit breaker on success (HIGH FIX #1: Thread-safe)
                 with QueueProcessorService._consecutive_failures_lock:

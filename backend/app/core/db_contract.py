@@ -64,6 +64,11 @@ def initialize_database():
         _initialize_channel_templates()
         logger.info("[OK] Channel templates initialized")
 
+        # Step 6: Create database indexes for performance (PHASE 3)
+        logger.info("[Contract] Step 6: Creating database indexes...")
+        _create_performance_indexes()
+        logger.info("[OK] Database indexes created")
+
         logger.info("[OK] Database contract validated - all systems ready")
 
     except Exception as e:
@@ -442,6 +447,63 @@ Best regards,
     except Exception as e:
         logger.warning(f"[Contract] Could not initialize channel templates: {e}")
         # Don't fail the entire startup if templates can't initialize
+    finally:
+        db.close()
+
+
+def _create_performance_indexes():
+    """PHASE 3: Create database indexes for high-volume audit logging tables.
+
+    These indexes optimize queries on CandidateHistory and ActivityTimeline
+    for the new audit logging system (A+C implementation).
+    """
+    from sqlalchemy import text
+    db = SessionLocal()
+    try:
+        # Index for CandidateHistory - query by event_at (DATE range queries)
+        try:
+            db.execute(text("""
+                CREATE INDEX IF NOT EXISTS idx_candidate_history_event_at
+                ON candidate_history(event_at DESC, candidateID)
+            """))
+            logger.info("[Contract] Created index: idx_candidate_history_event_at")
+        except Exception as e:
+            logger.warning(f"[Contract] Could not create idx_candidate_history_event_at: {e}")
+
+        # Index for CandidateHistory - query by candidateID and event_type
+        try:
+            db.execute(text("""
+                CREATE INDEX IF NOT EXISTS idx_candidate_history_candidate_type
+                ON candidate_history(candidateID, event_type)
+            """))
+            logger.info("[Contract] Created index: idx_candidate_history_candidate_type")
+        except Exception as e:
+            logger.warning(f"[Contract] Could not create idx_candidate_history_candidate_type: {e}")
+
+        # Index for ActivityTimeline - query by created_at (global feed)
+        try:
+            db.execute(text("""
+                CREATE INDEX IF NOT EXISTS idx_activity_timeline_created_at
+                ON activity_timeline(created_at DESC, entity_id)
+            """))
+            logger.info("[Contract] Created index: idx_activity_timeline_created_at")
+        except Exception as e:
+            logger.warning(f"[Contract] Could not create idx_activity_timeline_created_at: {e}")
+
+        # Index for ActivityTimeline - query by entity (candidate/user filters)
+        try:
+            db.execute(text("""
+                CREATE INDEX IF NOT EXISTS idx_activity_timeline_entity
+                ON activity_timeline(entity_type, entity_id)
+            """))
+            logger.info("[Contract] Created index: idx_activity_timeline_entity")
+        except Exception as e:
+            logger.warning(f"[Contract] Could not create idx_activity_timeline_entity: {e}")
+
+        db.commit()
+    except Exception as e:
+        logger.warning(f"[Contract] Could not create performance indexes: {e}")
+        # Don't fail startup if indexes can't be created
     finally:
         db.close()
 

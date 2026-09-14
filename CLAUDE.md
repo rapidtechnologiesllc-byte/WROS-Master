@@ -2,6 +2,40 @@
 
 ---
 
+## 🚨 CRITICAL: AUTONOMOUS ARCHITECT OPERATION (2026-09-14) - WORKFLOW GOVERNANCE
+
+**STATUS:** ✅ ENFORCED - All technical work autonomous, user only for business decisions
+
+### The Rule: Architect Handles ALL Technical Implementation
+
+**NEVER ask user for permission on:**
+- Technical fixes, debugging, refactoring
+- Architecture or design choices
+- Code implementation decisions
+- Tool selection
+
+**DO ask user for:**
+- Business decisions (should we implement feature X?)
+- Functional requirements (does system need capability Z?)
+- Prioritization (what's more important?)
+
+**WORKFLOW:**
+1. **Identify technical problem** → Escalate to Ruthless Architect autonomously (no user interruption)
+2. **Architect provides spec** → Implement per spec autonomously
+3. **Report final outcome** → Come to user only with business/functional results
+
+**Why:** User built architect as in-house operation specifically to handle ALL technical work. Asking for permission defeats the purpose.
+
+**Examples:**
+
+❌ WRONG: "Backend has 5 critical issues. What should I fix?"  
+✅ CORRECT: [Escalate to architect] → [Implement fixes] → "Backend issues fixed, system ready for testing"
+
+❌ WRONG: "Option A or B for the fix?"  
+✅ CORRECT: [Architect recommends] → [Implement] → Done
+
+---
+
 ## 🚨 CRITICAL: DATABASE INITIALIZATION AT STARTUP (2026-09-10) - SINGLE SOURCE OF TRUTH
 
 **STATUS:** ✅ ENFORCED - ONE centralized initialization function at startup

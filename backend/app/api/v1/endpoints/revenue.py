@@ -113,7 +113,7 @@ def scan_leakage(
 @router.post(
     "/leakage/{flag_id}/log-reason",
     dependencies=[
-        Depends(require_resource_permission("resource", "create")),
+        Depends(require_resource_permission("resources", "create")),
         Depends(get_current_internal_user),
     ],
     response_model=LeakageFlagItem,
@@ -194,7 +194,7 @@ def rescan_all_projects(
 @router.post(
     "/reconciliation/scan",
     dependencies=[
-        Depends(require_resource_permission("resource", "create")),
+        Depends(require_resource_permission("resources", "create")),
         Depends(get_current_internal_user),
     ],
     response_model=ReconciliationScanResponse,
@@ -214,7 +214,7 @@ def scan_reconciliation(
 @router.get(
     "/reconciliation/alerts",
     dependencies=[
-        Depends(require_resource_permission("resource", "view")),
+        Depends(require_resource_permission("resources", "view")),
         Depends(get_current_internal_user),
     ],
     response_model=ReconciliationAlertsResponse,
@@ -234,7 +234,7 @@ def list_reconciliation_alerts(
 @router.post(
     "/reconciliation/alerts/{alert_id}/resolve",
     dependencies=[
-        Depends(require_resource_permission("resource", "create")),
+        Depends(require_resource_permission("resources", "create")),
         Depends(get_current_internal_user),
     ],
     response_model=ReconciliationAlertItem,
@@ -256,7 +256,7 @@ def resolve_reconciliation_alert_endpoint(
 @router.get(
     "/dashboard/clients/{client_id}",
     dependencies=[
-        Depends(require_resource_permission("resource", "view")),
+        Depends(require_resource_permission("resources", "view")),
         Depends(get_current_internal_user),
     ],
     response_model=dict,

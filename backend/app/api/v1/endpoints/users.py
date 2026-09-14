@@ -127,7 +127,7 @@ async def get_me(
 
 @router.patch(
     "/me/digest-preference",
-    dependencies=[Depends(get_current_internal_user), Depends(require_resource_permission("user", "view"))],
+    dependencies=[Depends(get_current_internal_user), Depends(require_resource_permission("users-access-control", "view"))],
     response_model=DigestPreferenceResponse,
     summary="Enable/disable the recruiter's own Thunder morning digest (S-065/HRMS-0465)",
 )
@@ -164,7 +164,7 @@ def update_digest_preference(
 
 @router.get(
     "/me/permissions",
-    dependencies=[Depends(get_current_internal_user), Depends(require_resource_permission("user", "view"))],
+    dependencies=[Depends(get_current_internal_user), Depends(require_resource_permission("users-access-control", "view"))],
     summary="Get current user's permissions for frontend access control",
 )
 def get_current_user_permissions(
@@ -209,7 +209,7 @@ def get_current_user_permissions(
 
 @router.get(
     "/users/all",
-    dependencies=[Depends(get_current_internal_user), Depends(require_resource_permission("user", "view"))],
+    dependencies=[Depends(get_current_internal_user), Depends(require_resource_permission("users-access-control", "view"))],
     response_model=AllUsersResponse,
 )
 def get_all_users(
@@ -259,7 +259,7 @@ def get_all_users(
 
 @router.get(
     "/users/search",
-    dependencies=[Depends(get_current_internal_user), Depends(require_resource_permission("user", "view"))],
+    dependencies=[Depends(get_current_internal_user), Depends(require_resource_permission("users-access-control", "view"))],
     response_model=AllUsersResponse,
     summary="Search / filter users by name, permission role, or user role",
 )
@@ -373,7 +373,7 @@ def search_users(
 
 @router.get(
     "/users/details/{user_id}",
-    dependencies=[Depends(get_current_internal_user), Depends(require_resource_permission("user", "view"))],
+    dependencies=[Depends(get_current_internal_user), Depends(require_resource_permission("users-access-control", "view"))],
     response_model=UserResponse,
     summary="Get user details by user ID",
 )
@@ -648,7 +648,7 @@ def get_assigned_interviews(
     response_model=dict,
     status_code=202,
     summary="Queue new HR/Admin user creation",
-    dependencies=[Depends(require_resource_permission("users", "edit"))],
+    dependencies=[Depends(require_resource_permission("users-access-control", "edit"))],
 )
 def create_user(
     request: SignupRequest,
@@ -757,7 +757,7 @@ def create_user(
     response_model=dict,
     status_code=202,
     summary="Queue new user with roles and org hierarchy",
-    dependencies=[Depends(require_resource_permission("users", "edit"))],
+    dependencies=[Depends(require_resource_permission("users-access-control", "edit"))],
 )
 def create_user_with_roles(
     request: CreateUserWithRolesRequest,
@@ -911,7 +911,7 @@ def create_user_with_roles(
     "/users/{user_id}/update-with-roles",
     response_model=UserResponse,
     summary="Update user with roles, job title, and business unit",
-    dependencies=[Depends(require_resource_permission("users", "edit"))],
+    dependencies=[Depends(require_resource_permission("users-access-control", "edit"))],
 )
 def update_user_with_roles(
     user_id: str,
@@ -976,7 +976,7 @@ def update_user_with_roles(
     "/users/{user_id}",
     response_model=UserResponse,
     summary="Update an HR/Admin user's profile, role, job title, and role template",
-    dependencies=[Depends(require_resource_permission("users", "edit"))],
+    dependencies=[Depends(require_resource_permission("users-access-control", "edit"))],
 )
 def update_user(
     user_id: str,
@@ -1053,7 +1053,7 @@ def update_user(
     "/users/{user_id}",
     response_model=DeleteResponse,
     summary="Delete an HR/Admin user account",
-    dependencies=[Depends(require_resource_permission("users", "edit"))],
+    dependencies=[Depends(require_resource_permission("users-access-control", "edit"))],
 )
 def delete_user(
     user_id: str,
@@ -1202,7 +1202,7 @@ def delete_user(
     "/users/me/change-password",
     response_model=DeleteResponse,
     summary="Change current user's password",
-    dependencies=[Depends(require_resource_permission("users", "edit"))],
+    dependencies=[Depends(require_resource_permission("users-access-control", "edit"))],
 )
 def change_password(
     request: ChangePasswordRequest,
@@ -1245,7 +1245,7 @@ def change_password(
     "/admin/users/{user_id}/reset-password",
     response_model=DeleteResponse,
     summary="Admin force reset user password",
-    dependencies=[Depends(require_resource_permission("users", "edit"))],
+    dependencies=[Depends(require_resource_permission("users-access-control", "edit"))],
 )
 def admin_reset_password(
     user_id: str,
@@ -1301,7 +1301,7 @@ def admin_reset_password(
     "/users/{user_id}",
     response_model=SingleUserResponse,
     summary="Get a single user by ID",
-    dependencies=[Depends(require_resource_permission("users", "edit"))],
+    dependencies=[Depends(require_resource_permission("users-access-control", "edit"))],
 )
 def get_user_by_id(
     user_id: str,
@@ -1430,7 +1430,7 @@ def get_hiring_manager_assigned_candidates(
 
 @router.get(
     "/job-titles",
-    dependencies=[Depends(get_current_internal_user), Depends(require_resource_permission("user", "view"))],
+    dependencies=[Depends(get_current_internal_user), Depends(require_resource_permission("users-access-control", "view"))],
     summary="Get all active job titles for the tenant",
     tags=["reference-data"]
 )

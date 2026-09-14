@@ -42,7 +42,7 @@ def forecast_recruitment_needs(
 
 @router.post(
     "/resources/forecast",
-    dependencies=[Depends(require_resource_permission("resource", "create"))]
+    dependencies=[Depends(require_resource_permission("resources", "create"))]
 )
 def forecast_resource_needs(
     db: Session = Depends(get_db)

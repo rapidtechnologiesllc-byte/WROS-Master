@@ -166,7 +166,7 @@ def list_submissions(
 @router.get(
     "/violations",
     dependencies=[
-        Depends(require_resource_permission("resource", "view")),
+        Depends(require_resource_permission("resources", "view")),
         Depends(get_current_internal_user),
     ],
     response_model=SubmissionViolationListResponse,
@@ -196,7 +196,7 @@ def list_violations(
 @router.post(
     "/{submission_id}/client-response",
     dependencies=[
-        Depends(require_resource_permission("resource", "edit")),
+        Depends(require_resource_permission("resources", "edit")),
         Depends(get_current_internal_user),
     ],
     response_model=SubmissionItem,

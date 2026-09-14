@@ -140,7 +140,7 @@ async def upload_resume(
     """
     Upload candidate resume/CV to SharePoint with database tracking.
     HR/Admin uploads resume for a specific candidate.
-    
+
     Args:
         candidate_id: ID of the candidate for whom the resume is being uploaded
         file: Resume file (PDF, DOC, DOCX)
@@ -152,9 +152,27 @@ async def upload_resume(
     candidate = db.query(Candidate).filter(Candidate.candidateID == candidate_id).first()
     if not candidate:
         raise HTTPException(status_code=404, detail=f"Candidate with ID {candidate_id} not found")
-    
+
     # Use candidate object for upload (not the HR user)
-    return await _upload_document_helper(file, "resume", candidate, db)
+    response = await _upload_document_helper(file, "resume", candidate, db)
+
+    # PHASE 2C: Log resume upload with user attribution
+    try:
+        from app.services.candidate_activity_service import log_resume_uploaded
+        file_size_mb = len(await file.read()) / (1024 * 1024) if hasattr(file, 'read') else 0
+        log_resume_uploaded(
+            db,
+            candidate_id=candidate_id,
+            file_name=file.filename,
+            file_size_mb=file_size_mb,
+            uploaded_by_user_id=getattr(user, 'UserID', None),
+            uploaded_by_name=getattr(user, 'UserEmail', 'System')
+        )
+        db.commit()
+    except Exception as log_err:
+        logger.warning(f"Failed to log resume upload: {log_err}, but upload succeeded")
+
+    return response
 
 @router.post("/upload/pan", response_model=DocumentUploadResponse, dependencies=[Depends(require_resource_permission("upload", "create"))])
 async def upload_pan(

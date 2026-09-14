@@ -1481,8 +1481,8 @@ def candidate_info(request: candidateFormRequest, db: Session = Depends(get_db))
                 candidateLastName=request.candidate_last_name,
                 candidateMobile=request.candidate_mobile,
                 candidatePassword=get_password_hash("TempPass123!"),
-                candidate_source=request.candidate_source,
-                candidate_current_location=request.candidate_current_location,
+                candidateSource=request.candidate_source,
+                candidateCurrentLocation=request.candidate_current_location,
             )
             db.add(candidate)
             db.flush()

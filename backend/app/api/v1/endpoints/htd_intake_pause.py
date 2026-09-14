@@ -73,7 +73,7 @@ def calculate_monthly_metric_endpoint(
 
 @router.post(
     "/check-breach", response_model=HtdIntakeStatusResponse,
-    dependencies=[Depends(require_resource_permission("resource", "access"))],
+    dependencies=[Depends(require_resource_permission("resources", "access"))],
     summary="Check the 2 most recently calculated months; auto-pause if both are below 50%",
 )
 def check_breach_endpoint(

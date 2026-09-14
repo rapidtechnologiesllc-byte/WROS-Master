@@ -97,23 +97,24 @@ def run_thunder_autonomous_cycle(db: Session) -> dict:
         # First: Get new candidates from CANDIDATE_QUEUE (just created)
         # Then: Get all candidates without active conversations
 
-        from app.models.message_queue import MessageQueue
+        from app.models.channel_queue import ChannelQueueItem
 
         queue_candidates = []
         try:
             # Fetch candidates from completed CANDIDATE_QUEUE messages
-            completed_queue_messages = db.query(MessageQueue).filter(
-                MessageQueue.queue_type == "CANDIDATE_QUEUE",
-                MessageQueue.status == "COMPLETED",
-                MessageQueue.type.in_(["create_candidate", "update_candidate"])
+            completed_queue_messages = db.query(ChannelQueueItem).filter(
+                ChannelQueueItem.channel_type == "CANDIDATE_QUEUE",
+                ChannelQueueItem.status == "COMPLETED",
+                ChannelQueueItem.type.in_(["create_candidate", "update_candidate"])
             ).limit(10).all()
 
             if completed_queue_messages:
                 for msg in completed_queue_messages:
-                    if msg and msg.resource_id:
+                    if msg and msg.payload and "candidate_id" in msg.payload:
                         try:
+                            candidate_id = msg.payload.get("candidate_id")
                             candidate = db.query(Candidate).filter(
-                                Candidate.candidateID == msg.resource_id
+                                Candidate.candidateID == candidate_id
                             ).first()
                             if candidate:
                                 queue_candidates.append(candidate)

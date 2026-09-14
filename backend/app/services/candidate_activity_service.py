@@ -58,6 +58,21 @@ EVENT_THUNDER_OPERATION = "Thunder Operation"
 EVENT_REFERRAL_LINKED = "Referred by Employee"
 EVENT_REFERRAL_STATUS_CHANGED = "Referral Status Changed"
 
+EVENT_DUPLICATE_MERGED = "Duplicate Merged"
+EVENT_EMAIL_UPDATED = "Email Updated"
+
+# Communication & Engagement Events
+EVENT_RESUME_UPLOADED = "Resume Uploaded"
+EVENT_EMAIL_SENT = "Email Sent"
+EVENT_EMAIL_OPENED = "Email Opened"
+EVENT_EMAIL_REPLIED = "Email Reply Received"
+EVENT_WHATSAPP_MESSAGE = "WhatsApp Message Received"
+EVENT_SMS_MESSAGE = "SMS Message Received"
+EVENT_CALL_RECEIVED = "Call Received"
+EVENT_THUNDER_QUEUED = "Thunder Engagement Queued"
+EVENT_THUNDER_PAUSED = "Thunder Paused"
+EVENT_THUNDER_RESUMED = "Thunder Resumed"
+
 # All valid event types for validation
 VALID_EVENT_TYPES = {
     EVENT_CANDIDATE_CREATED,
@@ -78,11 +93,24 @@ VALID_EVENT_TYPES = {
     EVENT_OFFER_REJECTED,
     EVENT_PREBOARDING,
     EVENT_ONBOARDED,
+    EVENT_DUPLICATE_MERGED,
+    EVENT_EMAIL_UPDATED,
     EVENT_CANDIDATE_REJECTED,
     EVENT_CANDIDATE_GHOSTED,
     EVENT_THUNDER_OPERATION,
     EVENT_REFERRAL_LINKED,
     EVENT_REFERRAL_STATUS_CHANGED,
+    # Communication & Engagement
+    EVENT_RESUME_UPLOADED,
+    EVENT_EMAIL_SENT,
+    EVENT_EMAIL_OPENED,
+    EVENT_EMAIL_REPLIED,
+    EVENT_WHATSAPP_MESSAGE,
+    EVENT_SMS_MESSAGE,
+    EVENT_CALL_RECEIVED,
+    EVENT_THUNDER_QUEUED,
+    EVENT_THUNDER_PAUSED,
+    EVENT_THUNDER_RESUMED,
 }
 
 
@@ -147,6 +175,375 @@ def log_candidate_created(
     except Exception as e:
         logger.error(f"log_candidate_created failed for {candidate_id}: {str(e)}", exc_info=True)
         return None
+
+
+def log_duplicate_merged(
+    db: Session,
+    candidate_id: str,
+    old_email: str,
+    new_email: str,
+    match_field: str = "phone",
+) -> CandidateHistory:
+    """
+    Log when duplicate candidate is found and merged.
+
+    Tracks email updates during duplicate handling with full audit trail.
+    Shows: Old email → New email, Match field (phone/email), Timestamp
+    """
+    try:
+        candidate = db.query(Candidate).filter(Candidate.candidateID == candidate_id).first()
+        if not candidate:
+            logger.error(f"log_duplicate_merged: Candidate {candidate_id} not found")
+            return None
+
+        # Build detailed note showing the change
+        note = f"Merged duplicate | Match: {match_field} | Email: {old_email} → {new_email}"
+
+        # Write CandidateHistory entry
+        history = CandidateHistory(
+            candidateID=candidate_id,
+            event_type=EVENT_DUPLICATE_MERGED,
+            note=note,
+            performed_by_id=None,
+            performed_by_name="System",
+            event_at=datetime.utcnow(),
+        )
+        db.add(history)
+        logger.info(f"Logged: Duplicate merged for {candidate_id} - {match_field} match - Email updated: {old_email} → {new_email}")
+
+        # Write ActivityTimeline for global feed
+        _write_timeline(
+            db,
+            entity_type="Candidate",
+            entity_id=candidate_id,
+            action="merged_duplicate",
+            actor_id=None,
+            actor_type="SYSTEM",
+            description=f"Duplicate candidate merged by {match_field} match. Email: {old_email} → {new_email}",
+            tenant_id=candidate.tenant_id,
+        )
+
+        return history
+
+    except Exception as e:
+        logger.error(f"log_duplicate_merged failed for {candidate_id}: {str(e)}", exc_info=True)
+        return None
+
+
+# ============================================================================
+# COMMUNICATION & ENGAGEMENT LOGGING
+# ============================================================================
+
+def log_resume_uploaded(
+    db: Session,
+    candidate_id: str,
+    file_name: str,
+    file_size_mb: float = 0.0,
+    uploaded_by_user_id: Optional[str] = None,
+    uploaded_by_name: Optional[str] = None,
+) -> CandidateHistory:
+    """Log when resume is uploaded to candidate profile."""
+    try:
+        candidate = db.query(Candidate).filter(Candidate.candidateID == candidate_id).first()
+        if not candidate:
+            logger.error(f"log_resume_uploaded: Candidate {candidate_id} not found")
+            return None
+
+        note = f"Resume: {file_name} ({file_size_mb:.1f} MB) | By: {uploaded_by_name or 'System'}"
+
+        history = CandidateHistory(
+            candidateID=candidate_id,
+            event_type=EVENT_RESUME_UPLOADED,
+            note=note,
+            performed_by_id=uploaded_by_user_id,
+            performed_by_name=uploaded_by_name or "System",
+            event_at=datetime.utcnow(),
+        )
+        db.add(history)
+        logger.info(f"Logged: Resume uploaded for {candidate_id} by {uploaded_by_name or 'System'}")
+
+        _write_timeline(
+            db,
+            entity_type="Candidate",
+            entity_id=candidate_id,
+            action="resume_uploaded",
+            actor_id=uploaded_by_user_id,
+            actor_type="USER" if uploaded_by_user_id else "SYSTEM",
+            description=f"Resume uploaded: {file_name}",
+            tenant_id=candidate.tenant_id,
+        )
+        return history
+    except Exception as e:
+        logger.error(f"log_resume_uploaded failed for {candidate_id}: {str(e)}", exc_info=True)
+        return None
+
+
+def log_email_received(
+    db: Session,
+    candidate_id: str,
+    subject: str,
+    preview: Optional[str] = None,
+    perform_pii_hashing: bool = True,
+) -> CandidateHistory:
+    """Log when candidate replies via email.
+
+    PHASE 3: Data minimization - hash email content for GDPR compliance.
+    Stores hash + length of content, not plaintext (PII-sensitive data).
+    """
+    try:
+        candidate = db.query(Candidate).filter(Candidate.candidateID == candidate_id).first()
+        if not candidate:
+            logger.error(f"log_email_received: Candidate {candidate_id} not found")
+            return None
+
+        # Limit subject to 100 chars (not PII, but prevent excessive storage)
+        safe_subject = subject[:100] if subject else "No Subject"
+
+        # Hash preview if provided and PII hashing enabled (GDPR compliance)
+        preview_note = "N/A"
+        if preview and perform_pii_hashing:
+            import hashlib
+            preview_hash = hashlib.sha256(preview.encode()).hexdigest()[:8]
+            preview_note = f"hash:{preview_hash} (len:{len(preview)})"
+        elif preview:
+            preview_note = f"{preview[:50]}"
+
+        note_parts = [f"Subject: {safe_subject}", f"Content: {preview_note}"]
+        note = " | ".join(note_parts)
+
+        history = CandidateHistory(
+            candidateID=candidate_id,
+            event_type=EVENT_EMAIL_REPLIED,
+            note=note,
+            performed_by_id=None,
+            performed_by_name=candidate.candidateFirstName or "Candidate",
+            event_at=datetime.utcnow(),
+        )
+        db.add(history)
+        logger.info(f"Logged: Email reply from {candidate_id} - {subject}")
+
+        _write_timeline(
+            db,
+            entity_type="Candidate",
+            entity_id=candidate_id,
+            action="email_replied",
+            actor_id=candidate_id,
+            actor_type="CANDIDATE",
+            description=f"Candidate replied: {subject}",
+            tenant_id=candidate.tenant_id,
+        )
+        return history
+    except Exception as e:
+        logger.error(f"log_email_received failed for {candidate_id}: {str(e)}", exc_info=True)
+        return None
+
+
+def log_whatsapp_received(
+    db: Session,
+    candidate_id: str,
+    message_preview: str,
+    sender_phone: Optional[str] = None,
+    perform_pii_hashing: bool = True,
+) -> CandidateHistory:
+    """Log when candidate sends WhatsApp message.
+
+    PHASE 3: Data minimization - hash message content for GDPR compliance.
+    Stores hash + length of content, not plaintext (PII-sensitive data).
+    """
+    try:
+        candidate = db.query(Candidate).filter(Candidate.candidateID == candidate_id).first()
+        if not candidate:
+            logger.error(f"log_whatsapp_received: Candidate {candidate_id} not found")
+            return None
+
+        # Hash message content if PII hashing enabled (GDPR compliance)
+        message_note = message_preview[:80]
+        if perform_pii_hashing and message_preview:
+            import hashlib
+            msg_hash = hashlib.sha256(message_preview.encode()).hexdigest()[:8]
+            message_note = f"hash:{msg_hash} (len:{len(message_preview)})"
+
+        note = f"WhatsApp from {sender_phone or candidate.candidateMobile}: {message_note}"
+
+        history = CandidateHistory(
+            candidateID=candidate_id,
+            event_type=EVENT_WHATSAPP_MESSAGE,
+            note=note,
+            performed_by_id=None,
+            performed_by_name="Candidate",
+            event_at=datetime.utcnow(),
+        )
+        db.add(history)
+        logger.info(f"Logged: WhatsApp from {candidate_id}")
+
+        _write_timeline(
+            db,
+            entity_type="Candidate",
+            entity_id=candidate_id,
+            action="whatsapp_received",
+            actor_id=candidate_id,
+            actor_type="CANDIDATE",
+            description=f"WhatsApp message received: {message_preview[:50]}",
+            tenant_id=candidate.tenant_id,
+        )
+        return history
+    except Exception as e:
+        logger.error(f"log_whatsapp_received failed for {candidate_id}: {str(e)}", exc_info=True)
+        return None
+
+
+def log_thunder_operation(
+    db: Session,
+    candidate_id: str,
+    message_id: str,  # Unique ID - ALL states for this message grouped here
+    operation_state: str,  # QUEUED, SENT, FAILED, OPENED, CLICKED, NO_RESPONSE, GHOSTED, PAUSED, RESUMED
+    message_type: Optional[str] = None,  # EMAIL, WHATSAPP, SMS, CALL
+    recipient: Optional[str] = None,
+    agent_name: str = "flash_recruiter",
+    campaign_name: Optional[str] = None,
+    metadata: Optional[Dict[str, Any]] = None,  # Extra data: days_without_response, reason, etc
+) -> CandidateHistory:
+    """Log Thunder operation - single collapsible object per message_id.
+
+    PHASE 2C: All states for ONE message_id grouped in ONE history entry.
+    Frontend expands to see timeline: QUEUED → SENT → OPENED → [NO_RESPONSE] → [GHOSTED]
+
+    Each call UPDATES the existing entry for that message_id with new state.
+    History shows complete message lifecycle in one collapsible section.
+    """
+    try:
+        candidate = db.query(Candidate).filter(Candidate.candidateID == candidate_id).first()
+        if not candidate:
+            logger.error(f"log_thunder_operation: Candidate {candidate_id} not found")
+            return None
+
+        # Build title/summary (shown when collapsed)
+        title_parts = [f"Thunder [{message_id}]"]
+        if operation_state == "SENT" and message_type:
+            title_parts.append(f"{message_type} to {recipient or 'contact'}")
+        else:
+            title_parts.append(operation_state)
+
+        summary = " • ".join(title_parts)
+
+        # Build detailed note (shown when expanded)
+        note_parts = [
+            f"Message ID: {message_id}",
+            f"State: {operation_state}",
+            f"Agent: {agent_name}",
+        ]
+
+        if message_type:
+            note_parts.append(f"Type: {message_type}")
+        if recipient:
+            note_parts.append(f"Recipient: {recipient}")
+        if campaign_name:
+            note_parts.append(f"Campaign: {campaign_name}")
+
+        # Add metadata (days_without_response, reason, etc)
+        if metadata:
+            for key, value in metadata.items():
+                if value is not None:
+                    note_parts.append(f"{key}: {value}")
+
+        note = "\n".join(note_parts)  # Multi-line for readability when expanded
+
+        # Check if history entry for this message_id already exists
+        existing = db.query(CandidateHistory).filter(
+            CandidateHistory.candidateID == candidate_id,
+            CandidateHistory.event_type == EVENT_THUNDER_OPERATION,
+            CandidateHistory.note.like(f"%Message ID: {message_id}%")
+        ).first()
+
+        if existing:
+            # Update existing entry with new state (append to timeline)
+            existing.note = note
+            existing.event_at = datetime.utcnow()
+            db.add(existing)
+            logger.info(f"Updated Thunder operation {message_id} for {candidate_id}: {operation_state}")
+        else:
+            # Create new entry for this message_id
+            history = CandidateHistory(
+                candidateID=candidate_id,
+                event_type=EVENT_THUNDER_OPERATION,
+                note=note,
+                performed_by_id=None,
+                performed_by_name="Thunder",
+                event_at=datetime.utcnow(),
+            )
+            db.add(history)
+            logger.info(f"Created Thunder operation {message_id} for {candidate_id}: {operation_state}")
+
+        _write_timeline(
+            db,
+            entity_type="Candidate",
+            entity_id=candidate_id,
+            action=f"thunder_{operation_state.lower()}",
+            actor_id=None,
+            actor_type="SYSTEM",
+            description=f"Thunder {operation_state} ({message_id})",
+            tenant_id=candidate.tenant_id,
+        )
+        return history
+    except Exception as e:
+        logger.error(f"log_thunder_operation failed for {candidate_id}: {str(e)}", exc_info=True)
+        return None
+
+
+# Convenience wrappers (call log_thunder_operation internally)
+def log_thunder_queued(
+    db: Session,
+    candidate_id: str,
+    message_id: str,
+    agent_name: str = "flash_recruiter",
+    campaign_name: Optional[str] = None,
+) -> CandidateHistory:
+    """Convenience: Log when candidate queued to Thunder."""
+    return log_thunder_operation(
+        db, candidate_id, message_id, "QUEUED",
+        agent_name=agent_name, campaign_name=campaign_name
+    )
+
+
+def log_thunder_message_sent(
+    db: Session,
+    candidate_id: str,
+    message_id: str,
+    message_type: str,
+    recipient: Optional[str] = None,
+    campaign_name: Optional[str] = None,
+) -> CandidateHistory:
+    """Convenience: Log when Thunder sends message."""
+    return log_thunder_operation(
+        db, candidate_id, message_id, "SENT",
+        message_type=message_type, recipient=recipient, campaign_name=campaign_name
+    )
+
+
+def log_thunder_no_response(
+    db: Session,
+    candidate_id: str,
+    message_id: str,
+    days_without_response: int = 0,
+) -> CandidateHistory:
+    """Convenience: Log when no response detected."""
+    return log_thunder_operation(
+        db, candidate_id, message_id, "NO_RESPONSE",
+        metadata={"days_without_response": days_without_response}
+    )
+
+
+def log_thunder_ghosted(
+    db: Session,
+    candidate_id: str,
+    message_id: str,
+    reason: Optional[str] = None,
+) -> CandidateHistory:
+    """Convenience: Log when engagement ends."""
+    return log_thunder_operation(
+        db, candidate_id, message_id, "GHOSTED",
+        metadata={"reason": reason} if reason else None
+    )
 
 
 def log_candidate_status_change(

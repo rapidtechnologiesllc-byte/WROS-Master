@@ -497,7 +497,7 @@ def cancel_interview_by_id(
 @router.post(
     "/interview/invite/custom",
     dependencies=[
-        Depends(require_resource_permission("resource", "create")),
+        Depends(require_resource_permission("resources", "create")),
         Depends(get_current_internal_user),
     ],
 )
@@ -528,7 +528,7 @@ def send_custom_interview_invite(
 @router.post(
     "/login-credentials/{candidate_id}",
     dependencies=[
-        Depends(require_resource_permission("resource", "create")),
+        Depends(require_resource_permission("resources", "create")),
         Depends(get_current_internal_user),
     ],
 )

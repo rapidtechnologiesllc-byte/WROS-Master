@@ -22,7 +22,7 @@ router = APIRouter(prefix="/sla", tags=["sla-monitoring"])
 @router.get(
     "/breaches",
     response_model=SLABreachListResponse,
-    dependencies=[Depends(require_resource_permission("breache", "view"))]
+    dependencies=[Depends(require_resource_permission("slm-dashboard", "view"))]
 )
 def list_sla_breaches(
     is_resolved: bool = False,

@@ -90,7 +90,7 @@ def get_notes_by_candidate(
 
 @router.post(
     "/notes/{candidate_id}",
-    dependencies=[Depends(require_resource_permission("resource", "access"))],
+    dependencies=[Depends(require_resource_permission("resources", "access"))],
     response_model=InternalNoteResponse,
     status_code=201,
     summary="Add an internal HR note to a candidate",

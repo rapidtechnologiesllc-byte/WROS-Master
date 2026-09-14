@@ -148,26 +148,41 @@ def send_whatsapp_message(
         raise ValueError(f"sender_type must be 'ai_agent' or 'hr_user', got '{sender_type}'.")
 
     from_number = resolve_outbound_whatsapp_number(db, conversation)
-    if not from_number:
-        raise NoWhatsAppNumberAvailable(
-            f"No WhatsApp number available to send from for conversation {conversation.id} "
-            f"(owner has none registered and no fallback number is configured)."
-        )
-
     to_number = candidate.candidateMobile
+
+    # Multi-channel fallback: WhatsApp (if available) → Email (mandatory)
+    use_whatsapp = bool(from_number)
+    use_email = not use_whatsapp and candidate.candidateEmail
+
+    if not use_whatsapp and not use_email:
+        raise ValueError(
+            f"No communication channel available for candidate {candidate.candidateID}: "
+            f"no WhatsApp number for sender and no email for recipient."
+        )
 
     # Use delivery service if not overridden with whatsapp_client
     if whatsapp_client is None:
         delivery_service = get_delivery_service(db=db)
-        result = delivery_service.send_whatsapp(to_number=to_number, body=message_body, from_number=from_number)
+
+        if use_whatsapp:
+            result = delivery_service.send_whatsapp(to_number=to_number, body=message_body, from_number=from_number)
+        else:
+            # Fallback to email when WhatsApp unavailable
+            result = delivery_service.send_email(
+                to_email=candidate.candidateEmail,
+                subject="Message from Recruiter",
+                body=message_body
+            )
 
         # Create MessageDeliveryLog for tracking
         try:
+            delivery_type = "whatsapp" if use_whatsapp else "email"
+            recipient = to_number if use_whatsapp else candidate.candidateEmail
             log_entry = MessageDeliveryLog(
                 conversation_id=conversation.id,
-                delivery_type="whatsapp",
-                recipient=to_number,
-                subject=None,
+                delivery_type=delivery_type,
+                recipient=recipient,
+                subject="Message from Recruiter" if not use_whatsapp else None,
                 body=message_body,
                 status=result.status,
                 delivery_id=result.delivery_id,
@@ -178,26 +193,37 @@ def send_whatsapp_message(
             )
             db.add(log_entry)
             db.commit()
-            logger.debug(f"[WhatsApp] Created MessageDeliveryLog: {result.delivery_id}")
+            channel_label = "WhatsApp" if use_whatsapp else "Email"
+            logger.debug(f"[{channel_label}] Created MessageDeliveryLog: {result.delivery_id}")
         except Exception as e:
-            logger.error(f"[WhatsApp] Failed to create MessageDeliveryLog: {e}")
+            logger.error(f"[Delivery] Failed to create MessageDeliveryLog: {e}")
             db.rollback()
 
         # Check delivery result
         if result.status == "failed":
-            logger.error(f"[WhatsApp] Delivery failed for {to_number}: {result.error}")
-            raise RuntimeError(f"WhatsApp delivery failed for {to_number}: {result.error}")
+            channel_label = "WhatsApp" if use_whatsapp else "Email"
+            recipient_label = to_number if use_whatsapp else candidate.candidateEmail
+            logger.error(f"[{channel_label}] Delivery failed for {recipient_label}: {result.error}")
+            raise RuntimeError(f"{channel_label} delivery failed for {recipient_label}: {result.error}")
     else:
         # Legacy whatsapp_client path (for backward compatibility in tests)
+        if not use_whatsapp:
+            raise ValueError("Legacy whatsapp_client path requires WhatsApp to be available")
+
         try:
             delivered = bool(whatsapp_client(to_number, from_number, message_body))
         except ChannelNotConfigured as e:
-            # WhatsApp not configured - this is a retriable error, not a success
-            logger.error(f"[WhatsApp] Channel not configured: {e}")
-            raise  # RE-RAISE so handler and queue processor can retry
+            # WhatsApp not configured - try email fallback
+            if candidate.candidateEmail:
+                logger.warning(f"[WhatsApp] Channel not configured, falling back to email: {e}")
+                use_whatsapp = False
+                use_email = True
+            else:
+                logger.error(f"[WhatsApp] Channel not configured and no email fallback: {e}")
+                raise
 
         # If delivery returned False, treat as failure
-        if not delivered:
+        if use_whatsapp and not delivered:
             logger.error(f"[WhatsApp] Delivery returned False for {to_number}")
             raise RuntimeError(f"WhatsApp delivery failed (client returned False) for {to_number}")
 
@@ -206,9 +232,9 @@ def send_whatsapp_message(
         conversation_id=conversation.id,
         event_type="ai_message_sent" if sender_type == "ai_agent" else "hr_message_sent",
         event_data={
-            "channel": "whatsapp",
-            "from_number": from_number,
-            "to_number": to_number,
+            "channel": "whatsapp" if use_whatsapp else "email",
+            "from_number": from_number if use_whatsapp else None,
+            "to_number": to_number if use_whatsapp else candidate.candidateEmail,
             "body": message_body,
             "delivered": True,
             "auto_generated": auto_generated,

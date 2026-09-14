@@ -174,6 +174,22 @@ def store_inbound_whatsapp_message(db: Session, message: Dict) -> Dict:
     db.add(conversation)
     db.commit()
 
+    # PHASE 2C: Log WhatsApp message received
+    # PHASE 3: PII hashing enabled by default (GDPR compliance)
+    try:
+        from app.services.candidate_activity_service import log_whatsapp_received
+        message_preview = body[:80] if body else f"[{MESSAGE_TYPE_MAP.get(msg_type, 'UNKNOWN')}]"
+        log_whatsapp_received(
+            db,
+            candidate_id=candidate.candidateID,
+            message_preview=message_preview,
+            sender_phone=phone,
+            perform_pii_hashing=True  # Hash message content for GDPR
+        )
+        db.commit()
+    except Exception as log_err:
+        logger.warning(f"[WhatsAppWebhook] Failed to log message receipt: {log_err}, but message was stored")
+
     # S-041/HRMS-0441 BR-02: cancel ALL pending follow-ups the moment any
     # inbound message arrives. Never raises -- see
     # follow_up_scheduler_service.cancel_pending_follow_ups().

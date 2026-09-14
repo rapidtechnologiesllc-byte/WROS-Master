@@ -72,7 +72,7 @@ async def get_active_business_unit_id(
 @router.get(
     "/my-access",
     response_model=MyBUAccessResponse,
-    dependencies=[Depends(require_resource_permission("my-acce", "view"))]
+    dependencies=[Depends(require_resource_permission("dashboard", "view"))]
 )
 async def my_bu_access(current_user: Users = Depends(get_current_internal_user), db: Session = Depends(get_db)):
     """
@@ -117,7 +117,7 @@ async def my_bu_access(current_user: Users = Depends(get_current_internal_user),
 
 @router.post(
     "/switch",
-    dependencies=[Depends(require_resource_permission("switch", "create"))]
+    dependencies=[Depends(require_resource_permission("dashboard", "view"))]
 )
 def switch_bu(body: SwitchBURequest, current_user: Users = Depends(get_current_internal_user), db: Session = Depends(get_db)):
     try:
@@ -128,7 +128,7 @@ def switch_bu(body: SwitchBURequest, current_user: Users = Depends(get_current_i
 
 @router.post(
     "/all-bus",
-    dependencies=[Depends(require_resource_permission("all-bu", "create"))]
+    dependencies=[Depends(require_resource_permission("dashboard", "view"))]
 )
 def all_bus_view(current_user: Users = Depends(get_current_internal_user), db: Session = Depends(get_db)):
     try:

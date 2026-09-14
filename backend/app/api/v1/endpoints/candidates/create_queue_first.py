@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.logging import logger
 from app.services.message_queue_service import MessageQueueService
-from app.core.dependencies import require_resource_permission
+from app.core.dependencies import require_resource_permission, get_current_user
 from app.schemas.candidate import CandidateCreateRequest, CandidateCreateResponse
 from app.utils.uniq_id_generator import generate_password
 
@@ -29,6 +29,7 @@ logger = logging.getLogger(__name__)
 def create_candidate(
     request: CandidateCreateRequest,
     db: Session = Depends(get_db),
+    current_user = Depends(get_current_user),
 ):
     """Queue candidate for creation via async processor.
 
@@ -83,7 +84,11 @@ def create_candidate(
         print(f"[DEBUG] Endpoint handler reached with email: {request.candidate_email}")
 
         # Prepare payload for queueing
+        tenant_id = getattr(current_user, 'tenant_id', '1') or '1'
         payload = {
+            'tenant_id': tenant_id,  # BLOCKING FIX #2: Add tenant context for multi-tenant isolation
+            'created_by_user_id': getattr(current_user, 'UserID', None),  # PHASE 1A: User attribution
+            'created_by_name': getattr(current_user, 'UserEmail', 'System'),  # PHASE 1A: User attribution
             'candidate_email': request.candidate_email,
             'candidate_first_name': request.candidate_first_name,
             'candidate_middle_name': request.candidate_middle_name or '',
