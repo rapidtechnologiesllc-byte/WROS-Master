@@ -55,7 +55,7 @@ const HealthCheckError = () => (
 export function HealthCheckProvider({ children }) {
   const [isHealthy, setIsHealthy] = useState(null);
   const requireHealthCheck = process.env.REACT_APP_REQUIRE_BACKEND_HEALTH === 'true';
-  const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:8081';
+  const apiUrl = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8080';
 
   useEffect(() => {
     if (!requireHealthCheck) {
@@ -90,7 +90,28 @@ export function HealthCheckProvider({ children }) {
         backgroundColor: '#f5f5f5',
       }}>
         <div style={{ textAlign: 'center' }}>
-          <h2>Checking backend connection...</h2>
+          {/* BlitzenX Branding with Dynamic X */}
+          <div style={{
+            marginBottom: '2rem',
+            fontSize: '3.5rem',
+            fontWeight: '700',
+            letterSpacing: '-0.05em',
+            fontFamily: 'Inter, system-ui, sans-serif'
+          }}>
+            <span style={{ color: '#1f2937' }}>Blitzen</span>
+            <span style={{
+              color: '#F58220',
+              display: 'inline-block',
+              animation: 'pulse 2s ease-in-out infinite'
+            }}>
+              X
+            </span>
+          </div>
+
+          <h2 style={{ color: '#666', marginTop: '1rem', marginBottom: '2rem' }}>
+            Initializing innovation...
+          </h2>
+
           <div style={{
             display: 'inline-block',
             width: '40px',
@@ -104,6 +125,10 @@ export function HealthCheckProvider({ children }) {
             @keyframes spin {
               0% { transform: rotate(0deg); }
               100% { transform: rotate(360deg); }
+            }
+            @keyframes pulse {
+              0%, 100% { opacity: 0.7; transform: scale(1); }
+              50% { opacity: 1; transform: scale(1.1); }
             }
           `}</style>
         </div>

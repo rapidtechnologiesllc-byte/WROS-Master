@@ -574,6 +574,7 @@ export default function AppRoutes() {
 
   const hasWorkspaceAccess = canAccessMyWorkspace({
     permissionRole: storedRole,
+    jobTitle: storedJobTitle,
   });
 
   // Root cause fix: Don't render Shell until permissions are loaded from /hr/me
@@ -862,4 +863,43 @@ export default function AppRoutes() {
       </>
     );
   }
+
+  // Fallback: user does not have workspace access
+  return (
+    <div style={{
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      height: '100vh',
+      flexDirection: 'column',
+      fontFamily: 'Inter, system-ui, sans-serif',
+      color: '#666'
+    }}>
+      <div style={{ textAlign: 'center', maxWidth: '500px' }}>
+        <h1 style={{ fontSize: '2rem', marginBottom: '1rem', color: '#d32f2f' }}>
+          Access Denied
+        </h1>
+        <p style={{ fontSize: '1.1rem', marginBottom: '1.5rem' }}>
+          You do not have permission to access this workspace.
+        </p>
+        <button
+          onClick={() => {
+            localStorage.removeItem("hrms_token");
+            window.location.href = "/";
+          }}
+          style={{
+            padding: '0.75rem 1.5rem',
+            fontSize: '1rem',
+            backgroundColor: '#F58220',
+            color: 'white',
+            border: 'none',
+            borderRadius: '8px',
+            cursor: 'pointer'
+          }}
+        >
+          Logout &amp; Sign In
+        </button>
+      </div>
+    </div>
+  );
 }
