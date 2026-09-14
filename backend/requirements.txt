@@ -50,6 +50,12 @@ langgraph>=0.2.0,<1.0.0               # Build stateful, multi-actor applications
 apscheduler>=3.10.4,<4.0.0            # Advanced Python Scheduler
 redis>=5.0.0,<6.0.0                   # Redis Python client (required for message queue)
 
+# Message Delivery (WhatsApp, Email) - PRODUCTION
+# ----------------------------------------------------------------------------
+twilio>=9.0.0,<10.0.0                 # Twilio SDK for WhatsApp messaging
+sendgrid>=6.10.0,<7.0.0               # SendGrid SDK for email delivery
+azure-communication-email>=1.1.0,<2.0.0  # Azure Communication Services for email
+
 # Production Server & Monitoring
 # ----------------------------------------------------------------------------
 
