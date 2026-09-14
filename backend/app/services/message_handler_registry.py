@@ -151,6 +151,15 @@ def _initialize_default_handlers():
         MessageHandlerRegistry.register("hm_validation_response_submitted", HMValidationResponseHandler.process)
         MessageHandlerRegistry.register("hm_validation_escalated", HMValidationEscalationHandler.process)
         logger.info("[Registry] Registered Phase 3 HM validation handlers (4 of 5 core)")
+
+        from app.services.message_handlers.referral_submission_handler import ReferralSubmissionHandler
+        from app.services.message_handlers.referral_hire_conversion_handler import ReferralHireConversionHandler
+        from app.services.message_handlers.referral_payment_approval_handler import ReferralPaymentApprovalHandler
+
+        MessageHandlerRegistry.register("employee_referral_submitted", ReferralSubmissionHandler.process)
+        MessageHandlerRegistry.register("referral_hire_conversion", ReferralHireConversionHandler.process)
+        MessageHandlerRegistry.register("referral_payment_approval", ReferralPaymentApprovalHandler.process)
+        logger.info("[Registry] Registered Phase 3 referral handlers (3 handlers)")
     except ImportError as e:
         logger.warning(f"[Registry] Could not import HM validation handlers: {e}")
     except Exception as e:
