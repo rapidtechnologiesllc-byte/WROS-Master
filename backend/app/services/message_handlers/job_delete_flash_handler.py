@@ -215,6 +215,30 @@ class JobDeleteFlashHandler:
             raise RuntimeError(f"Failed to schedule retry: {str(e)}") from e
 
     @staticmethod
+    def validate(message: Any, result: Dict[str, Any], db: Session) -> None:
+        """Validate that job deletion actually completed successfully."""
+        if not result or "job_id" not in result:
+            raise ValueError(f"Invalid result: {result}")
+
+        job_id = result.get("job_id")
+
+        try:
+            # For delete operations, validation is inverse: job should NOT exist
+            job = db.query(Jobs).filter(Jobs.jobID == job_id).first()
+            if job:
+                raise ValueError(f"Job {job_id} still exists after delete (deletion failed)")
+
+            logger.info(f"✅ Job deletion validated: {job_id} successfully deleted")
+
+        except ValueError as e:
+            logger.error(f"[JobDeleteFlash] NON-RETRYABLE validation error: {e}")
+            raise
+
+        except Exception as e:
+            logger.error(f"[JobDeleteFlash] RETRYABLE validation error: {e}", exc_info=True)
+            raise RuntimeError(f"Database validation error: {str(e)}") from e
+
+    @staticmethod
     def on_success(message: Any, result: Dict[str, Any], db: Session) -> None:
         """Handle successful message processing with validation before marking COMPLETED."""
         try:

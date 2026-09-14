@@ -251,3 +251,122 @@ class OfferGenerationHandler:
         except Exception as e:
             logger.error(f"[OfferGeneration] Unexpected error: {e}", exc_info=True)
             raise RuntimeError(f"Unexpected error: {str(e)}") from e
+
+    @staticmethod
+    def validate(message: Any, result: Dict[str, Any], db: Session) -> None:
+        """Validate that offer generation actually completed successfully."""
+        from app.models.user import Offer
+
+        if not result or "offer_id" not in result:
+            raise ValueError(f"Invalid result: {result}")
+
+        offer_id = result.get("offer_id")
+
+        try:
+            offer = db.query(Offer).filter(Offer.offerID == offer_id).first()
+            if not offer:
+                raise ValueError(f"Offer {offer_id} not found after generation")
+
+            logger.info(f"✅ Offer generation validated: {offer_id}, Candidate={offer.candidateID}")
+
+        except ValueError as e:
+            logger.error(f"[OfferGeneration] NON-RETRYABLE validation error: {e}")
+            raise
+
+        except Exception as e:
+            logger.error(f"[OfferGeneration] RETRYABLE validation error: {e}", exc_info=True)
+            raise RuntimeError(f"Database validation error: {str(e)}") from e
+
+    @staticmethod
+    def should_retry(message: Any) -> bool:
+        """Determine if message should be retried."""
+        from datetime import datetime, timedelta
+        MAX_RETRIES = 3
+        RETRY_DELAY_MINUTES = 15
+
+        if message.retry_count >= MAX_RETRIES:
+            logger.error(f"[OfferGeneration] Max retries exceeded for {message.id}")
+            return False
+
+        if hasattr(message, 'next_retry_at') and message.next_retry_at:
+            if datetime.utcnow() < message.next_retry_at:
+                return False
+
+        return True
+
+    @staticmethod
+    def on_retry(message: Any, error: str, db: Session) -> None:
+        """Schedule message for retry after failed attempt."""
+        from datetime import datetime, timedelta
+
+        try:
+            db.rollback()
+            message.retry_count += 1
+            message.error = error[:1000] if error else "Unknown error"
+            message.next_retry_at = datetime.utcnow() + timedelta(minutes=15)
+            db.commit()
+            logger.info(
+                f"[OfferGeneration] Scheduled retry: retry_count={message.retry_count}, "
+                f"next_retry_at={message.next_retry_at}"
+            )
+        except Exception as e:
+            db.rollback()
+            logger.error(f"[OfferGeneration] Failed to schedule retry: {e}", exc_info=True)
+            raise RuntimeError(f"Failed to schedule retry: {str(e)}") from e
+
+    @staticmethod
+    def on_success(message: Any, result: Dict[str, Any], db: Session) -> Dict[str, Any]:
+        """Mark message as COMPLETED after validation passes."""
+        from datetime import datetime
+
+        try:
+            OfferGenerationHandler.validate(message, result, db)
+
+            message.status = "COMPLETED"
+            message.completed_at = datetime.utcnow()
+            message.result = result
+
+            try:
+                db.commit()
+            except Exception as commit_err:
+                db.rollback()
+                raise RuntimeError(f"Failed to commit COMPLETED status: {str(commit_err)}") from commit_err
+
+            offer_id = result.get("offer_id", "unknown")
+            logger.info(f"[OfferGeneration] ✅ Message {message.id} marked COMPLETED (offer {offer_id})")
+
+            return {'is_valid': True, 'offer_id': offer_id}
+
+        except ValueError as e:
+            db.rollback()
+            logger.error(f"[OfferGeneration] ❌ NON-RETRYABLE validation failure: {e}")
+            raise
+
+        except RuntimeError as e:
+            db.rollback()
+            logger.error(f"[OfferGeneration] ❌ RETRYABLE validation failure: {e}")
+            raise
+
+        except Exception as e:
+            db.rollback()
+            logger.error(f"[OfferGeneration] ❌ Unexpected error: {e}", exc_info=True)
+            raise RuntimeError(f"Unexpected error: {str(e)}") from e
+
+    @staticmethod
+    def on_failed(message: Any, final_error: str, db: Session) -> None:
+        """Mark message as FAILED after all retries exhausted."""
+        from datetime import datetime
+
+        try:
+            db.rollback()
+            message.status = "FAILED"
+            message.error = final_error[:1000] if final_error else "Unknown error"
+            message.completed_at = datetime.utcnow()
+            db.commit()
+            logger.error(
+                f"[OfferGeneration] Message {message.id} FAILED after {message.retry_count} retries: {final_error}"
+            )
+        except Exception as e:
+            db.rollback()
+            logger.error(f"[OfferGeneration] Failed to mark as FAILED: {e}", exc_info=True)
+            raise

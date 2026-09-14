@@ -217,6 +217,29 @@ class JobUpdateFlashHandler:
             raise RuntimeError(f"Failed to schedule retry: {str(e)}") from e
 
     @staticmethod
+    def validate(message: Any, result: Dict[str, Any], db: Session) -> None:
+        """Validate that job update actually completed successfully."""
+        if not result or "job_id" not in result:
+            raise ValueError(f"Invalid result: {result}")
+
+        job_id = result.get("job_id")
+
+        try:
+            job = db.query(Jobs).filter(Jobs.jobID == job_id).first()
+            if not job:
+                raise ValueError(f"Job {job_id} not found after update")
+
+            logger.info(f"✅ Job update validated: {job_id}, Status={job.jobStatus}")
+
+        except ValueError as e:
+            logger.error(f"[JobUpdateFlash] NON-RETRYABLE validation error: {e}")
+            raise
+
+        except Exception as e:
+            logger.error(f"[JobUpdateFlash] RETRYABLE validation error: {e}", exc_info=True)
+            raise RuntimeError(f"Database validation error: {str(e)}") from e
+
+    @staticmethod
     def on_success(message: Any, result: Dict[str, Any], db: Session) -> None:
         """Handle successful message processing with validation before marking COMPLETED."""
         try:
