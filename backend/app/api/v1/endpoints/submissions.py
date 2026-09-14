@@ -193,16 +193,14 @@ def list_violations(
         ]
     )
 
-@router.get(
+@router.post(
     "/{submission_id}/client-response",
     dependencies=[
-        Depends(require_resource_permission("resource",
-        "edit")),
+        Depends(require_resource_permission("resource", "edit")),
         Depends(get_current_internal_user),
     ],
-    "/{submission_id}/client-response", response_model=SubmissionItem,
+    response_model=SubmissionItem,
     summary="Record the client's response to a submission",
-)
 )
 def client_response(
     submission_id: str,

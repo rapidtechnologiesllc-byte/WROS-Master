@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.dependencies import require_resource_permission
 from app.services.agent_performance_dashboard_service import AgentPerformanceDashboard
-# from app.core.dependencies import get_current_user_or_none  # TODO: Implement auth
+# from app.core.dependencies import get_current_user_or_none  # TODO: Implement auth, require_resource_permission
 
 router = APIRouter(prefix="/dashboard/agents", tags=["agent-dashboard"])
 

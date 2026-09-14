@@ -20,8 +20,9 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_internal_user
+from app.core.dependencies import get_current_internal_user, require_resource_permission
 from app.core.dependencies import (
+    require_resource_permission,
     get_current_internal_user,
     get_current_candidate,
     require_resource_permission,

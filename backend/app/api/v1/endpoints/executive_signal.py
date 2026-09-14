@@ -46,7 +46,7 @@ def _current_employee(db: Session, current_user: Users) -> Employee:
         raise HTTPException(status_code=404, detail="No employee record linked to your account.")
     return employee
 
-@router.get(
+@router.post(
     "/org-health",
     dependencies=[
         Depends(require_resource_permission("signal", "view")),

@@ -19,9 +19,9 @@ from fastapi import Request
 
 router = APIRouter(prefix="/email", tags=["Email Service"])
 
-# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
 # Request / Response schemas
-# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
 logger = logging.getLogger(__name__)
 
 class SendMailRequest(BaseModel):
@@ -50,14 +50,14 @@ EventType = Literal[
 class SendEventNotificationRequest(BaseModel):
     """
     Universal event notification request.  Can be sent by any authenticated
-    user â€” HR, admin, or candidate.
+    user -" HR, admin, or candidate.
 
     Example use-cases:
-    - Candidate uploads a document â†’ call with event_type="document_uploaded"
+    - Candidate uploads a document â†' call with event_type="document_uploaded"
       to_email = HR's email, recipient_name = HR's name
-    - HR verifies a document â†’ event_type="document_verified"
+    - HR verifies a document â†' event_type="document_verified"
       to_email = candidate's email, recipient_name = candidate's name
-    - Any status change â†’ event_type="status_update"
+    - Any status change â†' event_type="status_update"
     """
     to_email: EmailStr
     recipient_name: str
@@ -100,9 +100,9 @@ class SendLoginCredentialsRequest(BaseModel):
     """
     portal_link: Optional[str] = "https://hrms.blitzenx.com/"
 
-# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
 # Endpoints
-# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
 
 @router.post(
     "/send",
@@ -121,7 +121,7 @@ def send_mail(
     Supports plain text and HTML body. Optional CC list.
     """
     logger.info(
-        f"[email/send] Triggered by {current_user.UserEmail} â†’ {request.to_email}"
+        f"[email/send] Triggered by {current_user.UserEmail} â†' {request.to_email}"
     )
     return EmailService.send_email(
         to_email=request.to_email,
@@ -186,7 +186,7 @@ async def send_mail_with_attachments(
         )
 
     logger.info(
-        f"[email/send-with-attachments] {current_user.UserEmail} â†’ {to_email} "
+        f"[email/send-with-attachments] {current_user.UserEmail} â†' {to_email} "
         f"| Files: {[f['name'] for f in attachments]}"
     )
 
@@ -199,16 +199,13 @@ async def send_mail_with_attachments(
         attachments=attachments if attachments else None,
     )
 
-@router.get(
+@router.post(
     "/notify",
     dependencies=[
-        Depends(require_resource_permission("resource",
-        "create")),
+        Depends(require_resource_permission("email", "create")),
         Depends(get_current_internal_user),
     ],
-    "/notify",
     summary="Send a styled HRMS notification email",
-)
 )
 def send_notification(
     request: SendNotificationRequest,
@@ -219,7 +216,7 @@ def send_notification(
     Uses the BlitzenX HRMS email template automatically.
     """
     logger.info(
-        f"[email/notify] Triggered by {current_user.UserEmail} â†’ {request.to_email} | {request.heading}"
+        f"[email/notify] Triggered by {current_user.UserEmail} â†' {request.to_email} | {request.heading}"
     )
     return EmailService.send_notification(
         to_email=request.to_email,
@@ -242,7 +239,7 @@ def send_event_notification(
     Universal event-driven notification email endpoint.
 
     **Who can call this?**
-    Any authenticated user â€” HR users, admins, **and candidates** â€” all share this
+    Any authenticated user -" HR users, admins, **and candidates** -" all share this
     single endpoint.  Authentication is JWT-based (`get_current_user` resolves
     both `Users` and `Candidate` token types).
 
@@ -250,9 +247,9 @@ def send_event_notification(
 
     | Value | Colour | Use-case |
     |---|---|---|
-    | `document_uploaded` | ðŸ”µ Blue | Candidate uploaded a document â†’ notify HR |
-    | `document_verified` | ðŸŸ¢ Green | HR verified a document â†’ notify candidate |
-    | `document_rejected` | ðŸ”´ Red | HR rejected a document â†’ notify candidate |
+    | `document_uploaded` | ðŸ"µ Blue | Candidate uploaded a document â†' notify HR |
+    | `document_verified` | ðŸŸ¢ Green | HR verified a document â†' notify candidate |
+    | `document_rejected` | ðŸ"´ Red | HR rejected a document â†' notify candidate |
     | `status_update` | ðŸŸ£ Purple | Pipeline/status changed |
     | `action_required` | ðŸŸ¡ Amber | Something needs attention |
     | `general` | âš« Grey | Generic catch-all notification |
@@ -273,7 +270,7 @@ def send_event_notification(
     The caller's display name is automatically attached as a *"triggered by"*
     footer note in the email body.
     """
-    # â”€â”€ Resolve caller display name â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # â"€â"€ Resolve caller display name â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
     if isinstance(current_user, Users):
         caller_name = current_user.UserName or current_user.UserEmail
         caller_ref = current_user.UserEmail
@@ -286,7 +283,7 @@ def send_event_notification(
 
     logger.info(
         f"[email/notify/event] Triggered by {caller_ref} | type={request.event_type} "
-        f"â†’ {request.to_email} | {request.heading}"
+        f"â†' {request.to_email} | {request.heading}"
     )
 
     return EmailService.send_event_notification(
@@ -302,16 +299,13 @@ def send_event_notification(
         triggered_by_name=caller_name,
     )
 
-@router.get(
+@router.post(
     "/interview/invite/{interview_id}",
     dependencies=[
-        Depends(require_resource_permission("resource",
-        "create")),
+        Depends(require_resource_permission("email", "create")),
         Depends(get_current_internal_user),
     ],
-    "/interview/invite/{interview_id}",
     summary="Send interview invite for an existing scheduled interview",
-)
 )
 def send_interview_invite_by_id(
     interview_id: int,
@@ -329,12 +323,12 @@ def send_interview_invite_by_id(
 
     Also stores the `outlook_event_id` and `meeting_link` back on the interview row.
     """
-    # â”€â”€ Load interview â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # â"€â"€ Load interview â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
     interview = db.query(Interview).filter(Interview.id == interview_id).first()
     if not interview:
         raise HTTPException(status_code=404, detail=f"Interview {interview_id} not found")
 
-    # â”€â”€ Load candidate â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # â"€â"€ Load candidate â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
     candidate = (
         db.query(Candidate)
         .filter(Candidate.candidateID == interview.candidate_id)
@@ -350,11 +344,11 @@ def send_interview_invite_by_id(
     ) or "Candidate"
     candidate_email = candidate.candidateEmail
 
-    # â”€â”€ Load panel round name â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # â"€â"€ Load panel round name â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
     panel = db.query(InterviewPanel).filter(InterviewPanel.id == interview.panel_id).first()
     round_name = panel.round_name if panel else "Interview"
 
-    # â”€â”€ Load panel member (interviewer) emails â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # â"€â"€ Load panel member (interviewer) emails â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
     members = (
         db.query(PanelMember)
         .filter(PanelMember.panel_id == interview.panel_id)
@@ -366,7 +360,7 @@ def send_interview_invite_by_id(
         if user and user.UserEmail:
             interviewer_emails.append(user.UserEmail)
 
-    # â”€â”€ Format times â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # â"€â"€ Format times â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
     start_iso = interview.start_time.isoformat() if interview.start_time else ""
     end_iso = interview.end_time.isoformat() if interview.end_time else ""
 
@@ -377,11 +371,11 @@ def send_interview_invite_by_id(
         )
 
     logger.info(
-        f"[email/interview/invite] {current_user.UserEmail} â†’ "
+        f"[email/interview/invite] {current_user.UserEmail} â†' "
         f"Candidate: {candidate_email} | Round: {round_name} | Interviewers: {interviewer_emails}"
     )
 
-    # â”€â”€ Send invite (creates Teams event + sends email) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # â"€â"€ Send invite (creates Teams event + sends email) â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
     result = EmailService.send_interview_invite(
         candidate_email=candidate_email,
         candidate_name=candidate_name,
@@ -394,7 +388,7 @@ def send_interview_invite_by_id(
         create_teams_event=create_teams_event,
     )
 
-    # â”€â”€ Persist event details back to the interview row â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # â"€â"€ Persist event details back to the interview row â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
     if result.get("eventId"):
         interview.outlook_event_id = result["eventId"]
     if result.get("joinUrl"):
@@ -403,16 +397,13 @@ def send_interview_invite_by_id(
 
     return result
 
-@router.get(
+@router.post(
     "/interview/cancel/{interview_id}",
     dependencies=[
-        Depends(require_resource_permission("resource",
-        "delete")),
+        Depends(require_resource_permission("email", "delete")),
         Depends(get_current_internal_user),
     ],
-    "/interview/cancel/{interview_id}",
-    summary="Cancel a scheduled interview â€” removes the Teams event and notifies everyone",
-)
+    summary="Cancel a scheduled interview",
 )
 def cancel_interview_by_id(
     interview_id: int,
@@ -431,10 +422,10 @@ def cancel_interview_by_id(
     - Marks the interview `status` as `"Cancelled"` in the database and clears
       `meeting_link` / `outlook_event_id`.
 
-    **`reason`** (optional query param) â€” e.g. *"Candidate not available"*.
+    **`reason`** (optional query param) -" e.g. *"Candidate not available"*.
     If omitted, the email will still be sent without a reason clause.
     """
-    # â”€â”€ Load interview â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # â"€â"€ Load interview â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
     interview = db.query(Interview).filter(Interview.id == interview_id).first()
     if not interview:
         raise HTTPException(status_code=404, detail=f"Interview {interview_id} not found")
@@ -445,7 +436,7 @@ def cancel_interview_by_id(
             detail=f"Interview {interview_id} is already cancelled.",
         )
 
-    # â”€â”€ Load candidate â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # â"€â"€ Load candidate â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
     candidate = (
         db.query(Candidate)
         .filter(Candidate.candidateID == interview.candidate_id)
@@ -461,11 +452,11 @@ def cancel_interview_by_id(
     ) or "Candidate"
     candidate_email = candidate.candidateEmail
 
-    # â”€â”€ Load panel round name â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # â"€â"€ Load panel round name â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
     panel = db.query(InterviewPanel).filter(InterviewPanel.id == interview.panel_id).first()
     round_name = panel.round_name if panel else "Interview"
 
-    # â”€â”€ Load panel member (interviewer) emails â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # â"€â"€ Load panel member (interviewer) emails â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
     members = (
         db.query(PanelMember)
         .filter(PanelMember.panel_id == interview.panel_id)
@@ -480,11 +471,11 @@ def cancel_interview_by_id(
     start_iso = interview.start_time.isoformat() if interview.start_time else "N/A"
 
     logger.info(
-        f"[email/interview/cancel] {current_user.UserEmail} â†’ "
+        f"[email/interview/cancel] {current_user.UserEmail} â†' "
         f"Interview {interview_id} | Candidate: {candidate_email} | Reason: {reason!r}"
     )
 
-    # â”€â”€ Cancel Teams event + send email â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # â"€â"€ Cancel Teams event + send email â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
     result = EmailService.cancel_interview_event(
         outlook_event_id=interview.outlook_event_id or "",
         candidate_email=candidate_email,
@@ -495,7 +486,7 @@ def cancel_interview_by_id(
         reason=reason,
     )
 
-    # â”€â”€ Update interview record in DB â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # â"€â"€ Update interview record in DB â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
     interview.status = "Cancelled"
     interview.meeting_link = None
     interview.outlook_event_id = None
@@ -503,16 +494,12 @@ def cancel_interview_by_id(
 
     return result
 
-@router.get(
+@router.post(
     "/interview/invite/custom",
     dependencies=[
-        Depends(require_resource_permission("resource",
-        "create")),
+        Depends(require_resource_permission("resource", "create")),
         Depends(get_current_internal_user),
     ],
-    "/interview/invite/custom",
-    summary="Send a custom ad-hoc interview invite (no interview_id needed)",
-)
 )
 def send_custom_interview_invite(
     request: SendCustomInterviewInviteRequest,
@@ -523,7 +510,7 @@ def send_custom_interview_invite(
     entered into the system yet. Provide all details manually.
     """
     logger.info(
-        f"[email/interview/invite/custom] {current_user.UserEmail} â†’ "
+        f"[email/interview/invite/custom] {current_user.UserEmail} â†' "
         f"{request.candidate_email} | Round: {request.round_name}"
     )
     return EmailService.send_interview_invite(
@@ -538,16 +525,12 @@ def send_custom_interview_invite(
         create_teams_event=request.create_teams_event,
     )
 
-@router.get(
+@router.post(
     "/login-credentials/{candidate_id}",
     dependencies=[
-        Depends(require_resource_permission("resource",
-        "create")),
+        Depends(require_resource_permission("resource", "create")),
         Depends(get_current_internal_user),
     ],
-    "/login-credentials/{candidate_id}",
-    summary="Send login credentials to a candidate via email",
-)
 )
 def send_login_credentials(
     candidate_id: str,
@@ -562,13 +545,13 @@ def send_login_credentials(
 
     Both the **email address** (`candidateEmail`) and the **plain-text password**
     (`candidateTempPassword`) are read automatically from the candidate record in
-    the database â€” no manual input is needed.
+    the database -" no manual input is needed.
 
     Returns **400** if the candidate's plain-text password is not stored
     (e.g. candidates created before this feature). In that case, reset their
     password via the change-password endpoint first.
     """
-    # â”€â”€ Load candidate â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # â"€â"€ Load candidate â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
     candidate = (
         db.query(Candidate)
         .filter(Candidate.candidateID == candidate_id)
@@ -584,7 +567,7 @@ def send_login_credentials(
         filter(None, [candidate.candidateFirstName, candidate.candidateLastName])
     ) or "Candidate"
 
-    # â”€â”€ Read email and plain-text password from DB â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # â"€â"€ Read email and plain-text password from DB â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
     login_email: str = candidate.candidateEmail
     plain_password: str = candidate.candidateTempPassword
     portal_link: str = request.portal_link or "https://hrms.blitzenx.com/"
@@ -599,13 +582,13 @@ def send_login_credentials(
             status_code=400,
             detail=(
                 "Plain-text password is not stored for this candidate. "
-                "Reset their password via the change-password endpoint â€” "
+                "Reset their password via the change-password endpoint - "
                 "the new password will be saved and can then be emailed."
             ),
         )
 
     logger.info(
-        f"[email/login-credentials] {current_user.UserEmail} â†’ "
+        f"[email/login-credentials] {current_user.UserEmail} â†' "
         f"Candidate: {candidate_id} ({login_email})"
     )
 

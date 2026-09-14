@@ -24,14 +24,17 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.logging import logger
-from app.core.dependencies import get_current_internal_user
+from app.core.dependencies import get_current_internal_user, require_resource_permission
 
 router = APIRouter(prefix="/onboarding", tags=["onboarding-orchestrator"])
 
 # WORKFLOW: Complete Hiring Pipeline
-    dependencies=[Depends(require_resource_permission("orchestrator", "create"))],
+@router.post(
     "/workflows/hire-complete",
-    dependencies=[Depends(get_current_internal_user)],
+    dependencies=[
+        Depends(require_resource_permission("orchestrator", "create")),
+        Depends(get_current_internal_user),
+    ],
     summary="Complete hiring pipeline: candidate → job → interview → offer → hire"
 )
 def hire_complete_workflow(
@@ -99,9 +102,12 @@ def hire_complete_workflow(
         raise HTTPException(status_code=500, detail=f"Workflow failed: {str(e)}")
 
 # WORKFLOW: Rehire Employee
-    dependencies=[Depends(require_resource_permission("orchestrator", "create"))],
+@router.post(
     "/workflows/rehire",
-    dependencies=[Depends(get_current_internal_user)],
+    dependencies=[
+        Depends(require_resource_permission("orchestrator", "create")),
+        Depends(get_current_internal_user),
+    ],
     summary="Rehire workflow: employee → candidate → hire"
 )
 def rehire_workflow(
@@ -149,9 +155,12 @@ def rehire_workflow(
         raise HTTPException(status_code=500, detail=f"Rehire failed: {str(e)}")
 
 # WORKFLOW: Hiring Pipeline Status
-    dependencies=[Depends(require_resource_permission("orchestrator", "view"))],
+@router.get(
     "/workflows/pipeline-status",
-    dependencies=[Depends(get_current_internal_user)],
+    dependencies=[
+        Depends(require_resource_permission("orchestrator", "view")),
+        Depends(get_current_internal_user),
+    ],
     summary="Get status of all hiring pipeline stages"
 )
 def hiring_pipeline_status(

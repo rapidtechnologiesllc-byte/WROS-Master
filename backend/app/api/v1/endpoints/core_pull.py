@@ -39,7 +39,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_internal_user
+from app.core.dependencies import get_current_internal_user, require_resource_permission
 from app.models.core_pull import CorePullEvent
 from app.models.demand import Demand
 from app.models.employee import Employee
@@ -135,17 +135,14 @@ def get_pending_events(
     )
     return CorePullEventQueueResponse(events=[_to_item(db, e) for e in events])
 
-@router.get(
+@router.post(
     "/events/{event_id}/execute",
     dependencies=[
-        Depends(require_resource_permission("pull",
-        "create")),
+        Depends(require_resource_permission("pull", "create")),
         Depends(get_current_internal_user),
     ],
-    "/events/{event_id}/execute",
     response_model=ExecuteCorePullResponse,
     summary="Execute a pending Core-Pull event (same-day forced transfer)",
-)
 )
 def execute_event(
     event_id: str,
@@ -174,17 +171,14 @@ def execute_event(
         specialty_pool_size_after=guard["pool_size_after_move"],
     )
 
-@router.get(
+@router.post(
     "/events/{event_id}/override",
     dependencies=[
-        Depends(require_resource_permission("pull",
-        "create")),
+        Depends(require_resource_permission("pull", "create")),
         Depends(get_current_internal_user),
     ],
-    "/events/{event_id}/override",
     response_model=OverrideCorePullResponse,
     summary="Override a pending Core-Pull event (BU Head only)",
-)
 )
 def override_event(
     event_id: str,
@@ -212,17 +206,14 @@ def override_event(
     db.refresh(event)
     return OverrideCorePullResponse(message="Core-Pull event overridden.", event=_to_item(db, event))
 
-@router.get(
+@router.post(
     "/replacement-plans",
     dependencies=[
-        Depends(require_resource_permission("pull",
-        "create")),
+        Depends(require_resource_permission("pull", "create")),
         Depends(get_current_internal_user),
     ],
-    "/replacement-plans",
     response_model=ReplacementPlanResponse,
     summary="Log a Specialty Pool replacement plan to unblock a guard-blocked execute",
-)
 )
 def submit_replacement_plan(
     body: ReplacementPlanRequest,

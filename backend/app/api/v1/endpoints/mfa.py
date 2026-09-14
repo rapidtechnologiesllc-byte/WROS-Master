@@ -22,6 +22,7 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from fastapi import Request
 from app.core.dependencies import (
+    require_resource_permission,
     get_current_candidate,
     get_current_candidate_otp_pending,
     get_current_mfa_pending_user,

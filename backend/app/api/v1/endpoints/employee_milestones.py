@@ -122,16 +122,14 @@ def complete_milestone_endpoint(
     db.refresh(milestone)
     return _to_item(milestone)
 
-@router.get(
+@router.post(
     "/scan-overdue",
     dependencies=[
-        Depends(require_resource_permission("milestone",
-        "create")),
+        Depends(require_resource_permission("milestone", "create")),
         Depends(get_current_internal_user),
     ],
-    "/scan-overdue", response_model=ScanOverdueMilestonesResponse,
+    response_model=ScanOverdueMilestonesResponse,
     summary="Idempotent scan: flip past-due open milestones to OVERDUE + write a negative performance event",
-)
 )
 def scan_overdue_endpoint(
     db: Session = Depends(get_db),

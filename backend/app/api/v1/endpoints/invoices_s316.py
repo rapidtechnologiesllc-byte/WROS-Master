@@ -24,7 +24,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_internal_user
+from app.core.dependencies import get_current_internal_user, require_resource_permission
 from app.core.visibility import should_bypass_bu_filter, get_user_bu_id
 from app.models.user import Users
 from fastapi import Request
@@ -233,21 +233,13 @@ def calculate_bill_amount_endpoint(
 # POST /invoices/{id}/send
 # ============================================================================
 
-@router.get(
+@router.post(
     "/{invoice_id}/send",
     dependencies=[
-        Depends(require_resource_permission("s316",
-        "create")),
+        Depends(require_resource_permission("s316", "create")),
         Depends(get_current_internal_user),
     ],
-    "/{invoice_id}/send",
-    response_model=SendInvoiceResponse,
-    summary="Approve and send invoice to client",
-    responses={
-        409: {"model": ErrorResponse, "description": "Invalid status transition"},
-        404: {"model": ErrorResponse, "description": "Invoice not found"},
-    },
-)
+    
 )
 def send_invoice_endpoint(
     invoice_id: str,
@@ -317,21 +309,13 @@ def send_invoice_endpoint(
 # POST /invoices/{id}/pay
 # ============================================================================
 
-@router.get(
+@router.post(
     "/{invoice_id}/pay",
     dependencies=[
-        Depends(require_resource_permission("s316",
-        "create")),
+        Depends(require_resource_permission("s316", "create")),
         Depends(get_current_internal_user),
     ],
-    "/{invoice_id}/pay",
-    response_model=TrackPaymentResponse,
-    summary="Record payment against invoice",
-    responses={
-        409: {"model": ErrorResponse, "description": "Invalid status for payment"},
-        404: {"model": ErrorResponse, "description": "Invoice not found"},
-    },
-)
+    
 )
 def track_payment_endpoint(
     invoice_id: str,
@@ -391,14 +375,11 @@ def track_payment_endpoint(
 @router.get(
     "/{invoice_id}",
     dependencies=[
-        Depends(require_resource_permission("s316",
-        "view")),
+        Depends(require_resource_permission("s316", "view")),
         Depends(get_current_internal_user),
     ],
-    "/{invoice_id}",
     response_model=InvoiceDetailResponse,
     summary="Get invoice details with all line items",
-)
 )
 def get_invoice_endpoint(
     invoice_id: str,
@@ -425,10 +406,12 @@ def get_invoice_endpoint(
 # GET /invoices
 # ============================================================================
 
-    dependencies=[Depends(require_resource_permission("s316", "view"))],
+@router.get(
     "",
-    dependencies=[Depends(get_current_internal_user)],
-    "",
+    dependencies=[
+        Depends(require_resource_permission("s316", "view")),
+        Depends(get_current_internal_user),
+    ],
     response_model=InvoiceListResponse,
     summary="List invoices with optional filters",
 )

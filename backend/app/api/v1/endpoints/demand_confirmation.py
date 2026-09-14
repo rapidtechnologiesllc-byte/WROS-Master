@@ -43,7 +43,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_internal_user
+from app.core.dependencies import get_current_internal_user, require_resource_permission
 from app.models.demand import Demand
 from app.models.demand_confirmation import DemandAlignmentCall
 from app.models.employee import Employee
@@ -170,14 +170,11 @@ def schedule_call(
 @router.get(
     "/demands/{demand_id}/calls",
     dependencies=[
-        Depends(require_resource_permission("confirmation",
-        "view")),
+        Depends(require_resource_permission("confirmation", "view")),
         Depends(get_current_internal_user),
     ],
-    "/demands/{demand_id}/calls",
     response_model=AlignmentCallListResponse,
     summary="Get all alignment calls for a demand",
-)
 )
 def get_calls_for_demand(
     demand_id: str,
@@ -193,17 +190,14 @@ def get_calls_for_demand(
     )
     return AlignmentCallListResponse(calls=[_to_item(db, c) for c in calls])
 
-@router.get(
+@router.post(
     "/calls/{call_id}/confirm-fit",
     dependencies=[
-        Depends(require_resource_permission("confirmation",
-        "create")),
+        Depends(require_resource_permission("confirmation", "create")),
         Depends(get_current_internal_user),
     ],
-    "/calls/{call_id}/confirm-fit",
     response_model=ConfirmFitResponse,
     summary="Record one participant's fit confirmation (immutable once set)",
-)
 )
 def confirm_call_fit(
     call_id: str,
@@ -224,17 +218,14 @@ def confirm_call_fit(
     db.refresh(call)
     return ConfirmFitResponse(message="Fit confirmation recorded.", call=_to_item(db, call))
 
-@router.get(
+@router.post(
     "/calls/{call_id}/trigger-release",
     dependencies=[
-        Depends(require_resource_permission("confirmation",
-        "create")),
+        Depends(require_resource_permission("confirmation", "create")),
         Depends(get_current_internal_user),
     ],
-    "/calls/{call_id}/trigger-release",
     response_model=TriggerReleaseResponse,
     summary="Trigger Specialty client release (hard gate: CONFIRMED + both fits True)",
-)
 )
 def trigger_release(
     call_id: str,

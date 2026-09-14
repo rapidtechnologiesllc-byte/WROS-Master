@@ -72,7 +72,7 @@ def create_record(
         db.rollback()
         raise HTTPException(status_code=422, detail=str(exc))
 
-@router.get(
+@router.post(
     "/records/{record_id}",
     response_model=BuddyProgramRecordResponse,
     dependencies=[Depends(require_resource_permission("record", "view"))]

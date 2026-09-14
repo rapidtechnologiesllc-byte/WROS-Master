@@ -135,7 +135,7 @@ def _decode_link_state(state: str):
         raise ValueError("Operation failed")
     return payload.get("sub")
 
-@router.get(
+@router.post(
     "/auth/callback",
     dependencies=[Depends(require_resource_permission("auth", "view"))]
 )

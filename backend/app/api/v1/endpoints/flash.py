@@ -33,7 +33,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_internal_user
+from app.core.dependencies import get_current_internal_user, require_resource_permission
 from app.schemas.flash import FlashRequest, FlashResponse
 from app.services.flash_service import answer_internal_query
 

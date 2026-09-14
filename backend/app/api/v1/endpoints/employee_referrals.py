@@ -12,7 +12,7 @@ from app.core.database import get_db
 from app.core.dependencies import require_resource_permission
 from app.services.employee_referral_service import EmployeeReferralService
 from app.services.referral_access_control import ReferralAccessControl
-# from app.core.dependencies import get_current_user_or_none  # TODO: Implement auth
+# from app.core.dependencies import get_current_user_or_none  # TODO: Implement auth, require_resource_permission
 
 router = APIRouter(prefix="/referrals", tags=["referrals"])
 

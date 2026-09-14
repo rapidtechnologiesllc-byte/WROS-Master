@@ -18,16 +18,19 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_internal_user
+from app.core.dependencies import get_current_internal_user, require_resource_permission
 from app.schemas.error_log import ErrorLogListResponse
 from app.services.error_log_service import query_error_log
 
 router = APIRouter(prefix="/error-log", tags=["error-log"])
 
-    dependencies=[Depends(require_resource_permission("log", "view"))],
-    "",
+@router.get(
+    "/list",
+    dependencies=[
+        Depends(require_resource_permission("log", "view")),
+        Depends(get_current_internal_user),
+    ],
     response_model=ErrorLogListResponse,
-    dependencies=[Depends(get_current_internal_user)],
 )
 def list_errors(
     integration_name: Optional[str] = None,

@@ -10,6 +10,7 @@ from typing import Dict, Any
 import logging
 
 from app.core.database import get_db
+from app.core.dependencies import require_resource_permission
 from app.core.logging import logger
 from app.services.autonomous_forecasting_service import AutonomousForecastingService
 

@@ -28,6 +28,7 @@ from typing import List, Optional
 
 from app.core.database import get_db
 from app.core.dependencies import (
+    require_resource_permission,
     get_current_internal_user,
     require_role_template_permission,
     require_resource_permission,

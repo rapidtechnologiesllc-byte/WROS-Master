@@ -18,9 +18,9 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_candidate
+from app.core.dependencies import get_current_candidate, require_resource_permission
 from app.models.candidate import Candidate
-from app.core.dependencies import get_current_internal_user
+from app.core.dependencies import get_current_internal_user, require_resource_permission
 from app.schemas.portal_messages import (
     PortalMessageHistoryResponse,
     PortalMessageRequest,
@@ -91,14 +91,11 @@ def list_portal_messages(
 @router.get(
     "/{conversation_id}/messages/poll",
     dependencies=[
-        Depends(require_resource_permission("message",
-        "view")),
+        Depends(require_resource_permission("message", "view")),
         Depends(get_current_internal_user),
     ],
-    "/{conversation_id}/messages/poll",
     response_model=PortalMessageHistoryResponse,
     summary="S-346 -- long-poll for messages newer than after_id (WebSocket fallback)",
-)
 )
 def poll_portal_messages(
     conversation_id: int,

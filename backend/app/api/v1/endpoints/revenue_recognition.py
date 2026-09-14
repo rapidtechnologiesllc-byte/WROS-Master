@@ -25,7 +25,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.visibility import should_bypass_bu_filter, get_user_bu_id
-from app.core.dependencies import get_current_internal_user
+from app.core.dependencies import get_current_internal_user, require_resource_permission
 from app.schemas.revenue_recognition import (
     RecognizeRevenueRequest,
     CreateRevenueEntriesRequest,
@@ -204,79 +204,13 @@ def create_entries(
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get(
-    "/asr",
+    "/monthly",
     dependencies=[
-        Depends(require_resource_permission("recognition",
-        "create")),
+        Depends(require_resource_permission("recognition", "view")),
         Depends(get_current_internal_user),
     ],
-    "/asr",
-    response_model=ASRResponse,
-    summary="Calculate Annual Recurring Revenue (ASR/ARR)",
-    description="Calculates ARR and MRR for a client over a period"
-)
-)
-def calculate_annual_recurring_revenue(
-    request: CalculateASRRequest,
-    db: Session = Depends(get_db)
-) -> ASRResponse:
-    """
-    Calculate Annual Recurring Revenue (ASR/ARR) for a client.
-
-    ARR = (Total Revenue in Period / Months in Period) × 12
-
-    Args:
-        request: CalculateASRRequest with client_id, period dates
-        db: Database session
-
-    Returns:
-        ASRResponse with ARR, MRR, and supporting metrics
-
-    Raises:
-        HTTPException: If data validation fails
-    """
-    try:
-        result = calculate_asr(
-            db,
-            request.client_id,
-            request.tenant_id,
-            request.period_start,
-            request.period_end
-        )
-
-        return ASRResponse(
-            status=result["status"],
-            client_id=result["client_id"],
-            arr_usd_cents=result.get("arr_usd_cents", 0),
-            mrr_usd_cents=result.get("mrr_usd_cents", 0),
-            total_revenue_usd_cents=result.get("total_revenue_usd_cents", 0),
-            total_margin_usd_cents=result.get("total_margin_usd_cents", 0),
-            avg_margin_pct=result.get("avg_margin_pct", 0),
-            period=result.get("period", ""),
-            invoice_count=result.get("invoice_count", 0),
-            months_analyzed=result.get("months_analyzed", 0),
-        )
-
-    except Exception as e:
-        logger.error(f"Error: {str(e)}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
-
-# ============================================================================
-# REVENUE REPORTING ENDPOINTS
-# ============================================================================
-
-@router.get(
-    "/by-month",
-    dependencies=[
-        Depends(require_resource_permission("recognition",
-        "view")),
-        Depends(get_current_internal_user),
-    ],
-    "/by-month",
-    response_model=RevenueByMonthResponse,
-    summary="Get revenue by month",
-    description="Aggregates recognized revenue by month with margin analysis"
-)
+    response_model=dict,
+    summary="Get monthly revenue",
 )
 def get_revenue_monthly(
     business_unit_id: Optional[int] = Query(None, description="Filter by BU"),
@@ -302,51 +236,13 @@ def get_revenue_monthly(
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get(
-    "/by-service",
-    dependencies=[
-        Depends(require_resource_permission("recognition",
-        "view")),
-        Depends(get_current_internal_user),
-    ],
-    "/by-service",
-    response_model=RevenueByServiceResponse,
-    summary="Get revenue by service",
-    description="Aggregates revenue by service type"
-)
-)
-def get_revenue_service(
-    business_unit_id: Optional[int] = Query(None, description="Filter by BU"),
-    tenant_id: Optional[int] = Query(None, description="Filter by tenant"),
-    db: Session = Depends(get_db)
-) -> RevenueByServiceResponse:
-    """Get revenue aggregated by service type."""
-    try:
-        data = get_revenue_by_service(db, business_unit_id, tenant_id)
-        items = [RevenueByServiceItem(**item) for item in data]
-        total_revenue = sum(item.revenue for item in items)
-
-        return RevenueByServiceResponse(
-            status="success",
-            data=items,
-            total_revenue=total_revenue,
-        )
-
-    except Exception as e:
-        logger.error(f"Error: {str(e)}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
-
-@router.get(
     "/by-module",
     dependencies=[
-        Depends(require_resource_permission("recognition",
-        "view")),
+        Depends(require_resource_permission("recognition", "view")),
         Depends(get_current_internal_user),
     ],
-    "/by-module",
     response_model=RevenueByModuleResponse,
-    summary="Get revenue by Guidewire module",
-    description="Aggregates revenue by Guidewire product module"
-)
+    summary="Get revenue by module",
 )
 def get_revenue_module(
     business_unit_id: Optional[int] = Query(None, description="Filter by BU"),
@@ -370,51 +266,13 @@ def get_revenue_module(
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get(
-    "/by-pricing-model",
-    dependencies=[
-        Depends(require_resource_permission("recognition",
-        "view")),
-        Depends(get_current_internal_user),
-    ],
-    "/by-pricing-model",
-    response_model=RevenueByPricingModelResponse,
-    summary="Get revenue by pricing model",
-    description="Aggregates revenue by pricing model (FTE, T&M, etc.)"
-)
-)
-def get_revenue_pricing_model(
-    business_unit_id: Optional[int] = Query(None, description="Filter by BU"),
-    tenant_id: Optional[int] = Query(None, description="Filter by tenant"),
-    db: Session = Depends(get_db)
-) -> RevenueByPricingModelResponse:
-    """Get revenue aggregated by pricing model."""
-    try:
-        data = get_revenue_by_pricing_model(db, business_unit_id, tenant_id)
-        items = [RevenueByPricingModelItem(**item) for item in data]
-        total_revenue = sum(item.revenue for item in items)
-
-        return RevenueByPricingModelResponse(
-            status="success",
-            data=items,
-            total_revenue=total_revenue,
-        )
-
-    except Exception as e:
-        logger.error(f"Error: {str(e)}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
-
-@router.get(
     "/by-client-owner",
     dependencies=[
-        Depends(require_resource_permission("recognition",
-        "view")),
+        Depends(require_resource_permission("recognition", "view")),
         Depends(get_current_internal_user),
     ],
-    "/by-client-owner",
-    response_model=RevenueByClientOwnerResponse,
+    response_model=dict,
     summary="Get revenue by client owner",
-    description="Aggregates revenue by client owner (account manager) for P&L attribution"
-)
 )
 def get_revenue_client_owner(
     business_unit_id: Optional[int] = Query(None, description="Filter by BU"),
@@ -440,14 +298,10 @@ def get_revenue_client_owner(
 @router.get(
     "/partner-shares",
     dependencies=[
-        Depends(require_resource_permission("recognition",
-        "view")),
+        Depends(require_resource_permission("recognition", "view")),
         Depends(get_current_internal_user),
     ],
-    "/partner-shares",
-    response_model=PartnerRevenueShareResponse,
-    summary="Get partner revenue share analysis",
-    description="Aggregates partner revenue shares (CORE business only)"
+    
 )
 )
 def get_partner_shares(
@@ -474,15 +328,11 @@ def get_partner_shares(
 @router.get(
     "/forecast-vs-actual",
     dependencies=[
-        Depends(require_resource_permission("recognition",
-        "view")),
+        Depends(require_resource_permission("recognition", "view")),
         Depends(get_current_internal_user),
     ],
-    "/forecast-vs-actual",
-    response_model=ForecastVsActualResponse,
-    summary="Get forecast vs actual revenue",
-    description="Compares forecasted revenue (opportunities) vs actual recognized revenue"
-)
+    response_model=dict,
+    summary="Get forecast vs actual",
 )
 def get_forecast_actual(
     business_unit_id: Optional[int] = Query(None, description="Filter by BU"),
@@ -512,15 +362,11 @@ def get_forecast_actual(
 @router.get(
     "/negative-margins",
     dependencies=[
-        Depends(require_resource_permission("recognition",
-        "view")),
+        Depends(require_resource_permission("recognition", "view")),
         Depends(get_current_internal_user),
     ],
-    "/negative-margins",
-    response_model=NegativeMarginAlertsResponse,
-    summary="Get loss-making projects",
-    description="Identifies projects/invoices with negative gross margin (losses)"
-)
+    response_model=dict,
+    summary="Get negative margins",
 )
 def get_negative_margins(
     business_unit_id: Optional[int] = Query(None, description="Filter by BU"),
@@ -547,15 +393,11 @@ def get_negative_margins(
 @router.get(
     "/pnl-summary",
     dependencies=[
-        Depends(require_resource_permission("recognition",
-        "view")),
+        Depends(require_resource_permission("recognition", "view")),
         Depends(get_current_internal_user),
     ],
-    "/pnl-summary",
-    response_model=PandLSummaryResponse,
+    response_model=dict,
     summary="Get P&L summary",
-    description="Provides complete Profit & Loss summary for a period"
-)
 )
 def get_pnl_summary(
     business_unit_id: Optional[int] = Query(None, description="Filter by BU"),

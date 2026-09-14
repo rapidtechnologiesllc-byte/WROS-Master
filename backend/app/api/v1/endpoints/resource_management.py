@@ -47,7 +47,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_internal_user
+from app.core.dependencies import get_current_internal_user, require_resource_permission
 from app.models.client import Client
 from app.models.demand import Demand
 from app.models.employee import Employee
@@ -153,20 +153,10 @@ def get_queue(
 @router.get(
     "/recommendations/{recommendation_id}/pursue",
     dependencies=[
-        Depends(require_resource_permission("management",
-        "create")),
+        Depends(require_resource_permission("management", "create")),
         Depends(get_current_internal_user),
     ],
-    "/recommendations/{recommendation_id}/pursue",
-    response_model=RecommendationActionResponse,
-    summary="Start actively pursuing a recommendation (interview stage)",
-    description=(
-        "Moves a recommendation from PENDING_RM_REVIEW to IN_PROGRESS. Hard-blocks with "
-        "409 if this employee is already IN_PROGRESS on a different recommendation -- an "
-        "employee already in play at one client can never be simultaneously pursued for a "
-        "second (Avinash's explicit business rule)."
-    ),
-)
+    
 )
 def pursue_recommendation(
     recommendation_id: str,
@@ -189,14 +179,11 @@ def pursue_recommendation(
 @router.get(
     "/recommendations/{recommendation_id}/approve",
     dependencies=[
-        Depends(require_resource_permission("management",
-        "create")),
+        Depends(require_resource_permission("management", "create")),
         Depends(get_current_internal_user),
     ],
-    "/recommendations/{recommendation_id}/approve",
     response_model=ApproveRecommendationResponse,
     summary="Approve a recommendation and create the real allocation",
-)
 )
 def approve_recommendation(
     recommendation_id: str,
@@ -221,14 +208,11 @@ def approve_recommendation(
 @router.get(
     "/recommendations/{recommendation_id}/reject",
     dependencies=[
-        Depends(require_resource_permission("management",
-        "create")),
+        Depends(require_resource_permission("management", "create")),
         Depends(get_current_internal_user),
     ],
-    "/recommendations/{recommendation_id}/reject",
     response_model=RecommendationActionResponse,
     summary="Reject a recommendation",
-)
 )
 def reject_recommendation(
     recommendation_id: str,
@@ -249,13 +233,11 @@ def reject_recommendation(
 @router.get(
     "/employees/{employee_id}/actively-engaged",
     dependencies=[
-        Depends(require_resource_permission("management",
-        "view")),
+        Depends(require_resource_permission("management", "view")),
         Depends(get_current_internal_user),
     ],
-    "/employees/{employee_id}/actively-engaged",
-    summary="Check whether an employee is currently IN_PROGRESS on another recommendation",
-)
+    response_model=dict,
+    summary="Check if an employee is actively engaged in allocations",
 )
 def check_actively_engaged(
     employee_id: str,
@@ -267,14 +249,11 @@ def check_actively_engaged(
 @router.get(
     "/demands/{demand_id}/matching-bench-resources",
     dependencies=[
-        Depends(require_resource_permission("management",
-        "view")),
+        Depends(require_resource_permission("management", "view")),
         Depends(get_current_internal_user),
     ],
-    "/demands/{demand_id}/matching-bench-resources",
-    response_model=MatchBenchResourcesResponse,
-    summary="Top bench candidates for a demand, by skill match (S-253)",
-)
+    response_model=list,
+    summary="Get matching bench resources for a demand",
 )
 def matching_bench_resources(
     demand_id: str,

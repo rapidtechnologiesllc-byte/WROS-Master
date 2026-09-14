@@ -1507,7 +1507,7 @@ def assign_recruiter_to_candidate(
         tenant_id = getattr(current_user, 'tenant_id', 1) or 1
 
         # Verify recruiter authorization
-        from app.core.dependencies import PermissionHelper
+        from app.core.dependencies import PermissionHelper, require_resource_permission
 
         can_assign = (
             PermissionHelper.has_permission(

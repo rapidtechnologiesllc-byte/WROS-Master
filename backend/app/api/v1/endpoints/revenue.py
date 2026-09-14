@@ -191,16 +191,14 @@ def rescan_all_projects(
     result = run_daily_revenue_scan_job(db)
     return result
 
-@router.get(
+@router.post(
     "/reconciliation/scan",
     dependencies=[
-        Depends(require_resource_permission("resource",
-        "create")),
+        Depends(require_resource_permission("resource", "create")),
         Depends(get_current_internal_user),
     ],
-    "/reconciliation/scan", response_model=ReconciliationScanResponse,
+    response_model=ReconciliationScanResponse,
     summary="Find approved-but-uninvoiced timesheets past the grace period and create alerts",
-)
 )
 def scan_reconciliation(
     db: Session = Depends(get_db),
@@ -216,13 +214,11 @@ def scan_reconciliation(
 @router.get(
     "/reconciliation/alerts",
     dependencies=[
-        Depends(require_resource_permission("resource",
-        "view")),
+        Depends(require_resource_permission("resource", "view")),
         Depends(get_current_internal_user),
     ],
-    "/reconciliation/alerts", response_model=ReconciliationAlertsResponse,
+    response_model=ReconciliationAlertsResponse,
     summary="List reconciliation alerts",
-)
 )
 def list_reconciliation_alerts(
     status: Optional[str] = None,
@@ -235,16 +231,14 @@ def list_reconciliation_alerts(
     alerts = query.order_by(ReconciliationAlert.gap_detected_at.desc()).all()
     return ReconciliationAlertsResponse(alerts=[_alert_to_item(a) for a in alerts])
 
-@router.get(
+@router.post(
     "/reconciliation/alerts/{alert_id}/resolve",
     dependencies=[
-        Depends(require_resource_permission("resource",
-        "create")),
+        Depends(require_resource_permission("resource", "create")),
         Depends(get_current_internal_user),
     ],
-    "/reconciliation/alerts/{alert_id}/resolve", response_model=ReconciliationAlertItem,
+    response_model=ReconciliationAlertItem,
     summary="Mark a reconciliation alert resolved",
-)
 )
 def resolve_reconciliation_alert_endpoint(
     alert_id: str,
@@ -262,13 +256,11 @@ def resolve_reconciliation_alert_endpoint(
 @router.get(
     "/dashboard/clients/{client_id}",
     dependencies=[
-        Depends(require_resource_permission("resource",
-        "view")),
+        Depends(require_resource_permission("resource", "view")),
         Depends(get_current_internal_user),
     ],
-    "/dashboard/clients/{client_id}", response_model=ClientRevenueDashboardResponse,
-    summary="Client revenue realization dashboard (internal only, estimate)",
-)
+    response_model=dict,
+    summary="Get revenue dashboard for a client",
 )
 def get_client_dashboard(
     client_id: str,

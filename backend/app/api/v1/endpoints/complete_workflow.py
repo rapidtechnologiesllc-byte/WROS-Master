@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from datetime import datetime
 from app.core.database import get_db
+from app.core.dependencies import require_resource_permission
 from app.services.interview_decision_service import InterviewDecisionService
 from app.services.offer_management_service import OfferManagementService
 from app.services.employee_conversion_service import EmployeeConversionService

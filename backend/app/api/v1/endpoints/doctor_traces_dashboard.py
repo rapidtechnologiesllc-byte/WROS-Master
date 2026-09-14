@@ -10,6 +10,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.core.dependencies import require_resource_permission
 from app.core.logging import logger
 
 router = APIRouter(prefix="/admin/doctor", tags=["doctor-dashboard"])
