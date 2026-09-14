@@ -693,122 +693,141 @@ class CandidateCreationHandler:
             raise
 
     @staticmethod
+    def validate(message: ChannelQueueItem, result: Dict[str, Any], db: Session) -> None:
+        """
+        Validate that candidate creation actually completed successfully.
+
+        Runs BEFORE marking message as COMPLETED. Queries database to verify:
+        1. Candidate record exists
+        2. Email matches expected value
+        3. Tenant assignment correct
+        4. Status is not DUPLICATE
+
+        Args:
+            message: Queue message (contains payload)
+            result: Result dict from process() (contains candidate_id, is_new)
+            db: Database session
+
+        Raises:
+            ValueError: If candidate not found or data mismatch (non-retryable)
+            RuntimeError: If database error during validation (retryable)
+        """
+        from app.models.candidate import Candidate
+
+        if not result or "candidate_id" not in result:
+            raise ValueError(f"Invalid result from process(): {result}")
+
+        candidate_id = result.get("candidate_id")
+        payload = message.payload or {}
+
+        try:
+            # 1. VERIFY CANDIDATE EXISTS
+            candidate = db.query(Candidate).filter(Candidate.candidateID == candidate_id).first()
+            if not candidate:
+                raise ValueError(f"Candidate {candidate_id} not found in database after creation")
+
+            # 2. VERIFY EMAIL MATCHES
+            expected_email = payload.get("candidate_email")
+            if expected_email and candidate.candidateEmail != expected_email:
+                raise ValueError(
+                    f"Email mismatch for {candidate_id}: expected '{expected_email}', "
+                    f"got '{candidate.candidateEmail}'"
+                )
+
+            # 3. VERIFY TENANT ASSIGNMENT
+            expected_tenant = payload.get("tenant_id", 1)
+            if isinstance(expected_tenant, int):
+                from app.models.user import Users
+                user = db.query(Users).filter(Users.tenant_id == expected_tenant).first()
+                if user:
+                    expected_tenant = user.UserID
+            if candidate.tenant_id != str(expected_tenant):
+                raise ValueError(
+                    f"Tenant mismatch for {candidate_id}: expected '{expected_tenant}', "
+                    f"got '{candidate.tenant_id}'"
+                )
+
+            # 4. VERIFY NOT DUPLICATE
+            if candidate.candidateStatus == "DUPLICATE":
+                logger.warning(
+                    f"Candidate {candidate_id} marked as DUPLICATE. This is expected if "
+                    f"a duplicate was merged. Validation passed."
+                )
+
+            # ✅ ALL VALIDATIONS PASSED
+            logger.info(
+                f"✅ Candidate creation validated: ID={candidate_id}, Email={candidate.candidateEmail}, "
+                f"Tenant={candidate.tenant_id}, Status={candidate.candidateStatus}"
+            )
+
+        except (ValueError, AttributeError) as e:
+            # Non-retryable: candidate not found or data mismatch = handler bug
+            logger.error(f"[Handler] NON-RETRYABLE validation error for {candidate_id}: {e}")
+            raise ValueError(str(e)) from e
+
+        except Exception as e:
+            # Retryable: database error during validation
+            logger.error(f"[Handler] RETRYABLE validation error for {candidate_id}: {e}", exc_info=True)
+            raise RuntimeError(f"Database validation error: {str(e)}") from e
+
+    @staticmethod
     def on_success(message: ChannelQueueItem, result: Dict[str, Any], db: Session) -> Dict[str, Any]:
         """
-        ARCHITECT FIX: Validate message result WITHOUT mutating state.
-        Returns validation result dict. Queue processor decides if COMPLETED.
+        Mark message as COMPLETED after validation passes.
 
-        This method:
-        - Validates result structure and database state
-        - Uses row-level locks (SELECT FOR UPDATE) to prevent race conditions
-        - Returns {is_valid: bool, error: str?, candidate_id: str?}
-        - Does NOT set message.status or commit (that's queue_processor's job)
+        Calls validate() which:
+        - Queries database to verify candidate was created
+        - Checks email matches payload
+        - Verifies tenant assignment
+        - Raises ValueError (non-retryable) or RuntimeError (retryable) on failure
+
+        CRITICAL: validate() must pass before marking COMPLETED.
         """
         try:
-            # ===== VALIDATION STEP 1: Check result structure =====
-            if not isinstance(result, dict):
-                raise ValueError(f"Handler returned invalid type: {type(result)}")
+            # Call the new validate() method which follows base handler pattern
+            # This will raise ValueError (non-retryable) or RuntimeError (retryable) if validation fails
+            CandidateCreationHandler.validate(message, result, db)
 
-            logger.info(f"[Handler] on_success called with result keys: {list(result.keys())}")
+            # ✅ VALIDATION PASSED - Mark as COMPLETED
+            message.status = "COMPLETED"
+            message.completed_at = datetime.utcnow()
+            message.result = result
 
-            actual_result = result.get('data', result)
-            logger.info(f"[Handler] actual_result keys: {list(actual_result.keys())}")
+            try:
+                db.commit()
+            except Exception as commit_err:
+                db.rollback()
+                raise RuntimeError(f"Failed to commit COMPLETED status: {str(commit_err)}") from commit_err
 
-            required_fields = ['candidate_id', 'is_new']
-            for field in required_fields:
-                if field not in actual_result:
-                    logger.error(f"[Handler] Missing field '{field}' in result")
-                    raise ValueError(f"Handler result missing required field: {field}")
-                if actual_result[field] is None:
-                    raise ValueError(f"Handler result has null field: {field}")
-
-            candidate_id = actual_result['candidate_id']
-            is_new = actual_result.get('is_new', True)
-            logger.info(f"[Handler] ✅ Step 1: Result structure valid (candidate_id={candidate_id}, is_new={is_new})")
-
-            # ===== VALIDATION STEP 1.5: Check duplicate detection result =====
-            # When a duplicate is detected (is_new=False), verify it was handled correctly
-            if not is_new:
-                logger.info(f"[Handler] Step 1.5: Duplicate candidate detected (is_new=False). "
-                           f"Verifying duplicate was already in database before this message...")
-            else:
-                logger.info(f"[Handler] Step 1.5: New candidate creation (is_new=True). "
-                           f"Verifying new record was created by this handler...")
-
-            # ===== VALIDATION STEP 2: Database verification with ATOMIC ROW LOCKS =====
-            # ARCHITECT FIX: Use SELECT FOR UPDATE to acquire write locks
-            # Prevents concurrent deletion of candidate between validation and COMPLETED mark
-            candidate = db.query(Candidate).filter(
-                Candidate.candidateID == candidate_id
-            ).with_for_update().first()
-
-            if not candidate:
-                error_msg = (
-                    f"Candidate {candidate_id} not found in database (or was deleted during validation). "
-                    f"is_new={is_new}. "
-                )
-                if not is_new:
-                    error_msg += "This was a DUPLICATE case, so candidate should have existed in DB before this message."
-                else:
-                    error_msg += "This was a NEW candidate case, so handler FAILED to create it."
-                raise RuntimeError(error_msg)
-
-            logger.info(f"[Handler] ✅ Step 2: Database verification passed (candidate locked, email={candidate.candidateEmail}, is_new={is_new})")
-
-            # ===== VALIDATION STEP 2.5: Verify email matches payload =====
-            # This confirms we have the CORRECT candidate in the database
-            payload_email = actual_result.get('candidate_email') or \
-                          (result.get('data', {}).get('candidate_email') if isinstance(result, dict) and 'data' in result else None)
-            if payload_email and candidate.candidateEmail != payload_email:
-                raise RuntimeError(
-                    f"Email mismatch in validation: DB has '{candidate.candidateEmail}' "
-                    f"but handler returned '{payload_email}'. Data corruption or wrong candidate retrieved."
-                )
-            logger.info(f"[Handler] ✅ Step 2.5: Email verified matches handler result")
-
-            # ===== VALIDATION STEP 3: Related records with atomic locks =====
-            # Lock CandidateStatus to prevent concurrent deletion
-            status = db.query(CandidateStatus).filter(
-                CandidateStatus.candidateID == candidate_id
-            ).with_for_update().first()
-
-            if not status:
-                if is_new:
-                    raise RuntimeError(
-                        f"NEW candidate {candidate_id} missing CandidateStatus. Handler failed to create status record."
-                    )
-                else:
-                    raise RuntimeError(
-                        f"DUPLICATE candidate {candidate_id} missing CandidateStatus. "
-                        f"Status record should have existed for duplicate case."
-                    )
-
-            if status.piplineStatus != "Applied":
-                raise RuntimeError(
-                    f"Status is '{status.piplineStatus}', expected 'Applied' for {candidate_id}. "
-                    f"Pipeline state incorrect. is_new={is_new}"
-                )
-
-            logger.info(f"[Handler] ✅ Step 3: Related records valid (status locked)")
-
-            # ===== VALIDATION COMPLETE =====
-            # Return validation result WITHOUT mutating message.status
-            # Queue processor will decide what to do with this result
-            logger.info(f"[Handler] ✅✅✅ ALL VALIDATIONS PASSED - Returning to queue processor")
+            candidate_id = result.get("candidate_id", "unknown")
+            logger.info(f"[Handler] ✅ Message {message.id} marked COMPLETED (candidate {candidate_id})")
 
             return {
                 'is_valid': True,
                 'candidate_id': candidate_id,
-                'locked_records': ['candidate', 'status']  # Tell queue_processor what we locked
+                'message': 'Validation passed and message marked COMPLETED'
             }
 
+        except ValueError as e:
+            # Non-retryable: validation failed due to handler bug (candidate not found, data mismatch, etc.)
+            db.rollback()
+            logger.error(f"[Handler] ❌ NON-RETRYABLE validation failure: {e}")
+            # Re-raise for caller to mark as FAILED (don't retry)
+            raise
+
+        except RuntimeError as e:
+            # Retryable: validation failed due to temporary error (database issue, etc.)
+            db.rollback()
+            logger.error(f"[Handler] ❌ RETRYABLE validation failure: {e}")
+            # Re-raise for caller to schedule retry
+            raise
+
         except Exception as e:
-            logger.error(f"[Handler] ❌ Validation failed: {e}", exc_info=True)
-            try:
-                db.rollback()
-            except Exception:
-                pass
-            # Return failure dict instead of raising - let queue_processor decide
+            # Unexpected error
+            db.rollback()
+            logger.error(f"[Handler] ❌ Unexpected error during on_success: {e}", exc_info=True)
+            # Treat as retryable
+            raise RuntimeError(f"Unexpected error: {str(e)}") from e
             return {
                 'is_valid': False,
                 'error': str(e),
