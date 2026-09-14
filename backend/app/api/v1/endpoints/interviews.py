@@ -993,11 +993,10 @@ def get_all_interview_panels(
 
     return results
 
-    dependencies=[Depends(require_resource_permission("resource", "delete"))],
+@router.delete(
     "/panels/{panel_id}",
-    dependencies=[Depends(get_current_internal_user)],
+    dependencies=[Depends(require_resource_permission("interview", "delete"))],
     response_model=DeleteResponse,
-
 )
 def delete_interview_panel(
     panel_id: int,
@@ -1076,11 +1075,10 @@ def _rehire_review_to_response(db: Session, review: InterviewRehireReview) -> Re
         created_at=review.created_at,
     )
 
-    dependencies=[Depends(require_resource_permission("resource", "view"))],
+@router.get(
     "/rehire-reviews",
-    dependencies=[Depends(get_current_internal_user)],
+    dependencies=[Depends(require_resource_permission("interview", "view"))],
     response_model=RehireReviewListResponse,
-
 )
 def list_rehire_reviews(
     db: Session = Depends(get_db),
@@ -1098,11 +1096,10 @@ def list_rehire_reviews(
         reviews=[_rehire_review_to_response(db, r) for r in reviews],
     )
 
-    dependencies=[Depends(require_resource_permission("resource", "create"))],
+@router.post(
     "/rehire-reviews/{review_id}/decide",
-    dependencies=[Depends(get_current_internal_user)],
+    dependencies=[Depends(require_resource_permission("interview", "create"))],
     response_model=RehireReviewResponse,
-
 )
 def decide_rehire_review_endpoint(
     review_id: int,
@@ -1168,12 +1165,11 @@ def _panel_diversity_warning(db: Session, panel: InterviewPanel, interviewer_id:
 # Panel Member Endpoints
 # ============================================
 
-    dependencies=[Depends(require_resource_permission("resource", "create"))],
+@router.post(
     "/panel-members/assign",
-    dependencies=[Depends(get_current_internal_user)],
+    dependencies=[Depends(require_resource_permission("interview", "create"))],
     response_model=PanelMemberResponse,
     status_code=201,
-
 )
 def assign_panel_member(
     request: PanelMemberCreate,
@@ -1318,11 +1314,10 @@ def get_panel_members(
 
     return results
 
-    dependencies=[Depends(require_resource_permission("resource", "delete"))],
+@router.delete(
     "/panel-members/{member_id}",
-    dependencies=[Depends(get_current_internal_user)],
+    dependencies=[Depends(require_resource_permission("interview", "delete"))],
     response_model=DeleteResponse,
-
 )
 def remove_panel_member(
     member_id: int,
@@ -1494,9 +1489,9 @@ def create_interview(
 # My Interviews Endpoint
 # ============================================
 
-    dependencies=[Depends(require_resource_permission("resource", "view"))],
+@router.get(
     "/my-interviews",
-    dependencies=[Depends(get_current_internal_user)],
+    dependencies=[Depends(require_resource_permission("interview", "view"))],
     response_model=MyInterviewsResponse,
     summary="Get my interviews",
     description=(
@@ -1890,11 +1885,10 @@ def update_interview(
         status=interview.status
     )
 
-    dependencies=[Depends(require_resource_permission("resource", "delete"))],
+@router.delete(
     "/{interview_id}",
-    dependencies=[Depends(get_current_internal_user)],
+    dependencies=[Depends(require_resource_permission("interview", "delete"))],
     response_model=DeleteResponse,
-
 )
 def delete_interview(
     interview_id: int,
@@ -2591,9 +2585,9 @@ def get_interviewer_workload(
         upcoming_interviews=upcoming_details
     )
 
-    dependencies=[Depends(require_resource_permission("resource", "view"))],
+@router.get(
     "/hm-review/my-candidates", response_model=HMCandidateReviewListResponse,
-    dependencies=[Depends(get_current_internal_user)],
+    dependencies=[Depends(require_resource_permission("interview", "view"))],
     summary="S-102/HRMS-P207 -- the caller's own hiring-manager candidate review list: profile + all interview feedback per candidate",
 )
 def get_my_hiring_manager_candidate_review(
