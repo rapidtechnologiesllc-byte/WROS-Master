@@ -167,6 +167,7 @@ export default function CandidateCreate({ onBack, onSave }) {
     email: null,
     mobile: null,
     gender: null,
+    candidateJobTitle: null,
   });
 
   useEffect(() => {
@@ -529,6 +530,7 @@ export default function CandidateCreate({ onBack, onSave }) {
 
     if (!firstName.trim()) newErrors.firstName = "First Name is required.";
     if (!lastName.trim()) newErrors.lastName = "Last Name is required.";
+    if (!candidateJobTitle.trim()) newErrors.candidateJobTitle = "Current Job Title is required.";
     if (!gender.trim()) newErrors.gender = "Gender is required.";
     if (!mobile.trim()) newErrors.mobile = "Mobile is required.";
     else if (!/^\d{7,15}$/.test(mobile.replace(/\D/g, ''))) newErrors.mobile = "Mobile must be 7-15 digits.";
@@ -847,13 +849,18 @@ export default function CandidateCreate({ onBack, onSave }) {
           </div>
 
           <Input
-            label="Current Job Title"
+            label="Current Job Title *"
             value={candidateJobTitle}
             onChange={(value) => {
               setCandidateJobTitle(value);
+              clearFieldError("candidateJobTitle");
             }}
             placeholder="e.g., Senior Software Engineer, Product Manager"
+            error={errors.candidateJobTitle}
           />
+          {errors.candidateJobTitle ? (
+            <div className="mt-1 text-xs text-red-500">{errors.candidateJobTitle}</div>
+          ) : null}
 
           <div className="grid grid-cols-[minmax(0,7rem)_1fr] gap-2">
             <Select
