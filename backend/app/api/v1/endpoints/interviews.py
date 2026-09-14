@@ -743,7 +743,7 @@ def _create_hm_review_task(db: Session, interview: Interview) -> None:
 
 @router.post(
     "/panels/create",
-    dependencies=[Depends(get_current_internal_user)],
+    dependencies=[Depends(require_resource_permission("interview", "create"))],
     response_model=InterviewPanelResponse,
     status_code=201,
 )
@@ -1364,7 +1364,7 @@ def remove_panel_member(
 
 @router.post(
     "/create",
-    dependencies=[Depends(get_current_internal_user)],
+    dependencies=[Depends(require_resource_permission("interview", "create"))],
     response_model=InterviewResponse,
     status_code=201,
 
@@ -1794,7 +1794,7 @@ def get_all_interviews(
 
 @router.put(
     "/{interview_id}",
-    dependencies=[Depends(get_current_internal_user)],
+    dependencies=[Depends(require_resource_permission("interview", "create"))],
     response_model=InterviewResponse,
 
 )

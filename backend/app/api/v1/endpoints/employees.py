@@ -174,7 +174,7 @@ def create_employee(
 
 @router.post(
     "/convert-candidate/{candidate_id}", response_model=EmployeeItem,
-    dependencies=[Depends(get_current_internal_user)],
+    dependencies=[Depends(require_resource_permission("employee", "create"))],
     summary="Convert a candidate to an employee (HRMS-0708 minimal slice)",
 )
 def convert_candidate(
