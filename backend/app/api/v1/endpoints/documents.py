@@ -223,10 +223,10 @@ async def upload_uan_pf(
 # Candidate Self-Service Document Endpoint
 # ============================================
 
-    dependencies=[Depends(require_resource_permission("resource", "view"))]
+@router.get(
     "/my-documents",
     summary="Get all documents uploaded by the currently authenticated candidate",
-    dependencies=[Depends(get_current_internal_user)]
+    dependencies=[Depends(require_resource_permission("document", "view"))]
 )
 async def get_my_documents(
     current_user=Depends(get_current_candidate),
@@ -426,10 +426,10 @@ async def get_candidate_documents(
         "documents": list(grouped.values()),
     }
 
-    dependencies=[Depends(require_resource_permission("resource", "view"))]
+@router.get(
     "/{document_id}",
     summary="Get a single document's metadata by its ID",
-    dependencies=[Depends(get_current_internal_user)]
+    dependencies=[Depends(require_resource_permission("document", "view"))]
 )
 async def get_document_by_id(
     document_id: int,

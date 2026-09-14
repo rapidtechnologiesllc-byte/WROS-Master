@@ -537,10 +537,10 @@ def get_all_offers(
     return AllOffersResponse(total_offers=len(offer_responses), offers=offer_responses)
 
 # "" Hiring Manager: list offers pending approval """""""""""""""""""""""""""""
-    dependencies=[Depends(require_resource_permission("letter", "view"))],
+@router.get(
     "/pending-approval",
-    dependencies=[Depends(get_current_internal_user)],
     response_model=AllOffersResponse,
+    dependencies=[Depends(require_resource_permission("offer", "view"))],
     summary="List offer letters pending the authenticated Hiring Manager's approval",
 )
 def get_pending_approval_offers(
