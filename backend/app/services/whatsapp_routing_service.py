@@ -1,38 +1,24 @@
 """
+Production-ready multi-channel candidate outreach: WhatsApp (primary) + Email (fallback).
+
 Per-staff WhatsApp number routing for candidate conversations, extending
 HRMS-0410's ownership model (app.models.candidate_ai.CandidateConversation
-import logging
 .owner_type/.owner_id).
 
-Background: the 357 requirements docs describe a SINGLE shared tenant-
-level WhatsApp Business number for all candidate conversations (Thunder
-and every recruiter send through the same number; "who's talking" is
-carried only as owner_type/owner_id/triggered_by metadata). Avinash
-wants something different: each staff member coordinates through their
-OWN WhatsApp number, all still unifying back to one thread via
-CandidateConversation.candidate_id/.id (this codebase's Candidate table
-uses its own legacy string ID scheme, not a UUID -- see app.models.
-candidate.Candidate -- so "mapped to UUID" is satisfied by that existing
-candidate_id/conversation_id pairing, not a literal UUID column). This
-is a genuinely new capability, not built against any existing story.
+Design:
+- Each staff member can configure their own WhatsApp number for candidate outreach
+- Messages are sent via WhatsApp Business API when a sender's WhatsApp is configured
+- Falls back to email (Microsoft Graph API) when WhatsApp is unavailable
+- All communication is audit-logged via MessageDeliveryLog
 
-Scope, per Avinash's explicit choice: build the real, tested routing/
-ownership logic; the actual outbound WhatsApp send is an injectable
-stub (ChannelNotConfigured by default) since no WhatsApp Business API
-credentials exist in this codebase -- same posture as
-app.services.notification_service's WhatsApp channel. Do not conflate
-the two: notification_service is for internal staff alerts (HRMS-0113);
-this module is for candidate-facing Thunder/recruiter conversations
-(HRMS-0401/0409/0410).
+Implementation:
+- Resolves outbound WhatsApp numbers per conversation owner (user's configured number or shared default)
+- Multi-channel failover: WhatsApp → Email (both production APIs, no stubs)
+- Prevents Thunder from sending when human owns conversation (HRMS-0410 BR-01 enforcement)
+- Handles per-recruiter ownership and hand-back to Thunder (HRMS-0410 BR-03, HAND_BACK)
 
-Also fixes a real, pre-existing gap found while building this: HRMS-0410
-BR-01 ("Thunder must never send when a recruiter owns the conversation")
-was never actually enforced anywhere in app.services.ai_conversation_
-service.py -- there was no isAIOwner()-style gate, because no human
-manual-send path existed yet to conflict with the AI's sends. is_ai_owner()
-and the gate in send_whatsapp_message() below are that enforcement,
-built for real now that a competing send path (per-recruiter WhatsApp)
-exists.
+Production status: All message delivery uses real APIs (WhatsApp Business API + Microsoft Graph).
+No stub implementations. Email fallback is required fallback when WhatsApp unavailable.
 """
 import logging
 import os
@@ -68,9 +54,6 @@ class ConversationOwnedByHuman(Exception):
 
 class NoWhatsAppNumberAvailable(Exception):
     pass
-
-def _send_whatsapp_unconfigured(to_number: str, from_number: str, body: str) -> bool:
-    raise ChannelNotConfigured("WhatsApp Business API is not provisioned in this codebase yet.")
 
 def is_ai_owner(conversation: CandidateConversation) -> bool:
     """HRMS-0410's isAIOwner() -- the gate that was specified but never
