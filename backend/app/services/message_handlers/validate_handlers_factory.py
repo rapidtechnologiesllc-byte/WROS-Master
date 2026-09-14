@@ -141,3 +141,118 @@ class ValidateHandlersFactory:
         except Exception as e:
             logger.error(f"[{handler_name}] RETRYABLE validation error: {e}", exc_info=True)
             raise RuntimeError(f"Database error: {str(e)}") from e
+
+    @staticmethod
+    def validate_invoice_exists(result: Dict[str, Any], db: Session, handler_name: str) -> None:
+        """Generic invoice validation: record must exist."""
+        from app.models.invoice import Invoice
+
+        if not result or "invoice_id" not in result:
+            raise ValueError(f"Invalid result: {result}")
+
+        invoice_id = result.get("invoice_id")
+
+        try:
+            invoice = db.query(Invoice).filter(Invoice.id == invoice_id).first()
+            if not invoice:
+                raise ValueError(f"Invoice {invoice_id} not found after {handler_name}")
+
+            logger.info(f"✅ {handler_name} validated: {invoice_id}")
+
+        except ValueError:
+            raise
+
+        except Exception as e:
+            logger.error(f"[{handler_name}] RETRYABLE validation error: {e}", exc_info=True)
+            raise RuntimeError(f"Database error: {str(e)}") from e
+
+    @staticmethod
+    def validate_invoice_status(result: Dict[str, Any], db: Session, handler_name: str, expected_status: str) -> None:
+        """Validate invoice status is expected value."""
+        from app.models.invoice import Invoice
+
+        if not result or "invoice_id" not in result:
+            raise ValueError(f"Invalid result: {result}")
+
+        invoice_id = result.get("invoice_id")
+
+        try:
+            invoice = db.query(Invoice).filter(Invoice.id == invoice_id).first()
+            if not invoice:
+                raise ValueError(f"Invoice {invoice_id} not found")
+
+            if invoice.status != expected_status:
+                raise ValueError(
+                    f"Invoice {invoice_id} status is {invoice.status}, "
+                    f"expected {expected_status}"
+                )
+
+            logger.info(f"✅ {handler_name} validated: {invoice_id} status={expected_status}")
+
+        except ValueError:
+            raise
+
+        except Exception as e:
+            logger.error(f"[{handler_name}] RETRYABLE validation error: {e}", exc_info=True)
+            raise RuntimeError(f"Database error: {str(e)}") from e
+
+    @staticmethod
+    def validate_revenue_record_created(result: Dict[str, Any], db: Session, handler_name: str) -> None:
+        """Validate revenue record was created."""
+        from app.models.revenue import Revenue
+
+        if not result or "revenue_id" not in result:
+            raise ValueError(f"Invalid result: {result}")
+
+        revenue_id = result.get("revenue_id")
+
+        try:
+            revenue = db.query(Revenue).filter(Revenue.id == revenue_id).first()
+            if not revenue:
+                raise ValueError(f"Revenue {revenue_id} not found after {handler_name}")
+
+            if revenue.status != 'RECOGNIZED':
+                raise ValueError(
+                    f"Revenue {revenue_id} status is {revenue.status}, "
+                    f"expected RECOGNIZED"
+                )
+
+            logger.info(f"✅ {handler_name} validated: {revenue_id}")
+
+        except ValueError:
+            raise
+
+        except Exception as e:
+            logger.error(f"[{handler_name}] RETRYABLE validation error: {e}", exc_info=True)
+            raise RuntimeError(f"Database error: {str(e)}") from e
+
+    @staticmethod
+    def validate_revenue_amount_matches(result: Dict[str, Any], db: Session, handler_name: str) -> None:
+        """Validate revenue amount matches expected amount."""
+        from app.models.revenue import Revenue
+
+        if not result or "revenue_id" not in result or "amount_recognized" not in result:
+            raise ValueError(f"Invalid result: {result}")
+
+        revenue_id = result.get("revenue_id")
+        expected_amount = result.get("amount_recognized", 0)
+
+        try:
+            revenue = db.query(Revenue).filter(Revenue.id == revenue_id).first()
+            if not revenue:
+                raise ValueError(f"Revenue {revenue_id} not found")
+
+            if revenue.amount_usd_cents != expected_amount:
+                raise ValueError(
+                    f"Revenue amount mismatch: expected ${expected_amount / 100:.2f}, "
+                    f"got ${revenue.amount_usd_cents / 100:.2f}"
+                )
+
+            logger.info(f"✅ {handler_name} validated: amount correct")
+
+        except ValueError:
+            raise
+
+        except Exception as e:
+            logger.error(f"[{handler_name}] RETRYABLE validation error: {e}", exc_info=True)
+            raise RuntimeError(f"Database error: {str(e)}") from e
