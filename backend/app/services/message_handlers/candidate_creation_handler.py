@@ -18,7 +18,11 @@ from app.services.candidate_service import create_candidate_safe, DuplicateCandi
 from app.services.data_healer_service import DataHealerService
 from app.services.message_queue_service import MessageQueueService
 from app.services.message_handlers.base_message_handler import time_bound
-from app.services.candidate_activity_service import log_candidate_created
+from app.services.candidate_activity_service import (
+    log_candidate_created,
+    log_duplicate_merged,
+    log_thunder_queued,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -62,9 +66,32 @@ class CandidateCreationHandler:
             from app.utils.uniq_id_generator import candidate_id_generator
 
             # Extract and validate tenant_id (required for multi-tenant isolation)
-            tenant_id = payload.get("tenant_id", 1)
-            if not isinstance(tenant_id, int) or tenant_id < 1:
-                logger.error(f"[Handler] Invalid tenant_id {tenant_id} for {candidate_email}")
+            # Note: payload.tenant_id may be int (legacy) or string (users.UserID)
+            raw_tenant_id = payload.get("tenant_id", 1)
+
+            # Convert to string if integer (for FK compatibility with users.UserID)
+            if isinstance(raw_tenant_id, int):
+                # Integer tenant_id: look up the actual UserID for that integer
+                from app.models.user import Users
+                user = db.query(Users).filter(Users.tenant_id == raw_tenant_id).first()
+                if user:
+                    tenant_id = user.UserID  # Use the string UserID
+                    logger.info(f"[Handler] Converted integer tenant_id {raw_tenant_id} to UserID {tenant_id}")
+                else:
+                    # Fallback: use superuser if integer tenant_id not found
+                    superuser = db.query(Users).filter(Users.UserRole == "Super User").first()
+                    if superuser:
+                        tenant_id = superuser.UserID
+                        logger.warning(f"[Handler] Integer tenant_id {raw_tenant_id} not found, using superuser {tenant_id}")
+                    else:
+                        raise ValueError(f"Cannot map tenant_id {raw_tenant_id} to UserID")
+            else:
+                # Already a string (users.UserID)
+                tenant_id = str(raw_tenant_id)
+
+            # Validate result is non-empty string
+            if not isinstance(tenant_id, str) or not tenant_id.strip():
+                logger.error(f"[Handler] Invalid tenant_id after conversion: {tenant_id} (from {raw_tenant_id})")
                 raise ValueError(f"Invalid tenant_id: {tenant_id}")
 
             # Generate password if not provided (UI forms don't always send passwords)
@@ -141,6 +168,14 @@ class CandidateCreationHandler:
                 # MERGE: Update existing candidate with non-null/non-empty values from payload
                 # This implements proper upsert behavior - fresh submission data overwrites stale data
                 merge_count = 0
+
+                # CRITICAL: Always update email to ensure validation passes
+                # When duplicate found by phone, old email may differ from payload email
+                old_email_for_audit = existing.candidateEmail
+                if candidate_email != existing.candidateEmail:
+                    existing.candidateEmail = candidate_email
+                    merge_count += 1
+                    logger.info(f"[Handler] Updated email during merge: {old_email_for_audit} → {candidate_email}")
                 if payload.get("candidate_first_name"):
                     existing.candidateFirstName = payload.get("candidate_first_name")
                     merge_count += 1
@@ -193,6 +228,23 @@ class CandidateCreationHandler:
                 try:
                     db.flush()
                     logger.info(f"[Handler] Flushed merged candidate {candidate_id_existing} to session")
+
+                    # ✅ LOG DUPLICATE MERGE TO AUDIT TRAIL
+                    # Capture the email change if it occurred
+                    if 'old_email_for_audit' in locals() and old_email_for_audit != candidate_email:
+                        try:
+                            log_duplicate_merged(
+                                db=db,
+                                candidate_id=candidate_id_existing,
+                                old_email=old_email_for_audit,
+                                new_email=candidate_email,
+                                match_field="phone"
+                            )
+                            logger.info(f"[Handler] ✅ Logged duplicate merge event for {candidate_id_existing}")
+                        except Exception as log_err:
+                            logger.error(f"[Handler] Failed to log duplicate merge: {log_err}", exc_info=True)
+                            # Don't fail the merge if logging fails
+
                 except Exception as e:
                     logger.error(f"[Handler] Failed to flush merged candidate: {e}", exc_info=True)
                     db.rollback()
@@ -200,9 +252,9 @@ class CandidateCreationHandler:
 
                 logger.info(
                     f"[Handler] DUPLICATE MERGE: Updated {merge_count} fields in {candidate_id_existing}. "
-                    f"Merged: first_name={payload.get('candidate_first_name')}, "
-                    f"last_name={payload.get('candidate_last_name')}, "
-                    f"mobile={payload.get('candidate_mobile')}"
+                    f"Email: {old_email_for_audit} → {candidate_email} | "
+                    f"Name: {payload.get('candidate_first_name')} {payload.get('candidate_last_name')} | "
+                    f"Phone: {payload.get('candidate_mobile')}"
                 )
             else:
                 db.add(candidate)
@@ -229,10 +281,9 @@ class CandidateCreationHandler:
 
                 if not existing_conversation:
                     # CRITICAL #2 FIX: tenant_id in CandidateConversation is String(FK to users.UserID)
-                    # Do NOT pass integer tenant_id (FK to Tenant.id)
-                    # Set tenant_id=None (conversation is system-owned, not user-owned)
+                    # Use the converted tenant_id (which is a UserID string, not integer)
                     candidate_conversation = CandidateConversation(
-                        tenant_id=None,  # System-owned conversation (no specific user owner)
+                        tenant_id=tenant_id,  # Already converted to UserID string above
                         candidate_id=candidate_id,
                         status="open",
                         ai_agent_name="flash_recruiter",
@@ -341,18 +392,41 @@ class CandidateCreationHandler:
                 logger.error(f"[Handler] Atomic commit failed: {e}", exc_info=True)
                 raise RuntimeError(f"Failed to commit all records: {str(e)}") from e
 
-            # LOG ACTIVITY - Phase 2.1: Candidate creation logging
+            # LOG ACTIVITY - Phase 2.1: Candidate creation logging with user attribution
             # Wrapped in try/except so logging failure doesn't block creation success
             try:
+                # PHASE 1A: Extract user attribution from payload
+                created_by_user_id = payload.get("created_by_user_id")
+                created_by_name = payload.get("created_by_name", "System")
+
                 log_candidate_created(
                     db,
                     candidate_id=candidate_id,
-                    created_by_user_id=None,  # Queue doesn't have user context
-                    created_by_name="System",
+                    created_by_user_id=created_by_user_id,
+                    created_by_name=created_by_name,
                     recruitment_source=payload.get("candidate_source", "DIRECT")
                 )
                 db.commit()
-                logger.info(f"[Handler] ✅ Activity logged for candidate creation: {candidate_id}")
+                logger.info(f"[Handler] ✅ Activity logged for candidate creation: {candidate_id} by {created_by_name}")
+
+                # AUDIT LOGGING: Write to audit_log table for compliance
+                try:
+                    from app.core.audit import write_audit_log
+                    write_audit_log(
+                        db,
+                        entity_type="candidate",
+                        entity_id=candidate_id,
+                        action="create",
+                        tenant_id=candidate.tenant_id,
+                        user_id=created_by_user_id,
+                        old_value=None,
+                        new_value=f"Email: {candidate_email}, Name: {payload.get('candidate_first_name', '')} {payload.get('candidate_last_name', '')}"
+                    )
+                    db.commit()
+                    logger.info(f"[Handler] ✅ Audit logged for candidate creation: {candidate_id}")
+                except Exception as audit_err:
+                    logger.warning(f"[Handler] Failed to audit log candidate creation: {audit_err}, but creation succeeded")
+
             except Exception as log_err:
                 logger.warning(f"[Handler] Failed to log candidate creation activity: {log_err}, but creation succeeded")
 

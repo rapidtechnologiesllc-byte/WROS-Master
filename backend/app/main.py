@@ -14,6 +14,7 @@ from app.api.v1.endpoints.auth import router as auth_router
 from app.api.v1.endpoints.users_access_control import router as users_access_control_router
 from app.api.v1.endpoints.candidates import router as candidates_router
 from app.api.v1.endpoints.candidate_history import router as candidate_history_router
+from app.api.v1.endpoints.candidate_audit_log import router as candidate_audit_log_router
 from app.middleware import setup_cors, RequestLoggingMiddleware
 from app.middleware.auth_middleware import AuthenticationMiddleware
 # S-207 -- importing this here (rather than relying on it being pulled in
@@ -382,6 +383,8 @@ app.include_router(career_portal_router)
 app.include_router(candidates_router, prefix="/api/v1")
 # Include candidate history routes with /api/v1/history prefix (activity timeline)
 app.include_router(candidate_history_router, prefix="/api/v1")
+# Include candidate audit log routes with /api/v1/candidates prefix (audit trail)
+app.include_router(candidate_audit_log_router, prefix="/api/v1")
 # Include employee referrals routes with /api/v1/referrals prefix (referral management)
 app.include_router(employee_referrals_router, prefix="/api/v1/referrals")
 # Include Flash queue metrics routes with /api/v1/flash prefix (queue health monitoring)

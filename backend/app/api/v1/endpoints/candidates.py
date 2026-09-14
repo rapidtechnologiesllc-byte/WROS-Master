@@ -189,7 +189,7 @@ def get_all_candidates(
     """Get all candidates (for dashboard, search, etc.)"""
     try:
         candidates = db.query(Candidate).filter(
-            Candidate.tenant_id == getattr(current_user, 'tenant_id', 1) or 1
+            Candidate.tenant_id == (getattr(current_user, 'tenant_id', 1) or 1)
         ).all()
 
         result = []
@@ -207,6 +207,81 @@ def get_all_candidates(
     except Exception as e:
         logger.error(f"Error fetching all candidates: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================================
+# Update Candidate Endpoint (PUT)
+# ============================================================================
+
+@router.put(
+    "/{candidate_id}",
+    response_model=dict,
+    dependencies=[Depends(require_resource_permission("candidates", "can_edit"))],
+)
+def update_candidate_endpoint(
+    candidate_id: str,
+    request: schema.CandidateUpdateRequest,
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user),
+):
+    """Update existing candidate with field-level audit logging.
+
+    Args:
+        candidate_id: ID of candidate to update
+        request: CandidateUpdateRequest with fields to update (only non-null values processed)
+        db: Database session
+        current_user: Authenticated user making changes
+
+    Returns:
+        {
+            'status': 'success' | 'error',
+            'candidate_id': str,
+            'fields_updated': List[str],
+            'audit_trail': List[Dict],
+            'message': str
+        }
+    """
+    try:
+        from app.services.candidate_update_service import update_candidate_safe
+
+        # Extract fields from request (convert to dict, filter None values)
+        update_fields = {
+            'candidate_first_name': request.candidate_first_name,
+            'candidate_last_name': request.candidate_last_name,
+            'candidate_mobile': request.candidate_mobile,
+            'candidate_current_location': request.candidate_current_location,
+            'candidate_source': request.candidate_source,
+            'candidate_experience': request.candidate_experience,
+            'candidate_skills': request.candidate_skills,
+            'candidate_job_title': request.candidate_job_title,
+            'candidate_gender': request.candidate_gender,
+            'candidate_date_of_birth': request.candidate_date_of_birth,
+            'candidate_email': request.candidate_email,
+        }
+
+        # Remove None values
+        update_fields = {k: v for k, v in update_fields.items() if v is not None}
+
+        # Call update service
+        result = update_candidate_safe(
+            db=db,
+            candidate_id=candidate_id,
+            updated_by_user_id=getattr(current_user, 'UserID', None),
+            updated_by_name=getattr(current_user, 'UserName', 'System'),
+            **update_fields
+        )
+
+        if result['status'] == 'error':
+            raise HTTPException(status_code=400, detail=result.get('error', 'Update failed'))
+
+        return result
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error updating candidate {candidate_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to update candidate: {str(e)}")
+
 
 # ============================================================================
 # LinkedIn Import Endpoint
@@ -574,8 +649,8 @@ def candidate_info(request: candidateFormRequest, db: Session = Depends(get_db))
                 candidateLastName=request.candidate_last_name,
                 candidateMobile=request.candidate_mobile,
                 candidatePassword=get_password_hash("TempPass123!"),
-                candidate_source=request.candidate_source,
-                candidate_current_location=request.candidate_current_location,
+                candidateSource=request.candidate_source,
+                candidateCurrentLocation=request.candidate_current_location,
             )
             db.add(candidate)
             db.flush()
