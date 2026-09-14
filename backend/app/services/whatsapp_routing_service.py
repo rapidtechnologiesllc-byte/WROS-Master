@@ -48,6 +48,7 @@ from app.models.user import Users
 from app.services.ai_conversation_service import AI_AGENT_NAME
 from app.services.notification_service import ChannelNotConfigured
 from app.services.delivery_factory import get_delivery_service
+from app.services.email_service import EmailService
 from app.core.logging import logger
 
 # The shared/Thunder number -- used when the AI owns the conversation, or
@@ -162,17 +163,28 @@ def send_whatsapp_message(
 
     # Use delivery service if not overridden with whatsapp_client
     if whatsapp_client is None:
-        delivery_service = get_delivery_service(db=db)
-
         if use_whatsapp:
+            delivery_service = get_delivery_service(db=db)
             result = delivery_service.send_whatsapp(to_number=to_number, body=message_body, from_number=from_number)
         else:
-            # Fallback to email when WhatsApp unavailable
-            result = delivery_service.send_email(
-                to_email=candidate.candidateEmail,
-                subject="Message from Recruiter",
-                body=message_body
-            )
+            # Fallback to email when WhatsApp unavailable - use production Graph-based EmailService
+            try:
+                email_result = EmailService.send_email(
+                    to_email=candidate.candidateEmail,
+                    subject="Message from Recruiter",
+                    body_content=message_body,
+                    is_html=False  # Plain text message from recruiter
+                )
+                # Create synthetic result for consistency with delivery service pattern
+                result = type('DeliveryResult', (), {
+                    'status': 'sent' if email_result.get('status') != 'skipped' else 'pending',
+                    'delivery_id': email_result.get('id') or f"email_{candidate.candidateID}_{datetime.utcnow().timestamp()}",
+                    'external_id': None,
+                    'error': email_result.get('reason') if email_result.get('status') == 'skipped' else None
+                })()
+            except Exception as e:
+                logger.error(f"[Email Fallback] Failed to send email to {candidate.candidateEmail}: {e}")
+                raise RuntimeError(f"Email fallback failed for {candidate.candidateEmail}: {str(e)}")
 
         # Create MessageDeliveryLog for tracking
         try:

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Bell, Eye, EyeOff, Search, User, KeyRound, LogOut, Sun, Moon } from "lucide-react";
 import { useTheme } from "../context/ThemeContext";
 import { Button, Input } from "../components/ui";
-import { getHrMe, changeHrMePassword } from "../services/api/users";
+import { getHrMe, changeHrMePassword, updateWhatsAppNumber } from "../services/api/users";
 import { getNotifications, markNotificationRead } from "../services/api/notifications";
 import { useNavigate, useLocation } from "react-router-dom";
 import { ROUTES } from "../utils/Routes";
@@ -33,6 +33,11 @@ export default function TopBar({
   const [passwordSuccess, setPasswordSuccess] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
   const [showSearchResults, setShowSearchResults] = useState(false);
+  const [showWhatsappModal, setShowWhatsappModal] = useState(false);
+  const [whatsappNumber, setWhatsappNumber] = useState("");
+  const [whatsappError, setWhatsappError] = useState("");
+  const [whatsappSuccess, setWhatsappSuccess] = useState("");
+  const [whatsappLoading, setWhatsappLoading] = useState(false);
   const dropdownRef = useRef(null);
   const searchRef = useRef(null);
   const navigate = useNavigate();
@@ -119,6 +124,7 @@ export default function TopBar({
     try {
       const data = await getHrMe();
       setProfileData(data);
+      setWhatsappNumber(data?.whatsapp_number || "");
       setShowProfileModal(true);
     } catch {
       alert("Failed to fetch profile");
@@ -516,15 +522,31 @@ export default function TopBar({
                 <span className="text-gray-500 dark:text-gray-400">Role</span>
                 <span className="font-medium text-gray-900 dark:text-gray-100">{profileData?.user_role}</span>
               </div>
+
+              <div className="flex justify-between gap-3">
+                <span className="text-gray-500 dark:text-gray-400">WhatsApp</span>
+                <span className="font-medium text-gray-900 dark:text-gray-100">
+                  {profileData?.whatsapp_number || "Not set"}
+                </span>
+              </div>
             </div>
 
-            <Button
-              variant="primary"
-              className="mt-5 w-full"
-              onClick={() => setShowProfileModal(false)}
-            >
-              Close
-            </Button>
+            <div className="flex gap-2 mt-5">
+              <Button
+                variant="outline"
+                className="flex-1"
+                onClick={() => setShowWhatsappModal(true)}
+              >
+                Edit WhatsApp
+              </Button>
+              <Button
+                variant="primary"
+                className="flex-1"
+                onClick={() => setShowProfileModal(false)}
+              >
+                Close
+              </Button>
+            </div>
           </div>
         </div>
       )}
@@ -626,6 +648,93 @@ export default function TopBar({
                 }}
               >
                 Update
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showWhatsappModal && (
+        <div
+          onClick={() => setShowWhatsappModal(false)}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-96 rounded-2xl border bg-white dark:bg-gray-800 dark:border-gray-600 p-6 shadow-2xl"
+          >
+            <h2 className="mb-5 text-base font-semibold text-gray-900 dark:text-gray-100">
+              Edit WhatsApp Number
+            </h2>
+
+            <div className="space-y-3">
+              <Input
+                label="WhatsApp Number"
+                type="tel"
+                value={whatsappNumber}
+                onChange={setWhatsappNumber}
+                placeholder="+1 (555) 123-4567 or +91 9876543210"
+                pattern="\+?[0-9\s\-()]*"
+              />
+              <p className="text-xs text-gray-500">
+                Optional. Used for Thunder candidate outreach. Leave empty to disable WhatsApp.
+              </p>
+            </div>
+
+            {whatsappError && (
+              <p className="mt-3 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">
+                {whatsappError}
+              </p>
+            )}
+
+            {whatsappSuccess && (
+              <p className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-700">
+                {whatsappSuccess}
+              </p>
+            )}
+
+            <div className="mt-5 flex gap-2">
+              <Button
+                variant="secondary"
+                className="w-1/2"
+                onClick={() => {
+                  setShowWhatsappModal(false);
+                  setWhatsappError("");
+                  setWhatsappSuccess("");
+                }}
+                disabled={whatsappLoading}
+              >
+                Cancel
+              </Button>
+
+              <Button
+                variant="primary"
+                className="w-1/2"
+                onClick={async () => {
+                  setWhatsappError("");
+                  setWhatsappSuccess("");
+                  setWhatsappLoading(true);
+
+                  try {
+                    await updateWhatsAppNumber(whatsappNumber);
+                    setWhatsappSuccess("WhatsApp number updated successfully");
+
+                    setTimeout(() => {
+                      setShowWhatsappModal(false);
+                      setWhatsappSuccess("");
+                      setWhatsappNumber("");
+                    }, 1500);
+                  } catch (error) {
+                    setWhatsappError(
+                      error.message || "Failed to update WhatsApp number"
+                    );
+                  } finally {
+                    setWhatsappLoading(false);
+                  }
+                }}
+                disabled={whatsappLoading}
+              >
+                {whatsappLoading ? "Saving..." : "Save"}
               </Button>
             </div>
           </div>

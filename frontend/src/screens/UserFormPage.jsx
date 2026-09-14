@@ -18,7 +18,8 @@ export default function UserFormPage() {
     user_password: '',
     job_title: '',
     business_unit_id: '',
-    role_template_id: ''
+    role_template_id: '',
+    whatsapp_number: ''
   });
 
   const [roleTemplates, setRoleTemplates] = useState([]);
@@ -85,7 +86,8 @@ export default function UserFormPage() {
           user_password: '',
           job_title: user.job_title || '',
           business_unit_id: user.business_unit_id || '',
-          role_template_id: roleTemplateId
+          role_template_id: roleTemplateId,
+          whatsapp_number: user.whatsapp_number || ''
         });
       } else {
         toast.error('User not found');
@@ -115,6 +117,10 @@ export default function UserFormPage() {
 
   const handleJobTitleChange = (value) => {
     setFormData(prev => ({ ...prev, job_title: value }));
+  };
+
+  const handleWhatsappChange = (value) => {
+    setFormData(prev => ({ ...prev, whatsapp_number: value }));
   };
 
   const handleBusinessUnitChange = (e) => {
@@ -303,6 +309,24 @@ export default function UserFormPage() {
                 );
               })}
             </select>
+          </div>
+
+          {/* WhatsApp Number */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              WhatsApp Number (for Thunder outreach)
+            </label>
+            <Input
+              type="tel"
+              value={formData.whatsapp_number}
+              onChange={handleWhatsappChange}
+              placeholder="+1 (555) 123-4567 or +91 9876543210"
+              disabled={saving}
+              pattern="\+?[0-9\s\-()]*"
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              Optional. Used for Thunder candidate outreach. If empty, Thunder will fall back to email.
+            </p>
           </div>
 
           {/* Business Unit */}

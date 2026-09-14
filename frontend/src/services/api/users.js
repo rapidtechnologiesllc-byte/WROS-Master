@@ -130,6 +130,16 @@ export const changeHrMePassword = async ({
   return data;
 };
 
+export const updateWhatsAppNumber = async (whatsapp_number) => {
+  const { data } = await apiRequest("/hr/users/me/whatsapp", {
+    method: "PUT",
+    body: JSON.stringify({
+      whatsapp_number: whatsapp_number || null,
+    }),
+  });
+  return data;
+};
+
 // Force password change (no current password required - used after auto-creation or first login)
 export const changePassword = async ({
   new_password,

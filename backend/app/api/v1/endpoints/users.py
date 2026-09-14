@@ -1242,6 +1242,45 @@ def change_password(
     )
 
 @router.put(
+    "/users/me/whatsapp",
+    response_model=DeleteResponse,
+    summary="Update current user's WhatsApp number",
+)
+def update_whatsapp_number(
+    request: dict,
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_internal_user),
+):
+    """
+    Update the WhatsApp number for the currently logged-in user.
+    Used by Thunder for candidate outreach when no shared number is available.
+
+    Request body:
+        {
+            "whatsapp_number": "+1 (555) 123-4567" or null
+        }
+    """
+    whatsapp_number = request.get("whatsapp_number")
+
+    # Validate format if provided
+    if whatsapp_number:
+        # Basic validation: only allow +, digits, spaces, hyphens, parentheses
+        import re
+        if not re.match(r'^\+?[0-9\s\-()]+$', str(whatsapp_number)):
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid WhatsApp number format. Use format like +1 (555) 123-4567"
+            )
+
+    current_user.whatsapp_number = whatsapp_number
+    db.commit()
+
+    return DeleteResponse(
+        status="Success",
+        message="WhatsApp number updated successfully"
+    )
+
+@router.put(
     "/admin/users/{user_id}/reset-password",
     response_model=DeleteResponse,
     summary="Admin force reset user password",
