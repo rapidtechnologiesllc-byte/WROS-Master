@@ -56,7 +56,7 @@ from app.services.linkedin_import_service import (
 )
 from app.services.apollo_integration import search_apollo_by_linkedin_url
 
-router = APIRouter(prefix="/candidate", tags=["candidate"])
+router = APIRouter(prefix="/candidates", tags=["candidates"])
 
 
 # ============================================================================
@@ -172,6 +172,41 @@ class LinkedInImportResponse(BaseModel):
     open_to_work: bool
     linkedin_url: str
     message: str
+
+# ============================================================================
+# Get All Candidates Endpoint
+# ============================================================================
+
+@router.get(
+    "/all",
+    response_model=list,
+    dependencies=[Depends(require_resource_permission("candidates", "view"))],
+)
+def get_all_candidates(
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user),
+):
+    """Get all candidates (for dashboard, search, etc.)"""
+    try:
+        candidates = db.query(Candidate).filter(
+            Candidate.tenant_id == getattr(current_user, 'tenant_id', 1) or 1
+        ).all()
+
+        result = []
+        for c in candidates:
+            result.append({
+                'candidateID': c.candidateID,
+                'candidateEmail': c.candidateEmail,
+                'candidateFirstName': c.candidateFirstName,
+                'candidateLastName': c.candidateLastName,
+                'candidateRole': c.candidateRole,
+                'candidateSource': c.candidateSource,
+                'candidateCreatedAt': c.candidateCreatedAt.isoformat() if c.candidateCreatedAt else None,
+            })
+        return result
+    except Exception as e:
+        logger.error(f"Error fetching all candidates: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
 
 # ============================================================================
 # LinkedIn Import Endpoint
