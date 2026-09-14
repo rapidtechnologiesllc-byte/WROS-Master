@@ -139,6 +139,23 @@ def _initialize_default_handlers():
     except Exception as e:
         logger.error(f"[Registry] Failed to register invoice/revenue handlers: {e}", exc_info=True)
 
+    # Register Phase 3: Hiring Manager Validation handlers (CRITICAL - hiring workflow)
+    try:
+        from app.services.message_handlers.hm_validation_created_handler import HMValidationCreatedHandler
+        from app.services.message_handlers.hm_validation_notification_handler import HMValidationNotificationHandler
+        from app.services.message_handlers.hm_validation_response_handler import HMValidationResponseHandler
+        from app.services.message_handlers.hm_validation_escalation_handler import HMValidationEscalationHandler
+
+        MessageHandlerRegistry.register("hm_validation_created", HMValidationCreatedHandler.process)
+        MessageHandlerRegistry.register("hm_validation_notify", HMValidationNotificationHandler.process)
+        MessageHandlerRegistry.register("hm_validation_response_submitted", HMValidationResponseHandler.process)
+        MessageHandlerRegistry.register("hm_validation_escalated", HMValidationEscalationHandler.process)
+        logger.info("[Registry] Registered Phase 3 HM validation handlers (4 of 5 core)")
+    except ImportError as e:
+        logger.warning(f"[Registry] Could not import HM validation handlers: {e}")
+    except Exception as e:
+        logger.error(f"[Registry] Failed to register HM validation handlers: {e}", exc_info=True)
+
     # Register interview handlers (legacy signature, needs adapter)
     try:
         from app.services.message_handlers.interview_scheduled_handler import handle_interview_scheduled as legacy_handle_interview_scheduled
