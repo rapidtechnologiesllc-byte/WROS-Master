@@ -366,25 +366,60 @@ const MessageQueueMonitorEnhanced = () => {
                               </td>
                             </tr>
                             {expandedPayloads[row.id] && (
-                              <tr className={`status-${row.status.toLowerCase()}`}>
-                                <td colSpan="7" style={{padding: '12px', background: '#f9fafb', borderTop: '1px solid #e5e7eb'}}>
-                                  <div style={{fontSize: '12px'}}>
-                                    <div style={{fontWeight: '600', marginBottom: '8px', color: '#1a1a1a'}}>Message Payload:</div>
-                                    <pre style={{
-                                      background: '#1a1a1a',
-                                      color: '#00ff00',
-                                      padding: '12px',
-                                      borderRadius: '4px',
-                                      overflow: 'auto',
-                                      maxHeight: '300px',
-                                      fontSize: '11px',
-                                      fontFamily: 'monospace'
-                                    }}>
-                                      {JSON.stringify(row.payload || {}, null, 2)}
-                                    </pre>
-                                  </div>
-                                </td>
-                              </tr>
+                              <>
+                                <tr className={`status-${row.status.toLowerCase()}`}>
+                                  <td colSpan="7" style={{padding: '12px', background: '#f9fafb', borderTop: '1px solid #e5e7eb'}}>
+                                    <div style={{fontSize: '12px'}}>
+                                      <div style={{fontWeight: '600', marginBottom: '8px', color: '#1a1a1a'}}>Message Payload:</div>
+                                      <pre style={{
+                                        background: '#1a1a1a',
+                                        color: '#00ff00',
+                                        padding: '12px',
+                                        borderRadius: '4px',
+                                        overflow: 'auto',
+                                        maxHeight: '300px',
+                                        fontSize: '11px',
+                                        fontFamily: 'monospace'
+                                      }}>
+                                        {JSON.stringify(row.payload || {}, null, 2)}
+                                      </pre>
+                                    </div>
+                                  </td>
+                                </tr>
+
+                                {/* Validation Response Section */}
+                                {row.result && (
+                                  <tr className={`status-${row.status.toLowerCase()}`}>
+                                    <td colSpan="7" style={{padding: '12px', background: '#f0fdf4', borderTop: '1px solid #d1fae5'}}>
+                                      <div style={{fontSize: '12px'}}>
+                                        <div style={{fontWeight: '600', marginBottom: '8px', color: '#065f46'}}>
+                                          ✅ Validation Response (on_success):
+                                        </div>
+                                        <pre style={{
+                                          background: '#ecfdf5',
+                                          color: '#065f46',
+                                          padding: '12px',
+                                          borderRadius: '4px',
+                                          overflow: 'auto',
+                                          maxHeight: '300px',
+                                          fontSize: '11px',
+                                          fontFamily: 'monospace',
+                                          border: '1px solid #d1fae5'
+                                        }}>
+                                          {(() => {
+                                            try {
+                                              const parsed = typeof row.result === 'string' ? JSON.parse(row.result) : row.result;
+                                              return JSON.stringify(parsed, null, 2);
+                                            } catch (e) {
+                                              return row.result;
+                                            }
+                                          })()}
+                                        </pre>
+                                      </div>
+                                    </td>
+                                  </tr>
+                                )}
+                              </>
                             )}
                           </React.Fragment>
                           );
