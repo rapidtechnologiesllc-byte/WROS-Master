@@ -114,14 +114,11 @@ def get_pool_status(
 @router.get(
     "/events",
     dependencies=[
-        Depends(require_resource_permission("pull",
-        "view")),
+        Depends(require_resource_permission("pull", "view")),
         Depends(get_current_internal_user),
     ],
-    "/events",
     response_model=CorePullEventQueueResponse,
     summary="Get pending Core-Pull events",
-)
 )
 def get_pending_events(
     db: Session = Depends(get_db),

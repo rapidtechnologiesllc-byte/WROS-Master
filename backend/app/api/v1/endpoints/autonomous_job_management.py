@@ -58,16 +58,13 @@ def get_job_status(job_id: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail=status["error"])
     return status
 
-@router.get(
+@router.post(
     "/close/{job_id}",
     dependencies=[
-        Depends(require_resource_permission("management",
-        "create")),
+        Depends(require_resource_permission("management", "create")),
         Depends(get_current_internal_user),
     ],
-    "/close/{job_id}",
     response_model=JobClosureActionResponse,
-)
 )
 def close_job_manually(job_id: str, db: Session = Depends(get_db)):
     """

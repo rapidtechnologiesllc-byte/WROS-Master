@@ -628,17 +628,14 @@ def get_my_checklists(
 # CANDIDATE — SUBMIT AN ITEM (marks done from candidate side)
 # ===========================================================================
 
-@router.get(
+@router.patch(
     "/candidate/item/{item_id}/complete",
     dependencies=[
-        Depends(require_resource_permission("resource",
-        "edit")),
+        Depends(require_resource_permission("checklist", "edit")),
         Depends(get_current_internal_user),
     ],
-    "/candidate/item/{item_id}/complete",
     response_model=CompleteItemResponse,
     summary="Candidate submits a checklist item (awaiting HR verification)",
-)
 )
 def candidate_complete_item(
     item_id: int,
