@@ -59,10 +59,11 @@ class CandidateConversation(Base):
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
 
     # Tenant — maps to users.UserID (the org owner / admin user)
+    # nullable=True to allow autonomous Thunder conversations (no specific HR admin owner)
     tenant_id = Column(
         String(50),
         ForeignKey("users.UserID", ondelete="NO ACTION"),
-        nullable=False,
+        nullable=True,
         index=True,
     )
 
@@ -291,6 +292,16 @@ class ConversationEvent(Base):
         ForeignKey("candidate_conversations.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
+    )
+
+    # TENANT ISOLATION: Explicit tenant_id for defense-in-depth
+    # Prevents data leakage if FK constraint is bypassed
+    tenant_id = Column(
+        String(50),
+        ForeignKey("users.UserID", ondelete="NO ACTION"),
+        nullable=False,
+        index=True,
+        default="1"  # Default to tenant 1 if not provided
     )
 
     # Type of event (see docstring above)

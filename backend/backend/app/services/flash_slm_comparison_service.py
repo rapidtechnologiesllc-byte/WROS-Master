@@ -135,8 +135,18 @@ class FlashSLMComparisonService:
             )
 
             # If interview_id provided, filter to that interview
+            # TENANT ISOLATION FIX: Validate conversation belongs to candidate's tenant
             if interview_id:
+                candidate_conversations = (
+                    db.query(CandidateConversation.id)
+                    .filter(
+                        CandidateConversation.candidate_id == candidate_id,
+                        CandidateConversation.tenant_id == tenant_id if hasattr(CandidateConversation, 'tenant_id') else True
+                    )
+                    .subquery()
+                )
                 query = query.filter(
+                    ConversationEvent.conversation_id.in_(candidate_conversations),
                     ConversationEvent.event_data.op("->>")("interview_id") == interview_id
                 )
             else:

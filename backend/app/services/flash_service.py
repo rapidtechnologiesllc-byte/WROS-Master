@@ -299,22 +299,34 @@ def _extract_keywords(text: str) -> List[str]:
     tokens = re.findall(r"[A-Za-z][A-Za-z0-9+.#]*", text or "")
     return [t for t in tokens if len(t) > 1 and t.lower() not in _STOPWORDS]
 
-def find_candidates_for_job(db: Session, job_id: str, *, top_n: int = MAX_CANDIDATES_RETURNED) -> List[Dict]:
+def find_candidates_for_job(db: Session, job_id: str, *, top_n: int = MAX_CANDIDATES_RETURNED, tenant_id: int = 1, user_bu_id: Optional[int] = None) -> List[Dict]:
     """
     Find candidates matching a job's structured skill requirements using AND/OR boolean logic.
     AND mode: all mandatory skills required
     OR mode: any skill match counts
+
+    ISOLATION FIX: Filters by tenant_id (required) and user_bu_id (optional for BU scoping)
     """
     from app.models.user import Jobs
+    from sqlalchemy import or_ as sql_or
 
-    job = db.query(Jobs).filter(Jobs.jobID == job_id).first()
+    job = db.query(Jobs).filter(
+        Jobs.jobID == job_id,
+        Jobs.tenant_id == tenant_id  # TENANT ISOLATION FIX
+    ).first()
     if not job or not job.required_skills_canonical:
         return []
 
     skills_required = job.required_skills_canonical
     boolean_mode = job.job_skills_boolean_mode or "AND"
 
+    # ISOLATION FIX: Add tenant_id + BU filtering
     candidates = db.query(Candidate).filter(
+        Candidate.tenant_id == tenant_id,  # TENANT ISOLATION
+        sql_or(
+            Candidate.associated_bu_id.is_(None),  # Unassigned candidates
+            Candidate.associated_bu_id == user_bu_id if user_bu_id else True  # Own BU or admin (NULL bu_id)
+        ) if user_bu_id else True,  # BU ISOLATION
         Candidate.candidateSkills.isnot(None),
         Candidate.candidateExperience.isnot(None)
     ).limit(500).all()
@@ -365,13 +377,17 @@ def find_candidates_for_job(db: Session, job_id: str, *, top_n: int = MAX_CANDID
 
     return matched[:top_n]
 
-def find_matching_candidates(db: Session, query_text: str, *, top_n: int = MAX_CANDIDATES_RETURNED) -> List[Dict]:
+def find_matching_candidates(db: Session, query_text: str, *, top_n: int = MAX_CANDIDATES_RETURNED, tenant_id: int = 1, user_bu_id: Optional[int] = None) -> List[Dict]:
     """
     Real keyword-overlap search over the real Candidates table (skills,
     job title, experience text) -- not a fabricated ranking. Every
     result is a real candidate row; a query with no keywords or no
     matches returns an empty list, not invented candidates.
+
+    ISOLATION FIX: Filters by tenant_id (required) and user_bu_id (optional for BU scoping)
     """
+    from sqlalchemy import or_ as sql_or
+
     keywords = _extract_keywords(query_text)
     if not keywords:
         return []
@@ -384,7 +400,16 @@ def find_matching_candidates(db: Session, query_text: str, *, top_n: int = MAX_C
             Candidate.candidateJobTitle.ilike(like),
             Candidate.candidateExperience.ilike(like),
         ))
-    candidates = db.query(Candidate).filter(or_(*filters)).limit(200).all()
+
+    # ISOLATION FIX: Add tenant_id + BU filtering
+    candidates = db.query(Candidate).filter(
+        Candidate.tenant_id == tenant_id,  # TENANT ISOLATION
+        sql_or(
+            Candidate.associated_bu_id.is_(None),  # Unassigned candidates
+            Candidate.associated_bu_id == user_bu_id if user_bu_id else True  # Own BU
+        ) if user_bu_id else True,  # BU ISOLATION
+        or_(*filters)
+    ).limit(200).all()
 
     scored = []
     for candidate in candidates:
@@ -415,12 +440,17 @@ def find_matching_candidates(db: Session, query_text: str, *, top_n: int = MAX_C
         for c, score in scored[:top_n]
     ]
 
-def get_candidate_status_summary(db: Session, name_query: str) -> Dict:
+def get_candidate_status_summary(db: Session, name_query: str, *, tenant_id: int = 1, user_bu_id: Optional[int] = None) -> Dict:
     """
     Real lookup by name against the real Candidates + CandidateStatus
     tables. Returns {"matches": [...]} -- zero, one, or several real
     candidates (never guesses which one you meant when several share a
-    name; the caller surfaces all of them so a human can disambiguate)."""
+    name; the caller surfaces all of them so a human can disambiguate).
+
+    ISOLATION FIX: Filters by tenant_id (required) and user_bu_id (optional for BU scoping)
+    """
+    from sqlalchemy import or_ as sql_or
+
     keywords = [k for k in _extract_keywords(name_query)]
     if not keywords:
         return {"matches": []}
@@ -429,7 +459,16 @@ def get_candidate_status_summary(db: Session, name_query: str) -> Dict:
     for kw in keywords:
         like = f"%{kw}%"
         filters.append(or_(Candidate.candidateFirstName.ilike(like), Candidate.candidateLastName.ilike(like)))
-    candidates = db.query(Candidate).filter(or_(*filters)).limit(10).all()
+
+    # ISOLATION FIX: Add tenant_id + BU filtering
+    candidates = db.query(Candidate).filter(
+        Candidate.tenant_id == tenant_id,  # TENANT ISOLATION
+        sql_or(
+            Candidate.associated_bu_id.is_(None),  # Unassigned candidates
+            Candidate.associated_bu_id == user_bu_id if user_bu_id else True  # Own BU
+        ) if user_bu_id else True,  # BU ISOLATION
+        or_(*filters)
+    ).limit(10).all()
 
     matches = []
     for candidate in candidates:

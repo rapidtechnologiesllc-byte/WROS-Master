@@ -157,6 +157,24 @@ class Candidate(Base):
         primaryjoin="Candidate.created_by_user_id==Users.UserID"
     )
 
+    # RECRUITER AUTHORIZATION: Track which recruiter owns this candidate
+    assigned_recruiter_id = Column(
+        String(512),
+        ForeignKey("users.UserID", ondelete="SET NULL"),
+        nullable=True,
+        index=True
+    )
+    assigned_recruiter_changed_at = Column(DateTime, nullable=True)  # When assignment changed
+    assigned_recruiter_changed_by = Column(String(512), nullable=True)  # Who made the change
+
+    # Assigned recruiter relationship
+    assigned_recruiter = relationship(
+        "Users",
+        foreign_keys=[assigned_recruiter_id],
+        lazy="select",
+        primaryjoin="Candidate.assigned_recruiter_id==Users.UserID"
+    )
+
     # History entries relationship
     history_entries = relationship(
         "CandidateHistory",
