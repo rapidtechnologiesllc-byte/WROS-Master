@@ -46,18 +46,18 @@ def _current_employee(db: Session, current_user: Users) -> Employee:
         raise HTTPException(status_code=404, detail="No employee record linked to your account.")
     return employee
 
-@router.get(
+    dependencies=[Depends(require_resource_permission("signal", "view"))],
     "/org-health",
     dependencies=[Depends(get_current_internal_user)],
 )
 def org_health(db: Session = Depends(get_db)):
     return get_org_health_snapshot(db)
 
-@router.post("/feedback-cycles", response_model=FeedbackCycleResponse, dependencies=[Depends(get_current_internal_user)])
+@router.post("/feedback-cycles", response_model=FeedbackCycleResponse, dependencies=[Depends(require_resource_permission("signal", "create"))])
 def create_cycle(body: FeedbackCycleCreateRequest, db: Session = Depends(get_db)):
     return start_quarterly_cycle(db, body.quarter_label)
 
-@router.post("/feedback-cycles/{cycle_id}/close", dependencies=[Depends(get_current_internal_user)])
+@router.post("/feedback-cycles/{cycle_id}/close", dependencies=[Depends(require_resource_permission("signal", "create"))])
 def close_cycle(cycle_id: str, current_user: Users = Depends(get_current_internal_user), db: Session = Depends(get_db)):
     if not current_user:
         raise HTTPException(status_code=401, detail="Authentication required")
@@ -81,11 +81,11 @@ def submit_response(
     submit_feedback(db, cycle, employee, body.response_text)
     return {"submitted": True}
 
-@router.get("/recognition/pending", response_model=list[RecognitionDraftResponse], dependencies=[Depends(get_current_internal_user)])
+@router.get("/recognition/pending", response_model=list[RecognitionDraftResponse], dependencies=[Depends(require_resource_permission("signal", "view"))])
 def pending_recognition(db: Session = Depends(get_db)):
     return db.query(RecognitionMessageDraft).filter(RecognitionMessageDraft.status == "DRAFT").all()
 
-@router.post("/recognition/birthday-drafts", response_model=list[RecognitionDraftResponse], dependencies=[Depends(get_current_internal_user)])
+@router.post("/recognition/birthday-drafts", response_model=list[RecognitionDraftResponse], dependencies=[Depends(require_resource_permission("signal", "create"))])
 def birthday_drafts(db: Session = Depends(get_db)):
     return generate_birthday_drafts(db)
 
@@ -103,7 +103,7 @@ def approve_recognition(draft_id: str, current_user: Users = Depends(get_current
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc))
 
-@router.post("/recognition/{draft_id}/reject", response_model=RecognitionDraftResponse, dependencies=[Depends(get_current_internal_user)])
+@router.post("/recognition/{draft_id}/reject", response_model=RecognitionDraftResponse, dependencies=[Depends(require_resource_permission("signal", "create"))])
 def reject_recognition_endpoint(draft_id: str, db: Session = Depends(get_db)):
     draft = db.query(RecognitionMessageDraft).filter(RecognitionMessageDraft.id == draft_id).first()
     if not draft:

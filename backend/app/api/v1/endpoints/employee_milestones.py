@@ -79,7 +79,7 @@ def create_milestone_endpoint(
     db.refresh(milestone)
     return _to_item(milestone)
 
-@router.get(
+    dependencies=[Depends(require_resource_permission("milestone", "view"))],
     "/employee/{employee_id}", response_model=EmployeeMilestoneListResponse,
     dependencies=[Depends(get_current_internal_user)],
     summary="List one employee's PERSONAL/ORG milestones (and PROJECT ones assigned to them)",
@@ -92,7 +92,7 @@ def list_employee_milestones(
     milestones = get_employee_milestones(db, employee_id)
     return EmployeeMilestoneListResponse(milestones=[_to_item(m) for m in milestones])
 
-@router.post(
+    dependencies=[Depends(require_resource_permission("milestone", "create"))],
     "/{milestone_id}/complete", response_model=EmployeeMilestoneItem,
     dependencies=[Depends(get_current_internal_user)],
     summary="Complete a milestone -- completed_date is always today, never caller-supplied",
@@ -114,7 +114,7 @@ def complete_milestone_endpoint(
     db.refresh(milestone)
     return _to_item(milestone)
 
-@router.post(
+    dependencies=[Depends(require_resource_permission("milestone", "create"))],
     "/scan-overdue", response_model=ScanOverdueMilestonesResponse,
     dependencies=[Depends(get_current_internal_user)],
     summary="Idempotent scan: flip past-due open milestones to OVERDUE + write a negative performance event",

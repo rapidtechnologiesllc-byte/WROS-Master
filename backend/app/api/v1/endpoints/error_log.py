@@ -24,7 +24,7 @@ from app.services.error_log_service import query_error_log
 
 router = APIRouter(prefix="/error-log", tags=["error-log"])
 
-@router.get(
+    dependencies=[Depends(require_resource_permission("log", "view"))],
     "",
     response_model=ErrorLogListResponse,
     dependencies=[Depends(get_current_internal_user)],

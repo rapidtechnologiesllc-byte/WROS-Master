@@ -95,7 +95,7 @@ def _get_event_or_404(db: Session, event_id: str) -> CorePullEvent:
         raise HTTPException(status_code=404, detail="Core-Pull event not found.")
     return event
 
-@router.get(
+    dependencies=[Depends(require_resource_permission("pull", "view"))],
     "/specialty-pool-status",
     dependencies=[Depends(get_current_internal_user)],
     response_model=SpecialtyPoolStatusResponse,
@@ -108,7 +108,7 @@ def get_pool_status(
     status = get_specialty_pool_status(db, tenant_id=current_user.tenant_id)
     return SpecialtyPoolStatusResponse(**status)
 
-@router.get(
+    dependencies=[Depends(require_resource_permission("pull", "view"))],
     "/events",
     dependencies=[Depends(get_current_internal_user)],
     response_model=CorePullEventQueueResponse,
@@ -129,7 +129,7 @@ def get_pending_events(
     )
     return CorePullEventQueueResponse(events=[_to_item(db, e) for e in events])
 
-@router.post(
+    dependencies=[Depends(require_resource_permission("pull", "create"))],
     "/events/{event_id}/execute",
     dependencies=[Depends(get_current_internal_user)],
     response_model=ExecuteCorePullResponse,
@@ -162,7 +162,7 @@ def execute_event(
         specialty_pool_size_after=guard["pool_size_after_move"],
     )
 
-@router.post(
+    dependencies=[Depends(require_resource_permission("pull", "create"))],
     "/events/{event_id}/override",
     dependencies=[Depends(get_current_internal_user)],
     response_model=OverrideCorePullResponse,
@@ -194,7 +194,7 @@ def override_event(
     db.refresh(event)
     return OverrideCorePullResponse(message="Core-Pull event overridden.", event=_to_item(db, event))
 
-@router.post(
+    dependencies=[Depends(require_resource_permission("pull", "create"))],
     "/replacement-plans",
     dependencies=[Depends(get_current_internal_user)],
     response_model=ReplacementPlanResponse,

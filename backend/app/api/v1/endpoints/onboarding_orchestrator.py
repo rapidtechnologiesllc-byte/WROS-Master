@@ -29,7 +29,7 @@ from app.core.dependencies import get_current_internal_user
 router = APIRouter(prefix="/onboarding", tags=["onboarding-orchestrator"])
 
 # WORKFLOW: Complete Hiring Pipeline
-@router.post(
+    dependencies=[Depends(require_resource_permission("orchestrator", "create"))],
     "/workflows/hire-complete",
     dependencies=[Depends(get_current_internal_user)],
     summary="Complete hiring pipeline: candidate → job → interview → offer → hire"
@@ -99,7 +99,7 @@ def hire_complete_workflow(
         raise HTTPException(status_code=500, detail=f"Workflow failed: {str(e)}")
 
 # WORKFLOW: Rehire Employee
-@router.post(
+    dependencies=[Depends(require_resource_permission("orchestrator", "create"))],
     "/workflows/rehire",
     dependencies=[Depends(get_current_internal_user)],
     summary="Rehire workflow: employee → candidate → hire"
@@ -149,7 +149,7 @@ def rehire_workflow(
         raise HTTPException(status_code=500, detail=f"Rehire failed: {str(e)}")
 
 # WORKFLOW: Hiring Pipeline Status
-@router.get(
+    dependencies=[Depends(require_resource_permission("orchestrator", "view"))],
     "/workflows/pipeline-status",
     dependencies=[Depends(get_current_internal_user)],
     summary="Get status of all hiring pipeline stages"

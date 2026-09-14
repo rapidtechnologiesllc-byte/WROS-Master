@@ -35,7 +35,7 @@ from app.services.whatsapp_webhook_service import (
 
 router = APIRouter(prefix="/webhooks", tags=["whatsapp-webhook"])
 
-@router.get(
+    dependencies=[Depends(require_resource_permission("webhook", "view"))],
     "/whatsapp",
     dependencies=[Depends(get_current_internal_user)],
     summary="Meta WhatsApp Cloud API webhook verification handshake",
@@ -70,7 +70,7 @@ def _process_webhook_payload(payload: dict) -> None:
     finally:
         db.close()
 
-@router.post(
+    dependencies=[Depends(require_resource_permission("webhook", "create"))],
     "/whatsapp",
     dependencies=[Depends(get_current_internal_user)],
     status_code=200,

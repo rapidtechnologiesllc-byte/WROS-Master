@@ -599,7 +599,7 @@ def hr_complete_item(
 # CANDIDATE — VIEW OWN CHECKLISTS
 # ===========================================================================
 
-@router.get(
+    dependencies=[Depends(require_resource_permission("resource", "view"))],
     "/candidate/my-checklists",
     dependencies=[Depends(get_current_internal_user)],
     response_model=CandidateChecklistListResponse,
@@ -625,7 +625,7 @@ def get_my_checklists(
 # CANDIDATE — SUBMIT AN ITEM (marks done from candidate side)
 # ===========================================================================
 
-@router.put(
+    dependencies=[Depends(require_resource_permission("resource", "edit"))],
     "/candidate/item/{item_id}/complete",
     dependencies=[Depends(get_current_internal_user)],
     response_model=CompleteItemResponse,

@@ -85,7 +85,7 @@ def _alert_to_item(alert: ReconciliationAlert) -> ReconciliationAlertItem:
         billable_hours=float(alert.billable_hours), status=alert.status, gap_detected_at=alert.gap_detected_at,
     )
 
-@router.post(
+    dependencies=[Depends(require_resource_permission("resource", "create"))],
     "/leakage/scan", response_model=Optional[LeakageFlagItem],
     dependencies=[Depends(get_current_internal_user)],
     summary="Scan a project+period for unbilled revenue leakage (null if too early or nothing unbilled)",
@@ -106,7 +106,7 @@ def scan_leakage(
     db.refresh(flag)
     return _flag_to_item(flag)
 
-@router.post(
+    dependencies=[Depends(require_resource_permission("resource", "create"))],
     "/leakage/{flag_id}/log-reason", response_model=LeakageFlagItem,
     dependencies=[Depends(get_current_internal_user)],
     summary="Log a reason (e.g. client-negotiated cap) that suppresses a leakage flag",
@@ -183,7 +183,7 @@ def rescan_all_projects(
     result = run_daily_revenue_scan_job(db)
     return result
 
-@router.post(
+    dependencies=[Depends(require_resource_permission("resource", "create"))],
     "/reconciliation/scan", response_model=ReconciliationScanResponse,
     dependencies=[Depends(get_current_internal_user)],
     summary="Find approved-but-uninvoiced timesheets past the grace period and create alerts",
@@ -199,7 +199,7 @@ def scan_reconciliation(
         db.refresh(alert)
     return ReconciliationScanResponse(alerts=[_alert_to_item(a) for a in alerts])
 
-@router.get(
+    dependencies=[Depends(require_resource_permission("resource", "view"))],
     "/reconciliation/alerts", response_model=ReconciliationAlertsResponse,
     dependencies=[Depends(get_current_internal_user)],
     summary="List reconciliation alerts",
@@ -215,7 +215,7 @@ def list_reconciliation_alerts(
     alerts = query.order_by(ReconciliationAlert.gap_detected_at.desc()).all()
     return ReconciliationAlertsResponse(alerts=[_alert_to_item(a) for a in alerts])
 
-@router.post(
+    dependencies=[Depends(require_resource_permission("resource", "create"))],
     "/reconciliation/alerts/{alert_id}/resolve", response_model=ReconciliationAlertItem,
     dependencies=[Depends(get_current_internal_user)],
     summary="Mark a reconciliation alert resolved",
@@ -233,7 +233,7 @@ def resolve_reconciliation_alert_endpoint(
     db.refresh(alert)
     return _alert_to_item(alert)
 
-@router.get(
+    dependencies=[Depends(require_resource_permission("resource", "view"))],
     "/dashboard/clients/{client_id}", response_model=ClientRevenueDashboardResponse,
     dependencies=[Depends(get_current_internal_user)],
     summary="Client revenue realization dashboard (internal only, estimate)",

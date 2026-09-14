@@ -117,7 +117,7 @@ def _get_recommendation_or_404(db: Session, recommendation_id: str) -> BenchAllo
         raise HTTPException(status_code=404, detail="Recommendation not found.")
     return rec
 
-@router.post(
+    dependencies=[Depends(require_resource_permission("management", "create"))],
     "/scan",
     dependencies=[Depends(get_current_internal_user)],
     response_model=ScanTriggerResponse,
@@ -131,7 +131,7 @@ def trigger_scan(
     db.commit()
     return ScanTriggerResponse(**result)
 
-@router.get(
+    dependencies=[Depends(require_resource_permission("management", "view"))],
     "/recommendations",
     dependencies=[Depends(get_current_internal_user)],
     response_model=RecommendationQueueResponse,
@@ -144,7 +144,7 @@ def get_queue(
     recs = get_recommendation_queue(db, tenant_id=current_user.tenant_id)
     return RecommendationQueueResponse(recommendations=[_to_item(db, r) for r in recs])
 
-@router.post(
+    dependencies=[Depends(require_resource_permission("management", "create"))],
     "/recommendations/{recommendation_id}/pursue",
     dependencies=[Depends(get_current_internal_user)],
     response_model=RecommendationActionResponse,
@@ -174,7 +174,7 @@ def pursue_recommendation(
         message="Now pursuing this recommendation.", recommendation=_to_item(db, rec),
     )
 
-@router.post(
+    dependencies=[Depends(require_resource_permission("management", "create"))],
     "/recommendations/{recommendation_id}/approve",
     dependencies=[Depends(get_current_internal_user)],
     response_model=ApproveRecommendationResponse,
@@ -200,7 +200,7 @@ def approve_recommendation(
         allocation_id=allocation.id,
     )
 
-@router.post(
+    dependencies=[Depends(require_resource_permission("management", "create"))],
     "/recommendations/{recommendation_id}/reject",
     dependencies=[Depends(get_current_internal_user)],
     response_model=RecommendationActionResponse,
@@ -222,7 +222,7 @@ def reject_recommendation(
         message="Recommendation rejected.", recommendation=_to_item(db, rec),
     )
 
-@router.get(
+    dependencies=[Depends(require_resource_permission("management", "view"))],
     "/employees/{employee_id}/actively-engaged",
     dependencies=[Depends(get_current_internal_user)],
     summary="Check whether an employee is currently IN_PROGRESS on another recommendation",
@@ -234,7 +234,7 @@ def check_actively_engaged(
 ):
     return {"employee_id": employee_id, "actively_engaged": is_employee_actively_engaged(db, employee_id)}
 
-@router.get(
+    dependencies=[Depends(require_resource_permission("management", "view"))],
     "/demands/{demand_id}/matching-bench-resources",
     dependencies=[Depends(get_current_internal_user)],
     response_model=MatchBenchResourcesResponse,

@@ -44,7 +44,7 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/hr", tags=["hr"])
 
-@router.get(
+    dependencies=[Depends(require_resource_permission("resource", "view"))],
     "/me",
     dependencies=[Depends(get_current_internal_user)],
     summary="Get current HR/Admin user's profile with a fresh access token",

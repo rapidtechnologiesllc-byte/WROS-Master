@@ -93,7 +93,7 @@ def initialize_org_structure(
             detail=f"Failed to initialize org structure: {str(e)}"
         )
 
-@router.get(
+    dependencies=[Depends(require_resource_permission("structure", "view"))],
     "/positions",
     dependencies=[Depends(get_current_internal_user)],
     response_model=List[OrgPositionResponse],

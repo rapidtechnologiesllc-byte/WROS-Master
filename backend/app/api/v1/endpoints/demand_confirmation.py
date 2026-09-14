@@ -107,7 +107,7 @@ def _get_call_or_404(db: Session, call_id: str) -> DemandAlignmentCall:
         raise HTTPException(status_code=404, detail="Alignment call not found.")
     return call
 
-@router.post(
+    dependencies=[Depends(require_resource_permission("confirmation", "create"))],
     "/demands/{demand_id}/confirm-sow",
     dependencies=[Depends(get_current_internal_user)],
     response_model=ConfirmSOWResponse,
@@ -135,7 +135,7 @@ def confirm_sow(
         sow_received_date=demand.sow_received_date,
     )
 
-@router.post(
+    dependencies=[Depends(require_resource_permission("confirmation", "create"))],
     "/demands/{demand_id}/employees/{employee_id}/schedule-call",
     dependencies=[Depends(get_current_internal_user)],
     response_model=AlignmentCallItem,
@@ -161,7 +161,7 @@ def schedule_call(
     db.refresh(call)
     return _to_item(db, call)
 
-@router.get(
+    dependencies=[Depends(require_resource_permission("confirmation", "view"))],
     "/demands/{demand_id}/calls",
     dependencies=[Depends(get_current_internal_user)],
     response_model=AlignmentCallListResponse,
@@ -181,7 +181,7 @@ def get_calls_for_demand(
     )
     return AlignmentCallListResponse(calls=[_to_item(db, c) for c in calls])
 
-@router.post(
+    dependencies=[Depends(require_resource_permission("confirmation", "create"))],
     "/calls/{call_id}/confirm-fit",
     dependencies=[Depends(get_current_internal_user)],
     response_model=ConfirmFitResponse,
@@ -206,7 +206,7 @@ def confirm_call_fit(
     db.refresh(call)
     return ConfirmFitResponse(message="Fit confirmation recorded.", call=_to_item(db, call))
 
-@router.post(
+    dependencies=[Depends(require_resource_permission("confirmation", "create"))],
     "/calls/{call_id}/trigger-release",
     dependencies=[Depends(get_current_internal_user)],
     response_model=TriggerReleaseResponse,

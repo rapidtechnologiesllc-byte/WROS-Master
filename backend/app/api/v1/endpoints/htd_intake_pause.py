@@ -49,7 +49,7 @@ from app.services.htd_intake_pause_service import (
 
 router = APIRouter(prefix="/htd-intake", tags=["htd-intake"])
 
-@router.post(
+    dependencies=[Depends(require_resource_permission("pause", "create"))],
     "/calculate-monthly-metric", response_model=MonthlyMetricItem,
     dependencies=[Depends(get_current_internal_user)],
     summary="Compute (or recompute) HTD conversion rate for one month",
@@ -97,7 +97,7 @@ def get_status_endpoint(
         return HtdIntakeStatusResponse(is_paused=False)
     return HtdIntakeStatusResponse(is_paused=status.is_paused, paused_at=status.paused_at, pause_reason=status.pause_reason)
 
-@router.post(
+    dependencies=[Depends(require_resource_permission("pause", "create"))],
     "/resume", response_model=HtdIntakeStatusResponse,
     dependencies=[Depends(get_current_internal_user)],
     summary="Resume HTD intake -- requires 200+ char audit findings and corrective actions",

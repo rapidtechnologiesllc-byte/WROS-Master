@@ -537,7 +537,7 @@ def get_all_offers(
     return AllOffersResponse(total_offers=len(offer_responses), offers=offer_responses)
 
 # "" Hiring Manager: list offers pending approval """""""""""""""""""""""""""""
-@router.get(
+    dependencies=[Depends(require_resource_permission("letter", "view"))],
     "/pending-approval",
     dependencies=[Depends(get_current_internal_user)],
     response_model=AllOffersResponse,
@@ -564,7 +564,7 @@ def get_pending_approval_offers(
     return AllOffersResponse(total_offers=len(offer_responses), offers=offer_responses)
 
 # "" Hiring Manager: list awaiting-approval candidates for a specific job """"""
-@router.get(
+    dependencies=[Depends(require_resource_permission("letter", "view"))],
     "/pending-approval/by-job/{job_id}",
     dependencies=[Depends(get_current_internal_user)],
     response_model=AllOffersResponse,
@@ -987,7 +987,7 @@ def release_offer_letter(
 # CANDIDATE SIGNATURE + ACCEPTANCE
 # ============================================
 
-@router.post(
+    dependencies=[Depends(require_resource_permission("letter", "create"))],
     "/sign/{offer_id}",
     dependencies=[Depends(get_current_internal_user)],
     response_model=CandidateSignedAcceptanceResponse,

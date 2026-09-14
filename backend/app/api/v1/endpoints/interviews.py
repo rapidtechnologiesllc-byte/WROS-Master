@@ -993,7 +993,7 @@ def get_all_interview_panels(
 
     return results
 
-@router.delete(
+    dependencies=[Depends(require_resource_permission("resource", "delete"))],
     "/panels/{panel_id}",
     dependencies=[Depends(get_current_internal_user)],
     response_model=DeleteResponse,
@@ -1076,7 +1076,7 @@ def _rehire_review_to_response(db: Session, review: InterviewRehireReview) -> Re
         created_at=review.created_at,
     )
 
-@router.get(
+    dependencies=[Depends(require_resource_permission("resource", "view"))],
     "/rehire-reviews",
     dependencies=[Depends(get_current_internal_user)],
     response_model=RehireReviewListResponse,
@@ -1098,7 +1098,7 @@ def list_rehire_reviews(
         reviews=[_rehire_review_to_response(db, r) for r in reviews],
     )
 
-@router.post(
+    dependencies=[Depends(require_resource_permission("resource", "create"))],
     "/rehire-reviews/{review_id}/decide",
     dependencies=[Depends(get_current_internal_user)],
     response_model=RehireReviewResponse,
@@ -1168,7 +1168,7 @@ def _panel_diversity_warning(db: Session, panel: InterviewPanel, interviewer_id:
 # Panel Member Endpoints
 # ============================================
 
-@router.post(
+    dependencies=[Depends(require_resource_permission("resource", "create"))],
     "/panel-members/assign",
     dependencies=[Depends(get_current_internal_user)],
     response_model=PanelMemberResponse,
@@ -1318,7 +1318,7 @@ def get_panel_members(
 
     return results
 
-@router.delete(
+    dependencies=[Depends(require_resource_permission("resource", "delete"))],
     "/panel-members/{member_id}",
     dependencies=[Depends(get_current_internal_user)],
     response_model=DeleteResponse,
@@ -1494,7 +1494,7 @@ def create_interview(
 # My Interviews Endpoint
 # ============================================
 
-@router.get(
+    dependencies=[Depends(require_resource_permission("resource", "view"))],
     "/my-interviews",
     dependencies=[Depends(get_current_internal_user)],
     response_model=MyInterviewsResponse,
@@ -1890,7 +1890,7 @@ def update_interview(
         status=interview.status
     )
 
-@router.delete(
+    dependencies=[Depends(require_resource_permission("resource", "delete"))],
     "/{interview_id}",
     dependencies=[Depends(get_current_internal_user)],
     response_model=DeleteResponse,
@@ -2591,7 +2591,7 @@ def get_interviewer_workload(
         upcoming_interviews=upcoming_details
     )
 
-@router.get(
+    dependencies=[Depends(require_resource_permission("resource", "view"))],
     "/hm-review/my-candidates", response_model=HMCandidateReviewListResponse,
     dependencies=[Depends(get_current_internal_user)],
     summary="S-102/HRMS-P207 -- the caller's own hiring-manager candidate review list: profile + all interview feedback per candidate",

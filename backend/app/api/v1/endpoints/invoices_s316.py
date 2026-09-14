@@ -95,7 +95,7 @@ def _to_invoice_response(db: Session, invoice: Invoice, tenant_id: int) -> Invoi
 # POST /invoices/generate
 # ============================================================================
 
-@router.post(
+    dependencies=[Depends(require_resource_permission("s316", "create"))],
     "/generate",
     dependencies=[Depends(get_current_internal_user)],
     response_model=GenerateInvoiceResponse,
@@ -191,7 +191,7 @@ def generate_invoice_endpoint(
 # GET /invoices/{id}/calculate
 # ============================================================================
 
-@router.get(
+    dependencies=[Depends(require_resource_permission("s316", "view"))],
     "/{invoice_id}/calculate",
     dependencies=[Depends(get_current_internal_user)],
     response_model=CalculateBillAmountResponse,
@@ -227,7 +227,7 @@ def calculate_bill_amount_endpoint(
 # POST /invoices/{id}/send
 # ============================================================================
 
-@router.post(
+    dependencies=[Depends(require_resource_permission("s316", "create"))],
     "/{invoice_id}/send",
     dependencies=[Depends(get_current_internal_user)],
     response_model=SendInvoiceResponse,
@@ -305,7 +305,7 @@ def send_invoice_endpoint(
 # POST /invoices/{id}/pay
 # ============================================================================
 
-@router.post(
+    dependencies=[Depends(require_resource_permission("s316", "create"))],
     "/{invoice_id}/pay",
     dependencies=[Depends(get_current_internal_user)],
     response_model=TrackPaymentResponse,
@@ -370,7 +370,7 @@ def track_payment_endpoint(
 # GET /invoices/{id}
 # ============================================================================
 
-@router.get(
+    dependencies=[Depends(require_resource_permission("s316", "view"))],
     "/{invoice_id}",
     dependencies=[Depends(get_current_internal_user)],
     response_model=InvoiceDetailResponse,
@@ -401,7 +401,7 @@ def get_invoice_endpoint(
 # GET /invoices
 # ============================================================================
 
-@router.get(
+    dependencies=[Depends(require_resource_permission("s316", "view"))],
     "",
     dependencies=[Depends(get_current_internal_user)],
     "",

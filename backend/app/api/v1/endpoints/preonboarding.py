@@ -306,7 +306,7 @@ def _send_approval_notifications(
 # Routes
 # ---------------------------------------------------------------------------
 
-@router.get(
+    dependencies=[Depends(require_resource_permission("resource", "view"))],
     "/hiring-manager/review",
     dependencies=[Depends(get_current_internal_user)],
     response_model=HMCandidateReviewListResponse,

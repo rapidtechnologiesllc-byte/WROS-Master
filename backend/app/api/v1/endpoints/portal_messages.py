@@ -37,7 +37,7 @@ from app.services.portal_message_service import (
 
 router = APIRouter(prefix="/portal/conversations", tags=["portal-messages"])
 
-@router.post(
+    dependencies=[Depends(require_resource_permission("message", "create"))],
     "/{conversation_id}/messages",
     dependencies=[Depends(get_current_internal_user)],
     response_model=PortalMessageResponse,
@@ -63,7 +63,7 @@ def post_portal_message(
 
     return PortalMessageResponse(**result)
 
-@router.get(
+    dependencies=[Depends(require_resource_permission("message", "view"))],
     "/{conversation_id}/messages",
     dependencies=[Depends(get_current_internal_user)],
     response_model=PortalMessageHistoryResponse,
@@ -82,7 +82,7 @@ def list_portal_messages(
 
     return PortalMessageHistoryResponse(**result)
 
-@router.get(
+    dependencies=[Depends(require_resource_permission("message", "view"))],
     "/{conversation_id}/messages/poll",
     dependencies=[Depends(get_current_internal_user)],
     response_model=PortalMessageHistoryResponse,

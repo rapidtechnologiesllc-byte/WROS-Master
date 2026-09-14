@@ -104,7 +104,7 @@ class SendLoginCredentialsRequest(BaseModel):
 # Endpoints
 # â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-@router.post(
+    dependencies=[Depends(require_resource_permission("resource", "create"))],
     "/send",
     dependencies=[Depends(get_current_internal_user)],
 
@@ -129,7 +129,7 @@ def send_mail(
         cc_emails=request.cc_emails,
     )
 
-@router.post(
+    dependencies=[Depends(require_resource_permission("resource", "create"))],
     "/send-with-attachments",
     dependencies=[Depends(get_current_internal_user)],
 
@@ -195,7 +195,7 @@ async def send_mail_with_attachments(
         attachments=attachments if attachments else None,
     )
 
-@router.post(
+    dependencies=[Depends(require_resource_permission("resource", "create"))],
     "/notify",
     dependencies=[Depends(get_current_internal_user)],
 
@@ -293,7 +293,7 @@ def send_event_notification(
         triggered_by_name=caller_name,
     )
 
-@router.post(
+    dependencies=[Depends(require_resource_permission("resource", "create"))],
     "/interview/invite/{interview_id}",
     dependencies=[Depends(get_current_internal_user)],
 
@@ -389,7 +389,7 @@ def send_interview_invite_by_id(
 
     return result
 
-@router.delete(
+    dependencies=[Depends(require_resource_permission("resource", "delete"))],
     "/interview/cancel/{interview_id}",
     dependencies=[Depends(get_current_internal_user)],
 
@@ -484,7 +484,7 @@ def cancel_interview_by_id(
 
     return result
 
-@router.post(
+    dependencies=[Depends(require_resource_permission("resource", "create"))],
     "/interview/invite/custom",
     dependencies=[Depends(get_current_internal_user)],
 
@@ -514,7 +514,7 @@ def send_custom_interview_invite(
         create_teams_event=request.create_teams_event,
     )
 
-@router.post(
+    dependencies=[Depends(require_resource_permission("resource", "create"))],
     "/login-credentials/{candidate_id}",
     dependencies=[Depends(get_current_internal_user)],
 

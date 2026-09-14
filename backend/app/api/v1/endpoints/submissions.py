@@ -83,7 +83,7 @@ def _to_item(db: Session, submission: Submission) -> SubmissionItem:
         source=submission.source,
     )
 
-@router.post(
+    dependencies=[Depends(require_resource_permission("resource", "create"))],
     "",
     response_model=SubmissionItem,
     dependencies=[Depends(get_current_internal_user)],
@@ -160,7 +160,7 @@ def list_submissions(
     submissions = query.order_by(Submission.submitted_at.desc()).all()
     return SubmissionListResponse(submissions=[_to_item(db, s) for s in submissions])
 
-@router.get(
+    dependencies=[Depends(require_resource_permission("resource", "view"))],
     "/violations",
     response_model=SubmissionViolationListResponse,
     dependencies=[Depends(get_current_internal_user)],
@@ -187,7 +187,7 @@ def list_violations(
         ]
     )
 
-@router.patch(
+    dependencies=[Depends(require_resource_permission("resource", "edit"))],
     "/{submission_id}/client-response", response_model=SubmissionItem,
     dependencies=[Depends(get_current_internal_user)],
     summary="Record the client's response to a submission",

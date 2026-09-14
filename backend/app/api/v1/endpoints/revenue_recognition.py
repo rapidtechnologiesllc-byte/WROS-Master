@@ -77,7 +77,7 @@ router = APIRouter(prefix="/revenue", tags=["revenue-recognition"])
 # REVENUE RECOGNITION ENDPOINTS
 # ============================================================================
 
-@router.post(
+    dependencies=[Depends(require_resource_permission("recognition", "create"))],
     "/recognize",
     dependencies=[Depends(get_current_internal_user)],
     response_model=RevenueRecognitionResponse,
@@ -142,7 +142,7 @@ def recognize_revenue(
         logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post(
+    dependencies=[Depends(require_resource_permission("recognition", "create"))],
     "/entries",
     dependencies=[Depends(get_current_internal_user)],
     response_model=RevenueEntriesResponse,
@@ -197,7 +197,7 @@ def create_entries(
         logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post(
+    dependencies=[Depends(require_resource_permission("recognition", "create"))],
     "/asr",
     dependencies=[Depends(get_current_internal_user)],
     response_model=ASRResponse,
@@ -253,7 +253,7 @@ def calculate_annual_recurring_revenue(
 # REVENUE REPORTING ENDPOINTS
 # ============================================================================
 
-@router.get(
+    dependencies=[Depends(require_resource_permission("recognition", "view"))],
     "/by-month",
     dependencies=[Depends(get_current_internal_user)],
     response_model=RevenueByMonthResponse,
@@ -283,7 +283,7 @@ def get_revenue_monthly(
         logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.get(
+    dependencies=[Depends(require_resource_permission("recognition", "view"))],
     "/by-service",
     dependencies=[Depends(get_current_internal_user)],
     response_model=RevenueByServiceResponse,
@@ -311,7 +311,7 @@ def get_revenue_service(
         logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.get(
+    dependencies=[Depends(require_resource_permission("recognition", "view"))],
     "/by-module",
     dependencies=[Depends(get_current_internal_user)],
     response_model=RevenueByModuleResponse,
@@ -339,7 +339,7 @@ def get_revenue_module(
         logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.get(
+    dependencies=[Depends(require_resource_permission("recognition", "view"))],
     "/by-pricing-model",
     dependencies=[Depends(get_current_internal_user)],
     response_model=RevenueByPricingModelResponse,
@@ -367,7 +367,7 @@ def get_revenue_pricing_model(
         logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.get(
+    dependencies=[Depends(require_resource_permission("recognition", "view"))],
     "/by-client-owner",
     dependencies=[Depends(get_current_internal_user)],
     response_model=RevenueByClientOwnerResponse,
@@ -395,7 +395,7 @@ def get_revenue_client_owner(
         logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.get(
+    dependencies=[Depends(require_resource_permission("recognition", "view"))],
     "/partner-shares",
     dependencies=[Depends(get_current_internal_user)],
     response_model=PartnerRevenueShareResponse,
@@ -423,7 +423,7 @@ def get_partner_shares(
         logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.get(
+    dependencies=[Depends(require_resource_permission("recognition", "view"))],
     "/forecast-vs-actual",
     dependencies=[Depends(get_current_internal_user)],
     response_model=ForecastVsActualResponse,
@@ -455,7 +455,7 @@ def get_forecast_actual(
         logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.get(
+    dependencies=[Depends(require_resource_permission("recognition", "view"))],
     "/negative-margins",
     dependencies=[Depends(get_current_internal_user)],
     response_model=NegativeMarginAlertsResponse,
@@ -484,7 +484,7 @@ def get_negative_margins(
         logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.get(
+    dependencies=[Depends(require_resource_permission("recognition", "view"))],
     "/pnl-summary",
     dependencies=[Depends(get_current_internal_user)],
     response_model=PandLSummaryResponse,
