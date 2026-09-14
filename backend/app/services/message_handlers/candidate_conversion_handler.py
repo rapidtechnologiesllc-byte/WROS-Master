@@ -174,6 +174,37 @@ class CandidateConversionHandler:
         return True
 
     @staticmethod
+    def validate(message: ChannelQueueItem, result: Dict[str, Any], db: Session) -> None:
+        """Validate that candidate conversion actually completed successfully."""
+        from app.models.employee import Employee
+
+        if not result or "employee_id" not in result:
+            raise ValueError(f"Invalid result: {result}")
+
+        candidate_id = result.get("candidate_id")
+        employee_id = result.get("employee_id")
+
+        try:
+            # Verify candidate still exists
+            candidate = db.query(Candidate).filter(Candidate.candidateID == candidate_id).first()
+            if not candidate:
+                raise ValueError(f"Candidate {candidate_id} not found after conversion")
+
+            # Verify employee was created
+            employee = db.query(Employee).filter(Employee.id == employee_id).first()
+            if not employee:
+                raise ValueError(f"Employee {employee_id} not found after conversion")
+
+            logger.info(f"✅ Candidate conversion validated: {candidate_id} -> {employee_id}")
+
+        except ValueError:
+            raise
+
+        except Exception as e:
+            logger.error(f"[CandidateConversionHandler] RETRYABLE validation error: {e}", exc_info=True)
+            raise RuntimeError(f"Database error: {str(e)}") from e
+
+    @staticmethod
     def on_retry(message: ChannelQueueItem, error: str, db: Session) -> None:
         """Handle retry logic after failed attempt."""
         from datetime import timedelta

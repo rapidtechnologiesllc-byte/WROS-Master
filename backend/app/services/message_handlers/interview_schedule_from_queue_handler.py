@@ -157,3 +157,104 @@ class InterviewScheduleFromQueueHandler:
         except Exception as e:
             logger.error(f"[InterviewScheduler] Unexpected error: {e}", exc_info=True)
             raise RuntimeError(f"Unexpected error: {str(e)}") from e
+
+    @staticmethod
+    def validate(message: Any, result: Dict[str, Any], db: Session) -> None:
+        """Validate that interview scheduling completed successfully."""
+        from app.models.user import Interview
+        from sqlalchemy.orm import Session as DbSession
+
+        if not result or "interview_id" not in result:
+            raise ValueError(f"Invalid result: {result}")
+
+        interview_id = result.get("interview_id")
+
+        try:
+            interview = db.query(Interview).filter(Interview.interviewID == interview_id).first()
+            if not interview:
+                raise ValueError(f"Interview {interview_id} not found after scheduling")
+
+            logger.info(f"✅ Interview scheduled validated: {interview_id}")
+
+        except ValueError:
+            raise
+
+        except Exception as e:
+            logger.error(f"[InterviewScheduler] RETRYABLE validation error: {e}", exc_info=True)
+            raise RuntimeError(f"Database error: {str(e)}") from e
+
+    @staticmethod
+    def should_retry(message: Any) -> bool:
+        """Determine if message should be retried."""
+        from datetime import datetime
+        MAX_RETRIES = 3
+        RETRY_DELAY_MINUTES = 15
+
+        if message.retry_count >= MAX_RETRIES:
+            return False
+        if hasattr(message, 'next_retry_at') and message.next_retry_at:
+            if datetime.utcnow() < message.next_retry_at:
+                return False
+        return True
+
+    @staticmethod
+    def on_retry(message: Any, error: str, db: Session) -> None:
+        """Schedule message for retry."""
+        from datetime import datetime, timedelta
+
+        try:
+            db.rollback()
+            message.retry_count += 1
+            message.error = error[:1000]
+            message.next_retry_at = datetime.utcnow() + timedelta(minutes=15)
+            db.commit()
+        except Exception as e:
+            db.rollback()
+            raise RuntimeError(f"Failed to schedule retry: {str(e)}") from e
+
+    @staticmethod
+    def on_success(message: Any, result: Dict[str, Any], db: Session) -> Dict[str, Any]:
+        """Mark message as COMPLETED after validation."""
+        from datetime import datetime
+
+        try:
+            InterviewScheduleFromQueueHandler.validate(message, result, db)
+
+            message.status = "COMPLETED"
+            message.completed_at = datetime.utcnow()
+            message.result = result
+
+            try:
+                db.commit()
+            except Exception as commit_err:
+                db.rollback()
+                raise RuntimeError(f"Failed to commit COMPLETED status: {str(commit_err)}") from commit_err
+
+            return {'is_valid': True, 'interview_id': result.get("interview_id")}
+
+        except ValueError:
+            db.rollback()
+            raise
+
+        except RuntimeError:
+            db.rollback()
+            raise
+
+        except Exception as e:
+            db.rollback()
+            raise RuntimeError(f"Unexpected error: {str(e)}") from e
+
+    @staticmethod
+    def on_failed(message: Any, final_error: str, db: Session) -> None:
+        """Mark message as FAILED after all retries."""
+        from datetime import datetime
+
+        try:
+            db.rollback()
+            message.status = "FAILED"
+            message.error = final_error[:1000]
+            message.completed_at = datetime.utcnow()
+            db.commit()
+        except Exception as e:
+            db.rollback()
+            raise
