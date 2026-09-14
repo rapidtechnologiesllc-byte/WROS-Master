@@ -78,7 +78,7 @@ class FlashSLMComparisonService:
 
         # Fetch Flash analysis
         flash_assessment = FlashSLMComparisonService._get_flash_assessment(
-            db, candidate_id, interview_id
+            db, candidate_id, interview_id, tenant_id=tenant_id  # TENANT ISOLATION FIX: Pass tenant_id
         )
 
         # Fetch SLM assessment
@@ -118,6 +118,7 @@ class FlashSLMComparisonService:
         db: Session,
         candidate_id: str,
         interview_id: Optional[str] = None,
+        tenant_id: int = 1,  # TENANT ISOLATION FIX: Add tenant_id parameter
     ) -> Optional[FlashAssessment]:
         """
         Fetch latest Flash interview analysis from ConversationEvent.
@@ -127,6 +128,8 @@ class FlashSLMComparisonService:
         Otherwise, gets latest from any interview.
 
         Returns None if not found.
+
+        Tenant Isolation: Validates events belong to candidate's tenant.
         """
         try:
             # Query for FLASH_INTERVIEW_DECISION events

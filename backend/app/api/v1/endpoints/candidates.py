@@ -1541,6 +1541,17 @@ def assign_recruiter_to_candidate(
         if not recruiter:
             raise HTTPException(status_code=404, detail="Recruiter not found")
 
+        # BU ISOLATION FIX: Verify recruiter's BU matches candidate's BU
+        recruiter_bu = getattr(recruiter, 'business_unit_id', None)
+        candidate_bu = getattr(candidate, 'associated_bu_id', None)
+
+        if candidate_bu and recruiter_bu and candidate_bu != recruiter_bu:
+            logger.warning(
+                f"[RecruiterAssignment] SECURITY: Recruiter {recruiter.UserID} from BU {recruiter_bu} "
+                f"attempted to assign candidate from BU {candidate_bu}"
+            )
+            raise HTTPException(status_code=403, detail="Recruiter cannot assign candidate from different BU")
+
         # SECURITY: Prevent recruiters from self-assigning (prevent candidate stealing)
         if recruiter.UserID == current_user.UserID:
             raise HTTPException(status_code=400, detail="Cannot assign to yourself")
