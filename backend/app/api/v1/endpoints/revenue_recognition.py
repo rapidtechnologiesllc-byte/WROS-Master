@@ -301,8 +301,8 @@ def get_revenue_client_owner(
         Depends(require_resource_permission("recognition", "view")),
         Depends(get_current_internal_user),
     ],
-    
-)
+    response_model=PartnerRevenueShareResponse,
+    summary="Get partner revenue share analysis",
 )
 def get_partner_shares(
     business_unit_id: Optional[int] = Query(None, description="Filter by BU"),
