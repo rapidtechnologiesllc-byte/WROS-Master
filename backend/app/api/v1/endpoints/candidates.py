@@ -1472,3 +1472,104 @@ def get_onboarding_status(
         }
     }
 
+
+# ============================================================================
+# RECRUITER ASSIGNMENT - Enable recruiter ownership tracking for authorization
+# ============================================================================
+
+class AssignRecruiterRequest(BaseModel):
+    """Request to assign a recruiter to a candidate"""
+    recruiter_id: str = Field(..., description="User ID of recruiter to assign")
+
+
+@router.post(
+    "/{candidate_id}/assign-recruiter",
+    dependencies=[Depends(require_resource_permission("candidate.recruiter_assignment", "create"))]
+)
+def assign_recruiter_to_candidate(
+    candidate_id: str,
+    request: AssignRecruiterRequest,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_internal_user),
+):
+    """
+    RECRUITER AUTHORIZATION: Assign a recruiter to a candidate.
+
+    Authorization: Only managers or admins can assign (not recruiters themselves).
+    This enables ownership-based authorization for escalations and bulk operations.
+
+    Effects:
+    - Sets candidate.assigned_recruiter_id
+    - Only assigned recruiter (or manager/admin) can escalate Flash/SLM conflicts
+    - Prevents recruiters from stealing each other's candidates
+    """
+    try:
+        tenant_id = getattr(current_user, 'tenant_id', 1) or 1
+
+        # Verify recruiter authorization
+        from app.core.dependencies import PermissionHelper
+
+        can_assign = (
+            PermissionHelper.has_permission(
+                current_user.UserID, "recruiter.management", db, tenant_id
+            ) or
+            PermissionHelper.is_super_admin(current_user.UserID, db, tenant_id)
+        )
+
+        if not can_assign:
+            logger.warning(
+                f"[RecruiterAssignment] SECURITY: {current_user.UserID} attempted unauthorized recruiter assignment"
+            )
+            raise HTTPException(status_code=403, detail="Only managers can assign recruiters")
+
+        # Verify candidate exists and belongs to tenant
+        candidate = db.query(Candidate).filter(
+            Candidate.candidateID == candidate_id,
+            Candidate.tenant_id == tenant_id
+        ).first()
+
+        if not candidate:
+            raise HTTPException(status_code=404, detail=f"Candidate {candidate_id} not found")
+
+        # Verify recruiter exists and belongs to tenant
+        from app.models.user import Users
+        recruiter = db.query(Users).filter(
+            Users.UserID == request.recruiter_id,
+            Users.tenant_id == tenant_id
+        ).first()
+
+        if not recruiter:
+            raise HTTPException(status_code=404, detail="Recruiter not found")
+
+        # SECURITY: Prevent recruiters from self-assigning (prevent candidate stealing)
+        if recruiter.UserID == current_user.UserID:
+            raise HTTPException(status_code=400, detail="Cannot assign to yourself")
+
+        # Log the assignment change for audit trail
+        old_recruiter = candidate.assigned_recruiter_id
+        candidate.assigned_recruiter_id = recruiter.UserID
+        candidate.assigned_recruiter_changed_at = datetime.utcnow()
+        candidate.assigned_recruiter_changed_by = current_user.UserID
+
+        db.add(candidate)
+        db.commit()
+
+        logger.info(
+            f"[RecruiterAssignment] ✅ Assigned {candidate_id} from {old_recruiter} to {recruiter.UserID} "
+            f"by {current_user.UserID}"
+        )
+
+        return {
+            "candidate_id": candidate_id,
+            "assigned_recruiter_id": recruiter.UserID,
+            "assigned_recruiter_name": f"{recruiter.FirstName} {recruiter.LastName}",
+            "previous_recruiter_id": old_recruiter,
+            "assigned_at": datetime.utcnow().isoformat(),
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[RecruiterAssignment] Failed to assign recruiter: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to assign recruiter: {str(e)}")
+

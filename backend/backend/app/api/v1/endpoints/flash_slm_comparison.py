@@ -177,12 +177,28 @@ def escalate_comparison(
             )
             raise HTTPException(status_code=404, detail="Candidate not found")  # Don't leak BU info
 
+        # RECRUITER AUTHORIZATION FIX: Verify recruiter can escalate this candidate
+        # Only assigned recruiter OR manager/admin can escalate
+        from app.core.dependencies import PermissionHelper
+
+        can_escalate = (
+            candidate.assigned_recruiter_id == current_user.UserID or  # Owner
+            PermissionHelper.has_permission(current_user.UserID, "escalation.manage", db, tenant_id) or  # Manager
+            PermissionHelper.is_super_admin(current_user.UserID, db, tenant_id)  # Admin
+        )
+
+        if not can_escalate:
+            logger.warning(
+                f"[FlashSLMEscalation] SECURITY: Unauthorized escalation attempt by {current_user.UserID} "
+                f"for candidate {candidate_id} (assigned to {candidate.assigned_recruiter_id})"
+            )
+            raise HTTPException(status_code=403, detail="Only assigned recruiter can escalate this candidate")
+
         # Create escalation audit record using ConversationEvent (multi-purpose event log)
         from app.models.candidate_ai import CandidateConversation, ConversationEvent
 
         # ISOLATION GAP #4 FIX: Add tenant_id filter for defense-in-depth
         # Even though candidate is pre-verified, explicitly filter conversation by tenant
-        tenant_id = getattr(current_user, 'tenant_id', 1) or 1
         conversation = db.query(CandidateConversation).filter(
             CandidateConversation.candidate_id == candidate_id,
             # ISOLATION: Conversation tenant_id is nullable (system-owned conversations)
@@ -196,14 +212,17 @@ def escalate_comparison(
             conversation_id = conversation.id
 
         # Log escalation as ConversationEvent (audit trail)
+        # RECRUITER AUTHORIZATION FIX: Log assigned_recruiter_id in event (who owned it when escalated)
         escalation_event = ConversationEvent(
             conversation_id=conversation_id,
+            tenant_id=tenant_id,  # TENANT ISOLATION FIX: Add explicit tenant_id
             event_type="COMPARISON_ESCALATION",
             triggered_by="escalation_ui",
             event_data={
                 "candidate_id": candidate_id,
                 "escalated_to": request.escalation_to,
                 "escalated_by": current_user.UserID,
+                "escalated_by_recruiter_id": candidate.assigned_recruiter_id,  # RECRUITER AUTHORIZATION: Log ownership context
                 "conflict_type": request.conflict_type,
                 "reason": request.reason,
                 "timestamp": datetime.utcnow().isoformat()
