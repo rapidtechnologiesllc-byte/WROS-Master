@@ -42,10 +42,16 @@ from app.services.resource_forecast_service import (
 
 router = APIRouter(prefix="/resource-forecast", tags=["resource-forecast"])
 
-    dependencies=[Depends(require_resource_permission("forecast", "view"))],
+@router.get(
+    "/expiring",
+    dependencies=[
+        Depends(require_resource_permission("forecast",
+        "view")),
+        Depends(get_current_internal_user),
+    ],
     "/expiring", response_model=ExpiringAllocationsResponse,
-    dependencies=[Depends(get_current_internal_user)],
     summary="Employees whose allocation ends within 90 days, bucketed by horizon",
+)
 )
 def expiring_allocations(
     db: Session = Depends(get_db),
@@ -58,10 +64,16 @@ def expiring_allocations(
         sixty_to_90_days=[ExpiringAllocationItem(**e) for e in buckets["60_to_90_days"]],
     )
 
-    dependencies=[Depends(require_resource_permission("forecast", "view"))],
+@router.get(
+    "/gap-analysis",
+    dependencies=[
+        Depends(require_resource_permission("forecast",
+        "view")),
+        Depends(get_current_internal_user),
+    ],
     "/gap-analysis", response_model=SkillGapAnalysisResponse,
-    dependencies=[Depends(get_current_internal_user)],
     summary="Per-skill projected bench supply vs open demand, optionally scoped to one Business Unit's own demand",
+)
 )
 def gap_analysis(
     business_unit_id: Optional[int] = None,

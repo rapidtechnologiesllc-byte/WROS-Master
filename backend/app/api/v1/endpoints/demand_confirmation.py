@@ -107,11 +107,17 @@ def _get_call_or_404(db: Session, call_id: str) -> DemandAlignmentCall:
         raise HTTPException(status_code=404, detail="Alignment call not found.")
     return call
 
-    dependencies=[Depends(require_resource_permission("confirmation", "create"))],
+@router.get(
     "/demands/{demand_id}/confirm-sow",
-    dependencies=[Depends(get_current_internal_user)],
+    dependencies=[
+        Depends(require_resource_permission("confirmation",
+        "create")),
+        Depends(get_current_internal_user),
+    ],
+    "/demands/{demand_id}/confirm-sow",
     response_model=ConfirmSOWResponse,
     summary="Record a SOW reference and confirm the demand",
+)
 )
 def confirm_sow(
     demand_id: str,
@@ -135,11 +141,17 @@ def confirm_sow(
         sow_received_date=demand.sow_received_date,
     )
 
-    dependencies=[Depends(require_resource_permission("confirmation", "create"))],
+@router.get(
     "/demands/{demand_id}/employees/{employee_id}/schedule-call",
-    dependencies=[Depends(get_current_internal_user)],
+    dependencies=[
+        Depends(require_resource_permission("confirmation",
+        "create")),
+        Depends(get_current_internal_user),
+    ],
+    "/demands/{demand_id}/employees/{employee_id}/schedule-call",
     response_model=AlignmentCallItem,
     summary="Book (or return the existing) 3-way alignment call",
+)
 )
 def schedule_call(
     demand_id: str,
@@ -161,11 +173,17 @@ def schedule_call(
     db.refresh(call)
     return _to_item(db, call)
 
-    dependencies=[Depends(require_resource_permission("confirmation", "view"))],
+@router.get(
     "/demands/{demand_id}/calls",
-    dependencies=[Depends(get_current_internal_user)],
+    dependencies=[
+        Depends(require_resource_permission("confirmation",
+        "view")),
+        Depends(get_current_internal_user),
+    ],
+    "/demands/{demand_id}/calls",
     response_model=AlignmentCallListResponse,
     summary="Get all alignment calls for a demand",
+)
 )
 def get_calls_for_demand(
     demand_id: str,
@@ -181,11 +199,17 @@ def get_calls_for_demand(
     )
     return AlignmentCallListResponse(calls=[_to_item(db, c) for c in calls])
 
-    dependencies=[Depends(require_resource_permission("confirmation", "create"))],
+@router.get(
     "/calls/{call_id}/confirm-fit",
-    dependencies=[Depends(get_current_internal_user)],
+    dependencies=[
+        Depends(require_resource_permission("confirmation",
+        "create")),
+        Depends(get_current_internal_user),
+    ],
+    "/calls/{call_id}/confirm-fit",
     response_model=ConfirmFitResponse,
     summary="Record one participant's fit confirmation (immutable once set)",
+)
 )
 def confirm_call_fit(
     call_id: str,
@@ -206,11 +230,17 @@ def confirm_call_fit(
     db.refresh(call)
     return ConfirmFitResponse(message="Fit confirmation recorded.", call=_to_item(db, call))
 
-    dependencies=[Depends(require_resource_permission("confirmation", "create"))],
+@router.get(
     "/calls/{call_id}/trigger-release",
-    dependencies=[Depends(get_current_internal_user)],
+    dependencies=[
+        Depends(require_resource_permission("confirmation",
+        "create")),
+        Depends(get_current_internal_user),
+    ],
+    "/calls/{call_id}/trigger-release",
     response_model=TriggerReleaseResponse,
     summary="Trigger Specialty client release (hard gate: CONFIRMED + both fits True)",
+)
 )
 def trigger_release(
     call_id: str,

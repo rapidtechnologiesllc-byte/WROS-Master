@@ -35,10 +35,16 @@ from app.services.whatsapp_webhook_service import (
 
 router = APIRouter(prefix="/webhooks", tags=["whatsapp-webhook"])
 
-    dependencies=[Depends(require_resource_permission("webhook", "view"))],
+@router.post(
     "/whatsapp",
-    dependencies=[Depends(get_current_internal_user)],
+    dependencies=[
+        Depends(require_resource_permission("webhook",
+        "view")),
+        Depends(get_current_internal_user),
+    ],
+    "/whatsapp",
     summary="Meta WhatsApp Cloud API webhook verification handshake",
+)
 )
 def whatsapp_webhook_verify(request: Request):
     mode = request.query_params.get("hub.mode")
@@ -70,11 +76,17 @@ def _process_webhook_payload(payload: dict) -> None:
     finally:
         db.close()
 
-    dependencies=[Depends(require_resource_permission("webhook", "create"))],
+@router.post(
     "/whatsapp",
-    dependencies=[Depends(get_current_internal_user)],
+    dependencies=[
+        Depends(require_resource_permission("webhook",
+        "create")),
+        Depends(get_current_internal_user),
+    ],
+    "/whatsapp",
     status_code=200,
     summary="Receive inbound WhatsApp messages and delivery status updates",
+)
 )
 async def whatsapp_webhook_receive(request: Request, background_tasks: BackgroundTasks):
     raw_body = await request.body()

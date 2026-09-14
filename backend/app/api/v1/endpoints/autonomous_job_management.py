@@ -40,10 +40,16 @@ class JobClosureActionResponse(BaseModel):
 
 router = APIRouter(prefix="/autonomous-jobs", tags=["autonomous-jobs"])
 
-    dependencies=[Depends(require_resource_permission("management", "view"))],
+@router.get(
+    "/status/{job_id}",
+    dependencies=[
+        Depends(require_resource_permission("management",
+        "view")),
+        Depends(get_current_internal_user),
+    ],
     "/status/{job_id}",
     response_model=JobClosureStatusResponse,
-    dependencies=[Depends(get_current_internal_user)],
+)
 )
 def get_job_status(job_id: str, db: Session = Depends(get_db)):
     """
@@ -55,10 +61,16 @@ def get_job_status(job_id: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail=status["error"])
     return status
 
-    dependencies=[Depends(require_resource_permission("management", "create"))],
+@router.get(
     "/close/{job_id}",
-    dependencies=[Depends(get_current_internal_user)],
+    dependencies=[
+        Depends(require_resource_permission("management",
+        "create")),
+        Depends(get_current_internal_user),
+    ],
+    "/close/{job_id}",
     response_model=JobClosureActionResponse,
+)
 )
 def close_job_manually(job_id: str, db: Session = Depends(get_db)):
     """

@@ -160,11 +160,17 @@ def list_submissions(
     submissions = query.order_by(Submission.submitted_at.desc()).all()
     return SubmissionListResponse(submissions=[_to_item(db, s) for s in submissions])
 
-    dependencies=[Depends(require_resource_permission("resource", "view"))],
+@router.get(
+    "/violations",
+    dependencies=[
+        Depends(require_resource_permission("resource",
+        "view")),
+        Depends(get_current_internal_user),
+    ],
     "/violations",
     response_model=SubmissionViolationListResponse,
-    dependencies=[Depends(get_current_internal_user)],
     summary="Compliance violation audit log",
+)
 )
 def list_violations(
     db: Session = Depends(get_db),
@@ -187,10 +193,16 @@ def list_violations(
         ]
     )
 
-    dependencies=[Depends(require_resource_permission("resource", "edit"))],
+@router.get(
+    "/{submission_id}/client-response",
+    dependencies=[
+        Depends(require_resource_permission("resource",
+        "edit")),
+        Depends(get_current_internal_user),
+    ],
     "/{submission_id}/client-response", response_model=SubmissionItem,
-    dependencies=[Depends(get_current_internal_user)],
     summary="Record the client's response to a submission",
+)
 )
 def client_response(
     submission_id: str,

@@ -104,10 +104,12 @@ class SendLoginCredentialsRequest(BaseModel):
 # Endpoints
 # â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-    dependencies=[Depends(require_resource_permission("resource", "create"))],
+@router.post(
     "/send",
-    dependencies=[Depends(get_current_internal_user)],
-
+    dependencies=[
+        Depends(require_resource_permission("email", "create")),
+        Depends(get_current_internal_user),
+    ],
     summary="Send a plain or HTML email from the HRMS service mailbox",
 )
 def send_mail(
@@ -129,11 +131,16 @@ def send_mail(
         cc_emails=request.cc_emails,
     )
 
-    dependencies=[Depends(require_resource_permission("resource", "create"))],
+@router.get(
     "/send-with-attachments",
-    dependencies=[Depends(get_current_internal_user)],
-
+    dependencies=[
+        Depends(require_resource_permission("resource",
+        "create")),
+        Depends(get_current_internal_user),
+    ],
+    "/send-with-attachments",
     summary="Send an email with one or more file attachments",
+)
 )
 async def send_mail_with_attachments(
     to_email: str = Form(..., description="Recipient email address"),
@@ -195,11 +202,16 @@ async def send_mail_with_attachments(
         attachments=attachments if attachments else None,
     )
 
-    dependencies=[Depends(require_resource_permission("resource", "create"))],
+@router.get(
     "/notify",
-    dependencies=[Depends(get_current_internal_user)],
-
+    dependencies=[
+        Depends(require_resource_permission("resource",
+        "create")),
+        Depends(get_current_internal_user),
+    ],
+    "/notify",
     summary="Send a styled HRMS notification email",
+)
 )
 def send_notification(
     request: SendNotificationRequest,
@@ -293,11 +305,16 @@ def send_event_notification(
         triggered_by_name=caller_name,
     )
 
-    dependencies=[Depends(require_resource_permission("resource", "create"))],
+@router.get(
     "/interview/invite/{interview_id}",
-    dependencies=[Depends(get_current_internal_user)],
-
+    dependencies=[
+        Depends(require_resource_permission("resource",
+        "create")),
+        Depends(get_current_internal_user),
+    ],
+    "/interview/invite/{interview_id}",
     summary="Send interview invite for an existing scheduled interview",
+)
 )
 def send_interview_invite_by_id(
     interview_id: int,
@@ -389,11 +406,16 @@ def send_interview_invite_by_id(
 
     return result
 
-    dependencies=[Depends(require_resource_permission("resource", "delete"))],
+@router.get(
     "/interview/cancel/{interview_id}",
-    dependencies=[Depends(get_current_internal_user)],
-
+    dependencies=[
+        Depends(require_resource_permission("resource",
+        "delete")),
+        Depends(get_current_internal_user),
+    ],
+    "/interview/cancel/{interview_id}",
     summary="Cancel a scheduled interview â€” removes the Teams event and notifies everyone",
+)
 )
 def cancel_interview_by_id(
     interview_id: int,
@@ -484,11 +506,16 @@ def cancel_interview_by_id(
 
     return result
 
-    dependencies=[Depends(require_resource_permission("resource", "create"))],
+@router.get(
     "/interview/invite/custom",
-    dependencies=[Depends(get_current_internal_user)],
-
+    dependencies=[
+        Depends(require_resource_permission("resource",
+        "create")),
+        Depends(get_current_internal_user),
+    ],
+    "/interview/invite/custom",
     summary="Send a custom ad-hoc interview invite (no interview_id needed)",
+)
 )
 def send_custom_interview_invite(
     request: SendCustomInterviewInviteRequest,
@@ -514,11 +541,16 @@ def send_custom_interview_invite(
         create_teams_event=request.create_teams_event,
     )
 
-    dependencies=[Depends(require_resource_permission("resource", "create"))],
+@router.get(
     "/login-credentials/{candidate_id}",
-    dependencies=[Depends(get_current_internal_user)],
-
+    dependencies=[
+        Depends(require_resource_permission("resource",
+        "create")),
+        Depends(get_current_internal_user),
+    ],
+    "/login-credentials/{candidate_id}",
     summary="Send login credentials to a candidate via email",
+)
 )
 def send_login_credentials(
     candidate_id: str,

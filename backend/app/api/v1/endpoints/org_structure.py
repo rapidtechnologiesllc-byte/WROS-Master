@@ -93,12 +93,18 @@ def initialize_org_structure(
             detail=f"Failed to initialize org structure: {str(e)}"
         )
 
-    dependencies=[Depends(require_resource_permission("structure", "view"))],
+@router.get(
     "/positions",
-    dependencies=[Depends(get_current_internal_user)],
+    dependencies=[
+        Depends(require_resource_permission("structure",
+        "view")),
+        Depends(get_current_internal_user),
+    ],
+    "/positions",
     response_model=List[OrgPositionResponse],
     summary="List all org positions",
     description="Returns all organizational positions (CEO, Partner, BU Head, etc.)",
+)
 )
 def list_org_positions(
     db: Session = Depends(get_db),

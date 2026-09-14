@@ -95,9 +95,14 @@ def _to_invoice_response(db: Session, invoice: Invoice, tenant_id: int) -> Invoi
 # POST /invoices/generate
 # ============================================================================
 
-    dependencies=[Depends(require_resource_permission("s316", "create"))],
+@router.get(
     "/generate",
-    dependencies=[Depends(get_current_internal_user)],
+    dependencies=[
+        Depends(require_resource_permission("s316",
+        "create")),
+        Depends(get_current_internal_user),
+    ],
+    "/generate",
     response_model=GenerateInvoiceResponse,
     status_code=201,
     summary="Generate a DRAFT invoice from approved timesheets",
@@ -105,6 +110,7 @@ def _to_invoice_response(db: Session, invoice: Invoice, tenant_id: int) -> Invoi
         409: {"model": ErrorResponse, "description": "Unapproved timesheets or disputes block invoice"},
         404: {"model": ErrorResponse, "description": "Project or client not found"},
     },
+)
 )
 def generate_invoice_endpoint(
     body: GenerateInvoiceRequest,
@@ -191,11 +197,17 @@ def generate_invoice_endpoint(
 # GET /invoices/{id}/calculate
 # ============================================================================
 
-    dependencies=[Depends(require_resource_permission("s316", "view"))],
+@router.get(
     "/{invoice_id}/calculate",
-    dependencies=[Depends(get_current_internal_user)],
+    dependencies=[
+        Depends(require_resource_permission("s316",
+        "view")),
+        Depends(get_current_internal_user),
+    ],
+    "/{invoice_id}/calculate",
     response_model=CalculateBillAmountResponse,
     summary="Calculate bill amount for an invoice",
+)
 )
 def calculate_bill_amount_endpoint(
     invoice_id: str,
@@ -227,15 +239,21 @@ def calculate_bill_amount_endpoint(
 # POST /invoices/{id}/send
 # ============================================================================
 
-    dependencies=[Depends(require_resource_permission("s316", "create"))],
+@router.get(
     "/{invoice_id}/send",
-    dependencies=[Depends(get_current_internal_user)],
+    dependencies=[
+        Depends(require_resource_permission("s316",
+        "create")),
+        Depends(get_current_internal_user),
+    ],
+    "/{invoice_id}/send",
     response_model=SendInvoiceResponse,
     summary="Approve and send invoice to client",
     responses={
         409: {"model": ErrorResponse, "description": "Invalid status transition"},
         404: {"model": ErrorResponse, "description": "Invoice not found"},
     },
+)
 )
 def send_invoice_endpoint(
     invoice_id: str,
@@ -305,15 +323,21 @@ def send_invoice_endpoint(
 # POST /invoices/{id}/pay
 # ============================================================================
 
-    dependencies=[Depends(require_resource_permission("s316", "create"))],
+@router.get(
     "/{invoice_id}/pay",
-    dependencies=[Depends(get_current_internal_user)],
+    dependencies=[
+        Depends(require_resource_permission("s316",
+        "create")),
+        Depends(get_current_internal_user),
+    ],
+    "/{invoice_id}/pay",
     response_model=TrackPaymentResponse,
     summary="Record payment against invoice",
     responses={
         409: {"model": ErrorResponse, "description": "Invalid status for payment"},
         404: {"model": ErrorResponse, "description": "Invoice not found"},
     },
+)
 )
 def track_payment_endpoint(
     invoice_id: str,
@@ -370,11 +394,17 @@ def track_payment_endpoint(
 # GET /invoices/{id}
 # ============================================================================
 
-    dependencies=[Depends(require_resource_permission("s316", "view"))],
+@router.get(
     "/{invoice_id}",
-    dependencies=[Depends(get_current_internal_user)],
+    dependencies=[
+        Depends(require_resource_permission("s316",
+        "view")),
+        Depends(get_current_internal_user),
+    ],
+    "/{invoice_id}",
     response_model=InvoiceDetailResponse,
     summary="Get invoice details with all line items",
+)
 )
 def get_invoice_endpoint(
     invoice_id: str,

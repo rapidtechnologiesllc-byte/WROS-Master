@@ -599,11 +599,17 @@ def hr_complete_item(
 # CANDIDATE — VIEW OWN CHECKLISTS
 # ===========================================================================
 
-    dependencies=[Depends(require_resource_permission("resource", "view"))],
+@router.get(
     "/candidate/my-checklists",
-    dependencies=[Depends(get_current_internal_user)],
+    dependencies=[
+        Depends(require_resource_permission("resource",
+        "view")),
+        Depends(get_current_internal_user),
+    ],
+    "/candidate/my-checklists",
     response_model=CandidateChecklistListResponse,
     summary="Get the authenticated candidate's checklists",
+)
 )
 def get_my_checklists(
     db: Session = Depends(get_db),
@@ -625,11 +631,17 @@ def get_my_checklists(
 # CANDIDATE — SUBMIT AN ITEM (marks done from candidate side)
 # ===========================================================================
 
-    dependencies=[Depends(require_resource_permission("resource", "edit"))],
+@router.get(
     "/candidate/item/{item_id}/complete",
-    dependencies=[Depends(get_current_internal_user)],
+    dependencies=[
+        Depends(require_resource_permission("resource",
+        "edit")),
+        Depends(get_current_internal_user),
+    ],
+    "/candidate/item/{item_id}/complete",
     response_model=CompleteItemResponse,
     summary="Candidate submits a checklist item (awaiting HR verification)",
+)
 )
 def candidate_complete_item(
     item_id: int,

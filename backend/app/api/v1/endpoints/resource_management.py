@@ -117,11 +117,17 @@ def _get_recommendation_or_404(db: Session, recommendation_id: str) -> BenchAllo
         raise HTTPException(status_code=404, detail="Recommendation not found.")
     return rec
 
-    dependencies=[Depends(require_resource_permission("management", "create"))],
+@router.get(
     "/scan",
-    dependencies=[Depends(get_current_internal_user)],
+    dependencies=[
+        Depends(require_resource_permission("management",
+        "create")),
+        Depends(get_current_internal_user),
+    ],
+    "/scan",
     response_model=ScanTriggerResponse,
     summary="Trigger one Resource Management Agent bench-scan cycle",
+)
 )
 def trigger_scan(
     db: Session = Depends(get_db),
@@ -131,11 +137,17 @@ def trigger_scan(
     db.commit()
     return ScanTriggerResponse(**result)
 
-    dependencies=[Depends(require_resource_permission("management", "view"))],
+@router.get(
     "/recommendations",
-    dependencies=[Depends(get_current_internal_user)],
+    dependencies=[
+        Depends(require_resource_permission("management",
+        "view")),
+        Depends(get_current_internal_user),
+    ],
+    "/recommendations",
     response_model=RecommendationQueueResponse,
     summary="Get the pending bench-allocation recommendation queue",
+)
 )
 def get_queue(
     db: Session = Depends(get_db),
@@ -144,9 +156,14 @@ def get_queue(
     recs = get_recommendation_queue(db, tenant_id=current_user.tenant_id)
     return RecommendationQueueResponse(recommendations=[_to_item(db, r) for r in recs])
 
-    dependencies=[Depends(require_resource_permission("management", "create"))],
+@router.get(
     "/recommendations/{recommendation_id}/pursue",
-    dependencies=[Depends(get_current_internal_user)],
+    dependencies=[
+        Depends(require_resource_permission("management",
+        "create")),
+        Depends(get_current_internal_user),
+    ],
+    "/recommendations/{recommendation_id}/pursue",
     response_model=RecommendationActionResponse,
     summary="Start actively pursuing a recommendation (interview stage)",
     description=(
@@ -155,6 +172,7 @@ def get_queue(
         "employee already in play at one client can never be simultaneously pursued for a "
         "second (Avinash's explicit business rule)."
     ),
+)
 )
 def pursue_recommendation(
     recommendation_id: str,
@@ -174,11 +192,17 @@ def pursue_recommendation(
         message="Now pursuing this recommendation.", recommendation=_to_item(db, rec),
     )
 
-    dependencies=[Depends(require_resource_permission("management", "create"))],
+@router.get(
     "/recommendations/{recommendation_id}/approve",
-    dependencies=[Depends(get_current_internal_user)],
+    dependencies=[
+        Depends(require_resource_permission("management",
+        "create")),
+        Depends(get_current_internal_user),
+    ],
+    "/recommendations/{recommendation_id}/approve",
     response_model=ApproveRecommendationResponse,
     summary="Approve a recommendation and create the real allocation",
+)
 )
 def approve_recommendation(
     recommendation_id: str,
@@ -200,11 +224,17 @@ def approve_recommendation(
         allocation_id=allocation.id,
     )
 
-    dependencies=[Depends(require_resource_permission("management", "create"))],
+@router.get(
     "/recommendations/{recommendation_id}/reject",
-    dependencies=[Depends(get_current_internal_user)],
+    dependencies=[
+        Depends(require_resource_permission("management",
+        "create")),
+        Depends(get_current_internal_user),
+    ],
+    "/recommendations/{recommendation_id}/reject",
     response_model=RecommendationActionResponse,
     summary="Reject a recommendation",
+)
 )
 def reject_recommendation(
     recommendation_id: str,
@@ -222,10 +252,16 @@ def reject_recommendation(
         message="Recommendation rejected.", recommendation=_to_item(db, rec),
     )
 
-    dependencies=[Depends(require_resource_permission("management", "view"))],
+@router.get(
     "/employees/{employee_id}/actively-engaged",
-    dependencies=[Depends(get_current_internal_user)],
+    dependencies=[
+        Depends(require_resource_permission("management",
+        "view")),
+        Depends(get_current_internal_user),
+    ],
+    "/employees/{employee_id}/actively-engaged",
     summary="Check whether an employee is currently IN_PROGRESS on another recommendation",
+)
 )
 def check_actively_engaged(
     employee_id: str,
@@ -234,11 +270,17 @@ def check_actively_engaged(
 ):
     return {"employee_id": employee_id, "actively_engaged": is_employee_actively_engaged(db, employee_id)}
 
-    dependencies=[Depends(require_resource_permission("management", "view"))],
+@router.get(
     "/demands/{demand_id}/matching-bench-resources",
-    dependencies=[Depends(get_current_internal_user)],
+    dependencies=[
+        Depends(require_resource_permission("management",
+        "view")),
+        Depends(get_current_internal_user),
+    ],
+    "/demands/{demand_id}/matching-bench-resources",
     response_model=MatchBenchResourcesResponse,
     summary="Top bench candidates for a demand, by skill match (S-253)",
+)
 )
 def matching_bench_resources(
     demand_id: str,

@@ -37,12 +37,18 @@ from app.services.portal_message_service import (
 
 router = APIRouter(prefix="/portal/conversations", tags=["portal-messages"])
 
-    dependencies=[Depends(require_resource_permission("message", "create"))],
+@router.get(
     "/{conversation_id}/messages",
-    dependencies=[Depends(get_current_internal_user)],
+    dependencies=[
+        Depends(require_resource_permission("message",
+        "create")),
+        Depends(get_current_internal_user),
+    ],
+    "/{conversation_id}/messages",
     response_model=PortalMessageResponse,
     status_code=201,
     summary="Candidate sends a message via the web portal",
+)
 )
 def post_portal_message(
     conversation_id: int,
@@ -63,11 +69,17 @@ def post_portal_message(
 
     return PortalMessageResponse(**result)
 
-    dependencies=[Depends(require_resource_permission("message", "view"))],
+@router.get(
     "/{conversation_id}/messages",
-    dependencies=[Depends(get_current_internal_user)],
+    dependencies=[
+        Depends(require_resource_permission("message",
+        "view")),
+        Depends(get_current_internal_user),
+    ],
+    "/{conversation_id}/messages",
     response_model=PortalMessageHistoryResponse,
     summary="Candidate retrieves their portal conversation history",
+)
 )
 def list_portal_messages(
     conversation_id: int,
@@ -82,11 +94,17 @@ def list_portal_messages(
 
     return PortalMessageHistoryResponse(**result)
 
-    dependencies=[Depends(require_resource_permission("message", "view"))],
+@router.get(
     "/{conversation_id}/messages/poll",
-    dependencies=[Depends(get_current_internal_user)],
+    dependencies=[
+        Depends(require_resource_permission("message",
+        "view")),
+        Depends(get_current_internal_user),
+    ],
+    "/{conversation_id}/messages/poll",
     response_model=PortalMessageHistoryResponse,
     summary="S-346 -- long-poll for messages newer than after_id (WebSocket fallback)",
+)
 )
 def poll_portal_messages(
     conversation_id: int,

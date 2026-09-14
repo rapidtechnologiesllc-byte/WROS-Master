@@ -95,11 +95,17 @@ def _get_event_or_404(db: Session, event_id: str) -> CorePullEvent:
         raise HTTPException(status_code=404, detail="Core-Pull event not found.")
     return event
 
-    dependencies=[Depends(require_resource_permission("pull", "view"))],
+@router.get(
     "/specialty-pool-status",
-    dependencies=[Depends(get_current_internal_user)],
+    dependencies=[
+        Depends(require_resource_permission("pull",
+        "view")),
+        Depends(get_current_internal_user),
+    ],
+    "/specialty-pool-status",
     response_model=SpecialtyPoolStatusResponse,
     summary="Get the current Specialty Core-Certified pool size vs the 40-minimum floor",
+)
 )
 def get_pool_status(
     db: Session = Depends(get_db),
@@ -108,11 +114,17 @@ def get_pool_status(
     status = get_specialty_pool_status(db, tenant_id=current_user.tenant_id)
     return SpecialtyPoolStatusResponse(**status)
 
-    dependencies=[Depends(require_resource_permission("pull", "view"))],
+@router.get(
     "/events",
-    dependencies=[Depends(get_current_internal_user)],
+    dependencies=[
+        Depends(require_resource_permission("pull",
+        "view")),
+        Depends(get_current_internal_user),
+    ],
+    "/events",
     response_model=CorePullEventQueueResponse,
     summary="Get pending Core-Pull events",
+)
 )
 def get_pending_events(
     db: Session = Depends(get_db),
@@ -129,11 +141,17 @@ def get_pending_events(
     )
     return CorePullEventQueueResponse(events=[_to_item(db, e) for e in events])
 
-    dependencies=[Depends(require_resource_permission("pull", "create"))],
+@router.get(
     "/events/{event_id}/execute",
-    dependencies=[Depends(get_current_internal_user)],
+    dependencies=[
+        Depends(require_resource_permission("pull",
+        "create")),
+        Depends(get_current_internal_user),
+    ],
+    "/events/{event_id}/execute",
     response_model=ExecuteCorePullResponse,
     summary="Execute a pending Core-Pull event (same-day forced transfer)",
+)
 )
 def execute_event(
     event_id: str,
@@ -162,11 +180,17 @@ def execute_event(
         specialty_pool_size_after=guard["pool_size_after_move"],
     )
 
-    dependencies=[Depends(require_resource_permission("pull", "create"))],
+@router.get(
     "/events/{event_id}/override",
-    dependencies=[Depends(get_current_internal_user)],
+    dependencies=[
+        Depends(require_resource_permission("pull",
+        "create")),
+        Depends(get_current_internal_user),
+    ],
+    "/events/{event_id}/override",
     response_model=OverrideCorePullResponse,
     summary="Override a pending Core-Pull event (BU Head only)",
+)
 )
 def override_event(
     event_id: str,
@@ -194,11 +218,17 @@ def override_event(
     db.refresh(event)
     return OverrideCorePullResponse(message="Core-Pull event overridden.", event=_to_item(db, event))
 
-    dependencies=[Depends(require_resource_permission("pull", "create"))],
+@router.get(
     "/replacement-plans",
-    dependencies=[Depends(get_current_internal_user)],
+    dependencies=[
+        Depends(require_resource_permission("pull",
+        "create")),
+        Depends(get_current_internal_user),
+    ],
+    "/replacement-plans",
     response_model=ReplacementPlanResponse,
     summary="Log a Specialty Pool replacement plan to unblock a guard-blocked execute",
+)
 )
 def submit_replacement_plan(
     body: ReplacementPlanRequest,

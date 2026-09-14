@@ -41,11 +41,17 @@ from app.services.ai_conversation_service import (
 
 router = APIRouter(tags=["ai-recruiter-assignment"])
 
-    dependencies=[Depends(require_resource_permission("assignment", "view"))],
+@router.get(
+    "/candidates/{candidate_id}/ai-assignment",
+    dependencies=[
+        Depends(require_resource_permission("assignment",
+        "view")),
+        Depends(get_current_internal_user),
+    ],
     "/candidates/{candidate_id}/ai-assignment",
     response_model=AIAssignmentResponse,
     summary="Get a candidate's current active Thunder assignment",
-    dependencies=[Depends(get_current_internal_user)],
+)
 )
 def get_candidate_ai_assignment(
     candidate_id: str,
