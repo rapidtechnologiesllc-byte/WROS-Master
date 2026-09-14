@@ -183,7 +183,7 @@ def escalate_comparison(
 
         can_escalate = (
             candidate.assigned_recruiter_id == current_user.UserID or  # Owner
-            PermissionHelper.has_permission(current_user.UserID, "escalation.manage", db, tenant_id) or  # Manager
+            PermissionHelper.has_permission(current_user.UserID, "recruiter.management", db, tenant_id) or  # Manager
             PermissionHelper.is_super_admin(current_user.UserID, db, tenant_id)  # Admin
         )
 

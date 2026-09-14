@@ -321,15 +321,23 @@ def find_candidates_for_job(db: Session, job_id: str, *, top_n: int = MAX_CANDID
     boolean_mode = job.job_skills_boolean_mode or "AND"
 
     # ISOLATION FIX: Add tenant_id + BU filtering
-    candidates = db.query(Candidate).filter(
+    query_filters = [
         Candidate.tenant_id == tenant_id,  # TENANT ISOLATION
-        sql_or(
-            Candidate.associated_bu_id.is_(None),  # Unassigned candidates
-            Candidate.associated_bu_id == user_bu_id if user_bu_id else True  # Own BU or admin (NULL bu_id)
-        ) if user_bu_id else True,  # BU ISOLATION
         Candidate.candidateSkills.isnot(None),
         Candidate.candidateExperience.isnot(None)
-    ).limit(500).all()
+    ]
+
+    # BU ISOLATION FIX: When user_bu_id is set, filter to that BU + unassigned
+    if user_bu_id:
+        query_filters.append(
+            sql_or(
+                Candidate.associated_bu_id.is_(None),  # Unassigned candidates
+                Candidate.associated_bu_id == user_bu_id  # Own BU
+            )
+        )
+    # If user_bu_id is None (admin), no BU filter - can see all
+
+    candidates = db.query(Candidate).filter(*query_filters).limit(500).all()
 
     matched = []
     for candidate in candidates:
@@ -402,14 +410,22 @@ def find_matching_candidates(db: Session, query_text: str, *, top_n: int = MAX_C
         ))
 
     # ISOLATION FIX: Add tenant_id + BU filtering
-    candidates = db.query(Candidate).filter(
+    query_filters = [
         Candidate.tenant_id == tenant_id,  # TENANT ISOLATION
-        sql_or(
-            Candidate.associated_bu_id.is_(None),  # Unassigned candidates
-            Candidate.associated_bu_id == user_bu_id if user_bu_id else True  # Own BU
-        ) if user_bu_id else True,  # BU ISOLATION
         or_(*filters)
-    ).limit(200).all()
+    ]
+
+    # BU ISOLATION FIX: When user_bu_id is set, filter to that BU + unassigned
+    if user_bu_id:
+        query_filters.append(
+            sql_or(
+                Candidate.associated_bu_id.is_(None),  # Unassigned candidates
+                Candidate.associated_bu_id == user_bu_id  # Own BU
+            )
+        )
+    # If user_bu_id is None (admin), no BU filter - can see all
+
+    candidates = db.query(Candidate).filter(*query_filters).limit(200).all()
 
     scored = []
     for candidate in candidates:
@@ -461,14 +477,22 @@ def get_candidate_status_summary(db: Session, name_query: str, *, tenant_id: int
         filters.append(or_(Candidate.candidateFirstName.ilike(like), Candidate.candidateLastName.ilike(like)))
 
     # ISOLATION FIX: Add tenant_id + BU filtering
-    candidates = db.query(Candidate).filter(
+    query_filters = [
         Candidate.tenant_id == tenant_id,  # TENANT ISOLATION
-        sql_or(
-            Candidate.associated_bu_id.is_(None),  # Unassigned candidates
-            Candidate.associated_bu_id == user_bu_id if user_bu_id else True  # Own BU
-        ) if user_bu_id else True,  # BU ISOLATION
         or_(*filters)
-    ).limit(10).all()
+    ]
+
+    # BU ISOLATION FIX: When user_bu_id is set, filter to that BU + unassigned
+    if user_bu_id:
+        query_filters.append(
+            sql_or(
+                Candidate.associated_bu_id.is_(None),  # Unassigned candidates
+                Candidate.associated_bu_id == user_bu_id  # Own BU
+            )
+        )
+    # If user_bu_id is None (admin), no BU filter - can see all
+
+    candidates = db.query(Candidate).filter(*query_filters).limit(10).all()
 
     matches = []
     for candidate in candidates:
@@ -941,13 +965,19 @@ def answer_internal_query(
     if intent == INTENT_SOURCING:
         if not query:
             return {"intent": intent, "reply": UNSUPPORTED_QUERY_MESSAGE}
-        results = find_matching_candidates(db, query)
+        # ISOLATION FIX: Pass tenant_id + user_bu_id for data isolation
+        tenant_id = getattr(current_user, 'tenant_id', 1) if current_user else 1
+        user_bu_id = getattr(current_user, 'business_unit_id', None) if current_user else None
+        results = find_matching_candidates(db, query, tenant_id=tenant_id, user_bu_id=user_bu_id)
         return {"intent": intent, "reply": _format_sourcing_reply(query, results)}
 
     if intent == INTENT_CANDIDATE_STATUS:
         if not query:
             return {"intent": intent, "reply": UNSUPPORTED_QUERY_MESSAGE}
-        status = get_candidate_status_summary(db, query)
+        # ISOLATION FIX: Pass tenant_id + user_bu_id for data isolation
+        tenant_id = getattr(current_user, 'tenant_id', 1) if current_user else 1
+        user_bu_id = getattr(current_user, 'business_unit_id', None) if current_user else None
+        status = get_candidate_status_summary(db, query, tenant_id=tenant_id, user_bu_id=user_bu_id)
         return {"intent": intent, "reply": _format_status_reply(query, status["matches"])}
 
     if intent == INTENT_BENCH_AVAILABILITY:
