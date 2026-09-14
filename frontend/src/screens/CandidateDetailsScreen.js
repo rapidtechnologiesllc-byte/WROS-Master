@@ -1582,7 +1582,19 @@ ${formattedJD}
                   >
                     <MessageCircle className="w-5 h-5 text-green-600" />
                   </button>
-                  <Button onClick={() => setEditModalOpen(true)}>Edit</Button>
+                  <Button onClick={async () => {
+                    // Fetch complete candidate details before opening edit modal
+                    try {
+                      const fullCandidate = await getCandidateById(candidate?.id);
+                      // Update parent's candidate state with full data
+                      if (onUpdateCandidate) {
+                        onUpdateCandidate(fullCandidate);
+                      }
+                    } catch (err) {
+                      console.error("Failed to fetch full candidate details:", err);
+                    }
+                    setEditModalOpen(true);
+                  }}>Edit</Button>
                   <Button
                     disabled={isChecklistAssigned}
                     onClick={() => setShowAssignModal(true)}

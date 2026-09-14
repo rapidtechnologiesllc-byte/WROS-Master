@@ -409,9 +409,9 @@ class CandidateCreationHandler:
                 db.commit()
                 logger.info(f"[Handler] ✅ Activity logged for candidate creation: {candidate_id} by {created_by_name}")
 
-                # AUDIT LOGGING: Write to audit_log table for compliance
+                # AUDIT LOGGING: Write to audit_log table for compliance (NON-OPTIONAL)
+                from app.core.audit import write_audit_log
                 try:
-                    from app.core.audit import write_audit_log
                     write_audit_log(
                         db,
                         entity_type="candidate",
@@ -425,7 +425,9 @@ class CandidateCreationHandler:
                     db.commit()
                     logger.info(f"[Handler] ✅ Audit logged for candidate creation: {candidate_id}")
                 except Exception as audit_err:
-                    logger.warning(f"[Handler] Failed to audit log candidate creation: {audit_err}, but creation succeeded")
+                    logger.error(f"[Handler] ❌ FAILED to audit log candidate creation (compliance issue): {audit_err}", exc_info=True)
+                    db.rollback()
+                    raise RuntimeError(f"Audit logging failed for candidate {candidate_id}: {audit_err}") from audit_err
 
             except Exception as log_err:
                 logger.warning(f"[Handler] Failed to log candidate creation activity: {log_err}, but creation succeeded")
@@ -460,12 +462,12 @@ class CandidateCreationHandler:
             # RETURN SUCCESS IMMEDIATELY - Mark handler complete before queuing dependent work
             # This prevents handler from blocking on email/Thunder queueing
             result = {
-                "status": "success",
+                "status": "COMPLETED",
                 "candidate_id": candidate_id,
                 "is_new": is_new,
                 "candidate_email": candidate_email,
                 "data": {
-                    "status": "success",
+                    "status": "COMPLETED",
                     "candidate_id": candidate_id,
                     "is_new": is_new,
                     "candidate_email": candidate_email

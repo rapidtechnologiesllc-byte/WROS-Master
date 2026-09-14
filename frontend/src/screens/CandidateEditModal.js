@@ -45,7 +45,7 @@ export default function CandidateEditModal({
   onRefreshCandidates,
 }) {
   const initialName = useMemo(
-    () => splitFullName(candidate?.name || ""),
+    () => splitFullName(candidate?.candidate_name || ""),
     [candidate],
   );
   const candidateId = candidate?.id;

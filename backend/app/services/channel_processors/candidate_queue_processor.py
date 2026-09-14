@@ -48,7 +48,13 @@ class CandidateQueueProcessor:
         try:
             if message_type == "create_candidate":
                 result = CandidateCreationHandler.process(message, db)
-                CandidateCreationHandler.on_success(message, result, db)
+                validation_result = CandidateCreationHandler.on_success(message, result, db)
+
+                if not validation_result.get('is_valid', False):
+                    error_msg = validation_result.get('error', 'Validation failed but no error message')
+                    logger.error(f"[CandidateQueueProcessor] Candidate creation validation FAILED: {error_msg}")
+                    raise RuntimeError(f"Candidate validation failed: {error_msg}")
+
                 return result
 
             elif message_type == "convert_candidate_to_employee":

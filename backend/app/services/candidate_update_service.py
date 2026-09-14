@@ -99,22 +99,19 @@ def update_candidate_safe(
                 'new_value': str(value) if value is not None else None
             })
 
-            # Write individual audit log entry
-            try:
-                write_audit_log(
-                    db,
-                    entity_type="candidate",
-                    entity_id=candidate_id,
-                    action="update",
-                    tenant_id=candidate.tenant_id,
-                    user_id=updated_by_user_id,
-                    old_value=str(old_value) if old_value is not None else None,
-                    new_value=str(value) if value is not None else None,
-                    metadata={"field": request_field}
-                )
-            except Exception as e:
-                logger.error(f"Failed to write audit log for field {request_field}: {e}")
-                # Continue - don't fail the update
+            # Write individual audit log entry (NON-OPTIONAL)
+            write_audit_log(
+                db,
+                entity_type="candidate",
+                entity_id=candidate_id,
+                action="update",
+                tenant_id=candidate.tenant_id,
+                user_id=updated_by_user_id,
+                old_value=str(old_value) if old_value is not None else None,
+                new_value=str(value) if value is not None else None,
+                metadata={"field": request_field}
+            )
+            # Don't catch audit errors - let them bubble to db.commit() level
 
         # If no fields were actually updated, return early
         if not fields_updated:
