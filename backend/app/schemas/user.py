@@ -385,6 +385,7 @@ class HrMeResponse(BaseModel):
     permission_role: Optional[str] = None
     role_template_id: Optional[int] = None
     business_unit_id: Optional[int] = None
+    whatsapp_number: Optional[str] = None  # User's personal WhatsApp for Thunder outreach
     permissions: Dict[str, Any] = Field(default_factory=dict)  # Resource permissions from role template (required by frontend)
     created_at: datetime
     access_token: str

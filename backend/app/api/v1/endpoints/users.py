@@ -117,6 +117,7 @@ async def get_me(
         "permission_role": roles_list[0] if roles_list else None,
         "role_template_id": current_user.role_template_id,
         "business_unit_id": current_user.business_unit_id,
+        "whatsapp_number": current_user.whatsapp_number,
         "permissions": permissions_dict,
         "created_at": current_user.CreatedAt,
         "access_token": access_token,
