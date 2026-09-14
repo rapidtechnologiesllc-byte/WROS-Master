@@ -95,14 +95,12 @@ def _to_invoice_response(db: Session, invoice: Invoice, tenant_id: int) -> Invoi
 # POST /invoices/generate
 # ============================================================================
 
-@router.get(
+@router.post(
     "/generate",
     dependencies=[
-        Depends(require_resource_permission("s316",
-        "create")),
+        Depends(require_resource_permission("invoice", "create")),
         Depends(get_current_internal_user),
     ],
-    "/generate",
     response_model=GenerateInvoiceResponse,
     status_code=201,
     summary="Generate a DRAFT invoice from approved timesheets",
@@ -110,7 +108,6 @@ def _to_invoice_response(db: Session, invoice: Invoice, tenant_id: int) -> Invoi
         409: {"model": ErrorResponse, "description": "Unapproved timesheets or disputes block invoice"},
         404: {"model": ErrorResponse, "description": "Project or client not found"},
     },
-)
 )
 def generate_invoice_endpoint(
     body: GenerateInvoiceRequest,

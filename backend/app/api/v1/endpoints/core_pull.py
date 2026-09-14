@@ -98,14 +98,11 @@ def _get_event_or_404(db: Session, event_id: str) -> CorePullEvent:
 @router.get(
     "/specialty-pool-status",
     dependencies=[
-        Depends(require_resource_permission("pull",
-        "view")),
+        Depends(require_resource_permission("pull", "view")),
         Depends(get_current_internal_user),
     ],
-    "/specialty-pool-status",
     response_model=SpecialtyPoolStatusResponse,
     summary="Get the current Specialty Core-Certified pool size vs the 40-minimum floor",
-)
 )
 def get_pool_status(
     db: Session = Depends(get_db),

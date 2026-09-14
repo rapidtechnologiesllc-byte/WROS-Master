@@ -117,17 +117,14 @@ def _get_recommendation_or_404(db: Session, recommendation_id: str) -> BenchAllo
         raise HTTPException(status_code=404, detail="Recommendation not found.")
     return rec
 
-@router.get(
+@router.post(
     "/scan",
     dependencies=[
-        Depends(require_resource_permission("management",
-        "create")),
+        Depends(require_resource_permission("management", "create")),
         Depends(get_current_internal_user),
     ],
-    "/scan",
     response_model=ScanTriggerResponse,
     summary="Trigger one Resource Management Agent bench-scan cycle",
-)
 )
 def trigger_scan(
     db: Session = Depends(get_db),

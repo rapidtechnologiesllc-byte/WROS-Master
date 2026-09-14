@@ -39,17 +39,14 @@ from app.services.flash_service import answer_internal_query
 
 router = APIRouter(prefix="/flash", tags=["flash"])
 
-@router.get(
+@router.post(
     "/",
     dependencies=[
-        Depends(require_resource_permission("resource",
-        "create")),
+        Depends(require_resource_permission("flash", "create")),
         Depends(get_current_internal_user),
     ],
-    "/",
     response_model=FlashResponse,
     summary="Ask Flash an operational question — real data, no hallucinated answers",
-)
 )
 def ask_flash(
     body: FlashRequest,

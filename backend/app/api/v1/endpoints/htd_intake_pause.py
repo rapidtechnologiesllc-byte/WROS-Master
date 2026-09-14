@@ -49,16 +49,14 @@ from app.services.htd_intake_pause_service import (
 
 router = APIRouter(prefix="/htd-intake", tags=["htd-intake"])
 
-@router.get(
+@router.post(
     "/calculate-monthly-metric",
     dependencies=[
-        Depends(require_resource_permission("pause",
-        "create")),
+        Depends(require_resource_permission("pause", "create")),
         Depends(get_current_internal_user),
     ],
-    "/calculate-monthly-metric", response_model=MonthlyMetricItem,
+    response_model=MonthlyMetricItem,
     summary="Compute (or recompute) HTD conversion rate for one month",
-)
 )
 def calculate_monthly_metric_endpoint(
     body: CalculateMonthlyMetricRequest,

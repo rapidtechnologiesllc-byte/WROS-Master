@@ -35,16 +35,13 @@ from app.services.whatsapp_webhook_service import (
 
 router = APIRouter(prefix="/webhooks", tags=["whatsapp-webhook"])
 
-@router.post(
+@router.get(
     "/whatsapp",
     dependencies=[
-        Depends(require_resource_permission("webhook",
-        "view")),
+        Depends(require_resource_permission("webhook", "view")),
         Depends(get_current_internal_user),
     ],
-    "/whatsapp",
     summary="Meta WhatsApp Cloud API webhook verification handshake",
-)
 )
 def whatsapp_webhook_verify(request: Request):
     mode = request.query_params.get("hub.mode")

@@ -77,18 +77,15 @@ router = APIRouter(prefix="/revenue", tags=["revenue-recognition"])
 # REVENUE RECOGNITION ENDPOINTS
 # ============================================================================
 
-@router.get(
+@router.post(
     "/recognize",
     dependencies=[
-        Depends(require_resource_permission("recognition",
-        "create")),
+        Depends(require_resource_permission("revenue", "create")),
         Depends(get_current_internal_user),
     ],
-    "/recognize",
     response_model=RevenueRecognitionResponse,
     summary="Recognize revenue from paid invoice",
     description="Create revenue recognition entry for a PAID invoice per ASC 606"
-)
 )
 def recognize_revenue(
     request: RecognizeRevenueRequest,

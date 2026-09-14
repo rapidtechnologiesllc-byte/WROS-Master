@@ -45,13 +45,11 @@ router = APIRouter(prefix="/resource-forecast", tags=["resource-forecast"])
 @router.get(
     "/expiring",
     dependencies=[
-        Depends(require_resource_permission("forecast",
-        "view")),
+        Depends(require_resource_permission("forecast", "view")),
         Depends(get_current_internal_user),
     ],
-    "/expiring", response_model=ExpiringAllocationsResponse,
+    response_model=ExpiringAllocationsResponse,
     summary="Employees whose allocation ends within 90 days, bucketed by horizon",
-)
 )
 def expiring_allocations(
     db: Session = Depends(get_db),

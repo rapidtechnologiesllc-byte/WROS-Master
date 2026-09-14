@@ -37,18 +37,15 @@ from app.services.portal_message_service import (
 
 router = APIRouter(prefix="/portal/conversations", tags=["portal-messages"])
 
-@router.get(
+@router.post(
     "/{conversation_id}/messages",
     dependencies=[
-        Depends(require_resource_permission("message",
-        "create")),
+        Depends(require_resource_permission("message", "create")),
         Depends(get_current_internal_user),
     ],
-    "/{conversation_id}/messages",
     response_model=PortalMessageResponse,
     status_code=201,
     summary="Candidate sends a message via the web portal",
-)
 )
 def post_portal_message(
     conversation_id: int,

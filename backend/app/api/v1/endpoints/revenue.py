@@ -85,16 +85,14 @@ def _alert_to_item(alert: ReconciliationAlert) -> ReconciliationAlertItem:
         billable_hours=float(alert.billable_hours), status=alert.status, gap_detected_at=alert.gap_detected_at,
     )
 
-@router.get(
+@router.post(
     "/leakage/scan",
     dependencies=[
-        Depends(require_resource_permission("resource",
-        "create")),
+        Depends(require_resource_permission("revenue", "create")),
         Depends(get_current_internal_user),
     ],
-    "/leakage/scan", response_model=Optional[LeakageFlagItem],
+    response_model=Optional[LeakageFlagItem],
     summary="Scan a project+period for unbilled revenue leakage (null if too early or nothing unbilled)",
-)
 )
 def scan_leakage(
     body: ScanLeakageRequest,

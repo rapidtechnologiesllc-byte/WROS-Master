@@ -107,17 +107,14 @@ def _get_call_or_404(db: Session, call_id: str) -> DemandAlignmentCall:
         raise HTTPException(status_code=404, detail="Alignment call not found.")
     return call
 
-@router.get(
+@router.post(
     "/demands/{demand_id}/confirm-sow",
     dependencies=[
-        Depends(require_resource_permission("confirmation",
-        "create")),
+        Depends(require_resource_permission("confirmation", "create")),
         Depends(get_current_internal_user),
     ],
-    "/demands/{demand_id}/confirm-sow",
     response_model=ConfirmSOWResponse,
     summary="Record a SOW reference and confirm the demand",
-)
 )
 def confirm_sow(
     demand_id: str,

@@ -82,13 +82,11 @@ def create_milestone_endpoint(
 @router.get(
     "/employee/{employee_id}",
     dependencies=[
-        Depends(require_resource_permission("milestone",
-        "view")),
+        Depends(require_resource_permission("milestone", "view")),
         Depends(get_current_internal_user),
     ],
-    "/employee/{employee_id}", response_model=EmployeeMilestoneListResponse,
+    response_model=EmployeeMilestoneListResponse,
     summary="List one employee's PERSONAL/ORG milestones (and PROJECT ones assigned to them)",
-)
 )
 def list_employee_milestones(
     employee_id: str,

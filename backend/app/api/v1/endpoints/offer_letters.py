@@ -987,10 +987,10 @@ def release_offer_letter(
 # CANDIDATE SIGNATURE + ACCEPTANCE
 # ============================================
 
-    dependencies=[Depends(require_resource_permission("letter", "create"))],
+@router.post(
     "/sign/{offer_id}",
-    dependencies=[Depends(get_current_internal_user)],
     response_model=CandidateSignedAcceptanceResponse,
+    dependencies=[Depends(require_resource_permission("offer", "create"))],
     summary="Candidate signs the offer letter (uploads signature PNG)",
 )
 async def candidate_sign_offer(

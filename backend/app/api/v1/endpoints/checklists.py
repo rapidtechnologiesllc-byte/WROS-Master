@@ -602,14 +602,11 @@ def hr_complete_item(
 @router.get(
     "/candidate/my-checklists",
     dependencies=[
-        Depends(require_resource_permission("resource",
-        "view")),
+        Depends(require_resource_permission("checklist", "view")),
         Depends(get_current_internal_user),
     ],
-    "/candidate/my-checklists",
     response_model=CandidateChecklistListResponse,
     summary="Get the authenticated candidate's checklists",
-)
 )
 def get_my_checklists(
     db: Session = Depends(get_db),

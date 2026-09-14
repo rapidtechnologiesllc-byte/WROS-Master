@@ -83,10 +83,13 @@ def _to_item(db: Session, submission: Submission) -> SubmissionItem:
         source=submission.source,
     )
 
-    dependencies=[Depends(require_resource_permission("resource", "create"))],
-    "",
+@router.post(
+    "/",
+    dependencies=[
+        Depends(require_resource_permission("submission", "create")),
+        Depends(get_current_internal_user),
+    ],
     response_model=SubmissionItem,
-    dependencies=[Depends(get_current_internal_user)],
     summary="Submit a candidate to a demand (runs all compliance gates)",
 )
 def submit_candidate(

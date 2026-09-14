@@ -43,13 +43,10 @@ router = APIRouter(prefix="/autonomous-jobs", tags=["autonomous-jobs"])
 @router.get(
     "/status/{job_id}",
     dependencies=[
-        Depends(require_resource_permission("management",
-        "view")),
+        Depends(require_resource_permission("management", "view")),
         Depends(get_current_internal_user),
     ],
-    "/status/{job_id}",
     response_model=JobClosureStatusResponse,
-)
 )
 def get_job_status(job_id: str, db: Session = Depends(get_db)):
     """
