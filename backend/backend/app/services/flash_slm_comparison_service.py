@@ -53,10 +53,13 @@ class FlashSLMComparisonService:
             ValueError: If candidate not found
             HTTPException: If missing critical data
         """
-        # Verify candidate exists
-        candidate = db.query(Candidate).filter(Candidate.candidateID == candidate_id).first()
+        # BLOCKER #1: Verify candidate exists AND belongs to tenant (security fix)
+        candidate = db.query(Candidate).filter(
+            Candidate.candidateID == candidate_id,
+            Candidate.tenant_id == tenant_id
+        ).first()
         if not candidate:
-            raise ValueError(f"Candidate {candidate_id} not found")
+            raise ValueError(f"Candidate {candidate_id} not found in this tenant")
 
         # CRITICAL-10: Safe name building with NULL handling
         first_name = candidate.candidateFirstName or "Unknown"

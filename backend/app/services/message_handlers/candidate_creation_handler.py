@@ -46,6 +46,11 @@ class CandidateCreationHandler:
 
         payload = message.payload
         candidate_email = payload.get("candidate_email")
+
+        # ===== VALIDATION: Verify payload has required email field =====
+        if not candidate_email or "@" not in candidate_email:
+            raise ValueError(f"Invalid or missing candidate_email in payload: {candidate_email}")
+
         logger.info(f"[Handler] Processing queue message, candidate_email={candidate_email}, payload keys={list(payload.keys())}")
 
         try:
@@ -62,11 +67,22 @@ class CandidateCreationHandler:
                 logger.error(f"[Handler] Invalid tenant_id {tenant_id} for {candidate_email}")
                 raise ValueError(f"Invalid tenant_id: {tenant_id}")
 
+            # Generate password if not provided (UI forms don't always send passwords)
+            from app.utils.uniq_id_generator import generate_password
+            from app.core.security import get_password_hash
+
+            candidate_password = payload.get("candidate_password")
+            if not candidate_password:
+                # Auto-generate temporary password for UI-created candidates
+                plain_password = generate_password()
+                candidate_password = get_password_hash(plain_password)
+                logger.info(f"[Handler] Generated temporary password for {candidate_email}")
+
             candidate = Candidate(
                 candidateID=candidate_id_generator(),
                 candidateEmail=candidate_email,
                 candidateMobile=payload.get("candidate_mobile"),
-                candidatePassword=payload.get("candidate_password"),  # Hashed password from API
+                candidatePassword=candidate_password,  # Hashed password (generated if not provided)
                 candidateRole=payload.get("candidate_role", "Candidate"),
                 candidateEmployeeType=payload.get("candidate_employee_type"),
                 candidateFirstName=payload.get("candidate_first_name"),
@@ -85,15 +101,112 @@ class CandidateCreationHandler:
                 tenant_id=tenant_id,  # ✅ Assign tenant_id from payload
             )
 
-            # Check for duplicates before adding
+            # Check for duplicates: EMAIL OR PHONE (Either matches = duplicate)
+            # This handles scenarios where same person applies with updated contact info
             is_new = True
-            existing = db.query(Candidate).filter(Candidate.candidateEmail == candidate_email).first()
+            candidate_mobile = payload.get("candidate_mobile")
+
+            # Build query: Match by email OR phone
+            query = db.query(Candidate).filter(Candidate.candidateEmail == candidate_email)
+            if candidate_mobile:
+                from sqlalchemy import or_
+                query = db.query(Candidate).filter(
+                    or_(
+                        Candidate.candidateEmail == candidate_email,
+                        Candidate.candidateMobile == candidate_mobile
+                    )
+                )
+
+            existing = query.first()
             if existing:
                 is_new = False
+                candidate_id_existing = existing.candidateID
+
+                # Determine which field matched (email or phone)
+                match_field = "email"
+                match_value = candidate_email
+                if candidate_mobile and existing.candidateMobile == candidate_mobile and existing.candidateEmail != candidate_email:
+                    match_field = "phone"
+                    match_value = candidate_mobile
+                elif candidate_mobile and existing.candidateMobile == candidate_mobile and existing.candidateEmail == candidate_email:
+                    match_field = "email+phone"
+                    match_value = f"{candidate_email} / {candidate_mobile}"
+
+                logger.warning(
+                    f"[Handler] DUPLICATE DETECTED: {match_field.upper()} '{match_value}' already exists. "
+                    f"Existing candidate_id={candidate_id_existing}. "
+                    f"Merging new details into existing record (idempotent upsert)."
+                )
+
+                # MERGE: Update existing candidate with non-null/non-empty values from payload
+                # This implements proper upsert behavior - fresh submission data overwrites stale data
+                merge_count = 0
+                if payload.get("candidate_first_name"):
+                    existing.candidateFirstName = payload.get("candidate_first_name")
+                    merge_count += 1
+                if payload.get("candidate_middle_name"):
+                    existing.candidateMiddleName = payload.get("candidate_middle_name")
+                    merge_count += 1
+                if payload.get("candidate_last_name"):
+                    existing.candidateLastName = payload.get("candidate_last_name")
+                    merge_count += 1
+                if payload.get("candidate_mobile"):
+                    existing.candidateMobile = payload.get("candidate_mobile")
+                    merge_count += 1
+                if payload.get("candidate_current_location"):
+                    existing.candidateCurrentLocation = payload.get("candidate_current_location")
+                    merge_count += 1
+                if payload.get("candidate_gender"):
+                    existing.candidateGender = payload.get("candidate_gender")
+                    merge_count += 1
+                if payload.get("candidate_source"):
+                    existing.candidateSource = payload.get("candidate_source")
+                    merge_count += 1
+                if payload.get("candidate_experience"):
+                    existing.candidateExperience = payload.get("candidate_experience")
+                    merge_count += 1
+                if payload.get("candidate_skills"):
+                    existing.candidateSkills = payload.get("candidate_skills")
+                    merge_count += 1
+                if payload.get("candidate_joining_date"):
+                    existing.candidateJoiningDate = payload.get("candidate_joining_date")
+                    merge_count += 1
+                if payload.get("candidate_expected_salary"):
+                    existing.candidateExpectedSalary = payload.get("candidate_expected_salary")
+                    merge_count += 1
+                if payload.get("candidate_current_salary"):
+                    existing.candidateCurrentSalary = payload.get("candidate_current_salary")
+                    merge_count += 1
+                if payload.get("candidate_role"):
+                    existing.candidateRole = payload.get("candidate_role")
+                    merge_count += 1
+                if payload.get("candidate_employee_type"):
+                    existing.candidateEmployeeType = payload.get("candidate_employee_type")
+                    merge_count += 1
+
+                # Mark record as updated
+                existing.candidateCreatedAt = datetime.now()  # Refresh timestamp
                 candidate = existing
-                logger.info(f"[Handler] Candidate already exists: {candidate_email}")
+
+                # CRITICAL: Explicitly flush merged changes to session before final commit
+                # SQLAlchemy might not track object modifications unless we flush
+                try:
+                    db.flush()
+                    logger.info(f"[Handler] Flushed merged candidate {candidate_id_existing} to session")
+                except Exception as e:
+                    logger.error(f"[Handler] Failed to flush merged candidate: {e}", exc_info=True)
+                    db.rollback()
+                    raise RuntimeError(f"Failed to flush merged candidate: {str(e)}") from e
+
+                logger.info(
+                    f"[Handler] DUPLICATE MERGE: Updated {merge_count} fields in {candidate_id_existing}. "
+                    f"Merged: first_name={payload.get('candidate_first_name')}, "
+                    f"last_name={payload.get('candidate_last_name')}, "
+                    f"mobile={payload.get('candidate_mobile')}"
+                )
             else:
                 db.add(candidate)
+                logger.info(f"[Handler] NEW candidate: {candidate_email} - creating new record")
 
             # Flush candidate to get candidateID (but don't commit yet)
             try:
@@ -106,6 +219,28 @@ class CandidateCreationHandler:
 
             candidate_id = candidate.candidateID
             logger.info(f"[Handler] ✅ Candidate flushed: {candidate_id}")
+
+            # BLOCKER #3: Create CandidateConversation for Flash analysis linkage
+            from app.models.candidate_ai import CandidateConversation
+            try:
+                existing_conversation = db.query(CandidateConversation).filter(
+                    CandidateConversation.candidate_id == candidate_id
+                ).first()
+
+                if not existing_conversation:
+                    candidate_conversation = CandidateConversation(
+                        tenant_id=tenant_id,
+                        candidate_id=candidate_id,
+                        status="open",
+                        ai_agent_name="flash_recruiter",
+                        channel_preference="email"
+                    )
+                    db.add(candidate_conversation)
+                    db.flush()
+                    logger.info(f"[Handler] ✅ CandidateConversation created for {candidate_id}")
+            except Exception as e:
+                logger.error(f"[Handler] Failed to create conversation: {e}", exc_info=True)
+                # Don't fail candidate creation if conversation creation fails
 
             # 2. CREATE STATUS
             try:
@@ -210,10 +345,53 @@ class CandidateCreationHandler:
             except Exception as log_err:
                 logger.warning(f"[Handler] Failed to log candidate creation activity: {log_err}, but creation succeeded")
 
+            # ===== VALIDATION STEP 1: Verify candidate_id is not null =====
+            # CRITICAL: Candidate must have been assigned an ID
+            if not candidate_id or candidate_id.strip() == "":
+                raise RuntimeError(f"Candidate creation failed: candidateID is null or empty")
+            logger.info(f"[Handler] ✅ Candidate ID assigned: {candidate_id}")
+
+            # ===== VALIDATION STEP 2: Verify candidate exists in database =====
+            # CRITICAL: Must verify record is actually persisted before marking success!
+            db_candidate = db.query(Candidate).filter(Candidate.candidateID == candidate_id).first()
+            if not db_candidate:
+                raise RuntimeError(
+                    f"Candidate creation failed: candidate {candidate_id} not found in database after creation. "
+                    f"Data persistence verification failed."
+                )
+            logger.info(f"[Handler] ✅ Candidate verified in database: {candidate_id}")
+
+            # ===== VALIDATION STEP 3: Verify email matches what was in payload =====
+            # CRITICAL: Must verify BEFORE marking success!
+            expected_email = payload.get('candidate_email')
+            if expected_email and db_candidate.candidateEmail != expected_email:
+                raise RuntimeError(
+                    f"Email mismatch: handler created with '{db_candidate.candidateEmail}' "
+                    f"but payload specified '{expected_email}'. "
+                    f"Data corruption detected."
+                )
+            logger.info(f"[Handler] ✅ Email verified: {db_candidate.candidateEmail}")
+
             # RETURN SUCCESS IMMEDIATELY - Mark handler complete before queuing dependent work
             # This prevents handler from blocking on email/Thunder queueing
-            result = {"status": "success", "candidate_id": candidate_id, "is_new": is_new}
-            logger.info(f"[Handler] ✅ Candidate creation complete: {candidate_id} (ready for return)")
+            result = {
+                "status": "success",
+                "candidate_id": candidate_id,
+                "is_new": is_new,
+                "candidate_email": candidate_email,
+                "data": {
+                    "status": "success",
+                    "candidate_id": candidate_id,
+                    "is_new": is_new,
+                    "candidate_email": candidate_email
+                }
+            }
+            log_msg = f"[Handler] ✅ Candidate creation complete: {candidate_id}"
+            if is_new:
+                log_msg += " (NEW candidate created)"
+            else:
+                log_msg += " (DUPLICATE - existing candidate reused)"
+            logger.info(f"{log_msg} (ready for return)")
 
             # Queue dependent work AFTER returning success (non-blocking background tasks)
             # These should NOT block handler completion
@@ -226,56 +404,9 @@ class CandidateCreationHandler:
             except Exception as e:
                 logger.warning(f"[Handler] History logging failed (non-blocking): {e}", exc_info=True)
 
-            try:
-                # Phase 2: Queue engagement with SLM email generation
-                # Queue will be in WAITING_FOR_SLM state until SLM generates personalized email
-                from app.core.database import SessionLocal as DBSession
-
-                result = MessageQueueService.enqueue(
-                    task_name='engage_candidate_with_thunder',
-                    data={
-                        'candidate_id': candidate_id,
-                        'recipient_email': candidate_email,
-                        'first_name': payload.get("candidate_first_name", "User"),
-                        'action': 'send_welcome_email',
-                        'tenant_id': payload.get('tenant_id', 1),
-                    }
-                )
-
-                # Update message status to WAITING_FOR_SLM for async email generation
-                try:
-                    temp_db = DBSession()
-                    from app.models.channel_queue import ChannelQueueItem
-                    message_id = result.get('message_id') or result.get('id')
-                    queued_message = temp_db.query(ChannelQueueItem).filter(
-                        ChannelQueueItem.message_id == message_id
-                    ).first()
-                    if queued_message:
-                        queued_message.status = 'WAITING_FOR_SLM'
-                        temp_db.commit()
-                        logger.info(f"[Handler] ✅ Queued engagement with SLM email generation for {candidate_id} (status: WAITING_FOR_SLM)")
-                    else:
-                        logger.warning(f"[Handler] Could not find queued message {message_id} to set WAITING_FOR_SLM status")
-                    temp_db.close()
-                except Exception as status_err:
-                    logger.warning(f"[Handler] Failed to set WAITING_FOR_SLM status: {status_err}", exc_info=True)
-
-            except Exception as e:
-                logger.warning(f"[Handler] Email queueing failed (non-blocking): {e}", exc_info=True)
-
-            try:
-                # Queue to Thunder for autonomous processing (non-critical, async)
-                MessageQueueService.enqueue(
-                    task_name='assign_thunder_agent',
-                    data={
-                        'candidate_id': candidate_id,
-                        'action': 'qualify',
-                        'tenant_id': payload.get('tenant_id', 1),
-                    }
-                )
-                logger.info(f"[Handler] ✅ Queued {candidate_id} to Thunder")
-            except Exception as e:
-                logger.warning(f"[Handler] Thunder queueing failed (non-blocking): {e}", exc_info=True)
+            # ARCHITECT FIX: Thunder queueing moved to queue_processor_service as side effect
+            # This prevents double-engagement when queue_processor also queues Thunder after COMPLETED
+            # Handler responsibility: Create candidate data only, not orchestrate downstream workflows
 
             try:
                 # Queue SLM pre-flight analysis for training data collection
@@ -396,6 +527,27 @@ class CandidateCreationHandler:
                     except Exception as e:
                         logger.warning(f"[Handler] Failed to queue email for healed candidate: {e}")
 
+                    # CRITICAL: Verify BOTH candidate AND related records exist before marking success
+                    # NO COMPROMISE: Healed candidate must be fully persisted
+                    db_candidate_verify = db.query(Candidate).filter(Candidate.candidateID == candidate_id).first()
+                    if not db_candidate_verify:
+                        raise RuntimeError(
+                            f"Healed candidate creation failed: candidate {candidate_id} not found in database "
+                            f"after healer completed. Data persistence verification failed."
+                        )
+                    logger.info(f"[Handler] ✅ Healed candidate verified in database: {candidate_id}")
+
+                    # Verify CandidateStatus also exists for healed candidate
+                    healed_status = db.query(CandidateStatus).filter(
+                        CandidateStatus.candidateID == candidate_id
+                    ).first()
+                    if not healed_status:
+                        raise RuntimeError(
+                            f"Healed candidate {candidate_id} exists but required CandidateStatus record missing. "
+                            f"Data persistence incomplete - healer created candidate but status not found."
+                        )
+                    logger.info(f"[Handler] ✅ Healed candidate status verified in database: {candidate_id}")
+
                     # If we used placeholders, create a recruiter task to fix the data
                     if recruiter_task:
                         logger.info(f"[Handler] Creating recruiter task: {recruiter_task}")
@@ -454,112 +606,127 @@ class CandidateCreationHandler:
             raise
 
     @staticmethod
-    def on_success(message: ChannelQueueItem, result: Dict[str, Any], db: Session) -> None:
-        """Handle successful message processing with validation before marking COMPLETED."""
+    def on_success(message: ChannelQueueItem, result: Dict[str, Any], db: Session) -> Dict[str, Any]:
+        """
+        ARCHITECT FIX: Validate message result WITHOUT mutating state.
+        Returns validation result dict. Queue processor decides if COMPLETED.
+
+        This method:
+        - Validates result structure and database state
+        - Uses row-level locks (SELECT FOR UPDATE) to prevent race conditions
+        - Returns {is_valid: bool, error: str?, candidate_id: str?}
+        - Does NOT set message.status or commit (that's queue_processor's job)
+        """
         try:
             # ===== VALIDATION STEP 1: Check result structure =====
             if not isinstance(result, dict):
                 raise ValueError(f"Handler returned invalid type: {type(result)}")
 
-            required_fields = ['candidate_id', 'status', 'is_new']
+            logger.info(f"[Handler] on_success called with result keys: {list(result.keys())}")
+
+            actual_result = result.get('data', result)
+            logger.info(f"[Handler] actual_result keys: {list(actual_result.keys())}")
+
+            required_fields = ['candidate_id', 'is_new']
             for field in required_fields:
-                if field not in result:
+                if field not in actual_result:
+                    logger.error(f"[Handler] Missing field '{field}' in result")
                     raise ValueError(f"Handler result missing required field: {field}")
-                if result[field] is None and field != 'is_new':
+                if actual_result[field] is None:
                     raise ValueError(f"Handler result has null field: {field}")
 
-            candidate_id = result['candidate_id']
-            logger.info(f"[Handler] ✅ Step 1: Result structure valid (candidate_id={candidate_id})")
+            candidate_id = actual_result['candidate_id']
+            is_new = actual_result.get('is_new', True)
+            logger.info(f"[Handler] ✅ Step 1: Result structure valid (candidate_id={candidate_id}, is_new={is_new})")
 
-            # ===== VALIDATION STEP 2: Database verification =====
-            # Query to verify candidate actually exists in database
+            # ===== VALIDATION STEP 1.5: Check duplicate detection result =====
+            # When a duplicate is detected (is_new=False), verify it was handled correctly
+            if not is_new:
+                logger.info(f"[Handler] Step 1.5: Duplicate candidate detected (is_new=False). "
+                           f"Verifying duplicate was already in database before this message...")
+            else:
+                logger.info(f"[Handler] Step 1.5: New candidate creation (is_new=True). "
+                           f"Verifying new record was created by this handler...")
+
+            # ===== VALIDATION STEP 2: Database verification with ATOMIC ROW LOCKS =====
+            # ARCHITECT FIX: Use SELECT FOR UPDATE to acquire write locks
+            # Prevents concurrent deletion of candidate between validation and COMPLETED mark
             candidate = db.query(Candidate).filter(
                 Candidate.candidateID == candidate_id
-            ).first()
+            ).with_for_update().first()
 
             if not candidate:
-                raise RuntimeError(
-                    f"Record {candidate_id} not found in database after handler completed. "
-                    f"Handler returned ID but record was not persisted."
+                error_msg = (
+                    f"Candidate {candidate_id} not found in database (or was deleted during validation). "
+                    f"is_new={is_new}. "
                 )
+                if not is_new:
+                    error_msg += "This was a DUPLICATE case, so candidate should have existed in DB before this message."
+                else:
+                    error_msg += "This was a NEW candidate case, so handler FAILED to create it."
+                raise RuntimeError(error_msg)
 
-            logger.info(f"[Handler] ✅ Step 2: Database verification passed, candidate exists")
+            logger.info(f"[Handler] ✅ Step 2: Database verification passed (candidate locked, email={candidate.candidateEmail}, is_new={is_new})")
 
-            # ===== VALIDATION STEP 3: Related records consistency =====
-            # Verify status record exists
+            # ===== VALIDATION STEP 2.5: Verify email matches payload =====
+            # This confirms we have the CORRECT candidate in the database
+            payload_email = actual_result.get('candidate_email') or \
+                          (result.get('data', {}).get('candidate_email') if isinstance(result, dict) and 'data' in result else None)
+            if payload_email and candidate.candidateEmail != payload_email:
+                raise RuntimeError(
+                    f"Email mismatch in validation: DB has '{candidate.candidateEmail}' "
+                    f"but handler returned '{payload_email}'. Data corruption or wrong candidate retrieved."
+                )
+            logger.info(f"[Handler] ✅ Step 2.5: Email verified matches handler result")
+
+            # ===== VALIDATION STEP 3: Related records with atomic locks =====
+            # Lock CandidateStatus to prevent concurrent deletion
             status = db.query(CandidateStatus).filter(
                 CandidateStatus.candidateID == candidate_id
-            ).first()
+            ).with_for_update().first()
 
             if not status:
-                raise RuntimeError(
-                    f"Required status record missing for {candidate_id}. "
-                    f"Candidate exists but status was not created."
-                )
+                if is_new:
+                    raise RuntimeError(
+                        f"NEW candidate {candidate_id} missing CandidateStatus. Handler failed to create status record."
+                    )
+                else:
+                    raise RuntimeError(
+                        f"DUPLICATE candidate {candidate_id} missing CandidateStatus. "
+                        f"Status record should have existed for duplicate case."
+                    )
 
             if status.piplineStatus != "Applied":
                 raise RuntimeError(
-                    f"Status is '{status.piplineStatus}', expected 'Applied'. "
-                    f"Pipeline state incorrect."
+                    f"Status is '{status.piplineStatus}', expected 'Applied' for {candidate_id}. "
+                    f"Pipeline state incorrect. is_new={is_new}"
                 )
 
-            logger.info(f"[Handler] ✅ Step 3: Related records valid, status exists and correct")
+            logger.info(f"[Handler] ✅ Step 3: Related records valid (status locked)")
 
-            # ===== VALIDATION STEP 4: Data integrity =====
-            # Verify email matches what was in payload
-            payload = message.payload
-            expected_email = payload.get('candidate_email')
-            if expected_email and candidate.candidateEmail != expected_email:
-                raise RuntimeError(
-                    f"Email mismatch: handler created with '{candidate.candidateEmail}' "
-                    f"but payload specified '{expected_email}'. "
-                    f"Data corruption detected."
-                )
+            # ===== VALIDATION COMPLETE =====
+            # Return validation result WITHOUT mutating message.status
+            # Queue processor will decide what to do with this result
+            logger.info(f"[Handler] ✅✅✅ ALL VALIDATIONS PASSED - Returning to queue processor")
 
-            logger.info(f"[Handler] ✅ Step 4: Data integrity verified, email matches")
-
-            # ===== FINAL: Mark COMPLETED after all validations pass =====
-            message.status = "COMPLETED"
-            message.completed_at = datetime.utcnow()
-            message.result = result
-
-            try:
-                db.commit()
-            except Exception as commit_err:
-                db.rollback()
-                raise RuntimeError(f"Failed to commit success status: {str(commit_err)}") from commit_err
-
-            logger.info(f"[Handler] ✅✅✅ ALL VALIDATIONS PASSED - Message marked COMPLETED")
-
-            # ===== QUEUE DEPENDENT WORK (after validation confirms success) =====
-            # Queue candidate to Thunder for autonomous engagement
-            if candidate_id:
-                try:
-                    MessageQueueService.enqueue(
-                        task_name='engage_candidate_with_thunder',
-                        data={'candidate_id': candidate_id}
-                    )
-                    logger.info(f"[Handler] Candidate {candidate_id} queued to THUNDER_QUEUE for autonomous engagement")
-                except Exception as e:
-                    logger.error(f"[Handler] Failed to queue candidate {candidate_id} to Thunder: {e}", exc_info=True)
-
-        except ValueError as e:
-            # Non-retryable error (handler code bug)
-            db.rollback()
-            logger.error(f"[Handler] ❌ NON-RETRYABLE validation failure: {e}")
-            raise  # Will be caught by processor
-
-        except RuntimeError as e:
-            # Retryable error (temporary DB issue)
-            db.rollback()
-            logger.error(f"[Handler] ❌ RETRYABLE validation failure: {e}")
-            raise  # Will be caught by processor
+            return {
+                'is_valid': True,
+                'candidate_id': candidate_id,
+                'locked_records': ['candidate', 'status']  # Tell queue_processor what we locked
+            }
 
         except Exception as e:
-            # Unexpected error
-            db.rollback()
-            logger.error(f"[Handler] ❌ Unexpected validation error: {e}", exc_info=True)
-            raise RuntimeError(f"Validation error: {str(e)}") from e
+            logger.error(f"[Handler] ❌ Validation failed: {e}", exc_info=True)
+            try:
+                db.rollback()
+            except Exception:
+                pass
+            # Return failure dict instead of raising - let queue_processor decide
+            return {
+                'is_valid': False,
+                'error': str(e),
+                'error_type': type(e).__name__
+            }
 
     @staticmethod
     def on_failed(message: ChannelQueueItem, final_error: str, db: Session) -> None:
