@@ -129,21 +129,66 @@ def escalate_comparison(
 ):
     """Escalate a Flash vs SLM conflict to a manager or recruiter"""
     try:
+        # CRITICAL #3 FIX: Implement actual escalation (was just logging before)
+
+        # Verify candidate exists and belongs to tenant
+        from app.models.candidate import Candidate
+        candidate = db.query(Candidate).filter(
+            Candidate.candidateID == candidate_id,
+            Candidate.tenant_id == getattr(current_user, 'tenant_id', 1) or 1
+        ).first()
+
+        if not candidate:
+            raise HTTPException(status_code=404, detail=f"Candidate {candidate_id} not found")
+
+        # Create escalation audit record using ConversationEvent (multi-purpose event log)
+        from app.models.candidate_ai import CandidateConversation, ConversationEvent
+
+        conversation = db.query(CandidateConversation).filter(
+            CandidateConversation.candidate_id == candidate_id
+        ).first()
+
+        if not conversation:
+            logger.warning(f"[FlashSLMEscalation] No conversation found for {candidate_id}, escalation still recorded")
+            conversation_id = None
+        else:
+            conversation_id = conversation.id
+
+        # Log escalation as ConversationEvent (audit trail)
+        escalation_event = ConversationEvent(
+            conversation_id=conversation_id,
+            event_type="COMPARISON_ESCALATION",
+            triggered_by="escalation_ui",
+            event_data={
+                "candidate_id": candidate_id,
+                "escalated_to": request.escalation_to,
+                "escalated_by": current_user.UserID,
+                "conflict_type": request.conflict_type,
+                "reason": request.reason,
+                "timestamp": datetime.utcnow().isoformat()
+            }
+        )
+        db.add(escalation_event)
+        db.commit()
+
         logger.info(
-            f"[FlashSLMEscalation] Escalating candidate {candidate_id} "
-            f"to {request.escalation_to} by user {current_user.UserID}. "
-            f"Reason: {request.conflict_type}"
+            f"[FlashSLMEscalation] ✅ Escalation recorded for {candidate_id}: "
+            f"Type={request.conflict_type}, To={request.escalation_to}, By={current_user.UserID}"
         )
 
-        # In production, would create ComparisonEscalation record and notify user
-        # For now, just log and return success
+        # TODO: Send notification to escalation_to (manager/recruiter) via notification service
+        # NotificationService.send_escalation_alert(request.escalation_to, candidate_id, request.reason)
+
         return {
             "status": "escalated",
             "candidate_id": candidate_id,
             "escalated_to": request.escalation_to,
+            "escalation_event_id": escalation_event.id,
             "timestamp": datetime.utcnow().isoformat(),
         }
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"[FlashSLMEscalation] Failed to escalate: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Failed to escalate comparison")
+        raise HTTPException(status_code=500, detail=f"Failed to escalate comparison: {str(e)}")

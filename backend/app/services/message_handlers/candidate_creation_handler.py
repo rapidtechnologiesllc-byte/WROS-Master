@@ -228,8 +228,11 @@ class CandidateCreationHandler:
                 ).first()
 
                 if not existing_conversation:
+                    # CRITICAL #2 FIX: tenant_id in CandidateConversation is String(FK to users.UserID)
+                    # Do NOT pass integer tenant_id (FK to Tenant.id)
+                    # Set tenant_id=None (conversation is system-owned, not user-owned)
                     candidate_conversation = CandidateConversation(
-                        tenant_id=tenant_id,
+                        tenant_id=None,  # System-owned conversation (no specific user owner)
                         candidate_id=candidate_id,
                         status="open",
                         ai_agent_name="flash_recruiter",
@@ -238,9 +241,17 @@ class CandidateCreationHandler:
                     db.add(candidate_conversation)
                     db.flush()
                     logger.info(f"[Handler] ✅ CandidateConversation created for {candidate_id}")
+
+                    # CRITICAL #4: Verify conversation actually exists (no silent failure)
+                    created_conv = db.query(CandidateConversation).filter(
+                        CandidateConversation.candidate_id == candidate_id
+                    ).first()
+                    if not created_conv:
+                        raise RuntimeError(f"Conversation creation failed for {candidate_id} (post-flush verify failed)")
             except Exception as e:
-                logger.error(f"[Handler] Failed to create conversation: {e}", exc_info=True)
-                # Don't fail candidate creation if conversation creation fails
+                logger.error(f"[Handler] CRITICAL: Failed to create conversation for {candidate_id}: {e}", exc_info=True)
+                # CRITICAL FIX: Fail loudly, don't silently skip
+                raise RuntimeError(f"Cannot create candidate without conversation: {e}")
 
             # 2. CREATE STATUS
             try:

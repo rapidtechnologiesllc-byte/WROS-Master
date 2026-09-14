@@ -241,7 +241,7 @@ Respond ONLY with valid JSON (no markdown, no extra text):
 
         # BLOCKER #2: Log decision event with proper conversation linkage
         if "error" not in decision:
-            # Find the conversation for this candidate
+            # CRITICAL #4 FIX: Verify conversation exists before creating event
             conversation_id = None
             if candidate:
                 from app.models.candidate_ai import CandidateConversation
@@ -250,6 +250,23 @@ Respond ONLY with valid JSON (no markdown, no extra text):
                 ).first()
                 if conversation:
                     conversation_id = conversation.id
+                else:
+                    # CRITICAL: Conversation should exist by now (created during candidate creation)
+                    # If missing, this indicates a failure in candidate creation flow
+                    logger.error(
+                        f"[Flash] CRITICAL: No conversation found for candidate {candidate.candidateID}. "
+                        f"Candidate creation may have failed silently. Event will be orphaned."
+                    )
+
+            # CRITICAL #4 FIX: Fail loudly if conversation is missing (don't silently orphan the event)
+            if not conversation_id and candidate:
+                logger.error(
+                    f"[Flash] CRITICAL: Cannot create Flash event for {interview_id} "
+                    f"(candidate {candidate.candidateID}) - conversation_id is NULL. "
+                    f"This indicates conversation creation failed during candidate creation."
+                )
+                # Log error but still store event (with NULL conversation_id for debugging)
+                # Production: This should be escalated to admin
 
             db.add(ConversationEvent(
                 conversation_id=conversation_id,

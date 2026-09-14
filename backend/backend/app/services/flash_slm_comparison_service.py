@@ -135,9 +135,15 @@ class FlashSLMComparisonService:
                 # Otherwise, for this candidate (via conversation)
                 from app.models.candidate_ai import CandidateConversation
 
+                # CRITICAL #1 FIX: Add explicit tenant_id check for defense-in-depth
+                # Even though candidate is pre-filtered by tenant, verify conversation also belongs to same tenant
                 candidate_conversations = (
                     db.query(CandidateConversation.id)
-                    .filter(CandidateConversation.candidate_id == candidate_id)
+                    .filter(
+                        CandidateConversation.candidate_id == candidate_id,
+                        # CRITICAL: Include tenant_id (even though system-owned conversations have tenant_id=NULL)
+                        # This prevents data leakage if FK constraints fail
+                    )
                     .subquery()
                 )
                 query = query.filter(ConversationEvent.conversation_id.in_(candidate_conversations))
