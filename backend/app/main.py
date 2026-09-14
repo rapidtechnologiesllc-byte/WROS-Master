@@ -28,6 +28,7 @@ from app.api.v1.endpoints.business_units import router as business_units_router
 from app.api.v1.endpoints.rbac import router as rbac_router
 from app.api.v1.endpoints.career_portal import router as career_portal_router
 from app.api.v1.endpoints.flash_queue_metrics import router as flash_queue_metrics_router
+from app.api.v1.endpoints.flash_slm_comparison import router as flash_slm_comparison_router
 from app.api.v1.endpoints.employee_referrals import router as employee_referrals_router
 
 # Agent State models — imported here so Base.metadata.create_all() finds them
@@ -386,6 +387,8 @@ app.include_router(candidate_history_router, prefix="/api/v1")
 app.include_router(employee_referrals_router, prefix="/api/v1/referrals")
 # Include Flash queue metrics routes with /api/v1/flash prefix (queue health monitoring)
 app.include_router(flash_queue_metrics_router, prefix="/api/v1")
+# Include Flash vs SLM comparison routes with /api/v1 prefix (comparative analysis of interview vs metrics)
+app.include_router(flash_slm_comparison_router, prefix="/api/v1")
 
 # HRMS-0114 -- fail startup if any route has no explicit identity/
 # permission declaration at all. Runs synchronously at import time
