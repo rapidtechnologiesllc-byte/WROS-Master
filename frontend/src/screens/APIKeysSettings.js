@@ -53,6 +53,21 @@ export default function APIKeysSettings() {
     }
   };
 
+  const testProvider = async (provider) => {
+    try {
+      console.log('[APIKeys] Testing', provider, 'credentials');
+      const response = await apiRequest('/api/v1/api-keys/test', {
+        method: 'POST',
+        body: JSON.stringify({ provider }),
+      });
+      console.log('[APIKeys] Test response:', response);
+      return response.status === 'success';
+    } catch (err) {
+      console.error('[APIKeys] Test error:', err);
+      return false;
+    }
+  };
+
   const handleSaveProvider = async (provider, formData) => {
     const required = {
       azure: ['tenant_id', 'client_id', 'client_secret'],
@@ -73,14 +88,26 @@ export default function APIKeysSettings() {
         body: JSON.stringify({
           provider,
           [provider]: formData,
+          active_provider: provider,
         }),
       });
       console.log('[APIKeys] Save response:', response);
 
       toast.success(`${provider.charAt(0).toUpperCase() + provider.slice(1)} credentials saved successfully`);
-      setActiveProvider(provider);
 
-      // Reload to verify save
+      // Test credentials after saving
+      console.log('[APIKeys] Testing credentials...');
+      const testPassed = await testProvider(provider);
+
+      if (testPassed) {
+        console.log('[APIKeys] Test passed, marking as active');
+        toast.success(`${provider} test passed! Credentials are valid.`);
+      } else {
+        console.warn('[APIKeys] Test failed, credentials not activated');
+        toast.warning(`${provider} credentials saved but test failed. Please verify your credentials.`);
+      }
+
+      // Reload to verify save and get updated status
       await loadConfigurations();
     } catch (err) {
       console.error('[APIKeys] Save error:', err);

@@ -226,12 +226,18 @@ class APIKeysService:
                     active_provider = config.provider
 
                 # Decrypt and include actual credentials from database
-                if config.provider == "azure" and config.azure_tenant_id:
-                    azure_creds = config.get_azure_creds()
-                elif config.provider == "twilio" and config.twilio_account_sid:
-                    twilio_creds = config.get_twilio_creds()
-                elif config.provider == "sendgrid" and config.sendgrid_api_key:
-                    sendgrid_creds = config.get_sendgrid_creds()
+                try:
+                    if config.provider == "azure" and config.azure_tenant_id:
+                        azure_creds = config.get_azure_creds()
+                    elif config.provider == "twilio" and config.twilio_account_sid:
+                        twilio_creds = config.get_twilio_creds()
+                    elif config.provider == "sendgrid" and config.sendgrid_api_key:
+                        sendgrid_creds = config.get_sendgrid_creds()
+                except Exception as e:
+                    logger.warning(f"[APIKeysService] Failed to decrypt credentials for {config.provider}: {e}")
+                    # Credentials are corrupted/unreadable - mark as not configured
+                    provider_info["status"] = "not_configured"
+                    provider_info["is_active"] = False
 
             return {
                 "active_provider": active_provider,
