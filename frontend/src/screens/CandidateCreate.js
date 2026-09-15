@@ -598,12 +598,15 @@ export default function CandidateCreate({ onBack, onSave }) {
 
     try {
       // Create the candidate in backend and receive generated password.
-      // Format location: only include if all required fields are selected
+      // Format location: require all three fields (country, state, city)
       let formattedLocation = null;
-      if (locationValue?.countryCode && locationValue?.city) {
+      if (locationValue?.countryCode && locationValue?.stateCode && locationValue?.city) {
         const loc = formatLocation(locationValue);
         // Ensure it's a string, not an object
         formattedLocation = typeof loc === 'string' ? loc : null;
+      } else if (locationValue?.countryCode || locationValue?.stateCode || locationValue?.city) {
+        // Partial location entered but not complete
+        throw new Error("Please select Country, State, and City for location");
       }
 
       const data = await createCandidate({

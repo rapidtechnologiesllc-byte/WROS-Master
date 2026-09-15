@@ -1,55 +1,8 @@
-/**
- * API Keys Settings Screen
- * ========================
- *
- * Manage credentials for email/messaging delivery providers:
- * - Azure Graph (Microsoft 365)
- * - Twilio (WhatsApp)
- * - SendGrid (Email)
- * - STUB (Testing/Development)
- *
- * Features:
- * - Add/update provider credentials (securely encrypted)
- * - Test connections before saving
- * - Switch between providers
- * - View configuration status without exposing secrets
- * - Audit trail of changes
- */
-
 import React, { useState, useEffect } from 'react';
-import {
-  Box,
-  Tabs,
-  Tab,
-  TextField,
-  Button,
-  Card,
-  CardContent,
-  CircularProgress,
-  Alert,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  Paper,
-  Radio,
-  RadioGroup,
-  FormControlLabel,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-} from '@mui/material';
-import {
-  getAPIKeyConfigurations,
-  saveAPIKeyCredentials,
-  testProviderConnection,
-  validateAzureCredentials,
-  validateTwilioCredentials,
-  validateSendGridCredentials,
-} from '../services/api/api_keys';
+import { toast } from 'react-toastify';
+import { Card } from '../components/ui';
+import { Check, X, AlertCircle, Eye, EyeOff } from 'lucide-react';
+import { apiRequest } from '../services/api/client';
 
 const PROVIDERS = [
   { value: 'azure', label: 'Azure Graph (Microsoft 365)', icon: '🔵' },
@@ -59,448 +12,359 @@ const PROVIDERS = [
 ];
 
 export default function APIKeysSettings() {
-  // ────────────────────────────────────────────────────────────────
-  // State
-  // ────────────────────────────────────────────────────────────────
-
-  const [activeTab, setActiveTab] = useState(0);
   const [activeProvider, setActiveProvider] = useState('stub');
-  const [configurations, setConfigurations] = useState([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [testing, setTesting] = useState({});
   const [message, setMessage] = useState(null);
-  const [messageType, setMessageType] = useState('info');
-  const [testDialogOpen, setTestDialogOpen] = useState(false);
-  const [testProvider, setTestProvider] = useState(null);
-  const [testResult, setTestResult] = useState(null);
+  const [showSecrets, setShowSecrets] = useState({});
 
-  // ────── Azure Form State ──────────────────────────────────────
+  // Azure Form State
   const [azureForm, setAzureForm] = useState({
     tenant_id: '',
     client_id: '',
     client_secret: '',
   });
 
-  // ────── Twilio Form State ──────────────────────────────────────
+  // Twilio Form State
   const [twilioForm, setTwilioForm] = useState({
     account_sid: '',
     auth_token: '',
     whatsapp_number: '',
   });
 
-  // ────── SendGrid Form State ──────────────────────────────────────
+  // SendGrid Form State
   const [sendgridForm, setSendgridForm] = useState({
     api_key: '',
     from_email: '',
   });
 
-  // ────────────────────────────────────────────────────────────────
-  // Effects
-  // ────────────────────────────────────────────────────────────────
-
+  // Load existing configurations on mount
   useEffect(() => {
     loadConfigurations();
   }, []);
 
-  // ────────────────────────────────────────────────────────────────
-  // API Calls
-  // ────────────────────────────────────────────────────────────────
-
   const loadConfigurations = async () => {
+    setLoading(true);
     try {
-      setLoading(true);
-      const response = await getAPIKeyConfigurations();
-      setConfigurations(response.providers || []);
-      setActiveProvider(response.active_provider || 'stub');
-    } catch (error) {
-      setMessage(`Failed to load configurations: ${error.message}`);
-      setMessageType('error');
+      const response = await apiRequest('GET', '/api/v1/system/api-keys');
+
+      if (response.azure) {
+        setAzureForm({
+          tenant_id: response.azure.tenant_id || '',
+          client_id: response.azure.client_id || '',
+          client_secret: response.azure.client_secret || '',
+        });
+      }
+
+      if (response.twilio) {
+        setTwilioForm({
+          account_sid: response.twilio.account_sid || '',
+          auth_token: response.twilio.auth_token || '',
+          whatsapp_number: response.twilio.whatsapp_number || '',
+        });
+      }
+
+      if (response.sendgrid) {
+        setSendgridForm({
+          api_key: response.sendgrid.api_key || '',
+          from_email: response.sendgrid.from_email || '',
+        });
+      }
+
+      if (response.active_provider) {
+        setActiveProvider(response.active_provider);
+      }
+    } catch (err) {
+      console.warn('Could not load existing credentials:', err);
     } finally {
       setLoading(false);
     }
   };
 
-  const saveCredentials = async () => {
+  const handleSaveAzure = async () => {
+    if (!azureForm.tenant_id || !azureForm.client_id || !azureForm.client_secret) {
+      setMessage({ type: 'error', text: 'Please fill in all Azure fields' });
+      return;
+    }
+
+    setSaving(true);
     try {
-      setSaving(true);
+      await apiRequest('POST', '/api/v1/system/api-keys', {
+        provider: 'azure',
+        azure: azureForm,
+      });
+      toast.success('Azure credentials saved');
       setMessage(null);
-
-      // Build request with only filled-in providers
-      const request = {
-        active_provider: activeProvider,
-      };
-
-      // Only include providers with values
-      if (azureForm.tenant_id || azureForm.client_id || azureForm.client_secret) {
-        request.azure = azureForm;
+      if (activeProvider !== 'azure') {
+        setActiveProvider('azure');
       }
-      if (twilioForm.account_sid || twilioForm.auth_token || twilioForm.whatsapp_number) {
-        request.twilio = twilioForm;
-      }
-      if (sendgridForm.api_key || sendgridForm.from_email) {
-        request.sendgrid = sendgridForm;
-      }
-
-      // Validate at least one provider filled
-      if (!request.azure && !request.twilio && !request.sendgrid) {
-        setMessage('Please fill in credentials for at least one provider');
-        setMessageType('warning');
-        return;
-      }
-
-      const response = await saveAPIKeyCredentials(
-        {
-          azure: request.azure,
-          twilio: request.twilio,
-          sendgrid: request.sendgrid,
-        },
-        activeProvider
-      );
-
-      setMessage(`${response.message} (${response.saved_providers?.join(', ')})`);
-      setMessageType('success');
-
-      // Clear forms on successful save
-      setAzureForm({ tenant_id: '', client_id: '', client_secret: '' });
-      setTwilioForm({ account_sid: '', auth_token: '', whatsapp_number: '' });
-      setSendgridForm({ api_key: '', from_email: '' });
-
-      // Reload configurations
-      await loadConfigurations();
-    } catch (error) {
-      setMessage(`Failed to save credentials: ${error.message}`);
-      setMessageType('error');
+    } catch (err) {
+      toast.error(err.message || 'Failed to save Azure credentials');
+      setMessage({ type: 'error', text: err.message || 'Failed to save' });
     } finally {
       setSaving(false);
     }
   };
 
-  const testConnection = async (provider) => {
-    try {
-      setTesting({ ...testing, [provider]: true });
-      const response = await apiRequest('/api/v1/api-keys/test', {
-        method: 'POST',
-        body: { provider },
-      });
+  const handleSaveTwilio = async () => {
+    if (!twilioForm.account_sid || !twilioForm.auth_token || !twilioForm.whatsapp_number) {
+      setMessage({ type: 'error', text: 'Please fill in all Twilio fields' });
+      return;
+    }
 
-      setTestResult({
-        provider,
-        status: response.status,
-        message: response.message,
-        details: response.details,
+    setSaving(true);
+    try {
+      await apiRequest('POST', '/api/v1/system/api-keys', {
+        provider: 'twilio',
+        twilio: twilioForm,
       });
-    } catch (error) {
-      setTestResult({
-        provider,
-        status: 'failed',
-        message: error.message,
-      });
+      toast.success('Twilio credentials saved');
+      setMessage(null);
+      if (activeProvider !== 'twilio') {
+        setActiveProvider('twilio');
+      }
+    } catch (err) {
+      toast.error(err.message || 'Failed to save Twilio credentials');
+      setMessage({ type: 'error', text: err.message || 'Failed to save' });
     } finally {
-      setTesting({ ...testing, [provider]: false });
+      setSaving(false);
     }
   };
 
-  const openTestDialog = (provider) => {
-    setTestProvider(provider);
-    setTestDialogOpen(true);
-    testConnection(provider);
+  const handleSaveSendGrid = async () => {
+    if (!sendgridForm.api_key || !sendgridForm.from_email) {
+      setMessage({ type: 'error', text: 'Please fill in all SendGrid fields' });
+      return;
+    }
+
+    setSaving(true);
+    try {
+      await apiRequest('POST', '/api/v1/system/api-keys', {
+        provider: 'sendgrid',
+        sendgrid: sendgridForm,
+      });
+      toast.success('SendGrid credentials saved');
+      setMessage(null);
+      if (activeProvider !== 'sendgrid') {
+        setActiveProvider('sendgrid');
+      }
+    } catch (err) {
+      toast.error(err.message || 'Failed to save SendGrid credentials');
+      setMessage({ type: 'error', text: err.message || 'Failed to save' });
+    } finally {
+      setSaving(false);
+    }
   };
 
-  // ────────────────────────────────────────────────────────────────
-  // Render Helpers
-  // ────────────────────────────────────────────────────────────────
+  const handleSetProvider = async (provider) => {
+    setSaving(true);
+    try {
+      await apiRequest('POST', '/api/v1/system/api-keys/set-provider', {
+        provider,
+      });
+      setActiveProvider(provider);
+      toast.success(`Switched to ${PROVIDERS.find(p => p.value === provider)?.label}`);
+    } catch (err) {
+      toast.error(err.message || 'Failed to switch provider');
+    } finally {
+      setSaving(false);
+    }
+  };
 
-  const renderAzureForm = () => (
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-      <TextField
-        label="Tenant ID"
-        value={azureForm.tenant_id}
-        onChange={(e) => setAzureForm({ ...azureForm, tenant_id: e.target.value })}
-        placeholder="your-tenant-id"
-        fullWidth
-      />
-      <TextField
-        label="Client ID"
-        value={azureForm.client_id}
-        onChange={(e) => setAzureForm({ ...azureForm, client_id: e.target.value })}
-        placeholder="your-client-id"
-        fullWidth
-      />
-      <TextField
-        label="Client Secret"
-        type="password"
-        value={azureForm.client_secret}
-        onChange={(e) => setAzureForm({ ...azureForm, client_secret: e.target.value })}
-        placeholder="your-client-secret"
-        fullWidth
-      />
-      <Button
-        variant="outlined"
-        onClick={() => openTestDialog('azure')}
-        disabled={testing.azure}
-      >
-        {testing.azure ? <CircularProgress size={20} /> : 'Test Azure Connection'}
-      </Button>
-    </Box>
-  );
+  const toggleShowSecret = (field) => {
+    setShowSecrets(prev => ({
+      ...prev,
+      [field]: !prev[field],
+    }));
+  };
 
-  const renderTwilioForm = () => (
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-      <TextField
-        label="Account SID"
-        value={twilioForm.account_sid}
-        onChange={(e) => setTwilioForm({ ...twilioForm, account_sid: e.target.value })}
-        placeholder="your-account-sid"
-        fullWidth
-      />
-      <TextField
-        label="Auth Token"
-        type="password"
-        value={twilioForm.auth_token}
-        onChange={(e) => setTwilioForm({ ...twilioForm, auth_token: e.target.value })}
-        placeholder="your-auth-token"
-        fullWidth
-      />
-      <TextField
-        label="WhatsApp Number"
-        value={twilioForm.whatsapp_number}
-        onChange={(e) => setTwilioForm({ ...twilioForm, whatsapp_number: e.target.value })}
-        placeholder="+1234567890"
-        fullWidth
-      />
-      <Button
-        variant="outlined"
-        onClick={() => openTestDialog('twilio')}
-        disabled={testing.twilio}
-      >
-        {testing.twilio ? <CircularProgress size={20} /> : 'Test Twilio Connection'}
-      </Button>
-    </Box>
-  );
+  const renderCredentialField = (label, value, onChange, type = 'text', isSecret = false, fieldKey = null) => {
+    const showValue = fieldKey && showSecrets[fieldKey];
 
-  const renderSendGridForm = () => (
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-      <TextField
-        label="API Key"
-        type="password"
-        value={sendgridForm.api_key}
-        onChange={(e) => setSendgridForm({ ...sendgridForm, api_key: e.target.value })}
-        placeholder="your-sendgrid-api-key"
-        fullWidth
-      />
-      <TextField
-        label="From Email"
-        type="email"
-        value={sendgridForm.from_email}
-        onChange={(e) => setSendgridForm({ ...sendgridForm, from_email: e.target.value })}
-        placeholder="noreply@blitzenx.com"
-        fullWidth
-      />
-      <Button
-        variant="outlined"
-        onClick={() => openTestDialog('sendgrid')}
-        disabled={testing.sendgrid}
-      >
-        {testing.sendgrid ? <CircularProgress size={20} /> : 'Test SendGrid Connection'}
-      </Button>
-    </Box>
-  );
-
-  const renderConfigurationTable = () => (
-    <TableContainer component={Paper} sx={{ marginTop: 3 }}>
-      <Table>
-        <TableHead sx={{ backgroundColor: '#f5f5f5' }}>
-          <TableRow>
-            <TableCell><strong>Provider</strong></TableCell>
-            <TableCell><strong>Status</strong></TableCell>
-            <TableCell><strong>Active</strong></TableCell>
-            <TableCell><strong>Last Tested</strong></TableCell>
-            <TableCell><strong>Result</strong></TableCell>
-            <TableCell><strong>Actions</strong></TableCell>
-          </TableRow>
-        </TableHead>
-        <TableBody>
-          {configurations.map((config) => (
-            <TableRow key={config.provider}>
-              <TableCell>{config.provider.toUpperCase()}</TableCell>
-              <TableCell>
-                {config.status === 'configured' ? (
-                  <span style={{ color: 'green' }}>✓ Configured</span>
-                ) : (
-                  <span style={{ color: 'orange' }}>⚠ Not Configured</span>
-                )}
-              </TableCell>
-              <TableCell>
-                <Radio
-                  checked={activeProvider === config.provider}
-                  onChange={() => setActiveProvider(config.provider)}
-                />
-              </TableCell>
-              <TableCell>
-                {config.last_tested_at
-                  ? new Date(config.last_tested_at).toLocaleDateString()
-                  : 'Never'}
-              </TableCell>
-              <TableCell>
-                {config.last_tested_status === 'success' && (
-                  <span style={{ color: 'green' }}>✓ Success</span>
-                )}
-                {config.last_tested_status === 'failed' && (
-                  <span style={{ color: 'red' }}>✗ Failed</span>
-                )}
-                {!config.last_tested_status && (
-                  <span style={{ color: 'gray' }}>-</span>
-                )}
-              </TableCell>
-              <TableCell>
-                <Button
-                  size="small"
-                  onClick={() => openTestDialog(config.provider)}
-                  disabled={testing[config.provider]}
-                >
-                  Test
-                </Button>
-              </TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
-    </TableContainer>
-  );
-
-  // ────────────────────────────────────────────────────────────────
-  // Main Render
-  // ────────────────────────────────────────────────────────────────
-
-  if (loading) {
     return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '400px' }}>
-        <CircularProgress />
-      </Box>
+      <div className="mb-4">
+        <label className="block text-sm font-medium text-gray-700 mb-2">{label}</label>
+        <div className="relative">
+          <input
+            type={showValue ? 'text' : type}
+            value={value}
+            onChange={onChange}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
+            placeholder={`Enter ${label.toLowerCase()}`}
+          />
+          {isSecret && fieldKey && (
+            <button
+              type="button"
+              onClick={() => toggleShowSecret(fieldKey)}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+            >
+              {showSecrets[fieldKey] ? (
+                <EyeOff size={18} />
+              ) : (
+                <Eye size={18} />
+              )}
+            </button>
+          )}
+        </div>
+      </div>
     );
-  }
+  };
+
+  const ProviderCard = ({ provider, isActive, onSelect, children, onSave }) => (
+    <Card className={`mb-4 border-2 transition-all ${isActive ? 'border-blue-500 bg-blue-50' : 'border-gray-200'}`}>
+      <div className="p-6">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-3">
+            <span className="text-2xl">{provider.icon}</span>
+            <div>
+              <h3 className="font-semibold text-gray-900">{provider.label}</h3>
+              <p className="text-xs text-gray-500">
+                {isActive ? 'Currently active' : 'Not active'}
+              </p>
+            </div>
+          </div>
+          <input
+            type="radio"
+            checked={isActive}
+            onChange={() => handleSetProvider(provider.value)}
+            className="w-4 h-4"
+          />
+        </div>
+
+        {children}
+
+        <div className="flex gap-2 mt-4">
+          <button
+            onClick={onSave}
+            disabled={saving}
+            className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 disabled:opacity-50"
+          >
+            {saving ? 'Saving...' : 'Save Credentials'}
+          </button>
+        </div>
+      </div>
+    </Card>
+  );
 
   return (
-    <Box sx={{ padding: 3 }}>
-      {/* Header */}
-      <Box sx={{ marginBottom: 3 }}>
-        <h1>API Keys Configuration</h1>
-        <p>Manage credentials for email and messaging delivery providers</p>
-      </Box>
+    <div className="max-w-2xl mx-auto p-6">
+      <div className="mb-6">
+        <h1 className="text-3xl font-bold text-gray-900 mb-2">API Keys Configuration</h1>
+        <p className="text-gray-600">Manage credentials for email and messaging delivery providers</p>
+      </div>
 
-      {/* Messages */}
       {message && (
-        <Alert severity={messageType} sx={{ marginBottom: 2 }} onClose={() => setMessage(null)}>
-          {message}
-        </Alert>
+        <div className={`mb-4 p-4 rounded-lg flex gap-2 ${
+          message.type === 'error' ? 'bg-red-50 text-red-700' : 'bg-blue-50 text-blue-700'
+        }`}>
+          <AlertCircle size={18} className="flex-shrink-0 mt-0.5" />
+          <span>{message.text}</span>
+        </div>
       )}
 
-      {/* Active Provider Section */}
-      <Card sx={{ marginBottom: 3 }}>
-        <CardContent>
-          <h3>📌 Active Delivery Provider</h3>
-          <p>Currently selected: <strong>{activeProvider.toUpperCase()}</strong></p>
-          <RadioGroup
-            row
-            value={activeProvider}
-            onChange={(e) => setActiveProvider(e.target.value)}
-          >
-            {PROVIDERS.map((provider) => (
-              <FormControlLabel
-                key={provider.value}
-                value={provider.value}
-                control={<Radio />}
-                label={`${provider.icon} ${provider.label}`}
-              />
-            ))}
-          </RadioGroup>
-        </CardContent>
-      </Card>
-
-      {/* Credentials Form */}
-      <Card sx={{ marginBottom: 3 }}>
-        <CardContent>
-          <h3>🔐 Add/Update Credentials</h3>
-
-          <Tabs
-            value={activeTab}
-            onChange={(e, newValue) => setActiveTab(newValue)}
-            sx={{ marginBottom: 2, borderBottom: '1px solid #ddd' }}
-          >
-            <Tab label="🔵 Azure Graph" value={0} />
-            <Tab label="📱 Twilio" value={1} />
-            <Tab label="📧 SendGrid" value={2} />
-          </Tabs>
-
-          {/* Tab Panels */}
-          {activeTab === 0 && renderAzureForm()}
-          {activeTab === 1 && renderTwilioForm()}
-          {activeTab === 2 && renderSendGridForm()}
-
-          {/* Save Button */}
-          <Box sx={{ marginTop: 3, display: 'flex', gap: 2 }}>
-            <Button
-              variant="contained"
-              color="primary"
-              onClick={saveCredentials}
-              disabled={saving}
-            >
-              {saving ? <CircularProgress size={20} /> : 'Save Credentials'}
-            </Button>
-            <Button
-              variant="outlined"
-              onClick={() => {
-                setAzureForm({ tenant_id: '', client_id: '', client_secret: '' });
-                setTwilioForm({ account_sid: '', auth_token: '', whatsapp_number: '' });
-                setSendgridForm({ api_key: '', from_email: '' });
-              }}
-            >
-              Clear Forms
-            </Button>
-          </Box>
-        </CardContent>
-      </Card>
-
-      {/* Configuration Status Table */}
-      {configurations.length > 0 && (
-        <Card>
-          <CardContent>
-            <h3>📋 Configuration Status</h3>
-            {renderConfigurationTable()}
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Test Result Dialog */}
-      <Dialog open={testDialogOpen} onClose={() => setTestDialogOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>
-          {testResult?.status === 'success' ? '✓ Connection Successful' : '✗ Connection Failed'}
-        </DialogTitle>
-        <DialogContent>
-          {testResult && (
-            <Box sx={{ marginTop: 2 }}>
-              <p><strong>Provider:</strong> {testResult.provider.toUpperCase()}</p>
-              <p><strong>Message:</strong> {testResult.message}</p>
-              {testResult.details && (
-                <Box sx={{
-                  backgroundColor: '#f5f5f5',
-                  padding: 2,
-                  borderRadius: 1,
-                  marginTop: 2,
-                  fontFamily: 'monospace',
-                  fontSize: '0.9em'
-                }}>
-                  <pre>{JSON.stringify(testResult.details, null, 2)}</pre>
-                </Box>
-              )}
-            </Box>
+      <div className="space-y-6">
+        {/* Azure Card */}
+        <ProviderCard
+          provider={PROVIDERS[0]}
+          isActive={activeProvider === 'azure'}
+          onSelect={() => handleSetProvider('azure')}
+          onSave={handleSaveAzure}
+        >
+          {renderCredentialField(
+            'Tenant ID',
+            azureForm.tenant_id,
+            (e) => setAzureForm({ ...azureForm, tenant_id: e.target.value }),
+            'text',
+            false
           )}
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setTestDialogOpen(false)}>Close</Button>
-        </DialogActions>
-      </Dialog>
-    </Box>
+          {renderCredentialField(
+            'Client ID',
+            azureForm.client_id,
+            (e) => setAzureForm({ ...azureForm, client_id: e.target.value }),
+            'text',
+            false
+          )}
+          {renderCredentialField(
+            'Client Secret',
+            azureForm.client_secret,
+            (e) => setAzureForm({ ...azureForm, client_secret: e.target.value }),
+            'password',
+            true,
+            'azure_secret'
+          )}
+        </ProviderCard>
+
+        {/* Twilio Card */}
+        <ProviderCard
+          provider={PROVIDERS[1]}
+          isActive={activeProvider === 'twilio'}
+          onSelect={() => handleSetProvider('twilio')}
+          onSave={handleSaveTwilio}
+        >
+          {renderCredentialField(
+            'Account SID',
+            twilioForm.account_sid,
+            (e) => setTwilioForm({ ...twilioForm, account_sid: e.target.value }),
+            'text',
+            false
+          )}
+          {renderCredentialField(
+            'Auth Token',
+            twilioForm.auth_token,
+            (e) => setTwilioForm({ ...twilioForm, auth_token: e.target.value }),
+            'password',
+            true,
+            'twilio_token'
+          )}
+          {renderCredentialField(
+            'WhatsApp Number',
+            twilioForm.whatsapp_number,
+            (e) => setTwilioForm({ ...twilioForm, whatsapp_number: e.target.value }),
+            'tel',
+            false
+          )}
+        </ProviderCard>
+
+        {/* SendGrid Card */}
+        <ProviderCard
+          provider={PROVIDERS[2]}
+          isActive={activeProvider === 'sendgrid'}
+          onSelect={() => handleSetProvider('sendgrid')}
+          onSave={handleSaveSendGrid}
+        >
+          {renderCredentialField(
+            'API Key',
+            sendgridForm.api_key,
+            (e) => setSendgridForm({ ...sendgridForm, api_key: e.target.value }),
+            'password',
+            true,
+            'sendgrid_key'
+          )}
+          {renderCredentialField(
+            'From Email',
+            sendgridForm.from_email,
+            (e) => setSendgridForm({ ...sendgridForm, from_email: e.target.value }),
+            'email',
+            false
+          )}
+        </ProviderCard>
+
+        {/* STUB Card */}
+        <ProviderCard
+          provider={PROVIDERS[3]}
+          isActive={activeProvider === 'stub'}
+          onSelect={() => handleSetProvider('stub')}
+          onSave={() => {
+            setActiveProvider('stub');
+            toast.success('Switched to STUB mode (testing)');
+          }}
+        >
+          <div className="text-sm text-gray-600">
+            <p className="mb-2">STUB mode logs all emails and messages to the database instead of sending them.</p>
+            <p>Use this for development and testing.</p>
+          </div>
+        </ProviderCard>
+      </div>
+    </div>
   );
 }

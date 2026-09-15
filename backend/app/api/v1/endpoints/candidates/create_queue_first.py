@@ -71,6 +71,19 @@ def create_candidate(
                 detail="Valid email address is required"
             )
 
+        # Validate salary type values if provided
+        valid_rate_types = ["$/Hour", "$/Day", "$/Week", "$/Month", "$/Year"]
+        if request.candidate_current_salary_type and request.candidate_current_salary_type not in valid_rate_types:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid current salary type. Must be one of: {', '.join(valid_rate_types)}"
+            )
+        if request.candidate_expected_salary_type and request.candidate_expected_salary_type not in valid_rate_types:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid expected salary type. Must be one of: {', '.join(valid_rate_types)}"
+            )
+
         # Generate password for candidate (will be sent later)
         password = generate_password()
 

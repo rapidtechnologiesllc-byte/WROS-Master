@@ -34,7 +34,9 @@ class CandidateCreateRequest(BaseModel):
     
     # Salary info (optional)
     candidate_expected_salary: Optional[str] = None
+    candidate_expected_salary_type: Optional[str] = None
     candidate_current_salary: Optional[str] = None
+    candidate_current_salary_type: Optional[str] = None
 
     # Location (MANDATORY - needed for candidate search)
     # Format: "City, State, Country" (e.g., "San Francisco, CA, USA")
