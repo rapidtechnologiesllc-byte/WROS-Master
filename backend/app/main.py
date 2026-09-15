@@ -30,6 +30,7 @@ from app.api.v1.endpoints.rbac import router as rbac_router
 from app.api.v1.endpoints.career_portal import router as career_portal_router
 from app.api.v1.endpoints.flash_queue_metrics import router as flash_queue_metrics_router
 from app.api.v1.endpoints.employee_referrals import router as employee_referrals_router
+from app.api.v1.endpoints.api_keys import router as api_keys_router
 
 # Agent State models — imported here so Base.metadata.create_all() finds them
 from app.models import agent_phalanx  # noqa: F401
@@ -39,6 +40,9 @@ from app.models import referral  # noqa: F401
 
 # Channel Queue models — imported here for database table creation
 from app.models import channel_queue  # noqa: F401
+
+# API Keys Config model — imported here for database table creation
+from app.models.api_keys_config import APIKeysConfig  # noqa: F401
 
 # Message Handler Registry — imported here to register all queue handlers at startup
 # CRITICAL FIX: This initialization MUST happen before queue processor starts
@@ -398,6 +402,9 @@ app.include_router(candidate_audit_log_router, prefix="/api/v1")
 app.include_router(employee_referrals_router, prefix="/api/v1/referrals")
 # Include Flash queue metrics routes with /api/v1/flash prefix (queue health monitoring)
 app.include_router(flash_queue_metrics_router, prefix="/api/v1")
+
+# Include API Keys management routes with /api/v1 prefix (credential management for email providers)
+app.include_router(api_keys_router, prefix="/api/v1")
 
 # HRMS-0114 -- fail startup if any route has no explicit identity/
 # permission declaration at all. Runs synchronously at import time
