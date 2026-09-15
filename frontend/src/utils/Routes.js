@@ -30,6 +30,7 @@ export const ROUTES = {
   REVENUE: "/revenue",
   TENANT_LOCALE: "/settings/locale",
   MESSAGE_TEMPLATES: "/settings/templates",
+  API_KEYS_SETTINGS: "/settings/api-keys",
   SLM_DASHBOARD: "/admin/slm-dashboard",
   SLM_TRAINING: "/admin/slm-training",
   AGENT_CONFIG: "/admin/agent-config",

@@ -206,6 +206,7 @@ export default function TopBar({
       "/hr-users": ["User Management"],
       "/settings/locale": ["Locale Settings"],
       "/settings/templates": ["Message Templates"],
+      "/settings/api-keys": ["API Keys Configuration"],
       "/admin/ticket-routing": ["Ticket Routing"],
       "/admin/ai-config": ["AI Configuration"],
       "/admin/error-log": ["Error Log"],

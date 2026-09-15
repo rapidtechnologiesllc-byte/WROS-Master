@@ -33,6 +33,7 @@ import {
   Database,
   Cog,
   Link2,
+  Key,
 } from "lucide-react";
 import { ROUTES } from "../utils/Routes";
 
@@ -120,6 +121,10 @@ export const NAV_ITEMS = {
   // the screen itself; the nav entry is visible to anyone who can see
   // the Admin group (recruiters can create/preview, just not activate).
   messageTemplates: { path: ROUTES.MESSAGE_TEMPLATES, label: "Message Templates", icon: MessageSquareText },
+  // S-XXXX/HRMS-XXXX -- API Keys Configuration for Thunder delivery providers
+  // (Azure Graph, Twilio, SendGrid). Admin/Super User only server-side.
+  // Manage encrypted credentials for email/SMS delivery systems.
+  apiKeysSettings: { path: ROUTES.API_KEYS_SETTINGS, label: "API Keys Configuration", icon: Key },
   // Agent Configuration -- manage agent pipeline settings and orchestration
   // Super User/Admin only. Configure agents, set queue names, manage pipeline order.
   agentConfig: { path: ROUTES.AGENT_CONFIG, label: "Agent Configuration", icon: Cog },
