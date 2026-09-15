@@ -42,7 +42,14 @@ import {
   DialogContent,
   DialogActions,
 } from '@mui/material';
-import { apiRequest } from '../services/api';
+import {
+  getAPIKeyConfigurations,
+  saveAPIKeyCredentials,
+  testProviderConnection,
+  validateAzureCredentials,
+  validateTwilioCredentials,
+  validateSendGridCredentials,
+} from '../services/api/api_keys';
 
 const PROVIDERS = [
   { value: 'azure', label: 'Azure Graph (Microsoft 365)', icon: '🔵' },
@@ -103,7 +110,7 @@ export default function APIKeysSettings() {
   const loadConfigurations = async () => {
     try {
       setLoading(true);
-      const response = await apiRequest('/api/v1/api-keys', { method: 'GET' });
+      const response = await getAPIKeyConfigurations();
       setConfigurations(response.providers || []);
       setActiveProvider(response.active_provider || 'stub');
     } catch (error) {
@@ -142,10 +149,14 @@ export default function APIKeysSettings() {
         return;
       }
 
-      const response = await apiRequest('/api/v1/api-keys', {
-        method: 'POST',
-        body: request,
-      });
+      const response = await saveAPIKeyCredentials(
+        {
+          azure: request.azure,
+          twilio: request.twilio,
+          sendgrid: request.sendgrid,
+        },
+        activeProvider
+      );
 
       setMessage(`${response.message} (${response.saved_providers?.join(', ')})`);
       setMessageType('success');
