@@ -27,7 +27,7 @@ export default function APIKeysSettings() {
   const loadConfigurations = async () => {
     setLoading(true);
     try {
-      const response = await apiRequest('GET', '/api/v1/api-keys');
+      const response = await apiRequest('/api/v1/api-keys');
       console.log('[APIKeys] Loaded config:', response);
 
       if (response.azure) {
@@ -68,9 +68,12 @@ export default function APIKeysSettings() {
     setSaving(true);
     try {
       console.log('[APIKeys] Saving', provider, 'credentials');
-      const response = await apiRequest('POST', '/api/v1/api-keys', {
-        provider,
-        [provider]: formData,
+      const response = await apiRequest('/api/v1/api-keys', {
+        method: 'POST',
+        body: JSON.stringify({
+          provider,
+          [provider]: formData,
+        }),
       });
       console.log('[APIKeys] Save response:', response);
 
