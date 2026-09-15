@@ -196,16 +196,23 @@ class APIKeysService:
             ).all()
 
             providers = []
-            active_provider = "stub"  # Default
+            active_provider = "stub"  # Default fallback when nothing configured
             azure_creds = None
             twilio_creds = None
             sendgrid_creds = None
 
             for config in configs:
+                # Check if provider actually has credentials configured
+                has_credentials = (
+                    (config.provider == "azure" and config.azure_tenant_id) or
+                    (config.provider == "twilio" and config.twilio_account_sid) or
+                    (config.provider == "sendgrid" and config.sendgrid_api_key)
+                )
+
                 provider_info = {
                     "provider": config.provider,
-                    "status": "configured",
-                    "is_active": config.is_active,
+                    "status": "configured" if has_credentials else "not_configured",
+                    "is_active": config.is_active and has_credentials,  # Only active if has credentials
                     "last_tested_at": config.last_tested_at,
                     "last_tested_status": config.last_tested_status,
                     "azure_configured": bool(config.azure_tenant_id),
@@ -214,7 +221,8 @@ class APIKeysService:
                 }
                 providers.append(provider_info)
 
-                if config.is_active:
+                # Only set as active provider if it has credentials AND is marked active
+                if config.is_active and has_credentials:
                     active_provider = config.provider
 
                 # Decrypt and include actual credentials from database
