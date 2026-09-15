@@ -459,6 +459,83 @@ class CandidateCreationHandler:
                 )
             logger.info(f"[Handler] ✅ Email verified: {db_candidate.candidateEmail}")
 
+            # PHASE: Send welcome message via WhatsApp + EMAIL
+            whatsapp_delivery_id = None
+            email_delivery_id = None
+            try:
+                from app.services.delivery_factory import get_delivery_service
+
+                delivery = get_delivery_service(db)
+
+                candidate_name = getattr(db_candidate, 'candidateFirstName', 'Candidate')
+                candidate_phone = getattr(db_candidate, 'candidateMobile', None)
+                candidate_email_addr = db_candidate.candidateEmail
+
+                # Send WhatsApp welcome message (primary)
+                if candidate_phone:
+                    try:
+                        whatsapp_body = f"""Welcome to our recruiting platform, {candidate_name}!
+
+We're excited to have you on board. Get ready to explore amazing job opportunities that match your profile.
+
+Our team will reach out soon with personalized job recommendations.
+
+Happy exploring!"""
+
+                        whatsapp_result = delivery.send_whatsapp(
+                            to_number=candidate_phone,
+                            body=whatsapp_body
+                        )
+
+                        if whatsapp_result.status == 'failed':
+                            logger.warning(f"[Handler] WhatsApp welcome failed: {whatsapp_result.error}")
+                        else:
+                            whatsapp_delivery_id = whatsapp_result.delivery_id
+                            logger.info(f"[Handler] Welcome WhatsApp sent to {candidate_phone}, delivery_id={whatsapp_delivery_id}")
+                    except Exception as wa_err:
+                        logger.warning(f"[Handler] WhatsApp send error: {wa_err}")
+
+                # Send Email welcome message (fallback)
+                if candidate_email_addr:
+                    try:
+                        email_subject = "Welcome to Our Recruiting Platform"
+                        email_body = f"""
+Dear {candidate_name},
+
+Welcome to our recruiting platform! We're thrilled to have you on board.
+
+Your profile is now live and ready to connect with amazing job opportunities. Our recruiting team will review your profile and suggest positions that align with your skills and experience.
+
+What's next?
+1. Complete your profile with additional details
+2. Review recommended job opportunities
+3. Apply for positions that interest you
+4. Track your application status in real-time
+
+If you have any questions or need assistance, our support team is here to help.
+
+Best regards,
+Recruiting Team
+"""
+
+                        email_result = delivery.send_email(
+                            to_email=candidate_email_addr,
+                            subject=email_subject,
+                            body=email_body,
+                            html=True
+                        )
+
+                        if email_result.status == 'failed':
+                            logger.warning(f"[Handler] Email welcome failed: {email_result.error}")
+                        else:
+                            email_delivery_id = email_result.delivery_id
+                            logger.info(f"[Handler] Welcome email sent to {candidate_email_addr}, delivery_id={email_delivery_id}")
+                    except Exception as email_err:
+                        logger.warning(f"[Handler] Email send error: {email_err}")
+
+            except Exception as delivery_err:
+                logger.warning(f"[Handler] Delivery service error (non-blocking): {delivery_err}")
+
             # RETURN SUCCESS IMMEDIATELY - Mark handler complete before queuing dependent work
             # This prevents handler from blocking on email/Thunder queueing
             result = {
@@ -466,6 +543,8 @@ class CandidateCreationHandler:
                 "candidate_id": candidate_id,
                 "is_new": is_new,
                 "candidate_email": candidate_email,
+                "whatsapp_delivery_id": whatsapp_delivery_id,
+                "email_delivery_id": email_delivery_id,
                 "data": {
                     "status": "COMPLETED",
                     "candidate_id": candidate_id,

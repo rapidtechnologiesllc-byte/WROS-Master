@@ -79,7 +79,7 @@ class ReferralSubmissionHandler:
                 # Create new candidate from referral
                 candidate = Candidate(
                     candidateFirstName=candidate_name.split()[0] if candidate_name else 'Unknown',
-                    candidateLast Name=candidate_name.split()[-1] if len(candidate_name.split()) > 1 else '',
+                    candidateLastName=candidate_name.split()[-1] if len(candidate_name.split()) > 1 else '',
                     candidateEmail=candidate_email,
                     candidateMobile=payload.get('candidate_phone', ''),
                     candidateStatus='REFERRED',

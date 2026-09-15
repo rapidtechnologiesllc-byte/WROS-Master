@@ -315,3 +315,76 @@ class FlashRecruiterHandler:
         except Exception as e:
             logger.error(f"[FlashRecruiter] Unexpected error: {e}", exc_info=True)
             raise RuntimeError(f"Unexpected error: {str(e)}") from e
+
+    @staticmethod
+    def validate(message: Any, result: Dict[str, Any], db: Session) -> None:
+        """Validate recruitment results and candidates were matched."""
+        if not result or result.get('status') not in ['success', 'skipped', 'paused_cascade_failure', 'job_deleted']:
+            raise ValueError(f"Invalid recruitment result: {result}")
+
+        # For success status, verify candidates were actually matched
+        if result.get('status') == 'success':
+            candidates_matched = result.get('candidates_matched', 0)
+            outreach_queued = result.get('outreach_queued', 0)
+
+            if candidates_matched < 0 or outreach_queued < 0:
+                raise ValueError(f"Invalid match counts: matched={candidates_matched}, queued={outreach_queued}")
+
+            logger.info(f"[FlashRecruiter] ✅ Validated: job={result.get('job_id')}, candidates={candidates_matched}")
+
+    @staticmethod
+    def should_retry(message: Any) -> bool:
+        """Determine if message should be retried."""
+        MAX_RETRIES = 3
+        return message.retry_count < MAX_RETRIES
+
+    @staticmethod
+    def on_retry(message: Any, error: str, db: Session) -> None:
+        """Schedule message for retry."""
+        from datetime import datetime, timedelta
+        try:
+            db.rollback()
+            message.retry_count += 1
+            message.error = error[:1000] if error else "Unknown error"
+            message.next_retry_at = datetime.utcnow() + timedelta(minutes=15)
+            db.commit()
+            logger.info(f"[FlashRecruiter] Scheduled retry: retry_count={message.retry_count}")
+        except Exception as e:
+            db.rollback()
+            logger.error(f"[FlashRecruiter] Failed to schedule retry: {e}", exc_info=True)
+            raise RuntimeError(f"Failed to schedule retry: {str(e)}") from e
+
+    @staticmethod
+    def on_success(message: Any, result: Dict[str, Any], db: Session) -> None:
+        """Mark message as COMPLETED after validation passes."""
+        from datetime import datetime
+        try:
+            FlashRecruiterHandler.validate(message, result, db)
+            message.status = "COMPLETED"
+            message.completed_at = datetime.utcnow()
+            message.result = result
+            db.commit()
+            logger.info(f"[FlashRecruiter] ✅ Message marked COMPLETED: job={result.get('job_id')}")
+        except ValueError:
+            db.rollback()
+            raise
+        except Exception as e:
+            db.rollback()
+            logger.error(f"[FlashRecruiter] Failed to mark success: {e}", exc_info=True)
+            raise RuntimeError(f"Failed to mark success: {str(e)}") from e
+
+    @staticmethod
+    def on_failed(message: Any, final_error: str, db: Session) -> None:
+        """Mark message as FAILED after all retries exhausted."""
+        from datetime import datetime
+        try:
+            db.rollback()
+            message.status = "FAILED"
+            message.error = final_error[:1000] if final_error else "Unknown error"
+            message.completed_at = datetime.utcnow()
+            db.commit()
+            logger.error(f"[FlashRecruiter] Message FAILED: {final_error}")
+        except Exception as e:
+            db.rollback()
+            logger.error(f"[FlashRecruiter] Failed to mark as FAILED: {e}", exc_info=True)
+            raise

@@ -1,54 +1,33 @@
-"""
-Ops Alert Handler - Converts queue ops_alert messages to visible dashboard tasks
-
-When QueueDoctorService escalates a stuck message, it queues an 'ops_alert' task.
-This handler converts that queue message into a visible Task record that ops users
-can see on the dashboard based on their ops role.
-
-Task routing:
-- visibility_scope=ORG_WIDE: All ops users see this task
-- assigned_to_user_id=None: Unassigned initially, ops team picks it up
-- priority: Based on safety_score (URGENT if <60, HIGH if <80, MEDIUM otherwise)
-- category="Operations", subcategory="StaleMessageDetection"
-"""
+"""Ops Alert Handler - Converts queue ops_alert messages to visible dashboard tasks."""
 import logging
-import json
 from typing import Dict, Any
+from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import OperationalError
 
 from app.models.task import Task
-from app.core.logging import logger as core_logger
+from app.services.message_handlers.base_message_handler import time_bound
 
 logger = logging.getLogger(__name__)
 
 
 class OpsAlertHandler:
-    """Converts ops_alert queue messages to visible dashboard Task records"""
+    """Converts ops_alert queue messages to visible dashboard Task records."""
+
+    MAX_RETRIES = 3
+    RETRY_DELAY_MINUTES = 10
 
     @staticmethod
+    @time_bound(timeout_seconds=8)
     def process(message: Any, db: Session) -> Dict[str, Any]:
-        """
-        Convert ops_alert queue message to Task record.
+        """Convert ops_alert queue message to Task record.
 
-        Input message.payload:
-        {
-            'alert_type': 'stuck_message_diagnosis',
-            'message_id': '...',
-            'message_type': '...',
-            'error_classification': 'TIMEOUT_LOOP' | 'LARGE_PAYLOAD' | 'DB_POOL' | etc,
-            'safety_score': 0-100,
-            'root_cause': 'Description of root cause',
-            'recommended_action': 'What ops should do',
-            'recovery_attempted': bool,
-            'recovery_success': bool,
-            'time_in_processing_seconds': int,
-            'next_action': 'manual_intervention_required' | ...
-        }
+        Args:
+            message: ChannelQueueItem with type='ops_alert'
+            db: SQLAlchemy session
 
-        Output:
-        - Creates Task record visible to all ops users
-        - Task appears on dashboard with priority based on safety_score
-        - Returns task creation result
+        Returns:
+            {status, task_id, message_id, error_classification, priority, visibility_scope}
         """
         try:
             payload = message.payload or {}
@@ -60,13 +39,12 @@ class OpsAlertHandler:
             recommended_action = payload.get('recommended_action', '')
 
             logger.info(
-                f"[OpsAlertHandler] Converting ops_alert to Task: "
+                f"[OpsAlert] Converting ops_alert to Task: "
                 f"message_id={message_id}, classification={error_classification}, "
                 f"safety_score={safety_score}"
             )
 
             # Determine priority based on safety_score
-            # Lower score = higher risk = higher priority
             if safety_score < 60:
                 priority = "URGENT"
             elif safety_score < 80:
@@ -89,8 +67,8 @@ class OpsAlertHandler:
                 subcategory="StaleMessageDetection",
                 priority=priority,
                 status="NEW",
-                assigned_to_user_id=None,  # Unassigned - all ops users see it
-                visibility_scope="ORG_WIDE",  # All ops users with ops-alerts permission
+                assigned_to_user_id=None,
+                visibility_scope="ORG_WIDE",
                 tenant_id=1,
             )
             db.add(task)
@@ -99,7 +77,7 @@ class OpsAlertHandler:
             db.commit()
 
             logger.info(
-                f"[OpsAlertHandler] Created ops task: Task #{task_id}, "
+                f"[OpsAlert] Created ops task: Task #{task_id}, "
                 f"priority={priority}, classification={error_classification}"
             )
 
@@ -112,16 +90,56 @@ class OpsAlertHandler:
                 "visibility_scope": "ORG_WIDE"
             }
 
-        except Exception as e:
-            logger.error(
-                f"[OpsAlertHandler] Failed to convert ops_alert to task: {e}",
-                exc_info=True
-            )
+        except ValueError as ve:
+            logger.error(f"[OpsAlert] Validation error: {ve}")
             raise
+        except OperationalError as oe:
+            logger.error(f"[OpsAlert] DB error: {oe}", exc_info=True)
+            raise RuntimeError(f"Database error: {str(oe)}") from oe
+        except Exception as e:
+            logger.error(f"[OpsAlert] Unexpected error: {e}", exc_info=True)
+            raise RuntimeError(f"Unexpected error: {str(e)}") from e
+
+    @staticmethod
+    def validate(message: Any, result: Dict[str, Any], db: Session) -> None:
+        """Validate that ops alert notification was sent successfully."""
+        from app.services.message_handlers.validate_handlers_factory import ValidateHandlersFactory
+        return ValidateHandlersFactory.validate_ops_alert_notification_sent(result, db, "ops_alert")
+
+    @staticmethod
+    def should_retry(message: Any) -> bool:
+        """Determine if message should be retried."""
+        return message.retry_count < OpsAlertHandler.MAX_RETRIES
+
+    @staticmethod
+    def on_retry(message: Any, error: str, db: Session) -> None:
+        """Schedule message for retry."""
+        db.rollback()
+        message.retry_count += 1
+        message.error = error[:1000]
+        message.next_retry_at = datetime.utcnow() + timedelta(minutes=OpsAlertHandler.RETRY_DELAY_MINUTES)
+        db.commit()
+
+    @staticmethod
+    def on_success(message: Any, result: Dict[str, Any], db: Session) -> None:
+        """Mark message as COMPLETED after validation passes."""
+        OpsAlertHandler.validate(message, result, db)
+        message.status = "COMPLETED"
+        message.completed_at = datetime.utcnow()
+        db.commit()
+
+    @staticmethod
+    def on_failed(message: Any, final_error: str, db: Session) -> None:
+        """Mark message as FAILED after all retries exhausted."""
+        db.rollback()
+        message.status = "FAILED"
+        message.error = final_error[:1000]
+        message.completed_at = datetime.utcnow()
+        db.commit()
 
 
 def _build_task_description(payload: Dict[str, Any]) -> str:
-    """Build detailed task description from alert payload"""
+    """Build detailed task description from alert payload."""
     lines = [
         "=== OPS ALERT DIAGNOSIS ===",
         "",
@@ -146,3 +164,8 @@ def _build_task_description(payload: Dict[str, Any]) -> str:
     ]
 
     return "\n".join(lines)
+
+
+def handle_ops_alert(message: Any, db: Session) -> Dict[str, Any]:
+    """Handle ops_alert message."""
+    return OpsAlertHandler.process(message, db)

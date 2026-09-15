@@ -302,6 +302,7 @@ class EmailService:
         No calendar event is created — the candidate decides first.
         """
         try:
+            from datetime import datetime as _dt
             _start_dt = _dt.fromisoformat(start_time)
             _end_dt   = _dt.fromisoformat(end_time)
             _date_label   = _start_dt.strftime("%d/%m/%Y")

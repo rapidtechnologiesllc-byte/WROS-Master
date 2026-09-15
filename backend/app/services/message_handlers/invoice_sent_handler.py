@@ -121,17 +121,43 @@ class InvoiceSentHandler:
                 )
                 raise RuntimeError(f"PDF generation failed: {str(pdf_err)}") from pdf_err
 
-            # PHASE 4: Send email to client
-            email_sent = False
+            # PHASE 3B: SLM PRE-FLIGHT CHECK
+            slm_analysis = None
             try:
-                from app.services.delivery_factory import DeliveryFactory
+                from app.services.slm_service import SLMService
 
-                delivery_service = DeliveryFactory.get_delivery_service()
-                if delivery_service:
-                    delivery_result = delivery_service.send_email(
-                        to=client_email,
-                        subject=f"Invoice {invoice_id} - {project.name}",
-                        body=f"""
+                slm_analysis = SLMService.analyze_before_handler(
+                    message_id=str(message.id),
+                    message_type='invoice_sent',
+                    payload=payload,
+                    context={
+                        'business_goal': 'Send invoice to client',
+                        'risk_level': 'HIGH',
+                        'invoice_id': invoice_id,
+                        'project_id': project_id,
+                        'client_email': client_email,
+                    },
+                    db=db
+                )
+                if not slm_analysis.get('should_proceed'):
+                    logger.error(f"[InvoiceSent] SLM escalation required: {slm_analysis.get('reasoning')}")
+                    raise ValueError(f"SLM escalation: {slm_analysis.get('reasoning')}")
+            except ImportError:
+                logger.debug("[InvoiceSent] SLMService not available, continuing")
+            except ValueError:
+                raise
+            except Exception as slm_err:
+                logger.warning(f"[InvoiceSent] SLM pre-flight failed: {slm_err}")
+
+            # PHASE 4: Send email to client via Microsoft Graph
+            email_sent = False
+            delivery_id = None
+            skip_reason = None
+            try:
+                from app.services.email_service import EmailService
+
+                email_subject = f"Invoice {invoice_id} - {project.name}"
+                email_body = f"""
 Dear {project.client_name},
 
 Please find attached your invoice {invoice_id} for {project.name}.
@@ -143,24 +169,42 @@ Please process payment and retain this invoice for your records.
 
 Best regards,
 Finance Team
-                        """,
-                        attachment_data=pdf_bytes if pdf_generated else None,
-                        attachment_filename=f"Invoice_{invoice_id}.pdf" if pdf_generated else None
-                    )
+                """
 
-                    if delivery_result and delivery_result.get('status') == 'sent':
-                        email_sent = True
-                        logger.info(
-                            f"[InvoiceSent] Email sent to {client_email}, "
-                            f"delivery_id={delivery_result.get('delivery_id')}"
-                        )
-                    else:
-                        raise RuntimeError(
-                            f"Email delivery failed: "
-                            f"{delivery_result.get('error', 'Unknown error')}"
-                        )
+                # Build attachments list
+                attachments = None
+                if pdf_generated and pdf_bytes:
+                    attachments = [
+                        {
+                            "name": f"Invoice_{invoice_id}.pdf",
+                            "content": pdf_bytes,
+                            "content_type": "application/pdf"
+                        }
+                    ]
+
+                delivery_result = EmailService.send_email(
+                    to_email=client_email,
+                    subject=email_subject,
+                    body_content=email_body,
+                    is_html=True,
+                    attachments=attachments
+                )
+
+                if delivery_result and delivery_result.get('status') == 'success':
+                    email_sent = True
+                    delivery_id = "msgraph_" + str(hash(client_email))
+                    logger.info(
+                        f"[InvoiceSent] Email sent to {client_email}, "
+                        f"attachments={delivery_result.get('attachments_sent', 0)}"
+                    )
+                elif delivery_result and delivery_result.get('status') == 'skipped':
+                    skip_reason = delivery_result.get('reason')
+                    logger.warning(f"[InvoiceSent] Email skipped: {skip_reason}")
+                    # Gracefully continue - don't raise, skipped emails are acceptable
+                elif delivery_result:
+                    raise RuntimeError(f"Email delivery failed: {delivery_result}")
                 else:
-                    raise RuntimeError("Delivery service not configured")
+                    raise RuntimeError("Email delivery result is empty")
 
             except Exception as email_err:
                 logger.error(
@@ -175,6 +219,35 @@ Finance Team
             invoice.updated_at = datetime.utcnow()
 
             logger.info(f"[InvoiceSent] Invoice status updated to SENT")
+
+            # PHASE 5B: SLM POST-FLIGHT OUTCOME RECORDING
+            if slm_analysis:
+                try:
+                    from app.services.slm_service import SLMService
+
+                    SLMService.record_outcome(
+                        slm_analysis=slm_analysis,
+                        message_id=str(message.id),
+                        handler_name='invoice_sent_handler',
+                        handler_result={
+                            'status': 'success',
+                            'invoice_id': invoice_id,
+                            'email_sent': email_sent,
+                            'delivery_id': delivery_id,
+                        },
+                        business_impact={
+                            'candidate_affected': False,
+                            'invoice_sent': email_sent,
+                            'expected_outcome': 'invoice_delivered',
+                            'can_be_reversed': False,
+                            'accountability_required': True,
+                        },
+                        db=db
+                    )
+                except ImportError:
+                    pass  # SLMService not available
+                except Exception as slm_record_err:
+                    logger.warning(f"[InvoiceSent] SLM outcome recording failed: {slm_record_err}")
 
             # PHASE 6: Commit transaction
             try:
@@ -195,6 +268,8 @@ Finance Team
                 'invoice_id': str(invoice_id),
                 'pdf_generated': pdf_generated,
                 'email_sent': email_sent,
+                'delivery_id': delivery_id,
+                'skip_reason': skip_reason,
                 'status': 'SENT'
             }
 

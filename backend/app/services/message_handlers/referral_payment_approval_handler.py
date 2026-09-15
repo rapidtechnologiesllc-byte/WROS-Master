@@ -90,19 +90,16 @@ class ReferralPaymentApprovalHandler:
 
             logger.info(f"[ReferralPaymentApproval] Payment record created: {payment_id}")
 
-            # PHASE 3: Send notification to referrer
+            # PHASE 3: Send notification to referrer via Microsoft Graph
+            delivery_id = None
             try:
                 from app.models.user import User
-                from app.services.delivery_factory import DeliveryFactory
+                from app.services.email_service import EmailService
 
                 referrer = db.query(User).filter(User.id == referrer_user_id).first()
                 if referrer and referrer.email:
-                    delivery_service = DeliveryFactory.get_delivery_service()
-                    if delivery_service:
-                        delivery_service.send_email(
-                            to=referrer.email,
-                            subject="Your Referral Bonus has been Approved!",
-                            body=f"""
+                    email_subject = "Your Referral Bonus has been Approved!"
+                    email_body = f"""
 Hi {referrer.firstName or 'Referrer'},
 
 Congratulations! Your referral bonus of ${bonus_usd_cents / 100:.2f} has been approved.
@@ -116,9 +113,22 @@ Thank you for helping us build a great team!
 
 Best regards,
 HR Team
-                            """
-                        )
-                        logger.info(f"[ReferralPaymentApproval] Referrer notification sent")
+                    """
+
+                    delivery_result = EmailService.send_email(
+                        to_email=referrer.email,
+                        subject=email_subject,
+                        body_content=email_body,
+                        is_html=True
+                    )
+
+                    if delivery_result and delivery_result.get('status') == 'success':
+                        delivery_id = "msgraph_" + str(hash(referrer.email))
+                        logger.info(f"[ReferralPaymentApproval] Referrer notification sent: {delivery_id}")
+                    elif delivery_result and delivery_result.get('status') == 'skipped':
+                        logger.warning(f"[ReferralPaymentApproval] Email skipped: {delivery_result.get('reason')}")
+                    else:
+                        logger.warning(f"[ReferralPaymentApproval] Email delivery failed: {delivery_result}")
 
             except Exception as email_err:
                 logger.warning(
@@ -140,7 +150,8 @@ HR Team
                 'referral_id': str(referral_id),
                 'payment_id': str(payment_id),
                 'bonus_usd_cents': bonus_usd_cents,
-                'status': 'PENDING'
+                'status': 'PENDING',
+                'delivery_id': delivery_id
             }
 
         except ValueError as ve:

@@ -111,6 +111,85 @@ class CandidateStatusChangeHandler:
                 logger.error(f"[CandidateStatusChange] Commit failed: {commit_err}", exc_info=True)
                 raise RuntimeError(f"Failed to update status: {str(commit_err)}") from commit_err
 
+            # PHASE 5: Send status change notification via Email (Microsoft Graph)
+            delivery_id = None
+            delivery_channel = None
+            try:
+                if new_status in ["INTERVIEW", "OFFER", "JOINED"]:
+                    from app.services.email_service import EmailService
+
+                    candidate_name = getattr(candidate, 'candidateFirstName', 'Candidate')
+                    candidate_email = getattr(candidate, 'candidateEmail', None)
+
+                    # Email templates
+                    status_email_subjects = {
+                        "INTERVIEW": "Interview Scheduled - Your Next Step",
+                        "OFFER": "Job Offer Extended",
+                        "JOINED": "Welcome to the Team!"
+                    }
+                    status_email_bodies = {
+                        "INTERVIEW": f"""Hi {candidate_name},
+
+Great news! You have been selected to interview with our team.
+
+We are impressed with your background and would like to learn more about your qualifications and interest in the position.
+
+Our team will be in touch shortly with interview details.
+
+Best regards,
+Recruiting Team
+""",
+                        "OFFER": f"""Hi {candidate_name},
+
+Congratulations! We are pleased to extend a job offer for the position.
+
+Please check your email for the complete offer letter and next steps.
+
+Thank you for your interest in joining our team!
+
+Best regards,
+Recruiting Team
+""",
+                        "JOINED": f"""Hi {candidate_name},
+
+Welcome to the team! We are excited to have you on board.
+
+Please prepare for your first day and look out for additional onboarding instructions coming soon.
+
+If you have any questions, please don't hesitate to reach out.
+
+Best regards,
+HR Team
+"""
+                    }
+                    email_subject = status_email_subjects.get(new_status, f"Application Status Update: {new_status}")
+                    email_body = status_email_bodies.get(new_status, f"Your status has been updated to: {new_status}")
+
+                    # Send Email via Microsoft Graph
+                    if candidate_email:
+                        try:
+                            email_result = EmailService.send_email(
+                                to_email=candidate_email,
+                                subject=email_subject,
+                                body_content=email_body,
+                                is_html=True
+                            )
+
+                            if email_result.get('status') == 'skipped':
+                                logger.warning(f"[CandidateStatusChange] Email skipped to {candidate_email}: {email_result.get('reason')}")
+                            elif email_result.get('status') != 'success':
+                                logger.warning(f"[CandidateStatusChange] Email delivery failed: {email_result}")
+                            else:
+                                delivery_id = "msgraph_" + str(hash(candidate_email))
+                                delivery_channel = 'email'
+                                logger.info(f"[CandidateStatusChange] Status update sent via Email to {candidate_email}, delivery_id={delivery_id}")
+                        except Exception as email_err:
+                            logger.warning(f"[CandidateStatusChange] Email send error: {email_err}")
+                    else:
+                        logger.warning(f"[CandidateStatusChange] No email available for candidate {candidate_id}")
+            except Exception as delivery_err:
+                logger.warning(f"[CandidateStatusChange] Delivery service error (non-blocking): {delivery_err}")
+
             logger.info(f"[CandidateStatusChange] ✅ Status change processed")
 
             return {
@@ -118,6 +197,8 @@ class CandidateStatusChangeHandler:
                 'old_status': old_status,
                 'new_status': new_status,
                 'actions_taken': actions_taken,
+                'delivery_id': delivery_id,
+                'delivery_channel': delivery_channel,
                 'status': 'processed'
             }
 

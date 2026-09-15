@@ -135,6 +135,88 @@ class SLMEmailGenerationHandler:
             raise
 
 
+    @staticmethod
+    def validate(message: Any, result: Dict[str, Any], db: Session) -> None:
+        """Validate email was generated and staged."""
+        if not result or result.get('status') != 'email_content_generated':
+            raise ValueError(f"Invalid SLM email result: {result}")
+
+        if result.get('email_length', 0) <= 0:
+            raise ValueError(f"Email content empty or invalid length: {result.get('email_length')}")
+
+        candidate_id = result.get('candidate_id')
+        if not candidate_id:
+            raise ValueError("Missing candidate_id in result")
+
+        logger.info(f"[SLMEmailGeneration] ✅ Validated: candidate={candidate_id}, email_length={result.get('email_length')}")
+
+    @staticmethod
+    def should_retry(message: Any) -> bool:
+        """Determine if message should be retried."""
+        from datetime import datetime, timedelta
+        MAX_RETRIES = 3
+
+        if message.retry_count >= MAX_RETRIES:
+            return False
+
+        if hasattr(message, 'next_retry_at') and message.next_retry_at:
+            if datetime.utcnow() < message.next_retry_at:
+                return False
+
+        return True
+
+    @staticmethod
+    def on_retry(message: Any, error: str, db: Session) -> None:
+        """Schedule message for retry."""
+        from datetime import datetime, timedelta
+        try:
+            db.rollback()
+            message.retry_count += 1
+            message.error = error[:1000] if error else "Unknown error"
+            message.next_retry_at = datetime.utcnow() + timedelta(minutes=15)
+            db.commit()
+            logger.info(f"[SLMEmailGeneration] Scheduled retry: retry_count={message.retry_count}")
+        except Exception as e:
+            db.rollback()
+            logger.error(f"[SLMEmailGeneration] Failed to schedule retry: {e}", exc_info=True)
+            raise RuntimeError(f"Failed to schedule retry: {str(e)}") from e
+
+    @staticmethod
+    def on_success(message: Any, result: Dict[str, Any], db: Session) -> None:
+        """Mark message as COMPLETED after validation passes."""
+        from datetime import datetime
+        try:
+            SLMEmailGenerationHandler.validate(message, result, db)
+            message.status = "COMPLETED"
+            message.completed_at = datetime.utcnow()
+            message.result = result
+            db.commit()
+            logger.info(f"[SLMEmailGeneration] ✅ Message marked COMPLETED: candidate={result.get('candidate_id')}")
+        except ValueError:
+            db.rollback()
+            raise
+        except Exception as e:
+            db.rollback()
+            logger.error(f"[SLMEmailGeneration] Failed to mark success: {e}", exc_info=True)
+            raise RuntimeError(f"Failed to mark success: {str(e)}") from e
+
+    @staticmethod
+    def on_failed(message: Any, final_error: str, db: Session) -> None:
+        """Mark message as FAILED after all retries exhausted."""
+        from datetime import datetime
+        try:
+            db.rollback()
+            message.status = "FAILED"
+            message.error = final_error[:1000] if final_error else "Unknown error"
+            message.completed_at = datetime.utcnow()
+            db.commit()
+            logger.error(f"[SLMEmailGeneration] Message FAILED: {final_error}")
+        except Exception as e:
+            db.rollback()
+            logger.error(f"[SLMEmailGeneration] Failed to mark as FAILED: {e}", exc_info=True)
+            raise
+
+
 def _get_generic_welcome_message(candidate: Candidate) -> str:
     """Generate a generic welcome message when SLM fails"""
     first_name = candidate.candidateFirstName or "there"

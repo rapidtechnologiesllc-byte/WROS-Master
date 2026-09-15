@@ -95,13 +95,59 @@ class CandidateRejectionHandler:
                 logger.error(f"[CandidateRejection] Commit failed: {commit_err}", exc_info=True)
                 raise RuntimeError(f"Failed to record rejection: {str(commit_err)}") from commit_err
 
+            # PHASE 6: Send rejection notification via EMAIL (Microsoft Graph only)
+            email_delivery_id = None
+            try:
+                from app.services.email_service import EmailService
+
+                candidate_name = getattr(candidate, 'candidateFirstName', 'Candidate')
+                candidate_email = getattr(candidate, 'candidateEmail', None)
+
+                # Send Email via Microsoft Graph
+                if candidate_email:
+                    try:
+                        email_subject = "Application Status Update"
+                        email_body = f"""
+Dear {candidate_name},
+
+Thank you for your interest in our company. After careful consideration, we've decided to move forward with other candidates at this time.
+
+Reason: {reason}
+
+We appreciate your time and wish you all the best in your job search!
+
+Best regards,
+Recruiting Team
+"""
+
+                        email_result = EmailService.send_email(
+                            to_email=candidate_email,
+                            subject=email_subject,
+                            body_content=email_body,
+                            is_html=True
+                        )
+
+                        if email_result.get('status') == 'skipped':
+                            logger.warning(f"[CandidateRejection] Email skipped to {candidate_email}: {email_result.get('reason')}")
+                        elif email_result.get('status') != 'success':
+                            logger.warning(f"[CandidateRejection] Email delivery failed: {email_result}")
+                        else:
+                            email_delivery_id = "msgraph_" + str(hash(candidate_email))
+                            logger.info(f"[CandidateRejection] Rejection email sent to {candidate_email}, delivery_id={email_delivery_id}")
+                    except Exception as email_err:
+                        logger.warning(f"[CandidateRejection] Email send error: {email_err}")
+
+            except Exception as delivery_err:
+                logger.warning(f"[CandidateRejection] Delivery service error (non-blocking): {delivery_err}")
+
             logger.info(f"[CandidateRejection] ✅ Rejection recorded")
 
             return {
                 'candidate_id': str(candidate_id),
                 'rejection_reason': reason,
                 'no_contact_until': no_contact_until.isoformat(),
-                'status': 'rejected'
+                'status': 'rejected',
+                'email_delivery_id': email_delivery_id
             }
 
         except ValueError as ve:

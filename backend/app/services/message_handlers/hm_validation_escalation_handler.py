@@ -105,17 +105,14 @@ class HMValidationEscalationHandler:
             validation.escalated_at = datetime.utcnow()
             validation.escalation_reason = escalation_reason
 
-            # PHASE 4: Send email to manager
+            # PHASE 4: Send email to manager via Microsoft Graph
             email_sent = False
+            delivery_id = None
             try:
-                from app.services.delivery_factory import DeliveryFactory
+                from app.services.email_service import EmailService
 
-                delivery_service = DeliveryFactory.get_delivery_service()
-                if delivery_service:
-                    delivery_result = delivery_service.send_email(
-                        to=manager.email,
-                        subject=f"Escalation: HM Decision Required on Candidate Validation",
-                        body=f"""
+                email_subject = f"Escalation: HM Decision Required on Candidate Validation"
+                email_body = f"""
 Hi {manager.firstName or 'Manager'},
 
 {hm.firstName} is uncertain about a candidate match. Please review and make a final decision.
@@ -127,12 +124,23 @@ Due: {validation.due_at.strftime('%Y-%m-%d %H:%M UTC') if hasattr(validation, 'd
 
 Thank you,
 AI Recruiting
-                        """
-                    )
+                """
 
-                    if delivery_result and delivery_result.get('status') == 'sent':
-                        email_sent = True
-                        logger.info(f"[HMValidationEscalation] Escalation email sent")
+                delivery_result = EmailService.send_email(
+                    to_email=manager.email,
+                    subject=email_subject,
+                    body_content=email_body,
+                    is_html=True
+                )
+
+                if delivery_result and delivery_result.get('status') == 'success':
+                    email_sent = True
+                    delivery_id = "msgraph_" + str(hash(manager.email))
+                    logger.info(f"[HMValidationEscalation] Escalation email sent: {delivery_id}")
+                elif delivery_result and delivery_result.get('status') == 'skipped':
+                    logger.warning(f"[HMValidationEscalation] Email skipped: {delivery_result.get('reason')}")
+                else:
+                    logger.warning(f"[HMValidationEscalation] Email delivery failed: {delivery_result}")
 
             except Exception as email_err:
                 logger.warning(
@@ -157,7 +165,8 @@ AI Recruiting
                 'validation_id': str(validation_id),
                 'escalated_to_user_id': str(manager_id),
                 'escalation_reason': escalation_reason,
-                'email_sent': email_sent
+                'email_sent': email_sent,
+                'delivery_id': delivery_id
             }
 
         except ValueError as ve:

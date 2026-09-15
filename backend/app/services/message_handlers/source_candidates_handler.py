@@ -230,3 +230,8 @@ class SourceCandidatesHandler:
         except Exception as e:
             db.rollback()
             raise
+
+
+def handle_source_candidates_for_job(message: Any, db: Session) -> Dict[str, Any]:
+    """Handle source_candidates message - entry point for job sourcing."""
+    return SourceCandidatesHandler.process(message, db)

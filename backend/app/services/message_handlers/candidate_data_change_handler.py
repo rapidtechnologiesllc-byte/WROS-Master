@@ -215,13 +215,6 @@ def handle_candidate_data_changed(event_payload: Dict[str, Any], db: Session = N
         message = LegacyMessage(event_payload)
         result = CandidateDataChangeHandler.process(message, db)
         return result
-    finally:
-        if should_close:
-            db.close()
-            "changed_fields": changed_fields,
-            "actions": actions_taken
-        }
-
     except Exception as e:
         logger.error(
             f"[DATA_CHANGE_HANDLER] Error processing data change for {event_payload.get('candidate_id')}: {e}",
@@ -230,7 +223,6 @@ def handle_candidate_data_changed(event_payload: Dict[str, Any], db: Session = N
         if db:
             db.rollback()
         return {"status": "failed", "error": str(e)}
-
     finally:
-        if should_close and db:
+        if should_close:
             db.close()

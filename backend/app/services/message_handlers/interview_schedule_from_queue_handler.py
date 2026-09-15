@@ -105,6 +105,34 @@ class InterviewScheduleFromQueueHandler:
 
             logger.info(f"[InterviewScheduler] Interview record created: {interview_id}")
 
+            # PHASE 3B: SLM PRE-FLIGHT CHECK
+            slm_analysis = None
+            try:
+                from app.services.slm_service import SLMService
+
+                slm_analysis = SLMService.analyze_before_handler(
+                    message_id=str(message.id),
+                    message_type='interview_scheduled',
+                    payload=payload,
+                    context={
+                        'business_goal': 'Schedule interview for candidate',
+                        'risk_level': 'HIGH',
+                        'candidate_id': candidate_id,
+                        'interview_id': interview_id,
+                        'job_id': job_id,
+                    },
+                    db=db
+                )
+                if not slm_analysis.get('should_proceed'):
+                    logger.error(f"[InterviewScheduler] SLM escalation required: {slm_analysis.get('reasoning')}")
+                    raise ValueError(f"SLM escalation: {slm_analysis.get('reasoning')}")
+            except ImportError:
+                logger.debug("[InterviewScheduler] SLMService not available, continuing")
+            except ValueError:
+                raise
+            except Exception as slm_err:
+                logger.warning(f"[InterviewScheduler] SLM pre-flight failed: {slm_err}")
+
             # PHASE 4: NOTIFY THUNDER (Queue pause signal)
             # Thunder should pause outreach for this candidate (in interview)
             try:
@@ -128,7 +156,84 @@ class InterviewScheduleFromQueueHandler:
                     f"(non-blocking, interview already created)"
                 )
 
-            # PHASE 5: COMMIT TRANSACTION
+            # PHASE 5: SEND INTERVIEW INVITE EMAIL
+            delivery_id = None
+            try:
+                from app.services.email_service import EmailService
+
+                candidate_name = getattr(candidate, 'candidateFirstName', 'Candidate')
+                candidate_email = candidate.candidateEmail
+                job_title = job.jobTitle if hasattr(job, 'jobTitle') else 'Position'
+
+                email_subject = f"Interview Scheduled - {job_title}"
+                email_body = f"""
+Dear {candidate_name},
+
+Congratulations! We're pleased to invite you to interview for the {job_title} position.
+
+**INTERVIEW DETAILS**
+Date: {interview_date}
+Time: {interview_time}
+Position: {job_title}
+
+Please confirm your availability by clicking the link below or replying to this email.
+Our team will send you additional details and meeting link soon.
+
+We look forward to speaking with you!
+
+Best regards,
+Recruiting Team
+"""
+
+                result = EmailService.send_email(
+                    to_email=candidate_email,
+                    subject=email_subject,
+                    body_content=email_body,
+                    is_html=True
+                )
+
+                if result.get('status') == 'skipped':
+                    logger.warning(f"[InterviewScheduler] Email skipped to {candidate_email}: {result.get('reason')}")
+                elif result.get('status') != 'success':
+                    logger.warning(f"[InterviewScheduler] Email delivery failed: {result}")
+                else:
+                    delivery_id = "msgraph_" + str(hash(candidate_email))
+                    logger.info(f"[InterviewScheduler] Interview invite sent to {candidate_email}, delivery_id={delivery_id}")
+
+            except Exception as delivery_err:
+                logger.warning(f"[InterviewScheduler] Email delivery error (non-blocking): {delivery_err}")
+
+            # PHASE 6: SLM POST-FLIGHT OUTCOME RECORDING
+            if slm_analysis:
+                try:
+                    from app.services.slm_service import SLMService
+
+                    SLMService.record_outcome(
+                        slm_analysis=slm_analysis,
+                        message_id=str(message.id),
+                        handler_name='interview_schedule_from_queue_handler',
+                        handler_result={
+                            'status': 'success',
+                            'interview_id': interview_id,
+                            'email_sent': delivery_id is not None,
+                            'candidate_notified': delivery_id is not None,
+                        },
+                        business_impact={
+                            'candidate_affected': True,
+                            'interview_scheduled': True,
+                            'candidate_notified': delivery_id is not None,
+                            'expected_outcome': 'interview_confirmed',
+                            'can_be_reversed': False,
+                            'accountability_required': True,
+                        },
+                        db=db
+                    )
+                except ImportError:
+                    pass  # SLMService not available
+                except Exception as slm_record_err:
+                    logger.warning(f"[InterviewScheduler] SLM outcome recording failed: {slm_record_err}")
+
+            # PHASE 7: COMMIT TRANSACTION
             db.commit()
 
             logger.info(
@@ -142,6 +247,7 @@ class InterviewScheduleFromQueueHandler:
                 'job_id': job_id,
                 'scheduled_date': interview_date,
                 'scheduled_time': interview_time,
+                'delivery_id': delivery_id,
             }
 
         except ValueError as ve:

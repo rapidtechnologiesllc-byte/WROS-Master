@@ -120,7 +120,7 @@ Hi {hm.firstName or 'Hiring Manager'},
 A candidate has matched to your open position. Please review and provide your assessment within 24 hours.
 
 **CANDIDATE PROFILE**
-Name: {candidate.candidateFirstName} {candidate.candidateLast Name if hasattr(candidate, 'candidateLast Name') else ''}
+Name: {candidate.candidateFirstName} {candidate.candidateLastName if hasattr(candidate, 'candidateLastName') else ''}
 Email: {candidate.candidateEmail}
 Phone: {candidate.candidateMobile if hasattr(candidate, 'candidateMobile') else 'N/A'}
 Experience: {candidate.candidateExperienceLevel if hasattr(candidate, 'candidateExperienceLevel') else 'N/A'} years
@@ -155,26 +155,35 @@ AI Recruiting
 
             logger.info(f"[HMValidationNotif] Email composed, sending to {hm_email}")
 
-            # PHASE 4: Send email via delivery service
-            from app.services.delivery_factory import DeliveryFactory
+            # PHASE 4: Send email via Microsoft Graph EmailService
+            from app.services.email_service import EmailService
 
-            delivery_service = DeliveryFactory.get_delivery_service()
-            if not delivery_service:
-                raise RuntimeError("Delivery service not configured")
+            delivery_id = None
+            delivery_channel = 'email'
+            skip_reason = None
 
-            delivery_result = delivery_service.send_email(
-                to=hm_email,
-                subject=email_subject,
-                body=email_body
-            )
-
-            if not delivery_result or delivery_result.get('status') != 'sent':
-                raise RuntimeError(
-                    f"Email delivery failed: {delivery_result.get('error', 'Unknown error')}"
+            # Send email via Microsoft Graph
+            try:
+                email_result = EmailService.send_email(
+                    to_email=hm_email,
+                    subject=email_subject,
+                    body_content=email_body,
+                    is_html=True
                 )
 
-            delivery_id = delivery_result.get('delivery_id')
-            logger.info(f"[HMValidationNotif] Email sent successfully: {delivery_id}")
+                if email_result.get('status') == 'skipped':
+                    skip_reason = email_result.get('reason')
+                    logger.warning(f"[HMValidationNotif] Email skipped to {hm_email}: {skip_reason}")
+                    # Gracefully continue - don't raise, skipped emails are acceptable
+                elif email_result.get('status') != 'success':
+                    logger.error(f"[HMValidationNotif] Email delivery failed: {email_result}")
+                    raise RuntimeError(f"Email delivery failed: {email_result}")
+                else:
+                    delivery_id = "msgraph_" + str(hash(hm_email))
+                    logger.info(f"[HMValidationNotif] Email sent successfully: {delivery_id}")
+            except Exception as email_err:
+                logger.error(f"[HMValidationNotif] Email send error: {email_err}")
+                raise RuntimeError(f"Failed to send validation email: {str(email_err)}") from email_err
 
             # PHASE 5: Log delivery to message_delivery table
             from app.models.message_delivery import MessageDelivery
@@ -203,13 +212,15 @@ AI Recruiting
                 logger.error(f"[HMValidationNotif] Commit failed: {commit_err}", exc_info=True)
                 raise RuntimeError(f"Failed to log delivery: {str(commit_err)}") from commit_err
 
-            logger.info(f"[HMValidationNotif] ✅ Notification sent successfully")
+            logger.info(f"[HMValidationNotif] ✅ Notification processed via {delivery_channel}")
 
             return {
                 'validation_id': str(validation_id),
-                'email_sent': True,
+                'email_sent': delivery_id is not None,
                 'delivery_id': str(delivery_id) if delivery_id else None,
-                'hm_email': hm_email
+                'delivery_channel': delivery_channel,
+                'hm_email': hm_email,
+                'skip_reason': skip_reason
             }
 
         except ValueError as ve:
