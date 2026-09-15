@@ -55,10 +55,13 @@ class APIKeyConfigResponse(BaseModel):
 
 
 class GetAPIKeysResponse(BaseModel):
-    """Get response showing which providers are configured (no secrets)."""
+    """Get response showing configured providers WITH actual credentials from database."""
     active_provider: str  # Currently active provider
     providers: List[APIKeyConfigResponse]  # List of all configured providers
     available_providers: List[str]  # ['azure', 'twilio', 'sendgrid', 'stub']
+    azure: Optional[AzureGraphCredentials] = None  # Actual Azure credentials if configured
+    twilio: Optional[TwilioCredentials] = None  # Actual Twilio credentials if configured
+    sendgrid: Optional[SendGridCredentials] = None  # Actual SendGrid credentials if configured
 
 
 class TestConnectionRequest(BaseModel):

@@ -185,10 +185,10 @@ class APIKeysService:
     @staticmethod
     def get_api_keys(db: Session, tenant_id: int) -> Dict[str, Any]:
         """
-        Get configured providers for tenant (without secrets).
+        Get configured providers for tenant WITH actual credentials from database.
 
         Returns:
-            Dict with active_provider and list of configured providers
+            Dict with active_provider, all providers, and actual credential values
         """
         try:
             configs = db.query(APIKeysConfig).filter(
@@ -197,6 +197,9 @@ class APIKeysService:
 
             providers = []
             active_provider = "stub"  # Default
+            azure_creds = None
+            twilio_creds = None
+            sendgrid_creds = None
 
             for config in configs:
                 provider_info = {
@@ -214,10 +217,21 @@ class APIKeysService:
                 if config.is_active:
                     active_provider = config.provider
 
+                # Decrypt and include actual credentials from database
+                if config.provider == "azure" and config.azure_tenant_id:
+                    azure_creds = config.get_azure_creds()
+                elif config.provider == "twilio" and config.twilio_account_sid:
+                    twilio_creds = config.get_twilio_creds()
+                elif config.provider == "sendgrid" and config.sendgrid_api_key:
+                    sendgrid_creds = config.get_sendgrid_creds()
+
             return {
                 "active_provider": active_provider,
                 "providers": providers,
                 "available_providers": ["azure", "twilio", "sendgrid", "stub"],
+                "azure": azure_creds,
+                "twilio": twilio_creds,
+                "sendgrid": sendgrid_creds,
             }
         except Exception as e:
             logger.error(f"[APIKeysService] Get failed: {e}", exc_info=True)
