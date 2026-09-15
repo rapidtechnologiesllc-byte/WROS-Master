@@ -1,44 +1,26 @@
 import React, { useState, useEffect } from 'react';
 import { toast } from 'react-toastify';
-import { Card } from '../components/ui';
-import { Check, X, AlertCircle, Eye, EyeOff } from 'lucide-react';
+import { Eye, EyeOff, Lock, Cloud } from 'lucide-react';
 import { apiRequest } from '../services/api/client';
 
 const PROVIDERS = [
-  { value: 'azure', label: 'Azure Graph (Microsoft 365)', icon: '🔵' },
-  { value: 'twilio', label: 'Twilio (WhatsApp)', icon: '📱' },
-  { value: 'sendgrid', label: 'SendGrid (Email)', icon: '📧' },
-  { value: 'stub', label: 'STUB (Testing Only)', icon: '🧪' },
+  { value: 'azure', label: 'Azure', icon: '☁️', color: '#0078D4', provider: 'Azure Graph' },
+  { value: 'twilio', label: 'Twilio', icon: '💬', color: '#F22F46', provider: 'Twilio (WhatsApp)' },
+  { value: 'sendgrid', label: 'SendGrid', icon: '✉️', color: '#1A73E8', provider: 'SendGrid' },
+  { value: 'stub', label: 'STUB', icon: '🧪', color: '#8B5CF6', provider: 'Test Mode' },
 ];
 
 export default function APIKeysSettings() {
-  const [activeProvider, setActiveProvider] = useState('stub');
+  const [activeTab, setActiveTab] = useState('azure');
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState(null);
   const [showSecrets, setShowSecrets] = useState({});
 
-  // Azure Form State
-  const [azureForm, setAzureForm] = useState({
-    tenant_id: '',
-    client_id: '',
-    client_secret: '',
-  });
+  const [azureForm, setAzureForm] = useState({ tenant_id: '', client_id: '', client_secret: '' });
+  const [twilioForm, setTwilioForm] = useState({ account_sid: '', auth_token: '', whatsapp_number: '' });
+  const [sendgridForm, setSendgridForm] = useState({ api_key: '', from_email: '' });
+  const [activeProvider, setActiveProvider] = useState('stub');
 
-  // Twilio Form State
-  const [twilioForm, setTwilioForm] = useState({
-    account_sid: '',
-    auth_token: '',
-    whatsapp_number: '',
-  });
-
-  // SendGrid Form State
-  const [sendgridForm, setSendgridForm] = useState({
-    api_key: '',
-    from_email: '',
-  });
-
-  // Load existing configurations on mount
   useEffect(() => {
     loadConfigurations();
   }, []);
@@ -46,163 +28,71 @@ export default function APIKeysSettings() {
   const loadConfigurations = async () => {
     setLoading(true);
     try {
-      const response = await apiRequest('GET', '/api/v1/system/api-keys');
-
-      if (response.azure) {
-        setAzureForm({
-          tenant_id: response.azure.tenant_id || '',
-          client_id: response.azure.client_id || '',
-          client_secret: response.azure.client_secret || '',
-        });
-      }
-
-      if (response.twilio) {
-        setTwilioForm({
-          account_sid: response.twilio.account_sid || '',
-          auth_token: response.twilio.auth_token || '',
-          whatsapp_number: response.twilio.whatsapp_number || '',
-        });
-      }
-
-      if (response.sendgrid) {
-        setSendgridForm({
-          api_key: response.sendgrid.api_key || '',
-          from_email: response.sendgrid.from_email || '',
-        });
-      }
-
-      if (response.active_provider) {
-        setActiveProvider(response.active_provider);
-      }
+      const response = await apiRequest('GET', '/api/v1/api-keys');
+      if (response.azure) setAzureForm(response.azure);
+      if (response.twilio) setTwilioForm(response.twilio);
+      if (response.sendgrid) setSendgridForm(response.sendgrid);
+      if (response.active_provider) setActiveProvider(response.active_provider);
     } catch (err) {
-      console.warn('Could not load existing credentials:', err);
+      console.warn('Could not load credentials:', err);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleSaveAzure = async () => {
-    if (!azureForm.tenant_id || !azureForm.client_id || !azureForm.client_secret) {
-      setMessage({ type: 'error', text: 'Please fill in all Azure fields' });
+  const handleSaveProvider = async (provider, formData) => {
+    const required = {
+      azure: ['tenant_id', 'client_id', 'client_secret'],
+      twilio: ['account_sid', 'auth_token', 'whatsapp_number'],
+      sendgrid: ['api_key', 'from_email'],
+    };
+
+    if (required[provider] && !required[provider].every(f => formData[f])) {
+      toast.error('Please fill in all required fields');
       return;
     }
 
     setSaving(true);
     try {
-      await apiRequest('POST', '/api/v1/system/api-keys', {
-        provider: 'azure',
-        azure: azureForm,
-      });
-      toast.success('Azure credentials saved');
-      setMessage(null);
-      if (activeProvider !== 'azure') {
-        setActiveProvider('azure');
-      }
-    } catch (err) {
-      toast.error(err.message || 'Failed to save Azure credentials');
-      setMessage({ type: 'error', text: err.message || 'Failed to save' });
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleSaveTwilio = async () => {
-    if (!twilioForm.account_sid || !twilioForm.auth_token || !twilioForm.whatsapp_number) {
-      setMessage({ type: 'error', text: 'Please fill in all Twilio fields' });
-      return;
-    }
-
-    setSaving(true);
-    try {
-      await apiRequest('POST', '/api/v1/system/api-keys', {
-        provider: 'twilio',
-        twilio: twilioForm,
-      });
-      toast.success('Twilio credentials saved');
-      setMessage(null);
-      if (activeProvider !== 'twilio') {
-        setActiveProvider('twilio');
-      }
-    } catch (err) {
-      toast.error(err.message || 'Failed to save Twilio credentials');
-      setMessage({ type: 'error', text: err.message || 'Failed to save' });
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleSaveSendGrid = async () => {
-    if (!sendgridForm.api_key || !sendgridForm.from_email) {
-      setMessage({ type: 'error', text: 'Please fill in all SendGrid fields' });
-      return;
-    }
-
-    setSaving(true);
-    try {
-      await apiRequest('POST', '/api/v1/system/api-keys', {
-        provider: 'sendgrid',
-        sendgrid: sendgridForm,
-      });
-      toast.success('SendGrid credentials saved');
-      setMessage(null);
-      if (activeProvider !== 'sendgrid') {
-        setActiveProvider('sendgrid');
-      }
-    } catch (err) {
-      toast.error(err.message || 'Failed to save SendGrid credentials');
-      setMessage({ type: 'error', text: err.message || 'Failed to save' });
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleSetProvider = async (provider) => {
-    setSaving(true);
-    try {
-      await apiRequest('POST', '/api/v1/system/api-keys/set-provider', {
+      await apiRequest('POST', '/api/v1/api-keys', {
         provider,
+        [provider]: formData,
       });
-      setActiveProvider(provider);
-      toast.success(`Switched to ${PROVIDERS.find(p => p.value === provider)?.label}`);
+      toast.success(`${provider.charAt(0).toUpperCase() + provider.slice(1)} credentials saved`);
+      if (activeProvider !== provider) setActiveProvider(provider);
     } catch (err) {
-      toast.error(err.message || 'Failed to switch provider');
+      toast.error(err.message || 'Failed to save credentials');
     } finally {
       setSaving(false);
     }
   };
 
   const toggleShowSecret = (field) => {
-    setShowSecrets(prev => ({
-      ...prev,
-      [field]: !prev[field],
-    }));
+    setShowSecrets(prev => ({ ...prev, [field]: !prev[field] }));
   };
 
-  const renderCredentialField = (label, value, onChange, type = 'text', isSecret = false, fieldKey = null) => {
+  const CredentialInput = ({ label, value, onChange, isSecret = false, fieldKey = null }) => {
     const showValue = fieldKey && showSecrets[fieldKey];
-
     return (
       <div className="mb-4">
-        <label className="block text-sm font-medium text-gray-700 mb-2">{label}</label>
+        <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2">
+          {label}
+        </label>
         <div className="relative">
           <input
-            type={showValue ? 'text' : type}
+            type={showValue ? 'text' : isSecret ? 'password' : 'text'}
             value={value}
             onChange={onChange}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
+            className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition text-sm"
             placeholder={`Enter ${label.toLowerCase()}`}
           />
           {isSecret && fieldKey && (
             <button
               type="button"
               onClick={() => toggleShowSecret(fieldKey)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition"
             >
-              {showSecrets[fieldKey] ? (
-                <EyeOff size={18} />
-              ) : (
-                <Eye size={18} />
-              )}
+              {showSecrets[fieldKey] ? <EyeOff size={16} /> : <Eye size={16} />}
             </button>
           )}
         </div>
@@ -210,160 +100,192 @@ export default function APIKeysSettings() {
     );
   };
 
-  const ProviderCard = ({ provider, isActive, onSelect, children, onSave }) => (
-    <Card className={`mb-4 border-2 transition-all ${isActive ? 'border-blue-500 bg-blue-50' : 'border-gray-200'}`}>
-      <div className="p-6">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-3">
-            <span className="text-2xl">{provider.icon}</span>
-            <div>
-              <h3 className="font-semibold text-gray-900">{provider.label}</h3>
-              <p className="text-xs text-gray-500">
-                {isActive ? 'Currently active' : 'Not active'}
-              </p>
-            </div>
-          </div>
-          <input
-            type="radio"
-            checked={isActive}
-            onChange={() => handleSetProvider(provider.value)}
-            className="w-4 h-4"
-          />
-        </div>
-
-        {children}
-
-        <div className="flex gap-2 mt-4">
-          <button
-            onClick={onSave}
-            disabled={saving}
-            className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 disabled:opacity-50"
-          >
-            {saving ? 'Saving...' : 'Save Credentials'}
-          </button>
-        </div>
-      </div>
-    </Card>
-  );
-
   return (
-    <div className="max-w-2xl mx-auto p-6">
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">API Keys Configuration</h1>
-        <p className="text-gray-600">Manage credentials for email and messaging delivery providers</p>
-      </div>
-
-      {message && (
-        <div className={`mb-4 p-4 rounded-lg flex gap-2 ${
-          message.type === 'error' ? 'bg-red-50 text-red-700' : 'bg-blue-50 text-blue-700'
-        }`}>
-          <AlertCircle size={18} className="flex-shrink-0 mt-0.5" />
-          <span>{message.text}</span>
-        </div>
-      )}
-
-      <div className="space-y-6">
-        {/* Azure Card */}
-        <ProviderCard
-          provider={PROVIDERS[0]}
-          isActive={activeProvider === 'azure'}
-          onSelect={() => handleSetProvider('azure')}
-          onSave={handleSaveAzure}
-        >
-          {renderCredentialField(
-            'Tenant ID',
-            azureForm.tenant_id,
-            (e) => setAzureForm({ ...azureForm, tenant_id: e.target.value }),
-            'text',
-            false
-          )}
-          {renderCredentialField(
-            'Client ID',
-            azureForm.client_id,
-            (e) => setAzureForm({ ...azureForm, client_id: e.target.value }),
-            'text',
-            false
-          )}
-          {renderCredentialField(
-            'Client Secret',
-            azureForm.client_secret,
-            (e) => setAzureForm({ ...azureForm, client_secret: e.target.value }),
-            'password',
-            true,
-            'azure_secret'
-          )}
-        </ProviderCard>
-
-        {/* Twilio Card */}
-        <ProviderCard
-          provider={PROVIDERS[1]}
-          isActive={activeProvider === 'twilio'}
-          onSelect={() => handleSetProvider('twilio')}
-          onSave={handleSaveTwilio}
-        >
-          {renderCredentialField(
-            'Account SID',
-            twilioForm.account_sid,
-            (e) => setTwilioForm({ ...twilioForm, account_sid: e.target.value }),
-            'text',
-            false
-          )}
-          {renderCredentialField(
-            'Auth Token',
-            twilioForm.auth_token,
-            (e) => setTwilioForm({ ...twilioForm, auth_token: e.target.value }),
-            'password',
-            true,
-            'twilio_token'
-          )}
-          {renderCredentialField(
-            'WhatsApp Number',
-            twilioForm.whatsapp_number,
-            (e) => setTwilioForm({ ...twilioForm, whatsapp_number: e.target.value }),
-            'tel',
-            false
-          )}
-        </ProviderCard>
-
-        {/* SendGrid Card */}
-        <ProviderCard
-          provider={PROVIDERS[2]}
-          isActive={activeProvider === 'sendgrid'}
-          onSelect={() => handleSetProvider('sendgrid')}
-          onSave={handleSaveSendGrid}
-        >
-          {renderCredentialField(
-            'API Key',
-            sendgridForm.api_key,
-            (e) => setSendgridForm({ ...sendgridForm, api_key: e.target.value }),
-            'password',
-            true,
-            'sendgrid_key'
-          )}
-          {renderCredentialField(
-            'From Email',
-            sendgridForm.from_email,
-            (e) => setSendgridForm({ ...sendgridForm, from_email: e.target.value }),
-            'email',
-            false
-          )}
-        </ProviderCard>
-
-        {/* STUB Card */}
-        <ProviderCard
-          provider={PROVIDERS[3]}
-          isActive={activeProvider === 'stub'}
-          onSelect={() => handleSetProvider('stub')}
-          onSave={() => {
-            setActiveProvider('stub');
-            toast.success('Switched to STUB mode (testing)');
-          }}
-        >
-          <div className="text-sm text-gray-600">
-            <p className="mb-2">STUB mode logs all emails and messages to the database instead of sending them.</p>
-            <p>Use this for development and testing.</p>
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-6">
+      <div className="max-w-4xl mx-auto">
+        {/* Header */}
+        <div className="mb-8">
+          <div className="flex items-center gap-3 mb-2">
+            <Cloud className="text-blue-600" size={28} />
+            <h1 className="text-3xl font-bold text-gray-900">API Keys</h1>
           </div>
-        </ProviderCard>
+          <p className="text-gray-600 text-sm">Configure delivery providers for emails and messages</p>
+        </div>
+
+        {/* Provider Tabs */}
+        <div className="mb-6 flex gap-2 overflow-x-auto pb-2">
+          {PROVIDERS.map((p) => (
+            <button
+              key={p.value}
+              onClick={() => setActiveTab(p.value)}
+              className={`px-4 py-2.5 rounded-lg font-medium text-sm whitespace-nowrap transition-all ${
+                activeTab === p.value
+                  ? 'bg-white shadow-md text-gray-900 border-2 border-blue-500'
+                  : 'bg-white/50 border border-gray-200 text-gray-600 hover:bg-white/80'
+              }`}
+            >
+              <span className="mr-2">{p.icon}</span>
+              {p.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Content */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8">
+          {activeTab === 'azure' && (
+            <div>
+              <div className="mb-6">
+                <div className="flex items-center gap-3 mb-1">
+                  <span className="text-3xl">☁️</span>
+                  <h2 className="text-xl font-bold text-gray-900">Azure Graph</h2>
+                </div>
+                <p className="text-sm text-gray-500">Microsoft 365 email delivery</p>
+                <div className="mt-3 inline-block px-3 py-1 bg-blue-50 rounded-full">
+                  <p className="text-xs font-medium text-blue-700">
+                    {activeProvider === 'azure' ? '✓ Active' : 'Inactive'}
+                  </p>
+                </div>
+              </div>
+              <CredentialInput
+                label="Tenant ID"
+                value={azureForm.tenant_id}
+                onChange={(e) => setAzureForm({ ...azureForm, tenant_id: e.target.value })}
+              />
+              <CredentialInput
+                label="Client ID"
+                value={azureForm.client_id}
+                onChange={(e) => setAzureForm({ ...azureForm, client_id: e.target.value })}
+              />
+              <CredentialInput
+                label="Client Secret"
+                value={azureForm.client_secret}
+                onChange={(e) => setAzureForm({ ...azureForm, client_secret: e.target.value })}
+                isSecret
+                fieldKey="azure_secret"
+              />
+              <button
+                onClick={() => handleSaveProvider('azure', azureForm)}
+                disabled={saving}
+                className="w-full mt-6 bg-gradient-to-r from-blue-600 to-blue-700 text-white py-2.5 px-4 rounded-lg hover:from-blue-700 hover:to-blue-800 disabled:opacity-50 font-medium transition text-sm"
+              >
+                {saving ? 'Saving...' : 'Save Credentials'}
+              </button>
+            </div>
+          )}
+
+          {activeTab === 'twilio' && (
+            <div>
+              <div className="mb-6">
+                <div className="flex items-center gap-3 mb-1">
+                  <span className="text-3xl">💬</span>
+                  <h2 className="text-xl font-bold text-gray-900">Twilio</h2>
+                </div>
+                <p className="text-sm text-gray-500">WhatsApp messaging delivery</p>
+                <div className="mt-3 inline-block px-3 py-1 bg-red-50 rounded-full">
+                  <p className="text-xs font-medium text-red-700">
+                    {activeProvider === 'twilio' ? '✓ Active' : 'Inactive'}
+                  </p>
+                </div>
+              </div>
+              <CredentialInput
+                label="Account SID"
+                value={twilioForm.account_sid}
+                onChange={(e) => setTwilioForm({ ...twilioForm, account_sid: e.target.value })}
+              />
+              <CredentialInput
+                label="Auth Token"
+                value={twilioForm.auth_token}
+                onChange={(e) => setTwilioForm({ ...twilioForm, auth_token: e.target.value })}
+                isSecret
+                fieldKey="twilio_token"
+              />
+              <CredentialInput
+                label="WhatsApp Number"
+                value={twilioForm.whatsapp_number}
+                onChange={(e) => setTwilioForm({ ...twilioForm, whatsapp_number: e.target.value })}
+              />
+              <button
+                onClick={() => handleSaveProvider('twilio', twilioForm)}
+                disabled={saving}
+                className="w-full mt-6 bg-gradient-to-r from-red-600 to-red-700 text-white py-2.5 px-4 rounded-lg hover:from-red-700 hover:to-red-800 disabled:opacity-50 font-medium transition text-sm"
+              >
+                {saving ? 'Saving...' : 'Save Credentials'}
+              </button>
+            </div>
+          )}
+
+          {activeTab === 'sendgrid' && (
+            <div>
+              <div className="mb-6">
+                <div className="flex items-center gap-3 mb-1">
+                  <span className="text-3xl">✉️</span>
+                  <h2 className="text-xl font-bold text-gray-900">SendGrid</h2>
+                </div>
+                <p className="text-sm text-gray-500">Email delivery service</p>
+                <div className="mt-3 inline-block px-3 py-1 bg-blue-50 rounded-full">
+                  <p className="text-xs font-medium text-blue-700">
+                    {activeProvider === 'sendgrid' ? '✓ Active' : 'Inactive'}
+                  </p>
+                </div>
+              </div>
+              <CredentialInput
+                label="API Key"
+                value={sendgridForm.api_key}
+                onChange={(e) => setSendgridForm({ ...sendgridForm, api_key: e.target.value })}
+                isSecret
+                fieldKey="sendgrid_key"
+              />
+              <CredentialInput
+                label="From Email"
+                value={sendgridForm.from_email}
+                onChange={(e) => setSendgridForm({ ...sendgridForm, from_email: e.target.value })}
+              />
+              <button
+                onClick={() => handleSaveProvider('sendgrid', sendgridForm)}
+                disabled={saving}
+                className="w-full mt-6 bg-gradient-to-r from-blue-600 to-cyan-600 text-white py-2.5 px-4 rounded-lg hover:from-blue-700 hover:to-cyan-700 disabled:opacity-50 font-medium transition text-sm"
+              >
+                {saving ? 'Saving...' : 'Save Credentials'}
+              </button>
+            </div>
+          )}
+
+          {activeTab === 'stub' && (
+            <div>
+              <div className="mb-6">
+                <div className="flex items-center gap-3 mb-1">
+                  <span className="text-3xl">🧪</span>
+                  <h2 className="text-xl font-bold text-gray-900">Test Mode</h2>
+                </div>
+                <p className="text-sm text-gray-500">Development & testing</p>
+                <div className="mt-3 inline-block px-3 py-1 bg-purple-50 rounded-full">
+                  <p className="text-xs font-medium text-purple-700">
+                    {activeProvider === 'stub' ? '✓ Active' : 'Inactive'}
+                  </p>
+                </div>
+              </div>
+              <div className="bg-purple-50 border border-purple-200 rounded-lg p-4 mb-6">
+                <p className="text-sm text-purple-900">
+                  <strong>STUB mode</strong> logs all emails and messages to the database instead of actually sending them. Perfect for development and testing.
+                </p>
+              </div>
+              <button
+                onClick={() => setActiveProvider('stub')}
+                className="w-full bg-gradient-to-r from-purple-600 to-purple-700 text-white py-2.5 px-4 rounded-lg hover:from-purple-700 hover:to-purple-800 font-medium transition text-sm"
+              >
+                {activeProvider === 'stub' ? '✓ Currently Active' : 'Activate Test Mode'}
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Status Footer */}
+        <div className="mt-6 bg-gradient-to-r from-gray-50 to-gray-100 rounded-lg p-4 border border-gray-200">
+          <div className="flex items-center gap-2 text-sm text-gray-700">
+            <Lock size={16} className="text-gray-400" />
+            <span>Credentials are encrypted at rest. Only you can view your API keys.</span>
+          </div>
+        </div>
       </div>
     </div>
   );
