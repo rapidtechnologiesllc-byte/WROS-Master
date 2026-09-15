@@ -14,6 +14,7 @@ from typing import Dict, Any
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import OperationalError
 from datetime import datetime
+from app.services.message_handlers.base_message_handler import time_bound
 
 logger = logging.getLogger(__name__)
 
@@ -22,6 +23,7 @@ class InterviewScheduleFromQueueHandler:
     """Handle interview scheduling from queue messages"""
 
     @staticmethod
+    @time_bound(timeout_seconds=12)
     def process(message: Any, db: Session) -> Dict[str, Any]:
         """
         Process: Schedule interview for candidate

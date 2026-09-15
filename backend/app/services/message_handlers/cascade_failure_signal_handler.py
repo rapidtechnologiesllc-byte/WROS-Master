@@ -5,8 +5,9 @@ When Thunder recovers (> 80%), Flash can resume.
 """
 import logging
 from typing import Dict, Any
-from sqlalchemy.orm import Session
 from datetime import datetime
+from sqlalchemy.orm import Session
+from app.services.message_handlers.base_message_handler import time_bound
 
 logger = logging.getLogger(__name__)
 
@@ -19,6 +20,7 @@ class CascadeFailureSignalHandler:
     RECOVERY_THRESHOLD = 0.80     # 80% success rate = recovered
 
     @staticmethod
+    @time_bound(timeout_seconds=10)
     def process(message: Any, db: Session) -> Dict[str, Any]:
         """
         Process cascade failure signal from Thunder
