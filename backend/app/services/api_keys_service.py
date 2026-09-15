@@ -154,8 +154,11 @@ class APIKeysService:
                     APIKeysConfig.provider == request.active_provider
                 ).first()
 
-                if not active_config and request.active_provider != "stub":
+                if not active_config:
                     errors[request.active_provider] = f"Provider '{request.active_provider}' not configured yet"
+                # VALIDATION: Require test to pass before activation
+                elif active_config.last_tested_status != "success":
+                    errors[request.active_provider] = f"Provider must be tested and pass before activation (current status: {active_config.last_tested_status or 'never tested'})"
                 else:
                     # Deactivate all others
                     db.query(APIKeysConfig).filter(
@@ -163,16 +166,25 @@ class APIKeysService:
                     ).update({"is_active": False})
 
                     # Activate selected provider
-                    if active_config:
-                        active_config.is_active = True
-                        logger.info(f"[APIKeysService] Active provider set to '{request.active_provider}' for tenant {tenant_id}")
+                    active_config.is_active = True
+                    logger.info(f"[APIKeysService] Active provider set to '{request.active_provider}' for tenant {tenant_id}")
 
             db.commit()
+
+            # Determine active provider after save
+            active_provider = None
+            active_config = db.query(APIKeysConfig).filter(
+                APIKeysConfig.tenant_id == tenant_id,
+                APIKeysConfig.is_active == True
+            ).first()
+            if active_config:
+                active_provider = active_config.provider
 
             status = "success" if not errors else ("partial" if saved_providers else "failed")
             return {
                 "status": status,
                 "message": f"Saved {len(saved_providers)} provider(s)" if saved_providers else "No providers saved",
+                "active_provider": active_provider,
                 "saved_providers": saved_providers,
                 "errors": errors if errors else None,
             }
