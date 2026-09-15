@@ -22,7 +22,6 @@ from app.schemas.api_keys_config import (
     SendGridCredentials,
 )
 import requests
-from twilio.rest import Client as TwilioClient
 import json
 from datetime import datetime
 
@@ -318,6 +317,12 @@ class APIKeysService:
     def _test_twilio(config: APIKeysConfig, tenant_id: int, db: Session) -> Dict[str, Any]:
         """Test Twilio credentials."""
         try:
+            # Lazy import - twilio is optional
+            try:
+                from twilio.rest import Client as TwilioClient
+            except ImportError:
+                raise ValueError("Twilio SDK not installed. Install with: pip install twilio")
+
             creds = config.get_twilio_creds()
             if not creds or not all([creds.get("account_sid"), creds.get("auth_token")]):
                 raise ValueError("Twilio credentials incomplete")
