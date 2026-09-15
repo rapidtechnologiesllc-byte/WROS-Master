@@ -19,6 +19,7 @@ from sqlalchemy.orm import Session
 from app.models.candidate import Candidate
 from app.services.thunder_service import build_candidate_context, generate_thunder_reply, ThunderReplyGenerationFailed
 from app.core.logging import logger
+from app.services.message_handlers.base_message_handler import time_bound
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +28,7 @@ class SLMEmailGenerationHandler:
     """Generates personalized candidate welcome emails using SLM + Gemini"""
 
     @staticmethod
+    @time_bound(timeout_seconds=15)
     def process(message: Any, db: Session) -> Dict[str, Any]:
         """
         Process message: Generate personalized email content for candidate.

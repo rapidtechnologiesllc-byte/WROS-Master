@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy.exc import OperationalError
 from datetime import datetime, timedelta
 from app.services.candidate_activity_service import log_thunder_operation
+from app.services.message_handlers.base_message_handler import time_bound
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +25,7 @@ class OfferGenerationHandler:
     """Handle offer generation and sending"""
 
     @staticmethod
+    @time_bound(timeout_seconds=25)
     def process(message: Any, db: Session) -> Dict[str, Any]:
         """
         Process: Generate and send offer letter with SLM integration.

@@ -13,6 +13,7 @@ import logging
 from typing import Dict, Any
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import OperationalError
+from app.services.message_handlers.base_message_handler import time_bound
 
 logger = logging.getLogger(__name__)
 
@@ -79,6 +80,7 @@ class FlashRecruiterHandler:
             }
 
     @staticmethod
+    @time_bound(timeout_seconds=20)
     def process(message: Any, db: Session) -> Dict[str, Any]:
         """
         Process: Find matching candidates and queue Thunder outreach
