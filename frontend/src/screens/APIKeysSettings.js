@@ -7,7 +7,6 @@ const PROVIDERS = [
   { value: 'azure', label: 'Azure', icon: '☁️', color: '#0078D4', provider: 'Azure Graph' },
   { value: 'twilio', label: 'Twilio', icon: '💬', color: '#F22F46', provider: 'Twilio (WhatsApp)' },
   { value: 'sendgrid', label: 'SendGrid', icon: '✉️', color: '#1A73E8', provider: 'SendGrid' },
-  { value: 'stub', label: 'STUB', icon: '🧪', color: '#8B5CF6', provider: 'Test Mode' },
 ];
 
 export default function APIKeysSettings() {
@@ -19,7 +18,7 @@ export default function APIKeysSettings() {
   const [azureForm, setAzureForm] = useState({ tenant_id: '', client_id: '', client_secret: '' });
   const [twilioForm, setTwilioForm] = useState({ account_sid: '', auth_token: '', whatsapp_number: '' });
   const [sendgridForm, setSendgridForm] = useState({ api_key: '', from_email: '' });
-  const [activeProvider, setActiveProvider] = useState('stub');
+  const [activeProvider, setActiveProvider] = useState('azure');
 
   useEffect(() => {
     loadConfigurations();
@@ -29,12 +28,26 @@ export default function APIKeysSettings() {
     setLoading(true);
     try {
       const response = await apiRequest('GET', '/api/v1/api-keys');
-      if (response.azure) setAzureForm(response.azure);
-      if (response.twilio) setTwilioForm(response.twilio);
-      if (response.sendgrid) setSendgridForm(response.sendgrid);
-      if (response.active_provider) setActiveProvider(response.active_provider);
+      console.log('[APIKeys] Loaded config:', response);
+
+      if (response.azure) {
+        console.log('[APIKeys] Setting Azure form:', response.azure);
+        setAzureForm(response.azure);
+      }
+      if (response.twilio) {
+        console.log('[APIKeys] Setting Twilio form:', response.twilio);
+        setTwilioForm(response.twilio);
+      }
+      if (response.sendgrid) {
+        console.log('[APIKeys] Setting SendGrid form:', response.sendgrid);
+        setSendgridForm(response.sendgrid);
+      }
+      if (response.active_provider) {
+        console.log('[APIKeys] Setting active provider:', response.active_provider);
+        setActiveProvider(response.active_provider);
+      }
     } catch (err) {
-      console.warn('Could not load credentials:', err);
+      console.warn('[APIKeys] Could not load credentials:', err);
     } finally {
       setLoading(false);
     }
@@ -54,13 +67,20 @@ export default function APIKeysSettings() {
 
     setSaving(true);
     try {
-      await apiRequest('POST', '/api/v1/api-keys', {
+      console.log('[APIKeys] Saving', provider, 'credentials');
+      const response = await apiRequest('POST', '/api/v1/api-keys', {
         provider,
         [provider]: formData,
       });
-      toast.success(`${provider.charAt(0).toUpperCase() + provider.slice(1)} credentials saved`);
-      if (activeProvider !== provider) setActiveProvider(provider);
+      console.log('[APIKeys] Save response:', response);
+
+      toast.success(`${provider.charAt(0).toUpperCase() + provider.slice(1)} credentials saved successfully`);
+      setActiveProvider(provider);
+
+      // Reload to verify save
+      await loadConfigurations();
     } catch (err) {
+      console.error('[APIKeys] Save error:', err);
       toast.error(err.message || 'Failed to save credentials');
     } finally {
       setSaving(false);
@@ -74,8 +94,8 @@ export default function APIKeysSettings() {
   const CredentialInput = ({ label, value, onChange, isSecret = false, fieldKey = null }) => {
     const showValue = fieldKey && showSecrets[fieldKey];
     return (
-      <div className="mb-4">
-        <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2">
+      <div className="mb-6">
+        <label className="block text-sm font-semibold text-gray-700 mb-2 tracking-wide" style={{ fontSize: '14px', fontWeight: 600 }}>
           {label}
         </label>
         <div className="relative">
@@ -83,16 +103,22 @@ export default function APIKeysSettings() {
             type={showValue ? 'text' : isSecret ? 'password' : 'text'}
             value={value}
             onChange={onChange}
-            className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition text-sm"
+            className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition text-sm placeholder:text-gray-400"
             placeholder={`Enter ${label.toLowerCase()}`}
+            style={{
+              fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif',
+              fontSize: '14px',
+              fontWeight: 400,
+              letterSpacing: '0.3px'
+            }}
           />
           {isSecret && fieldKey && (
             <button
               type="button"
               onClick={() => toggleShowSecret(fieldKey)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition"
+              className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition"
             >
-              {showSecrets[fieldKey] ? <EyeOff size={16} /> : <Eye size={16} />}
+              {showSecrets[fieldKey] ? <EyeOff size={18} /> : <Eye size={18} />}
             </button>
           )}
         </div>
@@ -101,47 +127,56 @@ export default function APIKeysSettings() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-6">
+    <div style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif' }} className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-8">
       <div className="max-w-4xl mx-auto">
         {/* Header */}
-        <div className="mb-8">
-          <div className="flex items-center gap-3 mb-2">
-            <Cloud className="text-blue-600" size={28} />
-            <h1 className="text-3xl font-bold text-gray-900">API Keys</h1>
+        <div className="mb-10">
+          <div className="flex items-center gap-4 mb-3">
+            <Cloud className="text-blue-600" size={40} strokeWidth={1.5} />
+            <h1 className="text-5xl font-bold text-gray-900" style={{ fontSize: '36px', fontWeight: 700, letterSpacing: '-0.5px' }}>
+              API Keys
+            </h1>
           </div>
-          <p className="text-gray-600 text-sm">Configure delivery providers for emails and messages</p>
+          <p className="text-gray-600 text-base" style={{ fontSize: '15px', fontWeight: 400, letterSpacing: '0.3px' }}>
+            Configure delivery providers for emails and messages
+          </p>
         </div>
 
         {/* Provider Tabs */}
-        <div className="mb-6 flex gap-2 overflow-x-auto pb-2">
+        <div className="mb-8 flex gap-3 overflow-x-auto pb-2">
           {PROVIDERS.map((p) => (
             <button
               key={p.value}
               onClick={() => setActiveTab(p.value)}
-              className={`px-4 py-2.5 rounded-lg font-medium text-sm whitespace-nowrap transition-all ${
+              className={`px-5 py-3 rounded-lg font-semibold text-base whitespace-nowrap transition-all ${
                 activeTab === p.value
                   ? 'bg-white shadow-md text-gray-900 border-2 border-blue-500'
-                  : 'bg-white/50 border border-gray-200 text-gray-600 hover:bg-white/80'
+                  : 'bg-white/50 border-2 border-gray-200 text-gray-700 hover:bg-white/80'
               }`}
+              style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif', fontSize: '14px', fontWeight: 600 }}
             >
-              <span className="mr-2">{p.icon}</span>
+              <span className="mr-2 text-lg">{p.icon}</span>
               {p.label}
             </button>
           ))}
         </div>
 
         {/* Content */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-10">
           {activeTab === 'azure' && (
             <div>
-              <div className="mb-6">
-                <div className="flex items-center gap-3 mb-1">
-                  <span className="text-3xl">☁️</span>
-                  <h2 className="text-xl font-bold text-gray-900">Azure Graph</h2>
+              <div className="mb-8 pb-8 border-b border-gray-100">
+                <div className="flex items-center gap-4 mb-2">
+                  <span className="text-4xl">☁️</span>
+                  <h2 className="text-3xl font-bold text-gray-900" style={{ fontSize: '28px', fontWeight: 700 }}>
+                    Azure Graph
+                  </h2>
                 </div>
-                <p className="text-sm text-gray-500">Microsoft 365 email delivery</p>
-                <div className="mt-3 inline-block px-3 py-1 bg-blue-50 rounded-full">
-                  <p className="text-xs font-medium text-blue-700">
+                <p className="text-gray-600 ml-20 text-base" style={{ fontSize: '15px', fontWeight: 400 }}>
+                  Microsoft 365 email delivery
+                </p>
+                <div className="mt-4 ml-20 inline-block px-4 py-2 bg-blue-50 rounded-full">
+                  <p className="text-sm font-semibold text-blue-700" style={{ fontSize: '13px', fontWeight: 600 }}>
                     {activeProvider === 'azure' ? '✓ Active' : 'Inactive'}
                   </p>
                 </div>
@@ -166,7 +201,8 @@ export default function APIKeysSettings() {
               <button
                 onClick={() => handleSaveProvider('azure', azureForm)}
                 disabled={saving}
-                className="w-full mt-6 bg-gradient-to-r from-blue-600 to-blue-700 text-white py-2.5 px-4 rounded-lg hover:from-blue-700 hover:to-blue-800 disabled:opacity-50 font-medium transition text-sm"
+                className="w-full mt-8 bg-gradient-to-r from-blue-600 to-blue-700 text-white py-3 px-6 rounded-lg hover:from-blue-700 hover:to-blue-800 disabled:opacity-50 font-semibold transition text-base shadow-md hover:shadow-lg"
+                style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif', fontSize: '15px', fontWeight: 600 }}
               >
                 {saving ? 'Saving...' : 'Save Credentials'}
               </button>
@@ -175,14 +211,18 @@ export default function APIKeysSettings() {
 
           {activeTab === 'twilio' && (
             <div>
-              <div className="mb-6">
-                <div className="flex items-center gap-3 mb-1">
-                  <span className="text-3xl">💬</span>
-                  <h2 className="text-xl font-bold text-gray-900">Twilio</h2>
+              <div className="mb-8 pb-8 border-b border-gray-100">
+                <div className="flex items-center gap-4 mb-2">
+                  <span className="text-4xl">💬</span>
+                  <h2 className="text-3xl font-bold text-gray-900" style={{ fontSize: '28px', fontWeight: 700 }}>
+                    Twilio
+                  </h2>
                 </div>
-                <p className="text-sm text-gray-500">WhatsApp messaging delivery</p>
-                <div className="mt-3 inline-block px-3 py-1 bg-red-50 rounded-full">
-                  <p className="text-xs font-medium text-red-700">
+                <p className="text-gray-600 ml-20 text-base" style={{ fontSize: '15px', fontWeight: 400 }}>
+                  WhatsApp messaging delivery
+                </p>
+                <div className="mt-4 ml-20 inline-block px-4 py-2 bg-red-50 rounded-full">
+                  <p className="text-sm font-semibold text-red-700" style={{ fontSize: '13px', fontWeight: 600 }}>
                     {activeProvider === 'twilio' ? '✓ Active' : 'Inactive'}
                   </p>
                 </div>
@@ -207,7 +247,8 @@ export default function APIKeysSettings() {
               <button
                 onClick={() => handleSaveProvider('twilio', twilioForm)}
                 disabled={saving}
-                className="w-full mt-6 bg-gradient-to-r from-red-600 to-red-700 text-white py-2.5 px-4 rounded-lg hover:from-red-700 hover:to-red-800 disabled:opacity-50 font-medium transition text-sm"
+                className="w-full mt-8 bg-gradient-to-r from-red-600 to-red-700 text-white py-3 px-6 rounded-lg hover:from-red-700 hover:to-red-800 disabled:opacity-50 font-semibold transition text-base shadow-md hover:shadow-lg"
+                style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif', fontSize: '15px', fontWeight: 600 }}
               >
                 {saving ? 'Saving...' : 'Save Credentials'}
               </button>
@@ -216,14 +257,18 @@ export default function APIKeysSettings() {
 
           {activeTab === 'sendgrid' && (
             <div>
-              <div className="mb-6">
-                <div className="flex items-center gap-3 mb-1">
-                  <span className="text-3xl">✉️</span>
-                  <h2 className="text-xl font-bold text-gray-900">SendGrid</h2>
+              <div className="mb-8 pb-8 border-b border-gray-100">
+                <div className="flex items-center gap-4 mb-2">
+                  <span className="text-4xl">✉️</span>
+                  <h2 className="text-3xl font-bold text-gray-900" style={{ fontSize: '28px', fontWeight: 700 }}>
+                    SendGrid
+                  </h2>
                 </div>
-                <p className="text-sm text-gray-500">Email delivery service</p>
-                <div className="mt-3 inline-block px-3 py-1 bg-blue-50 rounded-full">
-                  <p className="text-xs font-medium text-blue-700">
+                <p className="text-gray-600 ml-20 text-base" style={{ fontSize: '15px', fontWeight: 400 }}>
+                  Email delivery service
+                </p>
+                <div className="mt-4 ml-20 inline-block px-4 py-2 bg-blue-50 rounded-full">
+                  <p className="text-sm font-semibold text-blue-700" style={{ fontSize: '13px', fontWeight: 600 }}>
                     {activeProvider === 'sendgrid' ? '✓ Active' : 'Inactive'}
                   </p>
                 </div>
@@ -243,47 +288,22 @@ export default function APIKeysSettings() {
               <button
                 onClick={() => handleSaveProvider('sendgrid', sendgridForm)}
                 disabled={saving}
-                className="w-full mt-6 bg-gradient-to-r from-blue-600 to-cyan-600 text-white py-2.5 px-4 rounded-lg hover:from-blue-700 hover:to-cyan-700 disabled:opacity-50 font-medium transition text-sm"
+                className="w-full mt-8 bg-gradient-to-r from-blue-600 to-cyan-600 text-white py-3 px-6 rounded-lg hover:from-blue-700 hover:to-cyan-700 disabled:opacity-50 font-semibold transition text-base shadow-md hover:shadow-lg"
+                style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif', fontSize: '15px', fontWeight: 600 }}
               >
                 {saving ? 'Saving...' : 'Save Credentials'}
-              </button>
-            </div>
-          )}
-
-          {activeTab === 'stub' && (
-            <div>
-              <div className="mb-6">
-                <div className="flex items-center gap-3 mb-1">
-                  <span className="text-3xl">🧪</span>
-                  <h2 className="text-xl font-bold text-gray-900">Test Mode</h2>
-                </div>
-                <p className="text-sm text-gray-500">Development & testing</p>
-                <div className="mt-3 inline-block px-3 py-1 bg-purple-50 rounded-full">
-                  <p className="text-xs font-medium text-purple-700">
-                    {activeProvider === 'stub' ? '✓ Active' : 'Inactive'}
-                  </p>
-                </div>
-              </div>
-              <div className="bg-purple-50 border border-purple-200 rounded-lg p-4 mb-6">
-                <p className="text-sm text-purple-900">
-                  <strong>STUB mode</strong> logs all emails and messages to the database instead of actually sending them. Perfect for development and testing.
-                </p>
-              </div>
-              <button
-                onClick={() => setActiveProvider('stub')}
-                className="w-full bg-gradient-to-r from-purple-600 to-purple-700 text-white py-2.5 px-4 rounded-lg hover:from-purple-700 hover:to-purple-800 font-medium transition text-sm"
-              >
-                {activeProvider === 'stub' ? '✓ Currently Active' : 'Activate Test Mode'}
               </button>
             </div>
           )}
         </div>
 
         {/* Status Footer */}
-        <div className="mt-6 bg-gradient-to-r from-gray-50 to-gray-100 rounded-lg p-4 border border-gray-200">
-          <div className="flex items-center gap-2 text-sm text-gray-700">
-            <Lock size={16} className="text-gray-400" />
-            <span>Credentials are encrypted at rest. Only you can view your API keys.</span>
+        <div className="mt-8 bg-gradient-to-r from-gray-50 to-gray-100 rounded-lg p-5 border border-gray-200">
+          <div className="flex items-center gap-3 text-base text-gray-700">
+            <Lock size={18} className="text-gray-400" />
+            <span className="font-medium" style={{ fontSize: '14px', fontWeight: 500 }}>
+              Credentials are encrypted at rest. Only you can view your API keys.
+            </span>
           </div>
         </div>
       </div>

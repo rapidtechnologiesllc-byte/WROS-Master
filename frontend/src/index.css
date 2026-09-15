@@ -15,10 +15,42 @@
   --radius: 12px;
   --radius-lg: 20px;
 
-  --font-primary: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-primary: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
 }
 
-body {
+* {
+  font-family: var(--font-primary) !important;
+}
+
+html, body {
   @apply bg-slate-50 text-slate-900;
   font-family: var(--font-primary);
+  font-size: 14px;
+  font-weight: 400;
+  letter-spacing: 0.3px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Global font sizing */
+h1 { font-size: 36px; font-weight: 700; letter-spacing: -0.5px; }
+h2 { font-size: 28px; font-weight: 700; letter-spacing: -0.3px; }
+h3 { font-size: 22px; font-weight: 600; letter-spacing: -0.1px; }
+h4 { font-size: 18px; font-weight: 600; }
+h5 { font-size: 16px; font-weight: 600; }
+h6 { font-size: 14px; font-weight: 600; }
+
+p { font-size: 14px; font-weight: 400; line-height: 1.6; }
+label { font-size: 14px; font-weight: 600; }
+input, textarea, select { font-size: 14px; font-weight: 400; font-family: var(--font-primary); }
+button { font-size: 15px; font-weight: 600; font-family: var(--font-primary); }
+
+/* Search bar styling */
+input[type="text"]::placeholder,
+input[type="search"]::placeholder {
+  font-family: var(--font-primary);
+  font-size: 14px;
+  font-weight: 400;
+  letter-spacing: 0.3px;
+  color: #9CA3AF;
 }
