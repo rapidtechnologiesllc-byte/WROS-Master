@@ -38,7 +38,7 @@ class SaveAPIKeysRequest(BaseModel):
     sendgrid: Optional[SendGridCredentials] = None
     active_provider: str = Field(
         ...,
-        description="Which provider is currently active: 'azure', 'twilio', 'sendgrid', 'stub'"
+        description="Which provider is currently active: 'azure', 'twilio', or 'sendgrid'"
     )
 
 
@@ -56,9 +56,9 @@ class APIKeyConfigResponse(BaseModel):
 
 class GetAPIKeysResponse(BaseModel):
     """Get response showing configured providers WITH actual credentials from database."""
-    active_provider: str  # Currently active provider
+    active_provider: Optional[str]  # Currently active provider (null if none configured)
     providers: List[APIKeyConfigResponse]  # List of all configured providers
-    available_providers: List[str]  # ['azure', 'twilio', 'sendgrid', 'stub']
+    available_providers: List[str]  # ['azure', 'twilio', 'sendgrid']
     azure: Optional[AzureGraphCredentials] = None  # Actual Azure credentials if configured
     twilio: Optional[TwilioCredentials] = None  # Actual Twilio credentials if configured
     sendgrid: Optional[SendGridCredentials] = None  # Actual SendGrid credentials if configured
@@ -66,7 +66,7 @@ class GetAPIKeysResponse(BaseModel):
 
 class TestConnectionRequest(BaseModel):
     """Test connection to a specific provider."""
-    provider: str = Field(..., description="Provider to test: 'azure', 'twilio', 'sendgrid', 'stub'")
+    provider: str = Field(..., description="Provider to test: 'azure', 'twilio', or 'sendgrid'")
 
 
 class TestConnectionResponse(BaseModel):

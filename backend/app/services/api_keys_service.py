@@ -242,7 +242,7 @@ class APIKeysService:
             return {
                 "active_provider": active_provider,
                 "providers": providers,
-                "available_providers": ["azure", "twilio", "sendgrid", "stub"],
+                "available_providers": ["azure", "twilio", "sendgrid"],
                 "azure": azure_creds,
                 "twilio": twilio_creds,
                 "sendgrid": sendgrid_creds,
@@ -260,13 +260,6 @@ class APIKeysService:
             Dict with status, message, and details
         """
         logger.info(f"[APIKeysService] Testing connection for provider: {provider}")
-
-        if provider == "stub":
-            return {
-                "status": "success",
-                "provider": "stub",
-                "message": "STUB provider (testing mode - no actual delivery)",
-            }
 
         try:
             config = db.query(APIKeysConfig).filter(

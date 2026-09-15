@@ -64,9 +64,9 @@ def get_api_keys(
     Retrieve which providers are configured for the current tenant.
 
     **Response includes:**
-    - `active_provider`: Currently selected provider ('azure', 'twilio', 'sendgrid', 'stub')
+    - `active_provider`: Currently selected provider ('azure', 'twilio', 'sendgrid') or null if none configured
     - `providers`: List of all configured providers with status (no credentials exposed)
-    - `available_providers`: Full list of available provider options
+    - `available_providers`: Full list of available provider options: ['azure', 'twilio', 'sendgrid']
 
     **Permission required:** `setting:view`
     """
@@ -144,7 +144,7 @@ def test_provider_connection(
     **Request body:**
     ```json
     {
-      "provider": "azure"  // or "twilio", "sendgrid", "stub"
+      "provider": "azure"  // or "twilio", "sendgrid"
     }
     ```
 
@@ -152,7 +152,6 @@ def test_provider_connection(
     - **azure**: Makes OAuth token request (validates tenant_id, client_id, client_secret)
     - **twilio**: Fetches account details (validates account_sid, auth_token)
     - **sendgrid**: Calls API /user/profile (validates api_key)
-    - **stub**: Always returns success (testing mode)
 
     **Permission required:** `setting:view`
 
@@ -199,11 +198,11 @@ def get_provider_status(
     tenant_id = _get_tenant_id(current_user)
     config = APIKeysService.get_active_provider_config(db, tenant_id)
 
-    if not config or config.provider == "stub":
+    if not config:
         return {
-            "provider": "stub",
-            "status": "active",
-            "message": "Using STUB provider (development/testing mode)"
+            "provider": None,
+            "status": "unconfigured",
+            "message": "No delivery provider is currently configured"
         }
 
     return {

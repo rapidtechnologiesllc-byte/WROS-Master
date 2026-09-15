@@ -18,7 +18,7 @@ export default function APIKeysSettings() {
   const [azureForm, setAzureForm] = useState({ tenant_id: '', client_id: '', client_secret: '' });
   const [twilioForm, setTwilioForm] = useState({ account_sid: '', auth_token: '', whatsapp_number: '' });
   const [sendgridForm, setSendgridForm] = useState({ api_key: '', from_email: '' });
-  const [activeProvider, setActiveProvider] = useState('stub');
+  const [activeProvider, setActiveProvider] = useState(null);
 
   useEffect(() => {
     loadConfigurations();
