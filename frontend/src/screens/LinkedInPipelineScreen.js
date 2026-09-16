@@ -16,7 +16,7 @@ export default function LinkedInPipelineScreen() {
   const [error, setError] = useState(null);
   const [loadAttempted, setLoadAttempted] = useState(false);
 
-  const token = localStorage.getItem("token");
+  const token = localStorage.getItem("hrms_token");
 
   useEffect(() => {
     if (!loadAttempted) {
@@ -35,18 +35,25 @@ export default function LinkedInPipelineScreen() {
     setFetching(true);
     setError(null);
     try {
-      const response = await axios.get(
-        `${API_BASE}/api/v1/linkedin-candidate-pipeline/list`,
-        {
-          params: statusFilter !== "all" ? { status_filter: statusFilter } : {},
-          headers: { Authorization: `Bearer ${token}` },
-        }
-      );
+      const url = `${API_BASE}/api/v1/linkedin-candidate-pipeline/list`;
+      const params = statusFilter !== "all" ? { status_filter: statusFilter } : {};
+      const headers = { Authorization: `Bearer ${token}` };
+
+      console.log("[LinkedIn Pipeline] Loading...", { url, params, token: token ? "YES" : "NO" });
+
+      const response = await axios.get(url, { params, headers });
+      console.log("[LinkedIn Pipeline] Success:", response.status, response.data);
       setPipelineItems(response.data.items || []);
     } catch (error) {
+      console.error("[LinkedIn Pipeline] Full error:", {
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        data: error.response?.data,
+        message: error.message,
+        config: error.config
+      });
       const errorMsg = error.response?.data?.detail || error.message || "Failed to load pipeline items";
       setError(errorMsg);
-      console.error("LinkedIn pipeline error:", error);
     } finally {
       setFetching(false);
     }
