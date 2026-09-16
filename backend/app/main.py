@@ -31,6 +31,8 @@ from app.api.v1.endpoints.career_portal import router as career_portal_router
 from app.api.v1.endpoints.flash_queue_metrics import router as flash_queue_metrics_router
 from app.api.v1.endpoints.employee_referrals import router as employee_referrals_router
 from app.api.v1.endpoints.api_keys import router as api_keys_router
+from app.api.v1.endpoints.architect import router as architect_router
+from app.api.v1.endpoints.system_health import router as system_health_router
 
 # Agent State models — imported here so Base.metadata.create_all() finds them
 from app.models import agent_phalanx  # noqa: F401
@@ -353,6 +355,18 @@ async def startup_event():
         logger.error(f"[Startup] FLASH SLM training failed: {exc}", exc_info=True)
         logger.warning("[Startup] FLASH will operate without SLM training (degraded mode)")
 
+    # INTEGRATED ARCHITECTURE SYSTEM: Doctor + Healer + Architect (ONE unified system)
+    # Detects issues → Auto-recovers → Prevents future occurrences
+    # No redundant calls: Doctor (1x/cycle), Healer (async), Architect (1x/cycle)
+    try:
+        logger.info("[Startup] Initializing Integrated Architecture System...")
+        from app.services.integrated_architecture_system import init_integrated_system
+        await init_integrated_system()
+        logger.info("[OK] Integrated System running (90s cycle: Doctor → Healer → Architect)")
+    except Exception as exc:
+        logger.error(f"[Startup] Integrated Architecture System failed: {exc}", exc_info=True)
+        logger.warning("[Startup] System disabled - health monitoring and auto-recovery unavailable")
+
     logger.info(f"[OK] {settings.APP_NAME} v{settings.APP_VERSION} started successfully")
     logger.info(f"[OK] Server running on http://{settings.HOST}:{settings.PORT}")
 
@@ -398,6 +412,12 @@ app.include_router(flash_queue_metrics_router, prefix="/api/v1")
 
 # Include API Keys management routes with /api/v1 prefix (credential management for email providers)
 app.include_router(api_keys_router, prefix="/api/v1")
+
+# Include Architect analysis and findings routes (autonomous code analysis engine)
+app.include_router(architect_router)
+
+# Include System Health monitoring (integrated Doctor + Healer + Architect)
+app.include_router(system_health_router)
 
 # HRMS-0114 -- fail startup if any route has no explicit identity/
 # permission declaration at all. Runs synchronously at import time
