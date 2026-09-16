@@ -80,7 +80,7 @@ class FlashRecruiterHandler:
             }
 
     @staticmethod
-    @time_bound(timeout_seconds=20)
+    @time_bound(timeout_seconds=60)
     def process(message: Any, db: Session) -> Dict[str, Any]:
         """
         Process: Find matching candidates and queue Thunder outreach
@@ -319,18 +319,49 @@ class FlashRecruiterHandler:
     @staticmethod
     def validate(message: Any, result: Dict[str, Any], db: Session) -> None:
         """Validate recruitment results and candidates were matched."""
-        if not result or result.get('status') not in ['success', 'skipped', 'paused_cascade_failure', 'job_deleted']:
+        if not result:
             raise ValueError(f"Invalid recruitment result: {result}")
 
-        # For success status, verify candidates were actually matched
-        if result.get('status') == 'success':
+        status = result.get('status')
+        if status not in ['success', 'skipped', 'paused_cascade_failure', 'job_deleted']:
+            raise ValueError(f"Invalid recruitment status: {status}")
+
+        job_id = result.get('job_id')
+        if not job_id:
+            raise ValueError(f"Result missing job_id")
+
+        try:
+            # VERIFY 1: Job still exists (race condition check)
+            from app.models.user import Jobs
+            job = db.query(Jobs).filter(Jobs.jobID == job_id).first()
+            if not job:
+                # This is expected if job was deleted, but validate it's in result
+                if status == 'job_deleted':
+                    logger.info(f"Job {job_id} deleted (expected for job_deleted status)")
+                else:
+                    raise ValueError(f"Job {job_id} not found but status is {status}")
+
+            # VERIFY 2: Match counts are valid (no negative numbers)
             candidates_matched = result.get('candidates_matched', 0)
             outreach_queued = result.get('outreach_queued', 0)
 
             if candidates_matched < 0 or outreach_queued < 0:
-                raise ValueError(f"Invalid match counts: matched={candidates_matched}, queued={outreach_queued}")
+                raise ValueError(
+                    f"Invalid match counts: matched={candidates_matched}, queued={outreach_queued}"
+                )
 
-            logger.info(f"[FlashRecruiter] ✅ Validated: job={result.get('job_id')}, candidates={candidates_matched}")
+            # VERIFY 3: For success status, verify at least some candidates were considered
+            if status == 'success' and candidates_matched == 0:
+                logger.warning(f"Job {job_id}: no candidates matched (may be normal for niche role)")
+
+            logger.info(f"[FlashRecruiter] ✅ Validated: job={job_id}, status={status}, matched={candidates_matched}")
+
+        except ValueError:
+            raise  # Non-retryable
+
+        except Exception as e:
+            logger.error(f"[FlashRecruiter] RETRYABLE validation error: {e}", exc_info=True)
+            raise RuntimeError(f"Database error: {str(e)}") from e
 
     @staticmethod
     def should_retry(message: Any) -> bool:

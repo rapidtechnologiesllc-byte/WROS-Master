@@ -28,7 +28,7 @@ class CandidateConversionHandler:
     RETRY_DELAY_MINUTES = 30
 
     @staticmethod
-    @time_bound(timeout_seconds=15)
+    @time_bound(timeout_seconds=40)
     def process(
         message: ChannelQueueItem,
         db: Session,
@@ -194,6 +194,23 @@ class CandidateConversionHandler:
             employee = db.query(Employee).filter(Employee.id == employee_id).first()
             if not employee:
                 raise ValueError(f"Employee {employee_id} not found after conversion")
+
+            # Verify status updated to EMPLOYEE (NEW)
+            status = db.query(CandidateStatus).filter(
+                CandidateStatus.candidateID == candidate_id
+            ).first()
+            if not status or status.piplineStatus != "EMPLOYEE":
+                raise ValueError(
+                    f"Candidate {candidate_id} status not EMPLOYEE: "
+                    f"found '{status.piplineStatus if status else 'NONE'}'"
+                )
+
+            # Verify email matches (data integrity) (NEW)
+            if employee.email != candidate.candidateEmail:
+                raise ValueError(
+                    f"Email mismatch after conversion: employee={employee.email}, "
+                    f"candidate={candidate.candidateEmail}"
+                )
 
             logger.info(f"✅ Candidate conversion validated: {candidate_id} -> {employee_id}")
 

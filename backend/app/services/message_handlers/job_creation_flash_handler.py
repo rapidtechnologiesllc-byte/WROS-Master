@@ -18,7 +18,7 @@ class JobCreationFlashHandler:
     RETRY_DELAY_MINUTES = 15
 
     @staticmethod
-    @time_bound(timeout_seconds=15)
+    @time_bound(timeout_seconds=45)
     def process(message: Any, db: Session) -> Dict[str, Any]:
         """
         Process: Create job from queue payload
@@ -267,7 +267,23 @@ class JobCreationFlashHandler:
                     f"Status mismatch for {job_id}: expected '{expected_status}', got '{job.jobStatus}'"
                 )
 
-            # 4. VERIFY CREATION TIMESTAMP
+            # 4. VERIFY FK CONSTRAINTS (NEW)
+            if job.hiringManagerID:
+                hiring_mgr = db.query(Users).filter(Users.UserID == job.hiringManagerID).first()
+                if not hiring_mgr:
+                    raise ValueError(
+                        f"Hiring manager {job.hiringManagerID} not found (FK validation failed)"
+                    )
+
+            if job.business_unit_id:
+                from app.models.user import BusinessUnit
+                bu = db.query(BusinessUnit).filter(BusinessUnit.id == job.business_unit_id).first()
+                if not bu:
+                    raise ValueError(
+                        f"Business unit {job.business_unit_id} not found (FK validation failed)"
+                    )
+
+            # 5. VERIFY CREATION TIMESTAMP
             if not job.jobCreatedAt:
                 raise ValueError(f"Job {job_id} has no createdAt timestamp")
 
