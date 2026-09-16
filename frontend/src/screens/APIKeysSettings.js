@@ -13,6 +13,10 @@ const CredentialInput = ({ label, value, onChange, isSecret = false, fieldKey = 
   const isEmpty = !value || value.trim() === '';
   const hasError = required && isEmpty && showError;
 
+  if (showError) {
+    console.log(`[CredentialInput] ${label}: value="${value}" isEmpty=${isEmpty} hasError=${hasError} showError=${showError}`);
+  }
+
   return (
     <div className="mb-6">
       <label className="block text-sm font-semibold text-gray-700 mb-2 tracking-wide" style={{ fontSize: '14px', fontWeight: 600 }}>
@@ -27,17 +31,16 @@ const CredentialInput = ({ label, value, onChange, isSecret = false, fieldKey = 
             console.log(`[CredentialInput] ${label} changed to: ${e.target.value.substring(0, 10)}...`);
             onChange(e);
           }}
-          className={`w-full px-4 py-3 bg-white border rounded-lg focus:outline-none transition text-sm placeholder:text-gray-400 ${
-            hasError
-              ? 'border-red-500 focus:border-red-600 focus:ring-2 focus:ring-red-100 bg-red-50'
-              : 'border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-100'
-          }`}
+          className="w-full px-4 py-3 bg-white border rounded-lg focus:outline-none transition text-sm placeholder:text-gray-400"
           placeholder={`Enter ${label.toLowerCase()}`}
           style={{
             fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif',
             fontSize: '14px',
             fontWeight: 400,
-            letterSpacing: '0.3px'
+            letterSpacing: '0.3px',
+            borderColor: hasError ? '#ef4444' : '#d1d5db',
+            backgroundColor: hasError ? '#fef2f2' : '#ffffff',
+            boxShadow: hasError ? '0 0 0 3px rgba(239, 68, 68, 0.1)' : 'none',
           }}
           autoComplete="off"
         />
@@ -228,7 +231,11 @@ export default function APIKeysSettings() {
           {PROVIDERS.map((p) => (
             <button
               key={p.value}
-              onClick={() => setActiveTab(p.value)}
+              onClick={() => {
+                setActiveTab(p.value);
+                setPageError(null);
+                setPageSuccess(null);
+              }}
               className={`px-5 py-3 rounded-lg font-semibold text-base whitespace-nowrap transition-all ${
                 activeTab === p.value
                   ? 'bg-white shadow-md text-gray-900 border-2 border-blue-500'
