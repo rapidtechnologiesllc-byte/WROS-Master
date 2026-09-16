@@ -149,7 +149,8 @@ export default function APIKeysSettings() {
         .filter(f => !formData[f])
         .map(f => fieldLabels[f])
         .join(', ');
-      setPageError(`Please fill in the following required fields: ${missingFields}`);
+      const providerLabel = PROVIDERS.find(p => p.value === provider)?.label || provider;
+      setPageError(`${providerLabel}: Please fill in the following required fields: ${missingFields}`);
       return;
     }
 
