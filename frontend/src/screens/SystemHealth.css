@@ -378,10 +378,10 @@
 
 .endpoints-section h3 {
   margin: 0 0 20px 0;
-  font-size: 16px;
-  color: var(--accent-silver);
+  font-size: 14px;
+  color: var(--accent-orange);
   font-weight: 700;
-  letter-spacing: 0.5px;
+  letter-spacing: 1px;
   text-transform: uppercase;
 }
 
@@ -389,48 +389,65 @@
   list-style: none;
   margin: 0;
   padding: 0;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 15px;
 }
 
 .endpoints-list li {
-  background: linear-gradient(135deg, rgba(3, 105, 161, 0.1), rgba(255, 140, 66, 0.05));
-  padding: 16px;
-  margin-bottom: 12px;
+  background: rgba(0, 0, 0, 0.2);
+  padding: 18px;
   border-radius: 12px;
-  border-left: 4px solid var(--accent-orange);
-  border: 1px solid rgba(255, 140, 66, 0.2);
-  border-left: 4px solid var(--accent-orange);
+  border: 1px solid rgba(255, 140, 66, 0.15);
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 15px;
+  flex-direction: column;
+  gap: 12px;
   transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.endpoints-list li::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, #4ade80 0%, #22c55e 100%);
 }
 
 .endpoints-list li:hover {
-  background: linear-gradient(135deg, rgba(3, 105, 161, 0.15), rgba(255, 140, 66, 0.1));
-  border-color: rgba(255, 140, 66, 0.4);
-  box-shadow: 0 8px 20px rgba(255, 140, 66, 0.15);
-  transform: translateX(4px);
+  background: rgba(0, 0, 0, 0.3);
+  border-color: rgba(255, 140, 66, 0.3);
+  box-shadow: 0 8px 20px rgba(255, 140, 66, 0.1);
+  transform: translateY(-2px);
 }
 
 .endpoints-list code {
-  background: rgba(15, 23, 42, 0.8);
-  padding: 6px 12px;
+  background: rgba(15, 23, 42, 0.6);
+  padding: 8px 12px;
   border-radius: 8px;
   font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
   font-size: 12px;
   color: var(--accent-orange);
   font-weight: 700;
-  white-space: nowrap;
-  border: 1px solid rgba(255, 140, 66, 0.3);
+  border: 1px solid rgba(255, 140, 66, 0.25);
   letter-spacing: 0.5px;
 }
 
 .endpoints-list span {
-  font-size: 13px;
-  color: rgba(192, 192, 192, 0.8);
-  text-align: right;
-  flex: 1;
+  font-size: 12px;
+  color: rgba(192, 192, 192, 0.7);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.endpoints-list span::before {
+  content: '●';
+  color: #4ade80;
+  font-size: 8px;
 }
 
 /* Footer */
