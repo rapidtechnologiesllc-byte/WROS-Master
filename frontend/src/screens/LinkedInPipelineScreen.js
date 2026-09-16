@@ -13,15 +13,27 @@ export default function LinkedInPipelineScreen() {
   const [expandedId, setExpandedId] = useState(null);
   const [phoneInput, setPhoneInput] = useState({});
   const [statusFilter, setStatusFilter] = useState("all");
+  const [error, setError] = useState(null);
+  const [loadAttempted, setLoadAttempted] = useState(false);
 
   const token = localStorage.getItem("token");
 
   useEffect(() => {
-    loadPipeline();
+    if (!loadAttempted) {
+      loadPipeline();
+      setLoadAttempted(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (loadAttempted) {
+      loadPipeline();
+    }
   }, [statusFilter]);
 
   const loadPipeline = async () => {
     setFetching(true);
+    setError(null);
     try {
       const response = await axios.get(
         `${API_BASE}/api/v1/linkedin-candidate-pipeline/list`,
@@ -32,8 +44,9 @@ export default function LinkedInPipelineScreen() {
       );
       setPipelineItems(response.data.items || []);
     } catch (error) {
-      toast.error("Failed to load pipeline items");
-      console.error(error);
+      const errorMsg = error.response?.data?.detail || error.message || "Failed to load pipeline items";
+      setError(errorMsg);
+      console.error("LinkedIn pipeline error:", error);
     } finally {
       setFetching(false);
     }
@@ -136,6 +149,25 @@ export default function LinkedInPipelineScreen() {
         <h1 className="text-3xl font-bold mb-2">LinkedIn Candidate Pipeline</h1>
         <p className="text-gray-600">Queue LinkedIn profiles for manual recruiter outreach</p>
       </div>
+
+      {/* Error Banner */}
+      {error && (
+        <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+          <div className="flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+            <div>
+              <h3 className="font-semibold text-red-900">Failed to Load Pipeline</h3>
+              <p className="text-red-700 text-sm mt-1">{error}</p>
+              <button
+                onClick={loadPipeline}
+                className="mt-3 px-3 py-1 text-sm bg-red-100 text-red-700 rounded hover:bg-red-200 transition"
+              >
+                Try Again
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Queue Form */}
       <form onSubmit={handleQueueCandidate} className="bg-white rounded-lg shadow-md p-6 mb-6">
