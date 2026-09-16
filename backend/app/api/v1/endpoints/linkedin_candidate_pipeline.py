@@ -54,7 +54,7 @@ def parse_linkedin_url(linkedin_url: str) -> str:
         )
     return match.group(1)
 
-@router.post("/queue")
+@router.post("/linkedin-queue")
 async def queue_linkedin_candidate(
     request: LinkedInQueueRequest,
     db: Session = Depends(get_db),

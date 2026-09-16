@@ -49,7 +49,7 @@ export default function LinkedInPipelineScreen() {
     setLoading(true);
     try {
       const response = await axios.post(
-        `${API_BASE}/api/v1/linkedin-candidate-pipeline/queue`,
+        `${API_BASE}/api/v1/linkedin-candidate-pipeline/linkedin-queue`,
         { linkedin_url: linkedInUrl },
         { headers: { Authorization: `Bearer ${token}` } }
       );
