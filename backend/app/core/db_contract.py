@@ -44,6 +44,11 @@ def initialize_database():
         Base.metadata.create_all(bind=engine)
         logger.info("[OK] Database tables created")
 
+        # Step 1.5: Run schema migrations (alter existing columns, etc.)
+        logger.info("[Contract] Step 1.5: Running schema migrations...")
+        _run_schema_migrations()
+        logger.info("[OK] Schema migrations completed")
+
         # Step 2: Initialize tenant
         logger.info("[Contract] Step 2: Initializing tenant...")
         _initialize_tenant()
@@ -504,6 +509,43 @@ def _create_performance_indexes():
     except Exception as e:
         logger.warning(f"[Contract] Could not create performance indexes: {e}")
         # Don't fail startup if indexes can't be created
+    finally:
+        db.close()
+
+def _run_schema_migrations():
+    """Run schema migrations to alter existing columns, add new ones, etc.
+
+    This function handles database schema changes that cannot be automatically
+    detected by SQLAlchemy's metadata.create_all() (e.g., column type changes).
+    """
+    db = SessionLocal()
+    try:
+        from sqlalchemy import text
+
+        # Migration 1: Change api_keys_config.created_by and updated_by from Integer to String
+        # These fields store user IDs (emails), not integer IDs
+        try:
+            db.execute(text("""
+                ALTER TABLE api_keys_config
+                ALTER COLUMN created_by TYPE VARCHAR(512);
+            """))
+            db.execute(text("""
+                ALTER TABLE api_keys_config
+                ALTER COLUMN updated_by TYPE VARCHAR(512);
+            """))
+            db.commit()
+            logger.info("[Contract] Migration: Changed api_keys_config.created_by/updated_by to VARCHAR(512)")
+        except Exception as e:
+            # Column might already be VARCHAR or table doesn't exist yet
+            if "column" in str(e).lower() or "does not exist" in str(e).lower():
+                logger.debug(f"[Contract] Migration skipped (column already altered or table doesn't exist): {e}")
+            else:
+                logger.warning(f"[Contract] Migration warning: {e}")
+            db.rollback()
+
+    except Exception as e:
+        logger.warning(f"[Contract] Schema migrations failed: {e}")
+        # Don't fail startup if migrations can't be run
     finally:
         db.close()
 
