@@ -13,9 +13,11 @@ from pydantic import BaseModel, EmailStr
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.core.dependencies import get_current_internal_user
 from app.models.candidate import Candidate
 from app.models.linkedin_candidate_pipeline import LinkedInCandidatePipeline, LinkedInPipelineStatus
 from app.models.consent import ConsentRecord
+from app.models.user import Users
 from fastapi import Request
 
 router = APIRouter(prefix="/linkedin-candidate-pipeline", tags=["LinkedIn Pipeline"])
@@ -56,7 +58,7 @@ def parse_linkedin_url(linkedin_url: str) -> str:
 async def queue_linkedin_candidate(
     request: LinkedInQueueRequest,
     db: Session = Depends(get_db),
-    current_user_id: str = "system"  # In production, get from auth
+    current_user: Users = Depends(get_current_internal_user)
 ):
     """
     Queue a LinkedIn candidate for manual outreach.
@@ -109,11 +111,8 @@ async def queue_linkedin_candidate(
             }
 
         # Query 3: All checks passed - create new pipeline record
-        # Convert user_id to UUID if it's a string
-        try:
-            user_uuid = UUID(current_user_id) if isinstance(current_user_id, str) and len(current_user_id) == 36 else uuid4()
-        except (ValueError, TypeError):
-            user_uuid = uuid4()
+        # Use the authenticated user's UUID
+        user_uuid = UUID(current_user.UserID) if isinstance(current_user.UserID, str) else current_user.UserID
 
         pipeline_item = LinkedInCandidatePipeline(
             linkedin_url=linkedin_url,
@@ -142,12 +141,14 @@ async def queue_linkedin_candidate(
 async def list_pipeline_items(
     status_filter: Optional[str] = None,
     db: Session = Depends(get_db),
-    current_user_id: str = "system"
+    current_user: Users = Depends(get_current_internal_user)
 ):
     """List LinkedIn pipeline items for current user."""
     try:
+        user_uuid = UUID(current_user.UserID) if isinstance(current_user.UserID, str) else current_user.UserID
+
         query = db.query(LinkedInCandidatePipeline).filter(
-            LinkedInCandidatePipeline.assigned_to_user_id == current_user_id
+            LinkedInCandidatePipeline.assigned_to_user_id == user_uuid
         )
 
         if status_filter:
@@ -183,7 +184,7 @@ async def complete_linkedin_import(
     pipeline_id: str,
     request: LinkedInImportRequest,
     db: Session = Depends(get_db),
-    current_user_id: str = "system"
+    current_user: Users = Depends(get_current_internal_user)
 ):
     """
     Complete LinkedIn import: Add phone number and create candidate.
@@ -248,7 +249,7 @@ async def complete_linkedin_import(
 @router.get("/dashboard/activity")
 async def get_linkedin_activity_for_dashboard(
     db: Session = Depends(get_db),
-    current_user_id: str = "system"
+    current_user: Users = Depends(get_current_internal_user)
 ):
     """
     Get LinkedIn activity for dashboard display.
@@ -298,7 +299,8 @@ async def update_pipeline_status(
     pipeline_id: str,
     status: str,
     notes: Optional[str] = None,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_internal_user)
 ):
     """Update pipeline item status and notes."""
     pipeline_item = db.query(LinkedInCandidatePipeline).filter(
