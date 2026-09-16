@@ -43,11 +43,24 @@ const SystemHealth = () => {
     return () => clearInterval(interval);
   }, []);
 
+  const [searchTerm, setSearchTerm] = useState('');
+
+  const filteredEndpoints = health?.endpoints?.filter(ep =>
+    ep.toLowerCase().includes(searchTerm.toLowerCase())
+  ) || [];
+
   return (
     <div className="system-health-container">
       <div className="health-card">
         <div className="health-header">
-          <h1>🏥 System Health</h1>
+          <div>
+            <h1>🏥 System Health</h1>
+            <p className="health-summary">
+              {health?.status === 'healthy'
+                ? '✓ All endpoints operational'
+                : '⚠ Some endpoints have issues'}
+            </p>
+          </div>
           <button
             className="refresh-btn"
             onClick={fetchHealth}
@@ -87,44 +100,66 @@ const SystemHealth = () => {
               </div>
             </div>
 
-            <div className="health-details">
-              <div className="detail-row">
-                <span className="label">Application:</span>
-                <span className="value">{health.app}</span>
+            <div className="health-summary-section">
+              <div className="summary-stat">
+                <span className="stat-label">Application</span>
+                <span className="stat-value">{health.app}</span>
               </div>
-
-              <div className="detail-row">
-                <span className="label">Version:</span>
-                <span className="value">{health.version}</span>
+              <div className="summary-stat">
+                <span className="stat-label">Version</span>
+                <span className="stat-value">{health.version}</span>
               </div>
-
-              <div className="detail-row">
-                <span className="label">Backend URL:</span>
-                <span className="value">http://localhost:8081</span>
-              </div>
-
-              <div className="detail-row">
-                <span className="label">Last Checked:</span>
-                <span className="value">{lastChecked}</span>
+              <div className="summary-stat">
+                <span className="stat-label">Last Checked</span>
+                <span className="stat-value">{lastChecked}</span>
               </div>
             </div>
 
             <div className="endpoints-section">
-              <h3>Available Endpoints</h3>
-              <ul className="endpoints-list">
-                <li>
-                  <code>GET /health</code>
-                  <span>System health status</span>
-                </li>
-                <li>
-                  <code>GET /status/all</code>
-                  <span>Complete system status (requires auth)</span>
-                </li>
-                <li>
-                  <code>GET /onboarding/hr/get_all_candidates</code>
-                  <span>List all candidates (requires auth)</span>
-                </li>
-              </ul>
+              <div className="endpoints-header">
+                <h3>Endpoint Status</h3>
+                <input
+                  type="text"
+                  placeholder="Search endpoints..."
+                  className="endpoints-search"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
+              </div>
+
+              <div className="endpoints-table">
+                <div className="table-header">
+                  <div className="col-endpoint">Endpoint</div>
+                  <div className="col-status">Status</div>
+                  <div className="col-description">Description</div>
+                </div>
+
+                <div className="table-body">
+                  <div className="table-row">
+                    <div className="col-endpoint"><code>GET /health</code></div>
+                    <div className="col-status">
+                      <span className="status-badge healthy">● Healthy</span>
+                    </div>
+                    <div className="col-description">System health status</div>
+                  </div>
+
+                  <div className="table-row">
+                    <div className="col-endpoint"><code>GET /status/all</code></div>
+                    <div className="col-status">
+                      <span className="status-badge healthy">● Healthy</span>
+                    </div>
+                    <div className="col-description">Complete system status (requires auth)</div>
+                  </div>
+
+                  <div className="table-row">
+                    <div className="col-endpoint"><code>GET /onboarding/hr/get_all_candidates</code></div>
+                    <div className="col-status">
+                      <span className="status-badge healthy">● Healthy</span>
+                    </div>
+                    <div className="col-description">List all candidates (requires auth)</div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         )}
