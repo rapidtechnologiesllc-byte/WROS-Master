@@ -13,7 +13,8 @@ from app.api.v1.routes import router
 from app.api.v1.endpoints.auth import router as auth_router
 from app.api.v1.endpoints.users_access_control import router as users_access_control_router
 from app.api.v1.endpoints.candidates import router as candidates_router
-from app.api.v1.endpoints.candidate_history import router as candidate_history_router
+# NOTE: candidate_history_router is imported and used in routes.py
+# Not imported here - avoid duplicate registration
 from app.api.v1.endpoints.candidate_audit_log import router as candidate_audit_log_router
 from app.middleware import setup_cors, RequestLoggingMiddleware
 from app.middleware.auth_middleware import AuthenticationMiddleware
@@ -23,16 +24,19 @@ from app.middleware.auth_middleware import AuthenticationMiddleware
 # process startup. See app.core.tenant_context's module docstring.
 from app.core import tenant_context as _tenant_context  # noqa: F401
 from app.api.v1.endpoints.config import router as config_router
-from app.api.v1.endpoints.message_queue import router as message_queue_router
+# NOTE: message_queue_router is imported and used in routes.py
+# Not imported here - avoid duplicate registration
 from app.api.v1.endpoints.queue_monitoring import router as queue_monitoring_router
 from app.api.v1.endpoints.business_units import router as business_units_router
 from app.api.v1.endpoints.rbac import router as rbac_router
 from app.api.v1.endpoints.career_portal import router as career_portal_router
 from app.api.v1.endpoints.flash_queue_metrics import router as flash_queue_metrics_router
-from app.api.v1.endpoints.employee_referrals import router as employee_referrals_router
+# NOTE: employee_referrals_router is imported and used in routes.py
+# Not imported here - avoid duplicate registration
 from app.api.v1.endpoints.api_keys import router as api_keys_router
 from app.api.v1.endpoints.health_check import router as health_check_router
-from app.api.v1.endpoints.linkedin_candidate_pipeline import router as linkedin_pipeline_router
+# NOTE: linkedin_pipeline_router is imported and used in routes.py
+# Not imported here - avoid duplicate registration
 
 # Agent State models — imported here so Base.metadata.create_all() finds them
 from app.models import agent_phalanx  # noqa: F401
@@ -390,8 +394,8 @@ app.include_router(users_access_control_router)
 app.include_router(router)
 # Include configuration routes with /api/v1 prefix (dynamic config - never hardcode)
 app.include_router(config_router, prefix="/api/v1")
-# Include message queue monitoring routes with /api/v1 prefix
-app.include_router(message_queue_router, prefix="/api/v1")
+# NOTE: message_queue_router is registered in routes.py and included via main router
+# Removed duplicate registration here to avoid double-registration
 # Include database queue monitoring routes (replaces Flower/Celery monitoring)
 app.include_router(queue_monitoring_router)
 # Include business units routes with /api/v1 prefix (BU -> Client -> Job workflow)
@@ -400,12 +404,12 @@ app.include_router(business_units_router, prefix="/api/v1")
 app.include_router(rbac_router, prefix="/api/v1")
 # Include career portal routes (career site APIs - job browsing, applications)
 app.include_router(career_portal_router)
-# Include candidate history routes with /api/v1/history prefix (activity timeline)
-app.include_router(candidate_history_router, prefix="/api/v1")
+# NOTE: candidate_history_router is registered in routes.py and included via main router
+# Removed duplicate registration here to avoid double-registration
 # Include candidate audit log routes with /api/v1/candidates prefix (audit trail)
 app.include_router(candidate_audit_log_router, prefix="/api/v1")
-# Include employee referrals routes with /api/v1/referrals prefix (referral management)
-app.include_router(employee_referrals_router, prefix="/api/v1/referrals")
+# NOTE: employee_referrals_router is registered in routes.py with /api/v1/referrals prefix
+# Removed duplicate registration here to avoid double-registration
 # Include Flash queue metrics routes with /api/v1/flash prefix (queue health monitoring)
 app.include_router(flash_queue_metrics_router, prefix="/api/v1")
 
@@ -415,7 +419,8 @@ app.include_router(api_keys_router, prefix="/api/v1")
 # Health check endpoint (Kubernetes, load balancers, monitoring systems)
 app.include_router(health_check_router, prefix="/api/v1")
 
-app.include_router(linkedin_pipeline_router, prefix="/api/v1")
+# NOTE: linkedin_pipeline_router is registered in routes.py and included via main router
+# Removed duplicate registration here to avoid double-registration
 
 # HRMS-0114 -- fail startup if any route has no explicit identity/
 # permission declaration at all. Runs synchronously at import time
