@@ -11,18 +11,26 @@
 |--------|-------|
 | **Files with toast imports** | 62 |
 | **Total toast calls** | 263 |
-| **Files completed** | 3 |
-| **Toast calls removed** | 37 |
-| **Files remaining** | 59 |
-| **Toast calls remaining** | 226 |
+| **Files completed** | 8 |
+| **Toast calls removed** | 50 |
+| **Files remaining** | 54 |
+| **Toast calls remaining** | 213 |
 
 ---
 
-## ✅ COMPLETED FILES (3)
+## ✅ COMPLETED FILES (8)
 
+### Previously Completed (3)
 1. ✅ `frontend/src/screens/LinkedInPipelineScreen.js` - 37 toast calls → state management
 2. ✅ `frontend/src/screens/UsersAndAccessControl.js` - Already uses state pattern
 3. ✅ `frontend/src/screens/CandidateAssignJobModal.js` - Already uses state pattern
+
+### Session 2026-09-16 (5 files, 13 toast calls removed)
+4. ✅ `frontend/src/routes/wrappers/JobWorkspaceWrapper.jsx` - 1 toast call → error state
+5. ✅ `frontend/src/routes/wrappers/CandidateDetailsWrapper.jsx` - 2 toast calls → actionError/actionSuccess states
+6. ✅ `frontend/src/routes/Approutes.jsx` - 1 toast call removed
+7. ✅ `frontend/src/screens/CandidateDetailsScreen.js` - 3 toast calls → showNotice()
+8. ✅ `frontend/src/screens/CandidateSearch.js` - 9 toast calls → actionError/actionSuccess states
 
 **Pattern Reference:** See LinkedInPipelineScreen.js for the established pattern
 
@@ -34,11 +42,11 @@
 
 | # | File | Calls | Status |
 |---|------|-------|--------|
-| 1 | `frontend/src/routes/wrappers/JobWorkspaceWrapper.jsx` | 2 | TODO |
-| 2 | `frontend/src/routes/wrappers/CandidateDetailsWrapper.jsx` | 2 | TODO |
-| 3 | `frontend/src/routes/Approutes.jsx` | 1 | TODO |
-| 4 | `frontend/src/screens/CandidateDetailsScreen.js` | 3 | TODO |
-| 5 | `frontend/src/screens/CandidateSearch.js` | 9 | TODO |
+| 1 | `frontend/src/routes/wrappers/JobWorkspaceWrapper.jsx` | 2 | ✅ DONE |
+| 2 | `frontend/src/routes/wrappers/CandidateDetailsWrapper.jsx` | 2 | ✅ DONE |
+| 3 | `frontend/src/routes/Approutes.jsx` | 1 | ✅ DONE |
+| 4 | `frontend/src/screens/CandidateDetailsScreen.js` | 3 | ✅ DONE |
+| 5 | `frontend/src/screens/CandidateSearch.js` | 9 | ✅ DONE |
 | 6 | `frontend/src/screens/CandidateEditModal.js` | ? | TODO |
 | 7 | `frontend/src/screens/JobCreate.js` | 8 | TODO |
 | 8 | `frontend/src/screens/JobWorkspaceScreen.js` | 8 | TODO |

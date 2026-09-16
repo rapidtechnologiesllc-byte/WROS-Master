@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Briefcase } from "lucide-react";
+import { Briefcase, AlertCircle, CheckCircle, X } from "lucide-react";
 import { hasPermission } from "../utils/permissionsRoleTemplate";
 import {
   generateJobDescription,
@@ -14,7 +14,6 @@ import { Button, Card, Input, Select, TextArea, LocationCascadeSelect, formatLoc
 import RateField from "../components/ui/RateField";
 import { searchUsers } from "../services/api/users";
 import { listClients, getBusinessUnitAssignments } from "../services/api/clients";
-import { toast } from "react-toastify";
 import ScreenErrorDisplay from "../components/ScreenErrorDisplay";
 import {
   listBusinessUnits,
@@ -81,6 +80,8 @@ export default function JobCreate({
   });
   const [isJobLocationRemote, setIsJobLocationRemote] = useState(false);
   const [screenError, setScreenError] = useState(null);
+  const [actionError, setActionError] = useState(null);
+  const [actionSuccess, setActionSuccess] = useState(null);
   const [showSkillsModal, setShowSkillsModal] = useState(false);
   const [selectedSkills, setSelectedSkills] = useState([]);
   const [skillName, setSkillName] = useState("");
@@ -477,7 +478,7 @@ export default function JobCreate({
       setFlashAnswers({}); // Reset answers
       setShowAskFlash(true);
 
-      toast.info("Answer the questions to generate the complete job details.");
+      setActionSuccess("Answer the questions to generate the complete job details.");
     } catch (err) {
       setScreenError(err?.message || "Failed to generate questions.");
     } finally {
@@ -538,7 +539,7 @@ export default function JobCreate({
       }
 
       setShowAskFlash(false);
-      toast.success("Job details generated and auto-populated!");
+      setActionSuccess("Job details generated and auto-populated!");
     } catch (err) {
       setScreenError(err?.message || "Failed to generate complete job.");
     } finally {
@@ -572,7 +573,7 @@ export default function JobCreate({
 
     // Warn if Experience Level is not set (but allow submission)
     if (!experienceLevel || experienceLevel === "") {
-      toast.warning("Experience Level not specified - using default value");
+      setActionError("Experience Level not specified - using default value");
     }
 
     if (!hmUserId?.trim()) {
@@ -648,7 +649,7 @@ export default function JobCreate({
         }
       }
 
-      toast.success(`Created job ${title}`);
+      setActionSuccess(`Created job ${title}`);
       navigate(ROUTES.JOBS);
     } catch (err) {
       console.error("Job creation error:", err);
@@ -714,7 +715,7 @@ export default function JobCreate({
           setDraftJobId(draftResponse?.job_id);
         } catch (draftErr) {
           console.error("Error creating draft job:", draftErr);
-          toast.warning("Could not create draft - progress may not be saved");
+          setActionError("Could not create draft - progress may not be saved");
         }
       }
 
@@ -758,7 +759,7 @@ export default function JobCreate({
       }
 
       setCurrent(1);
-      toast.success("Job details generated! Review and submit.");
+      setActionSuccess("Job details generated! Review and submit.");
     } catch (err) {
       setScreenError(err?.message || "Failed to generate job details.");
       console.error("Generation error:", err);
@@ -991,6 +992,43 @@ export default function JobCreate({
         error={screenError}
         onDismiss={() => setScreenError(null)}
       />
+
+      {/* Action Error Banner */}
+      {actionError && (
+        <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+          <div className="flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <p className="text-red-700 text-sm font-medium">{actionError}</p>
+            </div>
+            <button
+              onClick={() => setActionError(null)}
+              className="text-red-600 hover:text-red-800 flex-shrink-0"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Action Success Banner */}
+      {actionSuccess && (
+        <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+          <div className="flex items-start gap-3">
+            <CheckCircle className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <p className="text-green-700 text-sm font-medium">{actionSuccess}</p>
+            </div>
+            <button
+              onClick={() => setActionSuccess(null)}
+              className="text-green-600 hover:text-green-800 flex-shrink-0"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+      )}
+
       <Card
         title={isReadOnly ? "View Job" : "Create New Job"}
         icon={<Briefcase className="h-4 w-4" />}
