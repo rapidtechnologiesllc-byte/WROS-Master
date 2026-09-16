@@ -1,14 +1,20 @@
 """Health Check Endpoints - System health and monitoring status
 
-GET /health - Overall system health
+GET /health - Overall system health (liveness probe)
 GET /health/detailed - Detailed component health
+
+These are PUBLIC endpoints used by infrastructure monitoring,
+load balancers, and Kubernetes. No authentication required.
 """
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.services.health_check_service import HealthCheckService
 
-router = APIRouter(prefix="/health", tags=["monitoring"])
+router = APIRouter(
+    prefix="/health",
+    tags=["monitoring", "public"]
+)
 
 
 @router.get("")

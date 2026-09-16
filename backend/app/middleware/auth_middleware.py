@@ -33,6 +33,7 @@ class AuthenticationMiddleware(BaseHTTPMiddleware):
     PUBLIC_ROUTES = [
         "/",
         "/health",
+        "/health/detailed",
         "/docs",
         "/redoc",
         "/openapi.json",
