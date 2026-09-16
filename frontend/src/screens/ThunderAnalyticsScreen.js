@@ -2,7 +2,7 @@
 // No charting library installed in this codebase (same posture as
 // S-063's Risk Dashboard) -- trend line and donut are hand-built SVG.
 import { useEffect, useState } from "react";
-import { toast } from "react-toastify";
+import { X, AlertTriangle } from "lucide-react";
 import { getThunderAnalytics } from "../services/api/thunderAnalytics";
 
 const RANGE_PRESETS = [
@@ -78,6 +78,7 @@ export default function ThunderAnalyticsScreen() {
   const [rangeDays, setRangeDays] = useState(30);
   const [customFrom, setCustomFrom] = useState("");
   const [customTo, setCustomTo] = useState("");
+  const [actionError, setActionError] = useState(null);
 
   const load = async (dateFrom, dateTo) => {
     try {
@@ -86,7 +87,7 @@ export default function ThunderAnalyticsScreen() {
       setData(result);
     } catch (error) {
       console.error("Thunder Analytics Error:", error);
-      toast.error("Analytics unavailable. Please try again.");
+      setActionError("Analytics unavailable. Please try again.");
     }
   };
 
@@ -104,6 +105,24 @@ export default function ThunderAnalyticsScreen() {
 
   return (
     <div className="space-y-5">
+      {/* Error Banner */}
+      {actionError && (
+        <div className="mb-6 border border-red-200 bg-red-50 rounded-lg p-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="text-red-600">
+              <AlertTriangle className="h-5 w-5" />
+            </div>
+            <span className="text-red-800">{actionError}</span>
+          </div>
+          <button
+            onClick={() => setActionError(null)}
+            className="text-red-600 hover:text-red-800"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
+
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex gap-2">
           {RANGE_PRESETS.map((preset) => (

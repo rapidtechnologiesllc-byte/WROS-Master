@@ -1010,7 +1010,6 @@ export default function UsersAndAccessControl() {
       setVerbMatrix(verbMatrixObj);
     } catch (err) {
       setError(err.message || "Failed to load data.");
-      toast.error("Failed to load users.");
     } finally {
       setLoading(false);
     }

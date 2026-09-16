@@ -2,7 +2,7 @@
 // read-only viewer over the real error_log table (additive to the
 // existing file-based structured logger).
 import { Fragment, useEffect, useState } from "react";
-import { toast } from "react-toastify";
+import { X, AlertTriangle } from "lucide-react";
 import { Card, Select } from "../components/ui";
 import { getErrorLog } from "../services/api/errorLog";
 
@@ -19,6 +19,7 @@ export default function ErrorLogScreen() {
   const [severity, setSeverity] = useState("");
   const [loading, setLoading] = useState(true);
   const [expandedId, setExpandedId] = useState(null);
+  const [actionError, setActionError] = useState(null);
 
   const load = async (sev) => {
     setLoading(true);
@@ -26,7 +27,7 @@ export default function ErrorLogScreen() {
       const res = await getErrorLog({ severity: sev || undefined });
       setErrors(res.errors || []);
     } catch {
-      toast.error("Could not load the error log.");
+      setActionError("Could not load the error log.");
     } finally {
       setLoading(false);
     }
@@ -38,6 +39,24 @@ export default function ErrorLogScreen() {
 
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-4">
+      {/* Error Banner */}
+      {actionError && (
+        <div className="mb-6 border border-red-200 bg-red-50 rounded-lg p-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="text-red-600">
+              <AlertTriangle className="h-5 w-5" />
+            </div>
+            <span className="text-red-800">{actionError}</span>
+          </div>
+          <button
+            onClick={() => setActionError(null)}
+            className="text-red-600 hover:text-red-800"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
+
       <div className="rounded-2xl border bg-white p-4 shadow-sm">
         <div className="text-lg font-bold text-gray-900">Error Log</div>
       </div>

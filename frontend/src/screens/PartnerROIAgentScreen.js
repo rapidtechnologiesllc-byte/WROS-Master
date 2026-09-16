@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
-import { toast } from "react-toastify";
-import { TrendingUp, AlertCircle, Target } from "lucide-react";
+import { TrendingUp, AlertCircle, Target, X, AlertTriangle } from "lucide-react";
 import { Card, Button } from "../components/ui";
 import { getPartnerROIKpis, getPartnerROITrend, getPartnerROIActions } from "../services/api/agents";
 import { getHrMe } from "../services/api/users";
@@ -12,6 +11,7 @@ export default function PartnerROIAgentScreen() {
   const [actions, setActions] = useState([]);
   const [loading, setLoading] = useState(false);
   const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7));
+  const [actionError, setActionError] = useState(null);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -42,7 +42,7 @@ export default function PartnerROIAgentScreen() {
           }
         }
       } catch (err) {
-        toast.error("Failed to load Partner ROI dashboard");
+        setActionError("Failed to load Partner ROI dashboard");
       } finally {
         setLoading(false);
       }
@@ -84,6 +84,24 @@ export default function PartnerROIAgentScreen() {
 
   return (
     <div className="p-6 max-w-6xl mx-auto">
+      {/* Error Banner */}
+      {actionError && (
+        <div className="mb-6 border border-red-200 bg-red-50 rounded-lg p-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="text-red-600">
+              <AlertTriangle className="h-5 w-5" />
+            </div>
+            <span className="text-red-800">{actionError}</span>
+          </div>
+          <button
+            onClick={() => setActionError(null)}
+            className="text-red-600 hover:text-red-800"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
+
       <div className="flex items-center justify-end mb-6">
         <input
           type="month"

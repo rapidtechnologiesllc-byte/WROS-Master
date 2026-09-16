@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, AlertCircle, X } from 'lucide-react';
+import { ArrowLeft, AlertCircle, X, AlertTriangle } from 'lucide-react';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
@@ -54,7 +54,7 @@ export default function UserFormPage() {
     } catch (err) {
       console.error('Failed to load form data:', err);
       const message = err?.message || 'Failed to load form data. Please check your permissions.';
-      toast.error(message);
+      setActionError(message);
       throw err;
     }
   };

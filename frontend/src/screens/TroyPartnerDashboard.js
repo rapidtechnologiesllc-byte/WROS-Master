@@ -1,12 +1,12 @@
 import { useEffect, useState } from "react";
-import { toast } from "react-toastify";
-import { Briefcase, Users, Award, TrendingUp, AlertCircle } from "lucide-react";
+import { Briefcase, Users, Award, TrendingUp, AlertCircle, X, AlertTriangle } from "lucide-react";
 import { Card, Button } from "../components/ui";
 import { apiRequest } from "../services/api/client";
 
 export default function TroyPartnerDashboard() {
   const [loading, setLoading] = useState(true);
   const [dashboard, setDashboard] = useState(null);
+  const [actionError, setActionError] = useState(null);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -15,7 +15,7 @@ export default function TroyPartnerDashboard() {
         const { data } = await apiRequest("/dashboards/troy-partner", { method: "GET" });
         setDashboard(data?.data);
       } catch (err) {
-        toast.error("Failed to load Troy's dashboard");
+        setActionError("Failed to load Troy's dashboard");
       } finally {
         setLoading(false);
       }
@@ -37,6 +37,24 @@ export default function TroyPartnerDashboard() {
 
   return (
     <div className="space-y-6 p-6 max-w-6xl mx-auto">
+      {/* Error Banner */}
+      {actionError && (
+        <div className="mb-6 border border-red-200 bg-red-50 rounded-lg p-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="text-red-600">
+              <AlertTriangle className="h-5 w-5" />
+            </div>
+            <span className="text-red-800">{actionError}</span>
+          </div>
+          <button
+            onClick={() => setActionError(null)}
+            className="text-red-600 hover:text-red-800"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
+
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold text-gray-900">Troy's Partner Dashboard</h1>
         <div className="text-sm text-gray-600">North America BU</div>
