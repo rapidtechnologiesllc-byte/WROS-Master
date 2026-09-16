@@ -700,6 +700,82 @@ class QueueProcessorService:
                             "duration_ms": handler_duration_ms
                         }
 
+                # ROOT CAUSE FIX #1: Call handler's on_success() for validation (if available)
+                # This ensures data was actually persisted before marking COMPLETED
+                try:
+                    handler_class = handler.__self__.__class__ if hasattr(handler, '__self__') else None
+
+                    # Check if handler has on_success() method for validation
+                    if handler_class and hasattr(handler_class, 'on_success'):
+                        try:
+                            logger.debug(f"[QueueProcessor] Calling {handler_class.__name__}.on_success() for validation")
+                            handler_class.on_success(message, handler_result, db)
+                            logger.info(f"[QueueProcessor] ✅ Validation passed, message {message.id} ready for COMPLETED")
+                        except ValueError as val_err:
+                            # Non-retryable: validation failed due to handler bug or data mismatch
+                            logger.error(f"[QueueProcessor] ❌ NON-RETRYABLE validation error: {val_err}")
+                            message.status = QueueStatus.FAILED.value
+                            message.error = f"Validation failed: {str(val_err)[:500]}"
+                            message.last_attempted_at = datetime.utcnow()
+                            result_data = {
+                                "success": False,
+                                "error": f"Data validation failed: {str(val_err)}",
+                                "failed_at": datetime.utcnow().isoformat(),
+                                "handler_duration_ms": handler_duration_ms
+                            }
+                            result_json = json.dumps(result_data)
+                            message.result = result_json
+                            db.commit()
+
+                            return {
+                                "status": QueueStatus.FAILED.value,
+                                "message": f"Data validation failed: {str(val_err)[:100]}",
+                                "duration_ms": handler_duration_ms
+                            }
+                        except RuntimeError as rt_err:
+                            # Retryable: validation failed due to temporary DB error
+                            logger.warning(f"[QueueProcessor] ⚠️ RETRYABLE validation error, scheduling retry: {rt_err}")
+                            db.rollback()
+
+                            if should_retry:
+                                message.retry_count += 1
+                                message.error = f"Validation retry: {str(rt_err)[:500]}"
+                                message.next_retry_at = datetime.utcnow() + timedelta(seconds=60)
+                                db.commit()
+
+                                return {
+                                    "status": QueueStatus.RETRY_SCHEDULED.value,
+                                    "message": f"Validation error, retrying: {str(rt_err)[:100]}",
+                                    "retry_count": message.retry_count,
+                                    "duration_ms": handler_duration_ms
+                                }
+                            else:
+                                # Max retries exceeded
+                                message.status = QueueStatus.FAILED.value
+                                message.error = f"Max retries exceeded during validation: {str(rt_err)[:500]}"
+                                message.last_attempted_at = datetime.utcnow()
+                                db.commit()
+
+                                return {
+                                    "status": QueueStatus.FAILED.value,
+                                    "message": f"Max retries exceeded: {str(rt_err)[:100]}",
+                                    "duration_ms": handler_duration_ms
+                                }
+                except Exception as validation_err:
+                    logger.error(f"[QueueProcessor] Unexpected error calling on_success(): {validation_err}", exc_info=True)
+                    # Treat as retryable if possible
+                    if should_retry:
+                        message.retry_count += 1
+                        message.error = f"Handler validation error: {str(validation_err)[:500]}"
+                        message.next_retry_at = datetime.utcnow() + timedelta(seconds=60)
+                        db.commit()
+                        return {
+                            "status": QueueStatus.RETRY_SCHEDULED.value,
+                            "message": f"Handler validation error, retrying",
+                            "retry_count": message.retry_count,
+                            "duration_ms": handler_duration_ms
+                        }
+
                 # Mark COMPLETED only after validation passes
                 message.status = QueueStatus.COMPLETED.value
                 message.last_attempted_at = datetime.utcnow()  # HIGH FIX #8: Track completion time

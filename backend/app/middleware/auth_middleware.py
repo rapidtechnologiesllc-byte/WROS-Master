@@ -390,6 +390,23 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         Returns:
             Response or rate limit error
         """
+        # EXEMPTIONS: Skip rate limiting for admin endpoints
+        # These endpoints are low-volume admin operations that shouldn't be rate limited
+        exempt_paths = [
+            "/role-templates/",  # Role template grant/revoke permission endpoints
+            "/health",           # Health check endpoint (internal)
+            "/docs",             # Swagger docs (development)
+            "/redoc",            # ReDoc docs (development)
+        ]
+
+        # Check if this request is exempt from rate limiting
+        is_exempt = any(request.url.path.startswith(path) for path in exempt_paths)
+
+        if is_exempt:
+            # Skip rate limiting for exempt paths
+            response = await call_next(request)
+            return response
+
         client_ip = request.client.host if request.client else "unknown"
         current_time = time.time()
 

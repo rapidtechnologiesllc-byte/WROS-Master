@@ -80,9 +80,10 @@ app.add_middleware(RequestLoggingMiddleware)
 
 # Phase 1 B4 -- rate limiting, enabled 2026-07-20. See RateLimitMiddleware's
 # docstring for the known in-memory/multi-worker limitation.
-# DISABLED: Rate limiter was blocking role template permission updates
-# from app.middleware import RateLimitMiddleware
-# app.add_middleware(RateLimitMiddleware, max_requests=10000, window_seconds=60)
+# RE-ENABLED 2026-09-16: Rate limiter prevents DoS attacks
+# Admin endpoints (grant_permission, revoke_permission) have higher limits
+from app.middleware import RateLimitMiddleware
+app.add_middleware(RateLimitMiddleware, max_requests=10000, window_seconds=60)
 
 # S-215/HRMS-0117 Step 3/AC-1 -- an unhandled exception is, by
 # definition, the CRITICAL case (nothing in the request path expected

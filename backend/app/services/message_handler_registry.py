@@ -47,8 +47,9 @@ def _initialize_default_handlers():
 
     # Register Thunder/engagement handlers (CRITICAL - must succeed)
     try:
-        MessageHandlerRegistry.register("engage_candidate_with_thunder", _handle_thunder_engagement)
-        MessageHandlerRegistry.register("assign_thunder_agent", _handle_thunder_engagement)
+        from app.services.message_handlers.thunder_engagement_handler import ThunderEngagementHandler
+        MessageHandlerRegistry.register("engage_candidate_with_thunder", ThunderEngagementHandler.process)
+        MessageHandlerRegistry.register("assign_thunder_agent", ThunderEngagementHandler.process)
         logger.info("[Registry] Registered Thunder engagement handlers")
     except Exception as e:
         logger.error(f"[Registry] CRITICAL: Failed to register Thunder handlers: {e}")
@@ -206,102 +207,8 @@ def _initialize_default_handlers():
         logger.info("[Registry] Offer generated handler not yet available")
 
 
-def _handle_thunder_engagement(message: Any, db: Session) -> Dict[str, Any]:
-    """Handle Thunder engagement messages with timeout protection."""
-    import threading
-    import time
-    from app.models.candidate import Candidate
-    from app.models.candidate_ai import CandidateConversation
-    from app.services.thunder_service import send_thunder_message, has_active_consent
-
-    candidate_id = message.payload.get('candidate_id')
-    SEND_MESSAGE_TIMEOUT = 10  # 10 second max for sending message
-
-    try:
-        # 1. Get candidate
-        candidate = db.query(Candidate).filter(Candidate.candidateID == candidate_id).first()
-        if not candidate:
-            raise ValueError(f"Candidate {candidate_id} not found")
-
-        # 2. Create/fetch conversation
-        conversation = db.query(CandidateConversation).filter(
-            CandidateConversation.candidate_id == candidate_id
-        ).first()
-
-        if not conversation:
-            conversation = CandidateConversation(
-                candidate_id=candidate_id,
-                owner_type="Thunder",
-                owner_id="Thunder_Autonomous",
-                status="ACTIVE",
-            )
-            db.add(conversation)
-            db.flush()
-            logger.info(f"[Thunder] Created conversation for {candidate_id}")
-
-        # 3. Check consent & send initial message
-        message_sent = False
-        if has_active_consent(db, candidate_id):
-            try:
-                # Phase 2: Check if SLM generated email content (from READY_TO_SEND state)
-                initial_message = message.payload.get('slm_generated_email_body') if message else None
-
-                # Fallback: Use generic message if SLM didn't generate one
-                if not initial_message:
-                    initial_message = f"Hi {candidate.candidateFirstName}, thanks for your interest! Let's explore this opportunity."
-                    logger.debug(f"[Thunder] No SLM-generated email for {candidate_id}, using fallback message")
-                else:
-                    logger.info(f"[Thunder] Using SLM-generated email for {candidate_id} ({len(initial_message)} chars)")
-
-                # TIMEOUT PROTECTION: Send message in thread with timeout
-                send_result = {'success': False, 'exception': None}
-
-                def _send_with_timeout():
-                    try:
-                        send_thunder_message(
-                            db=db,
-                            conversation=conversation,
-                            candidate=candidate,
-                            message_body=initial_message,
-                            sender_type="ai_agent",
-                            channel="whatsapp"
-                        )
-                        send_result['success'] = True
-                    except Exception as e:
-                        send_result['exception'] = e
-
-                send_thread = threading.Thread(target=_send_with_timeout, daemon=True)
-                send_thread.start()
-                send_thread.join(timeout=SEND_MESSAGE_TIMEOUT)
-
-                if send_thread.is_alive():
-                    raise RuntimeError(f"Thunder message send timed out after {SEND_MESSAGE_TIMEOUT}s for {candidate_id}")
-
-                if send_result['exception']:
-                    raise send_result['exception']
-
-                db.commit()
-                logger.info(f"[Thunder] Sent initial message to {candidate_id}")
-                message_sent = True
-            except Exception as msg_err:
-                logger.error(f"[Thunder] Failed to send message to {candidate_id}: {msg_err}", exc_info=True)
-                # RE-RAISE so queue processor retries on delivery failure (not just missing consent)
-                raise
-        else:
-            logger.info(f"[Thunder] No consent for {candidate_id}, conversation created but no message sent")
-            db.commit()
-
-        return {
-            "status": "thunder_engaged_and_messaged",
-            "candidate_id": candidate_id,
-            "conversation_created": True,
-            "message_sent": message_sent,
-            "delivery_confirmed": message_sent
-        }
-
-    except Exception as e:
-        logger.error(f"[Thunder] Failed to engage candidate {candidate_id}: {e}", exc_info=True)
-        raise
+# Thunder engagement handler moved to ThunderEngagementHandler class
+# See: app/services/message_handlers/thunder_engagement_handler.py
 
 
 # Initialize default handlers on module load

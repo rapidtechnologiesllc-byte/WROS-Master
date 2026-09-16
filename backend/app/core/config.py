@@ -59,8 +59,9 @@ class Settings:
 
     # JWT Settings (HS256 with symmetric key)
     JWT_ALGORITHM: str = "HS256"
-    # Tries secrets vault first, falls back to environment variable
-    JWT_SECRET: str = get_secret("jwt-secret", default=os.getenv("JWT_SECRET", "dev-secret-key-change-in-production"))
+    # CRITICAL: Load JWT_SECRET from secrets vault in production
+    # No fallback to dev key - fail explicitly if not configured
+    JWT_SECRET: str = get_secret("jwt-secret", default=os.getenv("JWT_SECRET", ""))
     ACCESS_TOKEN_EXPIRE_MINUTES: int = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "60"))
     JWT_PRIVATE_KEY: str = ""  # Deprecated: using HS256 with JWT_SECRET instead
     JWT_PUBLIC_KEY: str = ""   # Deprecated: using HS256 with JWT_SECRET instead
@@ -104,14 +105,21 @@ class Settings:
     FRONTEND_BASE_URL: str = os.getenv("FRONTEND_BASE_URL", "http://localhost:3000")
 
     # CORS Settings - Environment-based configuration
-    # Default: localhost for development
-    # Production: Use CORS_ORIGINS env var as comma-separated list
-    CORS_ORIGINS: list = ["*"]  # Temporary wildcard for dev testing
-
-    # Allow additional origins from environment variable (production/staging)
+    # Development: localhost only
+    # Production: MUST be configured via CORS_ORIGINS env var (comma-separated list)
+    # CRITICAL: Wildcard with credentials=true is a security vulnerability
     _CORS_ENV = os.getenv("CORS_ORIGINS", "").strip()
     if _CORS_ENV:
-        CORS_ORIGINS.extend([origin.strip() for origin in _CORS_ENV.split(",") if origin.strip()])
+        # Production: specific origins provided
+        CORS_ORIGINS: list = [origin.strip() for origin in _CORS_ENV.split(",") if origin.strip()]
+    else:
+        # Development: localhost only (secure default)
+        CORS_ORIGINS: list = [
+            "http://localhost:3000",
+            "http://localhost:3001",
+            "http://127.0.0.1:3000",
+            "http://127.0.0.1:3001",
+        ]
     
     # Security Settings
     BCRYPT_ROUNDS: int = 12
@@ -128,7 +136,11 @@ class Settings:
     
     @classmethod
     def validate_config(cls) -> bool:
-        """Validate that required configuration is present."""
+        """Validate that required configuration is present.
+
+        CRITICAL: All production secrets must be explicitly configured.
+        No fallback to development values in production.
+        """
         required_vars = [
             ("DATABASE_URL", cls.DATABASE_URL),
             ("JWT_SECRET", cls.JWT_SECRET),
@@ -137,7 +149,10 @@ class Settings:
         missing = [var_name for var_name, var_value in required_vars if not var_value]
 
         if missing:
-            raise ValueError(f"Missing required environment variables: {', '.join(missing)}")
+            raise ValueError(
+                f"PRODUCTION BLOCKER: Missing required configuration: {', '.join(missing)}. "
+                f"These MUST be set via environment variables or secrets vault before deployment."
+            )
 
         return True
 
