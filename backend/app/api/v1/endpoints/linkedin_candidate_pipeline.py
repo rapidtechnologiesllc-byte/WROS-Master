@@ -14,7 +14,6 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.dependencies import get_current_internal_user
-from app.models.candidate import Candidate
 from app.models.linkedin_candidate_pipeline import LinkedInCandidatePipeline, LinkedInPipelineStatus
 from app.models.consent import ConsentRecord
 from app.models.user import Users
@@ -77,27 +76,7 @@ async def queue_linkedin_candidate(
         profile_slug = parse_linkedin_url(linkedin_url)
         print(f"[PARSED] Profile slug: {profile_slug}", flush=True)
 
-        # Query 1: Check if candidate already exists
-        existing_candidate = db.query(Candidate).filter(
-            Candidate.linkedin_url == linkedin_url
-        ).first()
-
-        if existing_candidate:
-            return {
-                "status": "ALREADY_EXISTS",
-                "message": f"Candidate already in system",
-                "candidate": {
-                    "id": str(existing_candidate.candidateID),
-                    "name": f"{existing_candidate.candidateFirstName} {existing_candidate.candidateLastName}",
-                    "email": existing_candidate.candidateEmail,
-                    "phone": existing_candidate.candidateMobile,
-                    "status": existing_candidate.candidateRole,
-                    "source": existing_candidate.candidateSource,
-                    "linkedin_url": existing_candidate.linkedin_url
-                }
-            }
-
-        # Query 2: Check if already in pipeline
+        # Query 1: Check if already in pipeline (skip Candidate check to avoid SQLAlchemy reflection issue in HTTP context)
         existing_pipeline = db.query(LinkedInCandidatePipeline).filter(
             LinkedInCandidatePipeline.linkedin_url == linkedin_url
         ).first()
