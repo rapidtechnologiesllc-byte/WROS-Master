@@ -8,6 +8,54 @@ const PROVIDERS = [
   { value: 'sendgrid', label: 'SendGrid', icon: '✉️', color: '#1A73E8', provider: 'SendGrid' },
 ];
 
+const CredentialInput = ({ label, value, onChange, isSecret = false, fieldKey = null, required = false, showError = false, showSecrets, toggleShowSecret }) => {
+  const showValue = fieldKey && showSecrets[fieldKey];
+  const isEmpty = !value || value.trim() === '';
+  const hasError = required && isEmpty && showError;
+
+  return (
+    <div className="mb-6">
+      <label className="block text-sm font-semibold text-gray-700 mb-2 tracking-wide" style={{ fontSize: '14px', fontWeight: 600 }}>
+        {label}
+        {required && <span className="text-red-600 font-bold ml-1">*</span>}
+      </label>
+      <div className="relative">
+        <input
+          type={showValue ? 'text' : isSecret ? 'password' : 'text'}
+          value={value || ''}
+          onChange={(e) => {
+            console.log(`[CredentialInput] ${label} changed to: ${e.target.value.substring(0, 10)}...`);
+            onChange(e);
+          }}
+          className={`w-full px-4 py-3 bg-white border rounded-lg focus:outline-none transition text-sm placeholder:text-gray-400 ${
+            hasError
+              ? 'border-red-500 focus:border-red-600 focus:ring-2 focus:ring-red-100 bg-red-50'
+              : 'border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-100'
+          }`}
+          placeholder={`Enter ${label.toLowerCase()}`}
+          style={{
+            fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif',
+            fontSize: '14px',
+            fontWeight: 400,
+            letterSpacing: '0.3px'
+          }}
+          autoComplete="off"
+        />
+        {isSecret && fieldKey && (
+          <button
+            type="button"
+            onClick={() => toggleShowSecret(fieldKey)}
+            className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition"
+            style={{ pointerEvents: 'auto' }}
+          >
+            {showSecrets[fieldKey] ? <EyeOff size={18} /> : <Eye size={18} />}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+};
+
 export default function APIKeysSettings() {
   const [activeTab, setActiveTab] = useState('azure');
   const [loading, setLoading] = useState(false);
@@ -132,55 +180,6 @@ export default function APIKeysSettings() {
     setShowSecrets(prev => ({ ...prev, [field]: !prev[field] }));
   };
 
-  const CredentialInput = ({ label, value, onChange, isSecret = false, fieldKey = null, required = false, showError = false }) => {
-    const showValue = fieldKey && showSecrets[fieldKey];
-    const isEmpty = !value || value.trim() === '';
-    const hasError = required && isEmpty && showError;
-
-    return (
-      <div className="mb-6">
-        <label className="block text-sm font-semibold text-gray-700 mb-2 tracking-wide" style={{ fontSize: '14px', fontWeight: 600 }}>
-          {label}
-          {required && <span className="text-red-600 font-bold ml-1">*</span>}
-        </label>
-        <div className="relative">
-          <input
-            key={`input-${fieldKey || label}`}
-            type={showValue ? 'text' : isSecret ? 'password' : 'text'}
-            value={value || ''}
-            onChange={(e) => {
-              console.log(`[CredentialInput] ${label} changed to: ${e.target.value.substring(0, 10)}...`);
-              onChange(e);
-            }}
-            className={`w-full px-4 py-3 bg-white border rounded-lg focus:outline-none transition text-sm placeholder:text-gray-400 ${
-              hasError
-                ? 'border-red-500 focus:border-red-600 focus:ring-2 focus:ring-red-100 bg-red-50'
-                : 'border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-100'
-            }`}
-            placeholder={`Enter ${label.toLowerCase()}`}
-            style={{
-              fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif',
-              fontSize: '14px',
-              fontWeight: 400,
-              letterSpacing: '0.3px'
-            }}
-            autoComplete="off"
-          />
-          {isSecret && fieldKey && (
-            <button
-              type="button"
-              onClick={() => toggleShowSecret(fieldKey)}
-              className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition"
-              style={{ pointerEvents: 'auto' }}
-            >
-              {showSecrets[fieldKey] ? <EyeOff size={18} /> : <Eye size={18} />}
-            </button>
-          )}
-        </div>
-      </div>
-    );
-  };
-
   return (
     <div style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif' }} className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-8">
       <div className="max-w-4xl mx-auto">
@@ -254,6 +253,8 @@ export default function APIKeysSettings() {
                 onChange={(e) => setAzureForm({ ...azureForm, tenant_id: e.target.value })}
                 required={true}
                 showError={showValidation.azure}
+                showSecrets={showSecrets}
+                toggleShowSecret={toggleShowSecret}
               />
               <CredentialInput
                 label="Client ID"
@@ -261,6 +262,8 @@ export default function APIKeysSettings() {
                 onChange={(e) => setAzureForm({ ...azureForm, client_id: e.target.value })}
                 required={true}
                 showError={showValidation.azure}
+                showSecrets={showSecrets}
+                toggleShowSecret={toggleShowSecret}
               />
               <CredentialInput
                 label="Client Secret"
@@ -270,6 +273,8 @@ export default function APIKeysSettings() {
                 fieldKey="azure_secret"
                 required={true}
                 showError={showValidation.azure}
+                showSecrets={showSecrets}
+                toggleShowSecret={toggleShowSecret}
               />
               <button
                 onClick={() => handleSaveProvider('azure', azureForm)}
@@ -306,6 +311,8 @@ export default function APIKeysSettings() {
                 onChange={(e) => setTwilioForm({ ...twilioForm, account_sid: e.target.value })}
                 required={true}
                 showError={showValidation.twilio}
+                showSecrets={showSecrets}
+                toggleShowSecret={toggleShowSecret}
               />
               <CredentialInput
                 label="Auth Token"
@@ -315,6 +322,8 @@ export default function APIKeysSettings() {
                 fieldKey="twilio_token"
                 required={true}
                 showError={showValidation.twilio}
+                showSecrets={showSecrets}
+                toggleShowSecret={toggleShowSecret}
               />
               <CredentialInput
                 label="WhatsApp Number"
@@ -322,6 +331,8 @@ export default function APIKeysSettings() {
                 onChange={(e) => setTwilioForm({ ...twilioForm, whatsapp_number: e.target.value })}
                 required={true}
                 showError={showValidation.twilio}
+                showSecrets={showSecrets}
+                toggleShowSecret={toggleShowSecret}
               />
               <button
                 onClick={() => handleSaveProvider('twilio', twilioForm)}
@@ -360,6 +371,8 @@ export default function APIKeysSettings() {
                 fieldKey="sendgrid_key"
                 required={true}
                 showError={showValidation.sendgrid}
+                showSecrets={showSecrets}
+                toggleShowSecret={toggleShowSecret}
               />
               <CredentialInput
                 label="From Email"
@@ -367,6 +380,8 @@ export default function APIKeysSettings() {
                 onChange={(e) => setSendgridForm({ ...sendgridForm, from_email: e.target.value })}
                 required={true}
                 showError={showValidation.sendgrid}
+                showSecrets={showSecrets}
+                toggleShowSecret={toggleShowSecret}
               />
               <button
                 onClick={() => handleSaveProvider('sendgrid', sendgridForm)}
