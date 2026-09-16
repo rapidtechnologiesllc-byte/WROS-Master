@@ -1,4 +1,4 @@
-/* Brand Colors */
+/* Brand Colors - Match Application Theme */
 :root {
   --primary-dark: #0f172a;
   --primary-darker: #050d1a;
@@ -6,6 +6,10 @@
   --accent-silver: #c0c0c0;
   --accent-black: #1a1a1a;
   --glow-blue: #0369a1;
+  --text-primary: #1f2937;
+  --text-secondary: #6b7280;
+  --bg-primary: #ffffff;
+  --border-color: #e5e7eb;
 }
 
 .system-health-container {
@@ -86,9 +90,10 @@
   padding: 0;
   display: flex;
   flex-direction: column;
-  background: transparent;
+  background: transparent !important;
   position: relative;
   gap: 20px;
+  color: var(--text-primary) !important;
 }
 
 .health-status::before {
@@ -121,16 +126,17 @@
 }
 
 .status-icon {
-  font-size: 64px;
+  font-size: 56px;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 100px;
-  height: 100px;
-  background: linear-gradient(135deg, rgba(255, 140, 66, 0.15), rgba(3, 105, 161, 0.15));
-  border-radius: 20px;
-  border: 2px solid rgba(255, 140, 66, 0.2);
+  width: 90px;
+  height: 90px;
+  background: #d1fae5;
+  border-radius: 12px;
+  border: 2px solid #a7f3d0;
   animation: pulse 2s ease-in-out infinite;
+  color: #059669;
 }
 
 @keyframes pulse {
@@ -156,19 +162,16 @@
   margin: 0 0 8px 0;
   font-size: 36px;
   font-weight: 700;
-  background: linear-gradient(135deg, var(--accent-orange), var(--accent-silver));
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  color: var(--accent-orange);
   letter-spacing: -1px;
 }
 
 .status-detail {
   margin: 0;
-  color: rgba(192, 192, 192, 0.8);
+  color: var(--text-secondary);
   font-size: 15px;
-  font-weight: 500;
-  letter-spacing: 0.5px;
+  font-weight: 400;
+  letter-spacing: 0px;
 }
 
 /* Error State */
@@ -257,7 +260,7 @@
   gap: 20px;
   padding: 20px 0;
   margin-bottom: 30px;
-  border-bottom: 1px solid rgba(255, 140, 66, 0.1);
+  border-bottom: 1px solid var(--border-color);
   background: transparent !important;
 }
 
@@ -268,17 +271,17 @@
 }
 
 .stat-label {
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--accent-orange);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
   text-transform: uppercase;
-  letter-spacing: 1px;
+  letter-spacing: 0.5px;
 }
 
 .stat-value {
   font-size: 16px;
   font-weight: 600;
-  color: var(--accent-silver);
+  color: var(--text-primary);
   font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
 }
 
@@ -330,10 +333,10 @@
 
 .endpoints-header h3 {
   margin: 0;
-  font-size: 14px;
-  color: var(--accent-orange);
-  font-weight: 700;
-  letter-spacing: 1px;
+  font-size: 13px;
+  color: var(--text-primary);
+  font-weight: 600;
+  letter-spacing: 0.5px;
   text-transform: uppercase;
   flex-shrink: 0;
 }
@@ -341,33 +344,33 @@
 .endpoints-search {
   flex: 1;
   max-width: 400px;
-  background: rgba(0, 0, 0, 0.2);
-  border: 1px solid rgba(255, 140, 66, 0.2);
-  border-radius: 10px;
-  padding: 10px 15px;
-  color: var(--accent-silver);
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 8px 12px;
+  color: var(--text-primary);
   font-size: 13px;
   font-family: inherit;
-  transition: all 0.3s ease;
+  transition: all 0.2s ease;
 }
 
 .endpoints-search::placeholder {
-  color: rgba(192, 192, 192, 0.5);
+  color: var(--text-secondary);
 }
 
 .endpoints-search:focus {
   outline: none;
-  border-color: rgba(255, 140, 66, 0.4);
-  box-shadow: 0 0 10px rgba(255, 140, 66, 0.1);
-  background: rgba(0, 0, 0, 0.3);
+  border-color: var(--accent-orange);
+  box-shadow: 0 0 0 3px rgba(255, 140, 66, 0.1);
+  background: var(--bg-primary);
 }
 
 /* Table Layout */
 .endpoints-table {
   display: flex;
   flex-direction: column;
-  border: 1px solid rgba(255, 140, 66, 0.15);
-  border-radius: 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
   overflow: hidden;
 }
 
@@ -376,11 +379,11 @@
   grid-template-columns: 2fr 1fr 2fr;
   gap: 15px;
   padding: 16px 20px;
-  background: rgba(0, 0, 0, 0.2);
-  border-bottom: 1px solid rgba(255, 140, 66, 0.15);
-  font-weight: 700;
-  font-size: 12px;
-  color: var(--accent-orange);
+  background: #f9fafb;
+  border-bottom: 1px solid var(--border-color);
+  font-weight: 600;
+  font-size: 11px;
+  color: var(--text-secondary);
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
@@ -395,9 +398,9 @@
   grid-template-columns: 2fr 1fr 2fr;
   gap: 15px;
   padding: 16px 20px;
-  border-bottom: 1px solid rgba(255, 140, 66, 0.1);
+  border-bottom: 1px solid var(--border-color);
   align-items: center;
-  transition: all 0.2s ease;
+  transition: all 0.15s ease;
 }
 
 .table-row:last-child {
@@ -405,7 +408,7 @@
 }
 
 .table-row:hover {
-  background: rgba(255, 140, 66, 0.05);
+  background: #f9fafb;
 }
 
 .col-endpoint {
@@ -414,14 +417,14 @@
 }
 
 .col-endpoint code {
-  background: rgba(15, 23, 42, 0.6);
+  background: #f3f4f6;
   padding: 6px 10px;
-  border-radius: 6px;
+  border-radius: 4px;
   font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
   font-size: 12px;
   color: var(--accent-orange);
-  font-weight: 700;
-  border: 1px solid rgba(255, 140, 66, 0.2);
+  font-weight: 600;
+  border: 1px solid var(--border-color);
 }
 
 .col-status {
@@ -431,36 +434,36 @@
 
 .status-badge {
   padding: 6px 12px;
-  border-radius: 6px;
+  border-radius: 4px;
   font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.5px;
+  font-weight: 600;
+  letter-spacing: 0px;
   display: flex;
   align-items: center;
   gap: 6px;
 }
 
 .status-badge.healthy {
-  background: rgba(74, 222, 128, 0.15);
-  color: #4ade80;
-  border: 1px solid rgba(74, 222, 128, 0.3);
+  background: #d1fae5;
+  color: #059669;
+  border: 1px solid #a7f3d0;
 }
 
 .status-badge.warning {
-  background: rgba(234, 179, 8, 0.15);
-  color: #eab308;
-  border: 1px solid rgba(234, 179, 8, 0.3);
+  background: #fef3c7;
+  color: #d97706;
+  border: 1px solid #fde68a;
 }
 
 .status-badge.critical {
-  background: rgba(255, 82, 82, 0.15);
-  color: #ff5252;
-  border: 1px solid rgba(255, 82, 82, 0.3);
+  background: #fee2e2;
+  color: #dc2626;
+  border: 1px solid #fecaca;
 }
 
 .col-description {
   font-size: 13px;
-  color: rgba(192, 192, 192, 0.8);
+  color: var(--text-secondary);
 }
 
 /* Footer */
