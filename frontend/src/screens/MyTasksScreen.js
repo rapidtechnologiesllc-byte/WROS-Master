@@ -6,7 +6,7 @@
 // Urgent tasks (not due today) show separately, never mixed in.
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { toast } from "react-toastify";
+import { AlertCircle, CheckCircle, X } from "lucide-react";
 import { Card, Button, Input, Select } from "../components/ui";
 import {
   completeTask, confirmUrgentTask, createTask, getMyDayTasks, getUpcomingUrgentTasks,
@@ -89,6 +89,8 @@ export default function MyTasksScreen() {
     title: "", description: "", impact: "INDIVIDUAL", urgency: "MODERATE", category: "", is_external: false,
   });
   const [categories, setCategories] = useState([]);
+  const [actionError, setActionError] = useState(null);
+  const [actionSuccess, setActionSuccess] = useState(null);
   const now = new Date();
 
   const load = async () => {
@@ -97,7 +99,7 @@ export default function MyTasksScreen() {
       setTasks(daily || []);
       setUpcoming(urgentUpcoming || []);
     } catch (err) {
-      toast.error("Could not load your tasks.");
+      console.error("Could not load your tasks:", err);
     } finally {
       setLoading(false);
     }
@@ -111,20 +113,20 @@ export default function MyTasksScreen() {
   const handleComplete = async (taskId) => {
     try {
       await completeTask(taskId);
-      toast.success(`Task #${taskId} completed.`);
+      setActionSuccess(`Task #${taskId} completed.`);
       load();
     } catch {
-      toast.error("Could not complete task.");
+      setActionError("Could not complete task.");
     }
   };
 
   const handleConfirmUrgent = async (taskId) => {
     try {
       await confirmUrgentTask(taskId);
-      toast.success("Urgent confirmed.");
+      setActionSuccess("Urgent confirmed.");
       load();
     } catch {
-      toast.error("Could not confirm.");
+      setActionError("Could not confirm.");
     }
   };
 
@@ -140,7 +142,7 @@ export default function MyTasksScreen() {
     } else if (title.includes("Interview")) {
       navigate("/interviews");
     } else {
-      toast.warning("No action configured for this task type.");
+      setActionError("No action configured for this task type.");
     }
   };
 
@@ -155,15 +157,15 @@ export default function MyTasksScreen() {
         is_external: form.is_external,
       });
       if (created?.priority_challenged) {
-        toast.warning(`Thunder: ${created.priority_challenge_note}`);
+        setActionError(`Thunder: ${created.priority_challenge_note}`);
       } else {
-        toast.success(`Task #${created.id} created.`);
+        setActionSuccess(`Task #${created.id} created.`);
       }
       setForm({ title: "", priority: "MEDIUM", due_date: "", is_external: false });
       setShowCreate(false);
       load();
     } catch {
-      toast.error("Could not create task.");
+      setActionError("Could not create task.");
     }
   };
 
@@ -172,12 +174,12 @@ export default function MyTasksScreen() {
     if (!ticketForm.title.trim() || !ticketForm.category) return;
     try {
       const created = await createTicket(ticketForm);
-      toast.success(`Ticket #${created.id} created -- routed to ${created.department_id ? `department ${created.department_id}` : "unassigned (no route configured for this category yet)"}.`);
+      setActionSuccess(`Ticket #${created.id} created -- routed to ${created.department_id ? `department ${created.department_id}` : "unassigned (no route configured for this category yet)"}.`);
       setTicketForm({ title: "", description: "", impact: "INDIVIDUAL", urgency: "MODERATE", category: "", is_external: false });
       setShowCreate(false);
       load();
     } catch {
-      toast.error("Could not create ticket.");
+      setActionError("Could not create ticket.");
     }
   };
 
@@ -188,6 +190,42 @@ export default function MyTasksScreen() {
 
   return (
     <div className="p-6 max-w-5xl mx-auto">
+      {/* Action Error Banner */}
+      {actionError && (
+        <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+          <div className="flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <p className="text-red-700 text-sm font-medium">{actionError}</p>
+            </div>
+            <button
+              onClick={() => setActionError(null)}
+              className="text-red-600 hover:text-red-800 flex-shrink-0"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Action Success Banner */}
+      {actionSuccess && (
+        <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg">
+          <div className="flex items-start gap-3">
+            <CheckCircle className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <p className="text-green-700 text-sm font-medium">{actionSuccess}</p>
+            </div>
+            <button
+              onClick={() => setActionSuccess(null)}
+              className="text-green-600 hover:text-green-800 flex-shrink-0"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="flex items-center justify-between mb-4">
         <div>
           <p className="text-sm text-gray-500">Due today or overdue -- guaranteed on this list regardless of priority.</p>

@@ -6,9 +6,8 @@ import { candidateAppendedJob, removeCandidateApi } from "../services/api/jobs";
 import CandidateEditModal from "./CandidateEditModal";
 import AssignJobModal from "./AssignJobModal";
 import CandidateAssignJobModal from "./CandidateAssignJobModal";
-import { toast } from "react-toastify";
 import { getCandidateById } from "../services/api/candidates";
-import { UserMinus } from "lucide-react";
+import { UserMinus, AlertCircle, CheckCircle, X } from "lucide-react";
 import MoveStageDrawer from "../components/ui/MoveStageDrawer";
 import JobDetails from "./JobDetails";
 
@@ -80,6 +79,8 @@ export default function JobWorkspaceScreen({
   const [showSubmitJobModal, setShowSubmitJobModal] = useState(false);
   const [selectedJobForSubmission, setSelectedJobForSubmission] =
     useState(null);
+  const [actionError, setActionError] = useState(null);
+  const [actionSuccess, setActionSuccess] = useState(null);
 
   const fetchCandidateJob = async () => {
     try {
@@ -258,21 +259,21 @@ export default function JobWorkspaceScreen({
 
   const removeCandidateHandler = async (candidateId) => {
     if (!candidateId) {
-      toast.error("Invalid Candidate");
+      setActionError("Invalid Candidate");
       return;
     }
     try {
       const result = await removeCandidateApi(job?.id, candidateId);
       if (result?.status === 200) {
-        toast.success("Candidate Removed");
+        setActionSuccess("Candidate Removed");
         setFinalCandidates((prev) =>
           prev.filter((c) => c.candidate_id !== candidateId),
         );
       } else {
-        toast.error("Failed to remove candidate");
+        setActionError("Failed to remove candidate");
       }
     } catch (err) {
-      toast.error("Error Occured");
+      setActionError("Error occurred");
     }
   };
 
@@ -282,7 +283,7 @@ export default function JobWorkspaceScreen({
         status: status,
       });
       if (result?.status === "success") {
-        toast.success(`Candidate ${result?.data?.candidate_name} is Archvied`);
+        setActionSuccess(`Candidate ${result?.data?.candidate_name} is Archived`);
         const candidateStatus = await getCandidateStatus(candidateId);
         setCandidateList((prev) =>
           prev.map((c) =>
@@ -296,7 +297,9 @@ export default function JobWorkspaceScreen({
           ),
         );
       }
-    } catch (err) {}
+    } catch (err) {
+      console.error("Failed to update candidate status:", err);
+    }
   };
 
   const handleCandidateStatus = async (candidateId) => {
@@ -306,7 +309,7 @@ export default function JobWorkspaceScreen({
         pipeline_status: "Pre-Onboarding",
       });
       if (result?.status === "success") {
-        toast.success(
+        setActionSuccess(
           `Candidate ${result?.data?.candidate_name} moved to Pre-Onboarding`,
         );
         const candidateStatus = await getCandidateStatus(candidateId);
@@ -323,12 +326,48 @@ export default function JobWorkspaceScreen({
         );
       }
     } catch (err) {
-      toast.error(err);
+      setActionError(err?.message || "Failed to update candidate status");
     }
   };
 
   return (
     <div className="space-y-4">
+      {/* Action Error Banner */}
+      {actionError && (
+        <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+          <div className="flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <p className="text-red-700 text-sm font-medium">{actionError}</p>
+            </div>
+            <button
+              onClick={() => setActionError(null)}
+              className="text-red-600 hover:text-red-800 flex-shrink-0"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Action Success Banner */}
+      {actionSuccess && (
+        <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg">
+          <div className="flex items-start gap-3">
+            <CheckCircle className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <p className="text-green-700 text-sm font-medium">{actionSuccess}</p>
+            </div>
+            <button
+              onClick={() => setActionSuccess(null)}
+              className="text-green-600 hover:text-green-800 flex-shrink-0"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="rounded-2xl border bg-white p-4 shadow-sm">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>

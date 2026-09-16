@@ -5,8 +5,7 @@ import { getAllJobs } from "../services/api/jobs";
 import { Select } from "antd";
 import { Card } from "../components/ui";
 import { Table as AntTable } from "antd";
-import { Users } from "lucide-react";
-import { toast } from "react-toastify";
+import { Users, AlertCircle, CheckCircle, X } from "lucide-react";
 import {
   approveOfferLetter,
   cancelOfferLetter,
@@ -50,6 +49,8 @@ const OfferListing = () => {
   const [rejectModalShow, setRejectModalShow] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
   const [statusSelected, setStatusSelected] = useState("");
+  const [actionError, setActionError] = useState(null);
+  const [actionSuccess, setActionSuccess] = useState(null);
   const canManageOffers = hasPermission("offers", "edit");
   const offerStatusOptions = [
     { label: "Released", value: "Released" },
@@ -91,7 +92,7 @@ const OfferListing = () => {
         const list = await offerLetterByJobId(selectedJob?.id || "");
         setOfferDetails(list?.offers);
       } catch (err) {
-        toast.error(err);
+        console.error("Failed to load offer letters:", err);
       } finally {
         setLoading(false);
       }
@@ -110,7 +111,7 @@ const OfferListing = () => {
         const list = await getAllOffers({ status: statusSelected });
         setOfferDetails(list?.offers);
       } catch (err) {
-        toast.error("Failed to fetch offers");
+        console.error("Failed to fetch offers:", err);
       } finally {
         setLoading(false);
       }
@@ -133,7 +134,8 @@ const OfferListing = () => {
 
   const downloadFile = async (id, fileName = "OfferLetter.docx") => {
     if (!id) {
-      toast.error("Offer letter download url is not available");
+      setActionError("Offer letter download url is not available");
+      return;
     }
     try {
       const createOfferId = await offerLetterById(id);
@@ -143,7 +145,8 @@ const OfferListing = () => {
         },
       });
       if (!response.ok) {
-        toast.error("Failed to download offer letter.");
+        setActionError("Failed to download offer letter.");
+        return;
       }
 
       const blob = await response.blob();
@@ -155,8 +158,9 @@ const OfferListing = () => {
       link.click();
       link.remove();
       window.URL.revokeObjectURL(blobUrl);
+      setActionSuccess("Offer letter downloaded successfully");
     } catch (error) {
-      toast.error("Download failed", error);
+      setActionError(`Download failed: ${error?.message || "Unknown error"}`);
     }
   };
 
@@ -197,13 +201,13 @@ const OfferListing = () => {
                 : item,
             ),
           );
-          toast.success("Offer rejected successfully");
+          setActionSuccess("Offer rejected successfully");
         }
       }
       setRejectModalShow(false);
       setRejectReason("");
     } catch (err) {
-      toast.error(err?.message);
+      setActionError(err?.message || "Failed to reject offer");
     }
   };
 
@@ -313,7 +317,7 @@ const OfferListing = () => {
       if (offerApproveApi?.status === "success") {
         const releasOffer = await releaseOfferApi(candidateData?.id);
         if (releasOffer?.status === "success") {
-          toast.success("Offer Approved, and release");
+          setActionSuccess("Offer Approved and released successfully");
         }
 
         //   toEmail: candidateData?.candidate_email,
@@ -329,7 +333,7 @@ const OfferListing = () => {
         // });
       }
     } catch (error) {
-      toast.error("Offer Already Approved");
+      setActionError("Offer Already Approved");
     }
   };
 
@@ -342,7 +346,7 @@ const OfferListing = () => {
       }
       setShowSignatureModal(false);
     } catch (err) {
-      toast.error(err?.message);
+      setActionError(err?.message || "Failed to save signature");
     } finally {
       setSignatureLoading(false);
     }
@@ -350,6 +354,42 @@ const OfferListing = () => {
 
   return (
     <>
+      {/* Action Error Banner */}
+      {actionError && (
+        <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+          <div className="flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <p className="text-red-700 text-sm font-medium">{actionError}</p>
+            </div>
+            <button
+              onClick={() => setActionError(null)}
+              className="text-red-600 hover:text-red-800 flex-shrink-0"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Action Success Banner */}
+      {actionSuccess && (
+        <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg">
+          <div className="flex items-start gap-3">
+            <CheckCircle className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <p className="text-green-700 text-sm font-medium">{actionSuccess}</p>
+            </div>
+            <button
+              onClick={() => setActionSuccess(null)}
+              className="text-green-600 hover:text-green-800 flex-shrink-0"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="grid gap-6">
         <section className="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm">
           <DropdownContainer>
