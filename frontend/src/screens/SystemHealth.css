@@ -9,107 +9,30 @@
 }
 
 .system-health-container {
-  min-height: 100vh;
-  padding: 40px 20px;
-  background: linear-gradient(135deg, var(--primary-darker) 0%, var(--primary-dark) 50%, #1a3a4a 100%);
-  display: flex;
-  align-items: flex-start;
-  justify-content: flex-start;
-  position: relative;
-  overflow: hidden;
-  padding-top: 60px;
-}
-
-/* Animated background elements */
-.system-health-container::before {
-  content: '';
-  position: absolute;
-  width: 600px;
-  height: 600px;
-  background: radial-gradient(circle, rgba(255, 140, 66, 0.1) 0%, transparent 70%);
-  border-radius: 50%;
-  top: -200px;
-  right: -200px;
-  animation: float 20s ease-in-out infinite;
-}
-
-.system-health-container::after {
-  content: '';
-  position: absolute;
-  width: 600px;
-  height: 600px;
-  background: radial-gradient(circle, rgba(3, 105, 161, 0.1) 0%, transparent 70%);
-  border-radius: 50%;
-  bottom: -200px;
-  left: -200px;
-  animation: float 25s ease-in-out infinite reverse;
-}
-
-@keyframes float {
-  0%, 100% { transform: translateY(0px); }
-  50% { transform: translateY(30px); }
+  display: contents;
 }
 
 .health-card {
-  background: rgba(15, 23, 42, 0.95);
-  backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 140, 66, 0.2);
-  border-radius: 24px;
-  box-shadow: 0 25px 50px rgba(0, 0, 0, 0.4),
-              inset 0 1px 0 rgba(255, 255, 255, 0.1),
-              0 0 40px rgba(255, 140, 66, 0.1);
-  width: 100%;
-  overflow: hidden;
-  position: relative;
-  z-index: 1;
-  transition: all 0.3s ease;
-  max-width: none;
-}
-
-.health-card:hover {
-  border-color: rgba(255, 140, 66, 0.4);
-  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.5),
-              inset 0 1px 0 rgba(255, 255, 255, 0.15),
-              0 0 60px rgba(255, 140, 66, 0.2);
-  transform: translateY(-5px);
+  display: contents;
 }
 
 .health-header {
-  background: linear-gradient(135deg, var(--primary-dark) 0%, var(--accent-black) 50%, var(--glow-blue) 100%);
+  background: transparent;
   color: white;
-  padding: 30px 35px;
+  padding: 0 0 20px 0;
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
   position: relative;
-  border-bottom: 1px solid rgba(255, 140, 66, 0.15);
+  border-bottom: none;
 }
 
 .health-header::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, var(--accent-orange), transparent);
-  opacity: 0.5;
+  display: none;
 }
 
 .health-header::after {
-  content: '● HEALTHY';
-  position: absolute;
-  right: 120px;
-  top: 50%;
-  transform: translateY(-50%);
-  font-size: 12px;
-  font-weight: 700;
-  color: #4ade80;
-  letter-spacing: 1px;
-  text-transform: uppercase;
-  display: flex;
-  align-items: center;
-  gap: 6px;
+  display: none;
 }
 
 .health-header h1 {
@@ -160,22 +83,16 @@
 
 /* Status Section */
 .health-status {
-  padding: 40px 35px;
+  padding: 0;
   display: flex;
   flex-direction: column;
   background: transparent;
   position: relative;
+  gap: 20px;
 }
 
 .health-status::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 4px;
-  background: linear-gradient(90deg, #4ade80 0%, #22c55e 50%, #16a34a 100%);
-  border-radius: 24px 24px 0 0;
+  display: none;
 }
 
 .health-status.healthy {
@@ -183,7 +100,7 @@
 }
 
 .health-status.healthy::before {
-  background: linear-gradient(90deg, #4ade80 0%, #22c55e 50%, #16a34a 100%);
+  display: none;
 }
 
 .health-status.unhealthy {
@@ -191,7 +108,7 @@
 }
 
 .health-status.unhealthy::before {
-  background: linear-gradient(90deg, #f87171 0%, #ef4444 50%, #dc2626 100%);
+  display: none;
 }
 
 .status-header {
@@ -200,6 +117,7 @@
   margin-bottom: 35px;
   gap: 20px;
   width: 100%;
+  background: transparent !important;
 }
 
 .status-icon {
@@ -340,6 +258,7 @@
   padding: 20px 0;
   margin-bottom: 30px;
   border-bottom: 1px solid rgba(255, 140, 66, 0.1);
+  background: transparent !important;
 }
 
 .summary-stat {
@@ -546,21 +465,19 @@
 
 /* Footer */
 .health-footer {
-  background: linear-gradient(135deg, rgba(15, 23, 42, 0.9), rgba(3, 105, 161, 0.1));
-  padding: 20px 30px;
+  background: transparent;
+  padding: 15px 0;
   text-align: center;
-  border-top: 1px solid rgba(255, 140, 66, 0.2);
-  border-bottom-left-radius: 24px;
-  border-bottom-right-radius: 24px;
+  border-top: 1px solid rgba(255, 140, 66, 0.1);
+  border-radius: 0;
+  margin-top: 20px;
 }
 
 .health-footer p {
   margin: 0;
   font-size: 12px;
-  color: rgba(192, 192, 192, 0.7);
+  color: rgba(192, 192, 192, 0.5);
   letter-spacing: 0.5px;
-  text-transform: uppercase;
-  font-weight: 500;
 }
 
 /* Responsive */
