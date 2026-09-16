@@ -15,7 +15,11 @@ export default function APIKeysSettings() {
   const [showSecrets, setShowSecrets] = useState({});
   const [pageError, setPageError] = useState(null);
   const [pageSuccess, setPageSuccess] = useState(null);
-  const [showValidation, setShowValidation] = useState(false);
+  const [showValidation, setShowValidation] = useState({
+    azure: false,
+    twilio: false,
+    sendgrid: false,
+  });
 
   const [azureForm, setAzureForm] = useState({ tenant_id: '', client_id: '', client_secret: '' });
   const [twilioForm, setTwilioForm] = useState({ account_sid: '', auth_token: '', whatsapp_number: '' });
@@ -78,12 +82,12 @@ export default function APIKeysSettings() {
     };
 
     if (required[provider] && !required[provider].every(f => formData[f])) {
-      setShowValidation(true);
+      setShowValidation(prev => ({ ...prev, [provider]: true }));
       setPageError('Please fill in all required fields');
       return;
     }
 
-    setShowValidation(false);
+    setShowValidation(prev => ({ ...prev, [provider]: false }));
 
     setSaving(true);
     setPageError(null);
@@ -249,14 +253,14 @@ export default function APIKeysSettings() {
                 value={azureForm.tenant_id}
                 onChange={(e) => setAzureForm({ ...azureForm, tenant_id: e.target.value })}
                 required={true}
-                showError={showValidation}
+                showError={showValidation.azure}
               />
               <CredentialInput
                 label="Client ID"
                 value={azureForm.client_id}
                 onChange={(e) => setAzureForm({ ...azureForm, client_id: e.target.value })}
                 required={true}
-                showError={showValidation}
+                showError={showValidation.azure}
               />
               <CredentialInput
                 label="Client Secret"
@@ -265,7 +269,7 @@ export default function APIKeysSettings() {
                 isSecret
                 fieldKey="azure_secret"
                 required={true}
-                showError={showValidation}
+                showError={showValidation.azure}
               />
               <button
                 onClick={() => handleSaveProvider('azure', azureForm)}
@@ -301,7 +305,7 @@ export default function APIKeysSettings() {
                 value={twilioForm.account_sid}
                 onChange={(e) => setTwilioForm({ ...twilioForm, account_sid: e.target.value })}
                 required={true}
-                showError={showValidation}
+                showError={showValidation.twilio}
               />
               <CredentialInput
                 label="Auth Token"
@@ -310,14 +314,14 @@ export default function APIKeysSettings() {
                 isSecret
                 fieldKey="twilio_token"
                 required={true}
-                showError={showValidation}
+                showError={showValidation.twilio}
               />
               <CredentialInput
                 label="WhatsApp Number"
                 value={twilioForm.whatsapp_number}
                 onChange={(e) => setTwilioForm({ ...twilioForm, whatsapp_number: e.target.value })}
                 required={true}
-                showError={showValidation}
+                showError={showValidation.twilio}
               />
               <button
                 onClick={() => handleSaveProvider('twilio', twilioForm)}
@@ -355,14 +359,14 @@ export default function APIKeysSettings() {
                 isSecret
                 fieldKey="sendgrid_key"
                 required={true}
-                showError={showValidation}
+                showError={showValidation.sendgrid}
               />
               <CredentialInput
                 label="From Email"
                 value={sendgridForm.from_email}
                 onChange={(e) => setSendgridForm({ ...sendgridForm, from_email: e.target.value })}
                 required={true}
-                showError={showValidation}
+                showError={showValidation.sendgrid}
               />
               <button
                 onClick={() => handleSaveProvider('sendgrid', sendgridForm)}
