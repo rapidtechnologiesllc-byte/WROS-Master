@@ -72,7 +72,7 @@ class PostgresBackupManager:
             ]
 
             # Compress with gzip
-            with open(backup_file, 'w') as backup_f:
+            with open(backup_file, 'wb') as backup_f:
                 process = subprocess.run(
                     cmd,
                     stdout=subprocess.PIPE,
@@ -89,10 +89,9 @@ class PostgresBackupManager:
                 # Pipe through gzip
                 gzip_process = subprocess.run(
                     ["gzip", "--stdout"],
-                    input=process.stdout,
+                    input=process.stdout.encode('utf-8'),
                     stdout=backup_f,
-                    stderr=subprocess.PIPE,
-                    text=True
+                    stderr=subprocess.PIPE
                 )
 
                 if gzip_process.returncode != 0:
@@ -174,13 +173,12 @@ class PostgresBackupManager:
                 return False
 
             # Restore from backup
-            with open(backup_file, 'r') as f:
+            with open(backup_file, 'rb') as f:
                 restore_process = subprocess.run(
                     ["gunzip", "--stdout"],
                     stdin=f,
                     stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
-                    text=True
+                    stderr=subprocess.PIPE
                 )
 
                 if restore_process.returncode != 0:

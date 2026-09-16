@@ -81,7 +81,7 @@ class ValidateHandlersFactory:
         interview_id = result.get("interview_id")
 
         try:
-            interview = db.query(Interview).filter(Interview.interviewID == interview_id).first()
+            interview = db.query(Interview).filter(Interview.id == interview_id).first()
             if not interview:
                 raise ValueError(f"Interview {interview_id} not found after {handler_name}")
 
@@ -546,7 +546,7 @@ class ValidateHandlersFactory:
         interview_id = result.get("interview_id")
 
         try:
-            interview = db.query(Interview).filter(Interview.interviewID == interview_id).first()
+            interview = db.query(Interview).filter(Interview.id == interview_id).first()
             if not interview:
                 raise ValueError(f"Interview {interview_id} not found")
 

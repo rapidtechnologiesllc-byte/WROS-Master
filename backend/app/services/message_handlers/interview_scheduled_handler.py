@@ -251,30 +251,6 @@ class InterviewScheduledHandler:
             raise RuntimeError(f"Unexpected error: {str(e)}") from e
 
     @staticmethod
-    def validate(message: ChannelQueueItem, result: Dict[str, Any], db: Session) -> None:
-        """Validate that interview scheduling actually completed successfully."""
-        from app.models.user import Interview
-
-        if not result or "interview_id" not in result:
-            raise ValueError(f"Invalid result: {result}")
-
-        interview_id = result.get("interview_id")
-
-        try:
-            interview = db.query(Interview).filter(Interview.interviewID == interview_id).first()
-            if not interview:
-                raise ValueError(f"Interview {interview_id} not found after scheduling")
-
-            logger.info(f"✅ Interview scheduling validated: {interview_id}")
-
-        except ValueError:
-            raise
-
-        except Exception as e:
-            logger.error(f"[InterviewScheduledHandler] RETRYABLE validation error: {e}", exc_info=True)
-            raise RuntimeError(f"Database error: {str(e)}") from e
-
-    @staticmethod
     def should_retry(message: ChannelQueueItem) -> bool:
         """Determine if message should be retried."""
         if message.retry_count >= InterviewScheduledHandler.MAX_RETRIES:

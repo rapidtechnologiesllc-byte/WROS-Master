@@ -158,13 +158,34 @@ class HealthCheckService:
         """Get comprehensive health report for all systems."""
         import os
 
+        database_health = HealthCheckService.check_database_connection(db)
+        queue_health = HealthCheckService.check_queue_processor_health(db)
+        redis_health = HealthCheckService.check_redis_connection()
+
+        # Aggregate component statuses
+        component_statuses = [
+            database_health.get('status'),
+            queue_health.get('status'),
+            redis_health.get('status')
+        ]
+
+        # Overall status: unhealthy if any component is unhealthy,
+        # degraded if any component is degraded but none are unhealthy,
+        # healthy if all components are healthy
+        if 'unhealthy' in component_statuses:
+            overall_status = 'unhealthy'
+        elif 'degraded' in component_statuses:
+            overall_status = 'degraded'
+        else:
+            overall_status = 'healthy'
+
         return {
             'timestamp': datetime.utcnow().isoformat(),
             'environment': os.getenv('ENVIRONMENT', 'development'),
-            'database': HealthCheckService.check_database_connection(db),
-            'queue_processor': HealthCheckService.check_queue_processor_health(db),
-            'redis': HealthCheckService.check_redis_connection(),
-            'overall_status': 'healthy'  # Aggregate based on components
+            'database': database_health,
+            'queue_processor': queue_health,
+            'redis': redis_health,
+            'overall_status': overall_status
         }
 
     @staticmethod

@@ -83,7 +83,7 @@ class OpsAlertHandler:
 
             return {
                 "status": "ops_alert_created",
-                "task_id": task_id,
+                "alert_id": task_id,
                 "message_id": message_id,
                 "error_classification": error_classification,
                 "priority": priority,
