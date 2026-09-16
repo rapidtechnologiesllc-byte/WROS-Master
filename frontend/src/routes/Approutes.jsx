@@ -52,7 +52,7 @@ import {
   updateCandidateStatus,
 } from "../services/api/candidateStatus";
 import CandidateDetailsScreen from "../screens/CandidateDetailsScreen";
-import { toast, ToastContainer } from "react-toastify";
+import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import OfferListing from "../screens/OfferListing";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
@@ -825,7 +825,6 @@ export default function AppRoutes() {
                       ...prev,
                     ]);
                     setSelectedJobId(j.id);
-                    toast.success(`Created job ${j.title}`);
                     navigate(ROUTES.JOBS);
                   }}
                 />

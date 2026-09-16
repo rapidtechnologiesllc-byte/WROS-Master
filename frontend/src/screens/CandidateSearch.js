@@ -1,6 +1,6 @@
 // Candidate search/listing and selection screen.
 import { useEffect, useMemo, useState } from "react";
-import { Plus, Search, Users } from "lucide-react";
+import { Plus, Search, Users, AlertCircle, CheckCircle, X } from "lucide-react";
 import {
   Button,
   Card,
@@ -15,7 +15,6 @@ import {
   getCandidateStatus,
   updateCandidateStatus,
 } from "../services/api/candidates";
-import { toast } from "react-toastify";
 import MoveStageDrawer from "../components/ui/MoveStageDrawer";
 import ScreenErrorDisplay from "../components/ScreenErrorDisplay";
 import { Table as AntTable } from "antd";
@@ -65,12 +64,16 @@ export default function CandidateSearch({
   const [approvalCandidates, setApprovalCandidates] = useState([]);
   const [loading, setLoading] = useState(false);
   const [screenError, setScreenError] = useState(null);
+  const [actionError, setActionError] = useState(null);
+  const [actionSuccess, setActionSuccess] = useState(null);
   const navigate = useNavigate();
   const isAntTableRole =
     hasPermission("candidates", "view") ||
     hasPermission("candidates", "edit");
 
   const handleThunderToggle = async (candidateId, currentValue) => {
+    setActionError(null);
+    setActionSuccess(null);
     try {
       await updateCandidateThunderEnabled(candidateId, !currentValue).catch(e => { throw e; });
       setCandidateList((prev) =>
@@ -80,10 +83,10 @@ export default function CandidateSearch({
             : c
         )
       );
-      toast.success(!currentValue ? "Thunder processing enabled" : "Thunder processing disabled");
+      setActionSuccess(!currentValue ? "Thunder processing enabled" : "Thunder processing disabled");
     } catch (err) {
       const errorMsg = err?.message || "Unknown error updating Thunder configuration";
-      toast.error(`Failed to update Thunder configuration: ${errorMsg}`);
+      setActionError(`Failed to update Thunder configuration: ${errorMsg}`);
       console.error("[CandidateSearch] Thunder toggle failed:", err);
     }
   };
@@ -235,10 +238,12 @@ export default function CandidateSearch({
   }, [candidateList, query]);
 
   const handleCandidateStatus = async (candidateId) => {
+    setActionError(null);
+    setActionSuccess(null);
     try {
       const result = await updateCandidateStatus(candidateId, { status: "Active", pipeline_status: "Pre-Onboarding" }).catch(e => { throw e; });
       if (result?.status === "success") {
-        toast.success(
+        setActionSuccess(
           `Candidate ${result?.data?.candidate_name} moved to Pre-Onboarding`,
         );
         const candidateStatus = await getCandidateStatus(candidateId).catch(e => { throw e; });
@@ -261,12 +266,14 @@ export default function CandidateSearch({
   };
 
   const handleActiveStatus = async (status, candidateId) => {
+    setActionError(null);
+    setActionSuccess(null);
     try {
       const result = await updateCandidateStatus(candidateId, {
         status: status,
       }).catch(e => { throw e; });
       if (result?.status === "success") {
-        toast.success(`Candidate ${result?.data?.candidate_name} is Archvied`);
+        setActionSuccess(`Candidate ${result?.data?.candidate_name} is Archvied`);
         const candidateStatus = await getCandidateStatus(candidateId).catch(e => { throw e; });
         setCandidateList((prev) =>
           prev.map((c) =>
@@ -286,6 +293,8 @@ export default function CandidateSearch({
   };
 
   const handlePreOnboardingAction = async (record, action) => {
+    setActionError(null);
+    setActionSuccess(null);
     try {
       const res = await managerReviewApprove(record, action).catch(e => { throw e; });
       if (res?.status === "success") {
@@ -306,12 +315,12 @@ export default function CandidateSearch({
           const emailSend = await sendPlainEmail({ toEmail: record?.candidate_email, subject: "Pre-Onboarding Task", bodyContent: getEmailBodyHTML(record?.candidate_name), isHtml: true }).catch(e => { throw e; });
           await sendLoginCredentials(record?.candidate_id).catch(e => { throw e; });
           if (emailSend?.status === "success") {
-            toast.success(
+            setActionSuccess(
               `Candidate ${record?.candidate_name} approved for Pre-Onboarding`,
             );
           }
         } else {
-          toast.success(
+          setActionSuccess(
             `Candidate ${record?.candidate_name} has been rejected`,
           );
         }
@@ -327,6 +336,8 @@ export default function CandidateSearch({
   };
 
   const managerRejectCandidate = async (record) => {
+    setActionError(null);
+    setActionSuccess(null);
     try {
       const result = await updateCandidateStatus(record?.candidate_id, { status: "Active", pipeline_status: "Pre-onboarding-Approval" }).catch(e => { throw e; });
       if (result?.status === "success") {
@@ -340,13 +351,13 @@ export default function CandidateSearch({
           ),
         );
 
-        toast.success(
+        setActionSuccess(
           `Candidate ${record?.candidate_name} rejected successfully`,
         );
 
         try {
-          await sendPlainEmail({ toEmail: record?.candidate_email, subject: "Update on Your Application", bodyContent: getRejectionEmailHTML(record?.candidate_name), isHtml: true }).catch(emailError => { console.error("Failed to send rejection email", emailError); toast.warning("Candidate rejected, but email could not be sent"); throw emailError; });
-          toast.success("Rejection email sent successfully");
+          await sendPlainEmail({ toEmail: record?.candidate_email, subject: "Update on Your Application", bodyContent: getRejectionEmailHTML(record?.candidate_name), isHtml: true }).catch(emailError => { console.error("Failed to send rejection email", emailError); setActionError("Candidate rejected, but email could not be sent"); throw emailError; });
+          setActionSuccess("Rejection email sent successfully");
         } catch (emailError) {
           throw emailError;
         }
@@ -508,6 +519,43 @@ export default function CandidateSearch({
           error={screenError}
           onDismiss={() => setScreenError(null)}
         />
+
+        {/* Action Error Banner */}
+        {actionError && (
+          <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+            <div className="flex items-start gap-3">
+              <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <p className="text-red-700 text-sm font-medium">{actionError}</p>
+              </div>
+              <button
+                onClick={() => setActionError(null)}
+                className="text-red-600 hover:text-red-800 flex-shrink-0"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Action Success Banner */}
+        {actionSuccess && (
+          <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+            <div className="flex items-start gap-3">
+              <CheckCircle className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <p className="text-green-700 text-sm font-medium">{actionSuccess}</p>
+              </div>
+              <button
+                onClick={() => setActionSuccess(null)}
+                className="text-green-600 hover:text-green-800 flex-shrink-0"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+          </div>
+        )}
+
         <div className="space-y-6">
           <div className="rounded-2xl border border-gray-200 bg-white p-5">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">

@@ -48,7 +48,6 @@ import ReactMarkdown from "react-markdown";
 import { renderToStaticMarkup } from "react-dom/server";
 import { AcceptButton } from "../styles/CandidateSearchStyles";
 import { managerReviewApprove } from "../services/api/preOnboarding";
-import { toast, ToastContainer } from "react-toastify";
 import { getEmailBodyHTML } from "../utils/preboardingEmailTemplate";
 import ScreenErrorDisplay from "../components/ScreenErrorDisplay";
 import { getAllOffers } from "../services/api/offerLetters";
@@ -1262,7 +1261,7 @@ ${formattedJD}
       const updatedNotes = await getCandidateNotes(candidate?.id);
       setNotes(updatedNotes?.notes || []);
       setNoteInput("");
-      toast.success("Note added successfully");
+      showNotice("Note added successfully", "success");
     } catch (error) {
       console.error("Failed to save candidate note", error);
       setScreenError("Failed to save note");
@@ -1312,12 +1311,13 @@ ${formattedJD}
             isHtml: false,
           });
           if (emailSend?.status === "success") {
-            toast.success(
+            showNotice(
               `Candidate ${candidate?.name} approved for Pre-Onboarding`,
+              "success"
             );
           }
         } else {
-          toast.success(`Candidate ${candidate?.name} has been rejected`);
+          showNotice(`Candidate ${candidate?.name} has been rejected`, "success");
         }
       }
     } catch (err) {
@@ -2161,7 +2161,6 @@ ${formattedJD}
               </Button>
             </div>
           </div>
-          <ToastContainer position="top-right" autoClose={3000} />
         </div>
       )}
     </>
