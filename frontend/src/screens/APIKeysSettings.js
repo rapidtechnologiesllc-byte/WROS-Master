@@ -233,6 +233,7 @@ export default function APIKeysSettings() {
               key={p.value}
               onClick={() => {
                 setActiveTab(p.value);
+                setShowValidation(prev => ({ ...prev, [p.value]: false }));
                 setPageError(null);
                 setPageSuccess(null);
               }}
