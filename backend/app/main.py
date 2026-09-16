@@ -197,14 +197,9 @@ async def startup_event():
         logger.error(f"[Startup] Failed to initialize database contract: {exc}", exc_info=True)
         return  # Don't crash startup, but contract won't be initialized
 
-    # Validate delivery provider (CRITICAL: production messages depend on this)
-    try:
-        from app.services.delivery_factory import _validate_delivery_provider_configured
-        _validate_delivery_provider_configured()
-        logger.info("[OK] Delivery provider validated - candidate communication ready")
-    except RuntimeError as exc:
-        logger.critical(f"[STARTUP BLOCKED] Delivery provider validation failed: {exc}")
-        raise  # CRITICAL: Don't start backend without proper delivery configuration
+    # Delivery providers are now configured per-tenant in database (optional in dev, required in prod)
+    # Validation happens at request time when get_delivery_service() is called
+    logger.info("[OK] Delivery provider system ready (per-tenant configuration)")
 
     # Initialize default organizational positions (CEO, Partner, BU Head, etc.)
     try:
