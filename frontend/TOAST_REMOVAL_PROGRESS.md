@@ -11,28 +11,35 @@
 |--------|-------|
 | **Files with toast imports** | 62 |
 | **Total toast calls** | 263 |
-| **Files completed** | 9 |
-| **Toast calls removed** | 62 |
-| **Files remaining** | 53 |
-| **Toast calls remaining** | 201 |
-| **Progress** | 14.5% of files, 23.6% of calls |
+| **Files completed** | 12 |
+| **Toast calls removed** | 102 |
+| **Files remaining** | 50 |
+| **Toast calls remaining** | 161 |
+| **Progress** | 19.4% of files, 38.8% of calls |
 
 ---
 
-## ✅ COMPLETED FILES (8)
+## ✅ COMPLETED FILES (12)
 
 ### Previously Completed (3)
 1. ✅ `frontend/src/screens/LinkedInPipelineScreen.js` - 37 toast calls → state management
 2. ✅ `frontend/src/screens/UsersAndAccessControl.js` - Already uses state pattern
 3. ✅ `frontend/src/screens/CandidateAssignJobModal.js` - Already uses state pattern
 
-### Session 2026-09-16 (6 files, 25 toast calls removed)
+### Session 2026-09-16 (9 files, 65 toast calls removed)
+
+**First Batch (6 files, 25 calls):**
 4. ✅ `frontend/src/routes/wrappers/JobWorkspaceWrapper.jsx` - 1 toast call → error state
 5. ✅ `frontend/src/routes/wrappers/CandidateDetailsWrapper.jsx` - 2 toast calls → actionError/actionSuccess states
 6. ✅ `frontend/src/routes/Approutes.jsx` - 1 toast call removed
 7. ✅ `frontend/src/screens/CandidateDetailsScreen.js` - 3 toast calls → showNotice()
 8. ✅ `frontend/src/screens/CandidateSearch.js` - 9 toast calls → actionError/actionSuccess states
 9. ✅ `frontend/src/screens/JobCreate.js` - 6 toast calls → actionError/actionSuccess states + banners
+
+**Second Batch (3 files, 40 calls):**
+10. ✅ `frontend/src/screens/tabs/ProfileTabEditable.js` - 16 toast calls → actionError/actionSuccess states + error/success banners
+11. ✅ `frontend/src/screens/PreonboardingModal.js` - 10+ toast calls → state-based feedback with positioned banners
+12. ✅ `frontend/src/screens/tabs/MessagesTab.js` - 14 toast calls → prop-passed state management + banners
 
 **Pattern Reference:** See LinkedInPipelineScreen.js for the established pattern
 
@@ -49,14 +56,14 @@
 | 3 | `frontend/src/routes/Approutes.jsx` | 1 | ✅ DONE |
 | 4 | `frontend/src/screens/CandidateDetailsScreen.js` | 3 | ✅ DONE |
 | 5 | `frontend/src/screens/CandidateSearch.js` | 9 | ✅ DONE |
-| 6 | `frontend/src/screens/CandidateEditModal.js` | ? | TODO |
-| 7 | `frontend/src/screens/JobCreate.js` | 8 | TODO |
-| 8 | `frontend/src/screens/JobWorkspaceScreen.js` | 8 | TODO |
-| 9 | `frontend/src/screens/OfferListing.js` | 11 | TODO |
-| 10 | `frontend/src/screens/PreonboardingModal.js` | 12 | TODO |
-| 11 | `frontend/src/screens/InterviewsTab.js` | 4 | TODO |
-| 12 | `frontend/src/screens/ProfileTabEditable.js` | 16 | TODO |
-| 13 | `frontend/src/screens/MessagesTab.js` | 12 | TODO |
+| 6 | `frontend/src/screens/JobCreate.js` | 6 | ✅ DONE |
+| 7 | `frontend/src/screens/tabs/ProfileTabEditable.js` | 16 | ✅ DONE |
+| 8 | `frontend/src/screens/PreonboardingModal.js` | 12 | ✅ DONE |
+| 9 | `frontend/src/screens/tabs/MessagesTab.js` | 14 | ✅ DONE |
+| 10 | `frontend/src/screens/CandidateEditModal.js` | ? | TODO |
+| 11 | `frontend/src/screens/JobWorkspaceScreen.js` | 8 | TODO |
+| 12 | `frontend/src/screens/OfferListing.js` | 11 | TODO |
+| 13 | `frontend/src/screens/InterviewsTab.js` | 4 | TODO |
 | 14 | `frontend/src/components/RoleTemplateEditor.jsx` | 8 | TODO |
 | 15 | `frontend/src/screens/MyTasksScreen.js` | 11 | TODO |
 
@@ -253,12 +260,41 @@ import { AlertCircle, CheckCircle, X } from "lucide-react";
 **MEDIUM PRIORITY - 20 files, 78 calls**
 **LOW PRIORITY - 23 files, 76 calls**
 
-### Files Needing Special Attention
+### Second Batch Completion (3 files, 40 calls)
 
-1. **ProfileTabEditable.js** (16 calls) - Complex form with many validation warnings
-2. **OfferListing.js** (11 calls) - Multiple states and download operations
-3. **PreonboardingModal.js** (12 calls) - Complex workflow with conditional logic
-4. **MessagesTab.js** (12 calls) - Multiple async operations
+**Session 2026-09-16 - Second Batch: 3 HIGH PRIORITY files, 40 toast calls removed**
+
+1. **ProfileTabEditable.js** (16 calls) ✅ COMPLETED
+   - Complex profile management with 7 modals (Skills, Education, Experience, Certifications)
+   - Validation warnings for all form sections
+   - Pattern: useActionFeedback hook with prop passing, error/success banners at top
+   - Complexity: High (nested modals, multiple form sections)
+
+2. **PreonboardingModal.js** (10+ calls) ✅ COMPLETED  
+   - Pre-onboarding and offer generation workflow
+   - Async operations: business unit loading, salary structure, offer generation, email sending
+   - Pattern: State-based feedback with positioned banners (absolute positioned to top)
+   - Complexity: High (multi-step workflow, conditional logic)
+
+3. **MessagesTab.js** (14 calls) ✅ COMPLETED
+   - Conversation timeline with Thunder AI operations
+   - Nested ConversationCard component requiring prop passing
+   - Operations: pause/resume Thunder, send messages, take over/hand back conversation
+   - Pattern: Parent component manages state, passes to child component
+   - Complexity: High (nested components, multiple async operations)
+
+**Progress Update:**
+- 9 HIGH PRIORITY files completed (60% of HIGH PRIORITY)
+- 65 toast calls removed from HIGH PRIORITY batch
+- Remaining HIGH PRIORITY: 6 files (OfferListing, MyTasksScreen, JobWorkspaceScreen, InterviewsTab, RoleTemplateEditor, CandidateEditModal)
+
+### Files Needing Special Attention (Remaining)
+
+1. **OfferListing.js** (11 calls) - Multiple states and download operations
+2. **MyTasksScreen.js** (11 calls) - Task management workflow
+3. **JobWorkspaceScreen.js** (8 calls) - Complex job workspace
+4. **InterviewsTab.js** (4 calls) - Interview scheduling and management
+5. **RoleTemplateEditor.jsx** (8 calls) - Permission editor with complex state
 
 ### Next Steps (For Future Sessions)
 
