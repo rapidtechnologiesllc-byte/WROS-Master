@@ -31,6 +31,8 @@ from app.api.v1.endpoints.career_portal import router as career_portal_router
 from app.api.v1.endpoints.flash_queue_metrics import router as flash_queue_metrics_router
 from app.api.v1.endpoints.employee_referrals import router as employee_referrals_router
 from app.api.v1.endpoints.api_keys import router as api_keys_router
+from app.api.v1.endpoints.system_health import router as system_health_router
+from app.api.v1.endpoints.monitoring import router as monitoring_router
 
 # Agent State models — imported here so Base.metadata.create_all() finds them
 from app.models import agent_phalanx  # noqa: F401
@@ -339,6 +341,35 @@ async def startup_event():
         logger.error(f"[Startup] Failed to start queue processor: {exc}", exc_info=True)
         logger.warning("[Startup] Queue processor disabled - messages will not be processed")
 
+    # STUCK MESSAGE MONITORING: Detect and recover from stuck messages (10-second cycle)
+    # Independent from queue processor - runs in parallel to catch stale messages
+    # Detects messages stuck in PROCESSING > 5 minutes, applies escalating recovery
+    try:
+        logger.info("[Startup] Starting stuck message monitoring (10-second cycle)...")
+        from app.services.stuck_message_monitor_service import get_monitor_service
+        from threading import Thread
+
+        monitor_service = get_monitor_service()
+
+        # Start monitoring in background thread
+        monitor_thread = Thread(
+            target=monitor_service.start_monitoring,
+            daemon=True,
+            name="StuckMessageMonitor"
+        )
+        monitor_thread.start()
+
+        # Wait for thread to start
+        time.sleep(0.5)
+        if not monitor_thread.is_alive():
+            raise RuntimeError("Stuck message monitor thread failed to start (not alive after 0.5s)")
+
+        logger.info("[OK] Stuck message monitoring started (detects/recovers every 10s)")
+
+    except Exception as exc:
+        logger.error(f"[Startup] Failed to start stuck message monitoring: {exc}", exc_info=True)
+        logger.warning("[Startup] Stuck message monitoring disabled - messages may remain stuck if processor crashes")
+
     # FLASH ORCHESTRATION: Train SLM on correct architecture (2026-09-10)
     # Must happen BEFORE queue processor starts consuming messages
     # Ensures FLASH learns to monitor neighbors, detect cascades, escalate correctly
@@ -398,6 +429,12 @@ app.include_router(flash_queue_metrics_router, prefix="/api/v1")
 
 # Include API Keys management routes with /api/v1 prefix (credential management for email providers)
 app.include_router(api_keys_router, prefix="/api/v1")
+
+# Include System Health monitoring (integrated Doctor + Healer + Architect)
+app.include_router(system_health_router)
+
+# Include Stuck Message Monitoring (10-second cycle for queue health)
+app.include_router(monitoring_router)
 
 # HRMS-0114 -- fail startup if any route has no explicit identity/
 # permission declaration at all. Runs synchronously at import time
