@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import { AlertCircle, CheckCircle, X } from 'lucide-react';
 import { Input, Button } from './ui';
-import { toast } from 'react-toastify';
 import { apiRequest } from '../services/api/client';
 
 const RoleTemplateEditor = ({ mode = 'create', templateId = null, onClose, onSuccess, modules }) => {
@@ -12,6 +12,8 @@ const RoleTemplateEditor = ({ mode = 'create', templateId = null, onClose, onSuc
   });
   const [permissions, setPermissions] = useState({});
   const [expandedModules, setExpandedModules] = useState({});
+  const [actionError, setActionError] = useState(null);
+  const [actionSuccess, setActionSuccess] = useState(null);
 
   // Load template data when editing
   useEffect(() => {
@@ -46,7 +48,6 @@ const RoleTemplateEditor = ({ mode = 'create', templateId = null, onClose, onSuc
           setPermissions(permsHierarchy);
         } catch (err) {
           console.error('Failed to load template:', err);
-          toast.error('Failed to load template data');
         } finally {
           setLoading(false);
         }
@@ -80,7 +81,7 @@ const RoleTemplateEditor = ({ mode = 'create', templateId = null, onClose, onSuc
 
       // If they opened this module but didn't add any permissions, warn them
       if (enabledCount === 0) {
-        toast.error(`${moduleName}: You opened this module but didn't enable any permissions. Add at least one permission or close it.`);
+        setActionError(`${moduleName}: You opened this module but didn't enable any permissions. Add at least one permission or close it.`);
         return; // Don't close the module
       }
 
@@ -115,7 +116,7 @@ const RoleTemplateEditor = ({ mode = 'create', templateId = null, onClose, onSuc
 
   const handleSave = async () => {
     if (!formData.name.trim()) {
-      toast.error('Template name is required');
+      setActionError('Template name is required');
       return;
     }
 
@@ -126,7 +127,7 @@ const RoleTemplateEditor = ({ mode = 'create', templateId = null, onClose, onSuc
       }, 0);
 
       if (totalPermissions === 0) {
-        toast.error('Please enable at least one permission for this role template');
+        setActionError('Please enable at least one permission for this role template');
         return;
       }
     }
@@ -147,7 +148,7 @@ const RoleTemplateEditor = ({ mode = 'create', templateId = null, onClose, onSuc
           if (Array.isArray(checkResponse.data)) {
             const duplicate = checkResponse.data.find(t => t.name?.toLowerCase() === formData.name.toLowerCase());
             if (duplicate) {
-              toast.error(`A role template named "${formData.name}" already exists. Please use a different name.`);
+              setActionError(`A role template named "${formData.name}" already exists. Please use a different name.`);
               setSaving(false);
               return;
             }
@@ -170,7 +171,7 @@ const RoleTemplateEditor = ({ mode = 'create', templateId = null, onClose, onSuc
         const newTemplateId = response.data.id;
         await savePermissions(newTemplateId);
 
-        toast.success('Role template created successfully');
+        setActionSuccess('Role template created successfully');
 
         // Invalidate frontend permission cache so it refreshes on next login/navigation
         // Backend is source of truth; this ensures UI reflects latest permissions
@@ -191,7 +192,7 @@ const RoleTemplateEditor = ({ mode = 'create', templateId = null, onClose, onSuc
         // Update permissions for existing template
         await savePermissions(templateId);
 
-        toast.success('Role template updated successfully');
+        setActionSuccess('Role template updated successfully');
 
         // Invalidate frontend permission cache so it refreshes on next login/navigation
         // Backend is source of truth; this ensures UI reflects latest permissions
@@ -201,7 +202,7 @@ const RoleTemplateEditor = ({ mode = 'create', templateId = null, onClose, onSuc
         onClose();
       }
     } catch (err) {
-      toast.error(err.message || `Failed to ${mode === 'create' ? 'create' : 'update'} template`);
+      setActionError(err.message || `Failed to ${mode === 'create' ? 'create' : 'update'} template`);
     } finally {
       setSaving(false);
     }
@@ -283,6 +284,42 @@ const RoleTemplateEditor = ({ mode = 'create', templateId = null, onClose, onSuc
             ✕
           </button>
         </div>
+
+        {/* Action Error Banner */}
+        {actionError && (
+          <div className="mx-6 mt-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+            <div className="flex items-start gap-3">
+              <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <p className="text-red-700 text-sm font-medium">{actionError}</p>
+              </div>
+              <button
+                onClick={() => setActionError(null)}
+                className="text-red-600 hover:text-red-800 flex-shrink-0"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Action Success Banner */}
+        {actionSuccess && (
+          <div className="mx-6 mt-4 p-4 bg-green-50 border border-green-200 rounded-lg">
+            <div className="flex items-start gap-3">
+              <CheckCircle className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <p className="text-green-700 text-sm font-medium">{actionSuccess}</p>
+              </div>
+              <button
+                onClick={() => setActionSuccess(null)}
+                className="text-green-600 hover:text-green-800 flex-shrink-0"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Form Content */}
         <div className="p-6 space-y-6">
