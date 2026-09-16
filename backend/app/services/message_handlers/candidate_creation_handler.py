@@ -465,14 +465,19 @@ class CandidateCreationHandler:
             try:
                 from app.services.delivery_factory import get_delivery_service
 
-                delivery = get_delivery_service(db)
+                # Get delivery service for this tenant with their configured credentials
+                try:
+                    delivery = get_delivery_service(db, tenant_id)
+                except RuntimeError as e:
+                    logger.warning(f"[Handler] Cannot send welcome messages - delivery not configured: {e}")
+                    delivery = None
 
                 candidate_name = getattr(db_candidate, 'candidateFirstName', 'Candidate')
                 candidate_phone = getattr(db_candidate, 'candidateMobile', None)
                 candidate_email_addr = db_candidate.candidateEmail
 
-                # Send WhatsApp welcome message (primary)
-                if candidate_phone:
+                # Send WhatsApp welcome message (primary) - only if delivery is configured
+                if delivery and candidate_phone:
                     try:
                         whatsapp_body = f"""Welcome to our recruiting platform, {candidate_name}!
 

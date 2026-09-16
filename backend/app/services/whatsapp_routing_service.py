@@ -147,8 +147,12 @@ def send_whatsapp_message(
     # Use delivery service if not overridden with whatsapp_client
     if whatsapp_client is None:
         if use_whatsapp:
-            delivery_service = get_delivery_service(db=db)
-            result = delivery_service.send_whatsapp(to_number=to_number, body=message_body, from_number=from_number)
+            try:
+                delivery_service = get_delivery_service(db=db, tenant_id=candidate.tenant_id)
+                result = delivery_service.send_whatsapp(to_number=to_number, body=message_body, from_number=from_number)
+            except RuntimeError as e:
+                logger.error(f"[WhatsApp] Cannot send message - delivery not configured for tenant {candidate.tenant_id}: {e}")
+                raise
         else:
             # Fallback to email when WhatsApp unavailable - use production Graph-based EmailService
             try:

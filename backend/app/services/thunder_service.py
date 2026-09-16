@@ -279,7 +279,7 @@ def send_outbound_campaign_message(db: Session, conversation: CandidateConversat
 
     try:
         # Use delivery service for email sending (instead of EmailService.send_email)
-        delivery_service = get_delivery_service(db=db)
+        delivery_service = get_delivery_service(db=db, tenant_id=candidate.tenant_id)
         result = delivery_service.send_email(
             to_email=candidate.candidateEmail,
             subject=email_subject,
