@@ -13,6 +13,8 @@ export default function APIKeysSettings() {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [showSecrets, setShowSecrets] = useState({});
+  const [pageError, setPageError] = useState(null);
+  const [pageSuccess, setPageSuccess] = useState(null);
 
   const [azureForm, setAzureForm] = useState({ tenant_id: '', client_id: '', client_secret: '' });
   const [twilioForm, setTwilioForm] = useState({ account_sid: '', auth_token: '', whatsapp_number: '' });
@@ -75,11 +77,13 @@ export default function APIKeysSettings() {
     };
 
     if (required[provider] && !required[provider].every(f => formData[f])) {
-      toast.error('Please fill in all required fields');
+      setPageError('Please fill in all required fields');
       return;
     }
 
     setSaving(true);
+    setPageError(null);
+    setPageSuccess(null);
     try {
       console.log('[APIKeys] Saving', provider, 'credentials');
       const response = await apiRequest('/api/v1/api-keys', {
@@ -92,7 +96,7 @@ export default function APIKeysSettings() {
       });
       console.log('[APIKeys] Save response:', response);
 
-      toast.success(`${provider.charAt(0).toUpperCase() + provider.slice(1)} credentials saved successfully`);
+      setPageSuccess(`${provider.charAt(0).toUpperCase() + provider.slice(1)} credentials saved successfully`);
 
       // Test credentials after saving
       console.log('[APIKeys] Testing credentials...');
@@ -100,17 +104,17 @@ export default function APIKeysSettings() {
 
       if (testPassed) {
         console.log('[APIKeys] Test passed, marking as active');
-        toast.success(`${provider} test passed! Credentials are valid.`);
+        setPageSuccess(`${provider} test passed! Credentials are valid.`);
       } else {
         console.warn('[APIKeys] Test failed, credentials not activated');
-        toast.warning(`${provider} credentials saved but test failed. Please verify your credentials.`);
+        setPageError(`${provider} credentials saved but test failed. Please verify your credentials.`);
       }
 
       // Reload to verify save and get updated status
       await loadConfigurations();
     } catch (err) {
       console.error('[APIKeys] Save error:', err);
-      toast.error(err.message || 'Failed to save credentials');
+      setPageError(err.message || 'Failed to save credentials');
     } finally {
       setSaving(false);
     }
@@ -176,6 +180,18 @@ export default function APIKeysSettings() {
             Configure delivery providers for emails and messages
           </p>
         </div>
+
+        {/* Page-level error/success messages */}
+        {pageError && (
+          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+            <p className="text-red-800 text-sm">{pageError}</p>
+          </div>
+        )}
+        {pageSuccess && (
+          <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg">
+            <p className="text-green-800 text-sm">{pageSuccess}</p>
+          </div>
+        )}
 
         {/* Provider Tabs */}
         <div className="mb-8 flex gap-3 overflow-x-auto pb-2">
