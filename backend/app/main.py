@@ -32,6 +32,7 @@ from app.api.v1.endpoints.flash_queue_metrics import router as flash_queue_metri
 from app.api.v1.endpoints.employee_referrals import router as employee_referrals_router
 from app.api.v1.endpoints.api_keys import router as api_keys_router
 from app.api.v1.endpoints.health_check import router as health_check_router
+from app.api.v1.endpoints.linkedin_candidate_pipeline import router as linkedin_pipeline_router
 
 # Agent State models — imported here so Base.metadata.create_all() finds them
 from app.models import agent_phalanx  # noqa: F401
@@ -413,6 +414,8 @@ app.include_router(api_keys_router, prefix="/api/v1")
 
 # Health check endpoint (Kubernetes, load balancers, monitoring systems)
 app.include_router(health_check_router, prefix="/api/v1")
+
+app.include_router(linkedin_pipeline_router, prefix="/api/v1")
 
 # HRMS-0114 -- fail startup if any route has no explicit identity/
 # permission declaration at all. Runs synchronously at import time

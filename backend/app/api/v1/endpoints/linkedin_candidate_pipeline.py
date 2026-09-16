@@ -133,32 +133,38 @@ async def list_pipeline_items(
     current_user_id: str = "system"
 ):
     """List LinkedIn pipeline items for current user."""
-    query = db.query(LinkedInCandidatePipeline).filter(
-        LinkedInCandidatePipeline.assigned_to_user_id == current_user_id
-    )
+    try:
+        query = db.query(LinkedInCandidatePipeline).filter(
+            LinkedInCandidatePipeline.assigned_to_user_id == current_user_id
+        )
 
-    if status_filter:
-        query = query.filter(LinkedInCandidatePipeline.status == status_filter)
+        if status_filter:
+            query = query.filter(LinkedInCandidatePipeline.status == status_filter)
 
-    items = query.order_by(LinkedInCandidatePipeline.created_at.desc()).all()
+        items = query.order_by(LinkedInCandidatePipeline.created_at.desc()).all()
 
-    return {
-        "count": len(items),
-        "items": [
-            {
-                "id": str(item.id),
-                "linkedin_url": item.linkedin_url,
-                "linkedin_profile_slug": item.linkedin_profile_slug,
-                "status": item.status.value,
-                "phone_number": item.phone_number,
-                "candidate_id": str(item.candidate_id) if item.candidate_id else None,
-                "created_at": item.created_at.isoformat(),
-                "updated_at": item.updated_at.isoformat(),
-                "notes": item.notes
-            }
-            for item in items
-        ]
-    }
+        return {
+            "count": len(items),
+            "items": [
+                {
+                    "id": str(item.id),
+                    "linkedin_url": item.linkedin_url,
+                    "linkedin_profile_slug": item.linkedin_profile_slug,
+                    "status": item.status.value if hasattr(item.status, 'value') else str(item.status),
+                    "phone_number": item.phone_number,
+                    "candidate_id": str(item.candidate_id) if item.candidate_id else None,
+                    "created_at": item.created_at.isoformat() if item.created_at else None,
+                    "updated_at": item.updated_at.isoformat() if item.updated_at else None,
+                    "notes": item.notes
+                }
+                for item in items
+            ]
+        }
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"[LinkedIn Pipeline List] Error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to list pipeline items: {str(e)}")
 
 @router.post("/{pipeline_id}/complete-import")
 async def complete_linkedin_import(
