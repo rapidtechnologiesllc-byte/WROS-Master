@@ -1,0 +1,44 @@
+[Unit]
+Description=WROS Celery Worker (Background Tasks)
+After=network.target redis.service
+Wants=redis.service
+
+[Service]
+Type=forking
+User=hrms
+Group=hrms
+WorkingDirectory=/home/HRMS/WROS-Master/backend
+
+# Environment variables
+Environment="PYTHONUNBUFFERED=1"
+Environment="ENVIRONMENT=production"
+Environment="C_FORCE_ROOT=true"
+
+EnvironmentFile=-/etc/wros/backend.env
+EnvironmentFile=-/home/HRMS/WROS-Master/backend/.env.production
+
+# Start command - Celery worker with concurrency and pool settings
+ExecStart=/home/HRMS/WROS-Master/venv/bin/celery -A app.celery_app worker \
+  --loglevel=info \
+  --concurrency=4 \
+  --pool=prefork \
+  --max-tasks-per-child=1000 \
+  --time-limit=3600 \
+  --soft-time-limit=3300
+
+# Restart policy
+Restart=always
+RestartSec=10
+StartLimitInterval=600
+StartLimitBurst=5
+
+# Resource limits
+MemoryLimit=1G
+CPUQuota=50%
+
+# Logging
+StandardOutput=append:/var/log/wros/celery-worker.log
+StandardError=append:/var/log/wros/celery-worker-error.log
+
+[Install]
+WantedBy=multi-user.target

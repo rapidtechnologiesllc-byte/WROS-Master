@@ -1,163 +1,288 @@
-# CI/CD Deployment Setup Guide
+# WROS Production Deployment Guide
 
-## Overview
+This document describes how WROS is deployed to production with automatic startup, health monitoring, and crash recovery.
 
-This guide walks through setting up automated CI/CD deployment to production via GitHub Actions. The workflows:
+## Production Architecture
 
-1. **Test** — Run full test suite + linting
-2. **Build** (frontend only) — Compile React app
-3. **Deploy** — SSH into production, pull code, install deps, restart services
-4. **Smoke Test** — Verify endpoints are responding
-5. **Rollback** — Automatic rollback if deployment fails
+### Service Management (systemd)
 
-## Prerequisites
+Both backend and Celery worker are managed by **systemd** for automatic startup and crash recovery:
 
-Ask CloudMinister for these details (if not already provided):
+- **wros-backend.service** - Uvicorn + FastAPI HTTP server (Port 8080)
+- **wros-celery-worker.service** - Celery background task worker
 
-- [ ] **Production Server Hostname/IP** — e.g. `prod.example.com` or `203.0.113.42`
-- [ ] **SSH Key** — Private key for `HRMS` user (or generate one)
-- [ ] **Passwordless Sudo** — Confirm `HRMS` user can run:
-  - Backend: `sudo pm2 restart onboarding-backend` (backend only)
-  - Frontend: `sudo systemctl reload nginx` or `sudo service nginx reload` (frontend only)
+#### Service Lifecycle
 
-## Step 1: Set Up GitHub Secrets
-
-Both repositories need the same secrets. Go to:
-
-**Backend:** https://github.com/blitzenx25/OnboardingModule-Backend/settings/secrets/actions
-**Frontend:** https://github.com/blitzenx25/OnboardingModule-Frontend/settings/secrets/actions
-
-Click **"New repository secret"** and add:
-
-### Required Secrets
-
-| Secret Name | Value | Example |
-|---|---|---|
-| `PROD_SERVER_HOST` | Production server hostname/IP | `prod.example.com` or `203.0.113.42` |
-| `PROD_USER` | SSH username | `HRMS` |
-| `PROD_SSH_KEY` | Private SSH key (multiline) | `-----BEGIN OPENSSH PRIVATE KEY-----`... |
-
-### How to generate SSH key (if needed)
-
-On your local machine:
-
-```bash
-# Generate RSA key
-ssh-keygen -t rsa -b 4096 -f ~/.ssh/prod_deploy_key -N ""
-
-# View private key (paste this as PROD_SSH_KEY secret)
-cat ~/.ssh/prod_deploy_key
-
-# Send public key to CloudMinister to add to HRMS user's authorized_keys
-cat ~/.ssh/prod_deploy_key.pub
+```
+System Boot
+    ↓
+systemd reads /etc/systemd/system/wros-*.service
+    ↓
+Starts services (all dependencies met)
+    ↓
+Services running normally
+    ↓
+[Crash] → systemd detects → waits 10s → Restart=always → Service restarts
 ```
 
-Then have CloudMinister add the public key to `/home/HRMS/.ssh/authorized_keys` on the production server.
+---
 
-## Step 2: Test Secrets (Optional)
+## Deployment Process
 
-Create a test workflow to verify secrets are accessible:
+### Files Created
 
-```bash
-# In either repo, push this tiny change and watch it fail gracefully
-# if a secret is missing (GitHub will show which one)
-```
+- `backend/systemd/wros-backend.service` - Backend systemd service
+- `backend/systemd/wros-celery-worker.service` - Celery worker systemd service
+- `backend/scripts/production-deploy.sh` - Deployment automation script
+- `docker-compose.yml` - Local development environment
+- `DEPLOYMENT.md` - This documentation
 
-## Step 3: Deploy Triggers
+### Updated Files
 
-The workflows run automatically on **every push to `main`**. To deploy:
+- `.github/workflows/deploy.yml` - Now uses production-deploy.sh instead of manual nohup
 
-```bash
-git push origin main
-```
+---
 
-Watch the deployment:
-1. Go to **Actions** tab on GitHub
-2. Click the **"Deploy Backend to Production"** or **"Deploy Frontend to Production"** workflow run
-3. Monitor each step:
-   - ✅ Tests pass
-   - ✅ SSH connection succeeds
-   - ✅ Code pulls and installs
-   - ✅ Services restart
-   - ✅ Health checks pass
-   - ✅ Deployment complete
+## Key Improvements
 
-## Step 4: Understand Rollback
-
-If deployment fails at **any stage**:
-
-1. **Health check fails** → Previous Git commit is restored
-2. **Backend restart fails** → PM2 reverts to previous version
-3. **Frontend reload fails** → Previous build directory is restored
-
-The previous version is automatically kept in:
-- Backend: `/tmp/backend-backup-[timestamp]`
-- Frontend: `/tmp/frontend-backup-[timestamp]`
-
-## Monitoring & Alerts
-
-### View Deployment Status
-
-**GitHub Actions Dashboard:**
-- Backend: https://github.com/blitzenx25/OnboardingModule-Backend/actions
-- Frontend: https://github.com/blitzenx25/OnboardingModule-Frontend/actions
-
-### View Live Server Logs (Manual)
-
-SSH to production and check logs:
+### Before (Broken in Production)
 
 ```bash
-# Backend logs (PM2)
-ssh HRMS@prod.example.com
-pm2 logs onboarding-backend
+# Old deploy.yml used nohup - no auto-restart on crash
+nohup /path/to/python -m uvicorn app.main:app ... > /tmp/backend.log 2>&1 &
 
-# Frontend logs (Nginx)
-sudo tail -f /var/log/nginx/access.log
-sudo tail -f /var/log/nginx/error.log
+# Problems:
+# ❌ If backend crashes, nothing restarts it
+# ❌ No health monitoring
+# ❌ No logging infrastructure
+# ❌ Manual intervention required
+# ❌ No process management
 ```
 
-## Smoke Tests Explained
+### After (Production-Ready)
 
-The workflows run **health checks** after deployment:
+```bash
+# New deploy.yml runs production-deploy.sh
+# Which installs systemd services for automatic management
 
-### Backend Smoke Test
+# Features:
+# ✅ Auto-restart on crash (within rate limits)
+# ✅ Auto-start on system boot
+# ✅ Centralized logging to /var/log/wros/
+# ✅ Health checks integrated
+# ✅ Zero manual intervention needed
+# ✅ Complete process supervision
+```
+
+---
+
+## How It Works
+
+### On System Boot
+
+1. systemd reads service files from `/etc/systemd/system/`
+2. Detects dependencies (PostgreSQL, Redis)
+3. Starts services in order:
+   - Backend (Uvicorn + FastAPI)
+   - Celery Worker (background tasks)
+4. Monitors processes continuously
+
+### On Service Crash
+
+1. systemd detects process exit
+2. Waits 10 seconds (RestartSec=10)
+3. Restarts service automatically
+4. Repeats up to 5 times per 600 seconds (restart rate limit)
+5. If reaches limit, stops trying until manual restart
+
+### On Deployment
+
+1. GitHub Actions triggers on push to `main`
+2. Builds frontend, runs tests
+3. SSH to production, runs `production-deploy.sh`
+4. Script:
+   - Stops old services
+   - Installs new code
+   - Initializes database
+   - Installs/updates systemd services
+   - Starts services
+   - Runs health checks
+5. Services running with new code
+
+---
+
+## Service Management
+
+### View Status
+
+```bash
+# Backend service
+sudo systemctl status wros-backend.service
+
+# Celery worker
+sudo systemctl status wros-celery-worker.service
+```
+
+### View Logs
+
+```bash
+# Real-time backend logs
+sudo journalctl -u wros-backend.service -f
+
+# Real-time Celery logs
+sudo journalctl -u wros-celery-worker.service -f
+
+# Error logs
+tail /var/log/wros/backend-error.log
+tail /var/log/wros/celery-worker-error.log
+```
+
+### Restart Services
+
+```bash
+sudo systemctl restart wros-backend.service
+sudo systemctl restart wros-celery-worker.service
+```
+
+---
+
+## Health Checks
+
+### Backend Health Endpoint
+
 ```bash
 curl http://localhost:8080/health
-# Expected response: {"status":"healthy"}
+# Expected: { "status": "healthy", "database": "connected", "redis": "connected" }
 ```
 
-### Frontend Smoke Test
+### Service Status
+
 ```bash
-curl http://prod.example.com/
-# Expected: HTML response with "WROS" in the page
+# Check if running
+sudo systemctl is-active wros-backend.service
+# Output: active
+
+# Check if enabled on boot
+sudo systemctl is-enabled wros-backend.service
+# Output: enabled
 ```
 
-If **both** fail, deployment automatically rolls back.
+---
 
-## Common Issues
+## Local Development
 
-| Issue | Fix |
-|---|---|
-| **SSH key rejected** | Check `PROD_SSH_KEY` secret is exact private key (no copy/paste errors) |
-| **Permission denied** | Confirm HRMS user's `authorized_keys` has the public key |
-| **Passwordless sudo fails** | Ask CloudMinister to add HRMS to sudoers for pm2/nginx commands |
-| **Alembic migration fails** | Backend won't restart until migrations complete; check DB schema |
-| **Nginx reload fails** | Nginx config might be invalid; check `/etc/nginx/nginx.conf` syntax |
+### Using Docker Compose
 
-## Disabling CI/CD (Emergency)
+```bash
+# Start all services (production-like setup)
+docker-compose up -d
 
-If you need to pause auto-deployments:
+# Services:
+# - Frontend: http://localhost:3000
+# - Backend: http://localhost:8081
+# - Nginx: http://localhost:80
+# - PostgreSQL: localhost:5432
+# - Redis: localhost:6379
 
-1. Go to **Settings** → **Branches** → **main** → **Require status checks to pass before merging**
-2. Uncheck the workflow (or delete `.github/workflows/deploy.yml` from main)
+# Stop services
+docker-compose down
+```
 
-## Next Steps
+---
 
-1. ✅ Ask CloudMinister for production server details (hostname, SSH setup)
-2. ✅ Generate SSH key pair
-3. ✅ Have CloudMinister add public key to HRMS's authorized_keys
-4. ✅ Add 3 secrets to GitHub (PROD_SERVER_HOST, PROD_USER, PROD_SSH_KEY)
-5. ✅ Test by pushing a small change to main
-6. ✅ Monitor the first deployment in GitHub Actions
+## Troubleshooting
 
-That's it — CI/CD is fully automated from here on.
+### Backend Won't Start
+
+```bash
+# Check logs
+sudo journalctl -u wros-backend.service -n 100
+
+# Verify database connection
+psql -U app_user -d wros_prod -c "SELECT 1;"
+
+# Verify Redis
+redis-cli ping
+
+# Manual start for debugging
+cd /home/HRMS/WROS-Master/backend
+/home/HRMS/WROS-Master/venv/bin/python -m uvicorn app.main:app --host 0.0.0.0 --port 8080
+```
+
+### Celery Not Processing Tasks
+
+```bash
+# Check if running
+sudo systemctl status wros-celery-worker.service
+
+# Verify Redis
+redis-cli PING
+
+# Check queue depth
+redis-cli LLEN celery
+```
+
+### Service Crashes Repeatedly
+
+```bash
+# Check system resources
+free -h
+df -h
+top
+
+# View error logs
+tail -100 /var/log/wros/backend-error.log
+tail -100 /var/log/wros/celery-worker-error.log
+```
+
+---
+
+## Performance Configuration
+
+### Increase Uvicorn Workers
+
+Edit `/etc/systemd/system/wros-backend.service`:
+
+```bash
+# Change --workers parameter from 4 to 8
+ExecStart=... --workers 8
+
+# Apply changes
+sudo systemctl daemon-reload
+sudo systemctl restart wros-backend.service
+```
+
+### Increase Celery Concurrency
+
+Edit `/etc/systemd/system/wros-celery-worker.service`:
+
+```bash
+# Change --concurrency from 4 to 8
+ExecStart=... --concurrency=8
+
+# Apply changes
+sudo systemctl daemon-reload
+sudo systemctl restart wros-celery-worker.service
+```
+
+---
+
+## Production Checklist
+
+Before going live:
+
+- [ ] Environment configured in `/etc/wros/backend.env`
+- [ ] PostgreSQL 15+ running
+- [ ] Redis 7+ running
+- [ ] Nginx configured to proxy to backend
+- [ ] HTTPS/TLS installed
+- [ ] `production-deploy.sh` runs successfully
+- [ ] Health checks passing
+- [ ] Services enabled (`systemctl enable wros-*.service`)
+- [ ] Logging and monitoring setup
+- [ ] Database backups configured
+
+---
+
+**Last Updated:** 2026-09-15
+**Status:** ✅ Production-Ready
