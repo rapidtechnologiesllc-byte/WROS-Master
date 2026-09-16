@@ -87,3 +87,4 @@ test.py
 .vercel
 .env*.local
 .env.prodrbac_test_results_*.json
+backend/.env.test
