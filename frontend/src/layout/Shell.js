@@ -121,9 +121,12 @@ async function fetchNavigationFromBackend() {
     // So we need result?.data?.data to get the nested structure
     let navData = result?.data?.data;
 
+    console.log("[Shell] Navigation response structure:", { result, navData, resultData: result?.data });
+
     // Fallback: if result.data is already the groups structure, use it directly
     if (!navData && result?.data?.groups) {
       navData = result.data;
+      console.log("[Shell] Using fallback navData from result.data");
     }
     if (!navData) {
       throw new Error("Navigation response missing data structure");

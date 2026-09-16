@@ -63,68 +63,72 @@ async def get_me(
     - Fetching up-to-date role / business-unit information
     - Building dynamic navigation based on user permissions
     """
-    from app.services.role_template_permission_service import RoleTemplatePermissionService
+    try:
+        from app.services.role_template_permission_service import RoleTemplatePermissionService
 
-    # Get tenant ID (default to 1, handle None case)
-    tenant_id = (getattr(current_user, 'tenant_id', None) or 1)
+        # Get tenant ID (default to 1, handle None case)
+        tenant_id = (getattr(current_user, 'tenant_id', None) or 1)
 
-    # Get user's assigned role template
-    user_roles = []
-    roles_list = []
+        # Get user's assigned role template
+        user_roles = []
+        roles_list = []
 
-    if current_user.role_template_id:
-        rt = db.query(RoleTemplate).filter(RoleTemplate.id == current_user.role_template_id).first()
-        if rt:
-            roles_list.append(rt.name)
-            user_roles.append({
-                "id": rt.id,
-                "name": rt.name,
-            })
+        if current_user.role_template_id:
+            rt = db.query(RoleTemplate).filter(RoleTemplate.id == current_user.role_template_id).first()
+            if rt:
+                roles_list.append(rt.name)
+                user_roles.append({
+                    "id": rt.id,
+                    "name": rt.name,
+                })
 
-    # Get all permissions for the user
-    permissions_dict = {}
+        # Get all permissions for the user
+        permissions_dict = {}
 
-    # Only check role_template if user has one assigned
-    if current_user.UserID and current_user.role_template_id:
-        # Regular users: fetch permissions from role_template
-        try:
-            perms_result = RoleTemplatePermissionService.get_user_permissions(
-                db, current_user.UserID, tenant_id
-            )
-            permissions_dict = perms_result or {}
-            logger.debug(f"get_user_permissions returned type={type(permissions_dict)}, len={len(permissions_dict)}")
-        except Exception as e:
-            logger.warning(f"Failed to get permissions for user {current_user.UserID}: {e}")
-            permissions_dict = {}
+        # Only check role_template if user has one assigned
+        if current_user.UserID and current_user.role_template_id:
+            # Regular users: fetch permissions from role_template
+            try:
+                perms_result = RoleTemplatePermissionService.get_user_permissions(
+                    db, current_user.UserID, tenant_id
+                )
+                permissions_dict = perms_result or {}
+                logger.debug(f"get_user_permissions returned type={type(permissions_dict)}, len={len(permissions_dict)}")
+            except Exception as e:
+                logger.warning(f"Failed to get permissions for user {current_user.UserID}: {e}")
+                permissions_dict = {}
 
-    # Mint a fresh token using the same claims as login
-    access_token = create_access_token(
-        data={
-            "sub": current_user.UserID,
-            "email": current_user.UserEmail,
-            "type": "user",
-            "name": current_user.UserName,
+        # Mint a fresh token using the same claims as login
+        access_token = create_access_token(
+            data={
+                "sub": current_user.UserID,
+                "email": current_user.UserEmail,
+                "type": "user",
+                "name": current_user.UserName,
+            }
+        )
+
+        # Return response matching the login endpoint format
+        return {
+            "user_id": current_user.UserID,
+            "user_name": current_user.UserName,
+            "user_email": current_user.UserEmail,
+            "user_role": current_user.UserRole,
+            "job_title": getattr(current_user, 'job_title', None),
+            "permission_role": roles_list[0] if roles_list else None,
+            "role_template_id": current_user.role_template_id,
+            "business_unit_id": getattr(current_user, 'business_unit_id', None),
+            "whatsapp_number": getattr(current_user, 'whatsapp_number', None),
+            "permissions": permissions_dict,
+            "created_at": current_user.CreatedAt,
+            "access_token": access_token,
+            "token_type": "bearer",
+            "digest_enabled": getattr(current_user, 'digest_enabled', True),
+            "roles": roles_list,
         }
-    )
-
-    # Return response matching the login endpoint format
-    return {
-        "user_id": current_user.UserID,
-        "user_name": current_user.UserName,
-        "user_email": current_user.UserEmail,
-        "user_role": current_user.UserRole,
-        "job_title": current_user.job_title,
-        "permission_role": roles_list[0] if roles_list else None,
-        "role_template_id": current_user.role_template_id,
-        "business_unit_id": current_user.business_unit_id,
-        "whatsapp_number": current_user.whatsapp_number,
-        "permissions": permissions_dict,
-        "created_at": current_user.CreatedAt,
-        "access_token": access_token,
-        "token_type": "bearer",
-        "digest_enabled": current_user.digest_enabled,
-        "roles": roles_list,
-    }
+    except Exception as e:
+        logger.error(f"[get_me] Error getting user profile: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to retrieve user profile: {str(e)}")
 
 @router.patch(
     "/me/digest-preference",
