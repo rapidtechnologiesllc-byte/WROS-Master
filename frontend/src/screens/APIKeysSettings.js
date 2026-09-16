@@ -15,6 +15,7 @@ export default function APIKeysSettings() {
   const [showSecrets, setShowSecrets] = useState({});
   const [pageError, setPageError] = useState(null);
   const [pageSuccess, setPageSuccess] = useState(null);
+  const [showValidation, setShowValidation] = useState(false);
 
   const [azureForm, setAzureForm] = useState({ tenant_id: '', client_id: '', client_secret: '' });
   const [twilioForm, setTwilioForm] = useState({ account_sid: '', auth_token: '', whatsapp_number: '' });
@@ -77,9 +78,12 @@ export default function APIKeysSettings() {
     };
 
     if (required[provider] && !required[provider].every(f => formData[f])) {
+      setShowValidation(true);
       setPageError('Please fill in all required fields');
       return;
     }
+
+    setShowValidation(false);
 
     setSaving(true);
     setPageError(null);
@@ -124,8 +128,11 @@ export default function APIKeysSettings() {
     setShowSecrets(prev => ({ ...prev, [field]: !prev[field] }));
   };
 
-  const CredentialInput = ({ label, value, onChange, isSecret = false, fieldKey = null, required = false }) => {
+  const CredentialInput = ({ label, value, onChange, isSecret = false, fieldKey = null, required = false, showError = false }) => {
     const showValue = fieldKey && showSecrets[fieldKey];
+    const isEmpty = !value || value.trim() === '';
+    const hasError = required && isEmpty && showError;
+
     return (
       <div className="mb-6">
         <label className="block text-sm font-semibold text-gray-700 mb-2 tracking-wide" style={{ fontSize: '14px', fontWeight: 600 }}>
@@ -141,7 +148,11 @@ export default function APIKeysSettings() {
               console.log(`[CredentialInput] ${label} changed to: ${e.target.value.substring(0, 10)}...`);
               onChange(e);
             }}
-            className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition text-sm placeholder:text-gray-400"
+            className={`w-full px-4 py-3 bg-white border rounded-lg focus:outline-none transition text-sm placeholder:text-gray-400 ${
+              hasError
+                ? 'border-red-500 focus:border-red-600 focus:ring-2 focus:ring-red-100 bg-red-50'
+                : 'border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-100'
+            }`}
             placeholder={`Enter ${label.toLowerCase()}`}
             style={{
               fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif',
@@ -238,12 +249,14 @@ export default function APIKeysSettings() {
                 value={azureForm.tenant_id}
                 onChange={(e) => setAzureForm({ ...azureForm, tenant_id: e.target.value })}
                 required={true}
+                showError={showValidation}
               />
               <CredentialInput
                 label="Client ID"
                 value={azureForm.client_id}
                 onChange={(e) => setAzureForm({ ...azureForm, client_id: e.target.value })}
                 required={true}
+                showError={showValidation}
               />
               <CredentialInput
                 label="Client Secret"
@@ -252,6 +265,7 @@ export default function APIKeysSettings() {
                 isSecret
                 fieldKey="azure_secret"
                 required={true}
+                showError={showValidation}
               />
               <button
                 onClick={() => handleSaveProvider('azure', azureForm)}
@@ -287,6 +301,7 @@ export default function APIKeysSettings() {
                 value={twilioForm.account_sid}
                 onChange={(e) => setTwilioForm({ ...twilioForm, account_sid: e.target.value })}
                 required={true}
+                showError={showValidation}
               />
               <CredentialInput
                 label="Auth Token"
@@ -295,12 +310,14 @@ export default function APIKeysSettings() {
                 isSecret
                 fieldKey="twilio_token"
                 required={true}
+                showError={showValidation}
               />
               <CredentialInput
                 label="WhatsApp Number"
                 value={twilioForm.whatsapp_number}
                 onChange={(e) => setTwilioForm({ ...twilioForm, whatsapp_number: e.target.value })}
                 required={true}
+                showError={showValidation}
               />
               <button
                 onClick={() => handleSaveProvider('twilio', twilioForm)}
@@ -338,12 +355,14 @@ export default function APIKeysSettings() {
                 isSecret
                 fieldKey="sendgrid_key"
                 required={true}
+                showError={showValidation}
               />
               <CredentialInput
                 label="From Email"
                 value={sendgridForm.from_email}
                 onChange={(e) => setSendgridForm({ ...sendgridForm, from_email: e.target.value })}
                 required={true}
+                showError={showValidation}
               />
               <button
                 onClick={() => handleSaveProvider('sendgrid', sendgridForm)}
