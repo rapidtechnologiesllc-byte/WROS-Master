@@ -1,8 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { toast } from "react-toastify";
 import { apiRequest } from "../../services/api/client";
-import { Plus, Edit2, Trash2, Building2, MapPin } from "lucide-react";
+import { Plus, Edit2, Trash2, Building2, MapPin, AlertCircle, CheckCircle, X } from "lucide-react";
 import { ROUTES } from "../../utils/Routes";
 
 const POSITIONS = [
@@ -20,6 +19,8 @@ const POSITIONS = [
 
 export default function OrganizationSection({ orgTab = "business-units" }) {
   const navigate = useNavigate();
+  const [actionError, setActionError] = useState(null);
+  const [actionSuccess, setActionSuccess] = useState(null);
   const [businessUnits, setBusinessUnits] = useState([]);
   const [deliveryCenters, setDeliveryCenters] = useState([
     { id: 1, name: "Austin, TX", type: "HQ", buServed: ["North America"], headcount: 150 },
@@ -97,16 +98,19 @@ export default function OrganizationSection({ orgTab = "business-units" }) {
 
   const handleAddBusinessUnit = async (e) => {
     e.preventDefault();
+    setActionError(null);
+    setActionSuccess(null);
+
     if (!newBUName.trim()) {
-      toast.error("Business Unit Name is required");
+      setActionError("Business Unit Name is required");
       return;
     }
     if (!newBUPartner) {
-      toast.error("Partner is required");
+      setActionError("Partner is required");
       return;
     }
     if (!newBUBUHead) {
-      toast.error("BU Head is required");
+      setActionError("BU Head is required");
       return;
     }
 
@@ -127,7 +131,7 @@ export default function OrganizationSection({ orgTab = "business-units" }) {
         body: JSON.stringify(payload),
       });
 
-      toast.success("Business Unit created successfully");
+      setActionSuccess("Business Unit created successfully");
 
       // Refresh business units list
       const { data } = await apiRequest("/bu-context/available-buses", {
@@ -147,7 +151,7 @@ export default function OrganizationSection({ orgTab = "business-units" }) {
       setNewBUContinent("");
     } catch (err) {
       console.error("Failed to add business unit:", err);
-      toast.error(err?.message || "Failed to add business unit");
+      setActionError(err?.message || "Failed to add business unit");
     } finally {
       setIsSubmittingBU(false);
     }
@@ -164,16 +168,19 @@ export default function OrganizationSection({ orgTab = "business-units" }) {
   };
 
   const handleSaveEditedBusinessUnit = async () => {
+    setActionError(null);
+    setActionSuccess(null);
+
     if (!editBUName.trim()) {
-      toast.error("Business Unit Name is required");
+      setActionError("Business Unit Name is required");
       return;
     }
     if (!editBUPartner) {
-      toast.error("Partner is required");
+      setActionError("Partner is required");
       return;
     }
     if (!editBUBUHead) {
-      toast.error("BU Head is required");
+      setActionError("BU Head is required");
       return;
     }
     try {
@@ -203,10 +210,10 @@ export default function OrganizationSection({ orgTab = "business-units" }) {
       setEditBUBUHead("");
       setEditBURegion("");
       setEditBUContinent("");
-      toast.success("Business Unit updated successfully");
+      setActionSuccess("Business Unit updated successfully");
     } catch (err) {
       console.error("Failed to update business unit:", err);
-      toast.error(err?.message || "Failed to update business unit");
+      setActionError(err?.message || "Failed to update business unit");
     }
   };
 
@@ -214,6 +221,9 @@ export default function OrganizationSection({ orgTab = "business-units" }) {
     if (!window.confirm("Are you sure you want to delete this business unit?")) {
       return;
     }
+    setActionError(null);
+    setActionSuccess(null);
+
     try {
       await apiRequest(`/rbac/business-units/${buId}`, {
         method: "DELETE",
@@ -225,10 +235,10 @@ export default function OrganizationSection({ orgTab = "business-units" }) {
       });
       const busData = data?.business_units || [];
       setBusinessUnits(busData);
-      toast.success("Business Unit deleted successfully");
+      setActionSuccess("Business Unit deleted successfully");
     } catch (err) {
       console.error("Failed to delete business unit:", err);
-      toast.error("Failed to delete business unit");
+      setActionError("Failed to delete business unit");
     }
   };
 
@@ -255,6 +265,9 @@ export default function OrganizationSection({ orgTab = "business-units" }) {
 
   const handleAddOrgNode = async (e) => {
     e.preventDefault();
+    setActionError(null);
+    setActionSuccess(null);
+
     if (newOrgNodeEmployeeName.trim() && newOrgNodePosition.trim()) {
       setIsSubmittingOrgNode(true);
       try {
@@ -270,7 +283,7 @@ export default function OrganizationSection({ orgTab = "business-units" }) {
 
         if (data && data.id) {
           setOrgNodes([...orgNodes, data]);
-          toast.success("Org node created successfully");
+          setActionSuccess("Org node created successfully");
 
           // Reset form after successful submission
           setNewOrgNodeEmployeeName("");
@@ -282,7 +295,7 @@ export default function OrganizationSection({ orgTab = "business-units" }) {
         }
       } catch (error) {
         console.error("Error creating org node:", error);
-        toast.error(error?.message || "Failed to create org node");
+        setActionError(error?.message || "Failed to create org node");
       } finally {
         setIsSubmittingOrgNode(false);
       }
@@ -346,6 +359,42 @@ export default function OrganizationSection({ orgTab = "business-units" }) {
 
   return (
     <div className="space-y-6">
+      {/* Error Banner */}
+      {actionError && (
+        <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+          <div className="flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <p className="text-red-700 text-sm font-medium">{actionError}</p>
+            </div>
+            <button
+              onClick={() => setActionError(null)}
+              className="text-red-600 hover:text-red-800 flex-shrink-0"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Success Banner */}
+      {actionSuccess && (
+        <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+          <div className="flex items-start gap-3">
+            <CheckCircle className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <p className="text-green-700 text-sm font-medium">{actionSuccess}</p>
+            </div>
+            <button
+              onClick={() => setActionSuccess(null)}
+              className="text-green-600 hover:text-green-800 flex-shrink-0"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Tabs - Link to URL-based sections */}
       <div className="flex gap-4 border-b border-gray-200">
         <button

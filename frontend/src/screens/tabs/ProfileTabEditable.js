@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
-import { Edit2, Save, X, Loader, ChevronDown, ChevronRight, Download, Upload } from "lucide-react";
+import { Edit2, Save, X, Loader, ChevronDown, ChevronRight, Download, Upload, AlertCircle, CheckCircle } from "lucide-react";
 import { Button, Input, Select, Card } from "../../components/ui";
 import RateField from "../../components/ui/RateField";
-import { toast } from "react-toastify";
 import {
   getCandidateById,
   getCandidateContacts,

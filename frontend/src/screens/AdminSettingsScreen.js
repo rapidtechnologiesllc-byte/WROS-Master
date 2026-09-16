@@ -9,12 +9,11 @@
 // truth for the same setting; this tab links out to the real one instead.
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { toast } from "react-toastify";
 import { Card } from "../components/ui";
 import { getSettingsPanel, updateSetting } from "../services/api/systemConfig";
 import { apiRequest } from "../services/api/client";
 import { ROUTES } from "../utils/Routes";
-import { Plus, Edit2, Trash2, Building2, MapPin } from "lucide-react";
+import { Plus, Edit2, Trash2, Building2, MapPin, AlertCircle, CheckCircle, X } from "lucide-react";
 
 const CATEGORIES = [
   { key: "ORGANIZATION", label: "Organization" },
@@ -27,15 +26,19 @@ const CATEGORIES = [
 function ConfigRow({ item, onSave }) {
   const [value, setValue] = useState(item.value);
   const [saving, setSaving] = useState(false);
+  const [actionError, setActionError] = useState(null);
+  const [actionSuccess, setActionSuccess] = useState(null);
   const dirty = String(value) !== String(item.value);
 
   const handleSave = async () => {
     setSaving(true);
+    setActionError(null);
+    setActionSuccess(null);
     try {
       await onSave(item.config_key, item.value_type === "PERCENT" ? parseFloat(value) : parseInt(value, 10));
-      toast.success(`${item.label} updated.`);
+      setActionSuccess(`${item.label} updated.`);
     } catch (err) {
-      toast.error(err.message || "Could not save this setting.");
+      setActionError(err.message || "Could not save this setting.");
       setValue(item.value);
     } finally {
       setSaving(false);
@@ -43,37 +46,67 @@ function ConfigRow({ item, onSave }) {
   };
 
   return (
-    <div className="flex items-center justify-between gap-4 border-b border-gray-100 py-3 last:border-b-0">
-      <div className="min-w-0">
-        <div className="text-sm font-medium text-gray-900">{item.label}</div>
-        <div className="mt-0.5 text-xs text-gray-500">
-          {item.value_type === "PERCENT"
-            ? `Range ${item.min_value} - ${item.max_value}`
-            : `Range ${item.min_value} - ${item.max_value}`}
-          {" · default "}
-          {item.default}
-        </div>
-      </div>
-      <div className="flex shrink-0 items-center gap-2">
-        <input
-          type="number"
-          step={item.value_type === "PERCENT" ? "0.01" : "1"}
-          min={item.min_value ?? undefined}
-          max={item.max_value ?? undefined}
-          value={value}
-          onChange={(e) => setValue(e.target.value)}
-          className="w-24 rounded-xl border bg-white px-3 py-1.5 text-sm outline-none focus:border-bx-orange"
-        />
-        {dirty ? (
+    <div className="space-y-2">
+      {actionError && (
+        <div className="p-3 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
+          <AlertCircle className="w-4 h-4 text-red-600 flex-shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <p className="text-red-700 text-xs font-medium">{actionError}</p>
+          </div>
           <button
-            type="button"
-            onClick={handleSave}
-            disabled={saving}
-            className="rounded-lg bg-bx-orange px-3 py-1.5 text-xs font-semibold text-white hover:bg-bx-orange-hover disabled:opacity-60"
+            onClick={() => setActionError(null)}
+            className="text-red-600 hover:text-red-800 flex-shrink-0"
           >
-            {saving ? "Saving..." : "Save"}
+            <X className="w-4 h-4" />
           </button>
-        ) : null}
+        </div>
+      )}
+      {actionSuccess && (
+        <div className="p-3 bg-green-50 border border-green-200 rounded-lg flex items-start gap-3">
+          <CheckCircle className="w-4 h-4 text-green-600 flex-shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <p className="text-green-700 text-xs font-medium">{actionSuccess}</p>
+          </div>
+          <button
+            onClick={() => setActionSuccess(null)}
+            className="text-green-600 hover:text-green-800 flex-shrink-0"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+      <div className="flex items-center justify-between gap-4 border-b border-gray-100 py-3 last:border-b-0">
+        <div className="min-w-0">
+          <div className="text-sm font-medium text-gray-900">{item.label}</div>
+          <div className="mt-0.5 text-xs text-gray-500">
+            {item.value_type === "PERCENT"
+              ? `Range ${item.min_value} - ${item.max_value}`
+              : `Range ${item.min_value} - ${item.max_value}`}
+            {" · default "}
+            {item.default}
+          </div>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          <input
+            type="number"
+            step={item.value_type === "PERCENT" ? "0.01" : "1"}
+            min={item.min_value ?? undefined}
+            max={item.max_value ?? undefined}
+            value={value}
+            onChange={(e) => { setValue(e.target.value); setActionError(null); }}
+            className="w-24 rounded-xl border bg-white px-3 py-1.5 text-sm outline-none focus:border-bx-orange"
+          />
+          {dirty ? (
+            <button
+              type="button"
+              onClick={handleSave}
+              disabled={saving}
+              className="rounded-lg bg-bx-orange px-3 py-1.5 text-xs font-semibold text-white hover:bg-bx-orange-hover disabled:opacity-60"
+            >
+              {saving ? "Saving..." : "Save"}
+            </button>
+          ) : null}
+        </div>
       </div>
     </div>
   );
@@ -93,6 +126,8 @@ function OrganizationSection() {
     { id: 10, name: "Senior Consultant" }
   ];
 
+  const [actionError, setActionError] = useState(null);
+  const [actionSuccess, setActionSuccess] = useState(null);
   const [orgTab, setOrgTab] = useState("business-units");
   const [businessUnits, setBusinessUnits] = useState([]);
   const [deliveryCenters, setDeliveryCenters] = useState([
@@ -171,16 +206,19 @@ function OrganizationSection() {
 
   const handleAddBusinessUnit = async (e) => {
     e.preventDefault();
+    setActionError(null);
+    setActionSuccess(null);
+
     if (!newBUName.trim()) {
-      toast.error("Business Unit Name is required");
+      setActionError("Business Unit Name is required");
       return;
     }
     if (!newBUPartner) {
-      toast.error("Partner is required");
+      setActionError("Partner is required");
       return;
     }
     if (!newBUBUHead) {
-      toast.error("BU Head is required");
+      setActionError("BU Head is required");
       return;
     }
 
@@ -201,7 +239,7 @@ function OrganizationSection() {
         body: JSON.stringify(payload),
       });
 
-      toast.success("Business Unit created successfully");
+      setActionSuccess("Business Unit created successfully");
 
       // Refresh business units list
       const { data } = await apiRequest("/bu-context/available-buses", {
@@ -221,7 +259,7 @@ function OrganizationSection() {
       setNewBUContinent("");
     } catch (err) {
       console.error("Failed to add business unit:", err);
-      toast.error(err?.message || "Failed to add business unit");
+      setActionError(err?.message || "Failed to add business unit");
     } finally {
       setIsSubmittingBU(false);
     }
@@ -238,16 +276,19 @@ function OrganizationSection() {
   };
 
   const handleSaveEditedBusinessUnit = async () => {
+    setActionError(null);
+    setActionSuccess(null);
+
     if (!editBUName.trim()) {
-      toast.error("Business Unit Name is required");
+      setActionError("Business Unit Name is required");
       return;
     }
     if (!editBUPartner) {
-      toast.error("Partner is required");
+      setActionError("Partner is required");
       return;
     }
     if (!editBUBUHead) {
-      toast.error("BU Head is required");
+      setActionError("BU Head is required");
       return;
     }
     try {
@@ -277,10 +318,10 @@ function OrganizationSection() {
       setEditBUBUHead("");
       setEditBURegion("");
       setEditBUContinent("");
-      toast.success("Business Unit updated successfully");
+      setActionSuccess("Business Unit updated successfully");
     } catch (err) {
       console.error("Failed to update business unit:", err);
-      toast.error(err?.message || "Failed to update business unit");
+      setActionError(err?.message || "Failed to update business unit");
     }
   };
 
@@ -288,6 +329,9 @@ function OrganizationSection() {
     if (!window.confirm("Are you sure you want to delete this business unit?")) {
       return;
     }
+    setActionError(null);
+    setActionSuccess(null);
+
     try {
       await apiRequest(`/rbac/business-units/${buId}`, {
         method: "DELETE",
@@ -299,10 +343,10 @@ function OrganizationSection() {
       });
       const busData = data?.business_units || [];
       setBusinessUnits(busData);
-      toast.success("Business Unit deleted successfully");
+      setActionSuccess("Business Unit deleted successfully");
     } catch (err) {
       console.error("Failed to delete business unit:", err);
-      toast.error("Failed to delete business unit");
+      setActionError("Failed to delete business unit");
     }
   };
 
@@ -329,6 +373,9 @@ function OrganizationSection() {
 
   const handleAddOrgNode = async (e) => {
     e.preventDefault();
+    setActionError(null);
+    setActionSuccess(null);
+
     if (newOrgNodeEmployeeName.trim() && newOrgNodePosition.trim()) {
       setIsSubmittingOrgNode(true);
       try {
@@ -344,7 +391,7 @@ function OrganizationSection() {
 
         if (data && data.id) {
           setOrgNodes([...orgNodes, data]);
-          toast.success("Org node created successfully");
+          setActionSuccess("Org node created successfully");
 
           // Reset form after successful submission
           setNewOrgNodeEmployeeName("");
@@ -356,7 +403,7 @@ function OrganizationSection() {
         }
       } catch (error) {
         console.error("Error creating org node:", error);
-        toast.error(error?.message || "Failed to create org node");
+        setActionError(error?.message || "Failed to create org node");
       } finally {
         setIsSubmittingOrgNode(false);
       }
@@ -420,6 +467,42 @@ function OrganizationSection() {
 
   return (
     <div className="space-y-6">
+      {/* Error Banner */}
+      {actionError && (
+        <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+          <div className="flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <p className="text-red-700 text-sm font-medium">{actionError}</p>
+            </div>
+            <button
+              onClick={() => setActionError(null)}
+              className="text-red-600 hover:text-red-800 flex-shrink-0"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Success Banner */}
+      {actionSuccess && (
+        <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+          <div className="flex items-start gap-3">
+            <CheckCircle className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <p className="text-green-700 text-sm font-medium">{actionSuccess}</p>
+            </div>
+            <button
+              onClick={() => setActionSuccess(null)}
+              className="text-green-600 hover:text-green-800 flex-shrink-0"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Tabs */}
       <div className="flex gap-4 border-b border-gray-200">
         <button
@@ -1183,14 +1266,16 @@ export default function AdminSettingsScreen() {
   const [activeCategory, setActiveCategory] = useState("AI_THRESHOLDS");
   const [loading, setLoading] = useState(true);
   const [forbidden, setForbidden] = useState(false);
+  const [loadError, setLoadError] = useState(null);
 
   const load = () => {
     setLoading(true);
+    setLoadError(null);
     getSettingsPanel()
       .then(setPanel)
       .catch((err) => {
         if (err.status === 403) setForbidden(true);
-        else toast.error("Could not load settings.");
+        else setLoadError("Could not load settings.");
       })
       .finally(() => setLoading(false));
   };
@@ -1207,6 +1292,27 @@ export default function AdminSettingsScreen() {
 
   if (loading) {
     return <div className="p-6 text-sm text-gray-500">Loading settings...</div>;
+  }
+
+  if (loadError) {
+    return (
+      <div className="p-6 space-y-4">
+        <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+          <div className="flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <p className="text-red-700 text-sm font-medium">{loadError}</p>
+            </div>
+            <button
+              onClick={load}
+              className="px-3 py-1 bg-red-600 text-white rounded text-xs font-medium hover:bg-red-700"
+            >
+              Try Again
+            </button>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   if (forbidden) {
