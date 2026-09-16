@@ -23,6 +23,7 @@ import BusinessUnitFormPage from "../screens/BusinessUnitFormPage";
 import DeliveryCenterFormPage from "../screens/DeliveryCenterFormPage";
 import Verification from "../screens/Verification";
 import MyWorkspace from "../screens/MyWorkspace";
+import SystemHealth from "../screens/SystemHealth";
 import { getAllInterviews, updateInterview } from "../services/api/interviews";
 import {
   getAllCandidates,
@@ -658,6 +659,7 @@ export default function AppRoutes() {
             <Route path="settings/locale" element={<TenantLocaleScreen />} />
             <Route path="settings/templates" element={<EmailTemplatesScreen />} />
             <Route path="settings/api-keys" element={<APIKeysSettings />} />
+            <Route path="system-health" element={<SystemHealth />} />
             <Route path="recruiter/intervention-queue" element={<InterventionQueueScreen />} />
             <Route path="recruiter/rehire-approvals" element={<RehireApprovalsScreen />} />
             <Route path="ceo-dashboard" element={<CEOUnifiedDashboard />} />
