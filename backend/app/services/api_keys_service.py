@@ -322,15 +322,38 @@ class APIKeysService:
 
     @staticmethod
     def _test_azure(config: APIKeysConfig, tenant_id: int, db: Session) -> Dict[str, Any]:
-        """Test Azure Graph credentials."""
+        """Test Azure Graph credentials by making an OAuth token request."""
         try:
+            import requests
+
             creds = config.get_azure_creds()
             if not creds or not all([creds.get("tenant_id"), creds.get("client_id"), creds.get("client_secret")]):
                 raise ValueError("Azure credentials incomplete")
 
-            # Test by getting token via OAuth
-            from app.core.graph_auth import get_graph_token
-            token = get_graph_token()  # Will raise if credentials are invalid
+            # Test by making an actual OAuth token request with the provided credentials
+            azure_tenant_id = creds.get("tenant_id")
+            azure_client_id = creds.get("client_id")
+            azure_client_secret = creds.get("client_secret")
+
+            token_url = f"https://login.microsoftonline.com/{azure_tenant_id}/oauth2/v2.0/token"
+
+            payload = {
+                "client_id": azure_client_id,
+                "client_secret": azure_client_secret,
+                "scope": "https://graph.microsoft.com/.default",
+                "grant_type": "client_credentials"
+            }
+
+            logger.info(f"[APIKeysService] Testing Azure credentials for tenant {tenant_id}...")
+            response = requests.post(token_url, data=payload, timeout=30)
+
+            if response.status_code != 200:
+                error_detail = response.json().get("error_description", response.text)
+                raise ValueError(f"Azure OAuth failed: {error_detail}")
+
+            token_data = response.json()
+            if not token_data.get("access_token"):
+                raise ValueError("No access token in OAuth response")
 
             config.last_tested_status = "success"
             config.last_tested_error = None
@@ -341,9 +364,18 @@ class APIKeysService:
             return {
                 "status": "success",
                 "provider": "azure",
-                "message": "Azure Graph connection successful",
+                "message": "Azure Graph connection successful - credentials validated",
             }
         except Exception as e:
+            logger.error(f"[APIKeysService] Azure test failed: {e}")
+            # Update failure status in database
+            try:
+                config.last_tested_status = "failed"
+                config.last_tested_error = str(e)
+                config.last_tested_at = datetime.utcnow()
+                db.commit()
+            except:
+                pass
             raise ValueError(f"Azure Graph test failed: {str(e)}")
 
     @staticmethod
@@ -378,6 +410,15 @@ class APIKeysService:
                 "details": {"account_name": account.friendly_name},
             }
         except Exception as e:
+            logger.error(f"[APIKeysService] Twilio test failed: {e}")
+            # Update failure status in database
+            try:
+                config.last_tested_status = "failed"
+                config.last_tested_error = str(e)
+                config.last_tested_at = datetime.utcnow()
+                db.commit()
+            except:
+                pass
             raise ValueError(f"Twilio test failed: {str(e)}")
 
     @staticmethod
@@ -417,6 +458,15 @@ class APIKeysService:
                 "details": {"email": profile.get("email")},
             }
         except Exception as e:
+            logger.error(f"[APIKeysService] SendGrid test failed: {e}")
+            # Update failure status in database
+            try:
+                config.last_tested_status = "failed"
+                config.last_tested_error = str(e)
+                config.last_tested_at = datetime.utcnow()
+                db.commit()
+            except:
+                pass
             raise ValueError(f"SendGrid test failed: {str(e)}")
 
     @staticmethod
