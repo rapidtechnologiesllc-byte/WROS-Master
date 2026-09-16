@@ -117,6 +117,7 @@ from app.api.v1.endpoints.slm_feedback import router as slm_feedback_router
 from app.api.v1.endpoints.slm_analytics import router as slm_analytics_router
 from app.api.v1.endpoints.message_queue import router as message_queue_router
 from app.api.v1.endpoints.linkedin_candidate_pipeline import router as linkedin_pipeline_router
+from app.api.v1.endpoints.linkedin_conversion import router as linkedin_conversion_router
 # UNREGISTERED ENDPOINTS - NEWLY ADDED
 from app.api.v1.endpoints.admin_queue import router as admin_queue_router
 from app.api.v1.endpoints.agent_config import router as agent_config_router
@@ -163,6 +164,7 @@ router.include_router(router=interviews_router)
 router.include_router(router=candidates_router)
 router.include_router(router=upload_router)
 router.include_router(router=linkedin_pipeline_router)
+router.include_router(router=linkedin_conversion_router)
 router.include_router(router=msgraph_router)
 router.include_router(router=documents_router)
 router.include_router(router=offer_letters_router)

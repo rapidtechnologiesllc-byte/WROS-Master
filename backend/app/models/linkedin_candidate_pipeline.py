@@ -36,7 +36,13 @@ class LinkedInCandidatePipeline(Base):
 
     # Contact Information (collected manually)
     phone_number = Column(String(20), nullable=True)
+    email_collected_at = Column(DateTime, nullable=True)  # When email was collected
+    email_from_recruiter = Column(String(255), nullable=True)  # Email from LinkedIn message
+    phone_verified_by = Column(String(255), nullable=True)  # User who verified phone
     candidate_id = Column(PG_UUID(as_uuid=True), nullable=True, index=True)  # Links to actual candidate once imported
+
+    # Task Tracking
+    task_id = Column(String(36), nullable=True)  # Foreign key to Task table
 
     # Timeline
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)

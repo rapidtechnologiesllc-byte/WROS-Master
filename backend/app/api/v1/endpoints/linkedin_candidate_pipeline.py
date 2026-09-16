@@ -159,6 +159,7 @@ async def list_pipeline_items(
                 detail=f"Invalid user ID: cannot use 'system' user. Please authenticate with a real user account."
             )
 
+        # Query with schema-qualified table name
         query = db.query(LinkedInCandidatePipeline).filter(
             LinkedInCandidatePipeline.assigned_to_user_id == user_id
         )
@@ -191,9 +192,9 @@ async def list_pipeline_items(
                 for item in items
             ]
         }
+    except HTTPException:
+        raise
     except Exception as e:
-        import logging
-        logger = logging.getLogger(__name__)
         logger.error(f"[LinkedIn Pipeline List] Error: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to list pipeline items: {str(e)}")
 
