@@ -491,6 +491,10 @@ assert_all_routes_have_permission_declarations(
         "GET /api/v1/careers/jobs/{job_id}",
         "GET /flash/queue-health-pulse",
         "GET /flash/queue-bottleneck-analysis",
+        "GET /api/v1/monitoring/health",
+        "GET /api/v1/monitoring/stuck-messages",
+        "GET /api/v1/monitoring/stuck-messages/history",
+        "GET /api/v1/system/health",
     ],
 )
 logger.info("[OK] HRMS-0114 route permission audit passed")
