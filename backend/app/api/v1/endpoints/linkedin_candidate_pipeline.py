@@ -68,9 +68,14 @@ async def queue_linkedin_candidate(
     2. Check if already in linkedin_candidate_pipeline queue
     3. Only create new record if both checks pass
     """
+    print(f"[ENDPOINT CALLED] LinkedIn queue endpoint with URL: {request.linkedin_url}", flush=True)
+    import logging
+    logger = logging.getLogger(__name__)
+
     try:
         linkedin_url = request.linkedin_url
         profile_slug = parse_linkedin_url(linkedin_url)
+        print(f"[PARSED] Profile slug: {profile_slug}", flush=True)
 
         # Query 1: Check if candidate already exists
         existing_candidate = db.query(Candidate).filter(
@@ -133,8 +138,11 @@ async def queue_linkedin_candidate(
         }
     except Exception as e:
         import logging
+        import traceback
         logger = logging.getLogger(__name__)
-        logger.error(f"[LinkedIn Pipeline Queue] Error: {e}", exc_info=True)
+        tb = traceback.format_exc()
+        logger.error(f"[LinkedIn Pipeline Queue] Error: {e}\n{tb}", exc_info=True)
+        logger.error(f"[LinkedIn Pipeline Queue] Full traceback:\n{tb}")
         raise HTTPException(status_code=500, detail=f"Failed to queue candidate: {str(e)}")
 
 @router.get("/list")

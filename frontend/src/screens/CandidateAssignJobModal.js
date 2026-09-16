@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { FileText } from "lucide-react";
+import { FileText, AlertCircle, CheckCircle, X } from "lucide-react";
 import { Button, Card } from "../components/ui";
 import { assignMultipleJobs, getAllJobs, submitCandidateToJob } from "../services/api/jobs";
 import { getUserDetails, createHrAssignment } from "../services/api/users";
@@ -7,7 +7,6 @@ import {
   createCandidateHistoryEvent,
   HISTORY_EVENT_TYPES,
 } from "../services/api/candidateHistory";
-import { toast } from "react-toastify";
 import { Select } from "antd";
 import {
   Label,
@@ -139,6 +138,8 @@ const CandidateAssignJobModal = ({
   const [selectedHr1Id, setSelectedHr1Id] = useState("");
   const [selectedHr2Id, setSelectedHr2Id] = useState("");
   const [contactPersonOptions, setContactPersonOptions] = useState([]);
+  const [actionError, setActionError] = useState(null);
+  const [actionSuccess, setActionSuccess] = useState(null);
 
   // Auto-load unique UDF fields with candidate information (non-overlapping fields only)
   useEffect(() => {
@@ -307,6 +308,7 @@ const CandidateAssignJobModal = ({
     const fetchJobs = async () => {
       try {
         setIsLoadingJobs(true);
+        setActionError(null);
 
         const response = await getAllJobs();
         if (!isMounted) return;
@@ -320,7 +322,9 @@ const CandidateAssignJobModal = ({
         }
       } catch (err) {
         console.error("Failed to fetch jobs", err);
-        toast.error("Failed to load jobs");
+        if (isMounted) {
+          setActionError("Failed to load jobs");
+        }
       } finally {
         if (isMounted) {
           setIsLoadingJobs(false);
@@ -408,31 +412,33 @@ const CandidateAssignJobModal = ({
   };
 
   const validateForm = () => {
+    setActionError(null);
+
     if (!candidateId) {
-      toast.error("Please select a candidate");
+      setActionError("Please select a candidate");
       return false;
     }
     if (!selectedJobId) {
-      toast.error("Please select a job");
+      setActionError("Please select a job");
       return false;
     }
 
     if (!formData?.submittalDate) {
-      toast.error("Please select submittal date");
+      setActionError("Please select submittal date");
       return false;
     }
 
     if (!formData?.submittalTime) {
-      toast.error("Please select submittal time");
+      setActionError("Please select submittal time");
       return false;
     }
 
     if (!formData?.timeZone) {
-      toast.error("Please select time zone");
+      setActionError("Please select time zone");
       return false;
     }
     if (isEmptyValue(formData?.agreedPayRate)) {
-      toast.error("Please enter agreed pay rate");
+      setActionError("Please enter agreed pay rate");
       return false;
     }
 
@@ -442,7 +448,7 @@ const CandidateAssignJobModal = ({
       const candidateExp = parseExperience(candidateDetails?.candidate_experience || candidateDetails?.experience || "0");
 
       if (jobRequiredExp > 0 && candidateExp < jobRequiredExp) {
-        toast.warning(`⚠️ Candidate has ${candidateExp} years experience but job requires ${jobRequiredExp} years. Please confirm before proceeding.`);
+        setActionError(`⚠️ Candidate has ${candidateExp} years experience but job requires ${jobRequiredExp} years. Please confirm before proceeding.`);
         // Don't block submission, just warn
       }
     }
@@ -466,20 +472,14 @@ const CandidateAssignJobModal = ({
         // Simple numeric comparison (ideally should normalize to same frequency, but this is a basic check)
         // For strict validation, if same frequency, can compare directly
         if (jobPayFreq === candidatePayFreq && candidatePayAmount > jobPayAmount) {
-          toast.error(
-            `⚠️ Budget Alert:\n` +
-            `Candidate asking: ${candidateDisplay}\n` +
-            `Job budget: ${jobDisplay}\n` +
-            `Candidate is OUT OF BUDGET. Proceed with caution.`
+          setActionError(
+            `⚠️ Budget Alert: Candidate asking ${candidateDisplay}, Job budget ${jobDisplay}. Candidate is OUT OF BUDGET. Proceed with caution.`
           );
           return false;
         } else if (jobPayFreq !== candidatePayFreq) {
           // Different frequencies - just warn, don't block
-          toast.warning(
-            `⚠️ Pay Frequency Mismatch:\n` +
-            `Candidate: ${candidateDisplay}\n` +
-            `Job Budget: ${jobDisplay}\n` +
-            `Please verify the amounts match before proceeding.`
+          setActionError(
+            `⚠️ Pay Frequency Mismatch: Candidate ${candidateDisplay}, Job Budget ${jobDisplay}. Please verify the amounts match before proceeding.`
           );
         }
       }
@@ -490,6 +490,8 @@ const CandidateAssignJobModal = ({
 
   const handleSaveJob = async () => {
     if (!validateForm()) return;
+    setActionError(null);
+    setActionSuccess(null);
     try {
       setIsAssigning(true);
       // Call the correct /submissions endpoint
@@ -522,15 +524,15 @@ const CandidateAssignJobModal = ({
             hr2_id: selectedHr2Id || "",
           });
         }
-        toast.success("Job submitted successfully ✅");
+        setActionSuccess("Job submitted successfully ✅");
         await onAssignSuccess?.();
         onClose?.();
         return;
       }
-      toast.error("Failed to submit job");
+      setActionError("Failed to submit job");
     } catch (err) {
       console.error("Error while submitting job", err);
-      toast.error(getSubmitJobErrorMessage(err));
+      setActionError(getSubmitJobErrorMessage(err));
     } finally {
       setIsAssigning(false);
     }
@@ -552,6 +554,42 @@ const CandidateAssignJobModal = ({
             </Button>
           }
         >
+          {/* Action Error Banner */}
+          {actionError && (
+            <div className="border-b border-red-200 bg-red-50 px-6 py-4">
+              <div className="flex items-start gap-3">
+                <AlertCircle className="h-5 w-5 flex-shrink-0 text-red-600 mt-0.5" />
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-red-700">{actionError}</p>
+                </div>
+                <button
+                  onClick={() => setActionError(null)}
+                  className="text-red-600 hover:text-red-800 flex-shrink-0"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Action Success Banner */}
+          {actionSuccess && (
+            <div className="border-b border-green-200 bg-green-50 px-6 py-4">
+              <div className="flex items-start gap-3">
+                <CheckCircle className="h-5 w-5 flex-shrink-0 text-green-600 mt-0.5" />
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-green-700">{actionSuccess}</p>
+                </div>
+                <button
+                  onClick={() => setActionSuccess(null)}
+                  className="text-green-600 hover:text-green-800 flex-shrink-0"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+            </div>
+          )}
+
           <div className="overflow-visible">
             <div className="border-b border-gray-200 bg-gray-50 px-6 py-4">
               <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">

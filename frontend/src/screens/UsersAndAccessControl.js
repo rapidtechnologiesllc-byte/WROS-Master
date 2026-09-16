@@ -5,10 +5,9 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
-  Plus, Edit2, Trash2, Lock, Users, Building2, MapPin, Globe
+  Plus, Edit2, Trash2, Lock, Users, Building2, MapPin, Globe, AlertCircle, CheckCircle, X
 } from "lucide-react";
 import { Card, Button, Input, Select, Table } from "../components/ui";
-import { toast } from "react-toastify";
 import { canEdit, canDelete } from "../services/permissions";
 import { hasPermission } from "../utils/permissionsRoleTemplate";
 import {
@@ -192,6 +191,8 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
   const [showPermissionsModal, setShowPermissionsModal] = useState(false);
   const [selectedUserId, setSelectedUserId] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
+  const [actionError, setActionError] = useState(null);
+  const [actionSuccess, setActionSuccess] = useState(null);
 
   const [businessUnits, setBusinessUnits] = useState([]);
 
@@ -227,14 +228,15 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
     if (!selectedUserId) return;
     if (!window.confirm("Are you sure? This action cannot be undone.")) return;
 
+    setActionError(null);
     setBusy(true);
     try {
       await deleteHrUser(selectedUserId);
-      toast.success("User deleted successfully.");
+      setActionSuccess("User deleted successfully.");
       setSelectedUserId("");
       window.location.reload();
     } catch (err) {
-      toast.error(err.message || "Failed to delete user.");
+      setActionError(err.message || "Failed to delete user.");
     } finally {
       setBusy(false);
     }
@@ -243,22 +245,23 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
   const handleResetPassword = async () => {
     if (!selectedUserId) return;
     if (!resetForm.new_password.trim()) {
-      toast.error("New password is required.");
+      setActionError("New password is required.");
       return;
     }
 
+    setActionError(null);
     setBusy(true);
     try {
       await apiRequest(`/admin/users/${selectedUserId}/reset-password`, {
         method: "PUT",
         body: JSON.stringify({ new_password: resetForm.new_password })
       });
-      toast.success("Password reset successfully.");
+      setActionSuccess("Password reset successfully.");
       setShowResetModal(false);
       setResetForm({ new_password: "" });
       setSelectedUserId("");
     } catch (err) {
-      toast.error(err.message || "Failed to reset password.");
+      setActionError(err.message || "Failed to reset password.");
     } finally {
       setBusy(false);
     }
@@ -269,6 +272,42 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
 
   return (
     <div className="space-y-6">
+      {/* Action Error Banner */}
+      {actionError && (
+        <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+          <div className="flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <p className="text-red-700 text-sm font-medium">{actionError}</p>
+            </div>
+            <button
+              onClick={() => setActionError(null)}
+              className="text-red-600 hover:text-red-800 flex-shrink-0"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Action Success Banner */}
+      {actionSuccess && (
+        <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+          <div className="flex items-start gap-3">
+            <CheckCircle className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <p className="text-green-700 text-sm font-medium">{actionSuccess}</p>
+            </div>
+            <button
+              onClick={() => setActionSuccess(null)}
+              className="text-green-600 hover:text-green-800 flex-shrink-0"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="flex items-center justify-between gap-4">
         <Input
           placeholder="Search users..."
@@ -360,6 +399,8 @@ function RoleTemplatesSection({ loading, error, modules, roles, setRoles, users 
   const [selectedRoleForUsers, setSelectedRoleForUsers] = useState(null);
   const [roleUsers, setRoleUsers] = useState([]);
   const [loadingUsers, setLoadingUsers] = useState(false);
+  const [actionError, setActionError] = useState(null);
+  const [actionSuccess, setActionSuccess] = useState(null);
 
   // Fetch template details when editingTemplateId changes
   useEffect(() => {
@@ -462,6 +503,7 @@ function RoleTemplatesSection({ loading, error, modules, roles, setRoles, users 
   const handleTogglePermission = async (resourceName, verb, currentState) => {
     if (!editingTemplateId) return;
 
+    setActionError(null);
     const key = `${editingTemplateId}_${resourceName}_${verb}`;
     setToggling({ ...toggling, [key]: true });
 
@@ -495,9 +537,9 @@ function RoleTemplatesSection({ loading, error, modules, roles, setRoles, users 
       // Update the roles array with the updated template
       setRoles(roles.map(r => r.id === editingTemplateId ? updatedTemplate : r));
 
-      toast.success(`Permission ${newState ? 'enabled' : 'disabled'} for ${resourceName} - ${verb}`);
+      setActionSuccess(`Permission ${newState ? 'enabled' : 'disabled'} for ${resourceName} - ${verb}`);
     } catch (err) {
-      toast.error(err.message || `Failed to update permission for ${resourceName}`);
+      setActionError(err.message || `Failed to update permission for ${resourceName}`);
     } finally {
       setToggling({ ...toggling, [key]: false });
     }
@@ -506,6 +548,7 @@ function RoleTemplatesSection({ loading, error, modules, roles, setRoles, users 
   const handleToggleModule = async (moduleName, displayResources, shouldEnable) => {
     if (!editingTemplateId) return;
 
+    setActionError(null);
     setToggling({ ...toggling, [moduleName]: true });
 
     try {
@@ -543,9 +586,9 @@ function RoleTemplatesSection({ loading, error, modules, roles, setRoles, users 
       const updatedTemplate = await getRoleTemplate(editingTemplateId);
       setRoles(roles.map(r => r.id === editingTemplateId ? updatedTemplate : r));
 
-      toast.success(`Module ${moduleName} ${shouldEnable ? 'enabled' : 'disabled'} successfully`);
+      setActionSuccess(`Module ${moduleName} ${shouldEnable ? 'enabled' : 'disabled'} successfully`);
     } catch (err) {
-      toast.error(err.message || `Failed to toggle module ${moduleName}`);
+      setActionError(err.message || `Failed to toggle module ${moduleName}`);
     } finally {
       setToggling({ ...toggling, [moduleName]: false });
     }
@@ -555,13 +598,15 @@ function RoleTemplatesSection({ loading, error, modules, roles, setRoles, users 
   if (error) return <div className="p-6 text-red-500">{error}</div>;
 
   const handleCreateRole = async () => {
+    setActionError(null);
+
     if (!createRoleForm.name.trim()) {
-      toast.error("Role name is required.");
+      setActionError("Role name is required.");
       return;
     }
 
     if (!canCreateTemplate()) {
-      toast.error("Please enable at least one module and select permissions.");
+      setActionError("Please enable at least one module and select permissions.");
       return;
     }
 
@@ -576,20 +621,21 @@ function RoleTemplatesSection({ loading, error, modules, roles, setRoles, users 
           permissions: createTemplatePermissions  // ✅ Use actual permissions
         })
       });
-      toast.success("Role created successfully.");
+      setActionSuccess("Role created successfully.");
       setShowCreateModal(false);
       setCreateRoleForm({ name: "", description: "" });
       setCreateTemplatePermissions({});
       setCreateTemplateModuleStates({});
       window.location.reload();
     } catch (err) {
-      toast.error(err.message || "Failed to create role.");
+      setActionError(err.message || "Failed to create role.");
     } finally {
       setCreatingTemplate(false);
     }
   };
 
   const handleToggleTemplateStatus = async (templateId, currentStatus) => {
+    setActionError(null);
     setTogglingTemplate({ ...togglingTemplate, [templateId]: true });
 
     try {
@@ -608,10 +654,10 @@ function RoleTemplatesSection({ loading, error, modules, roles, setRoles, users 
           : r
       ));
 
-      toast.success(`Template ${!currentStatus ? 'enabled' : 'disabled'} successfully`);
+      setActionSuccess(`Template ${!currentStatus ? 'enabled' : 'disabled'} successfully`);
     } catch (err) {
       console.error("Failed to toggle template status:", err);
-      toast.error(err.message || "Failed to toggle template status");
+      setActionError(err.message || "Failed to toggle template status");
     } finally {
       setTogglingTemplate({ ...togglingTemplate, [templateId]: false });
     }
@@ -663,6 +709,42 @@ function RoleTemplatesSection({ loading, error, modules, roles, setRoles, users 
 
   return (
     <div className="space-y-6">
+      {/* Action Error Banner */}
+      {actionError && (
+        <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+          <div className="flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <p className="text-red-700 text-sm font-medium">{actionError}</p>
+            </div>
+            <button
+              onClick={() => setActionError(null)}
+              className="text-red-600 hover:text-red-800 flex-shrink-0"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Action Success Banner */}
+      {actionSuccess && (
+        <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+          <div className="flex items-start gap-3">
+            <CheckCircle className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <p className="text-green-700 text-sm font-medium">{actionSuccess}</p>
+            </div>
+            <button
+              onClick={() => setActionSuccess(null)}
+              className="text-green-600 hover:text-green-800 flex-shrink-0"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="flex items-center justify-between gap-4">
         <Input
           placeholder="Search templates..."
@@ -939,6 +1021,8 @@ export default function UsersAndAccessControl() {
 function BusinessUnitsSection() {
   const navigate = useNavigate();
   const [businessUnits, setBusinessUnits] = useState([]);
+  const [actionError, setActionError] = useState(null);
+  const [actionSuccess, setActionSuccess] = useState(null);
 
   useEffect(() => {
     loadBusinessUnits();
@@ -960,17 +1044,54 @@ function BusinessUnitsSection() {
 
   const handleDeleteBusinessUnit = async (buId) => {
     if (!window.confirm("Are you sure you want to delete this business unit?")) return;
+    setActionError(null);
     try {
       await apiRequest(`/rbac/business-units/${buId}`, { method: "DELETE" });
       loadBusinessUnits();
-      toast.success("Business Unit deleted successfully");
+      setActionSuccess("Business Unit deleted successfully");
     } catch (err) {
-      toast.error("Failed to delete business unit");
+      setActionError("Failed to delete business unit");
     }
   };
 
   return (
     <div className="space-y-4">
+      {/* Action Error Banner */}
+      {actionError && (
+        <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+          <div className="flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <p className="text-red-700 text-sm font-medium">{actionError}</p>
+            </div>
+            <button
+              onClick={() => setActionError(null)}
+              className="text-red-600 hover:text-red-800 flex-shrink-0"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Action Success Banner */}
+      {actionSuccess && (
+        <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+          <div className="flex items-start gap-3">
+            <CheckCircle className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <p className="text-green-700 text-sm font-medium">{actionSuccess}</p>
+            </div>
+            <button
+              onClick={() => setActionSuccess(null)}
+              className="text-green-600 hover:text-green-800 flex-shrink-0"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+      )}
+
       {hasPermission("business_unit", "create") && (
         <button
           onClick={() => navigate('/admin/users-access-control/business-units/create')}
@@ -1047,6 +1168,8 @@ function OrganizationalHierarchySection() {
   const [newPositionName, setNewPositionName] = useState("");
   const [newPositionRoleTemplate, setNewPositionRoleTemplate] = useState("");
   const [isSubmittingOrgNode, setIsSubmittingOrgNode] = useState(false);
+  const [actionError, setActionError] = useState(null);
+  const [actionSuccess, setActionSuccess] = useState(null);
 
   useEffect(() => {
     loadOrgNodes();
@@ -1093,8 +1216,9 @@ function OrganizationalHierarchySection() {
 
   const handleAddOrgNode = async (e) => {
     e.preventDefault();
+    setActionError(null);
     if (!newOrgNodeEmployeeName.trim() || !newOrgNodePosition.trim()) {
-      toast.error("Employee name and position are required");
+      setActionError("Employee name and position are required");
       return;
     }
     setIsSubmittingOrgNode(true);
@@ -1108,7 +1232,7 @@ function OrganizationalHierarchySection() {
       };
 
       await apiRequest("/org/nodes", { method: "POST", body: JSON.stringify(payload) });
-      toast.success("Org node created successfully");
+      setActionSuccess("Org node created successfully");
       loadOrgNodes();
       setShowAddOrgNodeModal(false);
       setNewOrgNodeEmployeeName("");
@@ -1117,7 +1241,7 @@ function OrganizationalHierarchySection() {
       setNewOrgNodeBusinessUnit("");
       setNewOrgNodeLocation("");
     } catch (err) {
-      toast.error(err?.message || "Failed to create org node");
+      setActionError(err?.message || "Failed to create org node");
     } finally {
       setIsSubmittingOrgNode(false);
     }
@@ -1125,6 +1249,7 @@ function OrganizationalHierarchySection() {
 
   const handleAddPosition = (e) => {
     e.preventDefault();
+    setActionError(null);
     if (newPositionName.trim()) {
       setPositions([...positions, {
         id: Math.max(...positions.map(p => p.id), 0) + 1,
@@ -1134,13 +1259,14 @@ function OrganizationalHierarchySection() {
       setNewPositionName("");
       setNewPositionRoleTemplate("");
       setShowAddPositionModal(false);
-      toast.success("Position added");
+      setActionSuccess("Position added");
     }
   };
 
   const handleDeletePosition = (posId) => {
+    setActionError(null);
     if (positions.length <= 1) {
-      toast.error("You must have at least one position");
+      setActionError("You must have at least one position");
       return;
     }
     setPositions(positions.filter(p => p.id !== posId));
@@ -1156,8 +1282,9 @@ function OrganizationalHierarchySection() {
   };
 
   const handleSaveEditedOrgNode = () => {
+    setActionError(null);
     if (!editOrgNodeEmployeeName.trim() || !editOrgNodePosition.trim()) {
-      toast.error("Employee name and position are required");
+      setActionError("Employee name and position are required");
       return;
     }
     setOrgNodes(orgNodes.map(node =>
@@ -1178,13 +1305,13 @@ function OrganizationalHierarchySection() {
     setEditOrgNodeReportsTo("");
     setEditOrgNodeBusinessUnit("");
     setEditOrgNodeLocation("");
-    toast.success("Org node updated successfully");
+    setActionSuccess("Org node updated successfully");
   };
 
   const handleDeleteOrgNode = (nodeId) => {
     if (window.confirm("Are you sure you want to remove this person from the organizational hierarchy?")) {
       setOrgNodes(orgNodes.filter(n => n.id !== nodeId));
-      toast.success("Node removed");
+      setActionSuccess("Node removed");
     }
   };
 
@@ -1193,6 +1320,42 @@ function OrganizationalHierarchySection() {
 
   return (
     <div className="space-y-4">
+      {/* Action Error Banner */}
+      {actionError && (
+        <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+          <div className="flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <p className="text-red-700 text-sm font-medium">{actionError}</p>
+            </div>
+            <button
+              onClick={() => setActionError(null)}
+              className="text-red-600 hover:text-red-800 flex-shrink-0"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Action Success Banner */}
+      {actionSuccess && (
+        <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+          <div className="flex items-start gap-3">
+            <CheckCircle className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <p className="text-green-700 text-sm font-medium">{actionSuccess}</p>
+            </div>
+            <button
+              onClick={() => setActionSuccess(null)}
+              className="text-green-600 hover:text-green-800 flex-shrink-0"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="flex gap-2">
         <button
           onClick={() => setShowAddOrgNodeModal(true)}
@@ -1497,16 +1660,35 @@ function LocationsSection() {
     { id: 1, name: "Austin, TX", type: "HQ", buServed: ["North America"], headcount: 150, city: "Austin", country: "USA" },
     { id: 2, name: "Youngstown, OH", type: "Delivery", buServed: ["North America"], headcount: 300, city: "Youngstown", country: "USA" },
   ]);
+  const [actionSuccess, setActionSuccess] = useState(null);
 
   const handleDelete = (dcId) => {
     if (window.confirm("Are you sure you want to delete this delivery center?")) {
       setDeliveryCenters(deliveryCenters.filter(dc => dc.id !== dcId));
-      toast.success("Delivery Center deleted");
+      setActionSuccess("Delivery Center deleted");
     }
   };
 
   return (
     <div className="space-y-4">
+      {/* Action Success Banner */}
+      {actionSuccess && (
+        <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+          <div className="flex items-start gap-3">
+            <CheckCircle className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <p className="text-green-700 text-sm font-medium">{actionSuccess}</p>
+            </div>
+            <button
+              onClick={() => setActionSuccess(null)}
+              className="text-green-600 hover:text-green-800 flex-shrink-0"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+      )}
+
       {hasPermission("delivery_center", "create") && (
         <button
           onClick={() => navigate('/admin/users-access-control/delivery-centers/create')}

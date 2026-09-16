@@ -1,6 +1,5 @@
 import { useState, useEffect } from "react";
-import { Plus, Loader, CheckCircle, AlertCircle, Phone, Trash2, RefreshCw } from "lucide-react";
-import { toast } from "react-toastify";
+import { Plus, Loader, CheckCircle, AlertCircle, Phone, Trash2, RefreshCw, X } from "lucide-react";
 import axios from "axios";
 
 const API_BASE = process.env.REACT_APP_API_URL || "http://localhost:8081";
@@ -13,8 +12,12 @@ export default function LinkedInPipelineScreen() {
   const [expandedId, setExpandedId] = useState(null);
   const [phoneInput, setPhoneInput] = useState({});
   const [statusFilter, setStatusFilter] = useState("all");
-  const [error, setError] = useState(null);
   const [loadAttempted, setLoadAttempted] = useState(false);
+
+  // Page-level error/warning state
+  const [error, setError] = useState(null);
+  const [actionError, setActionError] = useState(null);
+  const [actionSuccess, setActionSuccess] = useState(null);
 
   const token = localStorage.getItem("hrms_token");
 
@@ -61,8 +64,11 @@ export default function LinkedInPipelineScreen() {
 
   const handleQueueCandidate = async (e) => {
     e.preventDefault();
+    setActionError(null);
+    setActionSuccess(null);
+
     if (!linkedInUrl.trim()) {
-      toast.error("Please enter a LinkedIn URL");
+      setActionError("Please enter a LinkedIn URL");
       return;
     }
 
@@ -77,26 +83,29 @@ export default function LinkedInPipelineScreen() {
       const result = response.data;
 
       if (result.status === "QUEUED") {
-        toast.success("✅ Candidate added to pipeline!");
+        setActionSuccess("✅ Candidate added to pipeline!");
         setLinkedInUrl("");
         loadPipeline();
       } else if (result.status === "ALREADY_EXISTS") {
-        toast.warning(`⚠️ Candidate already in system: ${result.candidate?.name}`);
+        setActionError(`⚠️ Candidate already in system: ${result.candidate?.name}`);
       } else if (result.status === "ALREADY_QUEUED") {
-        toast.info(`📋 Already in your queue (status: ${result.pipeline_item?.status})`);
+        setActionError(`📋 Already in your queue (status: ${result.pipeline_item?.status})`);
       }
     } catch (error) {
       const msg = error.response?.data?.detail || "Failed to queue candidate";
-      toast.error(msg);
+      setActionError(msg);
     } finally {
       setLoading(false);
     }
   };
 
   const handleCompleteImport = async (pipelineId) => {
+    setActionError(null);
+    setActionSuccess(null);
+
     const phone = phoneInput[pipelineId];
     if (!phone?.trim()) {
-      toast.error("Please enter a phone number");
+      setActionError("Please enter a phone number");
       return;
     }
 
@@ -109,27 +118,30 @@ export default function LinkedInPipelineScreen() {
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
-      toast.success("✅ Candidate imported! Ready for Thunder autonomous loop.");
+      setActionSuccess("✅ Candidate imported! Ready for Thunder autonomous loop.");
       setPhoneInput({ ...phoneInput, [pipelineId]: "" });
       setExpandedId(null);
       loadPipeline();
     } catch (error) {
       const msg = error.response?.data?.detail || "Failed to complete import";
-      toast.error(msg);
+      setActionError(msg);
     }
   };
 
   const handleUpdateStatus = async (pipelineId, newStatus) => {
+    setActionError(null);
+    setActionSuccess(null);
+
     try {
       await axios.put(
         `${API_BASE}/api/v1/linkedin-candidate-pipeline/${pipelineId}/status`,
         { status: newStatus },
         { headers: { Authorization: `Bearer ${token}` } }
       );
-      toast.success("✅ Status updated");
+      setActionSuccess("✅ Status updated");
       loadPipeline();
     } catch (error) {
-      toast.error("Failed to update status");
+      setActionError("Failed to update status");
     }
   };
 
@@ -157,12 +169,12 @@ export default function LinkedInPipelineScreen() {
         <p className="text-gray-600">Queue LinkedIn profiles for manual recruiter outreach</p>
       </div>
 
-      {/* Error Banner */}
+      {/* Load Error Banner */}
       {error && (
         <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
           <div className="flex items-start gap-3">
             <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
-            <div>
+            <div className="flex-1">
               <h3 className="font-semibold text-red-900">Failed to Load Pipeline</h3>
               <p className="text-red-700 text-sm mt-1">{error}</p>
               <button
@@ -172,6 +184,48 @@ export default function LinkedInPipelineScreen() {
                 Try Again
               </button>
             </div>
+            <button
+              onClick={() => setError(null)}
+              className="text-red-600 hover:text-red-800 flex-shrink-0"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Action Error Banner */}
+      {actionError && (
+        <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+          <div className="flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <p className="text-red-700 text-sm font-medium">{actionError}</p>
+            </div>
+            <button
+              onClick={() => setActionError(null)}
+              className="text-red-600 hover:text-red-800 flex-shrink-0"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Action Success Banner */}
+      {actionSuccess && (
+        <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg">
+          <div className="flex items-start gap-3">
+            <CheckCircle className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <p className="text-green-700 text-sm font-medium">{actionSuccess}</p>
+            </div>
+            <button
+              onClick={() => setActionSuccess(null)}
+              className="text-green-600 hover:text-green-800 flex-shrink-0"
+            >
+              <X className="w-5 h-5" />
+            </button>
           </div>
         </div>
       )}
