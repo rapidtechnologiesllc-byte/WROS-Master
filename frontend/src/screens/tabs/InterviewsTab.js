@@ -10,6 +10,7 @@
 // Hiring-Manager limitedMode single-interview review card (a different,
 // narrower context this merge doesn't touch).
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { AlertCircle, CheckCircle, X } from "lucide-react";
 import {
   createCandidateHistoryEvent,
   HISTORY_EVENT_TYPES,
@@ -29,7 +30,6 @@ import {
   deleteInterviewMail,
   sendInterviewInvite,
 } from "../../services/api/email";
-import { toast } from "react-toastify";
 
 const SKIP_REASON_PREFIX = "[NOT_ATTENDED]";
 
@@ -94,6 +94,8 @@ export default function InterviewsTab({ candidateId, onScheduleInterview }) {
   const [loading, setLoading] = useState(false);
   const [feedbackLoading, setFeedbackLoading] = useState(false);
   const [error, setError] = useState("");
+  const [actionError, setActionError] = useState(null);
+  const [actionSuccess, setActionSuccess] = useState(null);
 
   const [showSubmitModal, setShowSubmitModal] = useState(false);
   const [showSkipModal, setShowSkipModal] = useState(false);
@@ -557,7 +559,7 @@ export default function InterviewsTab({ candidateId, onScheduleInterview }) {
       if (updatedInterviewApi?.response?.status === 200) {
         const sendInvite = await sendInterviewInvite({ interviewId: selectedInterviewIdForEdit });
         if (sendInvite?.status === "success") {
-          toast.success("Interview rescheduled successfully");
+          setActionSuccess("Interview rescheduled successfully");
           await fetchData();
         }
       }
@@ -565,7 +567,7 @@ export default function InterviewsTab({ candidateId, onScheduleInterview }) {
       closeRescheduleModal();
     } catch (err) {
       console.error("Failed to reschedule interview", err);
-      toast.error("Failed to reschedule interview");
+      setActionError("Failed to reschedule interview");
       setRescheduleNoticeType("error");
       setRescheduling(false);
     }
@@ -599,13 +601,13 @@ export default function InterviewsTab({ candidateId, onScheduleInterview }) {
         await deleteInterview(selectedInterviewForCancel.id);
       }
       await fetchData();
-      toast.success("Interview cancelled successfully");
+      setActionSuccess("Interview cancelled successfully");
       setCancelNoticeType("success");
       setCancelling(false);
       closeCancelModal();
     } catch (err) {
       console.error("Failed to cancel interview", err);
-      toast.error("Failed to cancel interview");
+      setActionError("Failed to cancel interview");
       setCancelling(false);
     }
   };
@@ -640,6 +642,41 @@ export default function InterviewsTab({ candidateId, onScheduleInterview }) {
 
   return (
     <>
+      {/* Action Error Banner */}
+      {actionError && (
+        <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+          <div className="flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <p className="text-red-700 text-sm font-medium">{actionError}</p>
+            </div>
+            <button
+              onClick={() => setActionError(null)}
+              className="text-red-600 hover:text-red-800 flex-shrink-0"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Action Success Banner */}
+      {actionSuccess && (
+        <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg">
+          <div className="flex items-start gap-3">
+            <CheckCircle className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <p className="text-green-700 text-sm font-medium">{actionSuccess}</p>
+            </div>
+            <button
+              onClick={() => setActionSuccess(null)}
+              className="text-green-600 hover:text-green-800 flex-shrink-0"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+      )}
       <div className="space-y-6">
         <SectionCard title="Summary">
           <div className="grid grid-cols-2 gap-4 md:grid-cols-6">
