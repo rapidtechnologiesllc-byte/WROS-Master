@@ -658,7 +658,7 @@ export default function AppRoutes() {
             <Route path="cfo-dashboard" element={<CFOAgentScreen />} />
             <Route path="settings/locale" element={<TenantLocaleScreen />} />
             <Route path="settings/templates" element={<EmailTemplatesScreen />} />
-            <Route path="settings/api-keys" element={<APIKeysSettings />} />
+            <Route path="api-keys" element={<APIKeysSettings />} />
             <Route path="system-health" element={<SystemHealth />} />
             <Route path="recruiter/intervention-queue" element={<InterventionQueueScreen />} />
             <Route path="recruiter/rehire-approvals" element={<RehireApprovalsScreen />} />
