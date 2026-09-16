@@ -152,7 +152,13 @@ async def list_pipeline_items(
         )
 
         if status_filter:
-            query = query.filter(LinkedInCandidatePipeline.status == status_filter)
+            # Convert string to enum if needed
+            try:
+                status_enum = LinkedInPipelineStatus[status_filter] if isinstance(status_filter, str) else status_filter
+                query = query.filter(LinkedInCandidatePipeline.status == status_enum)
+            except (KeyError, AttributeError):
+                # Invalid status value, just ignore the filter
+                pass
 
         items = query.order_by(LinkedInCandidatePipeline.created_at.desc()).all()
 
