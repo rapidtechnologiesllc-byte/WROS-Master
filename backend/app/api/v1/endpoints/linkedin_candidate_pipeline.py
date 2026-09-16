@@ -119,16 +119,43 @@ async def queue_linkedin_candidate(
         # Use the authenticated user's ID (may be email string or UUID depending on user model)
         user_id = current_user.UserID
 
+        # Validate user_id like the /list endpoint does
+        if not user_id or str(user_id).strip() == 'system':
+            logger.error(f"[LinkedIn Queue] INVALID user_id: {user_id}")
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid user ID: cannot use 'system' user. Please authenticate with a real user account."
+            )
+
+        # Check string length constraint (field is VARCHAR(255))
+        user_id_str = str(user_id)
+        if len(user_id_str) > 255:
+            logger.error(f"[LinkedIn Queue] user_id too long: {len(user_id_str)} > 255 chars")
+            raise HTTPException(
+                status_code=500,
+                detail=f"Internal error: user identifier exceeds field length limit"
+            )
+
         pipeline_item = LinkedInCandidatePipeline(
             linkedin_url=linkedin_url,
             linkedin_profile_slug=profile_slug,
             status=LinkedInPipelineStatus.PENDING_CONNECTION,
-            assigned_to_user_id=user_id,
-            created_by_user_id=user_id
+            assigned_to_user_id=user_id_str,
+            created_by_user_id=user_id_str
         )
-        db.add(pipeline_item)
-        db.commit()
-        db.refresh(pipeline_item)
+
+        try:
+            db.add(pipeline_item)
+            db.flush()  # Test for constraint violations BEFORE commit
+            db.commit()
+            db.refresh(pipeline_item)
+        except Exception as ie:
+            db.rollback()
+            logger.error(f"[LinkedIn Queue] Database error: {ie}")
+            raise HTTPException(
+                status_code=500,
+                detail=f"Failed to create pipeline item: {str(ie)[:100]}"
+            )
 
         return {
             "status": "QUEUED",

@@ -137,6 +137,9 @@ class StuckMessageHealer:
     STRATEGY_MOVE_DLQ = "move_to_dlq"          # 3. Move to dead-letter queue
     STRATEGY_PURGE = "purge_stuck"             # 4. Purge if all else fails
 
+    # Retry configuration
+    MAX_RETRIES = 3                            # Maximum retry attempts before escalation
+
     def __init__(self, db_session: Optional[Session] = None):
         self.db = db_session
         self.recovery_history: List[Dict[str, Any]] = []
@@ -370,7 +373,7 @@ class StuckMessageArchitect:
 
         task_name = stuck_message["task_name"]
         stuck_seconds = stuck_message["stuck_seconds"]
-        error_msg = stuck_message.get("error_message", "")
+        error_msg = stuck_message.get("error_message") or ""  # Handle both missing keys and None values
 
         # Pattern matching for root causes
 
