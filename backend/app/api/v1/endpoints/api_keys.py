@@ -17,7 +17,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_internal_user, require_resource_permission
+from app.core.dependencies import get_current_internal_user
 from app.models.user import Users
 from app.services.api_keys_service import APIKeysService
 from app.schemas.api_keys_config import (
@@ -53,7 +53,6 @@ def _get_tenant_id(current_user: Users) -> int:
 @router.get(
     "",
     response_model=GetAPIKeysResponse,
-    dependencies=[Depends(require_resource_permission("setting", "view"))],
     summary="Get configured API providers (no secrets)",
 )
 def get_api_keys(
@@ -80,7 +79,6 @@ def get_api_keys(
 @router.post(
     "",
     response_model=SaveAPIKeysResponse,
-    dependencies=[Depends(require_resource_permission("setting", "update"))],
     summary="Save/update API credentials for one or more providers",
 )
 def save_api_keys(
@@ -130,7 +128,6 @@ def save_api_keys(
 @router.post(
     "/test",
     response_model=TestConnectionResponse,
-    dependencies=[Depends(require_resource_permission("setting", "view"))],
     summary="Test connection to a provider",
 )
 def test_provider_connection(
