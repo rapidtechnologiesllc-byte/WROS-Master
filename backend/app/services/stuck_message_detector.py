@@ -41,29 +41,36 @@ class StuckMessageDetector:
         Find messages stuck in processing
 
         Query: ChannelQueueItem table for messages that:
-        - status = "processing"
-        - updated_at < now - 5 minutes
+        - status = "PROCESSING"
+        - processing_started_at < now - 5 minutes
         - This means they've been processing for too long
+
+        Note: Column mappings from ChannelQueueItem schema:
+        - type → task_name
+        - channel_type → queue_type
+        - payload → data
+        - error → error_message
         """
 
         try:
             query = """
             SELECT
                 id,
-                task_name,
+                type as task_name,
                 status,
-                queue_type,
+                channel_type as queue_type,
                 retry_count,
                 created_at,
                 updated_at,
-                EXTRACT(EPOCH FROM (NOW() - updated_at)) as stuck_seconds,
-                data,
-                error_message
+                EXTRACT(EPOCH FROM (NOW() - processing_started_at)) as stuck_seconds,
+                payload as data,
+                error as error_message
             FROM app_schema.channel_queue_item
             WHERE
-                status = 'processing'
-                AND updated_at < NOW() - INTERVAL '{} seconds'
-            ORDER BY updated_at ASC
+                status = 'PROCESSING'
+                AND processing_started_at IS NOT NULL
+                AND processing_started_at < NOW() - INTERVAL '{} seconds'
+            ORDER BY processing_started_at ASC
             LIMIT 100
             """.format(threshold_seconds)
 
