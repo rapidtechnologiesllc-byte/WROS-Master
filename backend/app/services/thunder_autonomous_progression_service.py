@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.models.candidate import Candidate
 from app.models.candidate_job_score import CandidateJobScore
-from app.models.interview import SubmissionInterview
+from app.models.interview_pipeline import SubmissionInterview
 from app.models.offer import OfferLetter
 from app.models.employee import Employee
 from app.models.candidate_conversation import CandidateConversation
