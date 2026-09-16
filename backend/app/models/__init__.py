@@ -184,6 +184,7 @@ from app.models.candidate_desire_signal import CandidateDesireSignal
 from app.models.candidate_desire_profile import CandidateDesireProfile
 from app.models.motivation import MotivationContentLibrary, MotivationOutcome
 from app.models.strategic_goal import StrategicGoal, CascadedGoal, PyramidReport
+from app.models.linkedin_candidate_pipeline import LinkedInCandidatePipeline, LinkedInPipelineStatus
 
 __all__ = [
     # Base
@@ -385,5 +386,8 @@ __all__ = [
     "StrategicGoal",
     "CascadedGoal",
     "PyramidReport",
+    # LinkedIn Candidate Pipeline (Manual Recruiter Sourcing)
+    "LinkedInCandidatePipeline",
+    "LinkedInPipelineStatus",
 ]
 

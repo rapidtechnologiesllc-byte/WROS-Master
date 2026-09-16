@@ -144,8 +144,20 @@ async def list_pipeline_items(
     current_user: Users = Depends(get_current_internal_user)
 ):
     """List LinkedIn pipeline items for current user."""
+    import logging
+    logger = logging.getLogger(__name__)
+
     try:
         user_id = current_user.UserID
+        logger.info(f"[LinkedIn List] user_id={user_id}, email={current_user.UserEmail}")
+
+        # Validate user_id - should never be 'system' or empty
+        if not user_id or str(user_id).strip() == 'system':
+            logger.error(f"[LinkedIn List] INVALID user_id: {user_id}")
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid user ID: cannot use 'system' user. Please authenticate with a real user account."
+            )
 
         query = db.query(LinkedInCandidatePipeline).filter(
             LinkedInCandidatePipeline.assigned_to_user_id == user_id
@@ -274,12 +286,13 @@ async def get_linkedin_activity_for_dashboard(
         days_in_pipeline = (datetime.utcnow() - item.created_at).days if item.created_at else 0
 
         # Determine pending action based on status
+        status_value = item.status.value if hasattr(item.status, 'value') else str(item.status)
         pending_action = {
             "PENDING_CONNECTION": "Send LinkedIn Connection Request",
             "CONNECTED": "Collect Phone Number",
             "PHONE_COLLECTED": "Import to Thunder",
             "IMPORTED_TO_THUNDER": "Monitor Engagement"
-        }.get(item.status, "Unknown")
+        }.get(status_value, "Unknown")
 
         items.append({
             "id": str(item.id),
@@ -316,7 +329,16 @@ async def update_pipeline_status(
     if not pipeline_item:
         raise HTTPException(status_code=404, detail="Pipeline item not found")
 
-    pipeline_item.status = status
+    # Convert string status to enum
+    try:
+        status_enum = LinkedInPipelineStatus[status] if isinstance(status, str) else status
+        pipeline_item.status = status_enum
+    except (KeyError, AttributeError):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid status: {status}. Valid values: {[s.value for s in LinkedInPipelineStatus]}"
+        )
+
     if notes:
         pipeline_item.notes = notes
     pipeline_item.updated_at = datetime.utcnow()
