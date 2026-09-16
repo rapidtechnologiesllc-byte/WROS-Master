@@ -12,7 +12,6 @@ logger = logging.getLogger(__name__)
 
 try:
     import sentry_sdk
-    from sentry_sdk.integrations.flask import FlaskIntegration
     from sentry_sdk.integrations.sqlalchemy import SqlalchemyIntegration
     SENTRY_AVAILABLE = True
 except ImportError:
@@ -44,7 +43,6 @@ class SentryIntegration:
                 traces_sample_rate=0.1,  # 10% of transactions
                 debug=SentryIntegration.ENVIRONMENT == "development",
                 integrations=[
-                    FlaskIntegration(),
                     SqlalchemyIntegration(),
                 ]
             )
