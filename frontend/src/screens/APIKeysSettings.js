@@ -129,9 +129,24 @@ export default function APIKeysSettings() {
       sendgrid: ['api_key', 'from_email'],
     };
 
+    const fieldLabels = {
+      tenant_id: 'Tenant ID',
+      client_id: 'Client ID',
+      client_secret: 'Client Secret',
+      account_sid: 'Account SID',
+      auth_token: 'Auth Token',
+      whatsapp_number: 'WhatsApp Number',
+      api_key: 'API Key',
+      from_email: 'From Email',
+    };
+
     if (required[provider] && !required[provider].every(f => formData[f])) {
       setShowValidation(prev => ({ ...prev, [provider]: true }));
-      setPageError('Please fill in all required fields');
+      const missingFields = required[provider]
+        .filter(f => !formData[f])
+        .map(f => fieldLabels[f])
+        .join(', ');
+      setPageError(`Please fill in the following required fields: ${missingFields}`);
       return;
     }
 
