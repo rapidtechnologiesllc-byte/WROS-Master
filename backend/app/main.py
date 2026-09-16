@@ -31,6 +31,7 @@ from app.api.v1.endpoints.career_portal import router as career_portal_router
 from app.api.v1.endpoints.flash_queue_metrics import router as flash_queue_metrics_router
 from app.api.v1.endpoints.employee_referrals import router as employee_referrals_router
 from app.api.v1.endpoints.api_keys import router as api_keys_router
+from app.api.v1.endpoints.health_check import router as health_check_router
 
 # Agent State models — imported here so Base.metadata.create_all() finds them
 from app.models import agent_phalanx  # noqa: F401
@@ -142,6 +143,16 @@ async def startup_event():
     settings.validate_config()
     logger.info("[OK] Configuration validated")
 
+    # Initialize Sentry error tracking (Phase 4)
+    try:
+        from app.services.sentry_integration import SentryIntegration
+        sentry_initialized = SentryIntegration.initialize()
+        if sentry_initialized:
+            logger.info("[OK] Sentry error tracking initialized")
+        else:
+            logger.warning("[Warning] Sentry not configured, error tracking disabled")
+    except Exception as sentry_err:
+        logger.warning(f"[Warning] Failed to initialize Sentry: {sentry_err}")
 
     # Start APScheduler immediately (no I/O needed)
     from app.core.scheduler import start_scheduler
@@ -399,6 +410,9 @@ app.include_router(flash_queue_metrics_router, prefix="/api/v1")
 
 # Include API Keys management routes with /api/v1 prefix (credential management for email providers)
 app.include_router(api_keys_router, prefix="/api/v1")
+
+# Health check endpoint (Kubernetes, load balancers, monitoring systems)
+app.include_router(health_check_router, prefix="/api/v1")
 
 # HRMS-0114 -- fail startup if any route has no explicit identity/
 # permission declaration at all. Runs synchronously at import time
