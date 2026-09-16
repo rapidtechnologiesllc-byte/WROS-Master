@@ -13,11 +13,22 @@ import {
   pauseThunder,
   resumeThunder,
 } from "../../services/api/aiAgent";
-import { toast } from "react-toastify";
+import { AlertCircle, CheckCircle, X } from "lucide-react";
 import ThunderMemorySection from "../../components/ThunderMemorySection";
 import ThunderActivitySection from "../../components/activity/ThunderActivitySection";
 import EngagementMetricsSection from "../../components/engagement/EngagementMetricsSection";
 import ThunderAssignmentSection from "../../components/assignment/ThunderAssignmentSection";
+
+// State for action feedback (replaces toast notifications)
+const useActionFeedback = () => {
+  const [actionError, setActionError] = useState(null);
+  const [actionSuccess, setActionSuccess] = useState(null);
+
+  const clearError = () => setActionError(null);
+  const clearSuccess = () => setActionSuccess(null);
+
+  return { actionError, setActionError, actionSuccess, setActionSuccess, clearError, clearSuccess };
+};
 
 const EVENT_LABELS = {
   ai_assigned: "AI Agent Assigned",
@@ -38,6 +49,9 @@ export default function MessagesTab({ candidateId }) {
   const [missingFields, setMissingFields] = useState(null);
   const [missingLoading, setMissingLoading] = useState(false);
   const [polling, setPolling] = useState(false);
+
+  // Action feedback state
+  const { actionError, setActionError, actionSuccess, setActionSuccess, clearError, clearSuccess } = useActionFeedback();
 
   const fetchThread = useCallback(async () => {
     if (!candidateId) return;
@@ -66,11 +80,11 @@ export default function MessagesTab({ candidateId }) {
       setMissingFields(res);
     } catch (err) {
       console.error("Failed to fetch missing fields", err);
-      toast.error("Failed to load missing fields");
+      setActionError("Failed to load missing fields");
     } finally {
       setMissingLoading(false);
     }
-  }, [candidateId]);
+  }, [candidateId, setActionError]);
 
   useEffect(() => {
     fetchMissingFields();
@@ -84,17 +98,17 @@ export default function MessagesTab({ candidateId }) {
       setPolling(true);
       const res = await pollForReply(candidateId);
       if (res?.status === "no_reply_found") {
-        toast.info("No new reply found yet.");
+        setActionSuccess("No new reply found yet.");
       } else if (res?.updated_fields?.length) {
-        toast.success(`Updated: ${res.updated_fields.join(", ")}`);
+        setActionSuccess(`Updated: ${res.updated_fields.join(", ")}`);
       } else {
-        toast.success("Reply processed.");
+        setActionSuccess("Reply processed.");
       }
       await fetchThread();
       await fetchMissingFields();
     } catch (err) {
       console.error("Failed to check for reply", err);
-      toast.error(err?.message || "Failed to check for reply");
+      setActionError(err?.message || "Failed to check for reply");
     } finally {
       setPolling(false);
     }
@@ -131,6 +145,38 @@ export default function MessagesTab({ candidateId }) {
 
   return (
     <div className="space-y-6">
+      {/* Error Banner */}
+      {actionError && (
+        <div className="rounded-lg border border-red-200 bg-red-50 p-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <AlertCircle className="h-5 w-5 text-red-600 flex-shrink-0" />
+            <p className="text-sm text-red-700">{actionError}</p>
+          </div>
+          <button
+            onClick={clearError}
+            className="text-red-600 hover:text-red-700 transition"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
+
+      {/* Success Banner */}
+      {actionSuccess && (
+        <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <CheckCircle className="h-5 w-5 text-emerald-600 flex-shrink-0" />
+            <p className="text-sm text-emerald-700">{actionSuccess}</p>
+          </div>
+          <button
+            onClick={clearSuccess}
+            className="text-emerald-600 hover:text-emerald-700 transition"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
+
       <SectionHeader
         title="Messages"
         subtitle="AI recruiter conversation timeline for this candidate."
@@ -184,6 +230,8 @@ export default function MessagesTab({ candidateId }) {
               key={conv.conversation_id}
               conversation={conv}
               onChanged={fetchThread}
+              setActionError={setActionError}
+              setActionSuccess={setActionSuccess}
             />
           ))}
         </div>
@@ -192,7 +240,7 @@ export default function MessagesTab({ candidateId }) {
   );
 }
 
-function ConversationCard({ conversation, onChanged }) {
+function ConversationCard({ conversation, onChanged, setActionError, setActionSuccess }) {
   const [message, setMessage] = useState("");
   const [sending, setSending] = useState(false);
   const [ownershipBusy, setOwnershipBusy] = useState(false);
@@ -211,12 +259,12 @@ function ConversationCard({ conversation, onChanged }) {
       setPauseBusy(true);
       const resumeAt = durationMs ? new Date(Date.now() + durationMs).toISOString() : null;
       await pauseThunder(conversation.conversation_id, resumeAt);
-      toast.success("Thunder paused for this candidate");
+      setActionSuccess("Thunder paused for this candidate");
       setShowPauseModal(false);
       await onChanged?.();
     } catch (err) {
       console.error("Failed to pause Thunder", err);
-      toast.error(err?.message || "Failed to pause Thunder");
+      setActionError(err?.message || "Failed to pause Thunder");
     } finally {
       setPauseBusy(false);
     }
@@ -226,11 +274,11 @@ function ConversationCard({ conversation, onChanged }) {
     try {
       setPauseBusy(true);
       await resumeThunder(conversation.conversation_id);
-      toast.success("Thunder resumed for this candidate");
+      setActionSuccess("Thunder resumed for this candidate");
       await onChanged?.();
     } catch (err) {
       console.error("Failed to resume Thunder", err);
-      toast.error(err?.message || "Failed to resume Thunder");
+      setActionError(err?.message || "Failed to resume Thunder");
     } finally {
       setPauseBusy(false);
     }
@@ -254,7 +302,7 @@ function ConversationCard({ conversation, onChanged }) {
       await onChanged?.();
     } catch (err) {
       console.error("Failed to send message", err);
-      toast.error(err?.message || "Failed to send message");
+      setActionError(err?.message || "Failed to send message");
     } finally {
       setSending(false);
     }
@@ -264,11 +312,11 @@ function ConversationCard({ conversation, onChanged }) {
     try {
       setOwnershipBusy(true);
       await takeOverConversation(conversation.conversation_id);
-      toast.success("Conversation taken over");
+      setActionSuccess("Conversation taken over");
       await onChanged?.();
     } catch (err) {
       console.error("Failed to take over conversation", err);
-      toast.error(err?.message || "Failed to take over conversation");
+      setActionError(err?.message || "Failed to take over conversation");
     } finally {
       setOwnershipBusy(false);
     }
@@ -278,11 +326,11 @@ function ConversationCard({ conversation, onChanged }) {
     try {
       setOwnershipBusy(true);
       await handBackConversation(conversation.conversation_id);
-      toast.success("Handed back to AI recruiter");
+      setActionSuccess("Handed back to AI recruiter");
       await onChanged?.();
     } catch (err) {
       console.error("Failed to hand back conversation", err);
-      toast.error(err?.message || "Failed to hand back conversation");
+      setActionError(err?.message || "Failed to hand back conversation");
     } finally {
       setOwnershipBusy(false);
     }

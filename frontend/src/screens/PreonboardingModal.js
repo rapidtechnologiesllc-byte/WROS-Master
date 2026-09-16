@@ -1,8 +1,8 @@
 import React, { useEffect, useRef, useState, useLayoutEffect } from "react";
 import { Button, Card, Input, Select, TextArea } from "../components/ui";
 import { hasPermission } from "../utils/permissionsRoleTemplate";
-import { toast } from "react-toastify";
 import { updateCandidateStatus } from "../services/api/candidates";
+import { AlertCircle, CheckCircle, X } from "lucide-react";
 import {
   DatePicker,
   Divider,
@@ -68,6 +68,17 @@ import SignatureModal from "../components/ui/SignatureModal";
 import { dayjs } from "dayjs";
 import { mapJobFromApi } from "../utils/jobMappers";
 
+// State for action feedback (replaces toast notifications)
+const useActionFeedback = () => {
+  const [actionError, setActionError] = useState(null);
+  const [actionSuccess, setActionSuccess] = useState(null);
+
+  const clearError = () => setActionError(null);
+  const clearSuccess = () => setActionSuccess(null);
+
+  return { actionError, setActionError, actionSuccess, setActionSuccess, clearError, clearSuccess };
+};
+
 const PreonboardingModal = ({
   fullName,
   candidate,
@@ -78,6 +89,10 @@ const PreonboardingModal = ({
 }) => {
   const Locations = ["Hyderabad", "Chennai", "Texas", "Remote"];
   const Department = ["PRISM", "Sales", "HR"];
+
+  // Action feedback state
+  const { actionError, setActionError, actionSuccess, setActionSuccess, clearError, clearSuccess } = useActionFeedback();
+
   const [selectLocation, setSelectLocation] = useState();
   const [selectDepartment, setSelectDepartment] = useState();
   const [note, setNote] = useState("");
@@ -154,7 +169,7 @@ const PreonboardingModal = ({
         const result = await listBusinessUnits();
         setBusinessUnit(result);
       } catch (err) {
-        toast.error(err);
+        setActionError(err?.message || "Failed to load business units");
       }
     };
     fetchBusinessUnit();
@@ -260,7 +275,7 @@ const PreonboardingModal = ({
       const salaryDetails = await salaryStructure(payload);
       setSalaryData(salaryDetails?.salary_structure);
     } catch (error) {
-      toast.error("Failed to fetch salary structure:", error);
+      setActionError("Failed to fetch salary structure");
     } finally {
       setSalaryLoading(false);
     }
@@ -328,13 +343,14 @@ const PreonboardingModal = ({
   const offerLetterHandler = async () => {
     try {
       if (!joiningDate) {
-        toast.error("Enter Joining Date");
+        setActionError("Enter Joining Date");
         return;
       }
       if (!salaryText) {
-        toast.error("Enter Salary");
+        setActionError("Enter Salary");
         return;
       }
+      clearError();
       setIsSaving(true);
       const payload = {
         candidateId: candidate?.id,
@@ -357,18 +373,18 @@ const PreonboardingModal = ({
         }
         const blob = await response.blob();
         setDocBlob(blob);
-        toast.success(generateOfferLetter?.message);
+        setActionSuccess(generateOfferLetter?.message);
         next();
       }
     } catch (err) {
-      toast.error(err);
+      setActionError(err?.message || "Failed to generate offer letter");
     } finally {
       setIsSaving(false);
     }
   };
 
   const sendEmailHandler = async () => {
-    toast.info("Email will be send to HR Manager for Approval");
+    setActionSuccess("Email will be sent to HR Manager for Approval");
     // try {
     //   setIsSaving(true);
 
@@ -378,12 +394,12 @@ const PreonboardingModal = ({
     //   };
 
 
-    //     toast.success("Email sent successfully to HR Head");
+    //     setActionSuccess("Email sent successfully to HR Head");
     //     onSuccess?.();
     //     onClose?.();
     //   }
     // } catch (error) {
-    //   toast.error(error?.message || "Failed to send email");
+    //   setActionError(error?.message || "Failed to send email");
     // } finally {
     //   setIsSaving(false);
     // }
@@ -396,10 +412,10 @@ const PreonboardingModal = ({
       formData.append("signature", signaturePng);
       const offerApproveApi = await approveOfferLetter(offerIdData, formData);
       if (offerApproveApi?.status === "success") {
-        toast.success("Offer Approved and released");
+        setActionSuccess("Offer Approved and released");
       }
     } catch (error) {
-      toast.error("Offer Already Approved");
+      setActionError("Offer Already Approved");
     }
     //    email,
     //    subject: `BlitzenX-Employment Offer ${fullName} | ${candidate?.jobTitle} `,
@@ -690,6 +706,38 @@ const PreonboardingModal = ({
       role="dialog"
       aria-modal="true"
     >
+      {/* Error Banner */}
+      {actionError && (
+        <div className="absolute top-4 left-4 right-4 rounded-lg border border-red-200 bg-red-50 p-4 flex items-center justify-between z-50">
+          <div className="flex items-center gap-3">
+            <AlertCircle className="h-5 w-5 text-red-600 flex-shrink-0" />
+            <p className="text-sm text-red-700">{actionError}</p>
+          </div>
+          <button
+            onClick={clearError}
+            className="text-red-600 hover:text-red-700 transition"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
+
+      {/* Success Banner */}
+      {actionSuccess && (
+        <div className="absolute top-4 left-4 right-4 rounded-lg border border-emerald-200 bg-emerald-50 p-4 flex items-center justify-between z-50">
+          <div className="flex items-center gap-3">
+            <CheckCircle className="h-5 w-5 text-emerald-600 flex-shrink-0" />
+            <p className="text-sm text-emerald-700">{actionSuccess}</p>
+          </div>
+          <button
+            onClick={clearSuccess}
+            className="text-emerald-600 hover:text-emerald-700 transition"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
+
       <div className="w-full max-w-6xl h-[95vh] bg-white rounded-2xl shadow-2xl flex flex-col overflow-hidden">
         <div className="shrink-0 border-b bg-white px-6 py-4">
           <div className="flex items-start justify-between">

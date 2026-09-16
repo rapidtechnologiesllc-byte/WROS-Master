@@ -11,6 +11,17 @@ import { getHrCandidateFullDetails } from "../../services/api/candidateSelfServi
 import { getCandidateDocuments, uploadResume } from "../../services/api/documents";
 import { getAllUsers } from "../../services/api/users";
 
+// State for action feedback (replaces toast notifications)
+const useActionFeedback = () => {
+  const [actionError, setActionError] = useState(null);
+  const [actionSuccess, setActionSuccess] = useState(null);
+
+  const clearError = () => setActionError(null);
+  const clearSuccess = () => setActionSuccess(null);
+
+  return { actionError, setActionError, actionSuccess, setActionSuccess, clearError, clearSuccess };
+};
+
 const GENDERS = ["Male", "Female", "Other", "Prefer not to say"];
 const SOURCES = ["LinkedIn", "Indeed", "Referral", "Direct Application", "Job Board", "Other"];
 const CURRENCY_OPTIONS = ["$/Hour", "$/Day", "$/Week", "$/Month", "$/Year"];
@@ -23,6 +34,9 @@ export default function ProfileTabEditable({ candidateId, candidate = {}, onRefr
   const [error, setError] = useState("");
   const [users, setUsers] = useState([]);
   const [candidateFullDetails, setCandidateFullDetails] = useState(null);
+
+  // Action feedback state
+  const { actionError, setActionError, actionSuccess, setActionSuccess, clearError, clearSuccess } = useActionFeedback();
 
   // Edit mode state
   const [editingSection, setEditingSection] = useState(null);
@@ -137,7 +151,7 @@ export default function ProfileTabEditable({ candidateId, candidate = {}, onRefr
   const handleEditSection = (section) => {
     try {
       if (!profile || Object.keys(profile).length === 0) {
-        toast.error("Profile data not loaded yet. Please wait.");
+        setActionError("Profile data not loaded yet. Please wait.");
         return;
       }
       setEditingSection(section);
@@ -163,7 +177,7 @@ export default function ProfileTabEditable({ candidateId, candidate = {}, onRefr
       });
     } catch (err) {
       console.error("Error loading edit form:", err);
-      toast.error("Error loading form data. Please refresh and try again.");
+      setActionError("Error loading form data. Please refresh and try again.");
     }
   };
 
@@ -224,11 +238,11 @@ export default function ProfileTabEditable({ candidateId, candidate = {}, onRefr
         }
       }, 300);
 
-      toast.success("Profile updated successfully");
+      setActionSuccess("Profile updated successfully");
       setEditingSection(null);
       setEditForm({});
     } catch (err) {
-      toast.error(err?.message || "Failed to save changes");
+      setActionError(err?.message || "Failed to save changes");
     } finally {
       setSavingSection(null);
     }
@@ -242,6 +256,38 @@ export default function ProfileTabEditable({ candidateId, candidate = {}, onRefr
 
   return (
     <div className="space-y-4">
+      {/* Error Banner */}
+      {actionError && (
+        <div className="rounded-lg border border-red-200 bg-red-50 p-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <AlertCircle className="h-5 w-5 text-red-600 flex-shrink-0" />
+            <p className="text-sm text-red-700">{actionError}</p>
+          </div>
+          <button
+            onClick={clearError}
+            className="text-red-600 hover:text-red-700 transition"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
+
+      {/* Success Banner */}
+      {actionSuccess && (
+        <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <CheckCircle className="h-5 w-5 text-emerald-600 flex-shrink-0" />
+            <p className="text-sm text-emerald-700">{actionSuccess}</p>
+          </div>
+          <button
+            onClick={clearSuccess}
+            className="text-emerald-600 hover:text-emerald-700 transition"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
+
       {/* Basic Information */}
       <EditableSection
         title="Basic Information"
@@ -436,12 +482,12 @@ export default function ProfileTabEditable({ candidateId, candidate = {}, onRefr
                 setUploadingResume(true);
                 try {
                   await uploadResume({ candidateId, file: resumeFile });
-                  toast.success("Resume uploaded successfully");
+                  setActionSuccess("Resume uploaded successfully");
                   setResumeFile(null);
                   // Refresh candidate data to show updated resume
                   if (onRefresh) onRefresh();
                 } catch (err) {
-                  toast.error(err?.message || "Failed to upload resume");
+                  setActionError(err?.message || "Failed to upload resume");
                 } finally {
                   setUploadingResume(false);
                 }
@@ -560,9 +606,10 @@ export default function ProfileTabEditable({ candidateId, candidate = {}, onRefr
                 <button
                   onClick={() => {
                     if (!skillForm.name.trim()) {
-                      toast.warning("Please enter skill name");
+                      setActionError("Please enter skill name");
                       return;
                     }
+                    clearError();
                     if (editingSkillIdx !== null) {
                       const updated = [...skills];
                       updated[editingSkillIdx] = skillForm;
@@ -629,16 +676,17 @@ export default function ProfileTabEditable({ candidateId, candidate = {}, onRefr
               <button
                 onClick={() => {
                   if (skills.length === 0) {
-                    toast.warning("Please add at least one skill");
+                    setActionError("Please add at least one skill");
                     return;
                   }
                   const primarySkill = skills.find(s => s.isPrimary);
                   if (!primarySkill) {
-                    toast.warning("Please mark a primary skill");
+                    setActionError("Please mark a primary skill");
                     return;
                   }
+                  clearError();
                   setShowSkillsModal(false);
-                  toast.success("Skills updated successfully");
+                  setActionSuccess("Skills updated successfully");
                 }}
                 className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm font-medium"
               >
@@ -700,9 +748,10 @@ export default function ProfileTabEditable({ candidateId, candidate = {}, onRefr
                 <button
                   onClick={() => {
                     if (!educationForm.level.trim() || !educationForm.school.trim()) {
-                      toast.warning("Please fill in all required fields");
+                      setActionError("Please fill in all required fields");
                       return;
                     }
+                    clearError();
                     if (editingEducationIdx !== null) {
                       const updated = [...educationList];
                       updated[editingEducationIdx] = educationForm;
@@ -764,7 +813,7 @@ export default function ProfileTabEditable({ candidateId, candidate = {}, onRefr
               <button
                 onClick={() => {
                   setShowEducationModal(false);
-                  toast.success("Education details updated successfully");
+                  setActionSuccess("Education details updated successfully");
                 }}
                 className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm font-medium"
               >
@@ -825,9 +874,10 @@ export default function ProfileTabEditable({ candidateId, candidate = {}, onRefr
                 <button
                   onClick={() => {
                     if (!experienceForm.company.trim() || !experienceForm.job_title.trim()) {
-                      toast.warning("Please fill in all required fields");
+                      setActionError("Please fill in all required fields");
                       return;
                     }
+                    clearError();
                     if (editingExperienceIdx !== null) {
                       const updated = [...experienceList];
                       updated[editingExperienceIdx] = experienceForm;
@@ -888,7 +938,7 @@ export default function ProfileTabEditable({ candidateId, candidate = {}, onRefr
               <button
                 onClick={() => {
                   setShowExperienceModal(false);
-                  toast.success("Experience details updated successfully");
+                  setActionSuccess("Experience details updated successfully");
                 }}
                 className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm font-medium"
               >
@@ -949,9 +999,10 @@ export default function ProfileTabEditable({ candidateId, candidate = {}, onRefr
                 <button
                   onClick={() => {
                     if (!(certificationsForm.name || certificationsForm.title)?.trim()) {
-                      toast.warning("Please enter certification name");
+                      setActionError("Please enter certification name");
                       return;
                     }
+                    clearError();
                     if (editingCertificationsIdx !== null) {
                       const updated = [...certificationsList];
                       updated[editingCertificationsIdx] = certificationsForm;
@@ -1014,7 +1065,7 @@ export default function ProfileTabEditable({ candidateId, candidate = {}, onRefr
               <button
                 onClick={() => {
                   setShowCertificationsModal(false);
-                  toast.success("Certifications updated successfully");
+                  setActionSuccess("Certifications updated successfully");
                 }}
                 className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm font-medium"
               >
