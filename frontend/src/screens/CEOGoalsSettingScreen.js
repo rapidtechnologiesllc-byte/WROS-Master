@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react"
-import { toast } from "react-toastify"
-import { Target, TrendingUp, Users, DollarSign, Zap, Loader } from "lucide-react"
+import { Target, TrendingUp, Users, DollarSign, Zap, Loader, AlertCircle, X } from "lucide-react"
 import { Card, Button, Input } from "../components/ui"
 import { apiRequest } from "../services/api"
 
@@ -143,6 +142,7 @@ export default function CEOGoalsSettingScreen() {
   const [editValue, setEditValue] = useState(0)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(null)
+  const [actionError, setActionError] = useState(null)
 
   // Fetch strategic goals from backend on mount
   useEffect(() => {
@@ -170,7 +170,7 @@ export default function CEOGoalsSettingScreen() {
         }
       } catch (err) {
         console.error("Failed to fetch goals:", err)
-        toast.error("Failed to load goals. Using defaults.")
+        setActionError("Failed to load goals. Using defaults.")
         setGoals(DEFAULT_GOALS)
       } finally {
         setLoading(false)
@@ -204,11 +204,11 @@ export default function CEOGoalsSettingScreen() {
         g.id === id ? { ...g, target: editValue } : g
       ))
 
-      toast.success(`Goal updated to ${editValue.toLocaleString()}. Cascading to ${response.cascading_to?.length || 0} departments...`)
+      setActionError(null)
       setEditingId(null)
     } catch (err) {
       console.error("Failed to save goal:", err)
-      toast.error("Failed to save goal. Please try again.")
+      setActionError("Failed to save goal. Please try again.")
     } finally {
       setSaving(null)
     }
@@ -231,6 +231,14 @@ export default function CEOGoalsSettingScreen() {
 
   return (
     <div className="container mx-auto p-6 bg-white min-h-screen">
+      {actionError && (
+        <div className="mb-4 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700 flex items-center justify-between">
+          <span>{actionError}</span>
+          <button onClick={() => setActionError(null)} className="text-rose-700 hover:text-rose-900">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
       <div className="mb-6">
         <div className="flex items-center gap-3 mb-2">
           <Target size={32} className="text-blue-600" />

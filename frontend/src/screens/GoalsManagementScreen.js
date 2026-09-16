@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react"
-import { toast } from "react-toastify"
 import { Target, Edit2, Save, X, AlertCircle, Loader } from "lucide-react"
 import { Card, Button, Input } from "../components/ui"
 import { apiRequest } from "../services/api"
@@ -226,7 +225,6 @@ export default function GoalsManagementScreen() {
         }
       } catch (err) {
         console.error("Failed to fetch goals:", err)
-        toast.error("Failed to load goals from backend")
       } finally {
         setLoading(false)
       }

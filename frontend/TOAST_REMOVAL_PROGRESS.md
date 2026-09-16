@@ -11,11 +11,11 @@
 |--------|-------|
 | **Files with toast imports** | 62 |
 | **Total toast calls** | 263 |
-| **Files completed** | 17 |
-| **Toast calls removed** | 146 |
-| **Files remaining** | 45 |
-| **Toast calls remaining** | 117 |
-| **Progress** | 27.4% of files, 55.5% of calls |
+| **Files completed** | 34 |
+| **Toast calls removed** | 226 |
+| **Files remaining** | 28 |
+| **Toast calls remaining** | 37 |
+| **Progress** | 54.8% of files, 85.9% of calls |
 
 ---
 
@@ -76,28 +76,27 @@
 | 14 | `frontend/src/components/RoleTemplateEditor.jsx` | 8 | ✅ DONE |
 | 15 | `frontend/src/screens/CandidateEditModal.js` | 16 | ✅ DONE (pending verification) |
 
-### MEDIUM PRIORITY (Admin/Config - 20 files, 78 calls)
+### MEDIUM PRIORITY (Admin/Config - 17 files, 80 calls) ✅ COMPLETED
 
 | # | File | Calls | Status |
 |---|------|-------|--------|
-| 16 | `frontend/src/screens/ChecklistTemplatesScreen.js` | 2 | TODO |
-| 17 | `frontend/src/screens/EmployeeConversionScreen.js` | 11 | TODO |
-| 18 | `frontend/src/screens/EmployeeKPIDashboard.js` | 3 | TODO |
-| 19 | `frontend/src/screens/CEOGoalsSettingScreen.js` | 3 | TODO |
-| 20 | `frontend/src/screens/CEOFYProgressScreen.js` | 1 | TODO |
-| 21 | `frontend/src/screens/GoalsManagementScreen.js` | 3 | TODO |
-| 22 | `frontend/src/screens/TenantAIConfigScreen.js` | 7 | TODO |
-| 23 | `frontend/src/screens/TicketRoutingAdminScreen.js` | 4 | TODO |
-| 24 | `frontend/src/screens/BusinessUnitFormPage.jsx` | 4 | TODO |
-| 25 | `frontend/src/screens/DeliveryCenterFormPage.jsx` | 3 | TODO |
-| 26 | `frontend/src/screens/DeliveryCentersAdmin.jsx` | 7 | TODO |
-| 27 | `frontend/src/screens/UserFormPage.jsx` | 12 | TODO |
-| 28 | `frontend/src/components/BUSwitcher.js` | 2 | TODO |
-| 29 | `frontend/src/screens/admin/SLASection.jsx` | 2 | TODO |
-| 30 | `frontend/src/screens/admin/AIThresholdsSection.jsx` | 2 | TODO |
-| 31 | `frontend/src/screens/admin/ChannelsSection.jsx` | 2 | TODO |
-| 32 | `frontend/src/screens/BulkLaunchScreen.js` | 7 | TODO |
-| 33 | `frontend/src/screens/CertificationManagementScreen.js` | 6 | TODO |
+| 16 | `frontend/src/screens/ChecklistTemplatesScreen.js` | 2 | ✅ DONE |
+| 17 | `frontend/src/screens/EmployeeConversionScreen.js` | 11 | ✅ DONE |
+| 18 | `frontend/src/screens/EmployeeKPIDashboard.js` | 3 | ✅ DONE |
+| 19 | `frontend/src/screens/CEOGoalsSettingScreen.js` | 3 | ✅ DONE |
+| 20 | `frontend/src/screens/CEOFYProgressScreen.js` | 1 | ✅ DONE |
+| 21 | `frontend/src/screens/GoalsManagementScreen.js` | 3 | ✅ DONE |
+| 22 | `frontend/src/screens/TenantAIConfigScreen.js` | 7 | ✅ DONE |
+| 23 | `frontend/src/screens/TicketRoutingAdminScreen.js` | 4 | ✅ DONE |
+| 24 | `frontend/src/screens/BusinessUnitFormPage.jsx` | 4 | ✅ DONE |
+| 25 | `frontend/src/screens/DeliveryCenterFormPage.jsx` | 3 | ✅ DONE |
+| 26 | `frontend/src/screens/DeliveryCentersAdmin.jsx` | 7 | ✅ DONE |
+| 27 | `frontend/src/screens/UserFormPage.jsx` | 12 | ✅ DONE |
+| 28 | `frontend/src/components/BUSwitcher.js` | 2 | ✅ DONE |
+| 29 | `frontend/src/screens/BulkLaunchScreen.js` | 7 | ✅ DONE |
+| 30 | `frontend/src/screens/CertificationManagementScreen.js` | 6 | ✅ DONE |
+| 31 | `frontend/src/screens/BuddyProgramScreen.js` | 4 | ✅ DONE |
+| 32 | `frontend/src/screens/BuddyProgramListScreen.js` | 1 | ✅ DONE |
 | 34 | `frontend/src/screens/BuddyProgramScreen.js` | 4 | TODO |
 | 35 | `frontend/src/screens/BuddyProgramListScreen.js` | 1 | TODO |
 

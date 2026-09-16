@@ -1,13 +1,13 @@
 // Employee KPI Dashboard showing certification targets and progress
 import { useEffect, useState } from "react";
-import { CheckCircle2, Clock, AlertCircle, TrendingUp } from "lucide-react";
+import { CheckCircle2, Clock, AlertCircle, TrendingUp, X } from "lucide-react";
 import { Card, Button } from "../components/ui";
-import { toast } from "react-toastify";
 
 export default function EmployeeKPIDashboard({ employeeId, onClose }) {
   const [kpiScore, setKPIScore] = useState(null);
   const [targets, setTargets] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [actionError, setActionError] = useState(null);
 
   useEffect(() => {
     loadKPIData();
@@ -34,7 +34,7 @@ export default function EmployeeKPIDashboard({ employeeId, onClose }) {
         setTargets(targetsData);
       }
     } catch (err) {
-      toast.error(err.message);
+      setActionError(err.message);
     } finally {
       setLoading(false);
     }
@@ -51,10 +51,10 @@ export default function EmployeeKPIDashboard({ employeeId, onClose }) {
 
       if (!response.ok) throw new Error("Failed to mark as achieved");
 
-      toast.success("Certification marked as achieved!");
+      setActionError(null);
       loadKPIData();
     } catch (err) {
-      toast.error(err.message);
+      setActionError(err.message);
     }
   };
 
@@ -99,6 +99,14 @@ export default function EmployeeKPIDashboard({ employeeId, onClose }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
       <Card className="w-full max-w-2xl max-h-96 overflow-y-auto">
+        {actionError && (
+          <div className="border-b bg-rose-50 border-rose-200 p-3 flex items-center justify-between">
+            <span className="text-sm text-rose-700">{actionError}</span>
+            <button onClick={() => setActionError(null)} className="text-rose-700 hover:text-rose-900">
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        )}
         <div className="border-b p-4 flex justify-between items-center">
           <div className="flex items-center gap-2">
             <TrendingUp className="h-6 w-6" />

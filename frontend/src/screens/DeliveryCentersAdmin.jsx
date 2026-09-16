@@ -1,20 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Edit2, Trash2, X } from 'lucide-react';
+import { Plus, Edit2, Trash2, X, AlertCircle } from 'lucide-react';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
 import { apiRequest } from '../services/api/client';
-
-const toast = {
-  success: (msg) => console.log('✓', msg),
-  error: (msg) => console.error('✗', msg)
-};
 
 export default function DeliveryCentersAdmin() {
   const [centers, setCenters] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
+  const [actionError, setActionError] = useState(null);
   const [form, setForm] = useState({
     name: '',
     code: '',
@@ -36,7 +32,7 @@ export default function DeliveryCentersAdmin() {
       setCenters(res.data || []);
     } catch (err) {
       console.error("Failed to load delivery centers:", err);
-      toast.error("Failed to load delivery centers");
+      setActionError("Failed to load delivery centers");
     } finally {
       setLoading(false);
     }
@@ -80,19 +76,19 @@ export default function DeliveryCentersAdmin() {
           method: 'PUT',
           body: form
         });
-        toast.success("Delivery center updated");
+        setActionError(null);
       } else {
         await apiRequest('/delivery-centers', {
           method: 'POST',
           body: form
         });
-        toast.success("Delivery center created");
+        setActionError(null);
       }
       setShowForm(false);
       loadDeliveryCenters();
     } catch (err) {
       console.error("Failed to save delivery center:", err);
-      toast.error(err.data?.detail || "Failed to save delivery center");
+      setActionError(err.data?.detail || "Failed to save delivery center");
     }
   };
 
@@ -101,16 +97,24 @@ export default function DeliveryCentersAdmin() {
 
     try {
       await apiRequest(`/delivery-centers/${id}`, { method: 'DELETE' });
-      toast.success("Delivery center deleted");
+      setActionError(null);
       loadDeliveryCenters();
     } catch (err) {
       console.error("Failed to delete delivery center:", err);
-      toast.error("Failed to delete delivery center");
+      setActionError("Failed to delete delivery center");
     }
   };
 
   return (
     <div className="space-y-6">
+      {actionError && (
+        <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700 flex items-center justify-between">
+          <span>{actionError}</span>
+          <button onClick={() => setActionError(null)} className="text-rose-700 hover:text-rose-900">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold">Delivery Centers</h1>
         <Button

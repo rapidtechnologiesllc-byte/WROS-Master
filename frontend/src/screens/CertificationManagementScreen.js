@@ -1,8 +1,7 @@
 // Admin screen for managing certifications and employee KPI targets
 import { useEffect, useState } from "react";
-import { Plus, Trash2, CheckCircle2, Clock, AlertCircle } from "lucide-react";
+import { Plus, Trash2, CheckCircle2, Clock, AlertCircle, X } from "lucide-react";
 import { Card, Button, Input, Select } from "../components/ui";
-import { toast } from "react-toastify";
 
 const CERT_LEVELS = ["Foundation", "Intermediate", "Advanced", "Expert"];
 
@@ -11,6 +10,7 @@ export default function CertificationManagementScreen() {
   const [certifications, setCertifications] = useState([]);
   const [loading, setLoading] = useState(false);
   const [showCreateCert, setShowCreateCert] = useState(false);
+  const [actionError, setActionError] = useState(null);
 
   // Create certification form
   const [certForm, setCertForm] = useState({
@@ -55,7 +55,7 @@ export default function CertificationManagementScreen() {
       const data = await response.json();
       setCertifications(data);
     } catch (err) {
-      toast.error(err.message);
+      setActionError(err.message);
     } finally {
       setLoading(false);
     }
@@ -86,7 +86,7 @@ export default function CertificationManagementScreen() {
 
   const handleCreateCertification = async () => {
     if (!certForm.cert_name || !certForm.cert_code) {
-      toast.error("Name and Code are required");
+      setActionError("Name and Code are required");
       return;
     }
 
@@ -102,7 +102,7 @@ export default function CertificationManagementScreen() {
 
       if (!response.ok) throw new Error("Failed to create certification");
 
-      toast.success("Certification created successfully");
+      setActionError(null);
       setCertForm({
         cert_name: "",
         cert_code: "",
@@ -114,13 +114,13 @@ export default function CertificationManagementScreen() {
       setShowCreateCert(false);
       loadCertifications();
     } catch (err) {
-      toast.error(err.message);
+      setActionError(err.message);
     }
   };
 
   const handleAssignTarget = async () => {
     if (!targetForm.employee_id || !targetForm.certification_id || !targetForm.target_date) {
-      toast.error("All fields are required");
+      setActionError("All fields are required");
       return;
     }
 
@@ -139,7 +139,7 @@ export default function CertificationManagementScreen() {
 
       if (!response.ok) throw new Error("Failed to assign target");
 
-      toast.success("KPI target assigned successfully");
+      setActionError(null);
       setTargetForm({
         employee_id: "",
         certification_id: "",
@@ -149,12 +149,20 @@ export default function CertificationManagementScreen() {
       setShowAssignTarget(false);
       loadKPITargets();
     } catch (err) {
-      toast.error(err.message);
+      setActionError(err.message);
     }
   };
 
   return (
     <div className="space-y-4">
+      {actionError && (
+        <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700 flex items-center justify-between">
+          <span>{actionError}</span>
+          <button onClick={() => setActionError(null)} className="text-rose-700 hover:text-rose-900">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
       {/* Tabs */}
       <div className="flex gap-2 border-b">
         <button

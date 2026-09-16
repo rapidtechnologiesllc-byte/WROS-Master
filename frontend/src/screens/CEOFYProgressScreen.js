@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
-import { toast } from "react-toastify";
-import { CheckCircle, AlertCircle, TrendingUp } from "lucide-react";
+import { CheckCircle, AlertCircle, TrendingUp, X } from "lucide-react";
 import { Card } from "../components/ui";
 import { getCEOFYProgress, getCEOFYSummary } from "../services/api/agents";
 
@@ -8,6 +7,7 @@ export default function CEOFYProgressScreen() {
   const [summary, setSummary] = useState(null);
   const [progress, setProgress] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [actionError, setActionError] = useState(null);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -26,7 +26,7 @@ export default function CEOFYProgressScreen() {
           setProgress(progress);
         }
       } catch (err) {
-        toast.error("Failed to load FY progress dashboard");
+        setActionError("Failed to load FY progress dashboard");
       } finally {
         setLoading(false);
       }
@@ -99,6 +99,14 @@ export default function CEOFYProgressScreen() {
 
   return (
     <div className="p-6 max-w-6xl mx-auto">
+      {actionError && (
+        <div className="mb-4 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700 flex items-center justify-between">
+          <span>{actionError}</span>
+          <button onClick={() => setActionError(null)} className="text-rose-700 hover:text-rose-900">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
       {/* Executive Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
         <Card className="bg-gradient-to-br from-blue-50 to-blue-100/50">

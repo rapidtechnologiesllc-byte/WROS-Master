@@ -1,6 +1,6 @@
 // S-074/HRMS-0474 -- Bulk Candidate Engagement Launch.
 import { useEffect, useRef, useState } from "react";
-import { toast } from "react-toastify";
+import { AlertCircle, X } from "lucide-react";
 import { bulkEngage, bulkImportCsv, getBulkJobStatus, getActiveBulkJobs, getImportHistory, cancelBulkImportJob } from "../services/api/bulkEngagement";
 
 export default function BulkLaunchScreen() {
@@ -13,6 +13,7 @@ export default function BulkLaunchScreen() {
   const [importHistory, setImportHistory] = useState([]);  // NEW: Store import history
   const [job, setJob] = useState(null);
   const [launching, setLaunching] = useState(false);
+  const [actionError, setActionError] = useState(null);
   const pollRef = useRef(null);
   const importPollRef = useRef(null);  // Separate poll for import progress
   const fileInputRef = useRef(null);
@@ -59,24 +60,25 @@ export default function BulkLaunchScreen() {
   const handleFileSelect = (selected) => {
     if (!selected) return;
     if (!selected.name.toLowerCase().endsWith(".csv")) {
-      toast.error("File must be a .csv file.");
+      setActionError("File must be a .csv file.");
       return;
     }
     setFile(selected);
     setImportResult(null);
+    setActionError(null);
   };
 
   const handleCancelImport = async (jobId) => {
     try {
       const result = await cancelBulkImportJob(jobId);
-      toast.success("Import job cancelled successfully");
+      setActionError(null);
 
       // Refresh import history (including completed/cancelled jobs)
       const jobs = await getImportHistory();
       setImportHistory(jobs || []);
     } catch (err) {
       console.error("Error cancelling import:", err);
-      toast.error(err?.message || "Failed to cancel import");
+      setActionError(err?.message || "Failed to cancel import");
     }
   };
 
@@ -85,7 +87,7 @@ export default function BulkLaunchScreen() {
 
     // Only candidate import is currently implemented
     if (uploadType !== "candidate") {
-      toast.error(`${uploadTypeOptions.find(o => o.value === uploadType)?.label} bulk import coming soon!`);
+      setActionError(`${uploadTypeOptions.find(o => o.value === uploadType)?.label} bulk import coming soon!`);
       return;
     }
 
@@ -102,21 +104,20 @@ export default function BulkLaunchScreen() {
         setImportJobId(extractedJobId);
         // Start polling for import progress
         pollImportProgress(extractedJobId);
-        toast.success("Import started! Watch the progress below...");
+        setActionError(null);
       } else {
         // Fallback: try to use the result's job_id field if it exists
         if (result.job_id) {
           setImportJobId(result.job_id);
           pollImportProgress(result.job_id);
-          toast.success("Import started! Watch the progress below...");
+          setActionError(null);
         } else {
           // No job ID found, but request succeeded - still show success
-          toast.success("Import started! Refresh the page to see results.");
           setImporting(false);
         }
       }
     } catch (err) {
-      toast.error(err?.message || "CSV cannot exceed 100K rows, or is missing required columns.");
+      setActionError(err?.message || "CSV cannot exceed 100K rows, or is missing required columns.");
       setImporting(false);
     }
   };
@@ -136,7 +137,7 @@ export default function BulkLaunchScreen() {
           if (progress.status === "COMPLETED" || progress.status === "FAILED") {
             clearInterval(importPollRef.current);
             setImporting(false);
-            toast.success(`Import complete! ${progress.imported} candidates imported.`);
+            setActionError(null);
           }
         }
       } catch (err) {
@@ -166,9 +167,10 @@ export default function BulkLaunchScreen() {
     try {
       const launch = await bulkEngage(importResult.candidate_ids);
       setJob({ bulk_job_id: launch.bulk_job_id, status: "QUEUED", total_count: launch.total_candidates, success_count: 0, failed_count: 0, skipped_count: 0, errors: [] });
+      setActionError(null);
       pollJob(launch.bulk_job_id);
     } catch (err) {
-      toast.error(err?.message || "Failed to launch bulk engagement.");
+      setActionError(err?.message || "Failed to launch bulk engagement.");
     } finally {
       setLaunching(false);
     }
@@ -178,6 +180,14 @@ export default function BulkLaunchScreen() {
 
   return (
     <div className="space-y-5">
+      {actionError && (
+        <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700 flex items-center justify-between">
+          <span>{actionError}</span>
+          <button onClick={() => setActionError(null)} className="text-rose-700 hover:text-rose-900">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
       {/* Step 0: Select Upload Type */}
       <div className="rounded-2xl border bg-white p-5 shadow-sm">
         <h3 className="mb-4 text-sm font-semibold text-gray-900">0. Select Upload Type</h3>

@@ -1,11 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, AlertCircle, X } from 'lucide-react';
 import Button from '../components/ui/Button';
 import Card from '../components/ui/Card';
 import Input from '../components/ui/Input';
 import { apiRequest } from '../services/api/client';
-import { toast } from 'react-toastify';
 
 export default function BusinessUnitFormPage() {
   const { buId } = useParams();
@@ -20,6 +19,7 @@ export default function BusinessUnitFormPage() {
   });
   const [loading, setLoading] = useState(mode === 'edit');
   const [saving, setSaving] = useState(false);
+  const [actionError, setActionError] = useState(null);
 
   useEffect(() => {
     if (mode === 'edit' && buId) {
@@ -41,7 +41,7 @@ export default function BusinessUnitFormPage() {
       }
     } catch (err) {
       console.error('Failed to load business unit:', err);
-      toast.error('Failed to load business unit');
+      setActionError('Failed to load business unit');
       navigate('/admin/users-access-control/business-units');
     } finally {
       setLoading(false);
@@ -56,7 +56,7 @@ export default function BusinessUnitFormPage() {
   const handleSave = async (e) => {
     e.preventDefault();
     if (!formData.name.trim()) {
-      toast.error('Business Unit Name is required');
+      setActionError('Business Unit Name is required');
       return;
     }
 
@@ -75,18 +75,18 @@ export default function BusinessUnitFormPage() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
         });
-        toast.success('Business Unit created successfully');
+        setActionError(null);
       } else {
         await apiRequest(`/rbac/business-units/${buId}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
         });
-        toast.success('Business Unit updated successfully');
+        setActionError(null);
       }
       navigate('/admin/users-access-control/business-units');
     } catch (err) {
-      toast.error(err?.message || 'Failed to save business unit');
+      setActionError(err?.message || 'Failed to save business unit');
     } finally {
       setSaving(false);
     }
@@ -124,6 +124,14 @@ export default function BusinessUnitFormPage() {
 
       {/* Form */}
       <Card className="p-6 max-w-2xl">
+        {actionError && (
+          <div className="mb-4 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700 flex items-center justify-between">
+            <span>{actionError}</span>
+            <button onClick={() => setActionError(null)} className="text-rose-700 hover:text-rose-900">
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        )}
         <form onSubmit={handleSave} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">

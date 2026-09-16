@@ -1,6 +1,6 @@
 // HR: manage checklist templates and template items (backend /checklist/hr/templates).
 import { useCallback, useEffect, useState } from "react";
-import { ListChecks, Plus, Trash2 } from "lucide-react";
+import { ListChecks, Plus, Trash2, AlertCircle, CheckCircle, X } from "lucide-react";
 import { Button, Card, Input, Select } from "../components/ui";
 import {
   addChecklistTemplateItem,
@@ -15,7 +15,6 @@ import {
 } from "../services/api/checklists";
 import { getAllCandidates } from "../services/api/candidates";
 import { AssignButton, ContentDiv } from "../styles/ChecklistTemplate";
-import { toast } from "react-toastify";
 import { sendPlainEmail } from "../services/api/email";
 import { getEmailBodyHTML } from "../utils/preboardingEmailTemplate";
 
@@ -30,6 +29,8 @@ const emptyItemForm = () => ({
 export default function ChecklistTemplatesScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [actionError, setActionError] = useState(null);
+  const [actionSuccess, setActionSuccess] = useState(null);
   const [notice, setNotice] = useState("");
   const [summaries, setSummaries] = useState([]);
   const [expandedId, setExpandedId] = useState(null);
@@ -251,10 +252,10 @@ export default function ChecklistTemplatesScreen() {
         assignChecklistToCandidate(payload),
       ]);
       if (checklistRes?.response?.status === 200) {
-        toast.success("Template assigned successfully");
+        setActionSuccess("Template assigned successfully");
       }
     } catch (err) {
-      toast.error(err?.message || "Something went wrong");
+      setActionError(err?.message || "Something went wrong");
     }
   };
 
@@ -269,11 +270,27 @@ export default function ChecklistTemplatesScreen() {
           candidates from the Pre-Onboarding screen.
         </p>
 
+        {actionError && (
+          <div className="mb-4 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700 flex items-center justify-between">
+            <span>{actionError}</span>
+            <button onClick={() => setActionError(null)} className="text-rose-700 hover:text-rose-900">
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        )}
         {error ? (
           <div className="mb-4 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
             {error}
           </div>
         ) : null}
+        {actionSuccess && (
+          <div className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800 flex items-center justify-between">
+            <span>{actionSuccess}</span>
+            <button onClick={() => setActionSuccess(null)} className="text-emerald-700 hover:text-emerald-900">
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        )}
         {notice ? (
           <div className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
             {notice}

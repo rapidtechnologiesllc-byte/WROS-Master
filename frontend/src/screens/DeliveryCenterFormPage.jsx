@@ -1,14 +1,14 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, AlertCircle, X } from 'lucide-react';
 import Button from '../components/ui/Button';
 import Card from '../components/ui/Card';
 import Input from '../components/ui/Input';
-import { toast } from 'react-toastify';
 
 export default function DeliveryCenterFormPage() {
   const navigate = useNavigate();
   const [saving, setSaving] = useState(false);
+  const [actionError, setActionError] = useState(null);
   const [formData, setFormData] = useState({
     name: '',
     type: 'Delivery',
@@ -28,7 +28,7 @@ export default function DeliveryCenterFormPage() {
   const handleSave = async (e) => {
     e.preventDefault();
     if (!formData.name.trim()) {
-      toast.error('Delivery Center name is required');
+      setActionError('Delivery Center name is required');
       return;
     }
 
@@ -39,10 +39,10 @@ export default function DeliveryCenterFormPage() {
       //   method: 'POST',
       //   body: JSON.stringify(formData)
       // });
-      toast.success('Delivery Center created successfully');
+      setActionError(null);
       navigate('/admin/users-access-control/delivery-centers');
     } catch (err) {
-      toast.error(err?.message || 'Failed to save delivery center');
+      setActionError(err?.message || 'Failed to save delivery center');
     } finally {
       setSaving(false);
     }
@@ -72,6 +72,14 @@ export default function DeliveryCenterFormPage() {
 
       {/* Form */}
       <Card className="p-6 max-w-2xl">
+        {actionError && (
+          <div className="mb-4 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700 flex items-center justify-between">
+            <span>{actionError}</span>
+            <button onClick={() => setActionError(null)} className="text-rose-700 hover:text-rose-900">
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        )}
         <form onSubmit={handleSave} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">

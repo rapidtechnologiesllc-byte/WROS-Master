@@ -3,8 +3,7 @@
 // an admin adds one row per real category, routed to ANY real
 // direction, not just HR/IT.
 import { useEffect, useState } from "react";
-import { Route, Timer } from "lucide-react";
-import { toast } from "react-toastify";
+import { Route, Timer, AlertCircle, X } from "lucide-react";
 import { Card, Button, Input, Select } from "../components/ui";
 import { listDepartments } from "../services/api/rbac";
 import {
@@ -17,6 +16,7 @@ export default function TicketRoutingAdminScreen() {
   const [policies, setPolicies] = useState([]);
   const [newRoute, setNewRoute] = useState({ category: "", subcategory: "", department_id: "" });
   const [loading, setLoading] = useState(true);
+  const [actionError, setActionError] = useState(null);
 
   const load = async () => {
     setLoading(true);
@@ -26,7 +26,7 @@ export default function TicketRoutingAdminScreen() {
       setDepartments(d || []);
       setPolicies(p || []);
     } catch (err) {
-      toast.error("Could not load ticket routing configuration.");
+      setActionError("Could not load ticket routing configuration.");
     } finally {
       setLoading(false);
     }
@@ -45,11 +45,11 @@ export default function TicketRoutingAdminScreen() {
         subcategory: newRoute.subcategory.trim() || null,
         department_id: Number(newRoute.department_id),
       });
-      toast.success("Routing rule added.");
+      setActionError(null);
       setNewRoute({ category: "", subcategory: "", department_id: "" });
       load();
     } catch (err) {
-      toast.error(err.message || "Could not add routing rule.");
+      setActionError(err.message || "Could not add routing rule.");
     }
   };
 
@@ -61,7 +61,7 @@ export default function TicketRoutingAdminScreen() {
     try {
       await updateSLAPolicy(priority, { response_minutes: updated.response_minutes, resolution_minutes: updated.resolution_minutes });
     } catch {
-      toast.error(`Could not save ${priority} SLA policy.`);
+      setActionError(`Could not save ${priority} SLA policy.`);
     }
   };
 
@@ -69,6 +69,14 @@ export default function TicketRoutingAdminScreen() {
 
   return (
     <div className="p-6 max-w-4xl mx-auto space-y-6">
+      {actionError && (
+        <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700 flex items-center justify-between">
+          <span>{actionError}</span>
+          <button onClick={() => setActionError(null)} className="text-rose-700 hover:text-rose-900">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
       <Card title="Category Routing" subtitle="No fixed category list -- add a route for any category, to any department." icon={<Route size={16} />}>
         {loading ? (
           <p className="text-sm text-gray-500">Loading...</p>

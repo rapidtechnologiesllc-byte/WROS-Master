@@ -5,7 +5,7 @@
 // than add a GET endpoint just to fetch static config.
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
-import { toast } from "react-toastify";
+import { AlertCircle, X } from "lucide-react";
 import { Card, Button, TextArea } from "../components/ui";
 import {
   createBuddyProgramRecord, exitProgram, extendProgram, getBuddyProgramRecord, getCanExtend,
@@ -37,6 +37,7 @@ export default function BuddyProgramScreen() {
   const [scores, setScores] = useState({});
   const [decisionNotes, setDecisionNotes] = useState("");
   const [loading, setLoading] = useState(true);
+  const [actionError, setActionError] = useState(null);
 
   const load = async () => {
     setLoading(true);
@@ -48,7 +49,7 @@ export default function BuddyProgramScreen() {
       setScorecard(sc);
       setCanExtend(ce.can_extend);
     } catch (err) {
-      toast.error("Could not load buddy program record.");
+      setActionError("Could not load buddy program record.");
     } finally {
       setLoading(false);
     }
@@ -67,11 +68,11 @@ export default function BuddyProgramScreen() {
     if (entries.length === 0) return;
     try {
       await submitWeeklyScores(recordId, week, Object.fromEntries(entries));
-      toast.success(`Week ${week} scores submitted.`);
+      setActionError(null);
       setScores({});
       load();
     } catch (err) {
-      toast.error(err.message || "Could not submit scores.");
+      setActionError(err.message || "Could not submit scores.");
     }
   };
 
@@ -80,11 +81,11 @@ export default function BuddyProgramScreen() {
       if (action === "graduate") await graduateEmployee(recordId, decisionNotes || null);
       else if (action === "extend") await extendProgram(recordId, decisionNotes);
       else await exitProgram(recordId, decisionNotes || null);
-      toast.success(`Decision recorded: ${action}.`);
+      setActionError(null);
       setDecisionNotes("");
       load();
     } catch (err) {
-      toast.error(err.message || "Could not record decision.");
+      setActionError(err.message || "Could not record decision.");
     }
   };
 
@@ -94,6 +95,14 @@ export default function BuddyProgramScreen() {
 
   return (
     <div className="p-6 max-w-4xl mx-auto space-y-6">
+      {actionError && (
+        <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700 flex items-center justify-between">
+          <span>{actionError}</span>
+          <button onClick={() => setActionError(null)} className="text-rose-700 hover:text-rose-900">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
       <Card title="Weekly KPI Scoring" subtitle="Submit scores 1-5 for your category's KPIs -- a week only counts once all 35 are in.">
         <div className="mb-3 flex items-center gap-2">
           <span className="text-xs font-semibold text-gray-700">Week</span>

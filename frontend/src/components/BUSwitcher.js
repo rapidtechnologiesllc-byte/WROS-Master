@@ -3,7 +3,6 @@
 // static label, never a dropdown -- BR-0107-03's "no false affordance."
 import { useEffect, useState } from "react";
 import { Building2 } from "lucide-react";
-import { toast } from "react-toastify";
 import { activateAllBUsView, getMyBUAccess, switchBU } from "../services/api/buContext";
 import ScreenErrorDisplay from "./ScreenErrorDisplay";
 
@@ -36,7 +35,6 @@ export default function BUSwitcher() {
         await activateAllBUsView();
         localStorage.removeItem("hrms_active_bu_id");
         setActiveId("ALL");
-        toast.info("Viewing all Business Units -- this is logged.");
         window.location.reload();
       } catch {
         setScreenError("Could not activate the All BUs view.");
@@ -47,7 +45,6 @@ export default function BUSwitcher() {
       await switchBU(Number(newId));
       localStorage.setItem("hrms_active_bu_id", newId);
       setActiveId(newId);
-      toast.success("Business Unit switched.");
       window.location.reload();
     } catch {
       setScreenError("Could not switch Business Unit.");

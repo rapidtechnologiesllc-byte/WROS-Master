@@ -1,11 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, AlertCircle, X } from 'lucide-react';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
 import { apiRequest } from '../services/api/client';
-import { toast } from 'react-toastify';
 
 export default function UserFormPage() {
   const { userId } = useParams();
@@ -28,6 +27,7 @@ export default function UserFormPage() {
   const [loading, setLoading] = useState(mode === 'edit');
   const [saving, setSaving] = useState(false);
   const [selectedTemplatePermissions, setSelectedTemplatePermissions] = useState([]);
+  const [actionError, setActionError] = useState(null);
 
   useEffect(() => {
     loadInitialData();
@@ -90,13 +90,13 @@ export default function UserFormPage() {
           whatsapp_number: user.whatsapp_number || ''
         });
       } else {
-        toast.error('User not found');
+        setActionError('User not found');
         navigate('/admin/users-access-control/users');
       }
     } catch (err) {
       console.error('[DEBUG] loadUserData: ERROR:', err);
       console.error('[DEBUG] loadUserData: Error details:', err.message, err.response?.status, err.response?.data);
-      toast.error('Failed to load user details');
+      setActionError('Failed to load user details');
       navigate('/admin/users-access-control/users');
     } finally {
       setLoading(false);
@@ -150,23 +150,23 @@ export default function UserFormPage() {
     e.preventDefault();
 
     if (!formData.user_name.trim()) {
-      toast.error('User name is required');
+      setActionError('User name is required');
       return;
     }
     if (!formData.user_email.trim()) {
-      toast.error('Email is required');
+      setActionError('Email is required');
       return;
     }
     if (mode === 'create' && !formData.user_password.trim()) {
-      toast.error('Password is required');
+      setActionError('Password is required');
       return;
     }
     if (!formData.business_unit_id) {
-      toast.error('Business Unit is required');
+      setActionError('Business Unit is required');
       return;
     }
     if (!formData.role_template_id) {
-      toast.error('Role Template is required');
+      setActionError('Role Template is required');
       return;
     }
 
@@ -187,20 +187,20 @@ export default function UserFormPage() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
         });
-        toast.success('User created successfully');
+        setActionError(null);
       } else {
         await apiRequest(`/hr/users/${userId}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
         });
-        toast.success('User updated successfully');
+        setActionError(null);
       }
 
       navigate('/admin/users-access-control/users');
     } catch (err) {
       console.error('Failed to save user:', err);
-      toast.error(err?.message || 'Failed to save user');
+      setActionError(err?.message || 'Failed to save user');
     } finally {
       setSaving(false);
     }
@@ -241,6 +241,14 @@ export default function UserFormPage() {
 
       {/* Form Card */}
       <Card className="p-6 max-w-2xl">
+        {actionError && (
+          <div className="mb-4 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700 flex items-center justify-between">
+            <span>{actionError}</span>
+            <button onClick={() => setActionError(null)} className="text-rose-700 hover:text-rose-900">
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        )}
         <form onSubmit={handleSave} className="space-y-4">
           {/* User Name */}
           <div>

@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from "react";
-import { ChevronDown, Plus, Check, X } from "lucide-react";
+import { ChevronDown, Plus, Check, X, AlertCircle, CheckCircle } from "lucide-react";
 import { Card, Button, Input, Select } from "../components/ui";
-import { toast } from "react-toastify";
 import { apiRequest } from "../services/api/client";
 import { getAllCandidates } from "../services/api/candidates";
 import { getBusinessUnitId } from "../utils/permissions";
@@ -12,6 +11,8 @@ export default function EmployeeConversionScreen() {
   const [roles, setRoles] = useState([]);
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [actionError, setActionError] = useState(null);
+  const [actionSuccess, setActionSuccess] = useState(null);
 
   const [formData, setFormData] = useState({
     candidate_id: "",
@@ -57,7 +58,7 @@ export default function EmployeeConversionScreen() {
       setRoles(Array.isArray(rolesRes) ? rolesRes : rolesRes?.roles || []);
     } catch (error) {
       console.error("Error loading conversion data:", error);
-      toast.error("Failed to load conversion data");
+      setActionError("Failed to load conversion data");
     } finally {
       setLoading(false);
     }
@@ -98,31 +99,31 @@ export default function EmployeeConversionScreen() {
 
   const validateForm = () => {
     if (!formData.candidate_id.trim()) {
-      toast.error("Please select a candidate");
+      setActionError("Please select a candidate");
       return false;
     }
     if (!formData.employee_name.trim()) {
-      toast.error("Please enter employee name");
+      setActionError("Please enter employee name");
       return false;
     }
     if (!formData.employee_email.trim()) {
-      toast.error("Please enter employee email");
+      setActionError("Please enter employee email");
       return false;
     }
     if (!formData.business_unit_id) {
-      toast.error("Please select a business unit");
+      setActionError("Please select a business unit");
       return false;
     }
     if (formData.role_ids.length === 0) {
-      toast.error("Please select at least one role");
+      setActionError("Please select at least one role");
       return false;
     }
     if (!formData.position.trim()) {
-      toast.error("Please enter position/title");
+      setActionError("Please enter position/title");
       return false;
     }
     if (!formData.joining_date) {
-      toast.error("Please enter joining date");
+      setActionError("Please enter joining date");
       return false;
     }
     return true;
@@ -151,7 +152,7 @@ export default function EmployeeConversionScreen() {
       );
 
       if (result?.status === "success" || result?.employee_user_id) {
-        toast.success(
+        setActionSuccess(
           `Employee created successfully! ID: ${result.employee_user_id}`
         );
         // Reset form
@@ -168,11 +169,11 @@ export default function EmployeeConversionScreen() {
         // Reload candidates
         loadInitialData();
       } else {
-        toast.error("Failed to convert candidate to employee");
+        setActionError("Failed to convert candidate to employee");
       }
     } catch (error) {
       console.error("Conversion error:", error);
-      toast.error(error?.message || "Failed to convert candidate");
+      setActionError(error?.message || "Failed to convert candidate");
     } finally {
       setSubmitting(false);
     }
@@ -199,6 +200,22 @@ export default function EmployeeConversionScreen() {
       </div>
 
       <Card>
+        {actionError && (
+          <div className="mb-4 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700 flex items-center justify-between">
+            <span>{actionError}</span>
+            <button onClick={() => setActionError(null)} className="text-rose-700 hover:text-rose-900">
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        )}
+        {actionSuccess && (
+          <div className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800 flex items-center justify-between">
+            <span>{actionSuccess}</span>
+            <button onClick={() => setActionSuccess(null)} className="text-emerald-700 hover:text-emerald-900">
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        )}
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Candidate Selection */}
           <div className="border-b pb-6">

@@ -6,8 +6,7 @@
 // -- "Last updated" below is the one real, unified timestamp this
 // story's own table actually stores, not per-section fabricated history.
 import { useEffect, useState } from "react";
-import { Bot, Clock, Gauge, Mail, Power, RefreshCw } from "lucide-react";
-import { toast } from "react-toastify";
+import { Bot, Clock, Gauge, Mail, Power, RefreshCw, AlertCircle, X } from "lucide-react";
 import { Tabs } from "antd";
 import { Card, Button, Input, TextArea, Select } from "../components/ui";
 import { getTenantAIConfig, updateTenantAIConfig } from "../services/api/tenantAiConfig";
@@ -20,6 +19,8 @@ export default function TenantAIConfigScreen() {
   const [config, setConfig] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [actionError, setActionError] = useState(null);
+  const [actionSuccess, setActionSuccess] = useState(null);
 
   const load = async () => {
     setLoading(true);
@@ -42,10 +43,11 @@ export default function TenantAIConfigScreen() {
     try {
       const res = await updateTenantAIConfig(updates);
       setConfig(res);
-      toast.success("Saved.");
+      setActionSuccess("Saved.");
+      setTimeout(() => setActionSuccess(null), 3000);
       return true;
     } catch (err) {
-      toast.error(err.message || "Failed to save.");
+      setActionError(err.message || "Failed to save.");
       return false;
     }
   };
@@ -66,6 +68,22 @@ export default function TenantAIConfigScreen() {
       label: "Thunder Configuration",
       children: (
         <div className="grid gap-4">
+          {actionError && (
+            <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700 flex items-center justify-between">
+              <span>{actionError}</span>
+              <button onClick={() => setActionError(null)} className="text-rose-700 hover:text-rose-900">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          )}
+          {actionSuccess && (
+            <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800 flex items-center justify-between">
+              <span>{actionSuccess}</span>
+              <button onClick={() => setActionSuccess(null)} className="text-emerald-700 hover:text-emerald-900">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          )}
           {error ? (
             <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</div>
           ) : null}
@@ -234,11 +252,11 @@ function EngagementTimingSection({ config, save }) {
     const em = Number(emailHours);
     const maxN = Number(maxFollowups);
     if (wa < 1 || wa > 168 || em < 1 || em > 168) {
-      toast.error("Follow-up hours must be between 1 and 168 (7 days).");
+      setActionError("Follow-up hours must be between 1 and 168 (7 days).");
       return;
     }
     if (maxN < 1 || maxN > 10) {
-      toast.error("Max follow-ups must be between 1 and 10.");
+      setActionError("Max follow-ups must be between 1 and 10.");
       return;
     }
     if (maxN > 5 && !window.confirm("High follow-up counts may feel spammy to candidates. Continue?")) {
