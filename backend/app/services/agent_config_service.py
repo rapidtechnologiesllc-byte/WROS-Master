@@ -13,8 +13,7 @@ from sqlalchemy import and_
 import uuid
 
 from app.models.agent_config import AgentConfig
-from app.models.role_template import RoleTemplate, RoleTemplatePermission
-from app.models.resource import Resource
+from app.models.role_template import RoleTemplate, RoleTemplatePermission, Resource
 from app.core.logging import logger
 
 logger = logging.getLogger(__name__)

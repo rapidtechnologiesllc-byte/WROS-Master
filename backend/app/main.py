@@ -457,6 +457,7 @@ assert_all_routes_have_permission_declarations(
         "GET /config/message-statuses",
         "GET /config/candidate-statuses",
         "GET /config/app-config",
+        "GET /config/system",
         "GET /celery/test-public",
         "GET /api/v1/careers/jobs",
         "GET /api/v1/careers/jobs/{job_id}",

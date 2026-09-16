@@ -31,8 +31,8 @@ class LinkedInCandidatePipeline(Base):
     status = Column(SQLEnum(LinkedInPipelineStatus), default=LinkedInPipelineStatus.PENDING_CONNECTION, index=True)
 
     # Assignment
-    assigned_to_user_id = Column(PG_UUID(as_uuid=True), nullable=True, index=True)  # User doing manual outreach
-    created_by_user_id = Column(PG_UUID(as_uuid=True), nullable=False)  # User who added to queue
+    assigned_to_user_id = Column(String(255), nullable=True, index=True)  # User doing manual outreach (email string)
+    created_by_user_id = Column(String(255), nullable=False)  # User who added to queue (email string)
 
     # Contact Information (collected manually)
     phone_number = Column(String(20), nullable=True)

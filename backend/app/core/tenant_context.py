@@ -66,6 +66,14 @@ def activate_tenant_scope(tenant_id) -> None:
     """
     _current_tenant_id.set(tenant_id)
 
+def get_current_tenant_id() -> int | None:
+    """
+    Get the current request's tenant ID from context.
+
+    Returns None if no tenant has been activated for this request.
+    """
+    return _current_tenant_id.get()
+
 # DISABLED - Single company deployment, no tenant scoping needed
 # def _apply_tenant_scoping(execute_state) -> None:
 #     tenant_id = _current_tenant_id.get()

@@ -17,6 +17,7 @@ from typing import Optional, List
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 import json
+from pydantic import BaseModel
 
 import app.schemas as schema
 from app.core.database import get_db
@@ -45,19 +46,19 @@ router = APIRouter(prefix="/onboarding-workflow", tags=["onboarding-workflow"])
 # ============================================================================
 logger = logging.getLogger(__name__)
 
-class StartOnboardingRequest(schema.BaseModel):
+class StartOnboardingRequest(BaseModel):
     employee_id: str
     candidate_id: Optional[str] = None
     reporting_manager_id: Optional[str] = None
     expected_completion_days: int = 30
 
-class AssignBuddyRequest(schema.BaseModel):
+class AssignBuddyRequest(BaseModel):
     workflow_id: int
     buddy_user_id: str
     activation_date: Optional[date] = None
     notes: Optional[str] = None
 
-class SendWelcomeKitRequest(schema.BaseModel):
+class SendWelcomeKitRequest(BaseModel):
     workflow_id: int
     kit_type: str  # EMAIL, PHYSICAL, DIGITAL, HYBRID
     kit_name: str
@@ -65,7 +66,7 @@ class SendWelcomeKitRequest(schema.BaseModel):
     sent_by_user_id: Optional[str] = None
     delivery_channel: str = "EMAIL"  # EMAIL, PHYSICAL_MAIL, SMS, IN_PERSON
 
-class ScheduleTrainingRequest(schema.BaseModel):
+class ScheduleTrainingRequest(BaseModel):
     workflow_id: int
     training_name: str
     scheduled_date: date
@@ -77,7 +78,7 @@ class ScheduleTrainingRequest(schema.BaseModel):
     training_description: Optional[str] = None
     is_mandatory: bool = True
 
-class OnboardingWorkflowResponse(schema.BaseModel):
+class OnboardingWorkflowResponse(BaseModel):
     workflow_id: int
     employee_id: str
     status: str
@@ -90,7 +91,7 @@ class OnboardingWorkflowResponse(schema.BaseModel):
     class Config:
         from_attributes = True
 
-class OnboardingBuddyResponse(schema.BaseModel):
+class OnboardingBuddyResponse(BaseModel):
     buddy_id: int
     buddy_user_id: str
     status: str
@@ -100,7 +101,7 @@ class OnboardingBuddyResponse(schema.BaseModel):
     class Config:
         from_attributes = True
 
-class WelcomeKitResponse(schema.BaseModel):
+class WelcomeKitResponse(BaseModel):
     kit_id: int
     kit_type: str
     kit_name: str
@@ -110,7 +111,7 @@ class WelcomeKitResponse(schema.BaseModel):
     class Config:
         from_attributes = True
 
-class TrainingSessionResponse(schema.BaseModel):
+class TrainingSessionResponse(BaseModel):
     session_id: int
     training_name: str
     scheduled_date: date

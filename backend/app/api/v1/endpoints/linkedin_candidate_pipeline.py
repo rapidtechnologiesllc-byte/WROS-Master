@@ -6,7 +6,7 @@ Manages candidate queuing from LinkedIn URLs with deduplication.
 import re
 from datetime import datetime
 from typing import Optional
-from uuid import uuid4, UUID
+from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, EmailStr
@@ -111,15 +111,15 @@ async def queue_linkedin_candidate(
             }
 
         # Query 3: All checks passed - create new pipeline record
-        # Use the authenticated user's UUID
-        user_uuid = UUID(current_user.UserID) if isinstance(current_user.UserID, str) else current_user.UserID
+        # Use the authenticated user's ID (may be email string or UUID depending on user model)
+        user_id = current_user.UserID
 
         pipeline_item = LinkedInCandidatePipeline(
             linkedin_url=linkedin_url,
             linkedin_profile_slug=profile_slug,
             status=LinkedInPipelineStatus.PENDING_CONNECTION,
-            assigned_to_user_id=user_uuid,
-            created_by_user_id=user_uuid
+            assigned_to_user_id=user_id,
+            created_by_user_id=user_id
         )
         db.add(pipeline_item)
         db.commit()
@@ -145,10 +145,10 @@ async def list_pipeline_items(
 ):
     """List LinkedIn pipeline items for current user."""
     try:
-        user_uuid = UUID(current_user.UserID) if isinstance(current_user.UserID, str) else current_user.UserID
+        user_id = current_user.UserID
 
         query = db.query(LinkedInCandidatePipeline).filter(
-            LinkedInCandidatePipeline.assigned_to_user_id == user_uuid
+            LinkedInCandidatePipeline.assigned_to_user_id == user_id
         )
 
         if status_filter:

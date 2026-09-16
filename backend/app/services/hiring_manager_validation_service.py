@@ -7,15 +7,10 @@ from sqlalchemy.orm import Session
 from sqlalchemy import and_, func
 from typing import Optional, Dict, Any, List
 
-from app.models import (
-    HiringManagerValidation,
-    HMValidationResponse,
-    HMValidationStatus,
-    Jobs,
-    Candidate,
-    Users,
-    Demand,
-)
+from app.models.hiring_manager_validation import HiringManagerValidation, HMValidationResponse, HMValidationStatus
+from app.models.user import Users
+from app.models.candidate import Candidate
+from app.models.demand import Demand
 
 logger = logging.getLogger(__name__)
 
@@ -106,7 +101,7 @@ class HiringManagerValidationService:
             logger.error(f"Failed to create validation questions: {str(e)}")
             raise
 
-            def send_to_hm(
+    def send_to_hm(
         self,
         db: Session,
         job_id: str,
@@ -331,7 +326,7 @@ class HiringManagerValidationService:
             logger.error(f"Failed to record HM response: {str(e)}")
             raise
 
-            def determine_decision(
+    def determine_decision(
         self,
         responses: Dict[str, Any],
         decision_score: Optional[int],
@@ -488,7 +483,7 @@ class HiringManagerValidationService:
             logger.error(f"Failed to schedule interview: {str(e)}")
             raise ValueError("Operation failed")
 
-            async def return_candidate_to_pool(
+    async def return_candidate_to_pool(
         self,
         validation: HiringManagerValidation,
         db: Session
@@ -514,7 +509,7 @@ class HiringManagerValidationService:
         except Exception as e:
             logger.error(f"Failed to return candidate to pool: {str(e)}")
 
-            async def escalate_validation(
+    async def escalate_validation(
         self,
         validation: HiringManagerValidation,
         reason: str,
@@ -557,7 +552,7 @@ class HiringManagerValidationService:
             db.rollback()
             logger.error(f"Failed to escalate validation: {str(e)}")
 
-            async def send_validation_email(
+    async def send_validation_email(
         self,
         validation: HiringManagerValidation,
         is_reminder: bool = False,
@@ -599,8 +594,7 @@ class HiringManagerValidationService:
         except Exception as e:
             logger.error(f"Failed to send email: {str(e)}")
 
-            def get_validation_stats(self, db: Session, job_id: Optional[str] = None) -> Dict[str, Any]:
-                pass
+    def get_validation_stats(self, db: Session, job_id: Optional[str] = None) -> Dict[str, Any]:
         """
         Get validation statistics for dashboard.
 

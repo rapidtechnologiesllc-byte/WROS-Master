@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 from decimal import Decimal
 from sqlalchemy.orm import Session
 from app.models.timesheet import Timesheet, TimesheetEntry
-from app.models.allocation import EmployeeAllocation
+from app.models.employee_allocation import EmployeeAllocation
 from app.models.project import Project
 import logging
 from app.models.employee import Employee

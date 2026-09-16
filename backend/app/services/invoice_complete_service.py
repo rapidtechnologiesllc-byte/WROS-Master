@@ -6,9 +6,9 @@ import uuid
 from datetime import datetime, timedelta
 from decimal import Decimal
 from sqlalchemy.orm import Session
-from app.models.invoice import Invoice, InvoiceStatus
+from app.models.invoice import Invoice
 from app.models.timesheet import Timesheet
-from app.models.allocation import EmployeeAllocation
+from app.models.employee_allocation import EmployeeAllocation
 from app.models.client import Client
 import logging
 from app.models.project import Project
@@ -60,7 +60,7 @@ class InvoiceCompleteService:
             client_id=client_id,
             project_id=project_id,
             invoice_number=self._generate_invoice_number(db, tenant_id),
-            status=InvoiceStatus.DRAFT,
+            status="DRAFT",
             period_start=period_start,
             period_end=period_end,
             total_hours=total_hours,
@@ -106,13 +106,13 @@ class InvoiceCompleteService:
         if not invoice:
             return {"status": "error", "message": "Invoice not found"}
 
-        if invoice.status != InvoiceStatus.APPROVED:
+        if invoice.status != "APPROVED":
             return {"status": "error", "message": "Only approved invoices can be sent"}
 
         # Calculate due date
         due_date = datetime.utcnow() + timedelta(days=payment_terms_days)
 
-        invoice.status = InvoiceStatus.SENT
+        invoice.status = "SENT"
         invoice.sent_at = datetime.utcnow()
         invoice.sent_to_email = client_email
         invoice.due_date = due_date
@@ -148,7 +148,7 @@ class InvoiceCompleteService:
         if not invoice:
             return {"status": "error", "message": "Invoice not found"}
 
-        if invoice.status not in [InvoiceStatus.SENT, InvoiceStatus.PARTIALLY_PAID]:
+        if invoice.status not in ["SENT", "PARTIALLY_PAID"]:
             return {"status": "error", "message": "Invoice cannot receive payment in current status"}
 
         # Update payment info
@@ -159,10 +159,10 @@ class InvoiceCompleteService:
 
         # Determine status
         if invoice.amount_paid_usd_cents >= invoice.total_usd_cents:
-            invoice.status = InvoiceStatus.PAID
+            invoice.status = "PAID"
             invoice.paid_at = payment_date
         else:
-            invoice.status = InvoiceStatus.PARTIALLY_PAID
+            invoice.status = "PARTIALLY_PAID"
 
         db.commit()
 
@@ -194,10 +194,10 @@ class InvoiceCompleteService:
         if not invoice:
             return {"status": "error", "message": "Invoice not found"}
 
-        if invoice.status != InvoiceStatus.DRAFT:
+        if invoice.status != "DRAFT":
             return {"status": "error", "message": "Only draft invoices can be approved"}
 
-        invoice.status = InvoiceStatus.APPROVED
+        invoice.status = "APPROVED"
         invoice.approved_at = datetime.utcnow()
         invoice.approved_by = approved_by
 

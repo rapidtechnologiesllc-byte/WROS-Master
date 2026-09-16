@@ -9,7 +9,9 @@ from uuid import uuid4
 import logging
 from typing import Optional, List
 
-from app.models import HiringManagerValidation, HMValidationStatus, HMValidationResponse, Candidate, Demand
+from app.models.hiring_manager_validation import HiringManagerValidation, HMValidationStatus, HMValidationResponse
+from app.models.candidate import Candidate
+from app.models.demand import Demand
 from app.services.hiring_manager_validation_service import HiringManagerValidationService
 from app.core.database import get_db
 from app.core.dependencies import require_resource_permission

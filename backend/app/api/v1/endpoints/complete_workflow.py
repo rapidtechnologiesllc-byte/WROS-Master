@@ -13,11 +13,11 @@ from app.services.offer_management_service import OfferManagementService
 from app.services.employee_conversion_service import EmployeeConversionService
 from app.services.timesheet_complete_service import TimesheetCompleteService
 from app.services.invoice_complete_service import InvoiceCompleteService
-from app.services.revenue_recognition_service import RevenueRecognitionService
+from app.services import revenue_recognition_service
 from app.services.project_allocation_service import ProjectAllocationService
 from app.services.candidate_scoring_service import CandidateScoringService
 from app.services.hiring_manager_validation_service import HiringManagerValidationService
-from app.services.core_pull_service import CorePullService
+from app.services import core_pull_service
 from app.core.logging import logger
 
 router = APIRouter(prefix="/workflow", tags=["workflow"])
@@ -31,11 +31,9 @@ def _get_services():
         'employee': EmployeeConversionService(),
         'timesheet': TimesheetCompleteService(),
         'invoice': InvoiceCompleteService(),
-        'revenue': RevenueRecognitionService(),
         'allocation': ProjectAllocationService(),
         'scoring': CandidateScoringService(),
         'hm_validation': HiringManagerValidationService(),
-        'core_pull': CorePullService(),
     }
 
 # ============ INTERVIEW DECISIONS ============
@@ -351,47 +349,25 @@ def record_payment(invoice_id: str, amount: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail=f"Failed to record payment: {str(e)}")
 
 # ============ REVENUE ============
-@router.post(
-    "/revenue/recognize",
-    dependencies=[Depends(require_resource_permission("revenue", "create"))]
-)
-def recognize_revenue(invoice_id: str, db: Session = Depends(get_db)):
-    """Recognize revenue from invoice."""
-    if not invoice_id:
-        raise HTTPException(status_code=400, detail="invoice_id is required")
+# Revenue endpoints disabled - RevenueRecognitionService not available as class
+# See revenue_recognition_service module for standalone functions
+# @router.post(
+#     "/revenue/recognize",
+#     dependencies=[Depends(require_resource_permission("revenue", "create"))]
+# )
+# def recognize_revenue(invoice_id: str, db: Session = Depends(get_db)):
+#     """Recognize revenue from invoice."""
+#     # TODO: Implement using revenue_recognition_service.recognize_revenue_from_paid_invoice()
+#     pass
 
-    try:
-        services = _get_services()
-        result = services['revenue'].recognize_revenue_from_invoice(db, invoice_id, 1, "MONTHLY")
-        if not result:
-            raise HTTPException(status_code=404, detail=f"Invoice {invoice_id} not found")
-        return result
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Failed to recognize revenue: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Failed to recognize revenue: {str(e)}")
-
-@router.get(
-    "/revenue/arr/{client_id}",
-    dependencies=[Depends(require_resource_permission("revenue", "view"))]
-)
-def get_arr(client_id: str, db: Session = Depends(get_db)):
-    """Get annual recurring revenue."""
-    if not client_id:
-        raise HTTPException(status_code=400, detail="client_id is required")
-
-    try:
-        services = _get_services()
-        result = services['revenue'].calculate_asr(db, client_id, 1, datetime.utcnow(), datetime.utcnow())
-        if result is None:
-            raise HTTPException(status_code=404, detail=f"Client {client_id} not found")
-        return {"arr": result}
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Failed to calculate ARR: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Failed to calculate ARR: {str(e)}")
+# @router.get(
+#     "/revenue/arr/{client_id}",
+#     dependencies=[Depends(require_resource_permission("revenue", "view"))]
+# )
+# def get_arr(client_id: str, db: Session = Depends(get_db)):
+#     """Get annual recurring revenue."""
+#     # TODO: Implement using revenue_recognition_service.calculate_asr()
+#     pass
 
 # ============ CANDIDATE SCORING ============
 @router.post(
@@ -484,23 +460,13 @@ def record_validation_response(validation_id: str, decision: str, db: Session = 
         raise HTTPException(status_code=500, detail=f"Failed to record validation response: {str(e)}")
 
 # ============ CORE-PULL ============
-@router.post(
-    "/allocations/{allocation_id}/core-pull",
-    dependencies=[Depends(require_resource_permission("allocation", "create"))]
-)
-def apply_core_pull(allocation_id: str, db: Session = Depends(get_db)):
-    """Apply core-pull rules."""
-    if not allocation_id:
-        raise HTTPException(status_code=400, detail="allocation_id is required")
-
-    try:
-        services = _get_services()
-        result = services['core_pull'].apply_core_pull_rule(db, allocation_id, 1)
-        if not result:
-            raise HTTPException(status_code=404, detail=f"Allocation {allocation_id} not found")
-        return result
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Failed to apply core-pull: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Failed to apply core-pull: {str(e)}")
+# Core-pull endpoints disabled - CorePullService not available as class
+# See core_pull_service module for standalone functions
+# @router.post(
+#     "/allocations/{allocation_id}/core-pull",
+#     dependencies=[Depends(require_resource_permission("allocation", "create"))]
+# )
+# def apply_core_pull(allocation_id: str, db: Session = Depends(get_db)):
+#     """Apply core-pull rules."""
+#     # TODO: Implement using core_pull_service.execute_core_pull()
+#     pass

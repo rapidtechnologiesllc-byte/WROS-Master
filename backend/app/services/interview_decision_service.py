@@ -174,7 +174,7 @@ class InterviewDecisionService:
             logger.error(f"Error: {str(e)}", exc_info=True)
             raise RuntimeError(f"Failed to calculate panel decision: {str(e)}")
 
-            def move_to_offer(
+    def move_to_offer(
         self,
         db: Session,
         interview_id: int,
