@@ -130,9 +130,13 @@ export default function APIKeysSettings() {
         </label>
         <div className="relative">
           <input
+            key={`input-${fieldKey || label}`}
             type={showValue ? 'text' : isSecret ? 'password' : 'text'}
-            value={value}
-            onChange={onChange}
+            value={value || ''}
+            onChange={(e) => {
+              console.log(`[CredentialInput] ${label} changed to: ${e.target.value.substring(0, 10)}...`);
+              onChange(e);
+            }}
             className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition text-sm placeholder:text-gray-400"
             placeholder={`Enter ${label.toLowerCase()}`}
             style={{
@@ -141,12 +145,14 @@ export default function APIKeysSettings() {
               fontWeight: 400,
               letterSpacing: '0.3px'
             }}
+            autoComplete="off"
           />
           {isSecret && fieldKey && (
             <button
               type="button"
               onClick={() => toggleShowSecret(fieldKey)}
               className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition"
+              style={{ pointerEvents: 'auto' }}
             >
               {showSecrets[fieldKey] ? <EyeOff size={18} /> : <Eye size={18} />}
             </button>

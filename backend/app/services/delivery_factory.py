@@ -1,134 +1,156 @@
 """Delivery Service Factory
 
-Returns appropriate delivery implementation based on environment configuration.
-Supports: stub (logging), twilio (WhatsApp), sendgrid (email), azure (email).
+Returns appropriate delivery implementation based on API Keys database configuration per tenant.
+Reads active provider and credentials from APIKeysConfig database table.
+Supports: twilio (WhatsApp), sendgrid (email), azure (email).
 """
 
 import os
 import logging
+from typing import Optional
 from sqlalchemy.orm import Session
 from app.services.delivery_service import DeliveryService
 
 logger = logging.getLogger(__name__)
 
-# Configuration - PRODUCTION-GRADE: No stub default
-DELIVERY_PROVIDER = os.getenv("DELIVERY_PROVIDER", "").lower()  # twilio | sendgrid | azure (required)
 ENVIRONMENT = os.getenv("ENVIRONMENT", "development").lower()
 
 
-def _validate_delivery_provider_configured():
-    """Validate that delivery provider is properly configured for production."""
-    if not DELIVERY_PROVIDER:
-        msg = (
-            "🚨 CRITICAL: DELIVERY_PROVIDER environment variable not set.\n"
-            "Candidate communication will fail silently. Configure one of:\n"
-            "  - DELIVERY_PROVIDER=twilio (WhatsApp via Twilio)\n"
-            "  - DELIVERY_PROVIDER=sendgrid (Email via SendGrid)\n"
-            "  - DELIVERY_PROVIDER=azure (Email via Azure Communication Services)\n"
-            "  - DELIVERY_PROVIDER=stub (TESTING ONLY - logs to DB, doesn't send)\n"
-            "Startup aborted."
-        )
-        logger.critical(msg)
-        raise RuntimeError(msg)
-
-    if DELIVERY_PROVIDER == "stub" and ENVIRONMENT == "production":
-        msg = (
-            "🚨 CRITICAL: Running PRODUCTION with DELIVERY_PROVIDER=stub.\n"
-            "All candidate messages will be logged but NOT SENT.\n"
-            "This is not acceptable for production. Set proper provider."
-        )
-        logger.critical(msg)
-        raise RuntimeError(msg)
-
-    if DELIVERY_PROVIDER == "stub" and ENVIRONMENT != "production":
-        logger.warning(
-            f"[DeliveryFactory] Running in TEST MODE ({ENVIRONMENT}): "
-            "Using Stub Delivery (messages logged to DB, not sent). "
-            "To use real delivery, set DELIVERY_PROVIDER=twilio|sendgrid|azure"
-        )
-
-
-def get_delivery_service(db: Session = None) -> DeliveryService:
+def get_delivery_service(db: Session, tenant_id: int) -> DeliveryService:
     """
-    Factory function to return appropriate delivery service.
+    Factory function to return appropriate delivery service based on tenant's API Keys config.
 
-    PRODUCTION-GRADE: All stubs are TEST-ONLY. Production must use real provider.
+    PRODUCTION-GRADE: Reads active provider and credentials from APIKeysConfig database.
+    Credentials are decrypted on demand. Requires active provider to be configured and tested.
 
     Args:
-        db: Database session (optional, used for some implementations)
+        db: Database session (required to query API Keys config)
+        tenant_id: Tenant ID for multi-tenant credential isolation
 
     Returns:
-        DeliveryService implementation instance
+        DeliveryService implementation instance (Twilio, SendGrid, or Azure)
 
     Raises:
-        RuntimeError: If provider not configured or invalid for environment
+        RuntimeError: If no active provider configured, or credentials invalid/untested
     """
-    _validate_delivery_provider_configured()
+    if not db:
+        raise ValueError("Database session required to get delivery service")
 
-    if DELIVERY_PROVIDER == "stub":
-        from app.services.stub_delivery import StubDeliveryService
-        logger.info("[DeliveryFactory] Using Stub Delivery Service (TEST MODE - logging to DB)")
-        return StubDeliveryService(db=db)
+    if not tenant_id:
+        raise ValueError("Tenant ID required for credential isolation")
 
-    elif DELIVERY_PROVIDER == "twilio":
-        from app.services.twilio_delivery import TwilioDeliveryService
-        logger.info("[DeliveryFactory] Using Twilio Delivery Service (PRODUCTION - WhatsApp)")
-        return TwilioDeliveryService(db=db)
+    from app.models.api_keys_config import APIKeysConfig
 
-    elif DELIVERY_PROVIDER in ("sendgrid", "azure"):
-        from app.services.email_delivery import EmailDeliveryService
-        logger.info(f"[DeliveryFactory] Using Email Delivery Service ({DELIVERY_PROVIDER.upper()}) (PRODUCTION)")
-        return EmailDeliveryService(provider=DELIVERY_PROVIDER, db=db)
+    # Query for active provider
+    active_config = db.query(APIKeysConfig).filter(
+        APIKeysConfig.tenant_id == tenant_id,
+        APIKeysConfig.is_active == True
+    ).first()
 
-    else:
-        msg = f"🚨 Invalid DELIVERY_PROVIDER: '{DELIVERY_PROVIDER}'. Must be: twilio, sendgrid, azure, or stub (test only)"
-        logger.critical(msg)
+    if not active_config:
+        msg = f"[DeliveryFactory] Tenant {tenant_id}: No active delivery provider configured. User must configure and test credentials in API Keys settings."
+        logger.error(msg)
+        raise RuntimeError(msg)
+
+    provider = active_config.provider.lower()
+
+    # Validate provider has been tested and passed
+    if active_config.last_tested_status != "success":
+        msg = f"[DeliveryFactory] Tenant {tenant_id}: Active provider '{provider}' has not passed test. Status: {active_config.last_tested_status}. Must test credentials first."
+        logger.error(msg)
+        raise RuntimeError(msg)
+
+    logger.info(f"[DeliveryFactory] Tenant {tenant_id}: Loading delivery provider '{provider}'")
+
+    try:
+        if provider == "twilio":
+            from app.services.twilio_delivery import TwilioDeliveryService
+            creds = active_config.get_twilio_creds()
+            logger.info(f"[DeliveryFactory] Tenant {tenant_id}: Using Twilio Delivery Service (WhatsApp)")
+            return TwilioDeliveryService(
+                account_sid=creds.get("account_sid"),
+                auth_token=creds.get("auth_token"),
+                whatsapp_number=creds.get("whatsapp_number"),
+                db=db
+            )
+
+        elif provider == "sendgrid":
+            from app.services.email_delivery import EmailDeliveryService
+            creds = active_config.get_sendgrid_creds()
+            logger.info(f"[DeliveryFactory] Tenant {tenant_id}: Using SendGrid Delivery Service")
+            return EmailDeliveryService(
+                provider="sendgrid",
+                api_key=creds.get("api_key"),
+                from_email=creds.get("from_email"),
+                db=db
+            )
+
+        elif provider == "azure":
+            from app.services.email_delivery import EmailDeliveryService
+            creds = active_config.get_azure_creds()
+            logger.info(f"[DeliveryFactory] Tenant {tenant_id}: Using Azure Delivery Service")
+            return EmailDeliveryService(
+                provider="azure",
+                tenant_id_cred=creds.get("tenant_id"),
+                client_id=creds.get("client_id"),
+                client_secret=creds.get("client_secret"),
+                db=db
+            )
+
+        else:
+            msg = f"[DeliveryFactory] Tenant {tenant_id}: Unknown provider '{provider}'. Must be: twilio, sendgrid, or azure"
+            logger.error(msg)
+            raise RuntimeError(msg)
+
+    except RuntimeError:
+        raise  # Re-raise runtime errors
+    except Exception as e:
+        msg = f"[DeliveryFactory] Tenant {tenant_id}: Failed to initialize delivery service for '{provider}': {str(e)}"
+        logger.error(msg, exc_info=True)
         raise RuntimeError(msg)
 
 
-def validate_delivery_provider_health() -> dict:
+def validate_delivery_provider_health(db: Session, tenant_id: int) -> dict:
     """
-    Health check: Verify delivery provider is configured and has required credentials.
+    Health check: Verify tenant's delivery provider is configured, tested, and ready.
 
     Returns:
         {"status": "ok" | "error", "provider": str, "message": str}
     """
-    if not DELIVERY_PROVIDER:
-        return {"status": "error", "provider": None, "message": "DELIVERY_PROVIDER not configured"}
+    try:
+        from app.models.api_keys_config import APIKeysConfig
 
-    if DELIVERY_PROVIDER == "stub":
-        return {"status": "warning", "provider": "stub", "message": "Running in TEST MODE (messages not sent)"}
+        active_config = db.query(APIKeysConfig).filter(
+            APIKeysConfig.tenant_id == tenant_id,
+            APIKeysConfig.is_active == True
+        ).first()
 
-    if DELIVERY_PROVIDER == "twilio":
-        account_sid = os.getenv("TWILIO_ACCOUNT_SID")
-        auth_token = os.getenv("TWILIO_AUTH_TOKEN")
-        whatsapp_number = os.getenv("TWILIO_WHATSAPP_NUMBER")
-        if not all([account_sid, auth_token, whatsapp_number]):
+        if not active_config:
             return {
                 "status": "error",
-                "provider": "twilio",
-                "message": "Missing Twilio credentials (TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_WHATSAPP_NUMBER)"
+                "provider": None,
+                "message": f"Tenant {tenant_id}: No active delivery provider configured"
             }
-        return {"status": "ok", "provider": "twilio", "message": "Twilio configured"}
 
-    if DELIVERY_PROVIDER == "sendgrid":
-        api_key = os.getenv("SENDGRID_API_KEY")
-        if not api_key:
+        provider = active_config.provider.lower()
+        test_status = active_config.last_tested_status or "never_tested"
+
+        if test_status != "success":
             return {
                 "status": "error",
-                "provider": "sendgrid",
-                "message": "Missing SendGrid credentials (SENDGRID_API_KEY)"
+                "provider": provider,
+                "message": f"Tenant {tenant_id}: Provider '{provider}' not tested or test failed (status: {test_status})"
             }
-        return {"status": "ok", "provider": "sendgrid", "message": "SendGrid configured"}
 
-    if DELIVERY_PROVIDER == "azure":
-        connection_string = os.getenv("AZURE_COMMUNICATION_CONNECTION_STRING")
-        if not connection_string:
-            return {
-                "status": "error",
-                "provider": "azure",
-                "message": "Missing Azure credentials (AZURE_COMMUNICATION_CONNECTION_STRING)"
-            }
-        return {"status": "ok", "provider": "azure", "message": "Azure configured"}
+        return {
+            "status": "ok",
+            "provider": provider,
+            "message": f"Tenant {tenant_id}: {provider.upper()} configured and tested successfully"
+        }
 
-    return {"status": "error", "provider": DELIVERY_PROVIDER, "message": f"Unknown provider: {DELIVERY_PROVIDER}"}
+    except Exception as e:
+        return {
+            "status": "error",
+            "provider": None,
+            "message": f"Error checking provider health: {str(e)}"
+        }

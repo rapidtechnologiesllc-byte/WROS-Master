@@ -19,16 +19,23 @@ logger = logging.getLogger(__name__)
 class EmailDeliveryService(DeliveryService):
     """Production-grade email delivery via SendGrid or Azure Communication Services."""
 
-    def __init__(self, provider: str = "sendgrid", db: Session = None):
+    def __init__(self, provider: str = "sendgrid", db: Session = None,
+                 api_key: str = None, from_email: str = None,
+                 tenant_id_cred: str = None, client_id: str = None, client_secret: str = None):
         """
-        Initialize email delivery service.
+        Initialize email delivery service with credentials.
 
         Args:
             provider: "sendgrid" or "azure"
             db: Database session
+            api_key: SendGrid API key (required if provider=sendgrid)
+            from_email: SendGrid from email or Azure from email
+            tenant_id_cred: Azure tenant ID (required if provider=azure)
+            client_id: Azure client ID (required if provider=azure)
+            client_secret: Azure client secret (required if provider=azure)
 
         Raises:
-            RuntimeError: If provider credentials not configured
+            RuntimeError: If provider credentials not configured or invalid
         """
         self.db = db
         self.provider = provider.lower()
@@ -38,22 +45,22 @@ class EmailDeliveryService(DeliveryService):
         self.client = None
 
         if self.provider == "sendgrid":
-            self._init_sendgrid()
+            self._init_sendgrid(api_key, from_email)
         elif self.provider == "azure":
-            self._init_azure()
+            self._init_azure(tenant_id_cred, client_id, client_secret, from_email)
         else:
             raise RuntimeError(f"Unknown email provider: {self.provider}")
 
-    def _init_sendgrid(self):
-        """Initialize SendGrid client."""
-        self.api_key = os.getenv("SENDGRID_API_KEY")
-        self.from_email = os.getenv("SENDGRID_FROM_EMAIL", "noreply@blitzenx.com")
+    def _init_sendgrid(self, api_key: str = None, from_email: str = None):
+        """Initialize SendGrid client from credentials."""
+        # Accept credentials as parameters, fallback to env vars for backward compatibility
+        self.api_key = api_key or os.getenv("SENDGRID_API_KEY")
+        self.from_email = from_email or os.getenv("SENDGRID_FROM_EMAIL", "noreply@blitzenx.com")
 
         if not self.api_key:
-            logger.error("[EmailDelivery] Missing SENDGRID_API_KEY environment variable")
+            logger.error("[EmailDelivery] Missing SendGrid API key")
             raise RuntimeError(
-                "SendGrid email not configured. Set SENDGRID_API_KEY and optionally "
-                "SENDGRID_FROM_EMAIL environment variables."
+                "SendGrid email not configured. Provide api_key parameter or set SENDGRID_API_KEY environment variable."
             )
 
         try:
@@ -67,17 +74,27 @@ class EmailDeliveryService(DeliveryService):
             logger.error(f"[EmailDelivery] SendGrid initialization failed: {e}")
             raise RuntimeError(f"SendGrid initialization failed: {str(e)}")
 
-    def _init_azure(self):
-        """Initialize Azure Communication Services client."""
-        self.connection_string = os.getenv("AZURE_COMMUNICATION_CONNECTION_STRING")
-        self.from_email = os.getenv("AZURE_COMMUNICATION_FROM_EMAIL", "DoNotReply@blitzenx.onmicrosoft.com")
+    def _init_azure(self, tenant_id_cred: str = None, client_id: str = None,
+                    client_secret: str = None, from_email: str = None):
+        """Initialize Azure Communication Services client from credentials."""
+        # Accept credentials as parameters, fallback to env vars for backward compatibility
+        if tenant_id_cred and client_id and client_secret:
+            # Initialize from Azure AD credentials (Graph API)
+            self.tenant_id = tenant_id_cred
+            self.client_id = client_id
+            self.client_secret = client_secret
+            self.from_email = from_email or "DoNotReply@blitzenx.onmicrosoft.com"
+            logger.info(f"[EmailDelivery] Azure initialized with Graph API credentials (from: {self.from_email})")
+        else:
+            # Fallback to connection string from env vars
+            self.connection_string = os.getenv("AZURE_COMMUNICATION_CONNECTION_STRING")
+            self.from_email = from_email or os.getenv("AZURE_COMMUNICATION_FROM_EMAIL", "DoNotReply@blitzenx.onmicrosoft.com")
 
-        if not self.connection_string:
-            logger.error("[EmailDelivery] Missing AZURE_COMMUNICATION_CONNECTION_STRING environment variable")
-            raise RuntimeError(
-                "Azure Email not configured. Set AZURE_COMMUNICATION_CONNECTION_STRING and "
-                "optionally AZURE_COMMUNICATION_FROM_EMAIL environment variables."
-            )
+            if not self.connection_string:
+                logger.error("[EmailDelivery] Missing Azure credentials (either tenant_id/client_id/client_secret or AZURE_COMMUNICATION_CONNECTION_STRING)")
+                raise RuntimeError(
+                    "Azure Email not configured. Provide credentials or set AZURE_COMMUNICATION_CONNECTION_STRING environment variable."
+                )
 
         try:
             from azure.communication.email import EmailClient

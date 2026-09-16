@@ -19,12 +19,20 @@ logger = logging.getLogger(__name__)
 class TwilioDeliveryService(DeliveryService):
     """Production-grade WhatsApp delivery via Twilio Messaging API."""
 
-    def __init__(self, db: Session = None):
-        """Initialize Twilio delivery service with credentials validation."""
+    def __init__(self, db: Session = None, account_sid: str = None, auth_token: str = None, whatsapp_number: str = None):
+        """Initialize Twilio delivery service with credentials validation.
+
+        Args:
+            db: Database session
+            account_sid: Twilio Account SID (or read from TWILIO_ACCOUNT_SID env var)
+            auth_token: Twilio Auth Token (or read from TWILIO_AUTH_TOKEN env var)
+            whatsapp_number: WhatsApp number (or read from TWILIO_WHATSAPP_NUMBER env var)
+        """
         self.db = db
-        self.account_sid = os.getenv("TWILIO_ACCOUNT_SID")
-        self.auth_token = os.getenv("TWILIO_AUTH_TOKEN")
-        self.whatsapp_number = os.getenv("TWILIO_WHATSAPP_NUMBER")
+        # Accept credentials as parameters, fallback to env vars for backward compatibility
+        self.account_sid = account_sid or os.getenv("TWILIO_ACCOUNT_SID")
+        self.auth_token = auth_token or os.getenv("TWILIO_AUTH_TOKEN")
+        self.whatsapp_number = whatsapp_number or os.getenv("TWILIO_WHATSAPP_NUMBER")
         self.client = None
         self.max_retries = 3
         self.retry_delay = 2  # seconds
@@ -35,8 +43,7 @@ class TwilioDeliveryService(DeliveryService):
                 "TWILIO_AUTH_TOKEN, TWILIO_WHATSAPP_NUMBER"
             )
             raise RuntimeError(
-                "Twilio WhatsApp not configured. Set TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, "
-                "and TWILIO_WHATSAPP_NUMBER environment variables."
+                "Twilio WhatsApp not configured. Provide credentials or set environment variables."
             )
 
         try:
