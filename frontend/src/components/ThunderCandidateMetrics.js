@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
-import { Zap, Clock, MessageSquare, CheckCircle2 } from "lucide-react";
-import { toast } from "react-toastify";
+import { Zap, Clock, MessageSquare, CheckCircle2, X, AlertTriangle, CheckCircle } from "lucide-react";
 import { getCandidateMemory, pauseThunder, resumeThunder } from "../services/api/aiAgent";
 
 function timeAgo(iso) {
@@ -33,6 +32,8 @@ export default function ThunderCandidateMetrics({ candidateId }) {
   const [loading, setLoading] = useState(false);
   const [pauseLoading, setPauseLoading] = useState(false);
   const [showPauseModal, setShowPauseModal] = useState(false);
+  const [actionError, setActionError] = useState(null);
+  const [actionSuccess, setActionSuccess] = useState(null);
 
   useEffect(() => {
     if (!candidateId) return;
@@ -53,42 +54,46 @@ export default function ThunderCandidateMetrics({ candidateId }) {
   }, [candidateId]);
 
   const handlePause = async (durationMs) => {
+    setActionError(null);
+    setActionSuccess(null);
     try {
       setPauseLoading(true);
       if (!data?.conversation_id) {
-        toast.error("Cannot pause: conversation ID not found");
+        setActionError("Cannot pause: conversation ID not found");
         return;
       }
       const resumeAt = durationMs ? new Date(Date.now() + durationMs).toISOString() : null;
       await pauseThunder(data.conversation_id, resumeAt).catch(e => { throw e; });
-      toast.success("Thunder paused successfully");
+      setActionSuccess("Thunder paused successfully");
       setShowPauseModal(false);
       // Refresh data
       const res = await getCandidateMemory(candidateId).catch(e => { throw e; });
       setData(res);
     } catch (err) {
       console.error("Failed to pause Thunder", err);
-      toast.error(err?.message || "Failed to pause Thunder");
+      setActionError(err?.message || "Failed to pause Thunder");
     } finally {
       setPauseLoading(false);
     }
   };
 
   const handleResume = async () => {
+    setActionError(null);
+    setActionSuccess(null);
     try {
       setPauseLoading(true);
       if (!data?.conversation_id) {
-        toast.error("Cannot resume: conversation ID not found");
+        setActionError("Cannot resume: conversation ID not found");
         return;
       }
       await resumeThunder(data.conversation_id).catch(e => { throw e; });
-      toast.success("Thunder resumed successfully");
+      setActionSuccess("Thunder resumed successfully");
       // Refresh data
       const res = await getCandidateMemory(candidateId).catch(e => { throw e; });
       setData(res);
     } catch (err) {
       console.error("Failed to resume Thunder", err);
-      toast.error(err?.message || "Failed to resume Thunder");
+      setActionError(err?.message || "Failed to resume Thunder");
     } finally {
       setPauseLoading(false);
     }
@@ -107,8 +112,39 @@ export default function ThunderCandidateMetrics({ candidateId }) {
   }
 
   return (
-    <div className="rounded-2xl border border-blue-200 bg-blue-50 p-5 shadow-sm">
-      <div className="flex items-center justify-between">
+    <div className="space-y-3">
+      {actionError && (
+        <div className="flex items-start gap-3 rounded-lg bg-red-50 px-4 py-3 border border-red-200">
+          <AlertTriangle className="h-5 w-5 flex-shrink-0 text-red-600 mt-0.5" />
+          <div className="flex-1">
+            <p className="text-sm font-medium text-red-800">{actionError}</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setActionError(null)}
+            className="flex-shrink-0 text-red-400 hover:text-red-600"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+      )}
+      {actionSuccess && (
+        <div className="flex items-start gap-3 rounded-lg bg-green-50 px-4 py-3 border border-green-200">
+          <CheckCircle className="h-5 w-5 flex-shrink-0 text-green-600 mt-0.5" />
+          <div className="flex-1">
+            <p className="text-sm font-medium text-green-800">{actionSuccess}</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setActionSuccess(null)}
+            className="flex-shrink-0 text-green-400 hover:text-green-600"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+      )}
+      <div className="rounded-2xl border border-blue-200 bg-blue-50 p-5 shadow-sm">
+        <div className="flex items-center justify-between">
         <div className="flex items-center gap-2 text-sm font-semibold text-blue-900">
           <Zap className="h-4 w-4 text-blue-600" />
           Thunder Engagement
@@ -194,6 +230,7 @@ export default function ThunderCandidateMetrics({ candidateId }) {
           <p className="text-sm text-blue-800 italic">{data.summary}</p>
         </div>
       )}
+      </div>
     </div>
   );
 }

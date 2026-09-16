@@ -6,7 +6,7 @@
 // InterventionQueueScreen.js.
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { toast } from "react-toastify";
+import { X, AlertTriangle, CheckCircle } from "lucide-react";
 import { decideRehireReview, getRehireReviews } from "../services/api/interviews";
 
 function timeAgo(iso) {
@@ -22,14 +22,17 @@ export default function RehireApprovalsScreen() {
   const [loading, setLoading] = useState(true);
   const [decidingId, setDecidingId] = useState(null);
   const [decisionNote, setDecisionNote] = useState("");
+  const [actionError, setActionError] = useState(null);
+  const [actionSuccess, setActionSuccess] = useState(null);
   const navigate = useNavigate();
 
   const load = async () => {
+    setActionError(null);
     try {
       const data = await getRehireReviews();
       setReviews(data?.reviews || []);
     } catch {
-      toast.error("Unable to load rehire approvals.");
+      setActionError("Unable to load rehire approvals.");
     } finally {
       setLoading(false);
     }
@@ -40,9 +43,11 @@ export default function RehireApprovalsScreen() {
   }, []);
 
   const handleDecide = async (review, decision) => {
+    setActionError(null);
+    setActionSuccess(null);
     try {
       await decideRehireReview({ reviewId: review.id, decision, note: decisionNote || undefined });
-      toast.success(
+      setActionSuccess(
         decision === "approve"
           ? `Approved -- interview round created for ${review.candidate_name || review.candidate_id}.`
           : `Rejected -- no interview round will be scheduled.`,
@@ -51,12 +56,42 @@ export default function RehireApprovalsScreen() {
       setDecisionNote("");
       load();
     } catch (err) {
-      toast.error(err?.message || "Failed to record decision.");
+      setActionError(err?.message || "Failed to record decision.");
     }
   };
 
   return (
     <div className="space-y-4">
+      {actionError && (
+        <div className="flex items-start gap-3 rounded-lg bg-red-50 px-4 py-3 border border-red-200">
+          <AlertTriangle className="h-5 w-5 flex-shrink-0 text-red-600 mt-0.5" />
+          <div className="flex-1">
+            <p className="text-sm font-medium text-red-800">{actionError}</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setActionError(null)}
+            className="flex-shrink-0 text-red-400 hover:text-red-600"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+      )}
+      {actionSuccess && (
+        <div className="flex items-start gap-3 rounded-lg bg-green-50 px-4 py-3 border border-green-200">
+          <CheckCircle className="h-5 w-5 flex-shrink-0 text-green-600 mt-0.5" />
+          <div className="flex-1">
+            <p className="text-sm font-medium text-green-800">{actionSuccess}</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setActionSuccess(null)}
+            className="flex-shrink-0 text-green-400 hover:text-green-600"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+      )}
       <div className="rounded-2xl border bg-white p-4 shadow-sm">
         <div className="text-lg font-bold text-gray-900">Rehire Approvals</div>
       </div>

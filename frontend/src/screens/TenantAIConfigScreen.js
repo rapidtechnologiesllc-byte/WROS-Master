@@ -6,7 +6,7 @@
 // -- "Last updated" below is the one real, unified timestamp this
 // story's own table actually stores, not per-section fabricated history.
 import { useEffect, useState } from "react";
-import { Bot, Clock, Gauge, Mail, Power, RefreshCw, AlertCircle, X } from "lucide-react";
+import { Bot, Clock, Gauge, Mail, Power, RefreshCw, AlertCircle, X, CheckCircle } from "lucide-react";
 import { Tabs } from "antd";
 import { Card, Button, Input, TextArea, Select } from "../components/ui";
 import { getTenantAIConfig, updateTenantAIConfig } from "../services/api/tenantAiConfig";
@@ -181,7 +181,7 @@ function IdentitySection({ config, save }) {
     }
     if (persona !== (config.ai_agent_persona || "")) {
       if (!baApproved) {
-        toast.error("Persona changes require confirming Lead BA approval first.");
+        setActionError("Persona changes require confirming Lead BA approval first.");
         return;
       }
       updates.ai_agent_persona = persona;
@@ -368,7 +368,7 @@ function DigestSection({ config, save }) {
 
   const handleSave = async () => {
     if (!/^\d{2}:\d{2}$/.test(sendTime)) {
-      toast.error("Send time must be in HH:MM format.");
+      setActionError("Send time must be in HH:MM format.");
       return;
     }
     setSaving(true);

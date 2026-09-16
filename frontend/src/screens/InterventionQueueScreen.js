@@ -1,7 +1,7 @@
 // S-062/HRMS-0462 -- Recruiter Intervention Queue standalone page.
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { toast } from "react-toastify";
+import { X, AlertTriangle, CheckCircle } from "lucide-react";
 import { getInterventionQueue, getInterventionQueueSummary, resolveQueueItem, takeOverQueueItem } from "../services/api/interventionQueue";
 
 const PRIORITY_LABELS = { 1: "CRITICAL", 2: "HIGH", 3: "MEDIUM" };
@@ -35,14 +35,17 @@ export default function InterventionQueueScreen() {
   const [loading, setLoading] = useState(true);
   const [resolvingId, setResolvingId] = useState(null);
   const [resolutionNote, setResolutionNote] = useState("");
+  const [actionError, setActionError] = useState(null);
+  const [actionSuccess, setActionSuccess] = useState(null);
   const navigate = useNavigate();
 
   const load = async () => {
+    setActionError(null);
     try {
       const data = await getInterventionQueue();
       setItems(data.items);
     } catch {
-      toast.error("Unable to load intervention queue.");
+      setActionError("Unable to load intervention queue.");
     } finally {
       setLoading(false);
     }
@@ -59,29 +62,63 @@ export default function InterventionQueueScreen() {
   }, []);
 
   const handleTakeOver = async (item) => {
+    setActionError(null);
+    setActionSuccess(null);
     try {
       await takeOverQueueItem(item.id);
-      toast.success(`Took over ${item.candidate_name}'s conversation.`);
+      setActionSuccess(`Took over ${item.candidate_name}'s conversation.`);
       load();
     } catch (err) {
-      toast.error(err?.message || "Failed to take over.");
+      setActionError(err?.message || "Failed to take over.");
     }
   };
 
   const handleResolveConfirm = async (item) => {
+    setActionError(null);
+    setActionSuccess(null);
     try {
       await resolveQueueItem(item.id, resolutionNote);
-      toast.success("Marked resolved.");
+      setActionSuccess("Marked resolved.");
       setResolvingId(null);
       setResolutionNote("");
       load();
     } catch (err) {
-      toast.error(err?.message || "Failed to resolve.");
+      setActionError(err?.message || "Failed to resolve.");
     }
   };
 
   return (
     <div className="space-y-4">
+      {actionError && (
+        <div className="flex items-start gap-3 rounded-lg bg-red-50 px-4 py-3 border border-red-200">
+          <AlertTriangle className="h-5 w-5 flex-shrink-0 text-red-600 mt-0.5" />
+          <div className="flex-1">
+            <p className="text-sm font-medium text-red-800">{actionError}</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setActionError(null)}
+            className="flex-shrink-0 text-red-400 hover:text-red-600"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+      )}
+      {actionSuccess && (
+        <div className="flex items-start gap-3 rounded-lg bg-green-50 px-4 py-3 border border-green-200">
+          <CheckCircle className="h-5 w-5 flex-shrink-0 text-green-600 mt-0.5" />
+          <div className="flex-1">
+            <p className="text-sm font-medium text-green-800">{actionSuccess}</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setActionSuccess(null)}
+            className="flex-shrink-0 text-green-400 hover:text-green-600"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+      )}
       {summary ? (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-center">

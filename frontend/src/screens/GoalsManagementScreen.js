@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react"
-import { Target, Edit2, Save, X, AlertCircle, Loader } from "lucide-react"
+import { Target, Edit2, Save, X, AlertCircle, Loader, CheckCircle } from "lucide-react"
 import { Card, Button, Input } from "../components/ui"
 import { apiRequest } from "../services/api"
 
@@ -79,28 +79,64 @@ const calculateBreakdown = (annual) => {
 function GoalCard({ goal, onEdit }) {
   const [isEditing, setIsEditing] = useState(false)
   const [value, setValue] = useState(goal.defaultAnnual)
+  const [actionError, setActionError] = useState(null)
+  const [actionSuccess, setActionSuccess] = useState(null)
 
   const breakdown = calculateBreakdown(value)
 
   const handleSave = async () => {
+    setActionError(null)
+    setActionSuccess(null)
     try {
       // TODO: Call backend to save goal
       // await updateGoal(goal.id, value)
-      toast.success(`${goal.department} goal updated to ${value} ${goal.unit}`)
+      setActionSuccess(`${goal.department} goal updated to ${value} ${goal.unit}`)
       setIsEditing(false)
       onEdit?.(goal.id, value)
     } catch (err) {
-      toast.error("Failed to save goal")
+      setActionError("Failed to save goal")
     }
   }
 
   const handleCancel = () => {
     setValue(goal.defaultAnnual)
     setIsEditing(false)
+    setActionError(null)
+    setActionSuccess(null)
   }
 
   return (
     <Card className="p-4 mb-4 border border-gray-200 hover:border-blue-300 transition">
+      {actionError && (
+        <div className="mb-3 flex items-start gap-3 rounded-lg bg-red-50 px-4 py-3 border border-red-200">
+          <AlertCircle className="h-5 w-5 flex-shrink-0 text-red-600 mt-0.5" />
+          <div className="flex-1">
+            <p className="text-sm font-medium text-red-800">{actionError}</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setActionError(null)}
+            className="flex-shrink-0 text-red-400 hover:text-red-600"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+      )}
+      {actionSuccess && (
+        <div className="mb-3 flex items-start gap-3 rounded-lg bg-green-50 px-4 py-3 border border-green-200">
+          <CheckCircle className="h-5 w-5 flex-shrink-0 text-green-600 mt-0.5" />
+          <div className="flex-1">
+            <p className="text-sm font-medium text-green-800">{actionSuccess}</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setActionSuccess(null)}
+            className="flex-shrink-0 text-green-400 hover:text-green-600"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+      )}
       <div className="flex items-start justify-between mb-3">
         <div className="flex-1">
           <div className="flex items-center gap-2 mb-1">

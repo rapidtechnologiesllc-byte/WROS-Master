@@ -2,7 +2,7 @@
 // surfaces. Nothing on this screen acts on a real person without an
 // explicit click from whoever's looking at it.
 import { useEffect, useState } from "react";
-import { toast } from "react-toastify";
+import { X, AlertTriangle, CheckCircle } from "lucide-react";
 import { Card, Button, Input } from "../components/ui";
 import {
   approveRecognition, closeFeedbackCycle, createFeedbackCycle, generateBirthdayDrafts,
@@ -16,15 +16,18 @@ export default function ExecutiveSignalScreen() {
   const [loading, setLoading] = useState(true);
   const [concernText, setConcernText] = useState("");
   const [submittingConcern, setSubmittingConcern] = useState(false);
+  const [actionError, setActionError] = useState(null);
+  const [actionSuccess, setActionSuccess] = useState(null);
 
   const load = async () => {
     setLoading(true);
+    setActionError(null);
     try {
       const [h, p] = await Promise.all([getOrgHealth(), getPendingRecognition()]);
       setHealth(h);
       setPending(p);
     } catch (err) {
-      toast.error("Could not load Executive Signal data.");
+      setActionError("Could not load Executive Signal data.");
     } finally {
       setLoading(false);
     }
@@ -35,43 +38,51 @@ export default function ExecutiveSignalScreen() {
   }, []);
 
   const handleGenerateDrafts = async () => {
+    setActionError(null);
+    setActionSuccess(null);
     try {
       const drafts = await generateBirthdayDrafts();
-      toast.success(`${drafts.length} draft(s) generated for review.`);
+      setActionSuccess(`${drafts.length} draft(s) generated for review.`);
       load();
     } catch {
-      toast.error("Could not generate drafts.");
+      setActionError("Could not generate drafts.");
     }
   };
 
   const handleApprove = async (id) => {
+    setActionError(null);
+    setActionSuccess(null);
     try {
       await approveRecognition(id);
-      toast.success("Approved and sent, signed as you.");
+      setActionSuccess("Approved and sent, signed as you.");
       load();
     } catch (err) {
-      toast.error(err.message || "Could not approve.");
+      setActionError(err.message || "Could not approve.");
     }
   };
 
   const handleReject = async (id) => {
+    setActionError(null);
+    setActionSuccess(null);
     try {
       await rejectRecognition(id);
-      toast.success("Rejected -- not sent.");
+      setActionSuccess("Rejected -- not sent.");
       load();
     } catch {
-      toast.error("Could not reject.");
+      setActionError("Could not reject.");
     }
   };
 
   const handleCreateCycle = async () => {
     if (!quarterLabel.trim()) return;
+    setActionError(null);
+    setActionSuccess(null);
     try {
       await createFeedbackCycle(quarterLabel);
-      toast.success(`Feedback cycle ${quarterLabel} opened.`);
+      setActionSuccess(`Feedback cycle ${quarterLabel} opened.`);
       setQuarterLabel("");
     } catch {
-      toast.error("Could not open cycle.");
+      setActionError("Could not open cycle.");
     }
   };
 
@@ -79,12 +90,14 @@ export default function ExecutiveSignalScreen() {
     const trimmed = concernText.trim();
     if (!trimmed) return;
     setSubmittingConcern(true);
+    setActionError(null);
+    setActionSuccess(null);
     try {
       await submitConcern(trimmed);
-      toast.success("Your concern has been raised.");
+      setActionSuccess("Your concern has been raised.");
       setConcernText("");
     } catch (err) {
-      toast.error(err.message || "Could not submit your concern.");
+      setActionError(err.message || "Could not submit your concern.");
     } finally {
       setSubmittingConcern(false);
     }
@@ -94,6 +107,36 @@ export default function ExecutiveSignalScreen() {
 
   return (
     <div className="p-6 max-w-4xl mx-auto space-y-6">
+      {actionError && (
+        <div className="flex items-start gap-3 rounded-lg bg-red-50 px-4 py-3 border border-red-200">
+          <AlertTriangle className="h-5 w-5 flex-shrink-0 text-red-600 mt-0.5" />
+          <div className="flex-1">
+            <p className="text-sm font-medium text-red-800">{actionError}</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setActionError(null)}
+            className="flex-shrink-0 text-red-400 hover:text-red-600"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+      )}
+      {actionSuccess && (
+        <div className="flex items-start gap-3 rounded-lg bg-green-50 px-4 py-3 border border-green-200">
+          <CheckCircle className="h-5 w-5 flex-shrink-0 text-green-600 mt-0.5" />
+          <div className="flex-1">
+            <p className="text-sm font-medium text-green-800">{actionSuccess}</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setActionSuccess(null)}
+            className="flex-shrink-0 text-green-400 hover:text-green-600"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+      )}
       <Card title="Org Health Snapshot">
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <div className="rounded-lg border border-gray-200 p-3 text-center">

@@ -1,6 +1,7 @@
+import { useState } from "react";
 import { Button, Card, Table } from "../components/ui";
 import { assignJob } from "../services/api/jobs";
-import { toast } from "react-toastify";
+import { X, AlertTriangle, CheckCircle } from "lucide-react";
 
 const AssignJobModal = ({
   candidate,
@@ -10,14 +11,20 @@ const AssignJobModal = ({
   setAssignModal,
   onAssignSuccess,
 }) => {
+  const [actionError, setActionError] = useState(null);
+  const [actionSuccess, setActionSuccess] = useState(null);
+
   const assignJobHandler = async (candidateId) => {
+    setActionError(null);
+    setActionSuccess(null);
+
     if (!candidateId) {
-      toast.error("Invalid Candidate");
+      setActionError("Invalid Candidate");
       return;
     }
 
     if (!selectedJob?.id) {
-      toast.error("No job selected");
+      setActionError("No job selected");
       return;
     }
 
@@ -26,18 +33,18 @@ const AssignJobModal = ({
         application_status: "Applied",
       });
       if (result?.status === 201) {
-        toast.success("Job assigned successfully ✅");
+        setActionSuccess("Job assigned successfully ✅");
         const selectedCandidate = allCandidates.find(
           (c) => c.id === candidateId,
         );
         onAssignSuccess?.(selectedCandidate);
         onClose();
       } else {
-        toast.error("Failed to assign job");
+        setActionError("Failed to assign job");
       }
     } catch (err) {
       console.error(err);
-      toast.error("Something went wrong ❌");
+      setActionError("Something went wrong ❌");
     }
   };
 
@@ -59,6 +66,36 @@ const AssignJobModal = ({
             }
           >
             <div>
+              {actionError && (
+                <div className="mb-3 flex items-start gap-3 rounded-lg bg-red-50 px-4 py-3 border border-red-200">
+                  <AlertTriangle className="h-5 w-5 flex-shrink-0 text-red-600 mt-0.5" />
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-red-800">{actionError}</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setActionError(null)}
+                    className="flex-shrink-0 text-red-400 hover:text-red-600"
+                  >
+                    <X className="h-5 w-5" />
+                  </button>
+                </div>
+              )}
+              {actionSuccess && (
+                <div className="mb-3 flex items-start gap-3 rounded-lg bg-green-50 px-4 py-3 border border-green-200">
+                  <CheckCircle className="h-5 w-5 flex-shrink-0 text-green-600 mt-0.5" />
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-green-800">{actionSuccess}</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setActionSuccess(null)}
+                    className="flex-shrink-0 text-green-400 hover:text-green-600"
+                  >
+                    <X className="h-5 w-5" />
+                  </button>
+                </div>
+              )}
               <div className="max-h-[65vh] overflow-y-auto">
                 <Table
                   columns={[

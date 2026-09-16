@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
-import { Gift, Briefcase, Clock, CheckCircle2, AlertCircle, TrendingUp, Plus } from "lucide-react";
+import { Gift, Briefcase, Clock, CheckCircle2, AlertCircle, TrendingUp, Plus, X, AlertTriangle } from "lucide-react";
 import { Card, Button } from "../components/ui";
-import { toast } from "react-toastify";
 import { useNavigate } from "react-router-dom";
 import { hasPermission } from "../utils/permissionsRoleTemplate";
 import { getMyReferrals } from "../services/api/referrals";
@@ -28,6 +27,7 @@ export default function MyReferralsScreen() {
   const navigate = useNavigate();
   const [referrals, setReferrals] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [actionError, setActionError] = useState(null);
   const [stats, setStats] = useState({
     totalReferrals: 0,
     totalPotentialBonus: 0,
@@ -40,6 +40,7 @@ export default function MyReferralsScreen() {
 
   const loadMyReferrals = async () => {
     setLoading(true);
+    setActionError(null);
     try {
       const data = await getMyReferrals();
 
@@ -50,7 +51,7 @@ export default function MyReferralsScreen() {
         employeeName: data.employee_name || "You",
       });
     } catch (err) {
-      toast.error(err.message || "Failed to load referrals");
+      setActionError(err.message || "Failed to load referrals");
       setReferrals([]);
     } finally {
       setLoading(false);
@@ -59,7 +60,7 @@ export default function MyReferralsScreen() {
 
   const handleReferCandidate = () => {
     if (!hasPermission("candidates", "create")) {
-      toast.error("You don't have permission to create candidates");
+      setActionError("You don't have permission to create candidates");
       return;
     }
     // Mark that we're coming from referrals so we can redirect back
@@ -69,6 +70,21 @@ export default function MyReferralsScreen() {
 
   return (
     <div className="space-y-6">
+      {actionError && (
+        <div className="flex items-start gap-3 rounded-lg bg-red-50 px-4 py-3 border border-red-200">
+          <AlertTriangle className="h-5 w-5 flex-shrink-0 text-red-600 mt-0.5" />
+          <div className="flex-1">
+            <p className="text-sm font-medium text-red-800">{actionError}</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setActionError(null)}
+            className="flex-shrink-0 text-red-400 hover:text-red-600"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+      )}
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>

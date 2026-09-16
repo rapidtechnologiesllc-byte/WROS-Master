@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
-import { toast } from "react-toastify";
-import { Search, Table2, ChevronDown, Download } from "lucide-react";
+import { Search, Table2, ChevronDown, Download, X, AlertTriangle, CheckCircle } from "lucide-react";
 import { Card, Button } from "../components/ui";
 import { apiRequest } from "../services/api/client";
 
@@ -10,6 +9,8 @@ export default function BIExplorerScreen() {
   const [tableSchema, setTableSchema] = useState(null);
   const [selectedColumns, setSelectedColumns] = useState([]);
   const [queryResults, setQueryResults] = useState(null);
+  const [actionError, setActionError] = useState(null);
+  const [actionSuccess, setActionSuccess] = useState(null);
   const [loading, setLoading] = useState(false);
   const [limit, setLimit] = useState(100);
   const [offset, setOffset] = useState(0);
@@ -20,8 +21,9 @@ export default function BIExplorerScreen() {
       try {
         const { data } = await apiRequest("/bi/tables", { method: "GET" });
         setTables(data?.data?.tables || []);
+        setActionError(null);
       } catch (err) {
-        toast.error("Failed to load available tables");
+        setActionError("Failed to load available tables");
       }
     };
     fetchTables();
@@ -37,8 +39,9 @@ export default function BIExplorerScreen() {
         setTableSchema(data?.data);
         setSelectedColumns(data?.data?.columns || []);
         setQueryResults(null);
+        setActionError(null);
       } catch (err) {
-        toast.error("Failed to load table schema");
+        setActionError("Failed to load table schema");
       }
     };
     fetchSchema();
@@ -46,9 +49,12 @@ export default function BIExplorerScreen() {
 
   const handleExecuteQuery = async () => {
     if (!selectedTable) {
-      toast.warning("Please select a table");
+      setActionError("Please select a table");
       return;
     }
+
+    setActionError(null);
+    setActionSuccess(null);
 
     try {
       setLoading(true);
@@ -64,9 +70,9 @@ export default function BIExplorerScreen() {
 
       const { data } = await apiRequest(`/bi/query/${selectedTable}?${params}`, { method: "GET" });
       setQueryResults(data?.data);
-      toast.success(`Loaded ${data?.data?.row_count || 0} rows`);
+      setActionSuccess(`Loaded ${data?.data?.row_count || 0} rows`);
     } catch (err) {
-      toast.error("Query failed");
+      setActionError("Query failed");
     } finally {
       setLoading(false);
     }
@@ -88,6 +94,36 @@ export default function BIExplorerScreen() {
 
   return (
     <div className="space-y-6 p-6 max-w-7xl mx-auto">
+      {actionError && (
+        <div className="flex items-start gap-3 rounded-lg bg-red-50 px-4 py-3 border border-red-200">
+          <AlertTriangle className="h-5 w-5 flex-shrink-0 text-red-600 mt-0.5" />
+          <div className="flex-1">
+            <p className="text-sm font-medium text-red-800">{actionError}</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setActionError(null)}
+            className="flex-shrink-0 text-red-400 hover:text-red-600"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+      )}
+      {actionSuccess && (
+        <div className="flex items-start gap-3 rounded-lg bg-green-50 px-4 py-3 border border-green-200">
+          <CheckCircle className="h-5 w-5 flex-shrink-0 text-green-600 mt-0.5" />
+          <div className="flex-1">
+            <p className="text-sm font-medium text-green-800">{actionSuccess}</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setActionSuccess(null)}
+            className="flex-shrink-0 text-green-400 hover:text-green-600"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+      )}
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold text-gray-900">BI Explorer</h1>
         <div className="text-sm text-gray-600">Self-Service Analytics</div>

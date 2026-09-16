@@ -5,7 +5,7 @@
 // no new install risk).
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { toast } from "react-toastify";
+import { X, AlertTriangle, CheckCircle } from "lucide-react";
 import { addCandidateToInterventionQueue, getRiskDashboard } from "../services/api/riskDashboard";
 
 const RISK_LEVELS = ["CRITICAL", "HIGH", "MEDIUM", "LOW"];
@@ -69,6 +69,8 @@ function StageRiskBars({ data }) {
 export default function RiskDashboardScreen() {
   const [data, setData] = useState(null);
   const [error, setError] = useState("");
+  const [actionError, setActionError] = useState(null);
+  const [actionSuccess, setActionSuccess] = useState(null);
   const [riskFilter, setRiskFilter] = useState("All");
   const [stageFilter, setStageFilter] = useState("All");
   const [dimensionFilter, setDimensionFilter] = useState("All");
@@ -97,11 +99,13 @@ export default function RiskDashboardScreen() {
   }, []);
 
   const handleAddToQueue = async (candidateId) => {
+    setActionError(null);
+    setActionSuccess(null);
     try {
       await addCandidateToInterventionQueue(candidateId);
-      toast.success("Added to intervention queue.");
+      setActionSuccess("Added to intervention queue.");
     } catch (err) {
-      toast.error(err?.message || "Failed to add to queue.");
+      setActionError(err?.message || "Failed to add to queue.");
     }
   };
 
@@ -120,6 +124,36 @@ export default function RiskDashboardScreen() {
 
   return (
     <div className="space-y-5">
+      {actionError && (
+        <div className="flex items-start gap-3 rounded-lg bg-red-50 px-4 py-3 border border-red-200">
+          <AlertTriangle className="h-5 w-5 flex-shrink-0 text-red-600 mt-0.5" />
+          <div className="flex-1">
+            <p className="text-sm font-medium text-red-800">{actionError}</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setActionError(null)}
+            className="flex-shrink-0 text-red-400 hover:text-red-600"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+      )}
+      {actionSuccess && (
+        <div className="flex items-start gap-3 rounded-lg bg-green-50 px-4 py-3 border border-green-200">
+          <CheckCircle className="h-5 w-5 flex-shrink-0 text-green-600 mt-0.5" />
+          <div className="flex-1">
+            <p className="text-sm font-medium text-green-800">{actionSuccess}</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setActionSuccess(null)}
+            className="flex-shrink-0 text-green-400 hover:text-green-600"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+      )}
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         {SUMMARY_CARD_DEFS.map((def) => (
           <button

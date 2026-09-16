@@ -9,6 +9,9 @@ import {
   FileText,
   BadgeCheck,
   Briefcase,
+  X,
+  AlertTriangle,
+  CheckCircle,
 } from "lucide-react";
 import {
   Button,
@@ -68,6 +71,8 @@ import SignatureModal from "../components/ui/SignatureModal";
 import { getHrAssignmentByCandidate } from "../services/api/users";
 import { sendEventNotification } from "../services/api/email";
 import { getOfferAcceptedNotificationTemplate } from "../utils/offerAcceptedEmailTemplate";
+
+// Removed: import { ToastContainer, toast } from "react-toastify";
 
 const today = () => new Date().toISOString().slice(0, 10);
 
@@ -168,20 +173,22 @@ export default function CandidateSelfService({ onLogout }) {
   });
   const storedCandidateName = localStorage.getItem("hrms_user_name") || "";
   const storedCandidateEmail = localStorage.getItem("hrms_user_email") || "";
+  const [actionError, setActionError] = useState(null);
+  const [actionSuccess, setActionSuccess] = useState(null);
+
   const showNotice = (message, type = "error") => {
     if (type === "success") {
-      toast.success(message, {
-        position: "top-right",
-        autoClose: 3000,
-      });
+      setActionSuccess(message);
+      setActionError(null);
     } else {
-      toast.error(message, {
-        position: "top-right",
-        autoClose: 3000,
-      });
+      setActionError(message);
+      setActionSuccess(null);
     }
   };
-  const clearNotice = () => {};
+  const clearNotice = () => {
+    setActionError(null);
+    setActionSuccess(null);
+  };
 
   const normalizeEducationRecord = (record = {}) => ({
     id: record.formID ?? record.id ?? null,
@@ -840,14 +847,37 @@ export default function CandidateSelfService({ onLogout }) {
 
   return (
     <div className="min-h-screen bg-slate-50 px-4 py-6 text-slate-900">
-      <ToastContainer
-        position="top-right"
-        autoClose={3000}
-        hideProgressBar={false}
-        newestOnTop
-        closeOnClick
-        pauseOnHover
-      />
+      <div className="mx-auto max-w-5xl space-y-6">
+        {actionError && (
+          <div className="flex items-start gap-3 rounded-lg bg-red-50 px-4 py-3 border border-red-200">
+            <AlertTriangle className="h-5 w-5 flex-shrink-0 text-red-600 mt-0.5" />
+            <div className="flex-1">
+              <p className="text-sm font-medium text-red-800">{actionError}</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setActionError(null)}
+              className="flex-shrink-0 text-red-400 hover:text-red-600"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+        )}
+        {actionSuccess && (
+          <div className="flex items-start gap-3 rounded-lg bg-green-50 px-4 py-3 border border-green-200">
+            <CheckCircle className="h-5 w-5 flex-shrink-0 text-green-600 mt-0.5" />
+            <div className="flex-1">
+              <p className="text-sm font-medium text-green-800">{actionSuccess}</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setActionSuccess(null)}
+              className="flex-shrink-0 text-green-400 hover:text-green-600"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+        )}
       <div className="mx-auto max-w-5xl space-y-6">
         <div className="grid gap-6 lg:grid-cols-[260px_1fr]">
           <aside className="rounded-2xl border bg-white p-4 shadow-sm h-fit">

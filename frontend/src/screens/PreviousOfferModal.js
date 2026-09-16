@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { Button } from "../components/ui";
 import {
   Content,
@@ -14,16 +14,18 @@ import {
 } from "../styles/Pre-onboardingModal";
 import { DownOutlined } from "@ant-design/icons";
 import { Collapse } from "antd";
-import { EyeIcon, FileText } from "lucide-react";
-import { toast } from "react-toastify";
+import { EyeIcon, FileText, X, AlertTriangle } from "lucide-react";
 import { offerLetterById } from "../services/api/offerLetters";
 
 const PreviousOfferModal = ({ onClose, previousOffer }) => {
   const { Panel } = Collapse;
+  const [actionError, setActionError] = useState(null);
 
   const downloadHandler = async (id, fileName = "OfferLetter.docx") => {
+    setActionError(null);
     if (!id) {
-      toast.error("Offer letter download url is not available");
+      setActionError("Offer letter download url is not available");
+      return;
     }
 
     try {
@@ -46,7 +48,7 @@ const PreviousOfferModal = ({ onClose, previousOffer }) => {
       link.remove();
       window.URL.revokeObjectURL(blobUrl);
     } catch (err) {
-      toast.error(err?.message);
+      setActionError(err?.message);
     }
   };
 
@@ -66,6 +68,21 @@ const PreviousOfferModal = ({ onClose, previousOffer }) => {
               Close
             </Button>
           </div>
+          {actionError && (
+            <div className="mt-4 flex items-start gap-3 rounded-lg bg-red-50 px-4 py-3 border border-red-200">
+              <AlertTriangle className="h-5 w-5 flex-shrink-0 text-red-600 mt-0.5" />
+              <div className="flex-1">
+                <p className="text-sm font-medium text-red-800">{actionError}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setActionError(null)}
+                className="flex-shrink-0 text-red-400 hover:text-red-600"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+          )}
           <div className="flex-1 overflow-y-auto px-6 py-4">
             <Wrapper>
               <StyledCollapse

@@ -3,8 +3,7 @@
 // (ThunderMemorySection, ThunderActivitySection, EngagementMetricsSection)
 // since that's where this codebase already surfaces all Thunder-related UI.
 import { useCallback, useEffect, useState } from "react";
-import { Bot, Power } from "lucide-react";
-import { toast } from "react-toastify";
+import { Bot, Power, X, AlertTriangle, CheckCircle } from "lucide-react";
 import { getAssignments, deactivateAgent } from "../../services/api/aiAgent";
 
 function formatDateTime(value) {
@@ -25,6 +24,8 @@ export default function ThunderAssignmentSection({ candidateId, onChanged }) {
   const [loading, setLoading] = useState(false);
   const [deactivating, setDeactivating] = useState(false);
   const [expanded, setExpanded] = useState(false);
+  const [actionError, setActionError] = useState(null);
+  const [actionSuccess, setActionSuccess] = useState(null);
 
   const load = useCallback(async () => {
     if (!candidateId) return;
@@ -54,15 +55,17 @@ export default function ThunderAssignmentSection({ candidateId, onChanged }) {
       } will stop messaging them and any open conversation will be closed. This cannot be undone.`,
     );
     if (!confirmed) return;
+    setActionError(null);
+    setActionSuccess(null);
     try {
       setDeactivating(true);
       await deactivateAgent(candidateId);
-      toast.success("AI agent deactivated for this candidate");
+      setActionSuccess("AI agent deactivated for this candidate");
       await load();
       await onChanged?.();
     } catch (err) {
       console.error("Failed to deactivate AI agent", err);
-      toast.error(err?.message || "Failed to deactivate AI agent");
+      setActionError(err?.message || "Failed to deactivate AI agent");
     } finally {
       setDeactivating(false);
     }
@@ -71,8 +74,39 @@ export default function ThunderAssignmentSection({ candidateId, onChanged }) {
   if (!loading && !assignments.length) return null;
 
   return (
-    <div className="rounded-2xl border bg-white">
-      <div className="flex items-center justify-between gap-2 border-b px-4 py-3">
+    <div className="space-y-3">
+      {actionError && (
+        <div className="flex items-start gap-3 rounded-lg bg-red-50 px-4 py-3 border border-red-200">
+          <AlertTriangle className="h-5 w-5 flex-shrink-0 text-red-600 mt-0.5" />
+          <div className="flex-1">
+            <p className="text-sm font-medium text-red-800">{actionError}</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setActionError(null)}
+            className="flex-shrink-0 text-red-400 hover:text-red-600"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+      )}
+      {actionSuccess && (
+        <div className="flex items-start gap-3 rounded-lg bg-green-50 px-4 py-3 border border-green-200">
+          <CheckCircle className="h-5 w-5 flex-shrink-0 text-green-600 mt-0.5" />
+          <div className="flex-1">
+            <p className="text-sm font-medium text-green-800">{actionSuccess}</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setActionSuccess(null)}
+            className="flex-shrink-0 text-green-400 hover:text-green-600"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+      )}
+      <div className="rounded-2xl border bg-white">
+        <div className="flex items-center justify-between gap-2 border-b px-4 py-3">
         <div className="flex items-center gap-2">
           <Bot className="h-4 w-4 text-indigo-600" />
           <h3 className="text-sm font-semibold text-gray-900">Thunder Assignment</h3>

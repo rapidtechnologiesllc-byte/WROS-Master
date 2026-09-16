@@ -8,7 +8,7 @@
 // The Refresh button below is hidden for everyone else as a UX courtesy,
 // the real gate is the API (permission-driven, not hardcoded role names).
 import { useCallback, useEffect, useState } from "react";
-import { toast } from "react-toastify";
+import { X, AlertTriangle, CheckCircle } from "lucide-react";
 import { getDesireIntelligence, refreshDesireIntelligence } from "../../services/api/desireIntelligence";
 import { hasPermission } from "../../utils/permissionsRbac";
 
@@ -84,6 +84,8 @@ export default function IntelligenceTab({ candidateId, currentRole }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [actionError, setActionError] = useState(null);
+  const [actionSuccess, setActionSuccess] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
 
   // RBAC-driven: Check permission instead of hardcoded role names
@@ -108,13 +110,15 @@ export default function IntelligenceTab({ candidateId, currentRole }) {
   }, [load]);
 
   const handleRefresh = async () => {
+    setActionError(null);
+    setActionSuccess(null);
     try {
       setRefreshing(true);
       const result = await refreshDesireIntelligence(candidateId);
       setData(result);
-      toast.success("Desire Intelligence refreshed.");
+      setActionSuccess("Desire Intelligence refreshed.");
     } catch (err) {
-      toast.error(err?.message || "Failed to refresh Desire Intelligence.");
+      setActionError(err?.message || "Failed to refresh Desire Intelligence.");
     } finally {
       setRefreshing(false);
     }
@@ -139,6 +143,36 @@ export default function IntelligenceTab({ candidateId, currentRole }) {
 
   return (
     <div className="space-y-6">
+      {actionError && (
+        <div className="flex items-start gap-3 rounded-lg bg-red-50 px-4 py-3 border border-red-200">
+          <AlertTriangle className="h-5 w-5 flex-shrink-0 text-red-600 mt-0.5" />
+          <div className="flex-1">
+            <p className="text-sm font-medium text-red-800">{actionError}</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setActionError(null)}
+            className="flex-shrink-0 text-red-400 hover:text-red-600"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+      )}
+      {actionSuccess && (
+        <div className="flex items-start gap-3 rounded-lg bg-green-50 px-4 py-3 border border-green-200">
+          <CheckCircle className="h-5 w-5 flex-shrink-0 text-green-600 mt-0.5" />
+          <div className="flex-1">
+            <p className="text-sm font-medium text-green-800">{actionSuccess}</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setActionSuccess(null)}
+            className="flex-shrink-0 text-green-400 hover:text-green-600"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+      )}
       {data.has_competing_offer ? (
         <div className="rounded-2xl border border-red-300 bg-red-50 px-5 py-4">
           <div className="text-sm font-bold text-red-800">

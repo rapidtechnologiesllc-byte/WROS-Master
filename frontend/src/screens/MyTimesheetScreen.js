@@ -3,7 +3,7 @@
 // already-real, already-tested HR-operated timesheet engine. Every
 // employee only ever sees/edits their OWN allocation and timesheet.
 import { useEffect, useState } from "react";
-import { toast } from "react-toastify";
+import { X, AlertTriangle, CheckCircle } from "lucide-react";
 import { Card, Button, Select } from "../components/ui";
 import {
   getMyAllocations, getMyCurrentTimesheet, getMyTimesheetHistory, logMyHours, submitMyTimesheet,
@@ -34,14 +34,17 @@ export default function MyTimesheetScreen() {
   const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [actionError, setActionError] = useState(null);
+  const [actionSuccess, setActionSuccess] = useState(null);
 
   const loadAllocations = async () => {
+    setActionError(null);
     try {
       const allocs = await getMyAllocations();
       setAllocations(allocs || []);
       if (allocs?.length) setAllocationId(allocs[0].id);
     } catch {
-      toast.error("Could not load your project allocations.");
+      setActionError("Could not load your project allocations.");
     } finally {
       setLoading(false);
     }
@@ -49,6 +52,7 @@ export default function MyTimesheetScreen() {
 
   const loadTimesheet = async (id) => {
     if (!id) return;
+    setActionError(null);
     try {
       const ts = await getMyCurrentTimesheet(id);
       setTimesheet(ts);
@@ -56,7 +60,7 @@ export default function MyTimesheetScreen() {
       (ts.entries || []).forEach((e) => { byDate[e.entry_date] = String(e.hours); });
       setHours(byDate);
     } catch {
-      toast.error("Could not load this week's timesheet.");
+      setActionError("Could not load this week's timesheet.");
     }
   };
 
@@ -80,15 +84,17 @@ export default function MyTimesheetScreen() {
   const handleSave = async () => {
     if (!timesheet) return;
     setSaving(true);
+    setActionError(null);
+    setActionSuccess(null);
     try {
       const entries = weekDays(timesheet.week_starting_date)
         .filter((d) => hours[d] !== undefined && hours[d] !== "")
         .map((d) => ({ entry_date: d, hours: Number(hours[d]), entry_type: "BILLABLE" }));
       const updated = await logMyHours(timesheet.id, entries);
       setTimesheet(updated);
-      toast.success("Hours saved.");
+      setActionSuccess("Hours saved.");
     } catch (err) {
-      toast.error(err.message || "Could not save hours.");
+      setActionError(err.message || "Could not save hours.");
     } finally {
       setSaving(false);
     }
@@ -96,13 +102,15 @@ export default function MyTimesheetScreen() {
 
   const handleSubmit = async () => {
     if (!timesheet) return;
+    setActionError(null);
+    setActionSuccess(null);
     try {
       const submitted = await submitMyTimesheet(timesheet.id);
       setTimesheet(submitted);
-      toast.success("Timesheet submitted for approval.");
+      setActionSuccess("Timesheet submitted for approval.");
       loadHistory();
     } catch (err) {
-      toast.error(err.message || "Could not submit timesheet.");
+      setActionError(err.message || "Could not submit timesheet.");
     }
   };
 
@@ -124,6 +132,36 @@ export default function MyTimesheetScreen() {
 
   return (
     <div className="p-6 max-w-3xl mx-auto space-y-6">
+      {actionError && (
+        <div className="flex items-start gap-3 rounded-lg bg-red-50 px-4 py-3 border border-red-200">
+          <AlertTriangle className="h-5 w-5 flex-shrink-0 text-red-600 mt-0.5" />
+          <div className="flex-1">
+            <p className="text-sm font-medium text-red-800">{actionError}</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setActionError(null)}
+            className="flex-shrink-0 text-red-400 hover:text-red-600"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+      )}
+      {actionSuccess && (
+        <div className="flex items-start gap-3 rounded-lg bg-green-50 px-4 py-3 border border-green-200">
+          <CheckCircle className="h-5 w-5 flex-shrink-0 text-green-600 mt-0.5" />
+          <div className="flex-1">
+            <p className="text-sm font-medium text-green-800">{actionSuccess}</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setActionSuccess(null)}
+            className="flex-shrink-0 text-green-400 hover:text-green-600"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+      )}
       {allocations.length > 1 && (
         <div className="flex justify-end">
           <div className="w-64">

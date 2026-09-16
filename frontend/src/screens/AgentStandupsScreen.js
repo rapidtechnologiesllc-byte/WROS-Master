@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
-import { RefreshCw, AlertTriangle, Check, Clock, TrendingDown, TrendingUp } from "lucide-react";
-import { toast } from "react-toastify";
+import { RefreshCw, AlertTriangle, Check, Clock, TrendingDown, TrendingUp, X, CheckCircle } from "lucide-react";
 import { Tabs } from "antd";
 import { Card, Button, Input, TextArea, Select } from "../components/ui";
 import { apiRequest } from "../services/api/client";
@@ -15,6 +14,8 @@ export default function AgentStandupsScreen() {
   const [feedbackText, setFeedbackText] = useState("");
   const [feedbackAction, setFeedbackAction] = useState("encourage");
   const [submittingFeedback, setSubmittingFeedback] = useState(false);
+  const [actionError, setActionError] = useState(null);
+  const [actionSuccess, setActionSuccess] = useState(null);
 
   const loadDashboard = async () => {
     setLoading(true);
@@ -31,11 +32,12 @@ export default function AgentStandupsScreen() {
 
   const loadAgentDetails = async (agentName) => {
     setLoadingDetails(true);
+    setActionError(null);
     try {
       const { data } = await apiRequest(`/admin/agent-standups/agent/${agentName}/details`, { method: "GET" });
       setAgentDetails(data);
     } catch (err) {
-      toast.error(`Failed to load details for ${agentName}`);
+      setActionError(`Failed to load details for ${agentName}`);
     } finally {
       setLoadingDetails(false);
     }
@@ -45,18 +47,22 @@ export default function AgentStandupsScreen() {
     setSelectedAgent(agentName);
     loadAgentDetails(agentName);
     setFeedbackText("");
+    setActionError(null);
+    setActionSuccess(null);
   };
 
   const submitFeedback = async () => {
     if (!feedbackText.trim()) {
-      toast.error("Please enter feedback");
+      setActionError("Please enter feedback");
       return;
     }
     if (!selectedAgent) {
-      toast.error("No agent selected");
+      setActionError("No agent selected");
       return;
     }
 
+    setActionError(null);
+    setActionSuccess(null);
     setSubmittingFeedback(true);
     try {
       await apiRequest(`/admin/agent-standups/provide-feedback/${selectedAgent}`, {
@@ -66,11 +72,11 @@ export default function AgentStandupsScreen() {
           action: feedbackAction
         })
       });
-      toast.success(`Feedback sent to ${selectedAgent}`);
+      setActionSuccess(`Feedback sent to ${selectedAgent}`);
       setFeedbackText("");
       loadDashboard();
     } catch (err) {
-      toast.error(err.message || "Failed to submit feedback");
+      setActionError(err.message || "Failed to submit feedback");
     } finally {
       setSubmittingFeedback(false);
     }
@@ -91,6 +97,8 @@ export default function AgentStandupsScreen() {
   }
 
   const { daily_standup, scrum_of_scrums, weekly_feedback } = dashboard;
+
+  // Error/Success banners shown below in the main return
 
   const getStatusColor = (status) => {
     const colors = {
@@ -381,6 +389,36 @@ export default function AgentStandupsScreen() {
       title="Agent Standups & Scrum of Scrums"
       subtitle="Daily coordination dashboard for all 70+ agents with CEO performance management"
     >
+      {actionError && (
+        <div className="mb-4 flex items-start gap-3 rounded-lg bg-red-50 px-4 py-3 border border-red-200">
+          <AlertTriangle className="h-5 w-5 flex-shrink-0 text-red-600 mt-0.5" />
+          <div className="flex-1">
+            <p className="text-sm font-medium text-red-800">{actionError}</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setActionError(null)}
+            className="flex-shrink-0 text-red-400 hover:text-red-600"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+      )}
+      {actionSuccess && (
+        <div className="mb-4 flex items-start gap-3 rounded-lg bg-green-50 px-4 py-3 border border-green-200">
+          <CheckCircle className="h-5 w-5 flex-shrink-0 text-green-600 mt-0.5" />
+          <div className="flex-1">
+            <p className="text-sm font-medium text-green-800">{actionSuccess}</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setActionSuccess(null)}
+            className="flex-shrink-0 text-green-400 hover:text-green-600"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+      )}
       <Tabs
         items={tabItems}
         defaultActiveKey="standup"
