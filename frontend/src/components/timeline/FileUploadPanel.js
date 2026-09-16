@@ -4,8 +4,7 @@
 // per BR-0118-02 -- no download link is rendered until scan_status is
 // CLEAN.
 import { useEffect, useRef, useState } from "react";
-import { toast } from "react-toastify";
-import { FileText, Upload } from "lucide-react";
+import { FileText, Upload, X, CheckCircle } from "lucide-react";
 import { getFileAccessUrl, listFiles, uploadFile } from "../../services/api/activityTimeline";
 import ScreenErrorDisplay from "../ScreenErrorDisplay";
 
@@ -50,6 +49,7 @@ export default function FileUploadPanel({ entityType, entityId, fileCategory = "
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [screenError, setScreenError] = useState(null);
+  const [actionSuccess, setActionSuccess] = useState(null);
   const inputRef = useRef(null);
 
   const load = () => {
@@ -68,7 +68,7 @@ export default function FileUploadPanel({ entityType, entityId, fileCategory = "
     setUploading(true);
     try {
       await uploadFile(entityType, entityId, file, fileCategory);
-      toast.success("File uploaded -- scanning before it becomes available.");
+      setActionSuccess("File uploaded -- scanning before it becomes available.");
       load();
     } catch (err) {
       setScreenError(err.message || "Upload failed.");
@@ -81,6 +81,25 @@ export default function FileUploadPanel({ entityType, entityId, fileCategory = "
   return (
     <>
       <ScreenErrorDisplay error={screenError} onDismiss={() => setScreenError(null)} />
+
+      {/* Success Banner */}
+      {actionSuccess && (
+        <div className="mb-4 border border-green-200 bg-green-50 rounded-lg p-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="text-green-600">
+              <CheckCircle className="h-5 w-5" />
+            </div>
+            <span className="text-green-800">{actionSuccess}</span>
+          </div>
+          <button
+            onClick={() => setActionSuccess(null)}
+            className="text-green-600 hover:text-green-800"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
+
       <div>
         <div className="mb-3 flex items-center justify-between">
         <span className="text-xs font-semibold text-gray-700">Attachments</span>

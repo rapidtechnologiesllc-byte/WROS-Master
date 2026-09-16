@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { toast } from "react-toastify";
 import { Brain, Users, AlertCircle, CheckCircle } from "lucide-react";
 import { Card } from "./ui";
 import { apiRequest } from "../services/api/client";

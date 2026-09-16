@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
-import { toast } from "react-toastify";
-import { AlertTriangle, DollarSign, TrendingDown, Clock } from "lucide-react";
+import { AlertTriangle, DollarSign, TrendingDown, Clock, X, CheckCircle } from "lucide-react";
 import { Card, Button } from "../components/ui";
 import {
   getCFOFinancialSnapshot,
@@ -16,6 +15,8 @@ export default function CFOAgentScreen() {
   const [forecast, setForecast] = useState(null);
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState("overview");
+  const [actionError, setActionError] = useState(null);
+  const [actionSuccess, setActionSuccess] = useState(null);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -46,7 +47,7 @@ export default function CFOAgentScreen() {
           setForecast(forecast);
         }
       } catch (err) {
-        toast.error("Failed to load CFO dashboard");
+        setActionError("Failed to load CFO dashboard");
       } finally {
         setLoading(false);
       }
@@ -78,6 +79,24 @@ export default function CFOAgentScreen() {
 
   return (
     <div className="p-6 max-w-7xl mx-auto">
+      {/* Error Banner */}
+      {actionError && (
+        <div className="mb-6 border border-red-200 bg-red-50 rounded-lg p-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="text-red-600">
+              <AlertTriangle className="h-5 w-5" />
+            </div>
+            <span className="text-red-800">{actionError}</span>
+          </div>
+          <button
+            onClick={() => setActionError(null)}
+            className="text-red-600 hover:text-red-800"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
+
       {/* Tabs */}
       <div className="flex gap-2 mb-6 border-b">
         {["overview", "alerts", "bu-comparison", "forecast"].map((tab) => (

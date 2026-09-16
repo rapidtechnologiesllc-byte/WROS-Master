@@ -19,7 +19,7 @@ import {
 } from "../../services/api/checklists";
 import { sendPlainEmail } from "../../services/api/email";
 import { getEmailBodyHTML } from "../../utils/preboardingEmailTemplate";
-import { toast } from "react-toastify";
+import { X, CheckCircle } from "lucide-react";
 import ScreenErrorDisplay from "../ScreenErrorDisplay";
 
 const { Title, Text, Link } = Typography;
@@ -59,6 +59,7 @@ const PreboardingDrawer = ({ open, onClose, record, onSuccess }) => {
   const [items, setItems] = useState([]);
   const [submitting, setSubmitting] = useState(false);
   const [screenError, setScreenError] = useState(null);
+  const [actionSuccess, setActionSuccess] = useState(null);
 
   const mapItemsToTableData = (items = []) => {
     return items
@@ -129,7 +130,7 @@ const PreboardingDrawer = ({ open, onClose, record, onSuccess }) => {
       }
       onClose();
       if (res?.status === "success") {
-        toast.success("Task assigned Successfully");
+        setActionSuccess("Task assigned Successfully");
       }
     } catch (err) {
       setScreenError(err?.message || "Failed to assign task");
@@ -142,6 +143,25 @@ const PreboardingDrawer = ({ open, onClose, record, onSuccess }) => {
   return (
     <>
       <ScreenErrorDisplay error={screenError} onDismiss={() => setScreenError(null)} />
+
+      {/* Success Banner */}
+      {actionSuccess && (
+        <div className="mb-4 border border-green-200 bg-green-50 rounded-lg p-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="text-green-600">
+              <CheckCircle className="h-5 w-5" />
+            </div>
+            <span className="text-green-800">{actionSuccess}</span>
+          </div>
+          <button
+            onClick={() => setActionSuccess(null)}
+            className="text-green-600 hover:text-green-800"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
+
       <Drawer
         title="Start preboarding"
         placement="right"

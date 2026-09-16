@@ -1,6 +1,5 @@
 import React, { useRef, useState } from "react";
 import SignatureCanvas from "react-signature-canvas";
-import { toast } from "react-toastify";
 import ScreenErrorDisplay from "../ScreenErrorDisplay";
 
 const SignatureModal = ({

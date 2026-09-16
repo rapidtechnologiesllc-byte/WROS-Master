@@ -3,11 +3,9 @@
 // two-column sidebar layout the spec assumed -- adapted to the actual
 // single-column tab structure).
 import { useEffect, useState } from "react";
-import { ChevronDown, ChevronRight, Pencil } from "lucide-react";
-import { toast } from "react-toastify";
+import { ChevronDown, ChevronRight, Pencil, Clock, Zap, CheckCircle, X } from "lucide-react";
 import { correctMemoryFact, getCandidateMemory } from "../services/api/aiAgent";
 import ScreenErrorDisplay from "./ScreenErrorDisplay";
-import { Clock, Zap } from "lucide-react";
 
 const CATEGORY_LABELS = {
   SALARY: "Salary",
@@ -74,6 +72,7 @@ function FactRow({ fact, candidateId, onCorrected }) {
   const [draft, setDraft] = useState(fact.value);
   const [saving, setSaving] = useState(false);
   const [screenError, setScreenError] = useState(null);
+  const [actionSuccess, setActionSuccess] = useState(null);
   const { dot, tooltip } = confidenceColor(fact.confidence);
 
   const handleSave = async () => {
@@ -85,7 +84,7 @@ function FactRow({ fact, candidateId, onCorrected }) {
     try {
       const updated = await correctMemoryFact(candidateId, fact.id, draft.trim()).catch(e => { throw e; });
       onCorrected(updated);
-      toast.success("Memory updated.");
+      setActionSuccess("Memory updated.");
       setEditing(false);
     } catch (err) {
       setScreenError(err.message || "Could not save. Please try again.");
@@ -98,6 +97,17 @@ function FactRow({ fact, candidateId, onCorrected }) {
   return (
     <>
       <ScreenErrorDisplay error={screenError} onDismiss={() => setScreenError(null)} />
+      {actionSuccess && (
+        <div className="mb-4 p-4 bg-green-50 border border-green-200 rounded-lg flex items-start justify-between">
+          <div className="flex items-start gap-3">
+            <CheckCircle className="h-5 w-5 text-green-600 flex-shrink-0 mt-0.5" />
+            <div className="text-sm text-green-800">{actionSuccess}</div>
+          </div>
+          <button onClick={() => setActionSuccess(null)} className="text-green-600 hover:text-green-700">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
       <div className="group flex items-center justify-between gap-2 rounded-lg px-2 py-1.5 hover:bg-gray-50">
       <div className="min-w-0 flex-1">
         <span className="text-xs text-gray-500">{formatKeyLabel(fact.key)}: </span>

@@ -1,13 +1,12 @@
 import { useEffect, useState } from "react";
 import { Button, Card, Badge } from "./ui";
-import { AlertCircle, CheckCircle, Clock } from "lucide-react";
+import { AlertCircle, CheckCircle, Clock, X } from "lucide-react";
 import {
   checkL1ToL2Trigger,
   getPanelistSuggestions,
   checkAffordability,
   createL2Panel,
 } from "../services/api/hiringWorkflow";
-import { toast } from "react-toastify";
 import ScreenErrorDisplay from "./ScreenErrorDisplay";
 
 export default function L1ToL2WorkflowPanel({ l1InterviewId, demandId, submissionId, onL2Created }) {
@@ -19,6 +18,7 @@ export default function L1ToL2WorkflowPanel({ l1InterviewId, demandId, submissio
   const [creating, setCreating] = useState(false);
   const [step, setStep] = useState("trigger"); // trigger → panelist → create
   const [screenError, setScreenError] = useState(null);
+  const [actionSuccess, setActionSuccess] = useState(null);
 
   useEffect(() => {
     const load = async () => {
@@ -61,7 +61,7 @@ export default function L1ToL2WorkflowPanel({ l1InterviewId, demandId, submissio
     setCreating(true);
     try {
       const result = await createL2Panel(demandId, submissionId, selectedPanelists);
-      toast.success("L2 interview panel created successfully.");
+      setActionSuccess("L2 interview panel created successfully.");
       onL2Created?.(result);
     } catch (err) {
       setScreenError("Failed to create L2 panel: " + err.message);
@@ -111,6 +111,17 @@ export default function L1ToL2WorkflowPanel({ l1InterviewId, demandId, submissio
   return (
     <>
       <ScreenErrorDisplay error={screenError} onDismiss={() => setScreenError(null)} />
+      {actionSuccess && (
+        <div className="mb-4 p-4 bg-green-50 border border-green-200 rounded-lg flex items-start justify-between">
+          <div className="flex items-start gap-3">
+            <CheckCircle className="h-5 w-5 text-green-600 flex-shrink-0 mt-0.5" />
+            <div className="text-sm text-green-800">{actionSuccess}</div>
+          </div>
+          <button onClick={() => setActionSuccess(null)} className="text-green-600 hover:text-green-700">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
       <Card title="L2 Interview Auto-Trigger" className="border-green-200 bg-green-50">
       <div className="space-y-4">
         {/* Trigger Status */}

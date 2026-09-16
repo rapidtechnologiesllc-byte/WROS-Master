@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Table, Button, Modal, Form, Card, Space, Tag, Empty, Spin, message } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
-import { toast } from 'react-toastify';
 
 
 const AdminAgentConfig = () => {

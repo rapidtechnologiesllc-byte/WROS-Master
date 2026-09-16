@@ -8,10 +8,9 @@
 // answer -- "strict mode."
 // 2026-08-07: Added "Report Issue" button for production defect feedback.
 import { useRef, useState } from "react";
-import { MessageCircleQuestion, Send, X, AlertCircle } from "lucide-react";
+import { MessageCircleQuestion, Send, X, AlertCircle, CheckCircle } from "lucide-react";
 import { askFlash } from "../services/api/flash";
 import { reportDefect } from "../services/api/defects";
-import { toast } from "react-toastify";
 import cx from "../utils/cx";
 import { NAV_ITEMS } from "../layout/navItems";
 import ScreenErrorDisplay from "./ScreenErrorDisplay";
@@ -32,6 +31,7 @@ export default function FlashWidget() {
   const [reportForm, setReportForm] = useState({ description: "", screen: "", screenOther: "", severity: "MEDIUM", blocking: false });
   const [reporting, setReporting] = useState(false);
   const [screenError, setScreenError] = useState(null);
+  const [actionSuccess, setActionSuccess] = useState(null);
   const scrollRef = useRef(null);
 
   // Backlog item, 2026-08-05 (wros_ask_thunder_bugs_and_memory_backlog):
@@ -92,7 +92,7 @@ export default function FlashWidget() {
     try {
       const severity = reportForm.blocking ? "CRITICAL" : reportForm.severity;
       await reportDefect(reportForm.description, screen, severity, reportForm.blocking);
-      toast.success("Issue reported! QA team will review it soon.");
+      setActionSuccess("Issue reported! QA team will review it soon.");
       setReportForm({ description: "", screen: "", screenOther: "", severity: "MEDIUM", blocking: false });
       setShowReportModal(false);
     } catch (err) {
@@ -105,6 +105,17 @@ export default function FlashWidget() {
   return (
     <>
       <ScreenErrorDisplay error={screenError} onDismiss={() => setScreenError(null)} />
+      {actionSuccess && (
+        <div className="fixed bottom-24 left-6 z-[9998] p-4 bg-green-50 border border-green-200 rounded-lg flex items-start justify-between max-w-xs">
+          <div className="flex items-start gap-3">
+            <CheckCircle className="h-5 w-5 text-green-600 flex-shrink-0 mt-0.5" />
+            <div className="text-sm text-green-800">{actionSuccess}</div>
+          </div>
+          <button onClick={() => setActionSuccess(null)} className="text-green-600 hover:text-green-700">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
       <div className="fixed bottom-6 left-6 z-[9998]">
       {showReportModal ? (
         <div className="fixed inset-0 z-[9999] flex items-end justify-center bg-black/30 sm:items-center">

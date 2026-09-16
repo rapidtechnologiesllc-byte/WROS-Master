@@ -1,20 +1,20 @@
 import { useState } from "react";
 import { Button, Card } from "./ui";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, CheckCircle, X } from "lucide-react";
 import { recordNoShow } from "../services/api/hiringWorkflow";
-import { toast } from "react-toastify";
 import ScreenErrorDisplay from "./ScreenErrorDisplay";
 
 export default function NoShowConfirmation({ interviewId, candidateName, onNoShowRecorded }) {
   const [confirming, setConfirming] = useState(false);
   const [confirmed, setConfirmed] = useState(false);
   const [screenError, setScreenError] = useState(null);
+  const [actionSuccess, setActionSuccess] = useState(null);
 
   const handleConfirmNoShow = async () => {
     setConfirming(true);
     try {
       const result = await recordNoShow(interviewId);
-      toast.success("No-show recorded. Candidate remains in pipeline for future matches.");
+      setActionSuccess("No-show recorded. Candidate remains in pipeline for future matches.");
       setConfirmed(true);
       onNoShowRecorded?.(result);
     } catch (err) {
@@ -28,6 +28,17 @@ export default function NoShowConfirmation({ interviewId, candidateName, onNoSho
     return (
       <>
         <ScreenErrorDisplay error={screenError} onDismiss={() => setScreenError(null)} />
+        {actionSuccess && (
+          <div className="mb-4 p-4 bg-green-50 border border-green-200 rounded-lg flex items-start justify-between">
+            <div className="flex items-start gap-3">
+              <CheckCircle className="h-5 w-5 text-green-600 flex-shrink-0 mt-0.5" />
+              <div className="text-sm text-green-800">{actionSuccess}</div>
+            </div>
+            <button onClick={() => setActionSuccess(null)} className="text-green-600 hover:text-green-700">
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        )}
         <Card className="bg-blue-50 border-blue-200">
           <div className="text-sm text-blue-900">
             ✓ No-show recorded for {candidateName}. Interview dropped from panelist load.
