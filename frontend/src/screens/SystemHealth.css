@@ -22,7 +22,7 @@
 
 .health-header {
   background: transparent;
-  color: white;
+  color: var(--text-primary);
   padding: 0 0 20px 0;
   display: flex;
   justify-content: space-between;
@@ -44,16 +44,14 @@
   font-size: 28px;
   font-weight: 700;
   letter-spacing: -0.5px;
-  background: linear-gradient(135deg, var(--accent-silver), var(--accent-orange));
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  color: var(--text-primary);
+  -webkit-text-fill-color: initial;
 }
 
 .health-summary {
   margin: 0;
   font-size: 13px;
-  color: rgba(192, 192, 192, 0.7);
+  color: var(--text-secondary);
   font-weight: 500;
 }
 
@@ -367,16 +365,17 @@
 
 /* Table Layout */
 .endpoints-table {
-  display: flex;
+  display: flex !important;
   flex-direction: column;
   border: 1px solid var(--border-color);
   border-radius: 8px;
   overflow: hidden;
+  width: 100%;
 }
 
 .table-header {
-  display: grid;
-  grid-template-columns: 2fr 1fr 2fr;
+  display: grid !important;
+  grid-template-columns: 2fr 1fr 2fr !important;
   gap: 15px;
   padding: 16px 20px;
   background: #f9fafb;
@@ -386,6 +385,7 @@
   color: var(--text-secondary);
   text-transform: uppercase;
   letter-spacing: 0.5px;
+  width: 100%;
 }
 
 .table-body {
@@ -394,13 +394,14 @@
 }
 
 .table-row {
-  display: grid;
-  grid-template-columns: 2fr 1fr 2fr;
+  display: grid !important;
+  grid-template-columns: 2fr 1fr 2fr !important;
   gap: 15px;
   padding: 16px 20px;
   border-bottom: 1px solid var(--border-color);
   align-items: center;
   transition: all 0.15s ease;
+  width: 100%;
 }
 
 .table-row:last-child {

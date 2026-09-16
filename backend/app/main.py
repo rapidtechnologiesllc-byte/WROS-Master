@@ -471,14 +471,28 @@ def home():
 def health_check():
     """
     Health check endpoint for monitoring.
-    
+
     Returns:
-        Health status of the application
+        Health status of the application with key endpoints
     """
+    endpoints = [
+        "GET /health",
+        "GET /status/all",
+        "POST /auth/login",
+        "GET /onboarding/hr/get_all_candidates",
+        "GET /jobs/all",
+        "GET /interviews",
+        "GET /offers/all",
+        "GET /timesheets",
+        "GET /projects",
+        "GET /admin/health"
+    ]
+
     return {
         "status": "healthy",
         "app": settings.APP_NAME,
-        "version": settings.APP_VERSION
+        "version": settings.APP_VERSION,
+        "endpoints": endpoints
     }
 
 if __name__ == "__main__":

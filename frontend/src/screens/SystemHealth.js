@@ -135,29 +135,23 @@ const SystemHealth = () => {
                 </div>
 
                 <div className="table-body">
-                  <div className="table-row">
-                    <div className="col-endpoint"><code>GET /health</code></div>
-                    <div className="col-status">
-                      <span className="status-badge healthy">● Healthy</span>
+                  {filteredEndpoints.length > 0 ? (
+                    filteredEndpoints.map((endpoint, index) => (
+                      <div className="table-row" key={index}>
+                        <div className="col-endpoint"><code>{endpoint}</code></div>
+                        <div className="col-status">
+                          <span className="status-badge healthy">● Healthy</span>
+                        </div>
+                        <div className="col-description">API endpoint</div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="table-row">
+                      <div style={{ gridColumn: '1 / -1', padding: '20px', textAlign: 'center', color: '#6b7280' }}>
+                        No endpoints found
+                      </div>
                     </div>
-                    <div className="col-description">System health status</div>
-                  </div>
-
-                  <div className="table-row">
-                    <div className="col-endpoint"><code>GET /status/all</code></div>
-                    <div className="col-status">
-                      <span className="status-badge healthy">● Healthy</span>
-                    </div>
-                    <div className="col-description">Complete system status (requires auth)</div>
-                  </div>
-
-                  <div className="table-row">
-                    <div className="col-endpoint"><code>GET /onboarding/hr/get_all_candidates</code></div>
-                    <div className="col-status">
-                      <span className="status-badge healthy">● Healthy</span>
-                    </div>
-                    <div className="col-description">List all candidates (requires auth)</div>
-                  </div>
+                  )}
                 </div>
               </div>
             </div>
