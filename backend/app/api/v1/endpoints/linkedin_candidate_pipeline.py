@@ -74,7 +74,7 @@ async def queue_linkedin_candidate(
 
         # Query 1: Check if candidate already exists
         existing_candidate = db.query(Candidate).filter(
-            Candidate.candidate_linkedin_url == linkedin_url
+            Candidate.linkedin_url == linkedin_url
         ).first()
 
         if existing_candidate:
@@ -83,12 +83,12 @@ async def queue_linkedin_candidate(
                 "message": f"Candidate already in system",
                 "candidate": {
                     "id": str(existing_candidate.candidateID),
-                    "name": existing_candidate.candidateName,
+                    "name": f"{existing_candidate.candidateFirstName} {existing_candidate.candidateLastName}",
                     "email": existing_candidate.candidateEmail,
-                    "phone": existing_candidate.candidateMobileNumber,
-                    "status": existing_candidate.candidateStatus,
-                    "source": existing_candidate.candidate_source,
-                    "linkedin_url": existing_candidate.candidate_linkedin_url
+                    "phone": existing_candidate.candidateMobile,
+                    "status": existing_candidate.candidateRole,
+                    "source": existing_candidate.candidateSource,
+                    "linkedin_url": existing_candidate.linkedin_url
                 }
             }
 
@@ -228,11 +228,13 @@ async def complete_linkedin_import(
     # Create Candidate record
     candidate = Candidate(
         candidateID=str(uuid4()),
-        candidateName=profile_slug.replace("-", " ").title(),  # Convert slug to name
-        candidateMobileNumber=request.phone_number,
-        candidate_linkedin_url=request.linkedin_url,
-        candidate_source="linkedin_import",
-        candidateStatus="NEW"
+        candidateFirstName=profile_slug.replace("-", " ").title(),  # Convert slug to name
+        candidateMobile=request.phone_number,
+        linkedin_url=request.linkedin_url,
+        candidateSource="linkedin_import",
+        candidateRole="Candidate",
+        candidatePassword="",  # Required field, set placeholder
+        candidateEmail=f"candidate+{str(uuid4())[:8]}@blitzenx.com"  # Generate temp email
     )
     db.add(candidate)
     db.flush()  # Get the ID before commit
