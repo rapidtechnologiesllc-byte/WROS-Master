@@ -6,7 +6,7 @@ Manages candidate queuing from LinkedIn URLs with deduplication.
 import re
 from datetime import datetime
 from typing import Optional
-from uuid import uuid4
+from uuid import uuid4, UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, EmailStr
@@ -66,65 +66,77 @@ async def queue_linkedin_candidate(
     2. Check if already in linkedin_candidate_pipeline queue
     3. Only create new record if both checks pass
     """
-    linkedin_url = request.linkedin_url
-    profile_slug = parse_linkedin_url(linkedin_url)
+    try:
+        linkedin_url = request.linkedin_url
+        profile_slug = parse_linkedin_url(linkedin_url)
 
-    # Query 1: Check if candidate already exists
-    existing_candidate = db.query(Candidate).filter(
-        Candidate.candidate_linkedin_url == linkedin_url
-    ).first()
+        # Query 1: Check if candidate already exists
+        existing_candidate = db.query(Candidate).filter(
+            Candidate.candidate_linkedin_url == linkedin_url
+        ).first()
 
-    if existing_candidate:
-        return {
-            "status": "ALREADY_EXISTS",
-            "message": f"Candidate already in system",
-            "candidate": {
-                "id": str(existing_candidate.candidateID),
-                "name": existing_candidate.candidateName,
-                "email": existing_candidate.candidateEmail,
-                "phone": existing_candidate.candidateMobileNumber,
-                "status": existing_candidate.candidateStatus,
-                "source": existing_candidate.candidate_source,
-                "linkedin_url": existing_candidate.candidate_linkedin_url
+        if existing_candidate:
+            return {
+                "status": "ALREADY_EXISTS",
+                "message": f"Candidate already in system",
+                "candidate": {
+                    "id": str(existing_candidate.candidateID),
+                    "name": existing_candidate.candidateName,
+                    "email": existing_candidate.candidateEmail,
+                    "phone": existing_candidate.candidateMobileNumber,
+                    "status": existing_candidate.candidateStatus,
+                    "source": existing_candidate.candidate_source,
+                    "linkedin_url": existing_candidate.candidate_linkedin_url
+                }
             }
-        }
 
-    # Query 2: Check if already in pipeline
-    existing_pipeline = db.query(LinkedInCandidatePipeline).filter(
-        LinkedInCandidatePipeline.linkedin_url == linkedin_url
-    ).first()
+        # Query 2: Check if already in pipeline
+        existing_pipeline = db.query(LinkedInCandidatePipeline).filter(
+            LinkedInCandidatePipeline.linkedin_url == linkedin_url
+        ).first()
 
-    if existing_pipeline:
-        return {
-            "status": "ALREADY_QUEUED",
-            "message": f"Already in your LinkedIn queue",
-            "pipeline_item": {
-                "id": str(existing_pipeline.id),
-                "status": existing_pipeline.status,
-                "created_at": existing_pipeline.created_at.isoformat(),
-                "updated_at": existing_pipeline.updated_at.isoformat(),
-                "notes": existing_pipeline.notes
+        if existing_pipeline:
+            return {
+                "status": "ALREADY_QUEUED",
+                "message": f"Already in your LinkedIn queue",
+                "pipeline_item": {
+                    "id": str(existing_pipeline.id),
+                    "status": existing_pipeline.status,
+                    "created_at": existing_pipeline.created_at.isoformat(),
+                    "updated_at": existing_pipeline.updated_at.isoformat(),
+                    "notes": existing_pipeline.notes
+                }
             }
+
+        # Query 3: All checks passed - create new pipeline record
+        # Convert user_id to UUID if it's a string
+        try:
+            user_uuid = UUID(current_user_id) if isinstance(current_user_id, str) and len(current_user_id) == 36 else uuid4()
+        except (ValueError, TypeError):
+            user_uuid = uuid4()
+
+        pipeline_item = LinkedInCandidatePipeline(
+            linkedin_url=linkedin_url,
+            linkedin_profile_slug=profile_slug,
+            status=LinkedInPipelineStatus.PENDING_CONNECTION,
+            assigned_to_user_id=user_uuid,
+            created_by_user_id=user_uuid
+        )
+        db.add(pipeline_item)
+        db.commit()
+        db.refresh(pipeline_item)
+
+        return {
+            "status": "QUEUED",
+            "message": "Added to your LinkedIn pipeline",
+            "pipeline_item_id": str(pipeline_item.id),
+            "profile_slug": profile_slug
         }
-
-    # Query 3: All checks passed - create new pipeline record
-    pipeline_item = LinkedInCandidatePipeline(
-        linkedin_url=linkedin_url,
-        linkedin_profile_slug=profile_slug,
-        status=LinkedInPipelineStatus.PENDING_CONNECTION,
-        assigned_to_user_id=current_user_id,
-        created_by_user_id=current_user_id
-    )
-    db.add(pipeline_item)
-    db.commit()
-    db.refresh(pipeline_item)
-
-    return {
-        "status": "QUEUED",
-        "message": "Added to your LinkedIn pipeline",
-        "pipeline_item_id": str(pipeline_item.id),
-        "profile_slug": profile_slug
-    }
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"[LinkedIn Pipeline Queue] Error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to queue candidate: {str(e)}")
 
 @router.get("/list")
 async def list_pipeline_items(
