@@ -25,8 +25,11 @@ from app.core.database import SessionLocal
 from app.services.stuck_message_detector import (
     StuckMessageDetector,
     StuckMessageHealer,
-    StuckMessageArchitect
+    StuckMessageArchitect,
+    DeadLetterDetector,
+    DeadLetterArchitect
 )
+from app.services.recovery_engine import DeadLetterRecoveryEngine
 
 logger = logging.getLogger(__name__)
 
@@ -40,18 +43,24 @@ class StuckMessageMonitorService:
     def __init__(self):
         self.running = False
         self.detector = StuckMessageDetector()
+        self.dead_letter_detector = DeadLetterDetector()
         self.status_cache: Dict[str, Any] = {
             "running": False,
             "last_check": None,
             "stuck_detected": 0,
+            "dead_letter_patterns": 0,
             "healed": [],
             "failed": [],
+            "dead_letters_recovered": [],
             "root_causes": [],
+            "dead_letter_fixes": [],
             "cycles_completed": 0
         }
         self.status_lock = Lock()
         self.healer: Optional[StuckMessageHealer] = None
         self.architect: Optional[StuckMessageArchitect] = None
+        self.dead_letter_architect: Optional[DeadLetterArchitect] = None
+        self.recovery_engine: Optional[DeadLetterRecoveryEngine] = None
 
     def start_monitoring(self):
         """
@@ -157,10 +166,94 @@ class StuckMessageMonitorService:
                 for cause in root_causes[:3]:
                     logger.warning(f"  • {cause['task_name']}: {cause['root_cause']}")
 
+            # STEP 4: Monitor dead-letter patterns (90-second cycle)
+            self._monitor_dead_letters(db)
+
         except Exception as e:
             logger.error(f"[StuckMessageMonitor] Cycle error: {e}", exc_info=True)
         finally:
             db.close()
+
+    def _monitor_dead_letters(self, db: Session):
+        """
+        Monitor dead-letter messages for autonomous healing
+
+        90-second cycle:
+        1. DOCTOR: Detect patterns (5+ messages with same error)
+        2. ARCHITECT: Analyze and generate fix specs
+        3. HEALER: Apply fixes and re-queue messages
+        4. DOCTOR: Monitor recovery success
+        """
+
+        try:
+            # DOCTOR: Detect dead-letter patterns
+            patterns = self.dead_letter_detector.get_dead_letter_patterns(db)
+
+            if patterns:
+                logger.warning(DeadLetterDetector.format_dead_letter_report(patterns))
+
+                with self.status_lock:
+                    self.status_cache["dead_letter_patterns"] = len(patterns)
+
+            if not patterns:
+                return  # No patterns to heal
+
+            # ARCHITECT: Analyze first (highest priority) pattern
+            pattern = patterns[0]
+            logger.info(f"[DeadLetterMonitor] Analyzing pattern: {pattern.error_type} ({pattern.count} messages)")
+
+            if not self.dead_letter_architect:
+                self.dead_letter_architect = DeadLetterArchitect()
+
+            # Run async analysis
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            try:
+                fix_spec = loop.run_until_complete(
+                    self.dead_letter_architect.analyze_dead_letter_pattern(pattern)
+                )
+            finally:
+                loop.close()
+
+            logger.info(f"[DeadLetterMonitor] Fix spec generated: {fix_spec.get('fix_type')} (confidence: {fix_spec.get('confidence'):.0%})")
+
+            with self.status_lock:
+                self.status_cache["dead_letter_fixes"].append({
+                    "error_type": pattern.error_type,
+                    "message_count": pattern.count,
+                    "fix_type": fix_spec.get("fix_type"),
+                    "confidence": fix_spec.get("confidence"),
+                    "timestamp": datetime.utcnow().isoformat()
+                })
+
+            # HEALER: Execute recovery (re-queue messages)
+            if not self.recovery_engine:
+                self.recovery_engine = DeadLetterRecoveryEngine()
+
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            try:
+                recovery_result = loop.run_until_complete(
+                    self.recovery_engine.recover_dead_letters(
+                        fix_spec,
+                        pattern.message_ids,
+                        db
+                    )
+                )
+            finally:
+                loop.close()
+
+            logger.info(f"[DeadLetterMonitor] Recovery: {recovery_result.get('messages_recovered')}/{pattern.count} messages re-queued")
+
+            with self.status_lock:
+                self.status_cache["dead_letters_recovered"].append({
+                    "pattern": pattern.error_type,
+                    "recovered": recovery_result.get("messages_recovered", 0),
+                    "timestamp": datetime.utcnow().isoformat()
+                })
+
+        except Exception as e:
+            logger.error(f"[DeadLetterMonitor] Dead-letter monitoring failed: {e}", exc_info=True)
 
     def get_current_status(self) -> Dict[str, Any]:
         """Return current monitoring status for API queries"""
@@ -172,8 +265,11 @@ class StuckMessageMonitorService:
                 "healed_count": len(self.status_cache.get("healed", [])),
                 "failed_count": len(self.status_cache.get("failed", [])),
                 "root_causes_found": len(self.status_cache.get("root_causes", [])),
+                "dead_letter_patterns_detected": self.status_cache.get("dead_letter_patterns", 0),
+                "dead_letters_recovered": len(self.status_cache.get("dead_letters_recovered", [])),
                 "cycles_completed": self.status_cache.get("cycles_completed", 0),
-                "root_causes": self.status_cache.get("root_causes", [])[:5]  # Last 5
+                "root_causes": self.status_cache.get("root_causes", [])[:5],  # Last 5
+                "dead_letter_fixes": self.status_cache.get("dead_letter_fixes", [])[:5]  # Last 5
             }
 
     def get_history(self) -> Dict[str, Any]:
