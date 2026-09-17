@@ -1354,32 +1354,6 @@ def start_scheduler():
             logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.warning(f"Could not register SLM improvement scheduler: {exc}")
 
-        # ── Every 2 min: MESSAGE_QUEUE_WORKER (Process CANDIDATE_QUEUE, etc.) ──
-        try:
-            from app.workers.message_queue_worker import process_message_queue
-
-            def _run_message_queue_worker():
-                db = SessionLocal()
-                try:
-                    process_message_queue()
-                except Exception as exc:
-                    logger.error(f"Error: {str(exc)}", exc_info=True)
-                    logger.error(f"[scheduler] Message queue worker error: {exc}")
-                finally:
-                    db.close()
-
-            scheduler.add_job(
-                _run_message_queue_worker,
-                trigger="interval",
-                minutes=2,
-                id="message_queue_worker",
-                replace_existing=True,
-            )
-            logger.info("[OK] Scheduled message queue worker (every 2 min)")
-        except Exception as exc:
-            logger.error(f"Error: {str(exc)}", exc_info=True)
-            logger.warning(f"Could not register message queue worker scheduler: {exc}")
-
         # ── Every 6 hours: Candidate Maintenance Sweep (14+ day inactive candidates) ─
         try:
             from datetime import datetime, timedelta

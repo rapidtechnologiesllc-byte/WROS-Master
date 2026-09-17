@@ -5,8 +5,10 @@ Handles candidate creation, email delivery, interview scheduling, and other asyn
 Runs independently, processing batches of PENDING messages every 30 seconds.
 """
 import logging
+import signal
 from datetime import datetime, timedelta
 from typing import Dict, Any
+from functools import wraps
 
 from app.core.logging import logger
 from app.core.database import SessionLocal
@@ -16,6 +18,33 @@ from app.services.queue_doctor_service import QueueDoctorService
 from app.services.thunder_pause_service import is_thunder_paused
 
 logger = logging.getLogger(__name__)
+
+
+class HandlerTimeoutError(Exception):
+    """Raised when handler execution exceeds timeout."""
+    pass
+
+
+def timeout_handler(signum, frame):
+    """Signal handler for timeout."""
+    raise HandlerTimeoutError("Handler execution exceeded 30-second timeout")
+
+
+def with_timeout(timeout_seconds: int = 30):
+    """Decorator to add timeout to handler execution."""
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            # Set signal handler and alarm
+            old_handler = signal.signal(signal.SIGALRM, timeout_handler)
+            signal.alarm(timeout_seconds)
+            try:
+                return func(*args, **kwargs)
+            finally:
+                signal.alarm(0)  # Disable alarm
+                signal.signal(signal.SIGALRM, old_handler)  # Restore handler
+        return wrapper
+    return decorator
 
 
 def process_message_queue(batch_size: int = 10, timeout_minutes: int = 30) -> Dict[str, Any]:
@@ -95,7 +124,23 @@ def process_message_queue(batch_size: int = 10, timeout_minutes: int = 30) -> Di
 
                     handler = MessageHandlerRegistry.get_handler(message.type)
                     if handler:
-                        result = handler(message, db)
+                        try:
+                            # Wrap handler with 30-second timeout guard
+                            wrapped_handler = with_timeout(30)(handler)
+                            result = wrapped_handler(message, db)
+                        except HandlerTimeoutError as e:
+                            logger.error(f"[Worker] Handler timeout for message {message.id} (type: {message.type}): {e}")
+                            message.status = "FAILED"
+                            message.error = f"Handler timeout: exceeded 30 seconds"
+                            message.completed_at = datetime.utcnow()
+                            message.retry_count = (message.retry_count or 0) + 1
+                            message.next_retry_at = datetime.utcnow() + timedelta(minutes=5)
+                            try:
+                                db.commit()
+                            except Exception as commit_err:
+                                db.rollback()
+                                logger.error(f"[Worker] Failed to mark timeout message as FAILED: {commit_err}", exc_info=True)
+                            continue
                     else:
                         # Unknown message type - mark as FAILED with retry scheduling
                         logger.warning(f"[Worker] Unknown message type: {message.type}")
