@@ -51,9 +51,15 @@ class CandidateCreationHandler:
         payload = message.payload
         candidate_email = payload.get("candidate_email")
 
-        # ===== VALIDATION: Verify payload has required email field =====
-        if not candidate_email or "@" not in candidate_email:
-            raise ValueError(f"Invalid or missing candidate_email in payload: {candidate_email}")
+        # ===== VALIDATION: Email required only for new candidates =====
+        # If email is provided but invalid, always fail (format error)
+        # If email is missing, warn and proceed (may merge with existing candidate that has email)
+        if candidate_email and "@" not in candidate_email:
+            # Email provided but malformed - always fail
+            raise ValueError(f"Invalid candidate_email format (must contain @): {candidate_email}")
+
+        if not candidate_email:
+            logger.warning(f"[Handler] candidate_email missing from payload - will check duplicates first to determine if new or merged")
 
         logger.info(f"[Handler] Processing queue message, candidate_email={candidate_email}, payload keys={list(payload.keys())}")
 
