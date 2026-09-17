@@ -57,8 +57,10 @@ def _get_or_create_memory(db: Session, candidate_id: str, tenant_id: str) -> Can
 
 def get_memory(db: Session, candidate_id: str, tenant_id: str) -> Dict:
     """getMemory() -- BR-01: candidate-level, one record shared across
-    all conversations. Returns {summary: None, facts: []} if nothing
-    exists yet."""
+    all conversations. Returns {summary: None, facts: [], signals: []} if nothing
+    exists yet.
+
+    S-347/HRMS-P117: Also fetches recent desire signals from email/message analysis."""
     memory = db.query(CandidateMemory).filter(CandidateMemory.candidate_id == candidate_id, CandidateMemory.tenant_id == tenant_id).first()
     facts = (
         db.query(CandidateMemoryFact)
@@ -66,6 +68,36 @@ def get_memory(db: Session, candidate_id: str, tenant_id: str) -> Dict:
         .order_by(CandidateMemoryFact.fact_category.asc(), CandidateMemoryFact.extracted_at.desc())
         .all()
     )
+
+    # Fetch recent desire signals (email/message analysis)
+    signals = []
+    try:
+        from app.models.candidate_desire_signal import CandidateDesireSignal
+        signal_records = (
+            db.query(CandidateDesireSignal)
+            .filter(
+                CandidateDesireSignal.candidate_id == candidate_id,
+                CandidateDesireSignal.tenant_id == tenant_id,
+            )
+            .order_by(CandidateDesireSignal.created_at.desc())
+            .limit(20)  # Last 20 signals
+            .all()
+        )
+        signals = [
+            {
+                "id": s.id,
+                "source": s.signal_source,
+                "category": s.desire_category,
+                "direction": s.desire_direction,
+                "strength": s.desire_strength,
+                "insight": s.extracted_insight,
+                "created_at": s.created_at,
+            }
+            for s in signal_records
+        ]
+    except Exception as e:
+        logger.warning(f"[CandidateMemory] Failed to fetch signals for {candidate_id}: {e}")
+
     return {
         "summary": memory.summary if memory else None,
         "last_updated": memory.last_updated if memory else None,
@@ -77,6 +109,7 @@ def get_memory(db: Session, candidate_id: str, tenant_id: str) -> Dict:
             }
             for f in facts
         ],
+        "signals": signals,
     }
 
 def upsert_fact(
