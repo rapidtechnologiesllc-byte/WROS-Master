@@ -571,6 +571,212 @@ class StuckMessageHealer:
         return self.recovery_history
 
 
+class DeadLetterArchitect:
+    """Analyzes dead-letter patterns to generate autonomous fixes"""
+
+    async def analyze_dead_letter_pattern(self, pattern: DeadLetterPattern) -> Dict[str, Any]:
+        """
+        Analyze a dead-letter pattern and generate fix specification
+
+        Input: Pattern with error message and count
+        Output: Fix spec with code changes, confidence, and rollback strategy
+        """
+
+        logger.info(f"[DeadLetterArchitect] Analyzing pattern: {pattern.error_type} ({pattern.count} messages)")
+
+        # Route to specialized analyzer based on error type
+        if pattern.error_type == "VALIDATION_ERROR":
+            return await self._analyze_validation_error(pattern)
+        elif pattern.error_type == "HANDLER_ERROR":
+            return await self._analyze_handler_error(pattern)
+        elif pattern.error_type == "PERMISSION_ERROR":
+            return await self._analyze_permission_error(pattern)
+        elif pattern.error_type == "TIMEOUT_ERROR":
+            return await self._analyze_timeout_error(pattern)
+        elif pattern.error_type == "DEPENDENCY_ERROR":
+            return await self._analyze_dependency_error(pattern)
+        else:
+            return await self._analyze_unknown_error(pattern)
+
+    async def _analyze_validation_error(self, pattern: DeadLetterPattern) -> Dict[str, Any]:
+        """Analyze validation errors (most common: field mismatches)"""
+
+        error_msg = pattern.error_message
+
+        # Pattern: "email mismatch" → field mapping issue
+        if "email" in error_msg and "mismatch" in error_msg:
+            return {
+                "root_cause": "Email field mismatch between queue and handler",
+                "error_message": error_msg,
+                "affected_messages": len(pattern.message_ids),
+                "fix_type": "FIELD_MAPPING_FIX",
+                "affected_file": "backend/app/services/message_handlers/candidate_creation_handler.py",
+                "code_changes": [
+                    {
+                        "file": "backend/app/services/message_handlers/candidate_creation_handler.py",
+                        "issue": "Handler receives email in one field, expects in another",
+                        "solution": "Normalize field mapping in handler.process() method",
+                        "estimated_lines": 5
+                    }
+                ],
+                "confidence": 0.85,
+                "prevention_benefit": "Prevents email validation errors from blocking candidate workflow",
+                "estimated_fix_time_seconds": 120
+            }
+
+        # Pattern: "missing field" → handler expects field that queue doesn't send
+        elif "missing" in error_msg and "field" in error_msg:
+            return {
+                "root_cause": "Required field missing from queue payload",
+                "error_message": error_msg,
+                "affected_messages": len(pattern.message_ids),
+                "fix_type": "VALIDATION_UPDATE",
+                "affected_file": "backend/app/services/message_handlers",
+                "code_changes": [
+                    {
+                        "file": "Affected handler module",
+                        "issue": "Validation requires field that queue doesn't provide",
+                        "solution": "Make field optional OR update queue to include field",
+                        "estimated_lines": 3
+                    }
+                ],
+                "confidence": 0.75,
+                "prevention_benefit": "Prevents missing field errors",
+                "estimated_fix_time_seconds": 180
+            }
+
+        # Generic validation error
+        else:
+            return {
+                "root_cause": "Validation logic mismatch",
+                "error_message": error_msg,
+                "affected_messages": len(pattern.message_ids),
+                "fix_type": "VALIDATION_REVIEW_REQUIRED",
+                "affected_file": "backend/app/services/message_handlers",
+                "code_changes": [
+                    {
+                        "file": "Validation handler",
+                        "issue": f"Validation error: {error_msg}",
+                        "solution": "Manual review of validation rules needed",
+                        "estimated_lines": 5
+                    }
+                ],
+                "confidence": 0.60,
+                "prevention_benefit": "Prevents validation errors",
+                "estimated_fix_time_seconds": 300
+            }
+
+    async def _analyze_handler_error(self, pattern: DeadLetterPattern) -> Dict[str, Any]:
+        """Analyze handler errors (crashes, missing error handling)"""
+
+        return {
+            "root_cause": "Handler crashed or has missing error handling",
+            "error_message": pattern.error_message,
+            "affected_messages": len(pattern.message_ids),
+            "fix_type": "HANDLER_FIX",
+            "affected_file": "backend/app/services/message_handlers",
+            "code_changes": [
+                {
+                    "file": "Message handler",
+                    "issue": "Handler missing error handling or has unhandled exception",
+                    "solution": "Add try-except blocks and proper error logging",
+                    "estimated_lines": 10
+                }
+            ],
+            "confidence": 0.70,
+            "prevention_benefit": "Prevents handler crashes",
+            "estimated_fix_time_seconds": 300
+        }
+
+    async def _analyze_permission_error(self, pattern: DeadLetterPattern) -> Dict[str, Any]:
+        """Analyze permission errors"""
+
+        return {
+            "root_cause": "Missing permissions for handler operation",
+            "error_message": pattern.error_message,
+            "affected_messages": len(pattern.message_ids),
+            "fix_type": "PERMISSION_FIX",
+            "affected_file": "backend/app/services/message_handlers",
+            "code_changes": [
+                {
+                    "file": "Handler or RBAC config",
+                    "issue": "Handler lacks required permissions",
+                    "solution": "Grant handler required permissions in RBAC system",
+                    "estimated_lines": 2
+                }
+            ],
+            "confidence": 0.80,
+            "prevention_benefit": "Prevents permission-based failures",
+            "estimated_fix_time_seconds": 120
+        }
+
+    async def _analyze_timeout_error(self, pattern: DeadLetterPattern) -> Dict[str, Any]:
+        """Analyze timeout errors"""
+
+        return {
+            "root_cause": "Handler exceeds timeout threshold",
+            "error_message": pattern.error_message,
+            "affected_messages": len(pattern.message_ids),
+            "fix_type": "TIMEOUT_FIX",
+            "affected_file": "backend/app/services/message_handlers",
+            "code_changes": [
+                {
+                    "file": "Handler module",
+                    "issue": "Handler processing takes too long (> 30s)",
+                    "solution": "Optimize slow operations or increase timeout threshold",
+                    "estimated_lines": 5
+                }
+            ],
+            "confidence": 0.65,
+            "prevention_benefit": "Prevents timeout failures",
+            "estimated_fix_time_seconds": 600
+        }
+
+    async def _analyze_dependency_error(self, pattern: DeadLetterPattern) -> Dict[str, Any]:
+        """Analyze dependency errors (missing data, unavailable services)"""
+
+        return {
+            "root_cause": "External dependency unavailable or data not found",
+            "error_message": pattern.error_message,
+            "affected_messages": len(pattern.message_ids),
+            "fix_type": "DEPENDENCY_CHECK",
+            "affected_file": "backend/app/services/message_handlers",
+            "code_changes": [
+                {
+                    "file": "Handler module",
+                    "issue": f"Dependency error: {pattern.error_message}",
+                    "solution": "Verify external dependency health or data availability",
+                    "estimated_lines": 5
+                }
+            ],
+            "confidence": 0.70,
+            "prevention_benefit": "Prevents dependency-based failures",
+            "estimated_fix_time_seconds": 180
+        }
+
+    async def _analyze_unknown_error(self, pattern: DeadLetterPattern) -> Dict[str, Any]:
+        """Analyze unknown errors"""
+
+        return {
+            "root_cause": "Unknown error pattern",
+            "error_message": pattern.error_message,
+            "affected_messages": len(pattern.message_ids),
+            "fix_type": "MANUAL_REVIEW_REQUIRED",
+            "affected_file": "backend/app/services/message_handlers",
+            "code_changes": [
+                {
+                    "file": "Unknown",
+                    "issue": f"Unknown error: {pattern.error_message}",
+                    "solution": "Manual analysis required",
+                    "estimated_lines": 0
+                }
+            ],
+            "confidence": 0.40,
+            "prevention_benefit": "Requires manual investigation",
+            "estimated_fix_time_seconds": 0
+        }
+
+
 class StuckMessageArchitect:
     """Analyzes stuck messages to prevent future occurrences"""
 
