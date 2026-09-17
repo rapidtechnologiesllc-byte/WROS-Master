@@ -69,6 +69,7 @@ def link_email_to_lifecycle_record(
     web_link: Optional[str] = None,
     tenant_id: Optional[int] = None,
     actor_id: Optional[str] = None,
+    body: Optional[str] = None,
 ) -> Optional[dict]:
     """Call once per real email message (never per-line, never with
     body content). `other_party_email` is whichever side of the
@@ -106,6 +107,21 @@ def link_email_to_lifecycle_record(
             description=description,
         )
         db.commit()
+
+        # S-347/HRMS-P117: Trigger email analysis for received emails linked to candidates
+        # Fire-and-forget: never blocks the linking, never raises
+        if direction == "RECEIVED" and entity_type == "candidate" and body:
+            try:
+                from app.services.email_reply_analysis_service import analyze_candidate_email_reply
+                analyze_candidate_email_reply(
+                    db, entity_id, tenant_id, body, timestamp
+                )
+            except Exception as exc:
+                logger.warning(
+                    f"[LifecycleCommunicationLinking] Failed to analyze email for "
+                    f"{entity_id}: {exc} -- email is still linked, analysis deferred"
+                )
+
         return {
             "entity_type": entity_type,
             "entity_id": entity_id,

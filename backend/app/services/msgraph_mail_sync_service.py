@@ -44,7 +44,7 @@ def _fetch_messages(access_token: str, folder: str, since: datetime, *, graph_ca
     endpoint = (
         f"https://graph.microsoft.com/v1.0/me/mailFolders/{folder}/messages"
         f"?$filter={date_field} ge {since_iso}"
-        f"&$select=subject,from,toRecipients,receivedDateTime,sentDateTime,webLink"
+        f"&$select=subject,from,toRecipients,receivedDateTime,sentDateTime,webLink,bodyPreview"
         f"&$top={MAX_MESSAGES_PER_FOLDER}"
         f"&$orderby={date_field}"
     )
@@ -73,16 +73,23 @@ def sync_mail_for_user(
     since = user.msgraph_mail_last_synced_at or (now - DEFAULT_LOOKBACK)
 
     linked_count = 0
+    inbound_linked = []
     try:
         for message in _fetch_messages(access_token, "inbox", since, graph_call=graph_call):
             sender = (message.get("from") or {}).get("emailAddress", {}).get("address")
-            if link_email_to_lifecycle_record(
+            result = link_email_to_lifecycle_record(
                 db, other_party_email=sender, direction="RECEIVED",
                 subject=message.get("subject"),
                 timestamp=_parse_graph_datetime(message.get("receivedDateTime")),
                 web_link=message.get("webLink"), tenant_id=user.tenant_id, actor_id=user.UserID,
-            ):
+                body=message.get("bodyPreview"),
+            )
+            if result:
                 linked_count += 1
+                inbound_linked.append({
+                    "candidate_id": result["entity_id"],
+                    "tenant_id": user.tenant_id
+                })
 
         for message in _fetch_messages(access_token, "sentitems", since, graph_call=graph_call):
             for recipient in message.get("toRecipients") or []:
@@ -102,7 +109,7 @@ def sync_mail_for_user(
     user.msgraph_mail_last_synced_at = now
     db.add(user)
     db.commit()
-    return {"linked": linked_count, "synced": True}
+    return {"linked": linked_count, "synced": True, "inbound_linked": inbound_linked}
 
 def run_msgraph_mail_sync_job(db: Session) -> dict:
     """Runs on a schedule (see app.core.scheduler) -- iterates every
@@ -113,6 +120,7 @@ def run_msgraph_mail_sync_job(db: Session) -> dict:
 
     synced_users = 0
     total_linked = 0
+    inbound_emails_linked = []
     for user_id, account_id in list(account_id_by_user_id.items()):
         token_data = user_tokens.get(account_id)
         if not token_data or "access_token" not in token_data:
@@ -125,8 +133,19 @@ def run_msgraph_mail_sync_job(db: Session) -> dict:
             if result["synced"]:
                 synced_users += 1
                 total_linked += result["linked"]
+                if result.get("inbound_linked"):
+                    inbound_emails_linked.extend(result["inbound_linked"])
         except Exception as exc:
             logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.warning(f"[MsgraphMailSync] Unexpected error syncing user {user_id}: {exc}")
+
+    # Trigger real-time SLM if any inbound emails were linked
+    if inbound_emails_linked:
+        try:
+            from app.services.email_reply_analysis_service import trigger_realtime_slm_update
+            for item in inbound_emails_linked:
+                trigger_realtime_slm_update(db, item["tenant_id"], item["candidate_id"])
+        except Exception as exc:
+            logger.warning(f"[MsgraphMailSync] Real-time SLM update failed (non-blocking): {exc}")
 
     return {"synced_users": synced_users, "total_linked": total_linked}
