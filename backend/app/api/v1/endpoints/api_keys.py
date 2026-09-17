@@ -56,10 +56,9 @@ def _get_tenant_id(current_user: Users) -> int:
     response_model=GetAPIKeysResponse,
     summary="Get configured API providers (no secrets)",
 )
-async def get_api_keys(
+def get_api_keys(
     db: Session = Depends(get_db),
-    # FALLBACK: Simplified auth - read directly from .env
-    # current_user: Users = Depends(get_current_internal_user),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     """
     Retrieve which providers are configured for the current tenant.
@@ -69,10 +68,9 @@ async def get_api_keys(
     - `providers`: List of all configured providers with status (no credentials exposed)
     - `available_providers`: Full list of available provider options: ['azure', 'twilio', 'sendgrid']
 
-    **Permission required:** `setting:view` (TEMPORARY: skipped for fallback)
+    **Permission required:** `setting:view`
     """
-    # FALLBACK: Use hardcoded tenant_id for now
-    tenant_id = 1  # TODO: Get from current_user once auth is fixed
+    tenant_id = _get_tenant_id(current_user)
     logger.info(f"[api_keys/GET] Tenant {tenant_id} fetching configured providers")
 
     result = APIKeysService.get_api_keys(db, tenant_id)
@@ -84,11 +82,10 @@ async def get_api_keys(
     response_model=SaveAPIKeysResponse,
     summary="Save/update API credentials for one or more providers",
 )
-async def save_api_keys(
+def save_api_keys(
     request: SaveAPIKeysRequest,
     db: Session = Depends(get_db),
-    # FALLBACK: Simplified auth
-    # current_user: Users = Depends(get_current_internal_user),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     """
     Save or update credentials for one or more delivery providers.
@@ -109,23 +106,21 @@ async def save_api_keys(
 
     **Sensitive fields are encrypted at rest** and never exposed in responses.
 
-    **Permission required:** `setting:update` (TEMPORARY: skipped for fallback)
+    **Permission required:** `setting:update`
 
     **Returns:**
     - `status`: 'success', 'partial', or 'failed'
     - `saved_providers`: List of providers successfully saved
     - `errors`: Dict of provider -> error message (if any failed)
     """
-    # FALLBACK: Use hardcoded tenant_id and user_id
-    tenant_id = 1  # TODO: Get from current_user once auth is fixed
-    updated_by = 1  # TODO: Get from current_user once auth is fixed
+    tenant_id = _get_tenant_id(current_user)
     logger.info(f"[api_keys/POST] Tenant {tenant_id} saving credentials for: {request.model_dump(exclude_none=True, exclude_unset=True).keys()}")
 
     result = APIKeysService.save_api_keys(
         db=db,
         tenant_id=tenant_id,
         request=request,
-        updated_by=updated_by,
+        updated_by=current_user.UserID,
     )
 
     return SaveAPIKeysResponse(**result)
@@ -136,11 +131,10 @@ async def save_api_keys(
     response_model=TestConnectionResponse,
     summary="Test connection to a provider",
 )
-async def test_provider_connection(
+def test_provider_connection(
     request: TestConnectionRequest,
     db: Session = Depends(get_db),
-    # FALLBACK: Simplified auth
-    # current_user: Users = Depends(get_current_internal_user),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     """
     Test whether credentials for a specific provider are valid.
@@ -157,7 +151,7 @@ async def test_provider_connection(
     - **twilio**: Fetches account details (validates account_sid, auth_token)
     - **sendgrid**: Calls API /user/profile (validates api_key)
 
-    **Permission required:** `setting:view` (TEMPORARY: skipped for fallback)
+    **Permission required:** `setting:view`
 
     **Response includes:**
     - `status`: 'success' or 'failed'
@@ -166,8 +160,7 @@ async def test_provider_connection(
 
     **Audit:** Test results are logged with timestamp and stored on config record.
     """
-    # FALLBACK: Use hardcoded tenant_id
-    tenant_id = 1  # TODO: Get from current_user once auth is fixed
+    tenant_id = _get_tenant_id(current_user)
     logger.info(f"[api_keys/test] Tenant {tenant_id} testing provider: {request.provider}")
 
     result = APIKeysService.test_connection(
@@ -183,10 +176,9 @@ async def test_provider_connection(
     "/from-env",
     summary="Load API credentials from environment variables",
 )
-async def load_from_env(
+def load_from_env(
     db: Session = Depends(get_db),
-    # FALLBACK: Simplified auth
-    # current_user: Users = Depends(get_current_internal_user),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     """
     Load and save API credentials from environment variables (.env file).
@@ -194,9 +186,7 @@ async def load_from_env(
     This endpoint reads AZURE_TENANT_ID, AZURE_CLIENT_ID, AZURE_CLIENT_SECRET
     from the environment and saves them to the database.
     """
-    # FALLBACK: Use hardcoded tenant_id and user_id
-    tenant_id = 1  # TODO: Get from current_user once auth is fixed
-    current_user_id = 1  # TODO: Get from current_user once auth is fixed
+    tenant_id = _get_tenant_id(current_user)
 
     azure_tenant_id = os.getenv("AZURE_TENANT_ID")
     azure_client_id = os.getenv("AZURE_CLIENT_ID")
@@ -228,7 +218,7 @@ async def load_from_env(
         db=db,
         tenant_id=tenant_id,
         request=request,
-        updated_by=current_user_id,  # FALLBACK: hardcoded
+        updated_by=current_user.UserID,
     )
 
     logger.info(f"[api_keys/from-env] Loaded Azure credentials from environment for tenant {tenant_id}")
@@ -239,10 +229,9 @@ async def load_from_env(
     "/status",
     summary="Health check - verify active provider is working",
 )
-async def get_provider_status(
+def get_provider_status(
     db: Session = Depends(get_db),
-    # FALLBACK: Simplified auth
-    # current_user: Users = Depends(get_current_internal_user),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     """
     Quick health check for the currently active delivery provider.
@@ -257,8 +246,7 @@ async def get_provider_status(
     }
     ```
     """
-    # FALLBACK: Use hardcoded tenant_id
-    tenant_id = 1  # TODO: Get from current_user once auth is fixed
+    tenant_id = _get_tenant_id(current_user)
     config = APIKeysService.get_active_provider_config(db, tenant_id)
 
     if not config:
