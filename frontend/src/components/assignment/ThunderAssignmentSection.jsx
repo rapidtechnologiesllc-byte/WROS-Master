@@ -175,6 +175,7 @@ export default function ThunderAssignmentSection({ candidateId, onChanged }) {
           </div>
         )}
       </div>
+      </div>
     </div>
   );
 }

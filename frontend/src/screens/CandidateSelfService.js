@@ -2200,6 +2200,9 @@ export default function CandidateSelfService({ onLogout }) {
           submitButtonText="Sign & Accept"
         />
       </div>
+      </div>
+      </div>
+      </div>
     </div>
   );
 }
