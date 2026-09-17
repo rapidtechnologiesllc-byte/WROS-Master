@@ -462,9 +462,9 @@ async def shutdown_event():
     from app.core.scheduler import shutdown_scheduler
     shutdown_scheduler()
 
-# Include API routes
-# Include auth routes at /api/v1/auth (frontend auto-prefixes /api/v1 to all requests)
-app.include_router(auth_router, prefix="/api/v1/auth")
+# Include auth routes with /api/v1 prefix
+# Router has prefix="/auth", so with /api/v1 prefix: /api/v1/auth/*
+app.include_router(auth_router, prefix="/api/v1")
 # Include admin/users-access-control at root level (it has its own /api/admin/ prefix)
 app.include_router(users_access_control_router)
 # Include v1 routes with /api/v1 prefix
