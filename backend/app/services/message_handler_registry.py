@@ -65,6 +65,16 @@ def _initialize_default_handlers():
     except Exception as e:
         logger.error(f"[Registry] Failed to register SLM email generation handler: {e}", exc_info=True)
 
+    # Register email delivery handler (Thunder queue email sending)
+    try:
+        from app.services.message_handlers.send_email_handler import SendEmailHandler
+        MessageHandlerRegistry.register("send_email_to_candidate", SendEmailHandler.process)
+        logger.info("[Registry] Registered send_email_to_candidate handler (Azure Graph or stub)")
+    except ImportError as e:
+        logger.warning(f"[Registry] Could not import email handler: {e}")
+    except Exception as e:
+        logger.error(f"[Registry] Failed to register email handler: {e}", exc_info=True)
+
     # Register ops alert handler (NEW - Phase 3/4 stale message detection)
     try:
         from app.services.message_handlers.ops_alert_handler import OpsAlertHandler
