@@ -279,36 +279,35 @@ async def startup_event():
         logger.error(f"[Startup] Failed to initialize org positions: {exc}", exc_info=True)
 
     # Seed RBAC with retries
-    # DISABLED: Starting with clean database for RBAC testing
-    # from app.core.database import SessionLocal
-    # from app.services.role_template_seed import seed_role_templates
+    from app.core.database import SessionLocal
+    from app.services.role_template_seed import seed_role_templates
 
-    # MAX_RETRIES = 3
-    # RETRY_DELAY = 2  # seconds
+    MAX_RETRIES = 3
+    RETRY_DELAY = 2  # seconds
 
-    # for attempt in range(1, MAX_RETRIES + 1):
-    #     _db = SessionLocal()
-    #     try:
-    #         logger.info(f"[Startup] Seeding RBAC (attempt {attempt}/{MAX_RETRIES})...")
-    #         seed_role_templates(_db, tenant_id=1)
-    #         logger.info(f"[OK] {settings.APP_NAME} v{settings.APP_VERSION} started successfully")
-    #         logger.info(f"[OK] Server running on http://{settings.HOST}:{settings.PORT}")
-    #         break  # Success — exit retry loop
-    #     except OperationalError as exc:
-    #         logger.warning(
-    #             f"[Startup] RBAC seed attempt {attempt}/{MAX_RETRIES} failed "
-    #             f"(DB connectivity issue): {exc}"
-    #         )
-    #         if attempt < MAX_RETRIES:
-    #             logger.info(f"[Startup] Retrying RBAC seed in {RETRY_DELAY}s...")
-    #             time.sleep(RETRY_DELAY)
-    #         else:
-    #             logger.error(
-    #                 "[Startup] RBAC seed failed after all retries. "
-    #                 "The app will run but role/permission data may be incomplete."
-    #             )
-    #     except Exception as exc:
-    #         logger.error(f"[Startup] Non-retryable error during RBAC seed: {exc}", exc_info=True)
+    for attempt in range(1, MAX_RETRIES + 1):
+        _db = SessionLocal()
+        try:
+            logger.info(f"[Startup] Seeding RBAC (attempt {attempt}/{MAX_RETRIES})...")
+            seed_role_templates(_db, tenant_id=1)
+            logger.info(f"[OK] {settings.APP_NAME} v{settings.APP_VERSION} started successfully")
+            logger.info(f"[OK] Server running on http://{settings.HOST}:{settings.PORT}")
+            break  # Success — exit retry loop
+        except OperationalError as exc:
+            logger.warning(
+                f"[Startup] RBAC seed attempt {attempt}/{MAX_RETRIES} failed "
+                f"(DB connectivity issue): {exc}"
+            )
+            if attempt < MAX_RETRIES:
+                logger.info(f"[Startup] Retrying RBAC seed in {RETRY_DELAY}s...")
+                time.sleep(RETRY_DELAY)
+            else:
+                logger.error(
+                    "[Startup] RBAC seed failed after all retries. "
+                    "The app will run but role/permission data may be incomplete."
+                )
+        except Exception as exc:
+            logger.error(f"[Startup] Non-retryable error during RBAC seed: {exc}", exc_info=True)
 
     # Seed default business units
     try:
