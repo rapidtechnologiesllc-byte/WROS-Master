@@ -105,8 +105,12 @@ class CandidateCreationHandler:
                 candidate_password = get_password_hash(plain_password)
                 logger.info(f"[Handler] Generated temporary password for {candidate_email}")
 
+            # Use candidate_id from payload if provided, otherwise generate new one
+            final_candidate_id = payload.get("candidate_id") or candidate_id_generator()
+            logger.info(f"[Handler] Using candidate_id={final_candidate_id} (from_payload={bool(payload.get('candidate_id'))})")
+
             candidate = Candidate(
-                candidateID=candidate_id_generator(),
+                candidateID=final_candidate_id,
                 candidateEmail=candidate_email,
                 candidateMobile=payload.get("candidate_mobile"),
                 candidatePassword=candidate_password,  # Hashed password (generated if not provided)
@@ -448,16 +452,25 @@ class CandidateCreationHandler:
                 )
             logger.info(f"[Handler] ✅ Candidate verified in database: {candidate_id}")
 
-            # ===== VALIDATION STEP 3: Verify email matches what was in payload =====
-            # CRITICAL: Must verify BEFORE marking success!
+            # ===== VALIDATION STEP 3: Verify email (allow mismatch if merged duplicate) =====
             expected_email = payload.get('candidate_email')
             if expected_email and db_candidate.candidateEmail != expected_email:
-                raise RuntimeError(
-                    f"Email mismatch: handler created with '{db_candidate.candidateEmail}' "
-                    f"but payload specified '{expected_email}'. "
-                    f"Data corruption detected."
-                )
-            logger.info(f"[Handler] ✅ Email verified: {db_candidate.candidateEmail}")
+                # Check if this is an acceptable mismatch (merged duplicate scenario)
+                if not is_new:
+                    # This was a merged candidate - it's OK that the email doesn't match payload
+                    # The existing candidate kept their original email
+                    logger.info(
+                        f"[Handler] ✅ Email mismatch accepted (merged duplicate): "
+                        f"payload='{expected_email}', existing='{db_candidate.candidateEmail}'"
+                    )
+                else:
+                    # This is a new candidate but email doesn't match - data corruption
+                    raise RuntimeError(
+                        f"Email mismatch for {candidate_id}: expected '{expected_email}', "
+                        f"got '{db_candidate.candidateEmail}'"
+                    )
+            else:
+                logger.info(f"[Handler] ✅ Email verified: {db_candidate.candidateEmail}")
 
             # PHASE: Send welcome message via WhatsApp + EMAIL
             whatsapp_delivery_id = None
