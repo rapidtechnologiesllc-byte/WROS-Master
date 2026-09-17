@@ -11,6 +11,7 @@ Now persists to msgraph_session table in database.
 """
 
 import logging
+import os
 from app.core.database import SessionLocal
 from app.models.msgraph_session import MsgraphSession
 
@@ -19,10 +20,34 @@ logger = logging.getLogger(__name__)
 # Lazy-loaded cache (refreshed on each access)
 _user_tokens_cache = {}
 _account_id_cache = {}
+_env_tokens_loaded = False
+
+
+def _load_env_fallback():
+    """Load M365 tokens from .env file (fallback for testing/simple setup)."""
+    global _user_tokens_cache, _account_id_cache, _env_tokens_loaded
+
+    if _env_tokens_loaded:
+        return
+
+    access_token = os.getenv("MSGRAPH_ACCESS_TOKEN")
+    refresh_token = os.getenv("MSGRAPH_REFRESH_TOKEN")
+    account_id = os.getenv("MSGRAPH_ACCOUNT_ID")
+    user_id = os.getenv("MSGRAPH_USER_ID", "msgraph_test_user")
+
+    if access_token and account_id:
+        _user_tokens_cache[account_id] = {
+            "access_token": access_token,
+            "refresh_token": refresh_token or "",
+            "expires_at": None,
+        }
+        _account_id_cache[user_id] = account_id
+        logger.info(f"[MsgraphSessionStore] Loaded M365 tokens from .env fallback (account_id={account_id})")
+        _env_tokens_loaded = True
 
 
 def _refresh_cache():
-    """Load tokens from database into memory cache."""
+    """Load tokens from database into memory cache, with .env fallback."""
     global _user_tokens_cache, _account_id_cache
     try:
         db = SessionLocal()
@@ -36,11 +61,22 @@ def _refresh_cache():
             for s in sessions
         }
         _account_id_cache = {s.user_id: s.account_id for s in sessions}
-        logger.info(f"[MsgraphSessionStore] Loaded {len(sessions)} active M365 sessions from database")
+        if sessions:
+            logger.info(f"[MsgraphSessionStore] Loaded {len(sessions)} active M365 sessions from database")
         db.close()
+
+        # If no tokens in DB, fall back to .env
+        if not _user_tokens_cache:
+            logger.info("[MsgraphSessionStore] No tokens in database, trying .env fallback")
+            _load_env_fallback()
+
     except Exception as e:
-        logger.warning(f"[MsgraphSessionStore] Failed to load from database: {e}")
-        db.close()
+        logger.warning(f"[MsgraphSessionStore] Failed to load from database: {e}, trying .env fallback")
+        _load_env_fallback()
+        try:
+            db.close()
+        except:
+            pass
 
 
 # Property-like access that auto-refreshes
