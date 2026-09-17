@@ -1,158 +1,185 @@
-"""Queue-first candidate creation endpoint.
-
-New architecture (2026-09-05):
-- Endpoint queues candidate creation request only
-- CandidateQueueProcessor handles all DB operations
-- Clean separation of concerns
-- Proper error handling (500 if queue fails, not 200 lie)
 """
+Create Candidate Endpoint - Queue-Driven (Async via Thunder)
+=============================================================
+This endpoint is registered FIRST in routes.py so the POST /create route 
+matches before the general candidates/{id} route.
+
+Workflow:
+1. Validate candidate data
+2. Queue async task to Thunder
+3. Return message_id for polling task status
+4. Thunder handler processes: SLM analysis → email delivery
+"""
+
 import logging
+from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.logging import logger
+from app.core.dependencies import get_current_user, require_resource_permission
 from app.services.message_queue_service import MessageQueueService
-from app.core.dependencies import require_resource_permission, get_current_user
-from app.schemas.candidate import CandidateCreateRequest, CandidateCreateResponse
-from app.utils.uniq_id_generator import generate_password
+from app.utils.uniq_id_generator import candidate_id_generator
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/candidates", tags=["candidates"])
-logger = logging.getLogger(__name__)
+
+
+class CreateCandidateRequest(BaseModel):
+    """Request to create a new candidate (queued for async processing)"""
+    email: Optional[str] = None
+    candidate_email: Optional[str] = None
+    first_name: Optional[str] = None
+    candidate_first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    candidate_last_name: Optional[str] = None
+    mobile: Optional[str] = None
+    candidate_mobile: Optional[str] = None
+    gender: Optional[str] = None
+    candidate_gender: Optional[str] = None
+    current_location: Optional[str] = None
+    candidate_current_location: Optional[str] = None
+    source: Optional[str] = "form_submission"
+    candidate_source: Optional[str] = None
+    resume_data: Optional[dict] = None
+    education: Optional[list] = None
+    experience: Optional[list] = None
+    certifications: Optional[list] = None
+
+    class Config:
+        populate_by_name = True
+
+    def get_email(self):
+        return self.email or self.candidate_email
+
+    def get_first_name(self):
+        return self.first_name or self.candidate_first_name
+
+    def get_last_name(self):
+        return self.last_name or self.candidate_last_name
+
+    def get_mobile(self):
+        return self.mobile or self.candidate_mobile
+
+    def get_gender(self):
+        return self.gender or self.candidate_gender
+
+    def get_current_location(self):
+        return self.current_location or self.candidate_current_location
+
+    def get_source(self):
+        return self.candidate_source or self.source or "form_submission"
+
+
+class CreateCandidateResponse(BaseModel):
+    """Response for candidate creation request"""
+    status: str
+    message_id: str
+    polling_endpoint: str
+    polling_interval_seconds: int
 
 
 @router.post(
-    "/create",
-    response_model=CandidateCreateResponse,
+    "",
+    response_model=CreateCandidateResponse,
     dependencies=[Depends(require_resource_permission("candidates", "create"))],
 )
-def create_candidate(
-    request: CandidateCreateRequest,
+async def create_candidate(
+    request: CreateCandidateRequest,
     db: Session = Depends(get_db),
     current_user = Depends(get_current_user),
 ):
-    """Queue candidate for creation via async processor.
+    """
+    Queue candidate creation for async processing via Thunder.
 
-    DEBUG: This is an async endpoint to handle async dependencies.
+    This endpoint does NOT create the candidate synchronously.
+    It queues the request and returns a polling endpoint to check status.
 
-    Flow:
-    1. Validate request + generate password
-    2. Queue 'create_candidate' message with all candidate data
-    3. Return message_id as tracking ID
-    4. CandidateQueueProcessor picks up message
-    5. CandidateCreationHandler creates candidate in DB
-    6. Then queues to THUNDER_QUEUE for processing
+    Workflow:
+    1. Validate required fields (email, first_name, last_name)
+    2. Generate candidate ID
+    3. Queue 'create_candidate' task to Thunder
+    4. Return message_id for polling
+
+    Thunder async task will:
+    1. Create Candidate record in database
+    2. Trigger SLM for candidate analysis
+    3. SLM instructs Thunder on email delivery
+    4. Thunder sends welcome email
 
     Args:
-        request: CandidateCreateRequest with all candidate details
-        db: Database session (for validation only)
+        request: CreateCandidateRequest with candidate data
+        db: Database session
+        current_user: Authenticated user making the request
 
     Returns:
-        CandidateCreateResponse with message_id (queue tracking ID)
+        CreateCandidateResponse with:
+        - status: 'queued'
+        - message_id: UUID for polling
+        - polling_endpoint: URL to check status
+        - polling_interval_seconds: Recommended interval
 
     Raises:
-        HTTPException(400): If validation fails
-        HTTPException(500): If queue fails
+        HTTPException 400: Missing required fields (email, first_name, last_name)
+        HTTPException 500: Failed to queue task
     """
     try:
-        logger.error(f"[DEBUG] Endpoint reached, request email={request.candidate_email}")
-        print(f"[PRINT DEBUG] Handler called with email: {request.candidate_email}", flush=True)
-        # Validate location is required
-        if not request.candidate_current_location or not request.candidate_current_location.strip():
-            raise HTTPException(
-                status_code=400,
-                detail="Location (City, State, Country) is mandatory for candidate creation"
-            )
+        email = request.get_email()
+        first_name = request.get_first_name()
+        last_name = request.get_last_name()
+        mobile = request.get_mobile()
+        gender = request.get_gender()
+        current_location = request.get_current_location()
+        source = request.get_source()
 
-        # Validate email format
-        if not request.candidate_email or "@" not in request.candidate_email:
-            raise HTTPException(
-                status_code=400,
-                detail="Valid email address is required"
-            )
+        if not email:
+            raise HTTPException(status_code=400, detail="Email is required")
+        if not first_name:
+            raise HTTPException(status_code=400, detail="First name is required")
+        if not last_name:
+            raise HTTPException(status_code=400, detail="Last name is required")
 
-        # Validate salary type values if provided
-        valid_rate_types = ["$/Hour", "$/Day", "$/Week", "$/Month", "$/Year"]
-        if request.candidate_current_salary_type and request.candidate_current_salary_type not in valid_rate_types:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Invalid current salary type. Must be one of: {', '.join(valid_rate_types)}"
-            )
-        if request.candidate_expected_salary_type and request.candidate_expected_salary_type not in valid_rate_types:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Invalid expected salary type. Must be one of: {', '.join(valid_rate_types)}"
-            )
+        logger.info(f"[CANDIDATE_CREATE] Queueing candidate: {email} ({first_name} {last_name})")
 
-        # Generate password for candidate (will be sent later)
-        password = generate_password()
+        candidate_id = candidate_id_generator()
 
-        # Queue candidate creation request
-        # CandidateQueueProcessor will handle:
-        # 1. Duplicate detection (email/phone)
-        # 2. Candidate record creation in DB
-        # 3. Status + info record creation
-        # 4. Queueing to Thunder for processing
-        logger.info(f"[ENDPOINT START] Queueing candidate creation: {request.candidate_email}")
-        print(f"[DEBUG] Endpoint handler reached with email: {request.candidate_email}")
-
-        # Prepare payload for queueing
-        tenant_id = getattr(current_user, 'tenant_id', '1') or '1'
         payload = {
-            'tenant_id': tenant_id,  # BLOCKING FIX #2: Add tenant context for multi-tenant isolation
-            'created_by_user_id': getattr(current_user, 'UserID', None),  # PHASE 1A: User attribution
-            'created_by_name': getattr(current_user, 'UserEmail', 'System'),  # PHASE 1A: User attribution
-            'candidate_email': request.candidate_email,
-            'candidate_first_name': request.candidate_first_name,
-            'candidate_middle_name': request.candidate_middle_name or '',
-            'candidate_last_name': request.candidate_last_name,
-            'candidate_mobile': request.candidate_mobile,
-            'candidate_current_location': request.candidate_current_location,
-            'candidate_gender': request.candidate_gender or 'Not Specified',
-            'candidate_date_of_birth': str(request.candidate_date_of_birth) if request.candidate_date_of_birth else None,
-            'candidate_source': request.candidate_source or 'Direct',
-            'candidate_experience': request.candidate_experience or '',
-            'candidate_skills': request.candidate_skills or [],
-            'candidate_joining_date': str(request.candidate_joining_date) if request.candidate_joining_date else None,
-            'candidate_expected_salary': request.candidate_expected_salary or '',
-            'candidate_current_salary': request.candidate_current_salary or '',
-            'candidate_role': request.candidate_role or '',
-            'candidate_employee_type': request.candidate_employee_type or 'Full-time',
-            'candidate_job_title': request.candidate_job_title or '',
-            'education_records': request.education_records or [],
-            'experience_records': request.experience_records or [],
-            'password': password,
+            "candidate_id": candidate_id,
+            "email": email,
+            "first_name": first_name,
+            "last_name": last_name,
+            "mobile": mobile,
+            "gender": gender,
+            "current_location": current_location,
+            "source": source,
+            "resume_data": request.resume_data,
+            "education": request.education,
+            "experience": request.experience,
+            "certifications": request.certifications,
+            "created_by_user_id": getattr(current_user, 'UserID', None),
+            "tenant_id": getattr(current_user, 'tenant_id', 1),
         }
 
-        logger.info(f"Payload prepared: {payload}")
-
-        result = MessageQueueService.enqueue(
+        enqueue_result = MessageQueueService.enqueue(
             task_name='create_candidate',
-            data=payload
+            task_id=candidate_id,
+            data=payload,
         )
 
-        if not result or result.get('status') != 'queued':
-            logger.error(f"Failed to queue candidate creation: {result}", exc_info=True)
-            raise HTTPException(status_code=500, detail="Failed to queue candidate for creation")
+        message_id = enqueue_result.get('message_id', candidate_id)
+        logger.info(f"[CANDIDATE_CREATE] Queued: candidate_id={candidate_id}, message_id={message_id}")
 
-        message_id = result.get('message_id')
-        logger.info(f"Candidate creation queued successfully: message_id={message_id}, email={request.candidate_email}")
-
-        # Return success with message ID as tracking ID
-        # Candidate will be created asynchronously by CandidateQueueProcessor
-        return CandidateCreateResponse(
-            candidate_id=message_id,
-            candidate_is_first_time=True,
-            candidate_password=password
+        return CreateCandidateResponse(
+            status="queued",
+            message_id=message_id,
+            polling_endpoint=f"/api/v1/message-queue/status/{message_id}",
+            polling_interval_seconds=2,
         )
 
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Failed to queue candidate creation: {str(e)}", exc_info=True)
-        import traceback
-        logger.error(f"Traceback: {traceback.format_exc()}")
-        raise HTTPException(
-            status_code=500,
-            detail="Failed to queue candidate for creation. Please try again."
-        )
+        logger.error(f"[CANDIDATE_CREATE] Error queuing candidate: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to queue candidate creation: {str(e)}")
