@@ -36,6 +36,7 @@ from app.api.v1.endpoints.flash_queue_metrics import router as flash_queue_metri
 from app.api.v1.endpoints.api_keys import router as api_keys_router
 from app.api.v1.endpoints.system_health import router as system_health_router
 from app.api.v1.endpoints.monitoring import router as monitoring_router
+from app.api.v1.endpoints.desire_intelligence import router as desire_intelligence_router
 
 # Agent State models — imported here so Base.metadata.create_all() finds them
 from app.models import agent_phalanx  # noqa: F401
@@ -509,6 +510,8 @@ app.include_router(career_portal_router)
 app.include_router(candidate_audit_log_router, prefix="/api/v1")
 # Include candidates routes with /api/v1 prefix (candidate management)
 app.include_router(candidates_router, prefix="/api/v1")
+# Include Desire Intelligence (SLM) routes for candidate psychology/motivation analysis
+app.include_router(desire_intelligence_router, prefix="/api/v1")
 # NOTE: employee_referrals_router is registered in routes.py with /api/v1/referrals prefix
 # Removed duplicate registration here to avoid double-registration
 # Include Flash queue metrics routes with /api/v1/flash prefix (queue health monitoring)

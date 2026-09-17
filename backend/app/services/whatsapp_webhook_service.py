@@ -212,12 +212,27 @@ def store_inbound_whatsapp_message(db: Session, message: Dict) -> Dict:
     # (BR-02). Fire-and-forget, never raises.
     from app.services.desire_signal_service import (
         minutes_since_last_outbound, record_message_signal, record_response_speed_signal,
+        process_unprocessed_signals,
     )
+    from app.services.desire_profile_service import build_and_narrate
+
     if body:
         record_message_signal(db, conversation.tenant_id, candidate.candidateID, "WHATSAPP_MESSAGE", body)
     _prior_gap = minutes_since_last_outbound(db, conversation.id, before=event.created_at)
     if _prior_gap is not None:
         record_response_speed_signal(db, conversation.tenant_id, candidate.candidateID, _prior_gap)
+
+    # REAL-TIME SLM UPDATE: Process signals immediately (not waiting 30 min for scheduler)
+    # This enables the Intelligence tab to show updated data within seconds of a message
+    try:
+        process_unprocessed_signals(db)  # Process all unprocessed signals with LLM
+        # Rebuild profile for this specific candidate
+        profile = build_and_narrate(db, conversation.tenant_id, candidate.candidateID)
+        if profile:
+            logger.info(f"[WhatsAppWebhook] SLM profile updated in real-time for {candidate.candidateID}: {profile.get('engagement_level', 'unknown')}")
+    except Exception as e:
+        logger.warning(f"[WhatsAppWebhook] Real-time SLM update failed (non-blocking): {e}")
+        # Don't fail the webhook - SLM is async and the scheduler will retry in 30 min anyway
 
     logger.info(f"[WhatsAppWebhook] Stored inbound message for candidate {candidate.candidateID} (wamid={wamid})")
     return {
