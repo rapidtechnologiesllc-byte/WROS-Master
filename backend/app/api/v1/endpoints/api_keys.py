@@ -12,6 +12,7 @@ Endpoints:
 """
 
 import logging
+import os
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
@@ -169,6 +170,59 @@ def test_provider_connection(
     )
 
     return TestConnectionResponse(**result)
+
+
+@router.get(
+    "/from-env",
+    summary="Load API credentials from environment variables",
+)
+def load_from_env(
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_internal_user),
+):
+    """
+    Load and save API credentials from environment variables (.env file).
+
+    This endpoint reads AZURE_TENANT_ID, AZURE_CLIENT_ID, AZURE_CLIENT_SECRET
+    from the environment and saves them to the database.
+    """
+    tenant_id = _get_tenant_id(current_user)
+
+    azure_tenant_id = os.getenv("AZURE_TENANT_ID")
+    azure_client_id = os.getenv("AZURE_CLIENT_ID")
+    azure_client_secret = os.getenv("AZURE_CLIENT_SECRET")
+
+    if not all([azure_tenant_id, azure_client_id, azure_client_secret]):
+        return {
+            "status": "error",
+            "message": "Missing environment variables: AZURE_TENANT_ID, AZURE_CLIENT_ID, or AZURE_CLIENT_SECRET",
+            "found": {
+                "AZURE_TENANT_ID": bool(azure_tenant_id),
+                "AZURE_CLIENT_ID": bool(azure_client_id),
+                "AZURE_CLIENT_SECRET": bool(azure_client_secret),
+            }
+        }
+
+    # Create request object with env credentials
+    request = SaveAPIKeysRequest(
+        azure={
+            "tenant_id": azure_tenant_id,
+            "client_id": azure_client_id,
+            "client_secret": azure_client_secret,
+        },
+        active_provider="azure"
+    )
+
+    # Save to database
+    result = APIKeysService.save_api_keys(
+        db=db,
+        tenant_id=tenant_id,
+        request=request,
+        updated_by=current_user.UserID,
+    )
+
+    logger.info(f"[api_keys/from-env] Loaded Azure credentials from environment for tenant {tenant_id}")
+    return result
 
 
 @router.get(
