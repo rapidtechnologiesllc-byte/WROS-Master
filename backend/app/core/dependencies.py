@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.security import decode_access_token, security
+from app.core.logging import logger
 from app.models.user import Users
 from app.models.candidate import Candidate
 from app.services.role_template_permission_service import RoleTemplatePermissionService
