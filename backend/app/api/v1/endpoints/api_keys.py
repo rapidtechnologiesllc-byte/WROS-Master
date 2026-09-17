@@ -56,7 +56,7 @@ def _get_tenant_id(current_user: Users) -> int:
     response_model=GetAPIKeysResponse,
     summary="Get configured API providers (no secrets)",
 )
-def get_api_keys(
+async def get_api_keys(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user),
 ):
@@ -82,7 +82,7 @@ def get_api_keys(
     response_model=SaveAPIKeysResponse,
     summary="Save/update API credentials for one or more providers",
 )
-def save_api_keys(
+async def save_api_keys(
     request: SaveAPIKeysRequest,
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user),
@@ -131,7 +131,7 @@ def save_api_keys(
     response_model=TestConnectionResponse,
     summary="Test connection to a provider",
 )
-def test_provider_connection(
+async def test_provider_connection(
     request: TestConnectionRequest,
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user),
@@ -176,7 +176,7 @@ def test_provider_connection(
     "/from-env",
     summary="Load API credentials from environment variables",
 )
-def load_from_env(
+async def load_from_env(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user),
 ):
@@ -229,7 +229,7 @@ def load_from_env(
     "/status",
     summary="Health check - verify active provider is working",
 )
-def get_provider_status(
+async def get_provider_status(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user),
 ):
