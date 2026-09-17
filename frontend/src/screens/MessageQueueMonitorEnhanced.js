@@ -324,8 +324,12 @@ const MessageQueueMonitorEnhanced = () => {
                                         return `⏱️ Processing ${duration}s (will timeout at 10s)`;
                                       }
                                       return '⚙️ Currently processing...';
-                                    } else {
+                                    } else if (row.status === 'DEAD_LETTER') {
+                                      return '☠️ Dead letter - permanent failure. Manual remediation required.';
+                                    } else if (row.status === 'COMPLETED') {
                                       return '✅ Successfully processed';
+                                    } else {
+                                      return `⚠️ Unknown status: ${row.status}`;
                                     }
                                   })()}
                                 </span>
