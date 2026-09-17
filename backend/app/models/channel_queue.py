@@ -42,6 +42,9 @@ class ChannelQueueItem(Base):
     # Link to original message
     message_id = Column(String(512), nullable=False, index=True)  # FK to message_queue.id
 
+    # Tenant context for multi-tenant delivery routing (CRITICAL for email delivery)
+    tenant_id = Column(Integer, nullable=False, index=True, comment="FK to tenant for delivery_factory routing")
+
     # Message type (e.g., 'create_candidate', 'send_email', 'schedule_interview')
     type = Column(String(100), nullable=False, index=True, comment="Message type: create_candidate, send_email, schedule_interview, etc.")
 
@@ -95,6 +98,7 @@ class ChannelQueueItem(Base):
         Index("ix_channel_queue_item_channel_status", "channel_type", "status"),
         Index("ix_channel_queue_item_retry", "status", "next_retry_at"),
         Index("ix_channel_queue_item_message", "message_id"),
+        Index("ix_channel_queue_item_tenant", "tenant_id", "channel_type", "status"),
     )
 
 class ChannelQueueLog(Base):

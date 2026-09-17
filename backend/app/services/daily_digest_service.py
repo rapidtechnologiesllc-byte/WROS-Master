@@ -297,8 +297,15 @@ def send_daily_digest(db: Session, recruiter_user_id: str, tenant_id: str) -> Di
 
         email_sent = False
         try:
-            result = EmailService.send_email(recruiter.UserEmail, subject, html_body, is_html=True)
-            email_sent = result.get("status") == "success"
+            from app.services.delivery_factory import get_delivery_service
+            delivery_service = get_delivery_service(db=db, tenant_id=int(tenant_id))
+            result = delivery_service.send_email(
+                to_email=recruiter.UserEmail,
+                subject=subject,
+                body=html_body,
+                html=True
+            )
+            email_sent = result.status == "sent"
         except Exception as exc:
             logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.error(f"[DailyDigest] DIGEST_EMAIL_FAILED for recruiter {recruiter_user_id!r}: {exc}")

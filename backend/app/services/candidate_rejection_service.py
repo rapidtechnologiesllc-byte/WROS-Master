@@ -303,7 +303,7 @@ def _send_rejection_email_internal(
 ) -> None:
     """
     Internal helper to send rejection email.
-    Uses sendThunderMessage() path if available, otherwise direct email.
+    Uses sendThunderMessage() path if available, otherwise delivery_factory.
 
     Args:
         db: Database session
@@ -311,8 +311,6 @@ def _send_rejection_email_internal(
         include_feedback: Include detailed feedback
         include_next_steps: Include next steps
     """
-    from app.services.email_service import EmailService
-
     candidate = db.query(Candidate).filter(
         Candidate.candidateID == rejection.candidate_id
     ).first()
@@ -379,18 +377,22 @@ def _send_rejection_email_internal(
         logger.error(f"Error: {str(e)}", exc_info=True)
         logger.debug(f"Thunder message send failed, falling back to EmailService: {str(e)}")
 
-    # Fallback to direct email
+    # Fallback to delivery_factory (PHASE 3: Database-backed credentials)
     try:
-        email_service = EmailService()
-        email_service.send_email(
-            recipient=candidate.candidateEmail,
+        from app.services.delivery_factory import get_delivery_service
+
+        delivery_service = get_delivery_service(db=db, tenant_id=candidate.tenant_id)
+        result = delivery_service.send_email(
+            to_email=candidate.candidateEmail,
             subject=subject,
             body=body,
-            is_html=False,
+            html=False
         )
-        logger.info(f"Rejection email sent directly for {rejection.candidate_id}")
+        if result.status == "failed":
+            raise RuntimeError(f"Email delivery failed: {result.error}")
+        logger.info(f"Rejection email sent via delivery_factory for {rejection.candidate_id}")
     except Exception as e:
-        logger.error(f"Failed to send rejection email: {str(e)}")
+        logger.error(f"Failed to send rejection email: {str(e)}", exc_info=True)
         raise
 
 def get_rejection_reasons(

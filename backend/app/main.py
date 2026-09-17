@@ -262,9 +262,32 @@ async def startup_event():
     except Exception as exc:
         logger.warning(f"[Startup] Failed to load Azure credentials: {exc}", exc_info=True)
 
-    # Delivery providers are now configured per-tenant in database (optional in dev, required in prod)
-    # Validation happens at request time when get_delivery_service() is called
-    logger.info("[OK] Delivery provider system ready (per-tenant configuration)")
+    # PHASE 4: Validate delivery provider health on startup
+    try:
+        import os
+        stub_mode = os.getenv("STUB_DELIVERY_MODE", "false").lower() == "true"
+
+        if stub_mode:
+            logger.info("[Startup] STUB_DELIVERY_MODE=true - Email delivery in test/logging mode")
+        else:
+            logger.info("[Startup] Validating delivery provider health for tenant 1...")
+            db = SessionLocal()
+            try:
+                from app.models.api_keys_config import APIKeysConfig
+                active_provider = db.query(APIKeysConfig).filter(
+                    APIKeysConfig.tenant_id == 1,
+                    APIKeysConfig.is_active == True
+                ).first()
+
+                if active_provider:
+                    status = active_provider.last_tested_status or "unknown"
+                    logger.info(f"[OK] Delivery provider configured: {active_provider.provider} (test status: {status})")
+                else:
+                    logger.warning(f"[Startup] No active delivery provider configured for tenant 1 (optional in dev, required for email)")
+            finally:
+                db.close()
+    except Exception as exc:
+        logger.warning(f"[Startup] Delivery provider validation: {exc}", exc_info=True)
 
     # Initialize default organizational positions (CEO, Partner, BU Head, etc.)
     try:

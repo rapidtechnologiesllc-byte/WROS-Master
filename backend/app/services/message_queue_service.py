@@ -28,7 +28,8 @@ class MessageQueueService:
         delay_seconds: int = DEFAULT_DELAY_SECONDS,
         trace_id: Optional[str] = None,  # HIGH FIX #4: Correlation ID for tracing
         idempotency_key: Optional[str] = None,
-        status: Optional[str] = None  # Allow overriding default status (e.g., 'WAITING_FOR_SLM')
+        status: Optional[str] = None,  # Allow overriding default status (e.g., 'WAITING_FOR_SLM')
+        tenant_id: int = 1  # PHASE 2: Tenant context for delivery_factory routing (default: BlitzenX)
     ) -> Dict[str, Any]:
         """Queue a task to custom message queue. Uses database as primary store."""
         if not task_name:
@@ -81,6 +82,7 @@ class MessageQueueService:
             # Create queue item in database
             queue_item = ChannelQueueItem(
                 message_id=task_id,
+                tenant_id=tenant_id,  # PHASE 2: Set tenant context for delivery_factory routing
                 type=task_name,
                 channel_type=QUEUE_TYPE_THUNDER if 'engage_candidate_with_thunder' in task_name.lower() or 'assign_thunder' in task_name.lower() else (QUEUE_TYPE_CANDIDATE if 'candidate' in task_name.lower() else QUEUE_TYPE_THUNDER),
                 status=queue_status,

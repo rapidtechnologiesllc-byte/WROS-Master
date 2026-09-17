@@ -34,7 +34,6 @@ from app.core.logging import logger
 from app.models.candidate import Candidate
 from app.models.candidate_ai import CandidateConversation, ConversationEvent
 from app.services.ai_conversation_service import resolve_thunder_config
-from app.services.email_service import EmailService
 
 SLA_SECONDS = 60
 RETRY_DELAY_SECONDS = 5
@@ -98,10 +97,17 @@ def _already_sent(db: Session, conversation_id: int) -> bool:
         is not None
     )
 
-def _send_attempt(candidate: Candidate, subject: str, body: str) -> bool:
+def _send_attempt(db: Session, candidate: Candidate, subject: str, body: str, tenant_id: str) -> bool:
     try:
-        EmailService.send_email(to_email=candidate.candidateEmail, subject=subject, body_content=body, is_html=True)
-        return True
+        from app.services.delivery_factory import get_delivery_service
+        delivery_service = get_delivery_service(db=db, tenant_id=int(tenant_id))
+        result = delivery_service.send_email(
+            to_email=candidate.candidateEmail,
+            subject=subject,
+            body=body,
+            html=True
+        )
+        return result.status == "sent"
     except HTTPException as exc:
         logger.warning(f"[EmailFirstEngagement] Send attempt failed: {exc.detail}")
         return False
@@ -148,10 +154,10 @@ def send_first_email_engagement(
 
     # BR: at most two attempts, one retry after 5s -- independent of
     # WhatsApp's own retry loop.
-    delivered = _send_attempt(candidate, rendered["subject"], rendered["body"])
+    delivered = _send_attempt(db, candidate, rendered["subject"], rendered["body"], tenant_id)
     if not delivered:
         _sleep(RETRY_DELAY_SECONDS)
-        delivered = _send_attempt(candidate, rendered["subject"], rendered["body"])
+        delivered = _send_attempt(db, candidate, rendered["subject"], rendered["body"], tenant_id)
 
     if not delivered:
         logger.warning(f"[EmailFirstEngagement] FIRST_EMAIL_FAILED for candidate {candidate_id} after 2 attempts")

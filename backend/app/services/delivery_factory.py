@@ -14,6 +14,7 @@ from app.services.delivery_service import DeliveryService
 logger = logging.getLogger(__name__)
 
 ENVIRONMENT = os.getenv("ENVIRONMENT", "development").lower()
+STUB_MODE = os.getenv("STUB_DELIVERY_MODE", "false").lower() == "true"
 
 
 def get_delivery_service(db: Session, tenant_id: int) -> DeliveryService:
@@ -33,6 +34,12 @@ def get_delivery_service(db: Session, tenant_id: int) -> DeliveryService:
     Raises:
         RuntimeError: If no active provider configured, or credentials invalid/untested
     """
+    # PHASE 4: Stub mode for development/testing (no real email sending)
+    if STUB_MODE:
+        from app.services.stub_delivery import StubDeliveryService
+        logger.info(f"[DeliveryFactory] STUB MODE ENABLED - returning logging-only service for tenant {tenant_id}")
+        return StubDeliveryService(db=db)
+
     if not db:
         raise ValueError("Database session required to get delivery service")
 
