@@ -833,19 +833,33 @@ Recruiting Team
         candidate_id = result.get("candidate_id")
         payload = message.payload or {}
 
+        # Extract is_new flag to determine if this was a merged duplicate
+        is_new = result.get("is_new", True)
+
         try:
             # 1. VERIFY CANDIDATE EXISTS
             candidate = db.query(Candidate).filter(Candidate.candidateID == candidate_id).first()
             if not candidate:
                 raise ValueError(f"Candidate {candidate_id} not found in database after creation")
 
-            # 2. VERIFY EMAIL MATCHES
+            # 2. VERIFY EMAIL MATCHES (conditional on is_new)
             expected_email = payload.get("candidate_email")
             if expected_email and candidate.candidateEmail != expected_email:
-                raise ValueError(
-                    f"Email mismatch for {candidate_id}: expected '{expected_email}', "
-                    f"got '{candidate.candidateEmail}'"
-                )
+                # Check if this is an acceptable mismatch (merged duplicate)
+                if is_new:
+                    # New candidate: email MUST match exactly
+                    raise ValueError(
+                        f"Email mismatch for {candidate_id}: expected '{expected_email}', "
+                        f"got '{candidate.candidateEmail}' (NEW candidate - no merge)"
+                    )
+                else:
+                    # Merged duplicate: email mismatch is expected/acceptable
+                    logger.info(
+                        f"[Handler] ✅ Email mismatch accepted (merged duplicate): "
+                        f"payload='{expected_email}', existing='{candidate.candidateEmail}' (is_new={is_new})"
+                    )
+            else:
+                logger.info(f"[Handler] ✅ Email verified: {candidate.candidateEmail}")
 
             # 3. VERIFY TENANT ASSIGNMENT
             expected_tenant = payload.get("tenant_id", 1)
