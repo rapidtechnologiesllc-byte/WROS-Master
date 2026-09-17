@@ -178,6 +178,36 @@ class LinkedInImportResponse(BaseModel):
 # ============================================================================
 
 @router.get(
+    "",
+    response_model=dict,
+    dependencies=[Depends(require_resource_permission("candidates", "view"))],
+)
+def list_candidates(
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user),
+):
+    """List all candidates (API endpoint for UI)"""
+    try:
+        candidates = db.query(Candidate).filter(
+            Candidate.tenant_id == (getattr(current_user, 'tenant_id', 1) or 1)
+        ).all()
+
+        result = []
+        for c in candidates:
+            result.append({
+                'id': c.candidateID,
+                'candidate_email': c.candidateEmail,
+                'candidate_name': f"{c.candidateFirstName} {c.candidateLastName}".strip(),
+                'candidate_role': c.candidateRole,
+                'candidate_source': c.candidateSource,
+                'created_at': c.candidateCreatedAt.isoformat() if c.candidateCreatedAt else None,
+            })
+        return {"data": result, "count": len(result)}
+    except Exception as e:
+        logger.error(f"Error fetching candidates: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get(
     "/all",
     response_model=list,
     dependencies=[Depends(require_resource_permission("candidates", "view"))],
