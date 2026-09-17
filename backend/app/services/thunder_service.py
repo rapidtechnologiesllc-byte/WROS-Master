@@ -439,6 +439,26 @@ def build_candidate_context(db: Session, candidate: Candidate) -> Dict:
         (conv for conv in reversed(conversations) if conv.status != "closed"), None,
     )
 
+    # Fetch learned facts from candidate memory
+    candidate_facts = {}
+    try:
+        from app.services.candidate_memory_service import get_memory
+        memory = get_memory(db, candidate.candidateID, candidate.tenant_id or 1)
+
+        for fact in memory.get('facts', []):
+            category = fact.get('category', 'OTHER')
+            if category not in candidate_facts:
+                candidate_facts[category] = []
+            candidate_facts[category].append({
+                'key': fact.get('key'),
+                'value': fact.get('value'),
+                'confidence': fact.get('confidence'),
+                'extracted_at': fact.get('extracted_at')
+            })
+        logger.info(f"[BuildContext] Loaded {len(memory.get('facts', []))} facts for {candidate.candidateID}")
+    except Exception as e:
+        logger.warning(f"[BuildContext] Failed to load candidate facts: {e}")
+
     return {
         "candidate_id": candidate.candidateID,
         "message_history": history,
@@ -458,6 +478,7 @@ def build_candidate_context(db: Session, candidate: Candidate) -> Dict:
             "total_experience_months": candidate.total_experience_months,
             "current_location": candidate.candidateCurrentLocation,
         },
+        "candidate_facts": candidate_facts,  # NEW: Learned facts from memory
         "open_jobs": _get_open_jobs_summary(db),
     }
 

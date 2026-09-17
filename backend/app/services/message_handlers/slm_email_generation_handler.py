@@ -57,6 +57,13 @@ class SLMEmailGenerationHandler:
             if not candidate:
                 raise ValueError(f"Candidate {candidate_id} not found in database")
 
+            # Spawn SLM agent to learn candidate facts (background, non-blocking)
+            try:
+                agent_result = SLMEmailGenerationHandler._spawn_slm_agent_for_candidate(candidate, db)
+                logger.info(f"[SLMEmailGeneration] SLM agent spawned: {agent_result}")
+            except Exception as agent_err:
+                logger.warning(f"[SLMEmailGeneration] Failed to spawn SLM agent (non-blocking): {agent_err}")
+
             # Step 1: Build candidate context (profile + open jobs)
             try:
                 context = build_candidate_context(db, candidate)
@@ -134,6 +141,134 @@ class SLMEmailGenerationHandler:
             # Re-raise so queue processor can retry
             raise
 
+
+    @staticmethod
+    def _spawn_slm_agent_for_candidate(candidate: Candidate, db: Session) -> Dict[str, Any]:
+        """Spawn SLM agent to learn and extract candidate facts (background thread, non-blocking)"""
+        from app.services.candidate_memory_service import upsert_fact
+        import threading
+
+        candidate_id = candidate.candidateID
+
+        def extract_facts():
+            """Background task to extract and store facts"""
+            try:
+                logger.info(f"[SLMAgent] Spawning fact extraction for {candidate_id}")
+
+                # FACT 1: Expected salary
+                if candidate.candidateExpectedSalary:
+                    try:
+                        expected_salary = str(candidate.candidateExpectedSalary).strip()
+                        if expected_salary and expected_salary != 'None':
+                            upsert_fact(
+                                db=db,
+                                candidate_id=candidate_id,
+                                tenant_id=candidate.tenant_id or 1,
+                                fact_category='SALARY',
+                                fact_key='expected_salary',
+                                fact_value=expected_salary,
+                                confidence=0.85
+                            )
+                            logger.info(f"[SLMAgent] Stored salary fact for {candidate_id}")
+                    except Exception as e:
+                        logger.warning(f"[SLMAgent] Failed to store salary: {e}")
+
+                # FACT 2: Current location
+                if candidate.candidateCurrentLocation:
+                    try:
+                        location = candidate.candidateCurrentLocation.strip()
+                        if location:
+                            upsert_fact(
+                                db=db,
+                                candidate_id=candidate_id,
+                                tenant_id=candidate.tenant_id or 1,
+                                fact_category='PREFERENCE',
+                                fact_key='location_preference',
+                                fact_value=location,
+                                confidence=0.90
+                            )
+                            logger.info(f"[SLMAgent] Stored location fact for {candidate_id}")
+                    except Exception as e:
+                        logger.warning(f"[SLMAgent] Failed to store location: {e}")
+
+                # FACT 3: Skills
+                if candidate.candidateSkills:
+                    try:
+                        skills = candidate.candidateSkills
+                        if isinstance(skills, list):
+                            skills_str = ', '.join(str(s) for s in skills)
+                        else:
+                            skills_str = str(skills)
+
+                        if skills_str.strip():
+                            upsert_fact(
+                                db=db,
+                                candidate_id=candidate_id,
+                                tenant_id=candidate.tenant_id or 1,
+                                fact_category='SKILL',
+                                fact_key='primary_skills',
+                                fact_value=skills_str,
+                                confidence=0.88
+                            )
+                            logger.info(f"[SLMAgent] Stored skills fact for {candidate_id}")
+                    except Exception as e:
+                        logger.warning(f"[SLMAgent] Failed to store skills: {e}")
+
+                # FACT 4: Experience level
+                if candidate.candidateExperience or getattr(candidate, 'total_experience_months', None):
+                    try:
+                        experience_text = candidate.candidateExperience or f"{getattr(candidate, 'total_experience_months', 0) or 0} months"
+                        if experience_text.strip():
+                            upsert_fact(
+                                db=db,
+                                candidate_id=candidate_id,
+                                tenant_id=candidate.tenant_id or 1,
+                                fact_category='MOTIVATOR',
+                                fact_key='experience_level',
+                                fact_value=str(experience_text),
+                                confidence=0.80
+                            )
+                            logger.info(f"[SLMAgent] Stored experience fact for {candidate_id}")
+                    except Exception as e:
+                        logger.warning(f"[SLMAgent] Failed to store experience: {e}")
+
+                # FACT 5: Recruitment source
+                if candidate.candidateSource:
+                    try:
+                        source = candidate.candidateSource.strip()
+                        if source:
+                            upsert_fact(
+                                db=db,
+                                candidate_id=candidate_id,
+                                tenant_id=candidate.tenant_id or 1,
+                                fact_category='EMPLOYER',
+                                fact_key='recruitment_source',
+                                fact_value=source,
+                                confidence=0.95
+                            )
+                            logger.info(f"[SLMAgent] Stored source fact for {candidate_id}")
+                    except Exception as e:
+                        logger.warning(f"[SLMAgent] Failed to store source: {e}")
+
+                logger.info(f"[SLMAgent] Fact extraction complete for {candidate_id}")
+                db.commit()
+
+            except Exception as e:
+                logger.error(f"[SLMAgent] Fact extraction failed: {e}", exc_info=True)
+                try:
+                    db.rollback()
+                except:
+                    pass
+
+        # Spawn background thread (non-blocking)
+        agent_thread = threading.Thread(
+            target=extract_facts,
+            daemon=True,
+            name=f"SLMAgent-{candidate_id}"
+        )
+        agent_thread.start()
+
+        return {"spawn_id": f"slm-agent-{candidate_id}", "status": "spawned", "background": True}
 
     @staticmethod
     def validate(message: Any, result: Dict[str, Any], db: Session) -> None:

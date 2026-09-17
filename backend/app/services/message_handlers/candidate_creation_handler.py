@@ -603,7 +603,7 @@ Recruiting Team
             except Exception as e:
                 logger.warning(f"[Handler] SLM analysis failed (non-blocking): {e}", exc_info=True)
 
-            # GAP #1 FIX: Queue Thunder to engage newly created candidate
+            # GAP #1 FIX: Queue Thunder to engage newly created candidate with SLM processing
             try:
                 from app.services.message_queue_service import MessageQueueService
                 MessageQueueService.enqueue(
@@ -612,9 +612,10 @@ Recruiting Team
                         'candidate_id': candidate_id,
                         'channel_preference': candidate.channel_preference or 'email',
                         'trigger': 'candidate_created'
-                    }
+                    },
+                    status='WAITING_FOR_SLM'
                 )
-                logger.info(f"[Handler] ✅ Thunder engagement queued for {candidate_id}")
+                logger.info(f"[Handler] ✅ Thunder engagement queued with WAITING_FOR_SLM for {candidate_id}")
             except Exception as e:
                 logger.warning(f"[Handler] Thunder engagement queue failed (non-blocking): {e}", exc_info=True)
 

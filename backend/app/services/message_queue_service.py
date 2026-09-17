@@ -27,7 +27,8 @@ class MessageQueueService:
         data: Optional[Dict[str, Any]] = None,
         delay_seconds: int = DEFAULT_DELAY_SECONDS,
         trace_id: Optional[str] = None,  # HIGH FIX #4: Correlation ID for tracing
-        idempotency_key: Optional[str] = None
+        idempotency_key: Optional[str] = None,
+        status: Optional[str] = None  # Allow overriding default status (e.g., 'WAITING_FOR_SLM')
     ) -> Dict[str, Any]:
         """Queue a task to custom message queue. Uses database as primary store."""
         if not task_name:
@@ -59,12 +60,17 @@ class MessageQueueService:
             db = SessionLocal()
 
             # ARCHITECT FIX: Support delayed message delivery
+            # Also support explicit status override (e.g., 'WAITING_FOR_SLM' for Thunder engagement)
             from datetime import timedelta
-            if delay_seconds > 0:
-                status = 'SCHEDULED'
+            if status:
+                # Use provided status (e.g., 'WAITING_FOR_SLM')
+                queue_status = status
+                scheduled_for = None
+            elif delay_seconds > 0:
+                queue_status = 'SCHEDULED'
                 scheduled_for = datetime.utcnow() + timedelta(seconds=delay_seconds)
             else:
-                status = 'PENDING'
+                queue_status = 'PENDING'
                 scheduled_for = None
 
             # ARCHITECT FIX: Populate idempotency key if provided (enables duplicate detection)
@@ -77,7 +83,7 @@ class MessageQueueService:
                 message_id=task_id,
                 type=task_name,
                 channel_type=QUEUE_TYPE_THUNDER if 'engage_candidate_with_thunder' in task_name.lower() or 'assign_thunder' in task_name.lower() else (QUEUE_TYPE_CANDIDATE if 'candidate' in task_name.lower() else QUEUE_TYPE_THUNDER),
-                status=status,
+                status=queue_status,
                 payload=data,
                 retry_count=QUEUE_ITEM_RETRY_COUNT_INITIAL,
                 created_at=datetime.utcnow(),
