@@ -201,10 +201,90 @@ def _build_candidate_response(
         pipline_status=candidate_status.piplineStatus if candidate_status else None
     )
 
-# OLD POST /create endpoint removed 2026-09-06
-# Replaced by create_queue_first.py which queues candidate creation
-# asynchronously via MessageQueueService instead of creating synchronously
-# See: backend/app/api/v1/endpoints/candidates/create_queue_first.py
+@router.post(
+    "/create",
+    response_model=CandidateCreateResponse,
+    dependencies=[Depends(require_role_template_permission("candidates", "can_create"))]
+)
+def create_candidate(request: CandidateCreateRequest, db: Session = Depends(get_db), user = Depends(get_current_user)):
+    """
+    Create a new candidate with basic information.
+
+    Args:
+        request: CandidateCreateRequest with candidate details
+        db: Database session
+        user: Current authenticated user
+
+    Returns:
+        CandidateCreateResponse with created candidate details
+    """
+    try:
+        # Validate required fields
+        if not request.candidate_email:
+            raise HTTPException(status_code=400, detail="Email is required")
+        if not request.candidate_first_name:
+            raise HTTPException(status_code=400, detail="First name is required")
+        if not request.candidate_last_name:
+            raise HTTPException(status_code=400, detail="Last name is required")
+        if not request.candidate_job_title:
+            raise HTTPException(status_code=400, detail="Job title is required")
+        if not request.candidate_mobile:
+            raise HTTPException(status_code=400, detail="Mobile number is required")
+        if not request.candidate_gender:
+            raise HTTPException(status_code=400, detail="Gender is required")
+        if not request.candidate_current_location:
+            raise HTTPException(status_code=400, detail="Location is required")
+
+        # Validate email format
+        if not _is_valid_email(request.candidate_email):
+            raise HTTPException(status_code=400, detail="Invalid email format")
+
+        # Validate phone format
+        if not _is_valid_phone(request.candidate_mobile):
+            raise HTTPException(status_code=400, detail="Invalid phone format")
+
+        # Use the safe candidate creation function that checks for duplicates
+        candidate = create_candidate_safe(
+            db=db,
+            email=request.candidate_email,
+            first_name=request.candidate_first_name,
+            middle_name=request.candidate_middle_name,
+            last_name=request.candidate_last_name,
+            job_title=request.candidate_job_title,
+            mobile=request.candidate_mobile,
+            gender=request.candidate_gender,
+            dob=request.candidate_date_of_birth,
+            source=request.candidate_source,
+            experience=request.candidate_experience,
+            skills=_serialize_skills(request.candidate_skills),
+            joining_date=request.candidate_joining_date,
+            current_location=request.candidate_current_location,
+            current_salary=request.candidate_current_salary,
+            expected_salary=request.candidate_expected_salary,
+            current_salary_type=request.candidate_current_salary_type,
+            expected_salary_type=request.candidate_expected_salary_type,
+        )
+
+        logger.info(f"[CreateCandidate] Created candidate {candidate.candidateID} (email: {candidate.candidateEmail})")
+
+        return CandidateCreateResponse(
+            candidate_id=candidate.candidateID,
+            candidate_email=candidate.candidateEmail,
+            candidate_first_name=candidate.candidateFirstName,
+            candidate_last_name=candidate.candidateLastName,
+            candidate_job_title=candidate.candidateJobTitle,
+            candidate_mobile=candidate.candidateMobile,
+            status="Created"
+        )
+
+    except DuplicateCandidateError as e:
+        logger.warning(f"[CreateCandidate] Duplicate candidate: {str(e)}")
+        raise HTTPException(status_code=409, detail=str(e))
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[CreateCandidate] Error creating candidate: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to create candidate: {str(e)}")
 
 @router.get(
     "/all",
