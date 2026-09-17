@@ -878,6 +878,8 @@ export default function CandidateSelfService({ onLogout }) {
             </button>
           </div>
         )}
+      </div>
+      <div className="mx-auto max-w-5xl space-y-6">
         <div className="grid gap-6 lg:grid-cols-[260px_1fr]">
           <aside className="rounded-2xl border bg-white p-4 shadow-sm h-fit">
             <div className="mb-6 border-b border-slate-200 pb-5">

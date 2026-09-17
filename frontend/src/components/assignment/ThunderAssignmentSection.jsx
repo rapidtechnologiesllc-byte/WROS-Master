@@ -107,19 +107,20 @@ export default function ThunderAssignmentSection({ candidateId, onChanged }) {
       )}
       <div className="rounded-2xl border bg-white">
         <div className="flex items-center justify-between gap-2 border-b px-4 py-3">
-        <div className="flex items-center gap-2">
-          <Bot className="h-4 w-4 text-indigo-600" />
-          <h3 className="text-sm font-semibold text-gray-900">Thunder Assignment</h3>
+          <div className="flex items-center gap-2">
+            <Bot className="h-4 w-4 text-indigo-600" />
+            <h3 className="text-sm font-semibold text-gray-900">Thunder Assignment</h3>
+          </div>
+          {activeAssignment ? (
+            <span className="rounded-full border border-green-200 bg-green-50 px-2.5 py-1 text-xs font-semibold text-green-700">
+              Active — {activeAssignment.ai_agent_name}
+            </span>
+          ) : (
+            <span className="rounded-full border border-gray-200 bg-gray-50 px-2.5 py-1 text-xs font-semibold text-gray-500">
+              No active assignment
+            </span>
+          )}
         </div>
-        {activeAssignment ? (
-          <span className="rounded-full border border-green-200 bg-green-50 px-2.5 py-1 text-xs font-semibold text-green-700">
-            Active — {activeAssignment.ai_agent_name}
-          </span>
-        ) : (
-          <span className="rounded-full border border-gray-200 bg-gray-50 px-2.5 py-1 text-xs font-semibold text-gray-500">
-            No active assignment
-          </span>
-        )}
       </div>
 
       <div className="space-y-3 px-4 py-3">
@@ -174,7 +175,6 @@ export default function ThunderAssignmentSection({ candidateId, onChanged }) {
             )}
           </div>
         )}
-      </div>
       </div>
     </div>
   );
