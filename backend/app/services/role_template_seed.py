@@ -45,6 +45,7 @@ RESOURCES_SEED = [
     # Administration module
     {"module": "administration", "name": "users", "display_name": "Users"},
     {"module": "administration", "name": "roles", "display_name": "Roles & Permissions"},
+    {"module": "administration", "name": "role_templates", "display_name": "Role Templates"},
     {"module": "administration", "name": "business_units", "display_name": "Business Units"},
     {"module": "administration", "name": "settings", "display_name": "System Settings"},
 
@@ -98,6 +99,7 @@ ROLE_TEMPLATE_PERMISSIONS = {
         # Administration - Full access
         "users": {"view": True, "create": True, "edit": True, "delete": True},
         "roles": {"view": True, "create": True, "edit": True, "delete": True},
+        "role_templates": {"view": True, "create": True, "edit": True, "delete": True},
         "business_units": {"view": True, "create": True, "edit": True, "delete": True},
         "settings": {"view": True, "create": True, "edit": True, "delete": True},
         # Sales - Full access
@@ -142,6 +144,7 @@ ROLE_TEMPLATE_PERMISSIONS = {
         # Administration - View only
         "users": {"view": True, "create": False, "edit": False, "delete": False},
         "roles": {"view": False, "create": False, "edit": False, "delete": False},
+        "role_templates": {"view": False, "create": False, "edit": False, "delete": False},
         "business_units": {"view": True, "create": False, "edit": False, "delete": False},
         "settings": {"view": False, "create": False, "edit": False, "delete": False},
         # Sales - View only
@@ -186,6 +189,7 @@ ROLE_TEMPLATE_PERMISSIONS = {
         # Administration - Limited
         "users": {"view": True, "create": True, "edit": True, "delete": False},
         "roles": {"view": True, "create": False, "edit": False, "delete": False},
+        "role_templates": {"view": False, "create": False, "edit": False, "delete": False},
         "business_units": {"view": True, "create": False, "edit": False, "delete": False},
         "settings": {"view": False, "create": False, "edit": False, "delete": False},
         # Sales - View only
@@ -230,6 +234,7 @@ ROLE_TEMPLATE_PERMISSIONS = {
         # Administration - View only
         "users": {"view": True, "create": False, "edit": False, "delete": False},
         "roles": {"view": False, "create": False, "edit": False, "delete": False},
+        "role_templates": {"view": False, "create": False, "edit": False, "delete": False},
         "business_units": {"view": True, "create": False, "edit": False, "delete": False},
         "settings": {"view": False, "create": False, "edit": False, "delete": False},
         # Sales - View only
@@ -274,6 +279,7 @@ ROLE_TEMPLATE_PERMISSIONS = {
         # Administration - Full access
         "users": {"view": True, "create": True, "edit": True, "delete": True},
         "roles": {"view": True, "create": True, "edit": True, "delete": True},
+        "role_templates": {"view": True, "create": True, "edit": True, "delete": True},
         "business_units": {"view": True, "create": True, "edit": True, "delete": True},
         "settings": {"view": True, "create": True, "edit": True, "delete": True},
         # Sales - View only
