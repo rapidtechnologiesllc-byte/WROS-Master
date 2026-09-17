@@ -213,6 +213,55 @@ async def startup_event():
         logger.error(f"[Startup] Failed to initialize database contract: {exc}", exc_info=True)
         return  # Don't crash startup, but contract won't be initialized
 
+    # GAP #4 FIX: Load Azure credentials from environment variables at startup
+    try:
+        import os
+        from app.core.database import SessionLocal
+        from app.models.api_keys_config import APIKeysConfig
+
+        azure_tenant_id = os.getenv('AZURE_TENANT_ID')
+        azure_client_id = os.getenv('AZURE_CLIENT_ID')
+        azure_client_secret = os.getenv('AZURE_CLIENT_SECRET')
+
+        if azure_tenant_id and azure_client_id and azure_client_secret:
+            logger.info("[Startup] Loading Azure credentials from environment variables...")
+            db = SessionLocal()
+            try:
+                # Check if Azure config already exists
+                existing = db.query(APIKeysConfig).filter(
+                    APIKeysConfig.tenant_id == 1,
+                    APIKeysConfig.provider == 'azure'
+                ).first()
+
+                if existing:
+                    # Update existing config
+                    existing.tenant_id_value = azure_tenant_id
+                    existing.client_id_value = azure_client_id
+                    existing.client_secret_value = azure_client_secret
+                    db.commit()
+                    logger.info("[OK] Azure credentials updated from environment")
+                else:
+                    # Create new config
+                    from app.models.api_keys_config import APIKeysConfig
+                    azure_config = APIKeysConfig(
+                        tenant_id=1,
+                        provider='azure',
+                        tenant_id_value=azure_tenant_id,
+                        client_id_value=azure_client_id,
+                        client_secret_value=azure_client_secret,
+                        is_active=True,
+                        last_tested_status='pending',  # Will be tested next
+                    )
+                    db.add(azure_config)
+                    db.commit()
+                    logger.info("[OK] Azure credentials loaded from environment")
+            finally:
+                db.close()
+        else:
+            logger.info("[Startup] No Azure credentials in environment (AZURE_TENANT_ID, AZURE_CLIENT_ID, AZURE_CLIENT_SECRET)")
+    except Exception as exc:
+        logger.warning(f"[Startup] Failed to load Azure credentials: {exc}", exc_info=True)
+
     # Delivery providers are now configured per-tenant in database (optional in dev, required in prod)
     # Validation happens at request time when get_delivery_service() is called
     logger.info("[OK] Delivery provider system ready (per-tenant configuration)")
