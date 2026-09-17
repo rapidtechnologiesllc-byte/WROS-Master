@@ -353,6 +353,7 @@ export default function CandidateDetailsScreen({
   defaultTab = "profile",
   autoOpenSchedule = false,
 }) {
+  const currentRole = localStorage.getItem("hrms_role") || "user";
   const [activeTab, setActiveTab] = useState(defaultTab || "profile");
   const [statusData, setStatusData] = useState(null);
   const [editModalOpen, setEditModalOpen] = useState(false);

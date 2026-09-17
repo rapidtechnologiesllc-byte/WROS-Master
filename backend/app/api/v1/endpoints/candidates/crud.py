@@ -244,37 +244,32 @@ def create_candidate(request: CandidateCreateRequest, db: Session = Depends(get_
             raise HTTPException(status_code=400, detail="Invalid phone format")
 
         # Use the safe candidate creation function that checks for duplicates
-        candidate = create_candidate_safe(
+        candidate, is_new = create_candidate_safe(
             db=db,
             email=request.candidate_email,
-            first_name=request.candidate_first_name,
-            middle_name=request.candidate_middle_name,
-            last_name=request.candidate_last_name,
-            job_title=request.candidate_job_title,
             mobile=request.candidate_mobile,
-            gender=request.candidate_gender,
-            dob=request.candidate_date_of_birth,
-            source=request.candidate_source,
-            experience=request.candidate_experience,
-            skills=_serialize_skills(request.candidate_skills),
-            joining_date=request.candidate_joining_date,
-            current_location=request.candidate_current_location,
-            current_salary=request.candidate_current_salary,
-            expected_salary=request.candidate_expected_salary,
-            current_salary_type=request.candidate_current_salary_type,
-            expected_salary_type=request.candidate_expected_salary_type,
+            candidateFirstName=request.candidate_first_name,
+            candidateMiddleName=request.candidate_middle_name,
+            candidateLastName=request.candidate_last_name,
+            candidateJobTitle=request.candidate_job_title,
+            candidateGender=request.candidate_gender,
+            candidateDateOfBirth=request.candidate_date_of_birth,
+            candidateSource=request.candidate_source,
+            candidateExperience=request.candidate_experience,
+            candidateSkills=_serialize_skills(request.candidate_skills),
+            candidateJoiningDate=request.candidate_joining_date,
+            candidateCurrentLocation=request.candidate_current_location,
+            candidateCurrentSalary=request.candidate_current_salary,
+            candidateExpectedSalary=request.candidate_expected_salary,
         )
 
         logger.info(f"[CreateCandidate] Created candidate {candidate.candidateID} (email: {candidate.candidateEmail})")
 
         return CandidateCreateResponse(
             candidate_id=candidate.candidateID,
-            candidate_email=candidate.candidateEmail,
-            candidate_first_name=candidate.candidateFirstName,
-            candidate_last_name=candidate.candidateLastName,
-            candidate_job_title=candidate.candidateJobTitle,
-            candidate_mobile=candidate.candidateMobile,
-            status="Created"
+            candidate_is_first_time=True,
+            candidate_password=candidate.candidateTempPassword or "",
+            is_new=is_new
         )
 
     except DuplicateCandidateError as e:

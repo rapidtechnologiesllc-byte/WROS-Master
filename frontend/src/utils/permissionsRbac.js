@@ -5,17 +5,23 @@ export const getUserPermissions = () => {
     if (!permissionsStr) return [];
 
     const permissions = JSON.parse(permissionsStr);
+    // Ensure we always return an array
+    if (!Array.isArray(permissions)) {
+      console.warn('Permissions is not an array, returning empty array:', permissions);
+      return [];
+    }
     return permissions || [];
   } catch (error) {
     console.error('Failed to get user permissions from localStorage:', error);
-    // CRITICAL FIX: Throw security error instead of silent failure
-    throw new Error(`Failed to load permissions from storage: ${error.message}`);
+    // Return empty array as fallback instead of throwing (for robustness)
+    return [];
   }
 };
 
 export const hasPermission = (permission) => {
+  if (!permission) return false;
   const permissions = getUserPermissions();
-  return permissions.includes(permission.toLowerCase());
+  return Array.isArray(permissions) && permissions.includes(permission.toLowerCase());
 };
 
 export const hasAnyPermission = (permissions) => {

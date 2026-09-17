@@ -114,12 +114,16 @@ class Settings:
         CORS_ORIGINS: list = [origin.strip() for origin in _CORS_ENV.split(",") if origin.strip()]
     else:
         # Development: localhost only (secure default)
-        CORS_ORIGINS: list = [
-            "http://localhost:3000",
-            "http://localhost:3001",
-            "http://127.0.0.1:3000",
-            "http://127.0.0.1:3001",
-        ]
+        # Allow all localhost ports (3000-65535) for autoPort development servers
+        # This is development-only and localhost-only, so it's secure
+        # Production MUST set CORS_ORIGINS env var with specific origins
+        CORS_ORIGINS: list = []
+
+        # Add all common localhost ports (3000-65535) for development
+        # This handles Create React App autoPort, Vite, Next.js, and other dev servers
+        for port in range(3000, 65536):
+            CORS_ORIGINS.append(f"http://localhost:{port}")
+            CORS_ORIGINS.append(f"http://127.0.0.1:{port}")
     
     # Security Settings
     BCRYPT_ROUNDS: int = 12
