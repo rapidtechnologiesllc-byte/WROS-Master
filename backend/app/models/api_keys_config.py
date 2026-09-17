@@ -56,8 +56,8 @@ class APIKeysConfig(Base):
     last_tested_status = Column(String(50), nullable=True)  # 'success', 'failed', 'pending'
     last_tested_error = Column(Text, nullable=True)  # Error message if test failed
 
-    created_by = Column(String(512), nullable=True)  # User email/ID
-    updated_by = Column(String(512), nullable=True)  # User email/ID
+    created_by = Column(Integer, nullable=True)  # User ID
+    updated_by = Column(Integer, nullable=True)  # User ID
     created_at = Column(DateTime, server_default=func.now(), nullable=False)
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)
 
