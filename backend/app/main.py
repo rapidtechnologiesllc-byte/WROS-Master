@@ -235,9 +235,9 @@ async def startup_event():
 
                 if existing:
                     # Update existing config
-                    existing.tenant_id_value = azure_tenant_id
-                    existing.client_id_value = azure_client_id
-                    existing.client_secret_value = azure_client_secret
+                    existing.azure_tenant_id = azure_tenant_id
+                    existing.azure_client_id = azure_client_id
+                    existing.azure_client_secret = azure_client_secret
                     db.commit()
                     logger.info("[OK] Azure credentials updated from environment")
                 else:
@@ -246,9 +246,9 @@ async def startup_event():
                     azure_config = APIKeysConfig(
                         tenant_id=1,
                         provider='azure',
-                        tenant_id_value=azure_tenant_id,
-                        client_id_value=azure_client_id,
-                        client_secret_value=azure_client_secret,
+                        azure_tenant_id=azure_tenant_id,
+                        azure_client_id=azure_client_id,
+                        azure_client_secret=azure_client_secret,
                         is_active=True,
                         last_tested_status='pending',  # Will be tested next
                     )
