@@ -25,24 +25,49 @@ class HandlerTimeoutError(Exception):
     pass
 
 
-def timeout_handler(signum, frame):
-    """Signal handler for timeout."""
-    raise HandlerTimeoutError("Handler execution exceeded 30-second timeout")
-
-
 def with_timeout(timeout_seconds: int = 30):
-    """Decorator to add timeout to handler execution."""
+    """Decorator to add timeout to handler execution (cross-platform compatible)."""
+    import sys
+    import threading
+
     def decorator(func):
         @wraps(func)
         def wrapper(*args, **kwargs):
-            # Set signal handler and alarm
-            old_handler = signal.signal(signal.SIGALRM, timeout_handler)
-            signal.alarm(timeout_seconds)
-            try:
-                return func(*args, **kwargs)
-            finally:
-                signal.alarm(0)  # Disable alarm
-                signal.signal(signal.SIGALRM, old_handler)  # Restore handler
+            # Use threading-based timeout on Windows (SIGALRM not available)
+            # Use signal-based timeout on Unix/Linux (more efficient)
+            if sys.platform == "win32":
+                # Windows: use threading timeout
+                result = [None]
+                exception = [None]
+
+                def target():
+                    try:
+                        result[0] = func(*args, **kwargs)
+                    except Exception as e:
+                        exception[0] = e
+
+                thread = threading.Thread(target=target, daemon=True)
+                thread.start()
+                thread.join(timeout=timeout_seconds)
+
+                if thread.is_alive():
+                    raise HandlerTimeoutError(f"Handler execution exceeded {timeout_seconds}-second timeout")
+
+                if exception[0]:
+                    raise exception[0]
+                return result[0]
+            else:
+                # Unix/Linux: use signal-based timeout (more efficient)
+                def timeout_handler(signum, frame):
+                    raise HandlerTimeoutError(f"Handler execution exceeded {timeout_seconds}-second timeout")
+
+                old_handler = signal.signal(signal.SIGALRM, timeout_handler)
+                signal.alarm(timeout_seconds)
+                try:
+                    return func(*args, **kwargs)
+                finally:
+                    signal.alarm(0)  # Disable alarm
+                    signal.signal(signal.SIGALRM, old_handler)  # Restore handler
         return wrapper
     return decorator
 
