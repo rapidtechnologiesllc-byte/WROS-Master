@@ -47,8 +47,7 @@ langgraph>=0.2.0,<1.0.0               # Build stateful, multi-actor applications
 
 # Background Tasks & Scheduling
 # ----------------------------------------------------------------------------
-apscheduler>=3.10.4,<4.0.0            # Advanced Python Scheduler
-redis>=5.0.0,<6.0.0                   # Redis Python client (required for message queue)
+apscheduler>=3.10.4,<4.0.0            # Advanced Python Scheduler (PostgreSQL-driven message queue)
 
 # Message Delivery (WhatsApp, Email) - PRODUCTION
 # ----------------------------------------------------------------------------
