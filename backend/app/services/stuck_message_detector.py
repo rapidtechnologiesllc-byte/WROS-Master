@@ -494,7 +494,7 @@ class StuckMessageHealer:
                 retry_count = :retry_count,
                 updated_at = NOW(),
                 processing_started_at = NULL,
-                error_message = CONCAT(error_message, ' | Retried after stuck detection')
+                error = CONCAT(error, ' | Retried after stuck detection')
             WHERE id = :message_id
             """
 
@@ -536,10 +536,10 @@ class StuckMessageHealer:
             update_query = """
             UPDATE app_schema.channel_queue_item
             SET
-                status = 'failed',
-                queue_type = 'DEADLETTER_QUEUE',
+                status = 'DEAD_LETTER',
+                channel_type = 'DEADLETTER_QUEUE',
                 updated_at = NOW(),
-                error_message = CONCAT(error_message, ' | Moved to DLQ after ', :retry_count, ' retries')
+                error = CONCAT(error, ' | Moved to DLQ after ', :retry_count, ' retries')
             WHERE id = :message_id
             """
 
