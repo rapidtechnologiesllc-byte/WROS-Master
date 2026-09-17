@@ -19,12 +19,28 @@ Example stuck message scenario:
 
 import asyncio
 import logging
+import re
 from typing import List, Dict, Any, Optional
 from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 
 logger = logging.getLogger(__name__)
+
+
+# Type definitions
+class DeadLetterPattern:
+    """Pattern found in dead-letter messages"""
+    def __init__(self, error_type: str, error_message: str, count: int,
+                 message_ids: List[str], message_types: List[str],
+                 confidence: float = 1.0):
+        self.error_type = error_type  # VALIDATION_ERROR, HANDLER_ERROR, etc.
+        self.error_message = error_message  # Normalized error text
+        self.count = count
+        self.message_ids = message_ids
+        self.message_types = list(set(message_types))  # Unique message types
+        self.confidence = confidence
+        self.detected_at = datetime.utcnow().isoformat()
 
 
 class StuckMessageDetector:
@@ -124,6 +140,225 @@ class StuckMessageDetector:
 
         if len(stuck_messages) > 5:
             report += f"  ... and {len(stuck_messages) - 5} more stuck messages\n"
+
+        return report
+
+
+class DeadLetterDetector:
+    """Detects patterns in dead-letter messages for autonomous healing"""
+
+    # Thresholds
+    DEAD_LETTER_PATTERN_THRESHOLD = 5  # 5+ messages with same error = pattern
+
+    # Error classification patterns
+    VALIDATION_ERROR_PATTERNS = [
+        r"invalid.*email",
+        r"email.*mismatch",
+        r"invalid.*field",
+        r"missing.*field",
+        r"validation.*failed",
+        r"malformed",
+        r"invalid.*format"
+    ]
+
+    HANDLER_ERROR_PATTERNS = [
+        r"handler.*error",
+        r"exception.*handler",
+        r"no handler",
+        r"unhandled.*exception",
+        r"traceback"
+    ]
+
+    DEPENDENCY_ERROR_PATTERNS = [
+        r"not found",
+        r"doesn't exist",
+        r"missing.*data",
+        r"unavailable",
+        r"not available",
+        r"connection.*refused"
+    ]
+
+    TIMEOUT_ERROR_PATTERNS = [
+        r"timeout",
+        r"timed out",
+        r"exceeded.*time",
+        r"slow.*response"
+    ]
+
+    PERMISSION_ERROR_PATTERNS = [
+        r"permission.*denied",
+        r"unauthorized",
+        r"access.*denied",
+        r"forbidden"
+    ]
+
+    @staticmethod
+    def get_dead_letter_patterns(db: Session) -> List[DeadLetterPattern]:
+        """
+        Detect patterns in dead-letter messages
+
+        Returns: List of patterns found (5+ messages with same error)
+        """
+        try:
+            # Query: Get all DEAD_LETTER messages, grouped by error
+            query = """
+            SELECT
+                error as error_message,
+                COUNT(*) as message_count,
+                STRING_AGG(DISTINCT id, ',') as message_ids,
+                STRING_AGG(DISTINCT type, ',') as message_types
+            FROM app_schema.channel_queue_item
+            WHERE status = 'DEAD_LETTER'
+            GROUP BY error
+            ORDER BY message_count DESC
+            """
+
+            result = db.execute(text(query))
+            patterns = []
+
+            for row in result:
+                error_message = row[0] or "Unknown error"
+                count = row[1]
+                message_ids = row[2].split(',') if row[2] else []
+                message_types = row[3].split(',') if row[3] else []
+
+                # Only include patterns with 5+ messages
+                if count >= DeadLetterDetector.DEAD_LETTER_PATTERN_THRESHOLD:
+                    # Normalize and classify error
+                    normalized_error = DeadLetterDetector._normalize_error(error_message)
+                    error_type = DeadLetterDetector._classify_error_type(error_message)
+
+                    pattern = DeadLetterPattern(
+                        error_type=error_type,
+                        error_message=normalized_error,
+                        count=count,
+                        message_ids=message_ids,
+                        message_types=message_types,
+                        confidence=min(1.0, count / 100.0)  # Higher confidence with more samples
+                    )
+                    patterns.append(pattern)
+
+                    logger.info(f"[DeadLetterDetector] Pattern found: {error_type} ({count} messages)")
+
+            return patterns
+
+        except Exception as e:
+            logger.error(f"[DeadLetterDetector] Error detecting patterns: {e}", exc_info=True)
+            return []
+
+    @staticmethod
+    def get_dead_letter_summary(db: Session) -> Dict[str, Any]:
+        """Get summary of all dead-letter messages by error type"""
+        try:
+            query = """
+            SELECT
+                status,
+                COUNT(*) as count,
+                MIN(created_at) as oldest,
+                MAX(updated_at) as newest
+            FROM app_schema.channel_queue_item
+            WHERE status = 'DEAD_LETTER'
+            GROUP BY status
+            """
+
+            result = db.execute(text(query))
+            summary = {"total": 0, "by_error_type": {}, "details": []}
+
+            for row in result:
+                summary["total"] += row[1]
+                summary["details"].append({
+                    "status": row[0],
+                    "count": row[1],
+                    "oldest": row[2].isoformat() if row[2] else None,
+                    "newest": row[3].isoformat() if row[3] else None
+                })
+
+            return summary
+
+        except Exception as e:
+            logger.error(f"[DeadLetterDetector] Error getting summary: {e}")
+            return {"total": 0, "error": str(e)}
+
+    @staticmethod
+    def identify_error_pattern(db: Session) -> Optional[DeadLetterPattern]:
+        """Identify the most critical error pattern (highest count)"""
+        patterns = DeadLetterDetector.get_dead_letter_patterns(db)
+        if patterns:
+            return patterns[0]  # Sorted by count DESC
+        return None
+
+    @staticmethod
+    def _normalize_error(error_text: str) -> str:
+        """
+        Normalize error message for pattern matching
+
+        Remove timestamps, IDs, user data, and normalize case
+        """
+        if not error_text:
+            return "Unknown error"
+
+        # Remove timestamps
+        normalized = re.sub(r'\d{4}-\d{2}-\d{2}[T\s]\d{2}:\d{2}:\d{2}', '[TIMESTAMP]', error_text)
+
+        # Remove UUIDs
+        normalized = re.sub(r'[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}', '[UUID]', normalized)
+
+        # Remove email addresses
+        normalized = re.sub(r'[\w\.-]+@[\w\.-]+\.\w+', '[EMAIL]', normalized)
+
+        # Remove candidate IDs
+        normalized = re.sub(r'CAN-\d+', '[CANDIDATE_ID]', normalized)
+
+        # Lowercase
+        normalized = normalized.lower()
+
+        # Truncate to first 200 chars
+        return normalized[:200]
+
+    @staticmethod
+    def _classify_error_type(error_text: str) -> str:
+        """Classify error into category"""
+        error_lower = error_text.lower()
+
+        # Check patterns in order (more specific first)
+        for pattern in DeadLetterDetector.VALIDATION_ERROR_PATTERNS:
+            if re.search(pattern, error_lower):
+                return "VALIDATION_ERROR"
+
+        for pattern in DeadLetterDetector.HANDLER_ERROR_PATTERNS:
+            if re.search(pattern, error_lower):
+                return "HANDLER_ERROR"
+
+        for pattern in DeadLetterDetector.PERMISSION_ERROR_PATTERNS:
+            if re.search(pattern, error_lower):
+                return "PERMISSION_ERROR"
+
+        for pattern in DeadLetterDetector.TIMEOUT_ERROR_PATTERNS:
+            if re.search(pattern, error_lower):
+                return "TIMEOUT_ERROR"
+
+        for pattern in DeadLetterDetector.DEPENDENCY_ERROR_PATTERNS:
+            if re.search(pattern, error_lower):
+                return "DEPENDENCY_ERROR"
+
+        return "UNKNOWN_ERROR"
+
+    @staticmethod
+    def format_dead_letter_report(patterns: List[DeadLetterPattern]) -> str:
+        """Format dead-letter patterns for logging"""
+        if not patterns:
+            return "[DeadLetterDetector] ✅ No dead-letter patterns detected"
+
+        report = f"[DeadLetterDetector] 🚨 Found {len(patterns)} dead-letter patterns:\n"
+
+        for pattern in patterns[:5]:  # Show top 5
+            report += f"  • Error Type: {pattern.error_type}\n"
+            report += f"    Count: {pattern.count} messages\n"
+            report += f"    Message: {pattern.error_message[:100]}...\n"
+            report += f"    Confidence: {pattern.confidence:.0%}\n"
+
+        if len(patterns) > 5:
+            report += f"  ... and {len(patterns) - 5} more patterns\n"
 
         return report
 
