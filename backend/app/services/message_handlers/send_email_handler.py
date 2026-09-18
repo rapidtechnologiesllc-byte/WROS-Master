@@ -127,11 +127,16 @@ class SendEmailHandler:
 
         except Exception as e:
             logger.error(
-                f"[SendEmailHandler] Exception processing email: {str(e)}",
+                f"[SendEmailHandler] Exception processing email to {to_email}: {str(e)}",
                 exc_info=True
             )
+            import traceback
+            error_detail = f"{str(e)}\n{traceback.format_exc()}"
             return {
                 "status": "failed",
                 "error": str(e),
-                "method": "handler"
+                "error_detail": error_detail,
+                "method": "handler",
+                "recipient": to_email,
+                "timestamp": datetime.utcnow().isoformat()
             }

@@ -635,6 +635,32 @@ class QueueProcessorService:
                         logger.error(f"[QueueProcessor] SLM analysis failed for job {job_id}: {slm_err}", exc_info=True)
                         # Don't fail - continue without SLM guidance (flash_recruiter will use defaults)
 
+                # CRITICAL FIX: Check handler result status FIRST before any other logic
+                # If handler returned explicit failure, mark as FAILED immediately
+                if isinstance(handler_result, dict) and handler_result.get("status") == "failed":
+                    logger.error(
+                        f"[QueueProcessor] Handler returned explicit failure for {message.id} ({message.type}): {handler_result}"
+                    )
+                    message.status = QueueStatus.FAILED.value
+                    message.error = handler_result.get("error", "Handler returned failure status")
+                    message.last_attempted_at = datetime.utcnow()
+                    result_data = {
+                        "success": False,
+                        "error": handler_result.get("error", "Handler failed"),
+                        "handler_result": handler_result,
+                        "failed_at": datetime.utcnow().isoformat(),
+                        "handler_duration_ms": handler_duration_ms
+                    }
+                    result_json = json.dumps(result_data)
+                    message.result = result_json
+                    db.commit()
+
+                    return {
+                        "status": QueueStatus.FAILED.value,
+                        "message": f"Handler failed: {handler_result.get('error', 'unknown error')}",
+                        "duration_ms": handler_duration_ms
+                    }
+
                 # CRITICAL FIX #5: Verify delivery was actually confirmed before marking COMPLETED
                 # Messages stuck in PROCESSING suggests we're marking COMPLETED without delivery confirmation
                 # Now uses MessageDeliveryLog instead of handler result to verify real delivery

@@ -32,16 +32,27 @@ class EmailService:
             "Authorization": f"Bearer {access_token}",
             "Content-Type": "application/json",
         }
-        response = requests.post(endpoint, headers=headers, json=payload, timeout=15)
         try:
+            response = requests.post(endpoint, headers=headers, json=payload, timeout=15)
             response.raise_for_status()
         except requests.exceptions.HTTPError as e:
             detail = "Unknown error"
+            status_code = 502
             try:
-                detail = e.response.json().get("error", {}).get("message", str(e))
-            except Exception:
-                detail = str(e)
-            raise HTTPException(status_code=502, detail=f"Microsoft Graph error: {detail}")
+                error_response = e.response.json()
+                detail = error_response.get("error", {}).get("message", str(e))
+                status_code = e.response.status_code
+                logger.error(
+                    f"[EmailService] Graph API error (HTTP {status_code}): {detail}. "
+                    f"Full response: {error_response}"
+                )
+            except Exception as parse_err:
+                detail = f"{str(e)} (response: {e.response.text if hasattr(e, 'response') else 'unknown'})"
+                logger.error(f"[EmailService] Graph API error (HTTP {status_code}): {detail}")
+            raise HTTPException(status_code=status_code, detail=f"Microsoft Graph error: {detail}")
+        except Exception as e:
+            logger.error(f"[EmailService] Unexpected error calling Graph API: {str(e)}", exc_info=True)
+            raise
         return response
 
     # ------------------------------------------------------------------
