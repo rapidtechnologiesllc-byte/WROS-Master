@@ -63,7 +63,7 @@ import AssignmentsScreen from "../screens/AssignmentsScreen";
 import CandidateCreate from "../screens/CandidateCreate";
 import CandidateSearch from "../screens/CandidateSearch";
 import CandidateSelfService from "../screens/CandidateSelfService";
-import { canAccessMyWorkspace, isCandidateUser } from "../utils/permissions";
+import { canAccessMyWorkspace, isCandidateUser } from "../utils/permissionsRoleTemplate";
 import { useNavigate } from "react-router-dom";
 import CandidateDetailsWrapper from "./wrappers/CandidateDetailsWrapper";
 import JobWorkspaceWrapper from "./wrappers/JobWorkspaceWrapper";

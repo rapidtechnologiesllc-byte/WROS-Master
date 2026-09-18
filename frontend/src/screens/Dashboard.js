@@ -11,9 +11,8 @@ import { useState, useEffect, useRef } from "react";
 import { Button, Card, StatusBadge } from "../components/ui";
 import { useNavigate } from "react-router-dom";
 import LinkedInActivityTable from "../components/LinkedInActivityTable";
-import { getRoles } from "../utils/permissions";
+import { getRoles, hasPermission } from "../utils/permissionsRoleTemplate";
 import { getHrMe } from "../services/api/users";
-import { hasPermission } from "../utils/permissionsRoleTemplate";
 
 function StatCard({ title, value, icon, onClick }) {
   return (

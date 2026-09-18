@@ -10,7 +10,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { X, AlertTriangle, CheckCircle } from "lucide-react";
 import { getDesireIntelligence, refreshDesireIntelligence } from "../../services/api/desireIntelligence";
-import { hasPermission } from "../../utils/permissionsRbac";
+import { hasPermission } from "../../utils/permissionsRoleTemplate";
 
 // REMOVED: CAN_EDIT_ROLES hardcoded list
 // Now using permission-based check: hasPermission('candidate.desire_intelligence.edit')

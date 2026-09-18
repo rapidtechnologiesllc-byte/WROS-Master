@@ -34,11 +34,11 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { Outlet } from "react-router-dom";
 import {
   hasPermission,
-  getUserPermissions,
-  isSuperAdmin,
+  getPermissions,
+  isSuperUser,
   canViewModule,
   filterNavigationByModules,
-} from "../utils/permissionsRbac";
+} from "../utils/permissionsRoleTemplate";
 
 // Constants
 const MAX_RETRIES = 12; // Retry every 5s for up to 60 seconds (0s, 5s, 10s, ..., 55s)

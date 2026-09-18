@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { usePermissions } from '../context/PermissionContext';
-import * as permUtils from '../utils/permissionsRbac';
+import * as permUtils from '../utils/permissionsRoleTemplate';
 
 export const PermissionButton = ({
   permission,

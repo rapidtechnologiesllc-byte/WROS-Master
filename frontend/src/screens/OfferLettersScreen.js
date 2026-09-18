@@ -19,7 +19,7 @@ import {
   PageContainer,
   StatsContainer,
 } from "../styles/OfferLetterStyles";
-import { hasPermission } from "../utils/permissions";
+import { hasPermission } from "../utils/permissionsRoleTemplate";
 const { Search } = Input;
 
 function OfferLettersScreen() {

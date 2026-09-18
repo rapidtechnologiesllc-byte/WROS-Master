@@ -3,7 +3,7 @@ import { ChevronDown, Plus, Check, X, AlertCircle, CheckCircle } from "lucide-re
 import { Card, Button, Input, Select } from "../components/ui";
 import { apiRequest } from "../services/api/client";
 import { getAllCandidates } from "../services/api/candidates";
-import { getBusinessUnitId } from "../utils/permissions";
+import { getBusinessUnitId } from "../utils/permissionsRoleTemplate";
 
 export default function EmployeeConversionScreen() {
   const [candidates, setCandidates] = useState([]);

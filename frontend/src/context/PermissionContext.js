@@ -1,6 +1,6 @@
 
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
-import * as permUtils from '../utils/permissionsRbac';
+import * as permUtils from '../utils/permissionsRoleTemplate';
 
 const PermissionContext = createContext();
 
