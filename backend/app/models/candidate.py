@@ -123,6 +123,11 @@ class Candidate(Base):
     previous_status = Column(String(100), nullable=True)  # Previous status for tracking transitions
     status_change_reason = Column(String(500), nullable=True)  # Why status changed (interview scheduled, offer accepted, etc.)
 
+    # Recruiter assignment (Thunder autonomous assignment)
+    assigned_recruiter_id = Column(String(512), ForeignKey("users.UserID"), nullable=True, index=True)  # Auto-assigned recruiter
+    assigned_recruiter_changed_at = Column(DateTime, nullable=True)  # When recruiter was assigned
+    assigned_recruiter_changed_by = Column(String(512), nullable=True)  # Who/what assigned (usually "THUNDER_AUTO_ASSIGN")
+
     # Progressive Upload Status Tracking
     upload_status = Column(String(50), nullable=True, default="uploading")  # uploading, queued, processing, complete, error
     expected_document_count = Column(Integer, nullable=True, default=0)  # Total documents expected
@@ -155,6 +160,14 @@ class Candidate(Base):
         foreign_keys=[created_by_user_id],
         lazy="select",
         primaryjoin="Candidate.created_by_user_id==Users.UserID"
+    )
+
+    # Assigned recruiter relationship (Thunder autonomous assignment)
+    assigned_recruiter = relationship(
+        "Users",
+        foreign_keys=[assigned_recruiter_id],
+        lazy="select",
+        primaryjoin="Candidate.assigned_recruiter_id==Users.UserID"
     )
 
     # History entries relationship

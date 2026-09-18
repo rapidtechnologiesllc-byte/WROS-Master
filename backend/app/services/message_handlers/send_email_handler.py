@@ -36,8 +36,11 @@ class SendEmailHandler:
             "subject": "Email subject",
             "body": "Email body content",
             "is_html": true,  # optional, default true
-            "candidate_id": "...",  # optional, for tracking
-            "email_type": "OFFER|INTERVIEW|ENGAGEMENT|TEST_EMAIL|..."  # optional
+            "candidate_id": "...",  # optional, for tracking + recruiter assignment
+            "email_type": "OFFER|INTERVIEW|ENGAGEMENT|TEST_EMAIL|...",  # optional
+            "recruiter_id": "...",  # optional - explicit recruiter to send from
+            "recruiter_email": "...",  # optional - explicit recruiter email
+            "cc_emails": [...]  # optional - additional CC recipients (helpdesk always CCed)
         }
 
         Returns:
@@ -46,7 +49,9 @@ class SendEmailHandler:
             "message_id": "external_id_from_provider",
             "method": "graph|stub",
             "recipient": "email@domain.com",
-            "timestamp": "2026-09-17T15:30:00Z"
+            "timestamp": "2026-09-17T15:30:00Z",
+            "recruiter_id": "recruiter_assigned",
+            "was_auto_assigned": bool
         }
         """
         try:
@@ -57,6 +62,9 @@ class SendEmailHandler:
             is_html = payload.get("is_html", True)
             email_type = payload.get("email_type", "GENERAL")
             candidate_id = payload.get("candidate_id")
+            recruiter_id = payload.get("recruiter_id")
+            recruiter_email = payload.get("recruiter_email")
+            cc_emails = list(payload.get("cc_emails", []))
 
             # Validate required fields
             if not to_email:
@@ -66,6 +74,70 @@ class SendEmailHandler:
                     "error": "Missing to_email in message payload",
                     "method": "validation"
                 }
+
+            # ─────────────────────────────────────────────────────────────
+            # RECRUITER ASSIGNMENT: Auto-assign if candidate has no recruiter
+            # ─────────────────────────────────────────────────────────────
+            was_auto_assigned = False
+
+            if candidate_id and not recruiter_email:
+                try:
+                    from app.models.candidate import Candidate
+                    from app.services.recruiter_assignment_service import RecruiterAssignmentServiceForCandidates
+
+                    # Check if we have explicit recruiter in payload
+                    if recruiter_id:
+                        # Use provided recruiter
+                        from app.models.user import Users
+                        recruiter = db.query(Users).filter(Users.UserID == recruiter_id).first()
+                        if recruiter:
+                            recruiter_email = recruiter.UserEmail
+                    else:
+                        # Auto-assign if candidate has no recruiter
+                        candidate = db.query(Candidate).filter(
+                            Candidate.candidateID == candidate_id
+                        ).first()
+
+                        if candidate:
+                            if candidate.assigned_recruiter_id:
+                                # Use existing assignment
+                                from app.models.user import Users
+                                recruiter = db.query(Users).filter(
+                                    Users.UserID == candidate.assigned_recruiter_id
+                                ).first()
+                                if recruiter:
+                                    recruiter_email = recruiter.UserEmail
+                                    recruiter_id = recruiter.UserID
+                            else:
+                                # Auto-assign new recruiter
+                                try:
+                                    assignment = RecruiterAssignmentServiceForCandidates.assign_recruiter_to_candidate(
+                                        candidate_id, candidate.tenant_id, db
+                                    )
+                                    recruiter_email = assignment['recruiter_email']
+                                    recruiter_id = assignment['recruiter_id']
+                                    was_auto_assigned = assignment['is_new_assignment']
+
+                                    logger.info(
+                                        f"[SendEmailHandler] Auto-assigned recruiter {recruiter_id} "
+                                        f"to candidate {candidate_id}"
+                                    )
+                                except RuntimeError as e:
+                                    # No recruiters available - fall back to helpdesk
+                                    logger.warning(
+                                        f"[SendEmailHandler] Could not auto-assign recruiter: {e}. "
+                                        f"Will use helpdesk as sender."
+                                    )
+                except Exception as e:
+                    logger.warning(f"[SendEmailHandler] Recruiter assignment failed: {e}. Continuing with helpdesk.")
+
+            # Set default sender (helpdesk) if no recruiter email determined
+            if not recruiter_email:
+                recruiter_email = "helpdesk_hrms@blitzenx.com"
+
+            # Always CC helpdesk for audit trail
+            if "helpdesk_hrms@blitzenx.com" not in cc_emails:
+                cc_emails.append("helpdesk_hrms@blitzenx.com")
 
             # Check if Azure credentials are configured
             if not GraphServiceAuth.is_configured():
@@ -95,14 +167,17 @@ class SendEmailHandler:
                 to_email=to_email,
                 subject=subject,
                 body_content=body,
-                is_html=is_html
+                is_html=is_html,
+                sender_email=recruiter_email,
+                cc_emails=cc_emails if cc_emails else None
             )
 
             # EmailService returns {status, message, ...}
             if result.get("status") == "success":
                 logger.info(
                     f"[SendEmailHandler] Email sent successfully: "
-                    f"to={to_email}, type={email_type}, candidate_id={candidate_id}"
+                    f"to={to_email}, type={email_type}, candidate_id={candidate_id}, "
+                    f"from={recruiter_email}, cc_count={len(cc_emails) if cc_emails else 0}"
                 )
                 return {
                     "status": "success",
@@ -111,6 +186,10 @@ class SendEmailHandler:
                     "recipient": to_email,
                     "email_type": email_type,
                     "candidate_id": candidate_id,
+                    "recruiter_id": recruiter_id,
+                    "recruiter_email": recruiter_email,
+                    "was_auto_assigned": was_auto_assigned,
+                    "cc_count": len(cc_emails) if cc_emails else 0,
                     "timestamp": datetime.utcnow().isoformat(),
                     "attachments_sent": result.get("attachments_sent", 0),
                     "message_sent": True,
