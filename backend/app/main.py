@@ -38,6 +38,10 @@ from app.api.v1.endpoints.system_health import router as system_health_router
 from app.api.v1.endpoints.monitoring import router as monitoring_router
 from app.api.v1.endpoints.desire_intelligence import router as desire_intelligence_router
 from app.api.v1.endpoints.role_template_modules import router as role_template_modules_router
+from app.api.v1.endpoints.pl_reports import router as pl_reports_router
+from app.api.v1.endpoints.slm_exports import router as slm_exports_router
+from app.api.v1.endpoints.phase2_monitoring import router as phase2_monitoring_router
+from app.api.v1.endpoints.ceo_dashboard import router as ceo_dashboard_router
 
 # Agent State models — imported here so Base.metadata.create_all() finds them
 from app.models import agent_phalanx  # noqa: F401
@@ -356,7 +360,8 @@ async def startup_event():
         db = SessionLocal()
         result = seed_business_units(db)
         db.close()
-        logger.info(f"[OK] Business units seeded: {result}")
+        if result:
+            logger.info(f"[OK] Business units seeded: {result}")
     except Exception as exc:
         logger.warning(f"[Startup] Failed to seed business units: {exc}")
 
@@ -487,6 +492,22 @@ async def startup_event():
         logger.error(f"[Startup] FLASH SLM training failed: {exc}", exc_info=True)
         logger.warning("[Startup] FLASH will operate without SLM training (degraded mode)")
 
+    # PHASE 2: Start P&L Agent Scheduler
+    # Orchestrates Revenue → Cost → Margin → Bonus calculations
+    try:
+        logger.info("[Startup] Initializing Phase 2 P&L Agent Scheduler...")
+        from app.services.phase2_scheduler import init_phase2_scheduler
+        from app.core.events import EventBroker
+
+        db = SessionLocal()
+        event_broker = EventBroker(db)
+        phase2_scheduler = init_phase2_scheduler(db, event_broker)
+        logger.info("[OK] Phase 2 P&L Agent Scheduler initialized and running")
+
+    except Exception as exc:
+        logger.error(f"[Startup] Failed to initialize Phase 2 scheduler: {exc}", exc_info=True)
+        logger.warning("[Startup] Phase 2 P&L agents disabled")
+
     logger.info(f"[OK] {settings.APP_NAME} v{settings.APP_VERSION} started successfully")
     logger.info(f"[OK] Server running on http://{settings.HOST}:{settings.PORT}")
 
@@ -545,6 +566,15 @@ app.include_router(system_health_router)
 # Include Stuck Message Monitoring (10-second cycle for queue health)
 app.include_router(monitoring_router)
 
+# Include P&L reports routes with /api/v1 prefix (P&L reporting, financials)
+app.include_router(pl_reports_router, prefix="/api/v1")
+# Include SLM export routes with /api/v1 prefix (employee intelligence for agents)
+app.include_router(slm_exports_router)
+# Include Phase 2 monitoring routes with /api/v1 prefix (P&L agent monitoring)
+app.include_router(phase2_monitoring_router)
+# Include CEO dashboard routes (executive reporting)
+app.include_router(ceo_dashboard_router)
+
 # HRMS-0114 -- fail startup if any route has no explicit identity/
 # permission declaration at all. Runs synchronously at import time
 # (not inside the async startup event) so an offending route fails the
@@ -590,6 +620,11 @@ assert_all_routes_have_permission_declarations(
         "GET /api/v1/monitoring/stuck-messages",
         "GET /api/v1/monitoring/stuck-messages/history",
         "GET /api/v1/system/health",
+        "GET /api/v1/reports/pl/company-summary",
+        "GET /api/v1/reports/pl/monthly/{month}/{year}",
+        "GET /api/v1/reports/pl/bu-head/{bu_id}",
+        "GET /api/v1/reports/pl/partner-dashboard",
+        "GET /api/v1/pnl/health",
     ],
 )
 logger.info("[OK] HRMS-0114 route permission audit passed")
