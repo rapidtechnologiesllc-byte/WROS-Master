@@ -65,6 +65,16 @@ def _initialize_default_handlers():
     except Exception as e:
         logger.error(f"[Registry] Failed to register SLM email generation handler: {e}", exc_info=True)
 
+    # Register SLM training alert handler (CRITICAL FIX - handles SLM failures)
+    try:
+        from app.services.message_handlers.slm_training_alert_handler import SLMTrainingAlertHandler
+        MessageHandlerRegistry.register("slm_training_alert", SLMTrainingAlertHandler.process)
+        logger.info("[Registry] Registered SLM training alert handler")
+    except ImportError as e:
+        logger.warning(f"[Registry] Could not import SLM training alert handler: {e}")
+    except Exception as e:
+        logger.error(f"[Registry] Failed to register SLM training alert handler: {e}", exc_info=True)
+
     # Register email delivery handler (Thunder queue email sending)
     try:
         from app.services.message_handlers.send_email_handler import SendEmailHandler
