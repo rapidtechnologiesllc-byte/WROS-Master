@@ -37,6 +37,7 @@ from app.api.v1.endpoints.api_keys import router as api_keys_router
 from app.api.v1.endpoints.system_health import router as system_health_router
 from app.api.v1.endpoints.monitoring import router as monitoring_router
 from app.api.v1.endpoints.desire_intelligence import router as desire_intelligence_router
+from app.api.v1.endpoints.role_template_modules import router as role_template_modules_router
 
 # Agent State models — imported here so Base.metadata.create_all() finds them
 from app.models import agent_phalanx  # noqa: F401
@@ -521,6 +522,8 @@ app.include_router(queue_monitoring_router)
 app.include_router(business_units_router, prefix="/api/v1")
 # Include RBAC routes with /api/v1 prefix (business units, departments, role management)
 app.include_router(rbac_router, prefix="/api/v1")
+# Include role template modules/resources routes (modules listing for role editor)
+app.include_router(role_template_modules_router)
 # Include career portal routes (career site APIs - job browsing, applications)
 app.include_router(career_portal_router)
 # NOTE: candidate_history_router is registered in routes.py and included via main router
