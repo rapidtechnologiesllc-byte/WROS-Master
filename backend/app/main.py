@@ -164,6 +164,15 @@ async def startup_event():
     start_scheduler()
     logger.info("[OK] Scheduler started")
 
+    # Load M365 OAuth sessions from database (persistence fix)
+    try:
+        logger.info("[Startup] Loading M365 sessions from database...")
+        from app.core.msgraph_session_store import _refresh_cache
+        _refresh_cache()
+        logger.info("[OK] M365 sessions initialized and cached")
+    except Exception as msgraph_err:
+        logger.warning(f"[Startup] M365 session loading failed (mail sync will retry): {msgraph_err}")
+
     # Run DB operations synchronously (not in background thread)
     # This ensures tables exist before app accepts requests
     try:

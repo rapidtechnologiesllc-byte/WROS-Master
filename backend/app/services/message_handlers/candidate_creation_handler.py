@@ -282,6 +282,19 @@ class CandidateCreationHandler:
             candidate_id = candidate.candidateID
             logger.info(f"[Handler] ✅ Candidate flushed: {candidate_id}")
 
+            # S-347/HRMS-P117: Record CANDIDATE_CREATED signal immediately (feeds SLM pipeline)
+            try:
+                from app.services.desire_signal_service import record_message_signal
+                logger.info(f"[Handler] 🔄 Recording CANDIDATE_CREATED signal for {candidate_id}")
+                record_message_signal(
+                    db, tenant_id, candidate_id, "CANDIDATE_CREATED",
+                    f"Candidate {first_name} {last_name} created from {source}"
+                )
+                logger.info(f"[Handler] ✅ CANDIDATE_CREATED signal recorded for {candidate_id}")
+            except Exception as signal_err:
+                logger.error(f"[Handler] ⚠️ Failed to record CANDIDATE_CREATED signal: {signal_err}", exc_info=True)
+                # Don't fail candidate creation if signal recording fails (fire-and-forget pattern)
+
             # BLOCKER #3: Create CandidateConversation for Flash analysis linkage
             from app.models.candidate_ai import CandidateConversation
             try:
