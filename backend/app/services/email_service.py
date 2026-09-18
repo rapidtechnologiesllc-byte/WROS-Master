@@ -445,6 +445,7 @@ class EmailService:
     ) -> None:
         """Notify HR when a candidate accepts or declines an interview invitation."""
         try:
+            from datetime import datetime as _dt
             _start_dt = _dt.fromisoformat(start_time_iso)
             _date_label   = _start_dt.strftime("%d/%m/%Y")
             _time_label   = _start_dt.strftime("%I:%M %p").lstrip("0")
@@ -1519,7 +1520,7 @@ class EmailService:
             }
 
             EmailService._graph_post(
-                "https://graph.microsoft.com/v1.0/me/sendMail",
+                f"https://graph.microsoft.com/v1.0/users/{EmailService.SERVICE_EMAIL}/sendMail",
                 payload,
                 access_token,
             )

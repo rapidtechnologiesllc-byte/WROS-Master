@@ -97,6 +97,11 @@ class GraphServiceAuth:
     def is_configured() -> bool:
         """Check if service account is properly configured"""
         return bool(TENANT_ID and CLIENT_ID and CLIENT_SECRET)
+
+
+def get_graph_token(force_refresh: bool = False) -> str:
+    """Get Microsoft Graph access token (wrapper for EmailService compatibility)"""
+    return GraphServiceAuth.get_access_token(force_refresh=force_refresh)
     
     @staticmethod
     def validate_token(access_token: str) -> bool:

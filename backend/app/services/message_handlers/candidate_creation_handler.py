@@ -532,7 +532,7 @@ Happy exploring!"""
                     except Exception as wa_err:
                         logger.warning(f"[Handler] WhatsApp send error: {wa_err}")
 
-                # Send Email welcome message (fallback)
+                # Queue welcome email (async via message queue)
                 if candidate_email_addr:
                     try:
                         email_subject = "Welcome to Our Recruiting Platform"
@@ -555,20 +555,22 @@ Best regards,
 Recruiting Team
 """
 
-                        email_result = delivery.send_email(
-                            to_email=candidate_email_addr,
-                            subject=email_subject,
-                            body=email_body,
-                            html=True
+                        # Queue email via message queue for async processing
+                        MessageQueueService.enqueue(
+                            task_name='send_email_to_candidate',
+                            task_id=f'welcome-{candidate_id}',
+                            data={
+                                'to_email': candidate_email_addr,
+                                'subject': email_subject,
+                                'body': email_body,
+                                'is_html': True,
+                                'candidate_id': candidate_id,
+                                'email_type': 'WELCOME'
+                            }
                         )
-
-                        if email_result.status == 'failed':
-                            logger.warning(f"[Handler] Email welcome failed: {email_result.error}")
-                        else:
-                            email_delivery_id = email_result.delivery_id
-                            logger.info(f"[Handler] Welcome email sent to {candidate_email_addr}, delivery_id={email_delivery_id}")
+                        logger.info(f"[Handler] ✅ Queued welcome email to {candidate_email_addr} for {candidate_id}")
                     except Exception as email_err:
-                        logger.warning(f"[Handler] Email send error: {email_err}")
+                        logger.warning(f"[Handler] Failed to queue welcome email: {email_err}")
 
             except Exception as delivery_err:
                 logger.warning(f"[Handler] Delivery service error (non-blocking): {delivery_err}")

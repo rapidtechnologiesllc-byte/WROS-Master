@@ -112,7 +112,9 @@ class SendEmailHandler:
                     "email_type": email_type,
                     "candidate_id": candidate_id,
                     "timestamp": datetime.utcnow().isoformat(),
-                    "attachments_sent": result.get("attachments_sent", 0)
+                    "attachments_sent": result.get("attachments_sent", 0),
+                    "message_sent": True,
+                    "delivery_confirmed": True
                 }
             else:
                 # EmailService failed - MUST raise exception so queue processor marks as FAILED/RETRYABLE
