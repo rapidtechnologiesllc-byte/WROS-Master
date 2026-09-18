@@ -202,6 +202,7 @@ def _initialize_rbac():
 
         for role_template in role_templates:
             permissions_granted = 0
+            permissions_fixed = 0
             for resource in resources:
                 perm = db.query(RoleTemplatePermission).filter(
                     RoleTemplatePermission.role_template_id == role_template.id,
@@ -219,12 +220,20 @@ def _initialize_rbac():
                     )
                     db.add(perm)
                     permissions_granted += 1
+                else:
+                    # Ensure existing permissions have full access
+                    if not (perm.can_view and perm.can_create and perm.can_edit and perm.can_delete):
+                        perm.can_view = True
+                        perm.can_create = True
+                        perm.can_edit = True
+                        perm.can_delete = True
+                        permissions_fixed += 1
 
-            if permissions_granted > 0:
-                db.commit()
-                logger.info(f"[Contract] Granted {permissions_granted} permissions to role: {role_template.name}")
+            db.commit()
+            if permissions_granted > 0 or permissions_fixed > 0:
+                logger.info(f"[Contract] Role {role_template.name}: Granted {permissions_granted}, Fixed {permissions_fixed}")
             else:
-                logger.info(f"[Contract] Role {role_template.name} already has all permissions")
+                logger.info(f"[Contract] Role {role_template.name} already has full permissions")
 
     finally:
         db.close()
