@@ -223,6 +223,16 @@ async def startup_event():
         logger.error(f"[Startup] Failed to initialize database contract: {exc}", exc_info=True)
         return  # Don't crash startup, but contract won't be initialized
 
+    # VALIDATE MESSAGE HANDLER REGISTRATION (CRITICAL FIX for missing handlers)
+    # Incident: slm_training_alert missing on 2026-09-14 caused silent failures
+    # Solution: Startup validator catches missing handlers before app serves requests
+    try:
+        from app.core.handler_startup_validator import validate_handlers
+        validate_handlers()
+    except Exception as exc:
+        logger.error(f"[FATAL] Handler startup validation failed: {exc}", exc_info=True)
+        raise RuntimeError(f"Handler validation failed - app cannot start: {exc}")
+
     # GAP #4 FIX: Load Azure credentials from environment variables at startup
     try:
         import os
