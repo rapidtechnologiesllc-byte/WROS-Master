@@ -154,6 +154,13 @@ class CandidateCompleteResponse(BaseModel):
     candidate_expected_salary_type: str | None = None
     # ── Employee type ────────────────────────────────────────────────────────
     candidate_employee_type: str | None = None
+    # ── Recruiter & Business Unit Assignment ──────────────────────────────────
+    assigned_recruiter_id: str | None = None
+    assigned_recruiter_name: str | None = None
+    submission_bu_id: int | None = None
+    submission_bu_name: str | None = None
+    associated_bu_id: int | None = None
+    associated_bu_name: str | None = None
     # ── S-030/HRMS-0430 -- Resume Completeness Score. Denormalized read of
     # candidate.resume_completeness_score (see resume_completeness_service),
     # 0-100 or null if no resume has been parsed yet.

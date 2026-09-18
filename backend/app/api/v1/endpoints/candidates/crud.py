@@ -143,6 +143,20 @@ def _build_candidate_response(
         candidate_employee_type=getattr(candidate, 'candidateEmployeeType', None),
         is_guidewire_candidate=is_guidewire,
         job_id=getattr(candidate, 'job_id', None),
+        # Recruiter & Business Unit Assignment
+        assigned_recruiter_id=getattr(candidate, 'assigned_recruiter_id', None),
+        assigned_recruiter_name=(
+            f"{candidate.assigned_recruiter.FirstName} {candidate.assigned_recruiter.LastName}"
+            if getattr(candidate, 'assigned_recruiter', None) else None
+        ),
+        submission_bu_id=getattr(candidate, 'submission_bu_id', None),
+        submission_bu_name=(
+            candidate.submission_bu.name if getattr(candidate, 'submission_bu', None) else None
+        ),
+        associated_bu_id=getattr(candidate, 'associated_bu_id', None),
+        associated_bu_name=(
+            candidate.associated_bu.name if getattr(candidate, 'associated_bu', None) else None
+        ),
         personal_info=CandidateInfoResponse(
             position=personal_info.position if personal_info else None,
             department=personal_info.department if personal_info else None,
