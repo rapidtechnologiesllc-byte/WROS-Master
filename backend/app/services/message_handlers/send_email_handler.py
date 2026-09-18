@@ -115,18 +115,13 @@ class SendEmailHandler:
                     "attachments_sent": result.get("attachments_sent", 0)
                 }
             else:
-                # EmailService failed
+                # EmailService failed - MUST raise exception so queue processor marks as FAILED/RETRYABLE
+                error_msg = result.get("message", "EmailService failed")
                 logger.error(
                     f"[SendEmailHandler] Email send failed: "
-                    f"to={to_email}, reason={result.get('message')}"
+                    f"to={to_email}, reason={error_msg}"
                 )
-                return {
-                    "status": "failed",
-                    "error": result.get("message", "EmailService failed"),
-                    "method": "graph",
-                    "recipient": to_email,
-                    "timestamp": datetime.utcnow().isoformat()
-                }
+                raise RuntimeError(f"Email delivery failed to {to_email}: {error_msg}")
 
         except Exception as e:
             logger.error(
