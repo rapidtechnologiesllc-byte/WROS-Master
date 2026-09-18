@@ -731,7 +731,7 @@ Recruiting Team
                         candidate_first_name = healed_payload.get("candidate_first_name", "Candidate")
                         candidate_email = healed_payload.get("candidate_email")
                         MessageQueueService.enqueue(
-                            task_name='send_email',
+                            task_name='send_email_to_candidate',
                             channel_type='EMAIL_QUEUE',
                             data={
                                 'candidate_id': candidate_id,
