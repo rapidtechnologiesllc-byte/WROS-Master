@@ -735,10 +735,11 @@ Recruiting Team
                             channel_type='EMAIL_QUEUE',
                             data={
                                 'candidate_id': candidate_id,
-                                'recipient_email': candidate_email,
+                                'to_email': candidate_email,
                                 'email_type': 'FIRST_ENGAGEMENT',
                                 'subject': f'Welcome {candidate_first_name}! Your Application is Received',
                                 'body': f'Hi {candidate_first_name},\n\nThank you for applying! We have received your application and will review it shortly.\n\nBest regards,\nBlitzenX Team',
+                                'is_html': False,
                                 'tenant_id': healed_payload.get('tenant_id', 1),
                             }
                         )
