@@ -311,7 +311,7 @@ def _verify_admin_screen_permissions(db: Session, admin_role: RoleTemplate):
         return
 
     # Admin screen requires these resource permissions
-    required_admin_resources = ["users", "settings"]
+    required_admin_resources = ["users", "settings", "candidates", "jobs", "interviews", "offers"]
 
     for resource_name in required_admin_resources:
         resource = db.query(Resource).filter(Resource.name == resource_name).first()
