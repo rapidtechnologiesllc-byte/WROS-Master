@@ -28,6 +28,7 @@ from app.models.channel_queue import ChannelQueueItem
 from app.services.message_handler_registry import MessageHandlerRegistry
 from app.services.slm_service import SLMService
 from app.services.architect_codebase_learning import ArchitectKnowledgeTeacher
+from app.services.email_retry_strategy import EmailRetryStrategy
 from app.core.logging import logger
 
 logger = logging.getLogger(__name__)
@@ -49,8 +50,6 @@ class QueueProcessorService:
     """Background queue processor - consumes messages and orchestrates handlers + SLM learning"""
 
     # Configuration
-    MAX_RETRIES = 3
-    INITIAL_RETRY_DELAY = 1  # seconds (HIGH FIX #3: Reduced from 5s to 1s, exponential: 1s→2s→4s→8s)
     BATCH_SIZE = 50  # HIGH FIX #11: Increased from 10 to 50 (better throughput, less polling)
     POLL_INTERVAL = 2  # seconds
     HANDLER_TIMEOUT_SECONDS = 30  # Default timeout (HIGH FIX #13: Per-handler timeout mapping below)
@@ -58,8 +57,9 @@ class QueueProcessorService:
     MAX_ERROR_SIZE_BYTES = 10 * 1024  # 10KB max for error field (HIGH FIX #7: Prevent JSON corruption)
     MAX_PAYLOAD_SIZE_BYTES = 10 * 1024 * 1024  # 10MB max payload (PHASE3.6: Prevent JSON parser crash)
 
-    # Exponential backoff multiplier
-    RETRY_BACKOFF_MULTIPLIER = 2
+    # PHASE 2: Retry configuration is now per-handler in EmailRetryStrategy
+    # Email handlers: 6 attempts with 2-4-8-16-32-64s backoff
+    # Other handlers: use defaults from EmailRetryStrategy.DEFAULT_RETRY_CONFIG
 
     # HIGH FIX #13: Per-handler timeout mapping (different handlers need different time)
     # Thunder handlers call external APIs and need more time
@@ -870,74 +870,100 @@ class QueueProcessorService:
                 # Handler failed - check retry logic
                 logger.error(f"[QueueProcessor] Handler failed for {message.type}: {handler_err}", exc_info=True)
 
-                if message.retry_count < QueueProcessorService.MAX_RETRIES:
-                    # Schedule retry with exponential backoff + jitter (HIGH FIX #3: Thundering herd prevention)
-                    base_backoff = (
-                        QueueProcessorService.INITIAL_RETRY_DELAY *
-                        (QueueProcessorService.RETRY_BACKOFF_MULTIPLIER ** message.retry_count)
+                # PHASE 2: Use smart retry strategy with per-handler configs
+                # Check if we should retry (handles non-retryable errors)
+                if EmailRetryStrategy.should_retry(message.type, message.retry_count):
+                    # Calculate next retry delay (handles exponential backoff, Retry-After headers, jitter)
+                    retry_delay_seconds = EmailRetryStrategy.calculate_next_retry_delay(
+                        handler_name=message.type,
+                        retry_count=message.retry_count,
+                        # TODO: Extract Retry-After header from handler response if available
                     )
-                    # Add ±10% jitter to prevent synchronized retries
-                    jitter = random.uniform(0, 0.1 * base_backoff)
-                    backoff_seconds = base_backoff + jitter
-                    message.retry_count += 1
-                    message.next_retry_at = datetime.utcnow() + timedelta(seconds=backoff_seconds)
-                    message.last_attempted_at = datetime.utcnow()  # HIGH FIX #8: Track retry attempt time
-                    message.status = QueueStatus.PENDING.value  # CRITICAL FIX #9: Keep PENDING so retry is picked up
-                    message.result = json.dumps({
-                        "success": False,
-                        "error": QueueProcessorService._truncate_error_string(str(handler_err)),
-                        "retry_count": message.retry_count,
-                        "next_retry_at": message.next_retry_at.isoformat()
-                    })
-                    db.commit()
 
-                    return {
-                        "status": QueueStatus.PENDING.value,  # CRITICAL FIX #9: Return PENDING for retry
-                        "message_id": message.id,
-                        "retry_count": message.retry_count,
-                        "next_retry_at": message.next_retry_at.isoformat(),
-                        "error": str(handler_err)
-                    }
-                else:
-                    # Max retries exceeded - send to dead letter
-                    message.last_attempted_at = datetime.utcnow()  # HIGH FIX #8: Track final attempt time
-                    message.status = QueueStatus.DEAD_LETTER.value
-                    message.result = json.dumps({
-                        "success": False,
-                        "error": QueueProcessorService._truncate_error_string(str(handler_err)),
-                        "max_retries_exceeded": True,
-                        "final_error_at": datetime.utcnow().isoformat()
-                    })
-                    db.commit()
+                    if retry_delay_seconds is not None:
+                        message.retry_count += 1
+                        message.next_retry_at = datetime.utcnow() + timedelta(seconds=retry_delay_seconds)
+                        message.last_attempted_at = datetime.utcnow()  # HIGH FIX #8: Track retry attempt time
+                        message.status = QueueStatus.PENDING.value  # CRITICAL FIX #9: Keep PENDING so retry is picked up
 
-                    # CRITICAL FIX #3: Escalate to manual review with robust error handling
-                    logger.critical(f"[QueueProcessor] Message {message.id} dead-lettered after {message.retry_count} retries: {handler_err}")
-                    try:
-                        # Queue escalation alert for ops team
-                        from app.services.message_queue_service import MessageQueueService as MQS
-                        MQS.enqueue(
-                            task_name='dead_letter_escalation',
-                            task_id=f"escalation_{message.id}",
-                            data={
-                                'dead_letter_message_id': message.id,
-                                'task_type': message.type,
-                                'error': QueueProcessorService._truncate_error_string(str(handler_err)),
-                                'retry_count': message.retry_count,
-                                'created_at': message.created_at.isoformat() if message.created_at else None
-                            }
+                        # Get retry history for logging
+                        retry_history = EmailRetryStrategy.get_retry_history_summary(
+                            message.retry_count - 1,  # -1 because we already incremented
+                            message.type
                         )
-                        logger.info(f"[QueueProcessor] Dead letter escalation queued for {message.id}")
-                    except Exception as esc_err:
-                        # CRITICAL FIX #3: Don't fail if escalation fails - message is already dead-lettered
-                        logger.error(f"[QueueProcessor] Escalation failed (non-blocking): {esc_err}")
-                        # Continue - don't re-raise
 
-                    return {
-                        "status": QueueStatus.DEAD_LETTER.value,
-                        "message_id": message.id,
-                        "retry_count": message.retry_count,
-                        "error": str(handler_err)
-                    }
+                        message.result = json.dumps({
+                            "success": False,
+                            "error": QueueProcessorService._truncate_error_string(str(handler_err)),
+                            "retry_count": message.retry_count,
+                            "next_retry_at": message.next_retry_at.isoformat(),
+                            "retry_delay_seconds": retry_delay_seconds,
+                            "retry_history": retry_history
+                        })
+                        db.commit()
+
+                        logger.info(
+                            f"[QueueProcessor] Message {message.id} scheduled for retry "
+                            f"(attempt {message.retry_count}/{retry_history['max_attempts']}): "
+                            f"retry in {retry_delay_seconds}s"
+                        )
+
+                        return {
+                            "status": QueueStatus.PENDING.value,  # CRITICAL FIX #9: Return PENDING for retry
+                            "message_id": message.id,
+                            "retry_count": message.retry_count,
+                            "next_retry_at": message.next_retry_at.isoformat(),
+                            "retry_delay_seconds": retry_delay_seconds,
+                            "error": str(handler_err)
+                        }
+
+                # Max retries exceeded OR non-retryable error - send to dead letter
+                message.last_attempted_at = datetime.utcnow()  # HIGH FIX #8: Track final attempt time
+                message.status = QueueStatus.DEAD_LETTER.value
+
+                retry_history = EmailRetryStrategy.get_retry_history_summary(message.retry_count, message.type)
+                message.result = json.dumps({
+                    "success": False,
+                    "error": QueueProcessorService._truncate_error_string(str(handler_err)),
+                    "max_retries_exceeded": True,
+                    "final_error_at": datetime.utcnow().isoformat(),
+                    "final_retry_count": message.retry_count,
+                    "retry_history": retry_history
+                })
+                db.commit()
+
+                # CRITICAL FIX #3: Escalate to manual review with robust error handling
+                logger.critical(
+                    f"[QueueProcessor] Message {message.id} dead-lettered after "
+                    f"{message.retry_count} retries: {handler_err}"
+                )
+                try:
+                    # Queue escalation alert for ops team (PHASE 3: dead-letter handling)
+                    from app.services.message_queue_service import MessageQueueService as MQS
+                    MQS.enqueue(
+                        task_name='dead_letter_escalation',
+                        task_id=f"escalation_{message.id}",
+                        data={
+                            'dead_letter_message_id': message.id,
+                            'task_type': message.type,
+                            'error': QueueProcessorService._truncate_error_string(str(handler_err)),
+                            'retry_count': message.retry_count,
+                            'created_at': message.created_at.isoformat() if message.created_at else None,
+                            'retry_history': retry_history
+                        }
+                    )
+                    logger.info(f"[QueueProcessor] Dead letter escalation queued for {message.id}")
+                except Exception as esc_err:
+                    # CRITICAL FIX #3: Don't fail if escalation fails - message is already dead-lettered
+                    logger.error(f"[QueueProcessor] Escalation failed (non-blocking): {esc_err}")
+                    # Continue - don't re-raise
+
+                return {
+                    "status": QueueStatus.DEAD_LETTER.value,
+                    "message_id": message.id,
+                    "retry_count": message.retry_count,
+                    "error": str(handler_err)
+                }
 
         except Exception as e:
             logger.error(f"[QueueProcessor] Unexpected error processing {message.id}: {e}", exc_info=True)
