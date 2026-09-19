@@ -1,69 +1,54 @@
-"""Handler timeout enforcement with threading wrapper.
-
-Prevents queue handlers from hanging indefinitely on slow database operations.
-Raises RuntimeError if handler exceeds timeout threshold.
-"""
-
-import functools
-import threading
+"""Timeout handling for async operations."""
+import asyncio
 import logging
-from typing import Any, Callable
 
 logger = logging.getLogger(__name__)
 
+# Default timeout configurations (in seconds)
+DEFAULT_API_TIMEOUT = 30
+DEFAULT_BULK_TIMEOUT = 60
+DEFAULT_DATABASE_TIMEOUT = 15
 
-class TimeoutError(Exception):
-    """Handler exceeded timeout threshold."""
-    pass
-
-
-def timeout_handler(seconds: int = 30):
-    """
-    Decorator that enforces timeout on queue handler functions.
-
+async def with_timeout(coro, timeout_seconds: int, operation_name: str = "Operation"):
+    """Execute a coroutine with timeout protection.
+    
     Args:
-        seconds: Timeout in seconds (default 30)
-
+        coro: The coroutine to execute
+        timeout_seconds: Timeout in seconds
+        operation_name: Name of operation for logging
+        
+    Returns:
+        Result of the coroutine
+        
     Raises:
-        RuntimeError: If handler exceeds timeout
-
-    Usage:
-        @timeout_handler(30)
-        def handle_candidate_creation(message):
-            # This will timeout after 30 seconds
+        TimeoutError: If operation exceeds timeout
     """
-    def decorator(func: Callable) -> Callable:
-        @functools.wraps(func)
-        def wrapper(*args, **kwargs) -> Any:
-            result = [None]
-            exception = [None]
+    try:
+        return await asyncio.wait_for(coro, timeout=timeout_seconds)
+    except asyncio.TimeoutError:
+        logger.error(
+            f"[TIMEOUT] {operation_name} exceeded {timeout_seconds}s timeout",
+            extra={"timeout_seconds": timeout_seconds, "operation": operation_name}
+        )
+        raise TimeoutError(
+            f"{operation_name} timed out after {timeout_seconds} seconds"
+        )
+    except Exception as e:
+        logger.error(
+            f"[ERROR] {operation_name} failed: {str(e)}",
+            exc_info=True,
+            extra={"operation": operation_name}
+        )
+        raise
 
-            def target():
-                try:
-                    result[0] = func(*args, **kwargs)
-                except Exception as e:
-                    exception[0] = e
+async def api_call_with_timeout(coro, operation_name: str = "API Call"):
+    """Execute an API call with 30-second timeout."""
+    return await with_timeout(coro, DEFAULT_API_TIMEOUT, operation_name)
 
-            # Start handler in thread with timeout
-            thread = threading.Thread(target=target, daemon=False)
-            thread.start()
-            thread.join(timeout=seconds)
+async def bulk_operation_with_timeout(coro, operation_name: str = "Bulk Operation"):
+    """Execute a bulk operation with 60-second timeout."""
+    return await with_timeout(coro, DEFAULT_BULK_TIMEOUT, operation_name)
 
-            # Check if thread is still alive (timeout occurred)
-            if thread.is_alive():
-                logger.error(
-                    f"[TIMEOUT] Handler {func.__name__} exceeded {seconds}s timeout. "
-                    f"Thread still running, marking as failed."
-                )
-                raise RuntimeError(
-                    f"Handler {func.__name__} exceeded {seconds}s timeout"
-                )
-
-            # If exception occurred in thread, re-raise it
-            if exception[0]:
-                raise exception[0]
-
-            return result[0]
-
-        return wrapper
-    return decorator
+async def database_call_with_timeout(coro, operation_name: str = "Database Call"):
+    """Execute a database call with 15-second timeout."""
+    return await with_timeout(coro, DEFAULT_DATABASE_TIMEOUT, operation_name)
