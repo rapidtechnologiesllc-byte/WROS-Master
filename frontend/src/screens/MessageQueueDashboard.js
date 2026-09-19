@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8081';
+
 export default function MessageQueueDashboard() {
   const [workers, setWorkers] = useState([]);
   const [queues, setQueues] = useState([]);
@@ -28,7 +30,7 @@ export default function MessageQueueDashboard() {
 
   const fetchWorkers = () => {
     const token = localStorage.getItem('hrms_token');
-    fetch('http://localhost:8081/api/v1/celery/workers', {
+    fetch(`${API_BASE_URL}/api/v1/celery/workers`, {
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${token}`,
@@ -43,7 +45,7 @@ export default function MessageQueueDashboard() {
 
   const fetchQueues = () => {
     const token = localStorage.getItem('hrms_token');
-    fetch('http://localhost:8081/api/v1/celery/queues', {
+    fetch(`${API_BASE_URL}/api/v1/celery/queues`, {
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${token}`,
@@ -58,7 +60,7 @@ export default function MessageQueueDashboard() {
 
   const fetchStats = () => {
     const token = localStorage.getItem('hrms_token');
-    fetch('http://localhost:8081/api/v1/celery/stats', {
+    fetch(`${API_BASE_URL}/api/v1/celery/stats`, {
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${token}`,
@@ -75,7 +77,7 @@ export default function MessageQueueDashboard() {
 
   const fetchQueueTasks = (queueName) => {
     const token = localStorage.getItem('hrms_token');
-    fetch(`http://localhost:8081/api/v1/celery/queue/${queueName}/tasks`, {
+    fetch(`${API_BASE_URL}/api/v1/celery/queue/${queueName}/tasks`, {
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${token}`,
