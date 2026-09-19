@@ -777,6 +777,19 @@ def approve_job(
     db.commit()
     db.refresh(job)
 
+    # Queue job approval event for FLASH orchestrator
+    MessageQueueService.enqueue(
+        task_name='job_approved_flash',
+        task_id=job_id,
+        data={
+            'job_id': job_id,
+            'job_title': job.jobTitle,
+            'business_unit_id': job.business_unit_id,
+            'approver_id': user.UserID,
+            'approved_at': datetime.now().isoformat()
+        }
+    )
+
     # Assign recruiter and send notifications
     from app.services.job_approval_workflow_service import handle_job_approval
     approval_result = handle_job_approval(db, job, user, send_emails=True)
@@ -857,10 +870,24 @@ def update_job(job_id: str, request: JobUpdateRequest, db: Session = Depends(get
         job.department_id = request.department_id
     if request.salary_range is not None:
         job.salaryRange = request.salary_range
-    
+
     db.commit()
     db.refresh(job)
-    
+
+    # Queue job update event for FLASH orchestrator
+    MessageQueueService.enqueue(
+        task_name='job_updated_flash',
+        task_id=job_id,
+        data={
+            'job_id': job_id,
+            'job_title': job.jobTitle,
+            'business_unit_id': job.business_unit_id,
+            'job_status': job.jobStatus,
+            'updated_by': user.UserID,
+            'updated_at': datetime.now().isoformat()
+        }
+    )
+
     return JobResponse(
         job_id=job.jobID,
         job_title=job.jobTitle,
@@ -913,7 +940,20 @@ def delete_job(job_id: str, db: Session = Depends(get_db), user = Depends(get_cu
     
     db.delete(job)
     db.commit()
-    
+
+    # Queue job deletion event for FLASH orchestrator
+    MessageQueueService.enqueue(
+        task_name='job_deleted_flash',
+        task_id=job_id,
+        data={
+            'job_id': job_id,
+            'job_title': job.jobTitle,
+            'business_unit_id': job.business_unit_id,
+            'deleted_by': user.UserID,
+            'deleted_at': datetime.now().isoformat()
+        }
+    )
+
     return DeleteResponse(
         status="Success",
         message=f"Job with ID {job_id} deleted successfully"
@@ -1144,6 +1184,20 @@ async def apply_for_job(
     db.commit()
     db.refresh(candidate)
 
+    # Queue candidate job application event for FLASH orchestrator
+    MessageQueueService.enqueue(
+        task_name='candidate_job_application_created',
+        task_id=f"{candidate_id}:{job_id}",
+        data={
+            'candidate_id': candidate_id,
+            'candidate_email': candidate.candidateEmail,
+            'candidate_name': f"{candidate.candidateFirstName} {candidate.candidateLastName}".strip(),
+            'job_id': job_id,
+            'job_title': job.jobTitle,
+            'applied_at': datetime.now().isoformat()
+        }
+    )
+
     # 12. Upload resume to SharePoint (if provided)
     #     _upload_document_helper handles validation, Graph token, SP upload,
     #     and CandidateDocument metadata - exactly like the HR upload endpoint.
@@ -1217,6 +1271,21 @@ def assign_candidate_to_job(
     db.commit()
     db.refresh(candidate)
 
+    # Queue candidate assignment event for FLASH orchestrator
+    MessageQueueService.enqueue(
+        task_name='candidate_assigned_to_job',
+        task_id=f"{candidate_id}:{job_id}",
+        data={
+            'candidate_id': candidate_id,
+            'candidate_email': candidate.candidateEmail,
+            'job_id': job_id,
+            'job_title': job.jobTitle,
+            'business_unit_id': job.business_unit_id,
+            'assigned_by': user.UserID,
+            'assigned_at': datetime.now().isoformat()
+        }
+    )
+
     # ── Pool ownership transition ─────────────────────────────────────────────
     # If the job has a BU, candidate moves to BU Owned; otherwise stays Org Pool
     if job.business_unit_id:
@@ -1263,10 +1332,25 @@ def unassign_candidate_from_job(
     candidate = db.query(Candidate).filter(Candidate.candidateID == candidate_id).first()
     if not candidate:
         raise HTTPException(status_code=404, detail=f"Candidate '{candidate_id}' not found")
+
+    job_id_before = candidate.job_id  # Capture for queue event
     candidate.job_id = None
     candidate.candidateJobTitle = None
     db.commit()
     db.refresh(candidate)
+
+    # Queue candidate unassignment event for FLASH orchestrator
+    MessageQueueService.enqueue(
+        task_name='candidate_unassigned_from_job',
+        task_id=f"{candidate_id}:{job_id_before}",
+        data={
+            'candidate_id': candidate_id,
+            'candidate_email': candidate.candidateEmail,
+            'job_id': job_id_before,
+            'unassigned_by': user.UserID,
+            'unassigned_at': datetime.now().isoformat()
+        }
+    )
 
     # ── Pool ownership transition: unassigned -> Org Pool ─────────────────────
     from app.services.candidate_pool_service import set_org_pool
@@ -1386,6 +1470,19 @@ def create_job_application(
     db.commit()
     db.refresh(application)
 
+    # Queue job application event for FLASH orchestrator
+    MessageQueueService.enqueue(
+        task_name='job_application_created',
+        task_id=str(application.id),
+        data={
+            'application_id': application.id,
+            'candidate_id': candidate_id,
+            'job_id': job_id,
+            'application_status': application.application_status,
+            'created_at': datetime.now().isoformat()
+        }
+    )
+
     return JobApplicationEntry(
         id=application.id,
         candidate_id=application.candidate_id,
@@ -1420,8 +1517,22 @@ def remove_job_application(
             detail=f"No assignment found for candidate '{candidate_id}' and job '{job_id}'",
         )
 
+    app_id = application.id  # Capture for queue event
     db.delete(application)
     db.commit()
+
+    # Queue job application removal event for FLASH orchestrator
+    MessageQueueService.enqueue(
+        task_name='job_application_removed',
+        task_id=f"{candidate_id}:{job_id}",
+        data={
+            'application_id': app_id,
+            'candidate_id': candidate_id,
+            'job_id': job_id,
+            'removed_at': datetime.now().isoformat()
+        }
+    )
+
     return {"status": "Success", "message": f"Candidate '{candidate_id}' removed from job '{job_id}'"}
 
 @router.put(
@@ -1451,9 +1562,24 @@ def update_job_application_status(
             detail=f"No assignment found for candidate '{candidate_id}' and job '{job_id}'",
         )
 
+    old_status = application.application_status  # Capture for queue event
     application.application_status = request.application_status
     db.commit()
     db.refresh(application)
+
+    # Queue job application status update event for FLASH orchestrator
+    MessageQueueService.enqueue(
+        task_name='job_application_status_updated',
+        task_id=str(application.id),
+        data={
+            'application_id': application.id,
+            'candidate_id': candidate_id,
+            'job_id': job_id,
+            'old_status': old_status,
+            'new_status': request.application_status,
+            'updated_at': datetime.now().isoformat()
+        }
+    )
 
     job = db.query(Jobs).filter(Jobs.jobID == job_id).first()
     return JobApplicationEntry(
