@@ -11,6 +11,7 @@ from app.core.database import get_db
 from app.core.dependencies import get_current_internal_user, require_resource_permission
 from app.core.logging import logger
 from app.core.rate_limiter import rate_limit
+from app.core.csrf_protection import generate_csrf_token
 from app.services.ai_conversation_service import run_auto_assign_ai_agent_in_background
 from app.services.candidate_service import create_candidate_safe, find_duplicate_candidate, DuplicateCandidateError
 from app.services.message_queue_service import MessageQueueService
@@ -742,7 +743,8 @@ def approve_job(
     job_id: str,
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
-    user = Depends(get_current_internal_user)
+    user = Depends(get_current_internal_user),
+    x_csrf_token: str = Header(None)  # FIX #18: CSRF token validation
 ):
     """
     Approve a pending job posting and make it live.
@@ -761,7 +763,13 @@ def approve_job(
     Raises:
         404: Job not found
         400: Job is not in pending_approval status
+        403: Invalid CSRF token
     """
+    # FIX #18: Validate CSRF token on state-changing operation
+    from app.core.csrf_protection import validate_csrf_token
+    if not x_csrf_token or not validate_csrf_token(x_csrf_token):
+        raise HTTPException(status_code=403, detail="Invalid or missing CSRF token")
+
     job = db.query(Jobs).filter(Jobs.jobID == job_id).first()
     if not job:
         raise HTTPException(
