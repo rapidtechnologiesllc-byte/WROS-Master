@@ -94,16 +94,20 @@ def record_correction(
         }
 
     try:
-        SLMFeedbackEngine.record_correction(
-            db,
-            feedback_session_id=request.feedback_session_id,
-            field_name=request.field_name,
-            parsed_value=request.parsed_value,
-            corrected_value=request.corrected_value,
-            confidence_score=request.confidence_score
-        )
+        from app.services.message_queue_service import MessageQueueService
 
-        db.commit()
+        # Queue through FLASH for async processing (no direct DB modification)
+        MessageQueueService.enqueue(
+            task_name='slm_feedback_correction_recorded',
+            data={
+                'session_id': request.feedback_session_id,
+                'field_name': request.field_name,
+                'parsed': request.parsed_value,
+                'corrected': request.corrected_value,
+                'confidence': request.confidence_score,
+                'user_id': current_user.UserID,
+            }
+        )
 
         # Audit log: SLM access
         log_audit_event(
@@ -157,15 +161,20 @@ def record_validation(
     ```
     """
     try:
-        SLMFeedbackEngine.record_validation(
-            db,
-            feedback_session_id=request.feedback_session_id,
-            field_name=request.field_name,
-            parsed_value=request.value,
-            confidence_score=request.confidence_score
-        )
+        from app.services.message_queue_service import MessageQueueService
 
-        db.commit()
+
+        # Queue through FLASH instead of direct commit
+        MessageQueueService.enqueue(
+            task_name='slm_feedback_validation_recorded',
+            data={
+                'session_id': request.feedback_session_id,
+                'field_name': request.field_name,
+                'value': request.value,
+                'confidence': request.confidence_score,
+                'user_id': current_user.UserID,
+            }
+        )
 
         # Audit log: SLM access
         log_audit_event(
@@ -436,27 +445,36 @@ def bulk_import_corrections(
 
     Returns count of successful imports.
     """
+    from app.services.message_queue_service import MessageQueueService
+
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+
+    if not corrections:
+        return {"status": "completed", "imported": 0, "failed": 0, "total": 0}
+
     imported = 0
     failed = 0
 
     for correction in corrections:
         try:
             if correction.parsed_value != correction.corrected_value:
-                SLMFeedbackEngine.record_correction(
-                    db,
-                    candidate_id=correction.candidate_id,
-                    field_name=correction.field_name,
-                    parsed_value=correction.parsed_value,
-                    corrected_value=correction.corrected_value,
-                    confidence_score=correction.confidence_score
+                # Queue through FLASH for async processing
+                MessageQueueService.enqueue(
+                    task_name='slm_feedback_bulk_correction_recorded',
+                    data={
+                        'field_name': correction.field_name,
+                        'parsed': correction.parsed_value,
+                        'corrected': correction.corrected_value,
+                        'confidence': correction.confidence_score,
+                        'user_id': current_user.UserID,
+                    }
                 )
                 imported += 1
         except Exception as e:
             logger.error(f"Error: {str(e)}", exc_info=True)
             logger.warning(f"Failed to import correction: {e}")
             failed += 1
-
-    db.commit()
 
     return {
         "status": "completed",

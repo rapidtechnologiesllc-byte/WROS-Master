@@ -139,7 +139,7 @@ async def http_exception_handler(request: Request, exc: HTTPException):
     return response
 
 @app.on_event("startup")
-async def startup_event():
+def startup_event():
     """
     Application startup event.
     Creates tables and seeds RBAC data.
@@ -260,8 +260,6 @@ async def startup_event():
                     existing.azure_tenant_id = azure_tenant_id
                     existing.azure_client_id = azure_client_id
                     existing.azure_client_secret = azure_client_secret
-                    db.commit()
-                    logger.info("[OK] Azure credentials updated from environment")
                 else:
                     # Create new config
                     from app.models.api_keys_config import APIKeysConfig
@@ -272,11 +270,16 @@ async def startup_event():
                         azure_client_id=azure_client_id,
                         azure_client_secret=azure_client_secret,
                         is_active=True,
-                        last_tested_status='pending',  # Will be tested next
+                        last_tested_status='pending',
                     )
                     db.add(azure_config)
-                    db.commit()
-                    logger.info("[OK] Azure credentials loaded from environment")
+
+                db.commit()
+                logger.info("[OK] Azure credentials initialized from environment")
+            except Exception as e:
+                logger.error(f"Failed to initialize Azure credentials: {e}", exc_info=True)
+                db.rollback()
+                raise
             finally:
                 db.close()
         else:
@@ -378,7 +381,7 @@ async def startup_event():
         # Run auto-fix in background (don't block startup)
         # FastAPI startup events are already async-capable, but auto-fix is pure-async
         import asyncio
-        result = await orchestrator.execute_auto_fix_cycle_with_slm()
+        result = asyncio.run(orchestrator.execute_auto_fix_cycle_with_slm())
 
         if result["status"] == "complete":
             logger.info(f"[OK] [AUTO-FIX] CYCLE COMPLETE: {result['before']} -> {result['after']} hardcoded checks")
@@ -512,7 +515,7 @@ async def startup_event():
     logger.info(f"[OK] Server running on http://{settings.HOST}:{settings.PORT}")
 
 @app.on_event("shutdown")
-async def shutdown_event():
+def shutdown_event():
     """
     Application shutdown event.
     Cleanup resources and log shutdown.
@@ -625,6 +628,12 @@ assert_all_routes_have_permission_declarations(
         "GET /api/v1/reports/pl/bu-head/{bu_id}",
         "GET /api/v1/reports/pl/partner-dashboard",
         "GET /api/v1/pnl/health",
+        "GET /api/v1/slm/export/performance-scores",
+        "GET /api/v1/slm/export/available-employees",
+        "GET /api/v1/slm/export/utilization-snapshot",
+        "GET /api/v1/slm/export/project-profitability",
+        "GET /api/v1/slm/export/hiring-benchmarks",
+        "GET /api/v1/slm/export/health",
     ],
 )
 logger.info("[OK] HRMS-0114 route permission audit passed")
