@@ -20,7 +20,8 @@ class Users(Base):
     password_reset_required = Column(Boolean, nullable=False, default=True, index=True)  # Force password change on first login
     CreatedAt = Column(DateTime(timezone=False), server_default=func.now())
     # RBAC — single role template per user (replaces UserRole junction table)
-    role_template_id = Column(Integer, ForeignKey("role_templates.id"), nullable=True, index=True)
+    # MANDATORY: Every user must have a role template assigned. Enforced at database level.
+    role_template_id = Column(Integer, ForeignKey("role_templates.id"), nullable=False, index=True)
     business_unit_id = Column(Integer, ForeignKey("business_units.id"), nullable=True, index=True)
     job_title = Column(String(150), nullable=True)  # e.g., "CEO", "Developer", "HR Manager"
     department_id = Column(String(512), ForeignKey("departments.id"), nullable=True, index=True)

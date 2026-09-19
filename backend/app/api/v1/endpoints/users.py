@@ -105,6 +105,8 @@ async def get_me(
                 "email": current_user.UserEmail,
                 "type": "user",
                 "name": current_user.UserName,
+                "tenant_id": tenant_id,
+                "role_template_id": current_user.role_template_id,
             }
         )
 

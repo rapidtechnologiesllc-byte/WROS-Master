@@ -267,10 +267,20 @@ def _initialize_admin_user():
             db.commit()
             logger.info("[Contract] Created admin user: admin@blitzenx.com (password: Admin@123)")
         else:
+            updated = False
+
+            if not admin_user.tenant_id:
+                admin_user.tenant_id = 1
+                updated = True
+                logger.info("[Contract] Updated admin user with default tenant_id=1")
+
             if not admin_user.role_template_id:
                 admin_user.role_template_id = admin_role.id
-                db.commit()
+                updated = True
                 logger.info("[Contract] Assigned Admin role template to existing admin user")
+
+            if updated:
+                db.commit()
             logger.info("[Contract] Admin user verified: admin@blitzenx.com")
 
         # Create or verify superuser (for testing/initialization)
@@ -306,6 +316,23 @@ def _initialize_admin_user():
             db.commit()
             logger.info("[Contract] Created superuser: superuser@blitzenx.com (password: TestUser@123)")
         else:
+            # Update existing superuser if missing tenant_id or role_template_id
+            updated = False
+
+            if not superuser.tenant_id:
+                superuser.tenant_id = 1
+                updated = True
+                logger.info("[Contract] Updated superuser with default tenant_id=1")
+
+            if not superuser.role_template_id:
+                super_admin_role = db.query(RoleTemplate).filter(RoleTemplate.name == "Super Admin").first()
+                if super_admin_role:
+                    superuser.role_template_id = super_admin_role.id
+                    updated = True
+                    logger.info("[Contract] Updated superuser with Super Admin role_template_id")
+
+            if updated:
+                db.commit()
             logger.info("[Contract] Superuser verified: superuser@blitzenx.com")
 
         # Verify admin user has all admin screen permissions
