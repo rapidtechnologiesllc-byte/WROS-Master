@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.dependencies import get_current_internal_user
+from app.core.logging import logger
 from app.models.linkedin_candidate_pipeline import LinkedInCandidatePipeline, LinkedInPipelineStatus
 from app.models.consent import ConsentRecord
 from app.models.user import Users
@@ -239,28 +240,23 @@ async def complete_linkedin_import(
     # Parse URL to get profile info
     profile_slug = parse_linkedin_url(request.linkedin_url)
 
-    # Create Candidate record
-    candidate = Candidate(
-        candidateID=str(uuid4()),
-        candidateFirstName=profile_slug.replace("-", " ").title(),  # Convert slug to name
-        candidateMobile=request.phone_number,
-        linkedin_url=request.linkedin_url,
-        candidateSource="linkedin_import",
-        candidateRole="Candidate",
-        candidatePassword="",  # Required field, set placeholder
-        candidateEmail=f"candidate+{str(uuid4())[:8]}@blitzenx.com"  # Generate temp email
-    )
-    db.add(candidate)
-    db.flush()  # Get the ID before commit
+    # Create Candidate record via THE ONLY sanctioned path (create_candidate)
+    from app.services.candidate_service import create_candidate
 
-    # Record WhatsApp consent
-    consent = ConsentRecord(
-        subject_id=candidate.candidateID,
-        consent_type="whatsapp_outreach",
-        consent_given=True,
-        created_at=datetime.utcnow()
-    )
-    db.add(consent)
+    temp_email = f"candidate+{str(uuid4())[:8]}@blitzenx.com"
+    try:
+        candidate, is_new = create_candidate(
+            db=db,
+            email=temp_email,
+            mobile=request.phone_number,
+            linkedin_url=request.linkedin_url,
+            candidateFirstName=profile_slug.replace("-", " ").title(),
+            candidateSource="linkedin_import",
+            candidateRole="Candidate",
+        )
+    except Exception as e:
+        logger.error(f"[LINKEDIN] Failed to create candidate: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to create candidate: {str(e)}")
 
     # Update pipeline
     pipeline_item.status = LinkedInPipelineStatus.IMPORTED_TO_THUNDER
@@ -269,8 +265,32 @@ async def complete_linkedin_import(
     pipeline_item.imported_at = datetime.utcnow()
     pipeline_item.updated_at = datetime.utcnow()
 
-    db.commit()
-    db.refresh(candidate)
+    try:
+        db.commit()
+    except Exception as e:
+        logger.error(f"[LINKEDIN] Failed to commit pipeline update: {e}", exc_info=True)
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Failed to update pipeline")
+
+    # Queue to Thunder if new candidate
+    if is_new:
+        try:
+            from app.services.message_queue_service import MessageQueueService
+            MessageQueueService.enqueue(
+                task_name='create_candidate',
+                data={
+                    'candidateID': candidate.candidateID,
+                    'email': candidate.candidateEmail,
+                    'phone': candidate.candidateMobile,
+                    'linkedin_url': candidate.linkedin_url,
+                    'source': 'linkedin_import',
+                    'tenant_id': 1
+                }
+            )
+            logger.info(f"[LINKEDIN] Queued candidate {candidate.candidateID} to Thunder")
+        except Exception as e:
+            logger.error(f"[LINKEDIN] Failed to queue candidate: {e}", exc_info=True)
+            # Non-critical - candidate is created, just not queued yet
 
     return {
         "status": "SUCCESS",

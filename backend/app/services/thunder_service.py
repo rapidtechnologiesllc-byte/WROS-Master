@@ -1020,23 +1020,22 @@ def get_or_create_test_candidate(db: Session, current_user: Users) -> Candidate:
         current_user.UserName, fallback=current_user.UserEmail.split("@")[0],
     )
 
-    candidate = Candidate(
-        candidateID=candidate_id,
-        candidateFirstName=first_name,
-        candidateLastName=last_name,
-        candidateEmail=_unique_test_email(db, current_user, candidate_id),
-        candidateMobile=current_user.whatsapp_number or DEFAULT_TEST_MOBILE,
-        candidatePassword=get_password_hash(secrets.token_urlsafe(24)),
-    )
-    db.add(candidate)
-    db.flush()
+    # Create test candidate via THE ONLY sanctioned path (create_candidate)
+    from app.services.candidate_service import create_candidate
 
-    db.add(ConsentRecord(
-        subject_type="candidate", subject_id=candidate_id,
-        consent_type=WHATSAPP_OUTREACH_CONSENT_TYPE, consent_given=True,
-        captured_by="thunder_test_chat_demo_setup",
-    ))
-    db.flush()
+    try:
+        candidate, is_new = create_candidate(
+            db=db,
+            email=_unique_test_email(db, current_user, candidate_id),
+            mobile=current_user.whatsapp_number or DEFAULT_TEST_MOBILE,
+            candidate_id=candidate_id,
+            candidateFirstName=first_name,
+            candidateLastName=last_name,
+        )
+    except Exception as e:
+        logger.error(f"[Thunder Test] Failed to create test candidate: {e}", exc_info=True)
+        raise
+
     return candidate
 
 def get_or_create_test_conversation(db: Session, tenant_id: str) -> CandidateConversation:

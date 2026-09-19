@@ -12,7 +12,7 @@ Two real, pre-existing direct-insert call sites bypassed this rule
 before this module existed: app/api/v1/endpoints/create_job.py's public
 job-application endpoint and app/api/v1/endpoints/onboarding.py's HR
 candidate-creation endpoint. Both are retrofitted to call
-create_candidate_safe() instead of constructing `Candidate(...)`
+create_candidate() instead of constructing `Candidate(...)`
 directly -- the whole point of building this is that no call site keeps
 bypassing it, not just adding an unused "safe" alternative.
 
@@ -89,7 +89,7 @@ def find_duplicate_candidate(
 
     return None, None
 
-def create_candidate_safe(
+def create_candidate(
     db: Session,
     *,
     email: str,
@@ -101,16 +101,17 @@ def create_candidate_safe(
     **fields,
 ) -> Tuple[Candidate, bool]:
     """
-    R-07: the only sanctioned path to create a candidate. Runs dedup check;
-    if duplicate found by email/phone/LinkedIn, returns existing candidate
-    so caller can track as a new job application instead of duplicate rejection.
+    R-07: THE ONLY sanctioned path to create a candidate (enforced).
+    Runs dedup check; if duplicate found by email/phone/LinkedIn, returns
+    existing candidate so caller can track as a new job application instead
+    of duplicate rejection.
 
     Enables Thunder to analyze application patterns: is this person genuinely
     interested (applying to related roles) or randomly applying (unrelated roles)?
 
     Returns: (Candidate object, is_new: bool)
-      - is_new=True: newly created candidate
-      - is_new=False: existing candidate (duplicate match), caller should create job application
+      - is_new=True: newly created candidate, MUST be queued to Thunder
+      - is_new=False: existing candidate (duplicate match), do NOT queue
     """
     existing, matched_on = find_duplicate_candidate(db, email=email, mobile=mobile, linkedin_url=linkedin_url)
     if existing:
@@ -173,6 +174,14 @@ def create_candidate_safe(
         except Exception as e:
             logger.error(f"Failed to create WhatsApp consent record for candidate {candidate_id}: {e}", exc_info=True)
             raise
+
+    # Commit the transaction to persist candidate and consent records to database
+    try:
+        db.commit()
+    except Exception as e:
+        logger.error(f"Error committing candidate {candidate_id} to database: {e}", exc_info=True)
+        db.rollback()
+        raise
 
     return candidate, True  # Return (candidate, is_new=True) for new candidates
 

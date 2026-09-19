@@ -106,42 +106,43 @@ def create_candidate_lightweight(
 
         email_normalized = email.lower().strip()
 
-        # Idempotency check: Does candidate already exist?
-        existing = db.query(Candidate).filter(
-            Candidate.candidateEmail == email_normalized,
-            Candidate.tenant_id == tenant_id,
-        ).first()
+        # Create candidate via THE ONLY sanctioned path (create_candidate)
+        from app.services.candidate_service import create_candidate
 
-        if existing:
-            logger.info(f"[IDEMPOTENCY] Candidate {email_normalized} already exists")
-            return existing, existing.candidateID, {
-                "status": "already_exists",
-                "candidate_id": existing.candidateID,
-                "message": "Candidate already exists",
-            }
+        try:
+            candidate, is_new = create_candidate(
+                db=db,
+                email=email_normalized,
+                mobile=mobile.strip() if mobile else None,
+                candidate_id=None,
+                tenant_id=tenant_id,
+                candidateFirstName=first_name.strip(),
+                candidateLastName=last_name.strip(),
+                candidateSource=source,
+                candidateCreatedAt=datetime.utcnow(),
+                # Upload state
+                upload_status=CandidateUploadState.CREATED.value,
+                expected_document_count=expected_document_count,
+                actual_document_count=0,
+                upload_locked=False,
+                upload_started_at=datetime.utcnow(),
+            )
 
-        # Create candidate record
-        candidate = Candidate(
-            candidateEmail=email_normalized,
-            candidateFirstName=first_name.strip(),
-            candidateLastName=last_name.strip(),
-            candidateMobile=mobile.strip() if mobile else None,
-            candidateSource=source,
-            tenant_id=tenant_id,
-            candidateCreatedAt=datetime.utcnow(),
-            # Upload state
-            upload_status=CandidateUploadState.CREATED.value,
-            expected_document_count=expected_document_count,
-            actual_document_count=0,
-            upload_locked=False,
-            upload_started_at=datetime.utcnow(),
-        )
+            if not is_new:
+                # Duplicate found
+                logger.info(f"[IDEMPOTENCY] Candidate {email_normalized} already exists")
+                return candidate, candidate.candidateID, {
+                    "status": "already_exists",
+                    "candidate_id": candidate.candidateID,
+                    "message": "Candidate already exists",
+                }
 
-        db.add(candidate)
-        db.flush()  # Get the ID
-        candidate_id = candidate.candidateID
+            candidate_id = candidate.candidateID
+        except Exception as e:
+            logger.error(f"[CREATE] Failed to create candidate {email_normalized}: {e}", exc_info=True)
+            raise
 
-        # Create initial status record
+        # Create initial status record (candidate already committed by create_candidate())
         try:
             from app.models.candidate_status import CandidateStatus
 
@@ -159,12 +160,10 @@ def create_candidate_lightweight(
                     tenant_id=tenant_id,
                 )
                 db.add(status)
-
-            # Commit atomically
-            db.commit()
+                db.commit()
         except Exception as e:
             db.rollback()
-            logger.error(f"[CREATE] Failed to commit candidate {email_normalized}: {e}", exc_info=True)
+            logger.error(f"[CREATE] Failed to create status for candidate {email_normalized}: {e}", exc_info=True)
             raise
 
         record_metric("candidates_created_total")

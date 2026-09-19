@@ -16,7 +16,7 @@ from app.core.rate_limiter import rate_limit
 from app.services.message_queue_service import MessageQueueService
 from app.services.ai_conversation_service import run_auto_assign_ai_agent_in_background
 from app.services.candidate_service import (
-    create_candidate_safe,
+    create_candidate,
     DuplicateCandidateError,
     parse_experience_to_months,
 )
@@ -260,7 +260,7 @@ def create_candidate(request: CandidateCreateRequest, db: Session = Depends(get_
             raise HTTPException(status_code=400, detail="Invalid phone format")
 
         # Use the safe candidate creation function that checks for duplicates
-        candidate, is_new = create_candidate_safe(
+        candidate, is_new = create_candidate(
             db=db,
             email=request.candidate_email,
             mobile=request.candidate_mobile,
@@ -279,7 +279,33 @@ def create_candidate(request: CandidateCreateRequest, db: Session = Depends(get_
             candidateExpectedSalary=request.candidate_expected_salary,
         )
 
-        logger.info(f"[CreateCandidate] Created candidate {candidate.candidateID} (email: {candidate.candidateEmail})")
+        logger.info(f"[CreateCandidate] Created candidate {candidate.candidateID} (email: {candidate.candidateEmail}), is_new={is_new}")
+
+        # Queue the candidate for Thunder autonomous journey
+        if is_new:
+            logger.info(f"[CreateCandidate] is_new=True, attempting to enqueue candidate {candidate.candidateID}")
+            try:
+                logger.info(f"[CreateCandidate] About to call MessageQueueService.enqueue() for {candidate.candidateID}")
+                message_id = MessageQueueService.enqueue(
+                    task_name='create_candidate',
+                    data={
+                        'candidate_id': candidate.candidateID,
+                        'email': candidate.candidateEmail,
+                        'first_name': candidate.candidateFirstName,
+                        'last_name': candidate.candidateLastName,
+                        'job_title': candidate.job_title,
+                        'mobile': candidate.candidateMobile,
+                        'gender': candidate.gender,
+                        'location': candidate.candidateCurrentLocation,
+                    }
+                )
+                logger.info(f"[CreateCandidate] SUCCESS: Queued candidate {candidate.candidateID} to Thunder: {message_id}")
+            except Exception as e:
+                logger.error(f"[CreateCandidate] EXCEPTION in enqueue: {e}", exc_info=True)
+                logger.error(f"[CreateCandidate] Failed to queue candidate {candidate.candidateID}: {e}", exc_info=True)
+                # Don't fail the endpoint if queueing fails - candidate is already created
+        else:
+            logger.info(f"[CreateCandidate] is_new=False, NOT enqueueing (duplicate candidate)")
 
         return CandidateCreateResponse(
             candidate_id=candidate.candidateID,

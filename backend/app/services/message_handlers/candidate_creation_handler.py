@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 from app.core.logging import logger
 from app.models.channel_queue import ChannelQueueItem
 from app.models.candidate import Candidate, CandidateStatus, CandidateEducationForm, CandidateExperienceForm
-from app.services.candidate_service import create_candidate_safe, DuplicateCandidateError
+from app.services.candidate_service import create_candidate, DuplicateCandidateError
 from app.services.data_healer_service import DataHealerService
 from app.services.message_queue_service import MessageQueueService
 from app.services.message_handlers.base_message_handler import time_bound
@@ -100,63 +100,42 @@ class CandidateCreationHandler:
                 logger.error(f"[Handler] Invalid tenant_id after conversion: {tenant_id} (from {raw_tenant_id})")
                 raise ValueError(f"Invalid tenant_id: {tenant_id}")
 
-            # Generate password if not provided (UI forms don't always send passwords)
-            from app.utils.uniq_id_generator import generate_password
-            from app.core.security import get_password_hash
+            # Create candidate via THE ONLY sanctioned path (create_candidate)
+            from app.services.candidate_service import create_candidate
 
-            candidate_password = payload.get("candidate_password")
-            if not candidate_password:
-                # Auto-generate temporary password for UI-created candidates
-                plain_password = generate_password()
-                candidate_password = get_password_hash(plain_password)
-                logger.info(f"[Handler] Generated temporary password for {candidate_email}")
-
-            # Use candidate_id from payload if provided, otherwise generate new one
-            final_candidate_id = payload.get("candidate_id") or candidate_id_generator()
-            logger.info(f"[Handler] Using candidate_id={final_candidate_id} (from_payload={bool(payload.get('candidate_id'))})")
-
-            candidate = Candidate(
-                candidateID=final_candidate_id,
-                candidateEmail=candidate_email,
-                candidateMobile=payload.get("candidate_mobile"),
-                candidatePassword=candidate_password,  # Hashed password (generated if not provided)
-                candidateRole=payload.get("candidate_role", "Candidate"),
-                candidateEmployeeType=payload.get("candidate_employee_type"),
-                candidateFirstName=payload.get("candidate_first_name"),
-                candidateMiddleName=payload.get("candidate_middle_name"),
-                candidateLastName=payload.get("candidate_last_name"),
-                candidateGender=payload.get("candidate_gender"),
-                candidateDateOfBirth=payload.get("candidate_date_of_birth"),
-                candidateCurrentLocation=payload.get("candidate_current_location"),
-                candidateSource=payload.get("candidate_source"),
-                candidateExperience=payload.get("candidate_experience"),
-                candidateSkills=payload.get("candidate_skills"),
-                candidateJoiningDate=payload.get("candidate_joining_date"),
-                candidateExpectedSalary=payload.get("candidate_expected_salary"),
-                candidateCurrentSalary=payload.get("candidate_current_salary"),
-                candidateCreatedAt=datetime.now(),
-                tenant_id=tenant_id,  # ✅ Assign tenant_id from payload
-            )
-
-            # Check for duplicates: EMAIL OR PHONE (Either matches = duplicate)
-            # This handles scenarios where same person applies with updated contact info
-            is_new = True
             candidate_mobile = payload.get("candidate_mobile")
-
-            # Build query: Match by email OR phone
-            query = db.query(Candidate).filter(Candidate.candidateEmail == candidate_email)
-            if candidate_mobile:
-                from sqlalchemy import or_
-                query = db.query(Candidate).filter(
-                    or_(
-                        Candidate.candidateEmail == candidate_email,
-                        Candidate.candidateMobile == candidate_mobile
-                    )
+            try:
+                candidate, is_new = create_candidate(
+                    db=db,
+                    email=candidate_email,
+                    mobile=candidate_mobile,
+                    linkedin_url=payload.get("candidate_linkedin_url"),
+                    candidate_id=payload.get("candidate_id"),  # Use provided ID if available
+                    plain_password=payload.get("candidate_password"),  # Use provided or auto-generate
+                    tenant_id=tenant_id,
+                    candidateRole=payload.get("candidate_role", "Candidate"),
+                    candidateEmployeeType=payload.get("candidate_employee_type"),
+                    candidateFirstName=payload.get("candidate_first_name"),
+                    candidateMiddleName=payload.get("candidate_middle_name"),
+                    candidateLastName=payload.get("candidate_last_name"),
+                    candidateGender=payload.get("candidate_gender"),
+                    candidateDateOfBirth=payload.get("candidate_date_of_birth"),
+                    candidateCurrentLocation=payload.get("candidate_current_location"),
+                    candidateSource=payload.get("candidate_source"),
+                    candidateExperience=payload.get("candidate_experience"),
+                    candidateSkills=payload.get("candidate_skills"),
+                    candidateJoiningDate=payload.get("candidate_joining_date"),
+                    candidateExpectedSalary=payload.get("candidate_expected_salary"),
+                    candidateCurrentSalary=payload.get("candidate_current_salary"),
+                    candidateCreatedAt=datetime.now(),
                 )
+            except Exception as e:
+                logger.error(f"[Handler] Failed to create candidate: {e}", exc_info=True)
+                raise
 
-            existing = query.first()
-            if existing:
-                is_new = False
+            # For duplicates, apply field merges (update existing with fresh data)
+            if not is_new:
+                existing = candidate
                 candidate_id_existing = existing.candidateID
 
                 # Determine which field matched (email or phone)
@@ -674,7 +653,7 @@ Recruiting Team
                 logger.info(f"[Handler] Healer fixed issues, retrying with healed payload")
                 # Retry with healed payload (may use placeholders)
                 try:
-                    candidate, is_new = create_candidate_safe(
+                    candidate, is_new = create_candidate(
                         db,
                         email=healed_payload.get("candidate_email"),
                         mobile=healed_payload.get("candidate_mobile"),

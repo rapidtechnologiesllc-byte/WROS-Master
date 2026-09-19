@@ -622,10 +622,7 @@ def _create_candidate_with_consent(
     Returns:
         Created Candidate object
     """
-    from app.core.security import get_password_hash
-
-    candidate_id = str(uuid.uuid4())
-    email = enriched_data.get('email') or f"linkedin_{candidate_id[:8]}@temp.blitzenx.local"
+    email = enriched_data.get('email') or f"linkedin_{str(uuid.uuid4())[:8]}@temp.blitzenx.local"
     phone = enriched_data.get('phone')
     name = enriched_data.get('name', 'LinkedIn Candidate')
 
@@ -634,42 +631,28 @@ def _create_candidate_with_consent(
     first_name = name_parts[0] if len(name_parts) > 0 else "LinkedIn"
     last_name = name_parts[1] if len(name_parts) > 1 else "Candidate"
 
-    candidate = Candidate(
-        candidateID=candidate_id,
-        candidateFirstName=first_name,
-        candidateLastName=last_name,
-        candidateEmail=email,
-        candidateMobile=phone,
-        candidateSource="LinkedIn",
-        candidateJobTitle=enriched_data.get('title'),
-        linkedin_url=linkedin_url,
-        candidatePassword=get_password_hash("TempPassword123!"),  # Temporary password
-        candidateIsVerified=True,
-        candidateRole="Candidate",
-        # New fields for LinkedIn import tracking
-        # (These would be added to Candidate model: source_linkedin_imported_at, linkedin_import_path)
-    )
+    # Create via THE ONLY sanctioned path (create_candidate enforces dedup + queue + consent)
+    from app.services.candidate_service import create_candidate
 
-    db.add(candidate)
-    db.flush()  # Get ID in transaction
-
-    # Record consent for WhatsApp
     try:
-        from app.models.consent import ConsentRecord
-
-        consent = ConsentRecord(
-            candidate_id=candidate_id,
-            consent_type="whatsapp_outreach",
-            given=True,
-            given_at=datetime.utcnow(),
-            source="linkedin_import",
+        candidate, is_new = create_candidate(
+            db=db,
+            email=email,
+            mobile=phone,
+            linkedin_url=linkedin_url,
+            candidateFirstName=first_name,
+            candidateLastName=last_name,
+            candidateSource="LinkedIn",
+            candidateJobTitle=enriched_data.get('title'),
+            candidateIsVerified=True,
+            candidateRole="Candidate",
         )
-        db.add(consent)
     except Exception as e:
-        logger.warning(f"Failed to record consent: {e}")
+        logger.error(f"Failed to create candidate from LinkedIn: {e}", exc_info=True)
+        raise
 
     logger.info(
-        f"Created candidate {candidate_id}: {first_name} {last_name} "
+        f"Created candidate {candidate.candidateID}: {first_name} {last_name} "
         f"({email}) via {import_path} path"
     )
 

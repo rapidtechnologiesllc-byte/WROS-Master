@@ -55,33 +55,36 @@ async def create_upload_session(
                 "expected_documents": expected_document_count,
             }
 
-        # Create new candidate
-        # Defensive check: ensure candidate doesn't already exist (redundant with earlier check, but required for safety)
-        duplicate_check = db.query(Candidate).filter(
-            Candidate.candidateEmail == email.lower()
-        ).first()
-        if duplicate_check:
-            raise HTTPException(status_code=409, detail="Candidate already exists")
+        # Create new candidate via the ONLY authorized path (create_candidate enforces dedup + queue)
+        from app.services.candidate_service import create_candidate
 
-        candidate = Candidate(
-            candidateEmail=email.lower(),
-            candidateFirstName=first_name,
-            candidateLastName=last_name,
-            candidateCreatedAt=datetime.utcnow(),
-            upload_status="uploading",
-            expected_document_count=expected_document_count,
-            actual_document_count=0,
-            upload_started_at=datetime.utcnow(),
-        )
-
-        db.add(candidate)
-        db.flush()
-        candidate_id = candidate.candidateID
         try:
-            db.commit()
+            candidate, is_new = create_candidate(
+                db=db,
+                email=email.lower(),
+                candidateFirstName=first_name,
+                candidateLastName=last_name,
+                candidateCreatedAt=datetime.utcnow(),
+                upload_status="uploading",
+                expected_document_count=expected_document_count,
+                actual_document_count=0,
+                upload_started_at=datetime.utcnow(),
+            )
+
+            if not is_new:
+                # Duplicate detected, return existing candidate
+                logger.info(f"[UPLOAD] Candidate already exists: {email}")
+                return {
+                    "status": "exists",
+                    "candidate_id": candidate.candidateID,
+                    "session_token": f"session_{candidate.candidateID}",
+                    "expected_documents": expected_document_count,
+                }
+
+            candidate_id = candidate.candidateID
         except Exception as e:
             db.rollback()
-            logger.error(f"[UPLOAD] Failed to commit candidate creation: {e}", exc_info=True)
+            logger.error(f"[UPLOAD] Failed to create candidate: {e}", exc_info=True)
             raise HTTPException(status_code=500, detail=f"Failed to create session: {str(e)}")
 
         logger.info(f"[UPLOAD] Created candidate: {candidate_id} ({email})")

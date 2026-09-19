@@ -66,34 +66,32 @@ class ReferralSubmissionHandler:
                 f"referrer={referrer_user_id}, candidate={candidate_email}"
             )
 
-            # PHASE 1: Check if candidate already exists (by email)
-            from app.models.candidate import Candidate
+            # PHASE 1: Create or get candidate via THE ONLY sanctioned path (create_candidate)
+            from app.services.candidate_service import create_candidate
 
-            candidate = db.query(Candidate).filter(
-                Candidate.candidateEmail == candidate_email
-            ).first()
+            name_parts = candidate_name.split() if candidate_name else ['Unknown']
+            first_name = name_parts[0] if len(name_parts) > 0 else 'Unknown'
+            last_name = name_parts[-1] if len(name_parts) > 1 else ''
 
-            is_new_candidate = False
-
-            if not candidate:
-                # Create new candidate from referral
-                candidate = Candidate(
-                    candidateFirstName=candidate_name.split()[0] if candidate_name else 'Unknown',
-                    candidateLastName=candidate_name.split()[-1] if len(candidate_name.split()) > 1 else '',
-                    candidateEmail=candidate_email,
-                    candidateMobile=payload.get('candidate_phone', ''),
+            try:
+                candidate, is_new_candidate = create_candidate(
+                    db=db,
+                    email=candidate_email,
+                    mobile=payload.get('candidate_phone', '') or None,
+                    candidate_id=None,
+                    tenant_id=payload.get('tenant_id'),
+                    candidateFirstName=first_name,
+                    candidateLastName=last_name,
                     candidateStatus='REFERRED',
-                    tenantID=payload.get('tenant_id'),
-                    created_at=datetime.utcnow(),
                     created_by=referrer_user_id
                 )
-                db.add(candidate)
-                db.flush()
-                is_new_candidate = True
-                logger.info(f"[ReferralSubmission] Created new candidate from referral")
-
-            else:
-                logger.info(f"[ReferralSubmission] Linked to existing candidate")
+                if is_new_candidate:
+                    logger.info(f"[ReferralSubmission] Created new candidate from referral")
+                else:
+                    logger.info(f"[ReferralSubmission] Linked to existing candidate")
+            except Exception as e:
+                logger.error(f"[ReferralSubmission] Failed to create candidate: {e}", exc_info=True)
+                raise
 
             # PHASE 2: Create Referral record
             from app.models.referral import Referral
