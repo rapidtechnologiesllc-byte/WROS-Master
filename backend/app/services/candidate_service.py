@@ -175,13 +175,9 @@ def create_candidate(
             logger.error(f"Failed to create WhatsApp consent record for candidate {candidate_id}: {e}", exc_info=True)
             raise
 
-    # Commit the transaction to persist candidate and consent records to database
-    try:
-        db.commit()
-    except Exception as e:
-        logger.error(f"Error committing candidate {candidate_id} to database: {e}", exc_info=True)
-        db.rollback()
-        raise
+    # DO NOT COMMIT HERE - Let the caller decide when to commit based on downstream success
+    # (e.g., message queue enqueue). This prevents orphaned candidates if queueing fails.
+    # Session is left open with pending changes; caller is responsible for commit/rollback.
 
     return candidate, True  # Return (candidate, is_new=True) for new candidates
 

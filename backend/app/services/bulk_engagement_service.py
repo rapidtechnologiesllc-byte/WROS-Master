@@ -118,6 +118,16 @@ def import_candidates_from_csv(db: Session, csv_text: str, recruiter_id: str, te
             logger.error(f"[BulkEngagement] Row {index} import failed: {exc}")
             errors.append({"row": index, "reason": str(exc)})
 
+    # Commit all imported candidates (create_candidate() does NOT commit)
+    if imported_candidate_ids:
+        try:
+            db.commit()
+            logger.info(f"[BulkEngagement] Committed {len(imported_candidate_ids)} candidates to database")
+        except Exception as e:
+            db.rollback()
+            logger.error(f"[BulkEngagement] Failed to commit imported candidates: {e}", exc_info=True)
+            raise
+
     return {
         "imported": len(imported_candidate_ids), "skipped_duplicates": skipped_duplicates,
         "errors": errors, "candidate_ids": imported_candidate_ids,

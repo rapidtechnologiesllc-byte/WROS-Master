@@ -75,6 +75,7 @@ class CandidateCreateResponse(BaseModel):
     candidate_is_first_time: bool
     candidate_password: str
     is_new: bool = False
+    message_id: Optional[str] = None  # Queue message ID - only set if successfully queued
 
 # GET candidate schemas
 class CandidateEducationResponse(BaseModel):

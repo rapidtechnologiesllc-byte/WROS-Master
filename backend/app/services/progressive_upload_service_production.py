@@ -138,11 +138,21 @@ def create_candidate_lightweight(
                 }
 
             candidate_id = candidate.candidateID
+
+            # Commit candidate creation (create_candidate() does NOT commit)
+            try:
+                db.commit()
+                logger.info(f"[CREATE] Committed candidate {candidate_id}")
+            except Exception as e:
+                db.rollback()
+                logger.error(f"[CREATE] Failed to commit candidate {candidate_id}: {e}", exc_info=True)
+                raise
+
         except Exception as e:
             logger.error(f"[CREATE] Failed to create candidate {email_normalized}: {e}", exc_info=True)
             raise
 
-        # Create initial status record (candidate already committed by create_candidate())
+        # Create initial status record
         try:
             from app.models.candidate_status import CandidateStatus
 

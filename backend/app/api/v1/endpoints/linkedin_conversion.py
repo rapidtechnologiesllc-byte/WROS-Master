@@ -145,12 +145,22 @@ async def convert_linkedin_auto(
     - 500: Apollo MCP not configured or unexpected error
     """
     try:
-        # Call fast path conversion
+        # Call fast path conversion (returns candidate without committing)
         candidate, metadata = await convert_linkedin_to_candidate_auto(
             db,
             request.linkedin_url,
             current_user=current_user,
         )
+
+        # Commit after successful conversion and queueing
+        try:
+            db.commit()
+        except Exception as e:
+            db.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Failed to persist candidate: {str(e)}",
+            )
 
         return LinkedInConvertAutoResponse(
             status=metadata.get('status', 'SUCCESS'),
