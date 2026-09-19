@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.dependencies import get_current_internal_user, require_resource_permission
 from app.core.logging import logger
+from app.core.rate_limiter import rate_limit
 from app.services.ai_conversation_service import run_auto_assign_ai_agent_in_background
 from app.services.candidate_service import create_candidate_safe, find_duplicate_candidate, DuplicateCandidateError
 from app.services.message_queue_service import MessageQueueService
@@ -555,6 +556,7 @@ def get_job_by_id(
     response_model=JobCreateResponse,
     dependencies=[Depends(require_resource_permission("jobs", "create"))],
 )
+@rate_limit(500)  # FIX #17: 500 requests/min for job creation
 def create_job(request: JobCreateRequest, background_tasks: BackgroundTasks, db: Session = Depends(get_db), user = Depends(get_current_internal_user)):
     """
     Create a new job posting.

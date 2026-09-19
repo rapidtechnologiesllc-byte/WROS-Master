@@ -12,6 +12,7 @@ import time
 import app.schemas as schema
 from app.core.database import get_db
 from app.core.logging import logger
+from app.core.rate_limiter import rate_limit
 from app.services.message_queue_service import MessageQueueService
 from app.services.ai_conversation_service import run_auto_assign_ai_agent_in_background
 from app.services.candidate_service import (
@@ -220,6 +221,7 @@ def _build_candidate_response(
     response_model=CandidateCreateResponse,
     dependencies=[Depends(require_role_template_permission("candidates", "can_create"))]
 )
+@rate_limit(500)  # FIX #17: 500 requests/min for candidate creation
 def create_candidate(request: CandidateCreateRequest, db: Session = Depends(get_db), user = Depends(get_current_user)):
     """
     Create a new candidate with basic information.
