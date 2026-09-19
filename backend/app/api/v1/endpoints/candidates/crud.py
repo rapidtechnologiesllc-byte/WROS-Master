@@ -259,88 +259,65 @@ def create_candidate_endpoint(request: CandidateCreateRequest, db: Session = Dep
         if not _is_valid_phone(request.candidate_mobile):
             raise HTTPException(status_code=400, detail="Invalid phone format")
 
-        # Use the safe candidate creation function that checks for duplicates (from service layer)
-        # NOTE: create_candidate_service does NOT commit - it returns pending changes
-        from app.services.candidate_service import create_candidate as create_candidate_service
-        candidate, is_new = create_candidate_service(
-            db=db,
+        # QUEUE-DRIVEN: Endpoint validates & queues only. Handler creates candidate & commits.
+        # Step 1: Check for duplicates (validation only, no create)
+        from app.services.candidate_service import find_duplicate_candidate
+        duplicate = find_duplicate_candidate(
+            db,
             email=request.candidate_email,
-            mobile=request.candidate_mobile,
-            candidateFirstName=request.candidate_first_name,
-            candidateMiddleName=request.candidate_middle_name,
-            candidateLastName=request.candidate_last_name,
-            candidateJobTitle=request.candidate_job_title,
-            candidateGender=request.candidate_gender,
-            candidateDateOfBirth=request.candidate_date_of_birth,
-            candidateSource=request.candidate_source,
-            candidateExperience=request.candidate_experience,
-            candidateSkills=_serialize_skills(request.candidate_skills),
-            candidateJoiningDate=request.candidate_joining_date,
-            candidateCurrentLocation=request.candidate_current_location,
-            candidateCurrentSalary=request.candidate_current_salary,
-            candidateExpectedSalary=request.candidate_expected_salary,
+            phone=request.candidate_mobile,
+            linkedin_url=None
         )
 
-        logger.info(f"[CreateCandidate] Created candidate {candidate.candidateID} (email: {candidate.candidateEmail}), is_new={is_new}")
+        if duplicate:
+            logger.warning(f"[CreateCandidate] Duplicate: {duplicate.candidateID}")
+            raise HTTPException(status_code=409, detail=f"Candidate already exists: {duplicate.candidateEmail}")
 
-        # Queue the candidate for Thunder autonomous journey
+        # Step 2: Generate ID (needed for queue message)
+        from app.utils.uniq_id_generator import candidate_id_generator
+        candidate_id = candidate_id_generator()
+
+        # Step 3: Queue message - handler creates candidate & commits
         message_id = None
-        if is_new:
-            logger.info(f"[CreateCandidate] is_new=True, attempting to enqueue candidate {candidate.candidateID}")
-            try:
-                logger.info(f"[CreateCandidate] About to call MessageQueueService.enqueue() for {candidate.candidateID}")
-                message_id = MessageQueueService.enqueue(
-                    task_name='create_candidate',
-                    data={
-                        'candidate_id': candidate.candidateID,
-                        'email': candidate.candidateEmail,
-                        'first_name': candidate.candidateFirstName,
-                        'last_name': candidate.candidateLastName,
-                        'job_title': candidate.candidateJobTitle or '',
-                        'mobile': candidate.candidateMobile,
-                        'gender': candidate.candidateGender or '',
-                        'location': candidate.candidateCurrentLocation or '',
-                    }
-                )
-                logger.info(f"[CreateCandidate] SUCCESS: Queued candidate {candidate.candidateID} to Thunder: {message_id}")
+        try:
+            message_id = MessageQueueService.enqueue(
+                task_name='create_candidate',
+                data={
+                    'candidate_id': candidate_id,
+                    'candidate_email': request.candidate_email,
+                    'candidate_first_name': request.candidate_first_name,
+                    'candidate_middle_name': request.candidate_middle_name,
+                    'candidate_last_name': request.candidate_last_name,
+                    'candidate_job_title': request.candidate_job_title,
+                    'candidate_mobile': request.candidate_mobile,
+                    'candidate_gender': request.candidate_gender,
+                    'candidate_date_of_birth': request.candidate_date_of_birth.isoformat() if request.candidate_date_of_birth else None,
+                    'candidate_source': request.candidate_source,
+                    'candidate_experience': request.candidate_experience,
+                    'candidate_skills': _serialize_skills(request.candidate_skills),
+                    'candidate_joining_date': request.candidate_joining_date.isoformat() if request.candidate_joining_date else None,
+                    'candidate_current_location': request.candidate_current_location,
+                    'candidate_current_salary': request.candidate_current_salary,
+                    'candidate_expected_salary': request.candidate_expected_salary,
+                }
+            )
+            logger.info(f"[CreateCandidate] ✅ Queued {candidate_id}: message={message_id}")
 
-                # ONLY COMMIT if enqueue succeeded - prevents orphaned candidates
-                try:
-                    db.commit()
-                    logger.info(f"[CreateCandidate] COMMITTED candidate {candidate.candidateID} to database after successful enqueue")
-                except Exception as e:
-                    logger.error(f"[CreateCandidate] Failed to commit after successful enqueue: {e}", exc_info=True)
-                    db.rollback()
-                    raise HTTPException(status_code=500, detail=f"Failed to persist candidate after queueing: {str(e)}")
+        except Exception as e:
+            logger.error(f"[CreateCandidate] Failed to queue: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail=f"Failed to queue candidate: {str(e)}")
 
-            except HTTPException:
-                db.rollback()
-                raise
-            except Exception as e:
-                logger.error(f"[CreateCandidate] Failed to queue candidate {candidate.candidateID}: {e}", exc_info=True)
-                db.rollback()
-                raise HTTPException(status_code=500, detail=f"Failed to queue candidate for processing: {str(e)}")
-        else:
-            logger.info(f"[CreateCandidate] is_new=False, NOT enqueueing (duplicate candidate)")
-            # Commit duplicate candidates that weren't queued
-            try:
-                db.commit()
-            except Exception as e:
-                logger.error(f"[CreateCandidate] Failed to commit duplicate candidate: {e}", exc_info=True)
-                db.rollback()
-                raise
-
+        # Return response - NO endpoint commit (handler commits)
         return CandidateCreateResponse(
-            candidate_id=candidate.candidateID,
+            candidate_id=candidate_id,
             candidate_is_first_time=True,
-            candidate_password=candidate.candidateTempPassword or "",
-            is_new=is_new,
-            message_id=message_id  # Include queue message ID if successfully queued
+            candidate_password="",  # Handler generates this
+            is_new=True,
+            message_id=message_id
         )
 
-    except DuplicateCandidateError as e:
-        logger.warning(f"[CreateCandidate] Duplicate candidate: {str(e)}")
-        raise HTTPException(status_code=409, detail=str(e))
+    except HTTPException:
+        raise
     except HTTPException:
         raise
     except Exception as e:
