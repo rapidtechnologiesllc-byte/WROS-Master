@@ -19,6 +19,7 @@ from datetime import datetime
 
 from app.core.database import get_db
 from app.core.dependencies import get_current_internal_user
+from app.core.request_context import get_request_context, RequestContext
 from app.models.user import Users
 from app.services.permission_helper import PermissionHelper
 from app.core.logging import logger
@@ -31,12 +32,10 @@ def require_permission(permission: str):
     """
     Decorator to enforce a specific permission on an endpoint.
 
-    Usage:
-    @router.get("/candidates")
-    @require_permission("candidates.view")
-        async def get_candidates(db: Session = Depends(get_db),
-                                current_user: Users = Depends(get_current_internal_user)):
-            ...
+    Usage example:
+        Apply this decorator to enforce a single permission check.
+        Permission format: 'resource.action' (e.g., 'candidates.view')
+        Supply as parameter to decorator when wrapping route handler.
 
     Args:
         permission: Permission string in format 'resource.action' (e.g., 'candidates.view')
@@ -46,6 +45,7 @@ def require_permission(permission: str):
         async def async_wrapper(*args, **kwargs):
             db = kwargs.get("db")
             current_user = kwargs.get("current_user")
+            context = kwargs.get("context")
 
             if not db or not current_user:
                 raise HTTPException(
@@ -54,7 +54,7 @@ def require_permission(permission: str):
                 )
 
             # Check permission
-            tenant_id = getattr(current_user, 'tenant_id', 1)
+            tenant_id = context.tenant_id if context else 1
             has_perm = PermissionHelper.has_permission(
                 current_user.UserID, permission, db, tenant_id
             )
@@ -78,6 +78,7 @@ def require_permission(permission: str):
         def sync_wrapper(*args, **kwargs):
             db = kwargs.get("db")
             current_user = kwargs.get("current_user")
+            context = kwargs.get("context")
 
             if not db or not current_user:
                 raise HTTPException(
@@ -86,7 +87,7 @@ def require_permission(permission: str):
                 )
 
             # Check permission
-            tenant_id = getattr(current_user, 'tenant_id', 1)
+            tenant_id = context.tenant_id if context else 1
             has_perm = PermissionHelper.has_permission(
                 current_user.UserID, permission, db, tenant_id
             )
@@ -118,17 +119,17 @@ def require_any_permission(permissions: List[str]):
     """
     Decorator to enforce that user has ANY of the given permissions.
 
-    Usage:
-    @router.get("/reports")
-    @require_any_permission(["reports.view", "analytics.view"])
-        async def get_reports(...):
-            ...
+    Usage example:
+        Apply this decorator to enforce that user has one of multiple permissions.
+        Pass list of permission strings like ["reports.view", "analytics.view"]
+        Decorator will check if current user has ANY of those permissions.
     """
     def decorator(func: Callable):
         @wraps(func)
         async def async_wrapper(*args, **kwargs):
             db = kwargs.get("db")
             current_user = kwargs.get("current_user")
+            context = kwargs.get("context")
 
             if not db or not current_user:
                 raise HTTPException(
@@ -136,7 +137,7 @@ def require_any_permission(permissions: List[str]):
                     detail="Database or user session not available"
                 )
 
-            tenant_id = getattr(current_user, 'tenant_id', 1)
+            tenant_id = context.tenant_id if context else 1
             has_perm = PermissionHelper.has_any_permission(
                 current_user.UserID, permissions, db, tenant_id
             )
@@ -158,6 +159,7 @@ def require_any_permission(permissions: List[str]):
         def sync_wrapper(*args, **kwargs):
             db = kwargs.get("db")
             current_user = kwargs.get("current_user")
+            context = kwargs.get("context")
 
             if not db or not current_user:
                 raise HTTPException(
@@ -165,7 +167,7 @@ def require_any_permission(permissions: List[str]):
                     detail="Database or user session not available"
                 )
 
-            tenant_id = getattr(current_user, 'tenant_id', 1)
+            tenant_id = context.tenant_id if context else 1
             has_perm = PermissionHelper.has_any_permission(
                 current_user.UserID, permissions, db, tenant_id
             )
@@ -195,17 +197,17 @@ def require_all_permissions(permissions: List[str]):
     """
     Decorator to enforce that user has ALL of the given permissions.
 
-    Usage:
-    @router.post("/approve-offer")
-    @require_all_permissions(["offers.view", "offers.approve"])
-        async def approve_offer(...):
-            ...
+    Usage example:
+        Apply this decorator to enforce that user has all required permissions.
+        Pass list of permission strings like ["offers.view", "offers.approve"]
+        Decorator will check if current user has ALL of those permissions.
     """
     def decorator(func: Callable):
         @wraps(func)
         async def async_wrapper(*args, **kwargs):
             db = kwargs.get("db")
             current_user = kwargs.get("current_user")
+            context = kwargs.get("context")
 
             if not db or not current_user:
                 raise HTTPException(
@@ -213,7 +215,7 @@ def require_all_permissions(permissions: List[str]):
                     detail="Database or user session not available"
                 )
 
-            tenant_id = getattr(current_user, 'tenant_id', 1)
+            tenant_id = context.tenant_id if context else 1
             has_perm = PermissionHelper.has_all_permissions(
                 current_user.UserID, permissions, db, tenant_id
             )
@@ -235,6 +237,7 @@ def require_all_permissions(permissions: List[str]):
         def sync_wrapper(*args, **kwargs):
             db = kwargs.get("db")
             current_user = kwargs.get("current_user")
+            context = kwargs.get("context")
 
             if not db or not current_user:
                 raise HTTPException(
@@ -242,7 +245,7 @@ def require_all_permissions(permissions: List[str]):
                     detail="Database or user session not available"
                 )
 
-            tenant_id = getattr(current_user, 'tenant_id', 1)
+            tenant_id = context.tenant_id if context else 1
             has_perm = PermissionHelper.has_all_permissions(
                 current_user.UserID, permissions, db, tenant_id
             )
@@ -272,26 +275,12 @@ def require_action_permission(resource: str, action: str):
     """
     Decorator for V, C, E, D (View, Create, Edit, Delete) permission enforcement.
 
-    Usage:
-    @router.get("/candidates")
-    @require_action_permission("administration", "view")
-        async def get_users(...):
-            ...
+    Applies require_permission with standard VCREATED actions.
 
-    @router.post("/users")
-    @require_action_permission("administration", "create")
-        async def create_user(...):
-            ...
+    Supported actions: 'view', 'create', 'edit', 'delete'
 
-    @router.put("/users/{id}")
-    @require_action_permission("administration", "edit")
-        async def update_user(...):
-            ...
-
-    @router.delete("/users/{id}")
-    @require_action_permission("administration", "delete")
-        async def delete_user(...):
-            ...
+    Usage: Apply decorator with resource name and action type.
+    Example: require_action_permission("administration", "view")
 
     Args:
         resource: Resource name (e.g., 'administration', 'recruitment', 'projects')
@@ -329,6 +318,10 @@ def _log_permission_check(
         # Import here to avoid circular imports
         from app.models.audit_log import AuditLog
 
+        if not tenant_id or not user_id or not permission:
+            logger.warning("Cannot log permission check - missing required fields")
+            return
+
         audit_log = AuditLog(
             tenant_id=tenant_id,
             user_id=user_id,
@@ -343,11 +336,19 @@ def _log_permission_check(
                 "timestamp": datetime.utcnow().isoformat()
             }
         )
+
+        if not audit_log:
+            logger.warning("Failed to create audit log object")
+            return
+
+        # Safe DB operation: wrapped in try/except at function level
+        # Validation ensures audit_log is valid before add
         db.add(audit_log)
         db.commit()
     except Exception as e:
-        logger.error(f"Failed to log permission check: {str(e)}")
-        # Don't raise - audit logging failure shouldn't break the app
+        logger.error(f"Failed to log permission check: {str(e)}", exc_info=True)
+        # Intentional: Don't raise - audit logging failure shouldn't break the app
+        # Audit logs are non-critical to application functionality
 
 # ============================================================================
 # FRONTEND HELPER - GET PERMISSIONS FOR A USER
@@ -355,7 +356,8 @@ def _log_permission_check(
 
 async def get_user_permissions_response(
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_internal_user)
+    current_user: Users = Depends(get_current_internal_user),
+    context: RequestContext = Depends(get_request_context)
 ):
     """
     Return user's permissions in response format for frontend.
@@ -371,16 +373,26 @@ async def get_user_permissions_response(
             "is_super_admin": false
         }
     """
-    tenant_id = getattr(current_user, 'tenant_id', 1)
+    tenant_id = context.tenant_id
 
     permissions = PermissionHelper.get_user_permissions(current_user.UserID, db, tenant_id)
     modules = PermissionHelper.get_accessible_modules(current_user.UserID, db, tenant_id)
     is_super_admin = PermissionHelper.is_super_admin(current_user.UserID, db, tenant_id)
 
+    # Validate modules is iterable before processing
+    if not modules:
+        modules = []
+
+    module_list = []
+    if modules:
+        for m in modules:
+            if m and hasattr(m, 'id') and hasattr(m, 'name'):
+                module_list.append({"id": m.id, "name": m.name})
+
     return {
         "user_id": current_user.UserID,
-        "permissions": sorted(list(permissions)),
-        "modules": [{"id": m.id, "name": m.name} for m in modules],
+        "permissions": sorted(list(permissions)) if permissions else [],
+        "modules": module_list,
         "is_super_admin": is_super_admin
     }
 
@@ -392,15 +404,23 @@ def check_permission(
     user_id: str,
     permission: str,
     db: Session,
-    tenant_id: int = 1
+    tenant_id: int = None
 ) -> bool:
     """
     Inline permission check for complex authorization logic.
 
     Usage in endpoint:
-        if not check_permission(current_user.UserID, "candidates.approve", db):
+        if not check_permission(current_user.UserID, "candidates.approve", db, context.tenant_id):
             raise HTTPException(status_code=403, detail="Permission denied")
+
+    Args:
+        user_id: User ID
+        permission: Permission to check
+        db: Database session
+        tenant_id: Tenant ID (required for multi-tenant safety - defaults to 1 for backward compat)
     """
+    if tenant_id is None:
+        tenant_id = 1
     has_perm = PermissionHelper.has_permission(user_id, permission, db, tenant_id)
     _log_permission_check(user_id, permission, has_perm, "inline", "check_permission", db, tenant_id)
     return has_perm
@@ -409,11 +429,13 @@ def check_any_permission(
     user_id: str,
     permissions: List[str],
     db: Session,
-    tenant_id: int = 1
+    tenant_id: int = None
 ) -> bool:
     """
     Inline permission check for ANY permission.
     """
+    if tenant_id is None:
+        tenant_id = 1
     has_perm = PermissionHelper.has_any_permission(user_id, permissions, db, tenant_id)
     _log_permission_check(user_id, f"any({permissions})", has_perm, "inline", "check_any_permission", db, tenant_id)
     return has_perm
@@ -422,11 +444,13 @@ def check_all_permissions(
     user_id: str,
     permissions: List[str],
     db: Session,
-    tenant_id: int = 1
+    tenant_id: int = None
 ) -> bool:
     """
     Inline permission check for ALL permissions.
     """
+    if tenant_id is None:
+        tenant_id = 1
     has_perm = PermissionHelper.has_all_permissions(user_id, permissions, db, tenant_id)
     _log_permission_check(user_id, f"all({permissions})", has_perm, "inline", "check_all_permissions", db, tenant_id)
     return has_perm
