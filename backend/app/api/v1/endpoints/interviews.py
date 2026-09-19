@@ -129,6 +129,21 @@ def _check_and_auto_submit_for_hire(interview: Interview, db: Session) -> None:
     ))
     db.commit()
 
+    # Queue interview completion for FLASH orchestrator
+    try:
+        from app.services.message_queue_service import MessageQueueService
+        MessageQueueService.enqueue(
+            task_name='interview_completed_flash',
+            task_id=candidate_id,
+            data={
+                'candidate_id': candidate_id,
+                'completed_interviews': len(completed_interviews),
+                'completed_at': datetime.utcnow().isoformat()
+            }
+        )
+    except Exception as e:
+        logger.warning(f"Failed to queue interview completion: {e}")
+
     logger.info(
         f"[AutoHire] Candidate '{candidate_id}' promoted "
         f"'{old_status}' â†' 'Pre-onboarding-Approval' after {len(completed_interviews)} completed interviews."

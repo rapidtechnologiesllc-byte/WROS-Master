@@ -170,6 +170,23 @@ def create_employee(
         raise HTTPException(status_code=409, detail=str(exc))
     db.commit()
     db.refresh(employee)
+
+    # Queue employee operation for FLASH orchestrator
+    try:
+        from app.services.message_queue_service import MessageQueueService
+        MessageQueueService.enqueue(
+            task_name='employee_created_flash',
+            task_id=str(employee.id),
+            data={
+                'employee_id': str(employee.id),
+                'employee_email': employee.email,
+                'employee_name': f"{employee.first_name} {employee.last_name}".strip(),
+                'created_at': datetime.utcnow().isoformat()
+            }
+        )
+    except Exception as e:
+        logger.warning(f"Failed to queue employee creation: {e}")
+
     return _to_item(db, employee)
 
 @router.post(
@@ -215,6 +232,23 @@ def convert_candidate(
     )
     db.commit()
     db.refresh(employee)
+
+    # Queue employee conversion for FLASH orchestrator
+    try:
+        from app.services.message_queue_service import MessageQueueService
+        MessageQueueService.enqueue(
+            task_name='employee_created_flash',
+            task_id=str(employee.id),
+            data={
+                'employee_id': str(employee.id),
+                'employee_email': employee.email,
+                'employee_name': f"{employee.first_name} {employee.last_name}".strip(),
+                'converted_from_candidate': str(candidate.candidateID),
+                'created_at': datetime.utcnow().isoformat()
+            }
+        )
+    except Exception as e:
+        logger.warning(f"Failed to queue employee creation: {e}")
 
     # Send welcome email to new employee
     try:
