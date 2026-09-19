@@ -4,7 +4,7 @@ widget for external visitors (careers page / job listing), alongside
 WhatsApp. Not a test/preview tool: a genuine visitor who has never
 talked to anyone at BlitzenX can open this, get matched against real
 open roles, and become a real Candidate row -- through the exact same
-create_candidate_safe()/assign_ai_agent() paths every other candidate-
+create_candidate()/assign_ai_agent() paths every other candidate-
 creation entry point in this codebase uses (see
 app.api.v1.endpoints.create_job.apply_for_job for the other one). No
 shadow data model, no fabricated replies -- every message after the
@@ -32,7 +32,7 @@ from app.models.candidate_ai import CandidateConversation, ConversationEvent
 from app.models.consent import ConsentRecord
 from app.models.user import Jobs, Users
 from app.services.ai_conversation_service import assign_ai_agent, resolve_default_tenant_id
-from app.services.candidate_service import create_candidate_safe, find_duplicate_candidate
+from app.services.candidate_service import create_candidate, find_duplicate_candidate
 from app.services.escalation_detection_service import ESCALATION_EXIT_MESSAGE, check_escalation, execute_escalation
 from app.services.objection_handling_service import ObjectionEscalatedError, handle_objection
 from app.services.sentiment_analysis_service import analyze_sentiment
@@ -145,7 +145,7 @@ def start_public_chat(
     if existing:
         candidate = existing
     else:
-        candidate = create_candidate_safe(
+        candidate = create_candidate(
             db,
             email=email,
             mobile=phone,

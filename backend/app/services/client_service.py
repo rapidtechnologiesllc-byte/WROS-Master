@@ -83,7 +83,7 @@ def create_client(
     client_type kept only for legacy rows -- not required here, callers
     that don't pass it get the same "CORE" default every existing
     fixture/test already got via client_type="DIRECT" before this.
-    website dedupes the same way create_candidate_safe() dedupes on
+    website dedupes the same way create_candidate() dedupes on
     email/phone/LinkedIn -- app-level, not a DB UNIQUE constraint, since
     existing rows may already collide. hiring_manager/timesheet_approver
     are optional here (kept backward-compatible for the many existing

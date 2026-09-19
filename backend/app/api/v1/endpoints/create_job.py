@@ -13,7 +13,7 @@ from app.core.logging import logger
 from app.core.rate_limiter import rate_limit
 from app.core.csrf_protection import generate_csrf_token
 from app.services.ai_conversation_service import run_auto_assign_ai_agent_in_background
-from app.services.candidate_service import create_candidate_safe, find_duplicate_candidate, DuplicateCandidateError
+from app.services.candidate_service import create_candidate, find_duplicate_candidate, DuplicateCandidateError
 from app.services.message_queue_service import MessageQueueService
 from app.services.ready_for_opportunity_service import scan_new_job_for_matches
 from app.models.user import Jobs
@@ -1130,7 +1130,7 @@ async def apply_for_job(
 
     # 6/7. R-07: createCandidateSafe() is the only sanctioned creation path.
     try:
-        candidate = create_candidate_safe(
+        candidate = create_candidate(
             db,
             email=email,
             mobile=phone,

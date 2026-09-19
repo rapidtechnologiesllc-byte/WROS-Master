@@ -27,7 +27,7 @@ from app.models.candidate import Candidate
 from app.models.consent import ConsentRecord
 from app.models.sourcing import StagedCandidate
 from app.models.user import Users
-from app.services.candidate_service import create_candidate_safe, find_duplicate_candidate
+from app.services.candidate_service import create_candidate, find_duplicate_candidate
 from app.services.notification_service import send_notification
 from app.core.logging import logger
 
@@ -211,7 +211,7 @@ async def import_linkedin_candidate(
     # Step 4: Create real Candidate (promote directly, no staging needed for LinkedIn)
     # LinkedIn profiles are pre-qualified by "Open to Work" status, so no staging needed
     logger.info(f"[LinkedIn Import] Creating candidate: {enriched['full_name']}")
-    candidate = create_candidate_safe(
+    candidate = create_candidate(
         db,
         email=enriched['email'],
         mobile=enriched['phone'],

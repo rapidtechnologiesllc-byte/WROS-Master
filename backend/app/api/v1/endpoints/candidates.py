@@ -667,24 +667,22 @@ def candidate_info(request: candidateFormRequest, db: Session = Depends(get_db))
         HTTPException: If validation fails
     """
     # Find or create candidate by email
-    candidate = db.query(Candidate).filter(Candidate.candidateEmail == request.candidate_email).first()
+    # MANDATORY: Use create_candidate() - the ONLY path to create candidates
+    from app.services.candidate_service import create_candidate
 
-    if not candidate:
+    candidate, is_new = create_candidate(
+        db=db,
+        email=request.candidate_email,
+        candidateFirstName=request.candidate_first_name,
+        candidateLastName=request.candidate_last_name,
+        candidateMobile=request.candidate_mobile,
+        candidateSource=request.candidate_source,
+        candidateCurrentLocation=request.candidate_current_location,
+        plain_password="TempPass123!",
+    )
+
+    if is_new:
         try:
-            candidate_id = candidate_id_generator()
-            candidate = Candidate(
-                candidateID=candidate_id,
-                candidateEmail=request.candidate_email,
-                candidateFirstName=request.candidate_first_name,
-                candidateLastName=request.candidate_last_name,
-                candidateMobile=request.candidate_mobile,
-                candidatePassword=get_password_hash("TempPass123!"),
-                candidateSource=request.candidate_source,
-                candidateCurrentLocation=request.candidate_current_location,
-            )
-            db.add(candidate)
-            db.flush()
-            db.commit()
 
             # Log candidate creation
             try:

@@ -7,7 +7,7 @@ Real ask, Avinash 2026-08-05: HR/recruiter emails to a candidate
 currently live only in that person's own mailbox, invisible on the
 candidate's WROS record. This is the ONE sanctioned linking mechanism
 (BR-1408-03, same "one sanctioned path" discipline as
-create_candidate_safe()/sendThunderMessage()) -- writes into the
+create_candidate()/sendThunderMessage()) -- writes into the
 existing S-216/HRMS-0118 Activity Timeline (app.services.
 activity_timeline_service) rather than a second, parallel history
 table.

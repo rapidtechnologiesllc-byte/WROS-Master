@@ -8,7 +8,7 @@ Implements soft-delete pattern for candidates to preserve audit trail.
 HRMS Dependencies:
 - S-322 (Candidate Rejection Workflow): reject_candidate, send_rejection_email, archive_candidate
 - R-01: 5-year experience floor remains enforced at submission time
-- R-07: Candidates only created via create_candidate_safe()
+- R-07: Candidates only created via create_candidate()
 """
 
 import logging

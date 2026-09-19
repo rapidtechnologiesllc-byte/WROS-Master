@@ -7,7 +7,7 @@ Real architecture adaptations:
   module docstring: the import response's candidate ID list IS the
   "batch," passed straight into the launch call.
 - Dedup reuses R-07's real, only-sanctioned creation path,
-  `candidate_service.create_candidate_safe()` (which itself raises
+  `candidate_service.create_candidate()` (which itself raises
   `DuplicateCandidateError` via `find_duplicate_candidate()`) -- not a
   second, parallel dedup implementation.
 - Real schema constraint the spec's CSV shape doesn't account for:
@@ -48,7 +48,7 @@ from app.models.bulk_engagement import BulkEngagementError, BulkEngagementJob
 from app.models.candidate import Candidate
 from app.models.candidate_ai import CandidateConversation
 from app.models.user import Users
-from app.services.candidate_service import DuplicateCandidateError, create_candidate_safe
+from app.services.candidate_service import DuplicateCandidateError, create_candidate
 from app.services.notification_service import send_notification
 
 MAX_CSV_ROWS = 200  # Step 1
@@ -104,7 +104,7 @@ def import_candidates_from_csv(db: Session, csv_text: str, recruiter_id: str, te
         last_name = name_parts[1] if len(name_parts) > 1 else None
 
         try:
-            candidate = create_candidate_safe(
+            candidate = create_candidate(
                 db, email=email, mobile=(row.get("phone") or "").strip() or None,
                 candidateFirstName=first_name, candidateLastName=last_name,
                 candidateCurrentLocation=(row.get("location") or "").strip() or None,

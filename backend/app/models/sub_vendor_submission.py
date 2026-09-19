@@ -13,7 +13,7 @@ from HRMS-0711 -- that's an unrelated, later-stage concept: BlitzenX
 presenting a candidate to a CLIENT, not a vendor presenting a candidate
 to BlitzenX) until it clears the FT-only gate and dedup, then a
 recruiter Accepts/Rejects/Requests-more-info. Only Accept calls
-app.services.candidate_service.create_candidate_safe() -- the real R-07
+app.services.candidate_service.create_candidate() -- the real R-07
 path, never a direct insert, per BR-0808-01.
 
 Field name note: P808's own data-mapping table calls this column
@@ -71,7 +71,7 @@ class SubVendorSubmission(Base):
     )
     feedback_note = Column(Text, nullable=True)  # BR-0808-02: required (>= 20 chars) on REJECTED
 
-    # Set only once Accepted via create_candidate_safe() -- never a
+    # Set only once Accepted via create_candidate() -- never a
     # direct FK to a pre-existing candidate.
     created_candidate_id = Column(String(512), ForeignKey("candidates.candidateID"), nullable=True)
 

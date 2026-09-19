@@ -294,10 +294,10 @@ def create_candidate_endpoint(request: CandidateCreateRequest, db: Session = Dep
                         'email': candidate.candidateEmail,
                         'first_name': candidate.candidateFirstName,
                         'last_name': candidate.candidateLastName,
-                        'job_title': candidate.job_title,
+                        'job_title': candidate.candidateJobTitle or '',
                         'mobile': candidate.candidateMobile,
-                        'gender': candidate.gender,
-                        'location': candidate.candidateCurrentLocation,
+                        'gender': candidate.candidateGender or '',
+                        'location': candidate.candidateCurrentLocation or '',
                     }
                 )
                 logger.info(f"[CreateCandidate] SUCCESS: Queued candidate {candidate.candidateID} to Thunder: {message_id}")

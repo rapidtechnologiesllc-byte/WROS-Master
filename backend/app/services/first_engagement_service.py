@@ -16,7 +16,7 @@ docstring for why the retry-once rule needs the lower-level call.
 Real gap this story exposed and fixed: WhatsApp sends were structurally
 impossible for any newly-created candidate before this round -- nothing
 captured whatsapp_outreach consent at candidate creation. Fixed at the
-source (candidate_service.create_candidate_safe), not worked around
+source (candidate_service.create_candidate), not worked around
 here.
 """
 import logging

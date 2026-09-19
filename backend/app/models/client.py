@@ -92,7 +92,7 @@ class Client(Base):
     # predate this field; the create form requires it going forward.
     line_type = Column(Enum(*LINE_TYPES, name="client_line_type", native_enum=False, create_constraint=True), nullable=True)
     # 2026-08-06 -- real dedup key, same precedent as
-    # create_candidate_safe()'s email/phone/LinkedIn checks. Not a DB
+    # create_candidate()'s email/phone/LinkedIn checks. Not a DB
     # UNIQUE constraint (existing rows may already collide on a blank/
     # duplicate value) -- enforced in client_service.create_client()
     # the same way email dedup is app-level there, not DB-level.

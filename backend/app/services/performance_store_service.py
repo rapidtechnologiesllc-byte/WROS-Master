@@ -4,7 +4,7 @@ needs to log a performance-relevant event should call, rather than
 inserting into employee_performance_events directly -- same single-
 sanctioned-writer discipline as write_audit_log() and
 import logging
-create_candidate_safe().
+create_candidate().
 
 Read side (get_performance_events/get_score_summary) added alongside
 S-356's milestone tracker, the first caller that also needed to read

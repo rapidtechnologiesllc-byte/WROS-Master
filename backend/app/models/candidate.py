@@ -32,7 +32,7 @@ class Candidate(Base):
     candidateMobile = Column(String(20), nullable=True)
     # R-07 -- the Dev Review Standard's own example of the dedup gap:
     # "missing phone/LinkedIn" matching. See app.services.candidate_service
-    # .create_candidate_safe() -- this field lets LinkedIn dedup run for
+    # .create_candidate() -- this field lets LinkedIn dedup run for
     # the first time in this codebase.
     linkedin_url = Column(String(512), nullable=True)
     candidateGender = Column(String(100), nullable=True)

@@ -265,6 +265,8 @@ class CandidateCreationHandler:
             try:
                 from app.services.desire_signal_service import record_message_signal
                 logger.info(f"[Handler] 🔄 Recording CANDIDATE_CREATED signal for {candidate_id}")
+                first_name = candidate.candidateFirstName or "Unknown"
+                last_name = candidate.candidateLastName or "Candidate"
                 record_message_signal(
                     db, tenant_id, candidate_id, "CANDIDATE_CREATED",
                     f"Candidate {first_name} {last_name} created from {source}"
