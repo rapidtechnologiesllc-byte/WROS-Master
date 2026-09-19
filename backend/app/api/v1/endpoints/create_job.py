@@ -4,7 +4,7 @@ from datetime import datetime, date
 import logging
 from typing import Optional, List
 
-from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, Header, HTTPException, UploadFile
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
