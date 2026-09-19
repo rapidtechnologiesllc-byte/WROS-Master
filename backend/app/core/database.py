@@ -67,13 +67,13 @@ try:
 except ProductionDatabaseError as e:
     raise RuntimeError(str(e)) from e
 
-# PostgreSQL connection pool settings
+# PostgreSQL connection pool settings (FIX #15: Production-grade pooling)
 _engine_kwargs = {
     "pool_pre_ping": True,      # Check connection health before use
     "echo": False,              # Set to True for SQL debugging
-    "pool_size": 10,            # Keep 10 connections in pool
-    "max_overflow": 20,         # Allow 20 extra connections if pool full
-    "pool_recycle": 3600,       # Recycle connections after 1 hour
+    "pool_size": 20,            # Keep 20 connections in pool (PRODUCTION)
+    "max_overflow": 10,         # Allow 10 extra connections if pool full (PRODUCTION)
+    "pool_recycle": 3600,       # Recycle connections after 1 hour (60 minutes)
 }
 
 # Create SQLAlchemy engine
