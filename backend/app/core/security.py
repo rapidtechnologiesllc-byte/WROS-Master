@@ -15,8 +15,21 @@ REFRESH_TOKEN_EXPIRE_DAYS = 7
 security = HTTPBearer()
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
-    """Create JWT access token using HS256"""
+    """Create JWT access token using HS256
+
+    CRITICAL: data MUST include tenant_id and role_template_id
+    - tenant_id: int, extracted from user record
+    - role_template_id: int, extracted from user record
+    - No defaults, no fallback to hardcoded values
+    """
     to_encode = data.copy()
+
+    # Validate required fields - NO FALLBACK
+    if 'tenant_id' not in to_encode or to_encode['tenant_id'] is None:
+        raise ValueError("tenant_id is REQUIRED in token payload - cannot proceed without it")
+    if 'role_template_id' not in to_encode or to_encode['role_template_id'] is None:
+        raise ValueError("role_template_id is REQUIRED in token payload - cannot proceed without it")
+
     if expires_delta:
         expire = datetime.utcnow() + expires_delta
     else:
@@ -67,3 +80,10 @@ def get_password_hash(password: str) -> str:
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """Verify password against hash"""
     return bcrypt.checkpw(plain_password.encode('utf-8'), hashed_password.encode('utf-8'))
+
+def require_role_template_permission(*permissions):
+    """Stub: Role-template permission checker (returns pass-through dependency)"""
+    from fastapi import Depends
+    async def check_permission(current_user = Depends(lambda: None)):
+        return current_user
+    return Depends(check_permission)
