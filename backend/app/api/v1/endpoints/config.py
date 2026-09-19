@@ -146,7 +146,7 @@ async def get_app_config(db: Session = Depends(get_db)):
         # For now, assume tenant_id=1 (single tenant setup)
         try:
             config_items = db.query(SystemConfig).filter(
-                SystemConfig.tenant_id == 1,
+                SystemConfig.tenant_id == context.tenant_id,
                 SystemConfig.business_unit_id == None
             ).all()
         except Exception as e:
