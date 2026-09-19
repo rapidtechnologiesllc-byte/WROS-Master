@@ -91,6 +91,12 @@ def signup(request: SignupRequest, db: Session = Depends(get_db)):
     )
 
     try:
+        # Double-check no duplicate exists before adding
+        existing = db.query(Users).filter(Users.UserEmail == user.UserEmail.lower()).first()
+        if existing:
+            logger.warning(f"Duplicate user detected during creation: {user.UserEmail}")
+            raise HTTPException(status_code=400, detail=f"Account already exists with email {user.UserEmail}")
+
         db.add(user)
         db.commit()
         db.refresh(user)
@@ -195,7 +201,7 @@ def unified_login(request: UnifiedLoginRequest, db: Session = Depends(get_db)):
                 try:
                     user.email_otp_code_hash = hash_email_otp_code(code)
                     user.email_otp_expires_at = datetime.utcnow() + timedelta(minutes=EMAIL_OTP_TTL_MINUTES)
-                    db.add(user)
+                    # User already in session from authenticate_user(), just commit the updates
                     db.commit()
                 except Exception as e:
                     logger.error(f"Failed to store email OTP: {e}", exc_info=True)
@@ -247,6 +253,8 @@ def unified_login(request: UnifiedLoginRequest, db: Session = Depends(get_db)):
                 "email": user.UserEmail,
                 "type": "user",
                 "name": user.UserName if hasattr(user, 'UserName') and user.UserName else "",
+                "tenant_id": user.tenant_id,
+                "role_template_id": user.role_template_id,
             }
         )
 
@@ -322,7 +330,7 @@ def unified_login(request: UnifiedLoginRequest, db: Session = Depends(get_db)):
             try:
                 candidate.email_otp_code_hash = hash_email_otp_code(code)
                 candidate.email_otp_expires_at = datetime.utcnow() + timedelta(minutes=EMAIL_OTP_TTL_MINUTES)
-                db.add(candidate)
+                # Candidate already in session from authenticate_candidate(), just commit the updates
                 db.commit()
             except Exception as e:
                 logger.error(f"Failed to store candidate OTP: {e}", exc_info=True)
@@ -458,6 +466,8 @@ def refresh_token_endpoint(
                 "email": user.UserEmail,
                 "type": "user",
                 "name": user.UserName if hasattr(user, 'UserName') and user.UserName else "",
+                "tenant_id": user.tenant_id,
+                "role_template_id": user.role_template_id,
             }
         )
 
@@ -591,7 +601,7 @@ async def reset_password(
     try:
         user.UserPassword = get_password_hash(new_password)
         user.password_reset_required = False
-        db.add(user)
+        # User already in session from query, just commit the updates
         db.commit()
         db.refresh(user)
     except Exception as e:
