@@ -66,37 +66,40 @@ async def get_me(
     try:
         from app.services.role_template_permission_service import RoleTemplatePermissionService
 
-        # Get tenant ID (default to 1, handle None case)
-        tenant_id = (getattr(current_user, 'tenant_id', None) or 1)
+        # Get tenant ID (mandatory - must exist)
+        if not current_user.tenant_id:
+            raise ValueError("tenant_id is REQUIRED - cannot proceed without it")
+        tenant_id = current_user.tenant_id
 
-        # Get user's assigned role template
+        # Get user's assigned role template (mandatory)
         user_roles = []
         roles_list = []
 
-        if current_user.role_template_id:
-            rt = db.query(RoleTemplate).filter(RoleTemplate.id == current_user.role_template_id).first()
-            if rt:
-                roles_list.append(rt.name)
-                user_roles.append({
-                    "id": rt.id,
-                    "name": rt.name,
-                })
+        # role_template_id is MANDATORY
+        if not current_user.role_template_id:
+            raise ValueError("role_template_id is REQUIRED - cannot proceed without it")
 
-        # Get all permissions for the user
+        rt = db.query(RoleTemplate).filter(RoleTemplate.id == current_user.role_template_id).first()
+        if rt:
+            roles_list.append(rt.name)
+            user_roles.append({
+                "id": rt.id,
+                "name": rt.name,
+            })
+
+        # Get all permissions for the user (role_template_id is mandatory)
         permissions_dict = {}
 
-        # Only check role_template if user has one assigned
-        if current_user.UserID and current_user.role_template_id:
-            # Regular users: fetch permissions from role_template
-            try:
-                perms_result = RoleTemplatePermissionService.get_user_permissions(
-                    db, current_user.UserID, tenant_id
-                )
-                permissions_dict = perms_result or {}
-                logger.debug(f"get_user_permissions returned type={type(permissions_dict)}, len={len(permissions_dict)}")
-            except Exception as e:
-                logger.warning(f"Failed to get permissions for user {current_user.UserID}: {e}")
-                permissions_dict = {}
+        # Always fetch permissions - role_template is mandatory
+        try:
+            perms_result = RoleTemplatePermissionService.get_user_permissions(
+                db, current_user.UserID, tenant_id
+            )
+            permissions_dict = perms_result or {}
+            logger.debug(f"get_user_permissions returned type={type(permissions_dict)}, len={len(permissions_dict)}")
+        except Exception as e:
+            logger.warning(f"Failed to get permissions for user {current_user.UserID}: {e}")
+            permissions_dict = {}
 
         # Mint a fresh token using the same claims as login
         access_token = create_access_token(
@@ -196,7 +199,10 @@ def get_current_user_permissions(
     """
     from app.services.permission_helper import PermissionHelper
 
-    tenant_id = getattr(current_user, 'tenant_id', 1)
+    # tenant_id is MANDATORY
+    if not current_user.tenant_id:
+        raise ValueError("tenant_id is REQUIRED - cannot proceed without it")
+    tenant_id = current_user.tenant_id
 
     # Get all permissions for the user
     permissions = PermissionHelper.get_user_permissions(current_user.UserID, db, tenant_id)
@@ -718,7 +724,10 @@ def create_user(
         logger.error(f"Failed to check existing user: {check_error}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to validate email")
 
-    tenant_id = current_user.tenant_id or 1
+    # tenant_id is MANDATORY
+    if not current_user.tenant_id:
+        raise ValueError("tenant_id is REQUIRED - cannot proceed without it")
+    tenant_id = current_user.tenant_id
 
     try:
         # Queue user creation for background processing
@@ -867,7 +876,10 @@ def create_user_with_roles(
         logger.error(f"Failed to validate org hierarchy: {hierarchy_error}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to validate hierarchy")
 
-    tenant_id = current_user.tenant_id or 1
+    # tenant_id is MANDATORY
+    if not current_user.tenant_id:
+        raise ValueError("tenant_id is REQUIRED - cannot proceed without it")
+    tenant_id = current_user.tenant_id
 
     try:
         # Queue user creation for background processing
@@ -1007,14 +1019,20 @@ def update_user(
     if not target:
         raise HTTPException(status_code=404, detail=f"User {user_id} not found")
 
-    if target.tenant_id is None:
-        target.tenant_id = current_user.tenant_id or 1
+    # tenant_id is MANDATORY - validate existing value
+    if not target.tenant_id:
+        if not current_user.tenant_id:
+            raise ValueError("tenant_id is REQUIRED - cannot proceed without it")
+        target.tenant_id = current_user.tenant_id
 
     if request.user_name is not None:
         target.UserName = request.user_name
     if request.job_title is not None:
         target.job_title = request.job_title
+    # role_template_id is MANDATORY - if updating, must provide valid value
     if request.role_template_id is not None:
+        if not request.role_template_id:
+            raise ValueError("role_template_id is REQUIRED - cannot be null")
         target.role_template_id = request.role_template_id
     if request.business_unit_id is not None:
         target.business_unit_id = request.business_unit_id
@@ -1032,13 +1050,13 @@ def update_user(
         logger.error(f"Failed to refresh user {user_id}: {refresh_error}", exc_info=True)
         raise
 
+    # role_template_id is MANDATORY - always query it
     role_template = None
-    if target.role_template_id:
-        try:
-            role_template = db.query(RoleTemplate).filter(RoleTemplate.id == target.role_template_id).first()
-        except Exception as query_error:
-            logger.error(f"Failed to query role template {target.role_template_id}: {query_error}", exc_info=True)
-            raise
+    try:
+        role_template = db.query(RoleTemplate).filter(RoleTemplate.id == target.role_template_id).first()
+    except Exception as query_error:
+        logger.error(f"Failed to query role template {target.role_template_id}: {query_error}", exc_info=True)
+        raise
 
     return UserResponse(
         user_id=target.UserID,
@@ -1490,8 +1508,10 @@ def get_job_titles(
     Only returns active job titles (active=true).
     """
     try:
-        # Get tenant ID from current user (default to 1 if None or missing)
-        tenant_id = current_user.tenant_id if (hasattr(current_user, 'tenant_id') and current_user.tenant_id) else 1
+        # Get tenant ID from current user (mandatory)
+        if not current_user.tenant_id:
+            raise ValueError("tenant_id is REQUIRED - cannot proceed without it")
+        tenant_id = current_user.tenant_id
 
         job_titles = db.query(JobTitle).filter(
             JobTitle.tenant_id == tenant_id,
