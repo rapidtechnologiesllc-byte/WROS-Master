@@ -841,6 +841,17 @@ def update_candidate(candidate_id: str, request: CandidateUpdateRequest, db: Ses
             detail=f"Failed to update candidate: {str(e)}"
         )
 
+    # Queue candidate update for THUNDER orchestrator
+    MessageQueueService.enqueue(
+        task_name='candidate_updated',
+        task_id=candidate_id,
+        data={
+            'candidate_id': candidate_id,
+            'candidate_email': candidate.candidateEmail,
+            'updated_at': datetime.now().isoformat()
+        }
+    )
+
     # Emit candidate_data_changed event with all changed fields
     if corrections:
         try:
@@ -1051,6 +1062,17 @@ def delete_candidate(candidate_id: str, db: Session = Depends(get_db), user = De
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Failed to delete candidate: {str(e)}")
 
+    # Queue candidate deletion for THUNDER orchestrator
+    MessageQueueService.enqueue(
+        task_name='candidate_deleted',
+        task_id=candidate_id,
+        data={
+            'candidate_id': candidate_id,
+            'candidate_email': candidate.candidateEmail,
+            'deleted_at': datetime.now().isoformat()
+        }
+    )
+
     # Emit candidate_deleted event
     try:
         from app.services.candidate_event_bus import CandidateEventBus
@@ -1170,6 +1192,18 @@ def convert_candidate_to_employee(
             logger.error(f"Failed to commit conversion of candidate {candidate_id}: {str(e)}", exc_info=True)
             db.rollback()
             raise HTTPException(status_code=500, detail=f"Failed to complete conversion: {str(e)}")
+
+        # Queue candidate-to-employee conversion for THUNDER orchestrator
+        MessageQueueService.enqueue(
+            task_name='candidate_converted_to_employee',
+            task_id=candidate_id,
+            data={
+                'candidate_id': candidate_id,
+                'employee_id': str(employee.id),
+                'candidate_email': candidate.candidateEmail,
+                'converted_at': datetime.now().isoformat()
+            }
+        )
 
         logger.info(f"Successfully converted Candidate {candidate_id} to Employee {employee.id}")
 
