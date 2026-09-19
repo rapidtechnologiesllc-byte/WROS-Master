@@ -233,10 +233,7 @@ def get_all_users(
         for idx, u in enumerate(users):
             try:
                 logger.info(f"get_all_users: Processing user {idx+1}/{len(users)} - UserID={u.UserID}")
-                if not u.role_template_id:
-                    logger.warning(f"User {u.UserID} has no role_template_id, skipping")
-                    continue
-
+                # role_template_id is now mandatory - no need to check for None
                 role_template = db.query(RoleTemplate).filter(RoleTemplate.id == u.role_template_id).first()
                 logger.info(f"get_all_users: Creating UserResponse for {u.UserID}")
 
@@ -953,8 +950,10 @@ def update_user_with_roles(
     if request.business_unit_id is not None:
         target.business_unit_id = request.business_unit_id
 
-    if request.role_template_id is not None:
-        target.role_template_id = request.role_template_id
+    # role_template_id is mandatory - validate it's present
+    if request.role_template_id is None:
+        raise HTTPException(status_code=400, detail="role_template_id is required and cannot be None")
+    target.role_template_id = request.role_template_id
 
     try:
         db.commit()
