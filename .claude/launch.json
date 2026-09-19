@@ -4,18 +4,16 @@
     {
       "name": "Backend",
       "runtimeExecutable": "python",
-      "runtimeArgs": ["-m", "uvicorn", "app.main:app", "--reload", "--host", "0.0.0.0", "--port", "8081"],
+      "runtimeArgs": ["-m", "uvicorn", "app.main:app", "--reload", "--host", "127.0.0.1", "--port", "8081"],
       "port": 8081,
-      "autoPort": true,
       "cwd": "backend",
-      "note": "Uses autoPort to find available port if 8081 is in use. Frontend configured to use REACT_APP_API_URL from .env"
+      "note": "FIXED: Port hardcoded to 8081 (autoPort removed). Kill any process on 8081 if startup fails."
     },
     {
       "name": "Frontend",
       "runtimeExecutable": "npm",
       "runtimeArgs": ["start"],
       "port": 3000,
-      "autoPort": true,
       "url": "http://localhost:3000",
       "cwd": "frontend"
     },
