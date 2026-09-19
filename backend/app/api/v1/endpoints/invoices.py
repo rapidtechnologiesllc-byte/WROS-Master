@@ -109,6 +109,21 @@ def generate_invoice_endpoint(
         raise HTTPException(status_code=409, detail=str(exc))
     db.commit()
     db.refresh(invoice)
+
+    # Queue invoice creation for FLASH orchestrator
+    try:
+        from app.services.message_queue_service import MessageQueueService
+        MessageQueueService.enqueue(
+            task_name='invoice_created_flash',
+            task_id=str(invoice.id),
+            data={
+                'invoice_id': str(invoice.id),
+                'created_at': datetime.utcnow().isoformat()
+            }
+        )
+    except Exception as e:
+        logger.warning(f"Failed to queue invoice creation: {e}")
+
     return _to_item(db, invoice)
 
 @router.post(
@@ -129,6 +144,22 @@ def approve_invoice_endpoint(
         raise HTTPException(status_code=409, detail=str(exc))
     db.commit()
     db.refresh(invoice)
+
+    # Queue invoice approval for FLASH orchestrator
+    try:
+        from app.services.message_queue_service import MessageQueueService
+        MessageQueueService.enqueue(
+            task_name='invoice_updated_flash',
+            task_id=str(invoice.id),
+            data={
+                'invoice_id': str(invoice.id),
+                'status': 'approved',
+                'updated_at': datetime.utcnow().isoformat()
+            }
+        )
+    except Exception as e:
+        logger.warning(f"Failed to queue invoice approval: {e}")
+
     return _to_item(db, invoice)
 
 @router.post(
