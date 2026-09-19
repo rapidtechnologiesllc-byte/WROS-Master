@@ -38,10 +38,10 @@ from app.api.v1.endpoints.system_health import router as system_health_router
 from app.api.v1.endpoints.monitoring import router as monitoring_router
 from app.api.v1.endpoints.desire_intelligence import router as desire_intelligence_router
 from app.api.v1.endpoints.role_template_modules import router as role_template_modules_router
-from app.api.v1.endpoints.pl_reports import router as pl_reports_router
+# from app.api.v1.endpoints.pl_reports import router as pl_reports_router  # MISSING
 from app.api.v1.endpoints.slm_exports import router as slm_exports_router
-from app.api.v1.endpoints.phase2_monitoring import router as phase2_monitoring_router
-from app.api.v1.endpoints.ceo_dashboard import router as ceo_dashboard_router
+# from app.api.v1.endpoints.phase2_monitoring import router as phase2_monitoring_router  # MISSING
+# from app.api.v1.endpoints.ceo_dashboard import router as ceo_dashboard_router  # MISSING
 
 # Rate limiting configuration constants
 RATE_LIMIT_MAX_REQUESTS = 10000
@@ -152,6 +152,7 @@ async def startup_event():
     import time
     from concurrent.futures import ThreadPoolExecutor
     from sqlalchemy.exc import OperationalError
+    from app.core.database import SessionLocal  # Import at function start to avoid UnboundLocalError
 
     # Validate configuration immediately
     settings.validate_config()
@@ -284,7 +285,6 @@ async def startup_event():
         logger.error(f"[Startup] Failed to initialize org positions: {exc}", exc_info=True)
 
     # Seed RBAC with retries
-    from app.core.database import SessionLocal
     from app.services.role_template_seed import seed_role_templates
 
     MAX_RETRIES = 3
@@ -491,13 +491,13 @@ app.include_router(system_health_router)
 app.include_router(monitoring_router)
 
 # Include P&L reports routes with /api/v1 prefix (P&L reporting, financials)
-app.include_router(pl_reports_router, prefix="/api/v1")
+# app.include_router(pl_reports_router, prefix="/api/v1")  # MISSING FILE
 # Include SLM export routes with /api/v1 prefix (employee intelligence for agents)
 app.include_router(slm_exports_router)
 # Include Phase 2 monitoring routes with /api/v1 prefix (P&L agent monitoring)
-app.include_router(phase2_monitoring_router)
+# app.include_router(phase2_monitoring_router)  # MISSING FILE
 # Include CEO dashboard routes (executive reporting)
-app.include_router(ceo_dashboard_router)
+# app.include_router(ceo_dashboard_router)  # MISSING FILE
 
 # HRMS-0114 -- fail startup if any route has no explicit identity/
 # permission declaration at all. Runs synchronously at import time
@@ -519,6 +519,7 @@ assert_all_routes_have_permission_declarations(
     app,
     AuthenticationMiddleware.PUBLIC_ROUTES + AuthenticationMiddleware.PUBLIC_ROUTE_TEMPLATES,
     known_exceptions=[
+        "GET /csrf/token",  # CSRF token endpoint - required for frontend to initialize
         "GET /msgraph/calendar/meetings",
         "POST /msgraph/calendar/schedule",
         "POST /msgraph/mail/send",
