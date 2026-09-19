@@ -258,7 +258,7 @@ async def startup_event():
             try:
                 from app.models.api_keys_config import APIKeysConfig
                 active_provider = db.query(APIKeysConfig).filter(
-                    APIKeysConfig.tenant_id == context.tenant_id,
+                    APIKeysConfig.tenant_id == 1,
                     APIKeysConfig.is_active == True
                 ).first()
 

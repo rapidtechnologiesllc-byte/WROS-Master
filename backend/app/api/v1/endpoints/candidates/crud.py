@@ -222,7 +222,7 @@ def _build_candidate_response(
     dependencies=[Depends(require_role_template_permission("candidates", "can_create"))]
 )
 @rate_limit(500)  # FIX #17: 500 requests/min for candidate creation
-def create_candidate(request: CandidateCreateRequest, db: Session = Depends(get_db), user = Depends(get_current_user)):
+def create_candidate_endpoint(request: CandidateCreateRequest, db: Session = Depends(get_db), user = Depends(get_current_user)):
     """
     Create a new candidate with basic information.
 
@@ -259,8 +259,9 @@ def create_candidate(request: CandidateCreateRequest, db: Session = Depends(get_
         if not _is_valid_phone(request.candidate_mobile):
             raise HTTPException(status_code=400, detail="Invalid phone format")
 
-        # Use the safe candidate creation function that checks for duplicates
-        candidate, is_new = create_candidate(
+        # Use the safe candidate creation function that checks for duplicates (from service layer)
+        from app.services.candidate_service import create_candidate as create_candidate_service
+        candidate, is_new = create_candidate_service(
             db=db,
             email=request.candidate_email,
             mobile=request.candidate_mobile,
