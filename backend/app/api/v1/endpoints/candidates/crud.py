@@ -260,20 +260,11 @@ def create_candidate_endpoint(request: CandidateCreateRequest, db: Session = Dep
             raise HTTPException(status_code=400, detail="Invalid phone format")
 
         # QUEUE-DRIVEN: Endpoint validates & queues only. Handler creates candidate & commits.
-        # Step 1: Check for duplicates (validation only, no create)
-        from app.services.candidate_service import find_duplicate_candidate
-        duplicate, matched_on = find_duplicate_candidate(
-            db,
-            email=request.candidate_email,
-            mobile=request.candidate_mobile,
-            linkedin_url=None
-        )
+        # NOTE: Duplicate checking is removed from here. Handler will detect duplicates
+        # and perform idempotent merge (upsert) if candidate exists by email/phone.
+        # This allows Thunder merge events to be recorded and SLM signals sent.
 
-        if duplicate:
-            logger.warning(f"[CreateCandidate] Duplicate detected: {duplicate.candidateID}")
-            raise HTTPException(status_code=409, detail=f"Candidate already exists: {duplicate.candidateEmail}")
-
-        # Step 2: Generate ID (needed for queue message)
+        # Step 1: Generate ID (needed for queue message)
         from app.utils.uniq_id_generator import candidate_id_generator
         candidate_id = candidate_id_generator()
 
