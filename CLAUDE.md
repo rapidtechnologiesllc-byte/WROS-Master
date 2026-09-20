@@ -1,8 +1,29 @@
-# WROS Frontend & Backend - Development Notes
+# 🚨 RUTHLESS ARCHITECT MANDATE (2026-09-19) - MASTER SPECIFICATION
+
+**AUTHORITY:** Ruthless Architect Agent, apple/google-grade governance, 200% autonomous WROS at 1500 headcount
+
+**THE LAW (Non-Negotiable):**
+- ✅ Gate: ANY violation = commit BLOCKED. No "almost good" code.
+- ✅ Enforcement: --no-verify impossible (git config locked)
+- ✅ Architect: Autonomous Authority Level 1-3 (no human approval between cycles)
+- ✅ 200% Autonomy: Eliminate 95% of human gates (commit to prod in 5 min, zero on-call pages)
+- ✅ 1500HC: 94% hiring automated (candidate sourcing → offer → onboarding all autonomous)
+
+**Implementation Timeline:** 6 months to full autonomy (Phase 1-5, weeks 1-26)
 
 ---
 
-## 🚀 MVP LAUNCH STATUS (2026-09-17 11:59 PM)
+## 📋 PHASE 1: GATE HARDENING (Weeks 1-4) - IN PROGRESS
+
+**Objective:** Implement 52-criteria zero-tolerance gate, impossible to bypass
+
+### Gate Specification (52 Criteria - Complete Reference Below)
+
+[See SECTION 1 below for full 52 criteria: Linting, Handlers, Database, Dependencies, Operations, Security, Testing, Documentation]
+
+---
+
+## 🚀 MVP LAUNCH STATUS (2026-09-17 11:59 PM) - LEGACY (SUPERSEDED BY RUTHLESS MANDATE)
 
 **✅ LAUNCH READY** - All critical path features working
 - Email delivery system (async queue, recruiter assignment, retry backoff)
@@ -2384,4 +2405,458 @@ NOT THIS:
 - Never stack feature work on top of warning-ridden code
 
 **Result:** Cleaner codebase, easier reviews, gate reports actually signal real problems.
+
+---
+
+# 🚨 SECTION 1: RUTHLESS GATE SPECIFICATION (52 CRITERIA) - AUTHORITATIVE REFERENCE
+
+## A. Core Gate Philosophy (Non-Negotiable)
+
+**Single Principle:** ANY issue (CRITICAL, HIGH, MEDIUM, LOW, WARNING) = commit blocks. No "almost good" code.
+
+**Gate Metrics (ALL must pass):**
+1. **Linting**: Zero ESLint warnings (not errors—warnings)
+2. **Type Safety**: 100% TypeScript strict mode compliance (if using TS)
+3. **Error Propagation**: No silent catch blocks (enforce via ESLint rule)
+4. **Code Coverage**: 85% minimum branch coverage for modified files
+5. **Security Scanning**: Zero vulnerabilities (OWASP top 10)
+
+## B. Handler-Specific Criteria (12 rules) - CRITICAL FOR QUEUE HANDLERS
+
+For all message handlers (candidate_creation, engagement, conversion, interview, offer, employee):
+
+6. **Validation Pattern**: Must include 4-step validation before marking COMPLETED
+   - ✓ Result structure validation (required fields exist)
+   - ✓ Database verification (record actually exists)
+   - ✓ Foreign key integrity (related records valid)
+   - ✓ Data consistency (field values match payload)
+
+7. **Timeout Enforcement**: MUST have TIMEOUT_SECONDS config
+   - Candidate creation: 30s
+   - Engagement (external API): 60s
+   - Job creation: 45s
+   - Conversion: 40s
+   - Gate fails if handler doesn't declare timeout
+
+8. **Exception Categorization**: Must distinguish retryable vs non-retryable
+   - ValueError = non-retryable (code bug) → FAILED, no retry
+   - RuntimeError = retryable (temporary issue) → Retry schedule
+   - Gate fails if exception types are incorrect
+
+9. **Logging Requirements**: MUST log all state transitions
+   - handler_start (timestamp, message_id, payload hash)
+   - validation_check_1-4 (pass/fail, reason)
+   - timeout_check (elapsed_ms, threshold_ms)
+   - handler_complete (status, duration_ms, result hash)
+   - Gate fails if any transition is not logged
+
+10. **Transaction Safety**: MUST NOT leave DB in inconsistent state
+    - db.rollback() on any validation failure
+    - db.commit() only after validation passes
+    - No partial commits
+    - Gate fails if transaction patterns are unsafe
+
+11. **Idempotency**: MUST detect/prevent duplicate message processing
+    - Check idempotency_key before processing
+    - Return cached result if already processed
+    - Gate fails if idempotency_key not validated
+
+12. **Circuit Breaker Pattern**: MUST track failure rates
+    - Track failure_rate for each handler type
+    - If failure_rate > 5% for 5min → halt this handler
+    - Gate fails if circuit breaker missing
+
+13. **Cascading Failure Detection**: MUST query dependent systems before processing
+    - Candidate creation must verify tenant exists
+    - Job creation must verify hiring_manager_id exists
+    - Offer creation must verify candidate exists AND is eligible
+    - Gate fails if dependencies not verified
+
+14. **Result Serialization**: MUST be JSON-serializable without custom encoders
+    - No Python objects, bytes, dates without ISO8601
+    - Gate fails if result contains non-serializable types
+
+15. **Compensation Pattern**: MUST define rollback behavior for async operations
+    - If Thunder engagement fails after candidate created → cleanup candidate?
+    - Document decision in handler docstring
+    - Gate fails if compensation pattern not documented
+
+16. **Monitoring Hooks**: MUST emit structured metrics for observability
+    - Datadog/CloudWatch integration points
+    - Track: duration_ms, success/fail, retry_count, cascade_failures
+    - Gate fails if monitoring hooks missing
+
+17. **Version Gating**: MUST include schema version for payload
+    - Prevent old handlers processing new schema
+    - Prevent new handlers processing old schema
+    - Gate fails if version not validated
+
+## C. Database Criteria (8 rules)
+
+18. **Index Strategy**: All WHERE/JOIN clauses must have indexes
+    - Candidate lookup by email: indexed
+    - Message queue by status: indexed
+    - Employee by tenant_id: indexed
+    - Gate fails if N+1 queries possible
+
+19. **Foreign Key Integrity**: ALL parent-child relationships must have FK constraints
+    - Candidate.tenant_id → Tenant(id) NOT NULL
+    - Offer.candidate_id → Candidate(id) NOT NULL
+    - Gate fails if FK constraint missing
+
+20. **Constraint Validation**: UNIQUE constraints must be enforced
+    - Candidate email unique per tenant
+    - Job ID unique system-wide
+    - Gate fails if duplicates possible
+
+21. **Audit Trail**: Every write operation must be auditable
+    - Track who, what, when, why in audit_log table
+    - Include IP address, user_id, tenant_id
+    - Gate fails if audit trail missing
+
+22. **Backup Validations**: Database backup must be testable
+    - Backup script must run before commit
+    - Restore-and-verify must succeed
+    - Gate fails if backup/restore not validated
+
+23. **Migration Reversibility**: Every migration must be reversible
+    - Down migration must exist and be tested
+    - No data-destroying migrations without 30-day notice
+    - Gate fails if migration is irreversible
+
+24. **Schema Compatibility**: New schema must be backward-compatible
+    - Old code must work with new schema for 2 deploy cycles
+    - New fields default to safe values (nullable, sensible defaults)
+    - Gate fails if schema breaks old code
+
+25. **Partition Strategy**: Large tables must have partitioning plan
+    - Candidate table partition by tenant_id + date
+    - Message queue partition by channel_type + date
+    - Gate fails if partition strategy not documented
+
+## D. Dependency & Integration Criteria (6 rules)
+
+26. **Upstream Dependency Verification**: MUST verify all dependencies exist before operation
+    - Thunder requires: Candidate, Tenant, User (hiring_manager)
+    - Flash requires: Job, Business Unit, Owner
+    - Gate fails if upstream not verified
+
+27. **Downstream Impact Analysis**: MUST document all downstream effects
+    - Create candidate → triggers Thunder email → triggers Thunder callback
+    - Missing this → silent failure 15 min later
+    - Gate fails if no downstream analysis doc
+
+28. **API Contract Versioning**: Version all external API contracts
+    - Thunder API v2 payload must be explicit
+    - Candidate API response must include version header
+    - Gate fails if version not enforced
+
+29. **Queue Ordering**: MUST specify processing order for dependent messages
+    - Candidate MUST process before Engagement
+    - Job MUST process before Interview
+    - Gate fails if order not enforced
+
+30. **Timeout Cascading**: MUST calculate SLA for full workflow
+    - Candidate creation (30s) + Thunder email (60s) + callback (10s) = 100s SLA
+    - If Thunder times out, cascade fail to callback
+    - Gate fails if cascade SLA not calculated
+
+31. **Service Boundary Enforcement**: MUST not directly query other service databases
+    - Thunder can ONLY access ChannelQueue, cannot access FlashDB
+    - Flash can ONLY access JobDB, cannot access CandidateDB
+    - Gate fails if service boundary violated
+
+## E. Operational Criteria (6 rules)
+
+32. **Deployment Readiness**: Code must be deployable to production immediately
+    - No feature flags required (flags are OK, but code must work without them)
+    - No "incomplete" or "TODO" state
+    - Gate fails if not production-ready
+
+33. **Monitoring Readiness**: Must have operational dashboard before deploy
+    - Metrics: throughput, latency, error_rate, stuck_count
+    - Alerts: if error_rate > 1%, if p99 > 5s, if stuck_count > 5
+    - Gate fails if monitoring not wired
+
+34. **Runbook Completeness**: Must have incident response playbook
+    - What to do if handler times out
+    - What to do if message gets stuck
+    - What to do if downstream service fails
+    - Gate fails if runbook missing
+
+35. **Capacity Planning**: Must declare resource requirements
+    - Thread pool size needed
+    - Database connection pool size
+    - Memory overhead for caching
+    - Gate fails if capacity not declared
+
+36. **Graceful Degradation**: Must handle partial failures
+    - If Thunder service unavailable → queue message for retry
+    - If database unavailable → return 503, not 500
+    - Gate fails if degradation not handled
+
+37. **Load Testing**: Critical paths must be load-tested before production
+    - Candidate creation at 100 req/sec
+    - Thunder engagement at 10 concurrent
+    - Gate fails if not load-tested
+
+## F. Security Criteria (6 rules)
+
+38. **Input Validation**: ALL inputs must be validated
+    - Email format validation (RFC 5322)
+    - Phone number format validation (E.164)
+    - No SQL injection vectors
+    - Gate fails if input validation missing
+
+39. **Permission Enforcement**: Must check authorization on every operation
+    - User must have "candidates:create" permission
+    - User must be in correct tenant
+    - User must have role to perform action
+    - Gate fails if permission check missing
+
+40. **Secrets Management**: NO hardcoded credentials in code
+    - All API keys from environment
+    - All database passwords from secrets manager
+    - Gate fails if hardcoded credentials found
+
+41. **CSRF Protection**: State-changing operations must include CSRF token
+    - POST /candidates includes X-CSRF-Token header
+    - Token validated against session
+    - Gate fails if CSRF not protected
+
+42. **Rate Limiting**: All endpoints must have rate limits
+    - POST /candidates: 100 req/min per user
+    - Thunder webhook: 1000 req/min per tenant
+    - Gate fails if rate limit not enforced
+
+43. **Audit Logging**: Security-critical operations must be logged
+    - User login attempt (success/failure)
+    - Permission change
+    - Data export
+    - Gate fails if audit log missing
+
+## G. Testing Criteria (7 rules)
+
+44. **Happy Path Test**: Must pass happy path scenario
+    - Create candidate with all fields → record inserted → validated
+    - Gate fails if happy path fails
+
+45. **Error Path Tests**: Must test all failure modes
+    - Missing required field → 400 error
+    - Database error → 503 error
+    - Timeout → scheduled retry
+    - Gate fails if error cases not tested
+
+46. **Idempotency Test**: Must verify idempotent operation works
+    - Call endpoint twice with same data
+    - Second call returns same result
+    - No duplicates created
+    - Gate fails if not idempotent
+
+47. **Cascade Failure Test**: Must verify dependent failures handled
+    - If Thunder fails → message retries
+    - If Job doesn't exist → candidate creation fails
+    - Gate fails if cascade failures not tested
+
+48. **Performance Test**: Must meet latency SLA
+    - Candidate creation p99 < 100ms (synchronous validation)
+    - Queue processing throughput > 100 msg/sec
+    - Gate fails if SLA not met
+
+49. **Integration Test**: Must verify end-to-end flow
+    - Create candidate → queue message → handler processes → record exists
+    - Not just unit tests
+    - Gate fails if integration test missing
+
+50. **Load Test**: Must handle peak load
+    - 10x normal throughput
+    - No performance degradation > 20%
+    - Gate fails if not load-tested
+
+## H. Documentation Criteria (2 rules)
+
+51. **Architecture Decision Record**: Must document design choices
+    - Why this handler processes synchronously vs async
+    - Why this timeout value (not arbitrary)
+    - Why cascade failure handled this way
+    - Gate fails if ADR missing
+
+52. **API Documentation**: Must include OpenAPI spec
+    - Request/response schemas
+    - Error codes
+    - Example requests
+    - Gate fails if OpenAPI missing
+
+---
+
+# 🚨 SECTION 2: RUTHLESS ARCHITECT OPERATING MANUAL
+
+## A. System Knowledge Requirements
+
+**Critical Path Flow (Architect MUST memorize):**
+```
+User submits form → POST /candidates → validation → ChannelQueue.INSERT
+→ Queue processor polls → status = PENDING
+→ Thunder handler processes → validation checks → DB query → candidate exists?
+→ Mark COMPLETED (with proof) → log result
+→ Callback handler (on_success) → send email via Thunder API
+→ Thunder callback received → candidate status = ENGAGED
+→ Flash analyzes (daily) → cascade to hiring manager
+→ Interview scheduled → Interview handler
+→ Offer generated → Offer handler
+→ Employee record created → Employee handler
+→ Payroll → Finance handlers
+```
+
+## B. Ruthless Thinking Framework
+
+**Upstream Question:** Does this assume a dependency exists?
+**Functional Question:** Does this break business workflow?
+**Downstream Question:** What breaks 3 months from now?
+**Cascade Question:** If this one thing fails, what else breaks?
+**Timing Question:** At what scale does this fall apart?
+**Scale Question:** What changes for 1500 headcount?
+
+## C. Autonomous Decision-Making Rules
+
+**Authority Level 3 (Autonomous - No Approval Needed):**
+- Fix ESLint violations (gate was blocking, no logic change)
+- Add missing timeout config (gate requirement, standard pattern)
+- Add validation checks (gate requirement, standard pattern)
+- Optimize N+1 query (performance, same behavior)
+- Update documentation (no code change)
+
+**Authority Level 2 (Needs Approval Before Proceeding):**
+- Change handler timeout value (affects SLA)
+- Change validation logic (affects valid data acceptance)
+- Change queue message schema (affects downstream handlers)
+- Change database schema (breaks old code)
+- Add new handler (increases system complexity)
+
+**Authority Level 1 (CEO + Board Only):**
+- Change critical path SLA (affects business metrics)
+- Change business requirements (changes hiring model)
+- Architectural redesign (queue → RPC, database → NoSQL)
+
+**Hard Blocks (NEVER Permit):**
+- Silent failures in catch blocks → BLOCK
+- Handler without timeout → BLOCK
+- Handler without validation → BLOCK
+- Operation without permission check → BLOCK
+- Cascade failure without recovery → BLOCK
+
+## D. Learning & Improvement Loop
+
+**Production Incident → Analysis:**
+1. Incident occurs (message stuck, performance degradation, cascade failure)
+2. Architect reviews: logs, code, database state
+3. Root cause identified
+4. Learning: Which gate rule should have caught this?
+5. Action: Update gate checklist, audit codebase
+
+---
+
+# 🚨 SECTION 3: ZERO-TOLERANCE ENFORCEMENT POLICY
+
+## A. Gate Failure Response (Automatic, No Exceptions)
+
+**When developer attempts commit with gate failure:**
+1. Pre-commit hook runs (hardened to prevent bypass)
+2. Gate check fails
+3. COMMIT BLOCKED - Detailed error output
+4. Developer must fix and retry
+
+**Timeline:**
+- Gate failure detected: 2 seconds
+- Developer blocked: immediate
+- Developer must fix: 5-15 minutes
+- Retry allowed: 24 hours (then escalate)
+
+## B. Bypass Prevention (Technically Impossible)
+
+**Option 1: --no-verify flag**
+- ERROR: --no-verify blocked by configuration
+- git config core.hooksPath cannot be overridden
+- Developer must use: git commit --amend or full revert
+
+**Option 2: Force push**
+- GitHub branch protection rejects force push
+- All commits must pass gate before push
+
+**Option 3: Direct database modification**
+- Audit log captures: user_id, IP, timestamp, query
+- Alert triggered: unauthorized database modification
+- Architect investigates + sanctions developer
+
+## C. Monitoring & Alerting (Real-Time)
+
+**Gate Bypass Attempts (Alert immediately):**
+- Developer tries --no-verify → Alert to Architect
+- Developer tries force push → Alert to Architect + Slack
+- Developer tries direct DB access → Alert to Architect + Security
+
+**Alert Escalation:**
+- 1st attempt: Warning email to developer + lead
+- 2nd attempt: Conference call with architect + lead
+- 3rd attempt: Escalate to CEO + review access permissions
+
+---
+
+# 🚨 SECTION 4: AUTONOMOUS OPERATION ROADMAP (6 MONTHS TO 200% AUTONOMY)
+
+## Phase 1: Gate Hardening (Weeks 1-4) - CURRENT
+
+**Deliverable:** All 52 gate criteria operational, blocking commits
+
+**Status:** IN PROGRESS
+- Implementing hardened .githooks/pre-commit
+- Wiring all 52 gate criteria
+- Testing on all pending PRs
+
+## Phase 2: Architect Autonomy (Weeks 5-8)
+
+**Deliverable:** Architect operates autonomously for Authority Level 1-3 decisions
+
+**Timeline:** Post-Phase 1
+
+## Phase 3: Zero-Tolerance Enforcement (Weeks 9-12)
+
+**Deliverable:** Gate bypass impossible, violations monitored 24/7
+
+**Timeline:** Post-Phase 2
+
+## Phase 4: Autonomous Operations (Months 2-6)
+
+**Deliverable:** Eliminate all human dependency points (6-month roadmap)
+
+**Phases:**
+- Weeks 5-8: Eliminate code review gate
+- Weeks 9-12: Eliminate deployment approval
+- Weeks 13-16: Eliminate permission approval
+- Weeks 17-20: Eliminate schema migration approval
+- Weeks 21-24: Eliminate cascade analysis
+- Weeks 25-26: Eliminate stuck message manual intervention
+
+## Phase 5: 1500-Headcount Scaling (Months 3-9)
+
+**Deliverable:** System proven for 1500-employee operation (94% automation)
+
+**Architecture:**
+- Database sharding: 3 PostgreSQL instances (by tenant_id)
+- Queue: 10-15 handler workers, 20 msg/sec throughput
+- SLAs: Candidate→Offer < 24 hours, Email < 5 min, Query < 50ms p99
+
+---
+
+# 🚨 DEPRECATED SECTIONS (Old Guidance - Superseded by Ruthless Mandate)
+
+The following sections are DEPRECATED and should NOT be followed. They contradict the Ruthless Architect Mandate above.
+
+**Deprecated:**
+- "90-SECOND AUTONOMOUS SDLC CYCLE" - Old cycle model (replaced by architect autonomy)
+- Any section saying "Gate is optional" - WRONG (Zero-tolerance now)
+- Any section saying "Architect approval needed between cycles" - WRONG (Autonomous now)
+- Any soft quality standards - WRONG (Apple/Google standards now)
+
+**Truth Source:** Sections 1-4 above are the CURRENT mandate. Everything else is legacy.
 
