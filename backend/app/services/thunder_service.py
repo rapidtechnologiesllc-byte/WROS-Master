@@ -1000,7 +1000,7 @@ def mock_whatsapp_client(to_number: str, from_number: str, body: str) -> bool:
     logger.info(f"[ThunderTestChat] MOCK send | to={to_number} from={from_number} | {body[:120]!r}")
     return True
 
-def get_or_create_test_candidate(db: Session, current_user: Users) -> Candidate:
+def get_or_create_test_candidate(db: Session, current_user: Users):
     """
     send_thunder_message() hard-blocks without an active
     whatsapp_outreach ConsentRecord (A1) -- this creates that consent
@@ -1020,23 +1020,28 @@ def get_or_create_test_candidate(db: Session, current_user: Users) -> Candidate:
         current_user.UserName, fallback=current_user.UserEmail.split("@")[0],
     )
 
-    # Create test candidate via THE ONLY sanctioned path (create_candidate)
-    from app.services.candidate_service import create_candidate
+    # Queue test candidate creation via unified queue system
+    from app.services.candidate_creation_wrapper import queue_candidate_creation
 
     try:
-        candidate, is_new = create_candidate(
+        queue_result = queue_candidate_creation(
             db=db,
             email=_unique_test_email(db, current_user, candidate_id),
+            first_name=first_name,
+            last_name=last_name,
+            tenant_id=1,
+            source='thunder_test_demo',
             mobile=current_user.whatsapp_number or DEFAULT_TEST_MOBILE,
             candidate_id=candidate_id,
-            candidateFirstName=first_name,
-            candidateLastName=last_name,
         )
+        logger.info(
+            f"[Thunder Test] Queued test candidate creation: {queue_result['message_id']}"
+        )
+        # Return queue result instead of candidate (async creation)
+        return queue_result
     except Exception as e:
-        logger.error(f"[Thunder Test] Failed to create test candidate: {e}", exc_info=True)
+        logger.error(f"[Thunder Test] Failed to queue test candidate: {e}", exc_info=True)
         raise
-
-    return candidate
 
 def get_or_create_test_conversation(db: Session, tenant_id: str) -> CandidateConversation:
     """One test conversation per internal tester (scoped by tenant_id),
