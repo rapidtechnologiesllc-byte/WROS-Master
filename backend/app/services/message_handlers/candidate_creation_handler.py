@@ -388,9 +388,6 @@ class CandidateCreationHandler:
             # ATOMIC COMMIT: All or nothing - single commit for all records
             try:
                 db.commit()
-                # CRITICAL FIX: Clear session cache after commit to force fresh queries
-                # This ensures subsequent queries fetch from database, not stale session data
-                db.expire_all()
                 logger.info(f"[Handler] ✅ All records created atomically for {candidate_id} (candidate, status, education, experience)")
             except Exception as e:
                 db.rollback()
@@ -445,6 +442,9 @@ class CandidateCreationHandler:
 
             # ===== VALIDATION STEP 2: Verify candidate exists in database =====
             # CRITICAL: Must verify record is actually persisted before marking success!
+            # CRITICAL FIX: Clear session cache right before query to force fresh database fetch
+            # (moved after activity logging to avoid re-population by subsequent db.commit() calls)
+            db.expire_all()
             db_candidate = db.query(Candidate).filter(Candidate.candidateID == candidate_id).first()
             if not db_candidate:
                 raise RuntimeError(
