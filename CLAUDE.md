@@ -2689,6 +2689,75 @@ For all message handlers (candidate_creation, engagement, conversion, interview,
 
 ---
 
+# 🚨 DEVELOPMENT PATTERN ENFORCEMENT (MANDATORY - NO EXCEPTIONS)
+
+**THE PATTERN (Non-negotiable):**
+```
+[1] ARCHITECT ANALYZES
+    ↓ Entire system context (100% application, not just the file)
+    ↓ Upstream/functional/downstream impacts
+    ↓ Cascade failures 15 min ahead
+    ↓ Architect Decision Engine: APPROVE, BLOCK, ESCALATE, INVESTIGATE
+    
+[2] CLAUDE CODES
+    ↓ Per architect specification (exactly, not improvised)
+    ↓ All 52 gate criteria pass
+    ↓ No shortcuts, no assumptions
+    
+[3] GATE VALIDATES
+    ↓ All 52 criteria checked
+    ↓ Code matches architect spec
+    ↓ Commit blocked if any gate fails
+    
+[SUCCESS] Code ships with architect + gate approval
+```
+
+**This Pattern MUST Be Followed Every Time:**
+- ❌ NO direct coding without architect specification
+- ❌ NO gate bypass or --no-verify usage
+- ❌ NO assumptions about dependencies
+- ❌ NO isolated fixes (must analyze 100% context)
+- ✅ Architect spec → Code → Gate → Commit (always this order)
+
+**Enforcement Checkpoints:**
+
+1. **Before Coding:**
+   - Is there an architect spec? (If not, STOP and escalate)
+   - Does spec cover entire system impact? (If not, RETURN to architect)
+   - Are authority level requirements clear? (If not, ASK architect)
+
+2. **While Coding:**
+   - Code matches architect spec exactly (if diverging, STOP)
+   - No additional changes beyond spec (scope creep = re-architect)
+   - All gate criteria considered (don't code things gate will block)
+
+3. **Before Committing:**
+   - Gate must PASS (not "almost pass" or "can fix later")
+   - No violations, no warnings, no exceptions
+   - If gate blocks, fix violations (no --no-verify, no workarounds)
+
+4. **After Commit:**
+   - Verify code ships with full architect + gate approval
+   - Document any deviations from spec (for future learning)
+   - Log metrics for architect learning loop
+
+**Violations & Consequences:**
+
+| Violation | Consequence |
+|-----------|-------------|
+| Skip architect spec | Code blocked at gate (+ architect review required) |
+| Code doesn't match spec | Gate fails (violates criteria), commit blocked |
+| Gate fails, use --no-verify | Automatic revert + escalation to CEO |
+| Isolated fix (no full context) | Gate fails (cascade risk unanalyzed), must re-architect |
+| Assume dependencies exist | Hard block at gate (upstream verify fail), must test |
+
+**Audit Trail:**
+- Every commit logs: architect spec, gate status, developer, timestamp
+- Violations tracked in .git/gate-audit.log
+- Monthly review: pattern violations, learning improvements, remediation
+
+---
+
 # 🚨 SECTION 2: RUTHLESS ARCHITECT OPERATING MANUAL
 
 ## A. System Knowledge Requirements
