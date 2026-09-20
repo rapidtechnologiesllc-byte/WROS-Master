@@ -907,59 +907,8 @@ def update_candidate(candidate_id: str, request: CandidateUpdateRequest, db: Ses
         logger.error(f"[CRUD] Failed to enqueue update: {e}", exc_info=True)
         # Don't fail the response if queue enqueue fails - at least the sync update succeeded
 
-    # MANDATORY: Create history entry with user attribution for audit trail (LEGACY - kept for compatibility)
-    if corrections:
-        try:
-            from app.services.candidate_activity_service import EVENT_CANDIDATE_EDITED
-
-            # Build human-readable summary of changes
-            change_summary = []
-            for field_name, (old_val, new_val) in corrections.items():
-                field_label = field_name.replace('_', ' ').title()
-                change_summary.append(f"{field_label}: {old_val} → {new_val}")
-
-            note = " | ".join(change_summary) if change_summary else "Fields updated"
-
-            # Resolve performer identity
-            performer_id = getattr(user, "userID", None) or getattr(user, "UserID", None)
-            performer_name = (
-                f"{getattr(user, 'userFirstName', '') or getattr(user, 'UserFirstName', '')or ''} "
-                f"{getattr(user, 'userLastName', '') or getattr(user, 'UserLastName', '') or ''}".strip()
-                or getattr(user, "userEmail", None) or getattr(user, "UserEmail", None)
-                or "Unknown User"
-            )
-
-            # Create history entry
-            history_entry = CandidateHistory(
-                candidateID=candidate_id,
-                event_type=EVENT_CANDIDATE_EDITED,
-                note=note,
-                performed_by_id=performer_id,
-                performed_by_name=performer_name,
-                event_at=datetime.utcnow(),
-            )
-            db.add(history_entry)
-            db.commit()
-            logger.info(
-                f"[History] Candidate {candidate_id} edited by {performer_name} "
-                f"({len(corrections)} fields changed)"
-            )
-        except Exception as e:
-            logger.error(
-                f"[History] Failed to create history entry for {candidate_id}: {str(e)}",
-                exc_info=True
-            )
-
-    # Queue candidate update for THUNDER orchestrator
-    MessageQueueService.enqueue(
-        task_name='candidate_updated',
-        task_id=candidate_id,
-        data={
-            'candidate_id': candidate_id,
-            'candidate_email': candidate.candidateEmail,
-            'updated_at': datetime.now().isoformat()
-        }
-    )
+    # NOTE: History creation, event publishing, and SLM feedback now handled by CandidateUpdateHandler
+    # in the async queue - this removes duplication and provides audit trail visibility
 
     # Emit candidate_data_changed event with all changed fields
     if corrections:
