@@ -95,8 +95,10 @@ export const updateCandidate = async (candidateId, payload) => {
     body.candidate_expected_salary_type = payload.candidate_expected_salary_type;
   if (payload?.candidate_current_salary_type != null)
     body.candidate_current_salary_type = payload.candidate_current_salary_type;
+  if (payload?.candidate_notice_period != null)
+    body.candidate_notice_period = payload.candidate_notice_period;
   const { data } = await apiRequest(
-    `/api/v1/candidates/${candidateId}`,
+    `/api/v1/candidates/hr/update_candidate/${candidateId}`,
     {
       method: "PUT",
       body: JSON.stringify(body),
