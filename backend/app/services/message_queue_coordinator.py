@@ -6,12 +6,16 @@ All error handling is explicit with proper logging and fail-fast behavior.
 """
 
 import logging
+import json
 from typing import Dict, Any, List, Optional
-from datetime import datetime
+from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 
 from app.core.logging import logger
+from app.models.channel_queue import ChannelQueueItem
+from app.services.channel_processors.candidate_queue_processor import CandidateQueueProcessor
+from app.services.channel_queue_service import ChannelQueueService
 
 QUEUE_TYPE_THUNDERQUEUE = "THUNDER_QUEUE"
 QUEUE_TYPE_CANDIDATE = "CANDIDATE_QUEUE"
@@ -66,7 +70,7 @@ class MessageQueueCoordinator:
     @staticmethod
     def process_pending_messages(limit: int = 100, db: Session = None) -> Dict[str, Any]:
         """
-        Process PENDING messages and convert them to CHANNEL_QUEUED.
+        Process PENDING messages and route to appropriate handlers.
 
         Args:
             limit: Maximum number of messages to process
@@ -81,18 +85,86 @@ class MessageQueueCoordinator:
         if not db:
             raise ValueError("Database session required for process_pending_messages")
 
+        messages_processed = 0
+        channels_routed = 0
+        errors = 0
+
         try:
             logger.info(f"Starting pending message processing: limit={limit}")
 
+            # Query for PENDING messages ready for retry
+            now = datetime.utcnow()
+            pending_messages = db.query(ChannelQueueItem).filter(
+                ChannelQueueItem.status == "PENDING",
+                (ChannelQueueItem.next_retry_at <= now) |
+                (ChannelQueueItem.next_retry_at == None)
+            ).order_by(ChannelQueueItem.created_at.asc()).limit(limit).all()
+
+            logger.info(f"Found {len(pending_messages)} PENDING messages ready for processing")
+
+            for message in pending_messages:
+                try:
+                    # Mark as PROCESSING
+                    ChannelQueueService.mark_processing(message.id, db)
+                    logger.info(f"[Worker] Processing {message.type} message {message.id[:8]}...")
+
+                    # Route to appropriate processor based on channel
+                    result = None
+                    if message.channel == "CANDIDATE_QUEUE":
+                        result = CandidateQueueProcessor.process(message, db)
+                    else:
+                        logger.warning(f"Unknown queue channel: {message.channel}, skipping message {message.id}")
+                        ChannelQueueService.mark_failed(
+                            message.id,
+                            db,
+                            error_msg=f"Unknown channel type: {message.channel}"
+                        )
+                        errors += 1
+                        continue
+
+                    # Mark as COMPLETED
+                    if result and result.get("status") == "success":
+                        ChannelQueueService.mark_completed(message.id, db, result)
+                        messages_processed += 1
+                        channels_routed += 1
+                        logger.info(f"✅ Message {message.id[:8]} completed successfully")
+                    else:
+                        logger.error(f"Handler returned non-success result: {result}")
+                        ChannelQueueService.mark_failed(
+                            message.id,
+                            db,
+                            error_msg=f"Handler error: {result}"
+                        )
+                        errors += 1
+
+                except Exception as exc:
+                    logger.error(f"Error processing message {message.id}: {exc}", exc_info=True)
+                    # Try to mark as failed for retry
+                    try:
+                        ChannelQueueService.mark_failed(
+                            message.id,
+                            db,
+                            error_msg=f"Processing error: {str(exc)[:200]}"
+                        )
+                    except Exception as e:
+                        logger.error(f"Failed to mark message as failed: {e}")
+                    errors += 1
+
+            return {
+                "messages_processed": messages_processed,
+                "channels_routed": channels_routed,
+                "errors": errors,
+                "status": "completed"
+            }
+
+        except Exception as exc:
+            logger.error(f"Error in process_pending_messages: {exc}", exc_info=True)
             return {
                 "messages_processed": 0,
                 "channels_routed": 0,
-                "errors": 0,
-                "status": "queued_for_processing"
+                "errors": 1,
+                "status": "failed"
             }
-        except Exception as exc:
-            logger.error(f"Error in process_pending_messages: {exc}", exc_info=True)
-            raise
 
     @staticmethod
     def process_channel_messages(
