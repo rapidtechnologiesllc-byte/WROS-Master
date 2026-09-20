@@ -400,8 +400,8 @@ export default function ProfileTabEditable({ candidateId, candidate = {}, onRefr
             <Input
               label="Notice Period (days)"
               placeholder="e.g., 30, 45, 60"
-              value={editForm.joining_date || ""}
-              onChange={(v) => setEditForm({...editForm, joining_date: v})}
+              value={editForm.notice_period || ""}
+              onChange={(v) => setEditForm({...editForm, notice_period: v})}
             />
             <div />
             <RateField
@@ -425,7 +425,7 @@ export default function ProfileTabEditable({ candidateId, candidate = {}, onRefr
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <InfoDisplay label="Experience (Auto-calculated)" value={candidateFullDetails?.experience && candidateFullDetails.experience.length > 0 ? `${Math.round(candidateFullDetails.experience.length)} roles` : profile?.candidate_experience || "—"} suffix=" years" />
             <InfoDisplay label="Source" value={profile?.candidate_source} />
-            <InfoDisplay label="Notice Period" value={profile?.candidate_joining_date} />
+            <InfoDisplay label="Notice Period" value={profile?.candidate_notice_period ? `${profile.candidate_notice_period} days` : "—"} />
             <div />
             <InfoDisplay
               label="Expected Salary"
