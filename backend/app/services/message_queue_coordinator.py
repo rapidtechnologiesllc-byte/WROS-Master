@@ -95,7 +95,7 @@ class MessageQueueCoordinator:
             # Query for PENDING messages ready for retry
             now = datetime.utcnow()
             pending_messages = db.query(ChannelQueueItem).filter(
-                ChannelQueueItem.status == "PENDING",
+                ChannelQueueItem.status == "pending",
                 (ChannelQueueItem.next_retry_at <= now) |
                 (ChannelQueueItem.next_retry_at == None)
             ).order_by(ChannelQueueItem.created_at.asc()).limit(limit).all()
