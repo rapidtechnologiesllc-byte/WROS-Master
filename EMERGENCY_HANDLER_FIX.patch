@@ -1,0 +1,19 @@
+--- a/backend/app/services/message_handlers/candidate_creation_handler.py
++++ b/backend/app/services/message_handlers/candidate_creation_handler.py
+@@ -106,11 +106,13 @@ class CandidateCreationHandler:
+             # Create candidate via THE ONLY sanctioned path (create_candidate)
+             from app.services.candidate_service import create_candidate
+ 
+             candidate_mobile = payload.get("candidate_mobile")
++            # CRITICAL FIX: Generate ID since endpoint no longer provides it
++            generated_id = candidate_id_generator()
++            
+             try:
+                 candidate, is_new = create_candidate(
+                     db=db,
+                     email=candidate_email,
+                     mobile=candidate_mobile,
+                     linkedin_url=payload.get("candidate_linkedin_url"),
+-                    candidate_id=payload.get("candidate_id"),  # Use provided ID if available
++                    candidate_id=generated_id,  # Use handler-generated ID
+                     plain_password=payload.get("candidate_password"),  # Use provided or auto-generate

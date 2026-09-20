@@ -117,4 +117,7 @@ class MessageQueueService:
             raise RuntimeError(f"Failed to queue task: {str(queue_error)}")
         finally:
             if 'db' in locals():
-                db.close()
+                try:
+                    db.close()
+                except Exception as close_err:
+                    logger.error(f"[QUEUE] Failed to close DB connection for {task_name}: {close_err}", exc_info=True)

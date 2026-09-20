@@ -74,34 +74,27 @@ class CandidateCreationHandler:
             from app.utils.uniq_id_generator import candidate_id_generator
 
             # Extract and validate tenant_id (required for multi-tenant isolation)
-            # Note: payload.tenant_id may be int (legacy) or string (users.UserID)
+            # Note: Candidate.tenant_id is INTEGER FK to tenants.id, NOT users.UserID
             raw_tenant_id = payload.get("tenant_id", 1)
 
-            # Convert to string if integer (for FK compatibility with users.UserID)
-            if isinstance(raw_tenant_id, int):
-                # Integer tenant_id: look up the actual UserID for that integer
-                from app.models.user import Users
-                user = db.query(Users).filter(Users.tenant_id == raw_tenant_id).first()
-                if user:
-                    tenant_id = user.UserID  # Use the string UserID
-                    logger.info(f"[Handler] Converted integer tenant_id {raw_tenant_id} to UserID {tenant_id}")
+            # Ensure tenant_id is integer (for FK to tenants table)
+            try:
+                if isinstance(raw_tenant_id, str):
+                    tenant_id = int(raw_tenant_id)
                 else:
-                    # Fallback: use admin user if integer tenant_id not found
-                    admin_role_name = "Super User"  # Lookup for system admin
-                    admin_user = db.query(Users).filter(Users.UserRole == admin_role_name).first()
-                    if admin_user:
-                        tenant_id = admin_user.UserID
-                        logger.warning(f"[Handler] Integer tenant_id {raw_tenant_id} not found, using system admin")
-                    else:
-                        raise ValueError(f"Cannot map tenant_id {raw_tenant_id} to UserID")
-            else:
-                # Already a string (users.UserID)
-                tenant_id = str(raw_tenant_id)
+                    tenant_id = int(raw_tenant_id)
+            except (ValueError, TypeError) as e:
+                logger.error(f"[Handler] Invalid tenant_id (cannot convert to int): {raw_tenant_id}")
+                raise ValueError(f"Invalid tenant_id: {raw_tenant_id} (must be numeric integer)") from e
 
-            # Validate result is non-empty string
-            if not isinstance(tenant_id, str) or not tenant_id.strip():
-                logger.error(f"[Handler] Invalid tenant_id after conversion: {tenant_id} (from {raw_tenant_id})")
-                raise ValueError(f"Invalid tenant_id: {tenant_id}")
+            # Verify tenant exists
+            from app.models.tenant import Tenant
+            tenant_check = db.query(Tenant).filter(Tenant.id == tenant_id).first()
+            if not tenant_check:
+                logger.warning(f"[Handler] Tenant {tenant_id} not found, using default tenant=1")
+                tenant_id = 1
+
+            logger.info(f"[Handler] Using tenant_id={tenant_id} for candidate")
 
             # Create candidate via THE ONLY sanctioned path (create_candidate)
             from app.services.candidate_service import create_candidate
@@ -166,13 +159,21 @@ class CandidateCreationHandler:
                 # This implements proper upsert behavior - fresh submission data overwrites stale data
                 merge_count = 0
 
-                # CRITICAL: Always update email to ensure validation passes
-                # When duplicate found by phone, old email may differ from payload email
+                # SECURITY FIX #4: DO NOT update email on merge
+                # Scenario: Two people share phone number (family business line)
+                # Person A creates account: email=alice@example.com, phone=+1-555-0001
+                # Person B applies: email=bob@example.com, phone=+1-555-0001
+                # If we update Alice's email to Bob's, Bob controls Alice's account (EMAIL HIJACKING)
+                # Solution: Keep existing email, log for manual audit
                 old_email_for_audit = existing.candidateEmail
-                if candidate_email != existing.candidateEmail:
-                    existing.candidateEmail = candidate_email
-                    merge_count += 1
-                    logger.info(f"[Handler] Updated email during merge: {old_email_for_audit} → {candidate_email}")
+                if candidate_email and candidate_email != existing.candidateEmail:
+                    logger.warning(
+                        f"[Handler] MERGE CONFLICT - Email mismatch on duplicate merge: "
+                        f"existing={old_email_for_audit}, payload={candidate_email}. "
+                        f"Keeping existing email (not updating - potential security risk)"
+                    )
+                    # Do NOT update: existing.candidateEmail = candidate_email
+                    # Let audit trail capture this for manual review
                 if payload.get("candidate_first_name"):
                     existing.candidateFirstName = payload.get("candidate_first_name")
                     merge_count += 1
@@ -216,8 +217,10 @@ class CandidateCreationHandler:
                     existing.candidateEmployeeType = payload.get("candidate_employee_type")
                     merge_count += 1
 
-                # Mark record as updated
-                existing.candidateCreatedAt = datetime.now()  # Refresh timestamp
+                # CRITICAL FIX #5: DO NOT update candidateCreatedAt on merge
+                # candidateCreatedAt is immutable - it marks when the candidate was first created
+                # Updating it on merge breaks audit trail and compliance retention calculations
+                # existing.candidateCreatedAt = datetime.now()  # ❌ REMOVED - NEVER update creation timestamp
                 candidate = existing
 
                 # CRITICAL: Explicitly flush merged changes to session before final commit
@@ -292,10 +295,14 @@ class CandidateCreationHandler:
                 ).first()
 
                 if not existing_conversation:
-                    # CRITICAL #2 FIX: tenant_id in CandidateConversation is String(FK to users.UserID)
-                    # Use the converted tenant_id (which is a UserID string, not integer)
+                    # CRITICAL FIX: CandidateConversation.tenant_id is String(FK to users.UserID)
+                    # But we have integer tenant_id - need to look up a user with this tenant
+                    from app.models.user import Users
+                    user_for_tenant = db.query(Users).filter(Users.tenant_id == tenant_id).first()
+                    conversation_tenant_id = user_for_tenant.UserID if user_for_tenant else "system"
+
                     candidate_conversation = CandidateConversation(
-                        tenant_id=tenant_id,  # Already converted to UserID string above
+                        tenant_id=conversation_tenant_id,  # String UserID, not integer
                         candidate_id=candidate_id,
                         status="open",
                         ai_agent_name="flash_recruiter",
@@ -303,7 +310,7 @@ class CandidateCreationHandler:
                     )
                     db.add(candidate_conversation)
                     db.flush()
-                    logger.info(f"[Handler] ✅ CandidateConversation created for {candidate_id}")
+                    logger.info(f"[Handler] ✅ CandidateConversation created for {candidate_id} with tenant_id={conversation_tenant_id}")
 
                     # CRITICAL #4: Verify conversation actually exists (no silent failure)
                     created_conv = db.query(CandidateConversation).filter(
