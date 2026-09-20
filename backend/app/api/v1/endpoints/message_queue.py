@@ -70,7 +70,7 @@ def get_message_queue_display(
         "total": db.query(ChannelQueueItem).count(),
         "messages": [
             {
-                "id": msg.id,
+                "message_id": msg.message_id,  # FIXED: Show message_id (task_id), not internal db id
                 "type": msg.type,
                 "status": msg.status,
                 "created_at": msg.created_at.isoformat() if msg.created_at else None,
