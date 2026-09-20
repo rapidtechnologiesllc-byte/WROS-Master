@@ -592,45 +592,55 @@ Recruiting Team
             # This prevents double-engagement when queue_processor also queues Thunder after COMPLETED
             # Handler responsibility: Create candidate data only, not orchestrate downstream workflows
 
+            # SLM ORCHESTRATION: Analyze result and decide next actions
+            # SLMService is a Decision Orchestration Service (NOT machine learning)
+            # It validates results and routes to next workflow step (Thunder email, escalation, etc)
             try:
-                # Queue SLM pre-flight analysis for training data collection
-                import uuid
                 from app.services.slm_service import SLMService
-                SLMService.analyze_before_handler(
-                    message_id=str(uuid.uuid4()),  # Generate unique ID for this analysis
+
+                # Analyze candidate creation result
+                handler_result = {
+                    'success': True,
+                    'candidate_id': candidate_id,
+                    'email': candidate_email,
+                    'is_new': is_new,
+                }
+
+                slm_decision = SLMService.analyze_message_result(
+                    message_id=message.id,
                     message_type='candidate_created',
-                    payload={
-                        'candidate_id': candidate_id,
-                        'candidate_email': candidate_email,
-                        'first_name': payload.get("candidate_first_name", "User"),
-                    },
-                    context={
-                        'business_goal': 'Collect training data for resume parsing',
-                        'risk_level': 'LOW',
-                        'candidate_id': candidate_id,
-                    },
+                    result=handler_result,
                     db=db,
                     handler_name='candidate_creation'
                 )
-                logger.info(f"[Handler] ✅ SLM pre-flight analysis queued for {candidate_id}")
-            except Exception as e:
-                logger.warning(f"[Handler] SLM analysis failed (non-blocking): {e}", exc_info=True)
 
-            # GAP #1 FIX: Queue Thunder to engage newly created candidate with SLM processing
-            try:
-                from app.services.message_queue_service import MessageQueueService
-                MessageQueueService.enqueue(
-                    task_name='engage_candidate_with_thunder',
-                    data={
-                        'candidate_id': candidate_id,
-                        'channel_preference': 'email',
-                        'trigger': 'candidate_created'
-                    },
-                    status='WAITING_FOR_SLM'
-                )
-                logger.info(f"[Handler] ✅ Thunder engagement queued with WAITING_FOR_SLM for {candidate_id}")
+                logger.info(f"[Handler] ✅ SLM decision: {slm_decision['decision_type']} → {slm_decision['next_action']}")
+
+                # ACT ON DECISION: Queue Thunder if recommended
+                # If SLM says to send email, queue Thunder engagement
+                if slm_decision.get('next_action') == SLMService.ACTION_SEND_EMAIL:
+                    try:
+                        from app.services.message_queue_service import MessageQueueService
+                        MessageQueueService.enqueue(
+                            task_name='engage_candidate_with_thunder',
+                            data={
+                                'candidate_id': candidate_id,
+                                'channel_preference': 'email',
+                                'trigger': 'candidate_created',
+                                'slm_decision_id': slm_decision.get('details', {}).get('slm_decision_id')
+                            }
+                        )
+                        logger.info(f"[Handler] ✅ Thunder engagement queued per SLM decision for {candidate_id}")
+                    except Exception as e:
+                        logger.warning(f"[Handler] Thunder queue failed (SLM-orchestrated): {e}", exc_info=True)
+
+                # If SLM says escalate, log for manual review (don't queue Thunder)
+                elif slm_decision.get('decision_type') == SLMService.DECISION_ESCALATE:
+                    logger.warning(f"[Handler] SLM escalation required: {slm_decision.get('reason')} for {candidate_id}")
+
             except Exception as e:
-                logger.warning(f"[Handler] Thunder engagement queue failed (non-blocking): {e}", exc_info=True)
+                logger.error(f"[Handler] SLM decision analysis failed: {e}", exc_info=True)
+                raise RuntimeError(f"SLM orchestration failed for {candidate_id}: {str(e)}")
 
             return result
 
