@@ -97,7 +97,7 @@ def create_candidate(
     linkedin_url: Optional[str] = None,
     candidate_id: Optional[str] = None,
     plain_password: Optional[str] = None,
-    tenant_id: Optional[str] = None,
+    tenant_id: Optional[int] = None,  # CRITICAL FIX #1: Accept integer, FK to tenants.id
     **fields,
 ) -> Tuple[Candidate, bool]:
     """
@@ -121,6 +121,10 @@ def create_candidate(
     candidate_id = candidate_id or candidate_id_generator()
     plain_password = plain_password or generate_password()
 
+    # CRITICAL FIX: Ensure tenant_id is set (defaults to 1 for BlitzenX)
+    if tenant_id is None:
+        tenant_id = 1
+
     candidate = Candidate(
         candidateID=candidate_id,
         candidateEmail=email,
@@ -130,6 +134,7 @@ def create_candidate(
         candidateTempPassword=plain_password,
         candidateIsVerified=False,
         associated_bu_id=None,  # BU lifecycle: New candidates are org-wide (NULL)
+        tenant_id=tenant_id,  # CRITICAL FIX: Explicitly set integer tenant_id
         **fields,
     )
 
