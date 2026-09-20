@@ -579,6 +579,25 @@ def _run_schema_migrations():
                 logger.warning(f"[Contract] Migration warning: {e}")
             db.rollback()
 
+        # Migration 2: Add thunder_assigned_at column to candidate_status if missing
+        # This column tracks when Thunder was assigned to the candidate
+        try:
+            db.execute(text("""
+                ALTER TABLE candidate_status
+                ADD COLUMN thunder_assigned_at TIMESTAMP WITH TIME ZONE NULL;
+            """))
+            db.commit()
+            logger.info("[Contract] Migration: Added thunder_assigned_at column to candidate_status")
+        except Exception as e:
+            # Column might already exist
+            if "already exists" in str(e).lower() or "duplicate" in str(e).lower():
+                logger.debug(f"[Contract] Migration skipped (column already exists): {e}")
+            elif "table" in str(e).lower() and "does not exist" in str(e).lower():
+                logger.debug(f"[Contract] Migration skipped (candidate_status table doesn't exist yet): {e}")
+            else:
+                logger.warning(f"[Contract] Migration warning: {e}")
+            db.rollback()
+
     except Exception as e:
         logger.warning(f"[Contract] Schema migrations failed: {e}")
         # Don't fail startup if migrations can't be run
