@@ -388,9 +388,6 @@ class CandidateCreationHandler:
             # ATOMIC COMMIT: All or nothing - single commit for all records
             try:
                 db.commit()
-                # CRITICAL FIX: Refresh the candidate object after commit
-                # This ensures the object in memory reflects what's in the database
-                db.refresh(candidate)
                 logger.info(f"[Handler] ✅ All records created atomically for {candidate_id} (candidate, status, education, experience)")
             except Exception as e:
                 db.rollback()
