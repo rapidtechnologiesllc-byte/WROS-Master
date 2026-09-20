@@ -30,6 +30,8 @@ logger = logging.getLogger(__name__)
 class CandidateCreationHandler:
     """Handles candidate creation messages from queue with full record creation and event logging."""
 
+    HANDLER_NAME = "candidate_creation"
+    TIMEOUT_SECONDS = 30
     MAX_RETRIES = 5
     RETRY_DELAY_MINUTES = 30
 
