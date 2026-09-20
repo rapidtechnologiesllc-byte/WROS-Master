@@ -211,7 +211,7 @@ async def import_linkedin_candidate(
     # Step 4: Create real Candidate (promote directly, no staging needed for LinkedIn)
     # LinkedIn profiles are pre-qualified by "Open to Work" status, so no staging needed
     logger.info(f"[LinkedIn Import] Creating candidate: {enriched['full_name']}")
-    candidate = create_candidate(
+    candidate, is_new = create_candidate(
         db,
         email=enriched['email'],
         mobile=enriched['phone'],

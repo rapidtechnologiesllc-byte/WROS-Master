@@ -1130,7 +1130,7 @@ async def apply_for_job(
 
     # 6/7. R-07: createCandidateSafe() is the only sanctioned creation path.
     try:
-        candidate = create_candidate(
+        candidate, is_new = create_candidate(
             db,
             email=email,
             mobile=phone,

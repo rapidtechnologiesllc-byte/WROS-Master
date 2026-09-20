@@ -104,7 +104,7 @@ def import_candidates_from_csv(db: Session, csv_text: str, recruiter_id: str, te
         last_name = name_parts[1] if len(name_parts) > 1 else None
 
         try:
-            candidate = create_candidate(
+            candidate, is_new = create_candidate(
                 db, email=email, mobile=(row.get("phone") or "").strip() or None,
                 candidateFirstName=first_name, candidateLastName=last_name,
                 candidateCurrentLocation=(row.get("location") or "").strip() or None,

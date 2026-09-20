@@ -145,7 +145,7 @@ def start_public_chat(
     if existing:
         candidate = existing
     else:
-        candidate = create_candidate(
+        candidate, is_new = create_candidate(
             db,
             email=email,
             mobile=phone,
