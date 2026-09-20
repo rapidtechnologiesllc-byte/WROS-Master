@@ -78,15 +78,15 @@ class StuckMessageDetector:
                 retry_count,
                 created_at,
                 updated_at,
-                EXTRACT(EPOCH FROM (NOW() - processing_started_at)) as stuck_seconds,
+                EXTRACT(EPOCH FROM (NOW() - updated_at)) as stuck_seconds,
                 payload as data,
                 error as error_message
             FROM app_schema.channel_queue_item
             WHERE
                 status = 'PROCESSING'
-                AND processing_started_at IS NOT NULL
-                AND processing_started_at < NOW() - INTERVAL '{} seconds'
-            ORDER BY processing_started_at ASC
+                AND updated_at IS NOT NULL
+                AND updated_at < NOW() - INTERVAL '{} seconds'
+            ORDER BY updated_at ASC
             LIMIT 100
             """.format(threshold_seconds)
 
