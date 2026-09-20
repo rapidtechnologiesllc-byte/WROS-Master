@@ -653,167 +653,42 @@ def get_my_info(db: Session = Depends(get_db), user = Depends(get_current_candid
 
 @router.post("/candidate-form/", response_model=candidateFormResponse, dependencies=[Depends(require_resource_permission("candidate-form", "create"))])
 def candidate_info(request: candidateFormRequest, db: Session = Depends(get_db)):
-    """
-    Create or update candidate and fill information form.
+    """Queue candidate creation (async via message queue)."""
+    from app.services.message_queue_service import MessageQueueService
+    from app.utils.uniq_id_generator import candidate_id_generator
 
-    Args:
-        request: candidateFormRequest containing candidate and form details
-        db: Database session
+    if not request.candidate_email:
+        raise HTTPException(status_code=400, detail="Email is required")
+    if not request.candidate_first_name:
+        raise HTTPException(status_code=400, detail="First name is required")
+    if not request.candidate_last_name:
+        raise HTTPException(status_code=400, detail="Last name is required")
+    if not request.candidate_mobile:
+        raise HTTPException(status_code=400, detail="Mobile is required")
 
-    Returns:
-        candidateFormResponse with status and message
-
-    Raises:
-        HTTPException: If validation fails
-    """
-    # Find or create candidate by email
-    # MANDATORY: Use create_candidate() - the ONLY path to create candidates
-    from app.services.candidate_service import create_candidate
-
-    candidate, is_new = create_candidate(
-        db=db,
-        email=request.candidate_email,
-        candidateFirstName=request.candidate_first_name,
-        candidateLastName=request.candidate_last_name,
-        candidateMobile=request.candidate_mobile,
-        candidateSource=request.candidate_source,
-        candidateCurrentLocation=request.candidate_current_location,
-        plain_password="TempPass123!",
-    )
-
-    if is_new:
-        try:
-
-            # Log candidate creation
-            try:
-                from app.services.candidate_activity_service import log_candidate_created
-                log_candidate_created(
-                    db,
-                    candidate_id=candidate.candidateID,
-                    created_by_name="System",
-                    recruitment_source=request.candidate_source or "Form Submission"
-                )
-            except Exception as log_err:
-                logger.warning(f"Failed to log candidate creation: {log_err}")
-
-            # Queue EMAIL and WHATSAPP welcome messages to candidate
-            try:
-                from app.models.channel_queue import ChannelQueueItem
-                import uuid
-
-                # Queue EMAIL message
-                email_item = ChannelQueueItem(
-                    id=f"email-welcome-{uuid.uuid4().hex[:8]}",
-                    message_id=f"msg-{uuid.uuid4().hex[:8]}",
-                    type="candidate_welcome_email",
-                    channel_type="EMAIL",
-                    status="PENDING",
-                    payload={
-                        "subject": f"Welcome to BlitzenX HRMS - {request.candidate_first_name}",
-                        "body": f"""Dear {request.candidate_first_name},
-
-Thank you for registering with BlitzenX. We're excited to have you on board!
-
-You can now log in to your candidate portal and view opportunities that match your profile.
-
-Best regards,
-BlitzenX Recruitment Team""",
-                        "is_html": False,
-                    },
-                    recipient=request.candidate_email,
-                )
-                db.add(email_item)
-
-                # Queue WHATSAPP message (if phone provided)
-                if request.candidate_mobile:
-                    whatsapp_item = ChannelQueueItem(
-                        id=f"whatsapp-welcome-{uuid.uuid4().hex[:8]}",
-                        message_id=f"msg-{uuid.uuid4().hex[:8]}",
-                        type="candidate_welcome_whatsapp",
-                        channel_type="WHATSAPP",
-                        status="PENDING",
-                        payload={
-                            "message": f"Hi {request.candidate_first_name}! Welcome to BlitzenX. Check your email for next steps. Reply here if you have any questions!",
-                        },
-                        recipient=request.candidate_mobile,
-                    )
-                    db.add(whatsapp_item)
-
-                db.commit()
-                logger.info(f"Queued welcome messages for candidate {candidate.candidateID}")
-            except Exception as queue_err:
-                logger.warning(f"Failed to queue welcome messages: {queue_err}")
-        except Exception as e:
-            db.rollback()
-            logger.error(f"Failed to create candidate: {e}", exc_info=True)
-            raise HTTPException(
-                status_code=500,
-                detail=f"Failed to create candidate: {str(e)}"
-            ) from e
-
-    # Check if form already exists for this candidate
-    existing_form = db.query(CandidateInfoModel).filter(
-        CandidateInfoModel.candidateID == candidate.candidateID
-    ).first()
-    
-    if existing_form:
-        try:
-            # Update existing form
-            existing_form.position = request.position
-            existing_form.department = request.department
-            existing_form.dob = request.dob
-            existing_form.gender = request.gender
-            existing_form.marital_status = request.marital_status
-            existing_form.nationality = request.nationality
-            existing_form.current_address = request.current_address
-            existing_form.permanent_address = request.permanent_address
-            existing_form.submittedAt = request.submitted_at
-
-            db.commit()
-            db.refresh(existing_form)
-        except Exception as e:
-            db.rollback()
-            logger.error(f"Failed to update candidate form: {e}", exc_info=True)
-            raise HTTPException(
-                status_code=500,
-                detail=f"Failed to update candidate form: {str(e)}"
-            ) from e
-
-        return candidateFormResponse(
-            status="Success",
-            message="Candidate form updated successfully"
+    candidate_id = candidate_id_generator()
+    try:
+        message_id = MessageQueueService.enqueue(
+            task_name='candidate_form_submission',
+            data={
+                'candidate_id': candidate_id,
+                'email': request.candidate_email,
+                'first_name': request.candidate_first_name,
+                'last_name': request.candidate_last_name,
+                'mobile': request.candidate_mobile,
+                'source': request.candidate_source,
+                'location': request.candidate_current_location,
+            }
         )
-    else:
-        try:
-            # Create new form (formID is auto-generated by database)
-            new_form = CandidateInfoModel(
-                candidateID=candidate.candidateID,
-                position=request.position,
-                department=request.department,
-                dob=request.dob,
-                gender=request.gender,
-                marital_status=request.marital_status,
-                nationality=request.nationality,
-                current_address=request.current_address,
-                permanent_address=request.permanent_address,
-                submittedAt=request.submitted_at
-            )
-
-            db.add(new_form)
-            db.commit()
-            db.refresh(new_form)
-        except Exception as e:
-            db.rollback()
-            logger.error(f"Failed to create candidate form: {e}", exc_info=True)
-            raise HTTPException(
-                status_code=500,
-                detail=f"Failed to create candidate form: {str(e)}"
-            ) from e
-
+        logger.info(f"[CandidateForm] Queued submission: candidate_id={candidate_id}, message_id={message_id}")
         return candidateFormResponse(
-            status="Success",
-            message="Candidate form submitted successfully"
+            status="queued",
+            message="Candidate submission queued for processing",
+            message_id=message_id.get('message_id') if isinstance(message_id, dict) else message_id
         )
+    except Exception as e:
+        logger.error(f"[CandidateForm] Failed to queue: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to queue candidate: {str(e)}")
 
 @router.post("/education-form/", response_model=candidateFormResponse, dependencies=[Depends(require_resource_permission("education-form", "create"))])
 def candidate_education(request: CandidateEducationForm, db: Session = Depends(get_db), user = Depends(get_current_candidate)):
