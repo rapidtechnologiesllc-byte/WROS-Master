@@ -592,31 +592,7 @@ Recruiting Team
             # This prevents double-engagement when queue_processor also queues Thunder after COMPLETED
             # Handler responsibility: Create candidate data only, not orchestrate downstream workflows
 
-            try:
-                # Queue SLM pre-flight analysis for training data collection
-                import uuid
-                from app.services.slm_service import SLMService
-                SLMService.analyze_before_handler(
-                    message_id=str(uuid.uuid4()),  # Generate unique ID for this analysis
-                    message_type='candidate_created',
-                    payload={
-                        'candidate_id': candidate_id,
-                        'candidate_email': candidate_email,
-                        'first_name': payload.get("candidate_first_name", "User"),
-                    },
-                    context={
-                        'business_goal': 'Collect training data for resume parsing',
-                        'risk_level': 'LOW',
-                        'candidate_id': candidate_id,
-                    },
-                    db=db,
-                    handler_name='candidate_creation'
-                )
-                logger.info(f"[Handler] ✅ SLM pre-flight analysis queued for {candidate_id}")
-            except Exception as e:
-                logger.warning(f"[Handler] SLM analysis failed (non-blocking): {e}", exc_info=True)
-
-            # GAP #1 FIX: Queue Thunder to engage newly created candidate with SLM processing
+            # Queue Thunder to engage newly created candidate
             try:
                 from app.services.message_queue_service import MessageQueueService
                 MessageQueueService.enqueue(
@@ -625,10 +601,9 @@ Recruiting Team
                         'candidate_id': candidate_id,
                         'channel_preference': 'email',
                         'trigger': 'candidate_created'
-                    },
-                    status='WAITING_FOR_SLM'
+                    }
                 )
-                logger.info(f"[Handler] ✅ Thunder engagement queued with WAITING_FOR_SLM for {candidate_id}")
+                logger.info(f"[Handler] ✅ Thunder engagement queued for {candidate_id}")
             except Exception as e:
                 logger.warning(f"[Handler] Thunder engagement queue failed (non-blocking): {e}", exc_info=True)
 
