@@ -262,7 +262,7 @@ def create_candidate_endpoint(request: CandidateCreateRequest, db: Session = Dep
         # QUEUE-DRIVEN: Endpoint validates & queues only. Handler creates candidate & commits.
         # Step 1: Check for duplicates (validation only, no create)
         from app.services.candidate_service import find_duplicate_candidate
-        duplicate = find_duplicate_candidate(
+        duplicate, matched_on = find_duplicate_candidate(
             db,
             email=request.candidate_email,
             mobile=request.candidate_mobile,
