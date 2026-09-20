@@ -121,52 +121,17 @@ class HealthCheckService:
             }
 
     @staticmethod
-    def check_redis_connection() -> Dict[str, Any]:
-        """
-        Check Redis connection health (used by Celery).
-
-        Returns:
-            {
-                'status': 'healthy' | 'unhealthy',
-                'response_time_ms': float
-            }
-        """
-        try:
-            import redis
-            from datetime import datetime
-
-            redis_url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
-            r = redis.from_url(redis_url, decode_responses=True)
-
-            start_time = datetime.utcnow()
-            r.ping()
-            response_time = (datetime.utcnow() - start_time).total_seconds() * 1000
-
-            return {
-                'status': 'healthy',
-                'response_time_ms': response_time
-            }
-        except Exception as e:
-            logger.error(f"[HealthCheck] Redis connection failed: {e}")
-            return {
-                'status': 'unhealthy',
-                'error': str(e)
-            }
-
-    @staticmethod
     def get_full_health_report(db: Session) -> Dict[str, Any]:
         """Get comprehensive health report for all systems."""
         import os
 
         database_health = HealthCheckService.check_database_connection(db)
         queue_health = HealthCheckService.check_queue_processor_health(db)
-        redis_health = HealthCheckService.check_redis_connection()
 
         # Aggregate component statuses
         component_statuses = [
             database_health.get('status'),
             queue_health.get('status'),
-            redis_health.get('status')
         ]
 
         # Overall status: unhealthy if any component is unhealthy,
@@ -184,7 +149,6 @@ class HealthCheckService:
             'environment': os.getenv('ENVIRONMENT', 'development'),
             'database': database_health,
             'queue_processor': queue_health,
-            'redis': redis_health,
             'overall_status': overall_status
         }
 
