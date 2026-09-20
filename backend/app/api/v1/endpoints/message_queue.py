@@ -57,7 +57,8 @@ def get_message_queue_display(
 
     # Apply filters
     if status:
-        query = query.filter(ChannelQueueItem.status == status)
+        # Normalize status to lowercase since database stores it in lowercase
+        query = query.filter(ChannelQueueItem.status == status.lower())
     if message_type:
         query = query.filter(ChannelQueueItem.type == message_type)
 
@@ -232,7 +233,7 @@ def retry_failed_messages(
 def get_queue_stats(db: Session = Depends(get_db)):
     """Get overall queue statistics."""
     total = db.query(ChannelQueueItem).count()
-    pending = db.query(ChannelQueueItem).filter(ChannelQueueItem.status == "PENDING").count()
+    pending = db.query(ChannelQueueItem).filter(ChannelQueueItem.status == "pending").count()
     processing = db.query(ChannelQueueItem).filter(ChannelQueueItem.status == "PROCESSING").count()
     completed = db.query(ChannelQueueItem).filter(ChannelQueueItem.status == "COMPLETED").count()
     failed = db.query(ChannelQueueItem).filter(ChannelQueueItem.status == "FAILED").count()
