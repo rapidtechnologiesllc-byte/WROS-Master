@@ -167,6 +167,7 @@ export default function ProfileTabEditable({ candidateId, candidate = {}, onRefr
         current_location: profile?.candidate_current_location || "",
         experience: profile?.candidate_experience || "",
         joining_date: profile?.candidate_joining_date || "",
+        notice_period: profile?.candidate_notice_period || "",
         expected_salary: profile?.candidate_expected_salary || "",
         expected_salary_type: profile?.candidate_expected_salary_type || "$/Year",
         current_salary: profile?.candidate_current_salary || "",
