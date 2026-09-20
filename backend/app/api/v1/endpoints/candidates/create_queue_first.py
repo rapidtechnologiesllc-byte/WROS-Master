@@ -82,7 +82,7 @@ class CreateCandidateResponse(BaseModel):
 
 
 @router.post(
-    "",
+    "/create",
     response_model=CreateCandidateResponse,
     dependencies=[Depends(require_resource_permission("candidates", "create"))],
 )
