@@ -59,8 +59,8 @@ CandidateCreateResponse, CandidateCompleteResponse,
 CandidateEducationResponse, CandidateExperienceResponse,
 CandidateInfoResponse, CandidatePanResponse,
 CandidateAadharResponse, DeleteResponse,
-AllCandidatesResponse, candidateFormRequest, candidateFormResponse)
-from app.schemas.user import CandidateUpdateRequest
+AllCandidatesResponse, candidateFormRequest, candidateFormResponse,
+CandidateUpdateRequest)
 
 from app.utils.uniq_id_generator import generate_password
 
@@ -875,6 +875,80 @@ def update_candidate(candidate_id: str, request: CandidateUpdateRequest, db: Ses
             status_code=500,
             detail=f"Failed to update candidate: {str(e)}"
         )
+
+    # ENQUEUE UPDATE FOR ASYNC PROCESSING (history, events, SLM, etc.)
+    # This gives us full audit trail visibility in the message queue
+    try:
+        performer_id = getattr(user, "userID", None) or getattr(user, "UserID", None)
+        performer_name = (
+            f"{getattr(user, 'userFirstName', '') or getattr(user, 'UserFirstName', '')or ''} "
+            f"{getattr(user, 'userLastName', '') or getattr(user, 'UserLastName', '') or ''}".strip()
+            or getattr(user, "userEmail", None) or getattr(user, "UserEmail", None)
+            or "Unknown User"
+        )
+
+        # Build updates dict from corrections
+        updates = {}
+        for field_name, (old_val, new_val) in corrections.items():
+            updates[field_name] = new_val
+
+        MessageQueueService.enqueue(
+            task_name='candidate_update',
+            task_id=candidate_id,
+            data={
+                'candidate_id': candidate_id,
+                'updates': updates,
+                'performer_id': performer_id,
+                'performer_name': performer_name,
+            }
+        )
+        logger.info(f"[CRUD] Enqueued candidate_update for {candidate_id} ({len(corrections)} fields)")
+    except Exception as e:
+        logger.error(f"[CRUD] Failed to enqueue update: {e}", exc_info=True)
+        # Don't fail the response if queue enqueue fails - at least the sync update succeeded
+
+    # MANDATORY: Create history entry with user attribution for audit trail (LEGACY - kept for compatibility)
+    if corrections:
+        try:
+            from app.services.candidate_activity_service import EVENT_CANDIDATE_EDITED
+
+            # Build human-readable summary of changes
+            change_summary = []
+            for field_name, (old_val, new_val) in corrections.items():
+                field_label = field_name.replace('_', ' ').title()
+                change_summary.append(f"{field_label}: {old_val} → {new_val}")
+
+            note = " | ".join(change_summary) if change_summary else "Fields updated"
+
+            # Resolve performer identity
+            performer_id = getattr(user, "userID", None) or getattr(user, "UserID", None)
+            performer_name = (
+                f"{getattr(user, 'userFirstName', '') or getattr(user, 'UserFirstName', '')or ''} "
+                f"{getattr(user, 'userLastName', '') or getattr(user, 'UserLastName', '') or ''}".strip()
+                or getattr(user, "userEmail", None) or getattr(user, "UserEmail", None)
+                or "Unknown User"
+            )
+
+            # Create history entry
+            history_entry = CandidateHistory(
+                candidateID=candidate_id,
+                event_type=EVENT_CANDIDATE_EDITED,
+                note=note,
+                performed_by_id=performer_id,
+                performed_by_name=performer_name,
+                event_at=datetime.utcnow(),
+            )
+            db.add(history_entry)
+            db.commit()
+            logger.info(
+                f"[History] Candidate {candidate_id} edited by {performer_name} "
+                f"({len(corrections)} fields changed)"
+            )
+        except Exception as e:
+            logger.error(
+                f"[History] Failed to create history entry for {candidate_id}: {str(e)}",
+                exc_info=True
+            )
 
     # Queue candidate update for THUNDER orchestrator
     MessageQueueService.enqueue(
