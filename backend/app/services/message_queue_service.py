@@ -68,10 +68,10 @@ class MessageQueueService:
                 queue_status = status
                 scheduled_for = None
             elif delay_seconds > 0:
-                queue_status = 'scheduled'  # lowercase for consistency with coordinator queries
+                queue_status = 'SCHEDULED'  # uppercase for consistency with worker queries
                 scheduled_for = datetime.utcnow() + timedelta(seconds=delay_seconds)
             else:
-                queue_status = 'pending'  # lowercase for consistency with coordinator queries
+                queue_status = 'PENDING'  # uppercase for consistency with worker queries
                 scheduled_for = None
 
             # ARCHITECT FIX: Populate idempotency key if provided (enables duplicate detection)

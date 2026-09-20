@@ -8,7 +8,7 @@ Used by frontend Message Queue Monitor for debugging and monitoring.
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 from app.core.database import get_db
-from app.core.dependencies import require_role_template_permission
+from app.core.dependencies import require_role_template_permission, get_current_user
 from app.core.permission_registry import Permissions
 from app.models.channel_queue import ChannelQueueItem
 from datetime import datetime
@@ -41,12 +41,35 @@ def get_queue_types(db: Session = Depends(get_db)):
     }
 
 
-@router.get("/display", dependencies=[Depends(require_role_template_permission(*Permissions.ROLE_TEMPLATES_EDIT))])
+@router.get("/{message_id}/status")
+def get_message_status(message_id: str, db: Session = Depends(get_db)):
+    """
+    Get status of a specific queued message by message_id.
+
+    Used for polling candidate creation progress after form submission.
+    Returns: {status: PENDING|PROCESSING|COMPLETED|FAILED, result: {...}, error: "..."}
+    """
+    message = db.query(ChannelQueueItem).filter(ChannelQueueItem.message_id == message_id).first()
+
+    if not message:
+        return {"status": "not_found", "message_id": message_id}
+
+    return {
+        "message_id": message.message_id,
+        "status": message.status,
+        "result": message.result,
+        "error": message.error,
+        "completed_at": message.completed_at.isoformat() if message.completed_at else None,
+    }
+
+
+@router.get("/display")
 def get_message_queue_display(
     status: str = Query("", description="Filter by status: PENDING, PROCESSING, COMPLETED, FAILED"),
     message_type: str = Query("", description="Filter by message type"),
     limit: int = Query(50, ge=1, le=500),
     db: Session = Depends(get_db),
+    current_user = Depends(get_current_user),
 ):
     """
     Get message queue status for display/monitoring.
@@ -233,7 +256,7 @@ def retry_failed_messages(
 def get_queue_stats(db: Session = Depends(get_db)):
     """Get overall queue statistics."""
     total = db.query(ChannelQueueItem).count()
-    pending = db.query(ChannelQueueItem).filter(ChannelQueueItem.status == "pending").count()
+    pending = db.query(ChannelQueueItem).filter(ChannelQueueItem.status == "PENDING").count()
     processing = db.query(ChannelQueueItem).filter(ChannelQueueItem.status == "PROCESSING").count()
     completed = db.query(ChannelQueueItem).filter(ChannelQueueItem.status == "COMPLETED").count()
     failed = db.query(ChannelQueueItem).filter(ChannelQueueItem.status == "FAILED").count()
