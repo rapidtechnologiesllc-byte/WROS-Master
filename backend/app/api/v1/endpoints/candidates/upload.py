@@ -82,12 +82,21 @@ async def create_upload_session(
                 }
 
             candidate_id = candidate.candidateID
+
+            # CRITICAL: Commit candidate to DB (create_candidate doesn't commit)
+            try:
+                db.commit()
+            except Exception as commit_err:
+                db.rollback()
+                logger.error(f"[UPLOAD] Failed to commit candidate: {commit_err}", exc_info=True)
+                raise HTTPException(status_code=500, detail=f"Failed to persist session: {str(commit_err)}")
+
         except Exception as e:
             db.rollback()
             logger.error(f"[UPLOAD] Failed to create candidate: {e}", exc_info=True)
             raise HTTPException(status_code=500, detail=f"Failed to create session: {str(e)}")
 
-        logger.info(f"[UPLOAD] Created candidate: {candidate_id} ({email})")
+        logger.info(f"[UPLOAD] ✅ Created and committed candidate: {candidate_id} ({email})")
 
         return {
             "status": "created",

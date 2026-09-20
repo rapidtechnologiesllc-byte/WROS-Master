@@ -299,6 +299,9 @@ def create_candidate_endpoint(request: CandidateCreateRequest, db: Session = Dep
                     'candidate_current_location': request.candidate_current_location,
                     'candidate_current_salary': request.candidate_current_salary,
                     'candidate_expected_salary': request.candidate_expected_salary,
+                    'tenant_id': user.tenant_id if user else 1,
+                    'created_by_user_id': user.UserID if user else None,
+                    'created_by_name': user.UserName if user else None,
                 }
             )
             logger.info(f"[CreateCandidate] ✅ Queued {candidate_id}: message={message_id}")
