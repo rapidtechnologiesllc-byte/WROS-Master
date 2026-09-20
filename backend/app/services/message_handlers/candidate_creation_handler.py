@@ -107,6 +107,7 @@ class CandidateCreationHandler:
             from app.services.candidate_service import create_candidate
 
             candidate_mobile = payload.get("candidate_mobile")
+            source = payload.get("candidate_source", "form_submission")
 
             # CRITICAL: Generate ID here since endpoint no longer provides it
             generated_id = candidate_id_generator()
@@ -632,7 +633,7 @@ Recruiting Team
                     task_name='engage_candidate_with_thunder',
                     data={
                         'candidate_id': candidate_id,
-                        'channel_preference': candidate.channel_preference or 'email',
+                        'channel_preference': 'email',
                         'trigger': 'candidate_created'
                     },
                     status='WAITING_FOR_SLM'
