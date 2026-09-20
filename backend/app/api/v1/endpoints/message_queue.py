@@ -41,8 +41,8 @@ def get_queue_types(db: Session = Depends(get_db)):
     }
 
 
-@router.get("/{message_id}/status")
-def get_message_status(message_id: str, db: Session = Depends(get_db)):
+@router.get("/{message_id}/status", dependencies=[Depends(get_current_user)])
+def get_message_status(message_id: str, db: Session = Depends(get_db), current_user = Depends(get_current_user)):
     """
     Get status of a specific queued message by message_id.
 
@@ -80,8 +80,8 @@ def get_message_queue_display(
 
     # Apply filters
     if status:
-        # Normalize status to lowercase since database stores it in lowercase
-        query = query.filter(ChannelQueueItem.status == status.lower())
+        # Normalize status to uppercase (database stores PENDING, PROCESSING, COMPLETED, FAILED)
+        query = query.filter(ChannelQueueItem.status == status.upper())
     if message_type:
         query = query.filter(ChannelQueueItem.type == message_type)
 
