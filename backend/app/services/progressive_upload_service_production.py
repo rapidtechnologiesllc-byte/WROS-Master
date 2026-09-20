@@ -106,75 +106,53 @@ def create_candidate_lightweight(
 
         email_normalized = email.lower().strip()
 
-        # Create candidate via THE ONLY sanctioned path (create_candidate)
-        from app.services.candidate_service import create_candidate
+        # Queue candidate creation via unified queue system
+        from app.services.candidate_creation_wrapper import queue_candidate_creation
 
         try:
-            candidate, is_new = create_candidate(
+            queue_result = queue_candidate_creation(
                 db=db,
                 email=email_normalized,
-                mobile=mobile.strip() if mobile else None,
-                candidate_id=None,
+                first_name=first_name.strip(),
+                last_name=last_name.strip(),
                 tenant_id=tenant_id,
-                candidateFirstName=first_name.strip(),
-                candidateLastName=last_name.strip(),
-                candidateSource=source,
-                candidateCreatedAt=datetime.utcnow(),
-                # Upload state
+                source=source,
+                mobile=mobile.strip() if mobile else None,
+                # Pass through upload metadata as extra fields
                 upload_status=CandidateUploadState.CREATED.value,
                 expected_document_count=expected_document_count,
-                actual_document_count=0,
                 upload_locked=False,
-                upload_started_at=datetime.utcnow(),
+                upload_started_at=datetime.utcnow().isoformat(),
             )
 
-            if not is_new:
-                # Duplicate found
-                logger.info(f"[IDEMPOTENCY] Candidate {email_normalized} already exists")
-                return candidate, candidate.candidateID, {
-                    "status": "already_exists",
-                    "candidate_id": candidate.candidateID,
-                    "message": "Candidate already exists",
-                }
+            message_id = queue_result.get('message_id')
+            logger.info(
+                f"[ProgressiveUpload] Queued candidate: {email_normalized}, message_id={message_id}"
+            )
 
-            candidate_id = candidate.candidateID
-
-            # Commit candidate creation (create_candidate() does NOT commit)
-            try:
-                db.commit()
-                logger.info(f"[CREATE] Committed candidate {candidate_id}")
-            except Exception as e:
-                db.rollback()
-                logger.error(f"[CREATE] Failed to commit candidate {candidate_id}: {e}", exc_info=True)
-                raise
+            # Return queue result with message_id for polling
+            return None, message_id, {
+                "status": "queued",
+                "message_id": message_id,
+                "polling_endpoint": queue_result.get('polling_endpoint'),
+                "polling_interval_seconds": queue_result.get('polling_interval_seconds'),
+            }
 
         except Exception as e:
-            logger.error(f"[CREATE] Failed to create candidate {email_normalized}: {e}", exc_info=True)
+            logger.error(f"[CREATE] Failed to queue candidate {email_normalized}: {e}", exc_info=True)
             raise
 
-        # Create initial status record
-        try:
-            from app.models.candidate_status import CandidateStatus
+        # Note: Candidate and status records will be created asynchronously by handler
+        # No status record needed here since handler manages that
 
-            # Check if status already exists (idempotency)
-            existing_status = db.query(CandidateStatus).filter(
-                CandidateStatus.candidateID == candidate_id
-            ).first()
+        # Return queue message_id for polling completion
+        return None, message_id, {
+            "status": "queued",
+            "message_id": message_id,
+            "polling_endpoint": queue_result.get('polling_endpoint'),
+        }
 
-            if not existing_status:
-                status = CandidateStatus(
-                    candidateID=candidate_id,
-                    status="Intake",
-                    piplineStatus="Intake",
-                    createdAt=datetime.utcnow(),
-                    tenant_id=tenant_id,
-                )
-                db.add(status)
-                db.commit()
-        except Exception as e:
-            db.rollback()
-            logger.error(f"[CREATE] Failed to create status for candidate {email_normalized}: {e}", exc_info=True)
-            raise
+        # Status record creation is now handled by the message handler after candidate is created
 
         record_metric("candidates_created_total")
 
