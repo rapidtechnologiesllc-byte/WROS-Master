@@ -276,7 +276,7 @@ const MessageQueueMonitorEnhanced = () => {
                                     {expandedPayloads[row.id] ? '▼' : '▶'}
                                   </button>
                                   <span title={row.id} style={{fontSize: '12px', fontFamily: 'monospace'}}>
-                                    {row.id.substring(0, 8)}...
+                                    {row.id ? row.id.substring(0, 8) : 'N/A'}...
                                   </span>
                                   <button
                                     onClick={(e) => {
@@ -302,7 +302,7 @@ const MessageQueueMonitorEnhanced = () => {
                               </td>
                               <td style={{width: '25%', maxHeight: '80px', overflow: 'auto', whiteSpace: 'normal', wordBreak: 'break-word'}}>
                                 <span className="error-text" title={row.error || 'None'}>
-                                  {row.error ? row.error.substring(0, 100) + (row.error.length > 100 ? '...' : '') : '-'}
+                                  {row.error && typeof row.error === 'string' ? row.error.substring(0, 100) + (row.error.length > 100 ? '...' : '') : '-'}
                                 </span>
                               </td>
                               <td style={{width: '25%', maxHeight: '80px', overflow: 'auto', whiteSpace: 'normal', wordBreak: 'break-word', fontSize: '12px', color: '#666'}}>
