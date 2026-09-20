@@ -265,7 +265,7 @@ def create_candidate_endpoint(request: CandidateCreateRequest, db: Session = Dep
         duplicate = find_duplicate_candidate(
             db,
             email=request.candidate_email,
-            phone=request.candidate_mobile,
+            mobile=request.candidate_mobile,
             linkedin_url=None
         )
 
@@ -314,7 +314,7 @@ def create_candidate_endpoint(request: CandidateCreateRequest, db: Session = Dep
         return CandidateCreateResponse(
             candidate_id=candidate_id,
             candidate_is_first_time=True,
-            candidate_password="",  # Handler generates this
+            candidate_password=None,  # Handler generates this
             is_new=True,
             message_id=message_id
         )
@@ -1620,7 +1620,7 @@ def candidate_info(request: candidateFormRequest, db: Session = Depends(get_db))
     Raises:
         HTTPException: If validation fails
     """
-    from app.utils.uniq_id_generator import candidate_id_generator
+    from app.utils.uniq_id_generator import candidate_id_generator, generate_password
     from app.core.security import get_password_hash
 
     # Find or create candidate by email
@@ -1629,13 +1629,14 @@ def candidate_info(request: candidateFormRequest, db: Session = Depends(get_db))
     if not candidate:
         try:
             candidate_id = candidate_id_generator()
+            temp_password = generate_password()
             candidate = Candidate(
                 candidateID=candidate_id,
                 candidateEmail=request.candidate_email,
                 candidateFirstName=request.candidate_first_name,
                 candidateLastName=request.candidate_last_name,
                 candidateMobile=request.candidate_mobile,
-                candidatePassword=get_password_hash("TempPass123!"),
+                candidatePassword=get_password_hash(temp_password),
                 candidateSource=request.candidate_source,
                 candidateCurrentLocation=request.candidate_current_location,
             )
