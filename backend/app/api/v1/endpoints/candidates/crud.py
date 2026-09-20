@@ -270,7 +270,7 @@ def create_candidate_endpoint(request: CandidateCreateRequest, db: Session = Dep
         )
 
         if duplicate:
-            logger.warning(f"[CreateCandidate] Duplicate: {duplicate.candidateID}")
+            logger.warning(f"[CreateCandidate] Duplicate detected: {duplicate.candidateID}")
             raise HTTPException(status_code=409, detail=f"Candidate already exists: {duplicate.candidateEmail}")
 
         # Step 2: Generate ID (needed for queue message)
