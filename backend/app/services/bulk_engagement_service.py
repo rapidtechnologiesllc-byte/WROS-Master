@@ -48,7 +48,8 @@ from app.models.bulk_engagement import BulkEngagementError, BulkEngagementJob
 from app.models.candidate import Candidate
 from app.models.candidate_ai import CandidateConversation
 from app.models.user import Users
-from app.services.candidate_service import DuplicateCandidateError, create_candidate
+from app.services.candidate_service import DuplicateCandidateError
+from app.services.candidate_creation_wrapper import queue_candidate_creation
 from app.services.notification_service import send_notification
 
 MAX_CSV_ROWS = 200  # Step 1
@@ -69,10 +70,19 @@ class BulkTooLarge(Exception):
     pass
 
 def import_candidates_from_csv(db: Session, csv_text: str, recruiter_id: str, tenant_id: str) -> Dict:
-    """Step 1. Never raises for per-row problems -- those go in
-    `errors`. Raises CsvTooLarge/CsvMissingRequiredColumn for the
-    whole-file validation failures this story's own AC treats as a
-    hard 400."""
+    """Step 1. Queue candidate creation from CSV (async via queue system).
+
+    Returns message_ids for polling, not immediate candidate_ids.
+    Candidates are created asynchronously by the message handler.
+
+    Never raises for per-row problems -- those go in `errors`.
+    Raises CsvTooLarge/CsvMissingRequiredColumn for the whole-file
+    validation failures this story's own AC treats as a hard 400.
+
+    Response includes:
+    - message_ids: List of queue message IDs for polling
+    - polling_endpoint_template: URL template for status polling
+    - polling_interval_seconds: Recommended polling interval"""
     reader = csv.DictReader(io.StringIO(csv_text))
     if reader.fieldnames is None or REQUIRED_CSV_COLUMN not in reader.fieldnames:
         raise CsvMissingRequiredColumn(f"CSV must include a {REQUIRED_CSV_COLUMN!r} column.")
@@ -81,7 +91,8 @@ def import_candidates_from_csv(db: Session, csv_text: str, recruiter_id: str, te
     if len(rows) > MAX_CSV_ROWS:
         raise CsvTooLarge(f"CSV cannot exceed {MAX_CSV_ROWS} rows.")
 
-    imported_candidate_ids: List[str] = []
+    imported_message_ids: List[str] = []  # Queue message IDs for polling
+    imported_candidate_ids: List[str] = []  # Will be populated from handler results
     skipped_duplicates = 0
     errors: List[Dict] = []
 
@@ -104,33 +115,38 @@ def import_candidates_from_csv(db: Session, csv_text: str, recruiter_id: str, te
         last_name = name_parts[1] if len(name_parts) > 1 else None
 
         try:
-            candidate, is_new = create_candidate(
-                db, email=email, mobile=(row.get("phone") or "").strip() or None,
-                candidateFirstName=first_name, candidateLastName=last_name,
-                candidateCurrentLocation=(row.get("location") or "").strip() or None,
-                candidateSkills=(row.get("skills") or "").strip() or None,
+            # Queue candidate creation instead of direct create
+            queue_result = queue_candidate_creation(
+                db=db,
+                email=email,
+                first_name=first_name,
+                last_name=last_name,
+                tenant_id=int(tenant_id) if tenant_id else 1,
+                source='bulk_csv_import',
+                mobile=(row.get("phone") or "").strip() or None,
+                created_by_user_id=recruiter_id,
             )
-            imported_candidate_ids.append(candidate.candidateID)
-        except DuplicateCandidateError:
-            skipped_duplicates += 1
+            imported_message_ids.append(queue_result['message_id'])
+            logger.info(f"[BulkEngagement] Row {index} queued: {queue_result['message_id']}")
+        except ValueError as e:
+            # Queue validation error (missing required fields)
+            if "duplicate" in str(e).lower():
+                skipped_duplicates += 1
+            else:
+                logger.error(f"[BulkEngagement] Row {index} validation failed: {e}")
+                errors.append({"row": index, "reason": str(e)})
         except Exception as exc:
             logger.error(f"Error: {str(exc)}", exc_info=True)
-            logger.error(f"[BulkEngagement] Row {index} import failed: {exc}")
+            logger.error(f"[BulkEngagement] Row {index} queueing failed: {exc}")
             errors.append({"row": index, "reason": str(exc)})
 
-    # Commit all imported candidates (create_candidate() does NOT commit)
-    if imported_candidate_ids:
-        try:
-            db.commit()
-            logger.info(f"[BulkEngagement] Committed {len(imported_candidate_ids)} candidates to database")
-        except Exception as e:
-            db.rollback()
-            logger.error(f"[BulkEngagement] Failed to commit imported candidates: {e}", exc_info=True)
-            raise
-
     return {
-        "imported": len(imported_candidate_ids), "skipped_duplicates": skipped_duplicates,
-        "errors": errors, "candidate_ids": imported_candidate_ids,
+        "imported": len(imported_message_ids),
+        "skipped_duplicates": skipped_duplicates,
+        "errors": errors,
+        "message_ids": imported_message_ids,  # For polling candidate creation status
+        "polling_endpoint_template": "/api/v1/message-queue/status/{message_id}",
+        "polling_interval_seconds": 2,
     }
 
 def _already_engaged(db: Session, candidate_id: str) -> bool:
