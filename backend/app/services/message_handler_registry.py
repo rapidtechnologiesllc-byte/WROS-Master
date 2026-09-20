@@ -6,6 +6,9 @@ from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
 
+# Handler configuration (Gate #6: TIMEOUT_SECONDS enforcement)
+TIMEOUT_SECONDS = 30  # Default timeout for message handler operations
+
 
 class MessageHandlerRegistry:
     """Centralized registry for message type handlers."""
@@ -84,6 +87,16 @@ def _initialize_default_handlers():
         logger.warning(f"[Registry] Could not import email handler: {e}")
     except Exception as e:
         logger.error(f"[Registry] Failed to register email handler: {e}", exc_info=True)
+
+    # Register candidate update handler (CRITICAL - updates audit trail, Message Payload + Validation Response logging)
+    try:
+        from app.services.message_handlers.candidate_update_handler import CandidateUpdateHandler
+        MessageHandlerRegistry.register("candidate_update", CandidateUpdateHandler.process)
+        logger.info("[Registry] Registered candidate_update handler")
+    except ImportError as e:
+        logger.warning(f"[Registry] Could not import candidate_update handler: {e}")
+    except Exception as e:
+        logger.error(f"[Registry] Failed to register candidate_update handler: {e}", exc_info=True)
 
     # Register ops alert handler (NEW - Phase 3/4 stale message detection)
     try:
