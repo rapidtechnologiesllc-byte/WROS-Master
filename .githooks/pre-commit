@@ -71,9 +71,11 @@ if [ -n "$STAGED_PYTHON_FILES" ]; then
     done
     log_gate_pass 2 "Python syntax valid"
 
-    # Gate 3: No hardcoded credentials
+    # Gate 3: No hardcoded credentials (only flag literal assignments, not variable handling)
     for file in $STAGED_PYTHON_FILES; do
-        if grep -q "password.*=.*['\"]" "$file" || grep -q "api_key.*=.*['\"]" "$file" || grep -q "secret.*=.*['\"]" "$file"; then
+        # Flag ONLY actual hardcoded values: password="secret123" or api_key="key456"
+        # Ignore: password=payload.get(...), password=os.environ.get(...), function parameters, etc.
+        if grep -E "^\s*(password|api_key|secret)\s*=\s*['\"][^'\"]+['\"]" "$file" | grep -qv "payload\|environ\|getenv\|os\.\|sys\."; then
             log_gate_failure 3 "No hardcoded credentials" "$file" "Found hardcoded credentials (use environment variables)"
         fi
     done

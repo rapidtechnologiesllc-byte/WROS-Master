@@ -86,11 +86,12 @@ class CandidateCreationHandler:
                     tenant_id = user.UserID  # Use the string UserID
                     logger.info(f"[Handler] Converted integer tenant_id {raw_tenant_id} to UserID {tenant_id}")
                 else:
-                    # Fallback: use superuser if integer tenant_id not found
-                    superuser = db.query(Users).filter(Users.UserRole == "Super User").first()
-                    if superuser:
-                        tenant_id = superuser.UserID
-                        logger.warning(f"[Handler] Integer tenant_id {raw_tenant_id} not found, using superuser {tenant_id}")
+                    # Fallback: use admin user if integer tenant_id not found
+                    admin_role_name = "Super User"  # Lookup for system admin
+                    admin_user = db.query(Users).filter(Users.UserRole == admin_role_name).first()
+                    if admin_user:
+                        tenant_id = admin_user.UserID
+                        logger.warning(f"[Handler] Integer tenant_id {raw_tenant_id} not found, using system admin")
                     else:
                         raise ValueError(f"Cannot map tenant_id {raw_tenant_id} to UserID")
             else:
@@ -106,13 +107,17 @@ class CandidateCreationHandler:
             from app.services.candidate_service import create_candidate
 
             candidate_mobile = payload.get("candidate_mobile")
+
+            # CRITICAL: Generate ID here since endpoint no longer provides it
+            generated_id = candidate_id_generator()
+
             try:
                 candidate, is_new = create_candidate(
                     db=db,
                     email=candidate_email,
                     mobile=candidate_mobile,
                     linkedin_url=payload.get("candidate_linkedin_url"),
-                    candidate_id=payload.get("candidate_id"),  # Use provided ID if available
+                    candidate_id=generated_id,  # Use handler-generated ID
                     plain_password=payload.get("candidate_password"),  # Use provided or auto-generate
                     tenant_id=tenant_id,
                     candidateRole=payload.get("candidate_role", "Candidate"),
