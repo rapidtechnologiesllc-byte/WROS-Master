@@ -73,27 +73,11 @@ class CandidateCreationHandler:
             # Map payload fields to Candidate model fields (payload uses candidate_* naming)
             from app.utils.uniq_id_generator import candidate_id_generator
 
-            # Extract and validate tenant_id (required for multi-tenant isolation)
-            # Note: Candidate.tenant_id is INTEGER FK to tenants.id, NOT users.UserID
+            # Extract and validate tenant_id using centralized validation
+            # This eliminates duplication across all handlers and services
+            from app.services.candidate_service import validate_and_normalize_tenant_id
             raw_tenant_id = payload.get("tenant_id", 1)
-
-            # Ensure tenant_id is integer (for FK to tenants table)
-            try:
-                if isinstance(raw_tenant_id, str):
-                    tenant_id = int(raw_tenant_id)
-                else:
-                    tenant_id = int(raw_tenant_id)
-            except (ValueError, TypeError) as e:
-                logger.error(f"[Handler] Invalid tenant_id (cannot convert to int): {raw_tenant_id}")
-                raise ValueError(f"Invalid tenant_id: {raw_tenant_id} (must be numeric integer)") from e
-
-            # Verify tenant exists
-            from app.models.tenant import Tenant
-            tenant_check = db.query(Tenant).filter(Tenant.id == tenant_id).first()
-            if not tenant_check:
-                logger.warning(f"[Handler] Tenant {tenant_id} not found, using default tenant=1")
-                tenant_id = 1
-
+            tenant_id = validate_and_normalize_tenant_id(db, raw_tenant_id)
             logger.info(f"[Handler] Using tenant_id={tenant_id} for candidate")
 
             # Create candidate via THE ONLY sanctioned path (create_candidate)
@@ -296,13 +280,12 @@ class CandidateCreationHandler:
 
                 if not existing_conversation:
                     # CRITICAL FIX: CandidateConversation.tenant_id is String(FK to users.UserID)
-                    # But we have integer tenant_id - need to look up a user with this tenant
-                    from app.models.user import Users
-                    user_for_tenant = db.query(Users).filter(Users.tenant_id == tenant_id).first()
-                    conversation_tenant_id = user_for_tenant.UserID if user_for_tenant else "system"
+                    # Use centralized helper to map numeric tenant_id to UserID
+                    from app.services.candidate_service import get_user_for_tenant
+                    conversation_tenant_id = get_user_for_tenant(db, tenant_id)
 
                     candidate_conversation = CandidateConversation(
-                        tenant_id=conversation_tenant_id,  # String UserID, not integer
+                        tenant_id=conversation_tenant_id,  # String UserID (from centralized helper)
                         candidate_id=candidate_id,
                         status="open",
                         ai_agent_name="flash_recruiter",
