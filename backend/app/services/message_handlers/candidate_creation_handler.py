@@ -595,9 +595,11 @@ Recruiting Team
             # This prevents double-engagement when queue_processor also queues Thunder after COMPLETED
             # Handler responsibility: Create candidate data only, not orchestrate downstream workflows
 
-            # SLM ORCHESTRATION: Analyze result and decide next actions
+            # SLM ORCHESTRATION: Analyze result and decide next actions (NON-BLOCKING)
             # SLMService is a Decision Orchestration Service (NOT machine learning)
             # It validates results and routes to next workflow step (Thunder email, escalation, etc)
+            # CRITICAL: SLM failures do NOT block candidate creation success
+            # Candidate creation is the primary responsibility; SLM is optional downstream routing
             try:
                 from app.services.slm_service import SLMService
 
@@ -642,8 +644,11 @@ Recruiting Team
                     logger.warning(f"[Handler] SLM escalation required: {slm_decision.get('reason')} for {candidate_id}")
 
             except Exception as e:
-                logger.error(f"[Handler] SLM decision analysis failed: {e}", exc_info=True)
-                raise RuntimeError(f"SLM orchestration failed for {candidate_id}: {str(e)}")
+                # CRITICAL FIX: SLM failures do NOT fail the handler
+                # Candidate was successfully created and validated
+                # SLM is just a downstream decision service (fire-and-forget pattern)
+                logger.warning(f"[Handler] ⚠️ SLM orchestration failed (non-blocking): {e}", exc_info=True)
+                logger.info(f"[Handler] ✅ Candidate creation succeeded despite SLM failure - {candidate_id}")
 
             return result
 
