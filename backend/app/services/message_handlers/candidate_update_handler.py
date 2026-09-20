@@ -55,6 +55,9 @@ class CandidateUpdateHandler(BaseMessageHandler):
         performer_id = message.get('performer_id')
         performer_name = message.get('performer_name')
 
+        # Log complete message payload for visibility
+        logger.info(f"[CandidateUpdate] Message Payload: {message}")
+
         logger.info(f"[CandidateUpdate] Processing update for {candidate_id} "
                    f"({len(updates)} fields) by {performer_name}")
 
@@ -68,7 +71,13 @@ class CandidateUpdateHandler(BaseMessageHandler):
             if not candidate:
                 error_msg = f"Candidate {candidate_id} not found"
                 logger.error(f"[CandidateUpdate] {error_msg}")
-                return {'status': 'failed', 'error': error_msg}
+                validation_response = {
+                    'status': 'failed',
+                    'error': error_msg,
+                    'candidate_id': candidate_id
+                }
+                logger.error(f"[CandidateUpdate] Validation Response: {validation_response}")
+                return {'status': 'failed', 'error': error_msg, 'validation_response': validation_response}
 
             # Track corrections for audit trail
             corrections = {}
@@ -83,11 +92,19 @@ class CandidateUpdateHandler(BaseMessageHandler):
 
             if not corrections:
                 logger.info(f"[CandidateUpdate] No changes detected for {candidate_id}")
-                return {
+                validation_response = {
                     'status': 'success',
                     'candidate_id': candidate_id,
                     'fields_updated': 0,
                     'note': 'No changes detected'
+                }
+                logger.info(f"[CandidateUpdate] Validation Response: {validation_response}")
+                return {
+                    'status': 'success',
+                    'candidate_id': candidate_id,
+                    'fields_updated': 0,
+                    'note': 'No changes detected',
+                    'validation_response': validation_response
                 }
 
             # Commit changes to database
@@ -99,7 +116,14 @@ class CandidateUpdateHandler(BaseMessageHandler):
                 db.rollback()
                 error_msg = f"Database commit failed: {str(e)}"
                 logger.error(f"[CandidateUpdate] {error_msg}", exc_info=True)
-                return {'status': 'failed', 'error': error_msg}
+                validation_response = {
+                    'status': 'failed',
+                    'error': error_msg,
+                    'candidate_id': candidate_id,
+                    'phase': 'database_commit'
+                }
+                logger.error(f"[CandidateUpdate] Validation Response: {validation_response}")
+                return {'status': 'failed', 'error': error_msg, 'validation_response': validation_response}
 
             # Create history entry with audit trail
             try:
@@ -160,17 +184,34 @@ class CandidateUpdateHandler(BaseMessageHandler):
                 logger.error(f"[CandidateUpdate] Failed to record SLM feedback: {e}")
                 # Don't fail on SLM feedback failure
 
+            validation_response = {
+                'status': 'success',
+                'candidate_id': candidate_id,
+                'fields_updated': len(corrections),
+                'fields': list(corrections.keys()),
+                'performer': performer_name,
+                'timestamp': datetime.utcnow().isoformat()
+            }
+            logger.info(f"[CandidateUpdate] Validation Response: {validation_response}")
             return {
                 'status': 'success',
                 'candidate_id': candidate_id,
                 'fields_updated': len(corrections),
                 'fields': list(corrections.keys()),
-                'performer': performer_name
+                'performer': performer_name,
+                'validation_response': validation_response
             }
 
         except Exception as e:
             error_msg = f"Unexpected error: {str(e)}"
             logger.error(f"[CandidateUpdate] {error_msg}", exc_info=True)
-            return {'status': 'failed', 'error': error_msg}
+            validation_response = {
+                'status': 'failed',
+                'error': error_msg,
+                'candidate_id': candidate_id,
+                'phase': 'execution'
+            }
+            logger.error(f"[CandidateUpdate] Validation Response: {validation_response}")
+            return {'status': 'failed', 'error': error_msg, 'validation_response': validation_response}
         finally:
             db.close()
