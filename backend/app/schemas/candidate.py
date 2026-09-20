@@ -62,6 +62,7 @@ class CandidateUpdateRequest(BaseModel):
     candidate_experience: Optional[str] = None
     candidate_skills: Optional[list[str]] = None
     candidate_joining_date: Optional[date] = None
+    candidate_notice_period: Optional[int] = None
     candidate_expected_salary: Optional[str] = None
     candidate_current_salary: Optional[str] = None
     candidate_current_location: Optional[str] = None
