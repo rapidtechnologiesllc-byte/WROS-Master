@@ -138,6 +138,7 @@ def _build_candidate_response(
         candidate_experience=candidate.candidateExperience,
         candidate_skills=skills_str,
         candidate_joining_date=getattr(candidate, 'candidateJoiningDate', None),
+        candidate_notice_period=getattr(candidate, 'candidate_notice_period', None),
         candidate_current_location=candidate.candidateCurrentLocation,
         candidate_current_salary=getattr(candidate, 'candidateCurrentSalary', None),
         candidate_expected_salary=getattr(candidate, 'candidateExpectedSalary', None),
@@ -651,6 +652,7 @@ def get_candidates_by_my_bu(
             candidate_experience=candidate.candidateExperience,
             candidate_skills=candidate.candidateSkills,
             candidate_joining_date=candidate.candidateJoiningDate,
+            candidate_notice_period=getattr(candidate, 'candidate_notice_period', None),
             candidate_current_location=candidate.candidateCurrentLocation,
             candidate_current_salary=candidate.candidateCurrentSalary,
             candidate_expected_salary=candidate.candidateExpectedSalary,
@@ -813,6 +815,12 @@ def update_candidate(candidate_id: str, request: CandidateUpdateRequest, db: Ses
         if old_val != request.candidate_joining_date:
             corrections['candidate_joining_date'] = (old_val, request.candidate_joining_date)
 
+    if request.candidate_notice_period is not None:
+        old_val = candidate.candidate_notice_period
+        candidate.candidate_notice_period = request.candidate_notice_period
+        if old_val != request.candidate_notice_period:
+            corrections['candidate_notice_period'] = (old_val, request.candidate_notice_period)
+
     if request.candidate_expected_salary is not None:
         old_val = candidate.candidateExpectedSalary
         candidate.candidateExpectedSalary = request.candidate_expected_salary
@@ -933,6 +941,7 @@ def update_candidate(candidate_id: str, request: CandidateUpdateRequest, db: Ses
         candidate_skills=skills_str,
         candidate_current_location=candidate.candidateCurrentLocation,
         candidate_joining_date=candidate.candidateJoiningDate,
+        candidate_notice_period=getattr(candidate, 'candidate_notice_period', None),
         candidate_expected_salary=candidate.candidateExpectedSalary,
         candidate_expected_salary_type=getattr(candidate, 'candidateExpectedSalaryType', None),
         candidate_current_salary=candidate.candidateCurrentSalary,

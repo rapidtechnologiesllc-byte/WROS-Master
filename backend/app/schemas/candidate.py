@@ -148,6 +148,7 @@ class CandidateCompleteResponse(BaseModel):
     candidate_experience: str | None = None
     candidate_skills: str | None = None
     candidate_joining_date: date | None = None
+    candidate_notice_period: int | None = None
     candidate_current_location: str | None = None
     candidate_current_salary: str | None = None
     candidate_current_salary_type: str | None = None

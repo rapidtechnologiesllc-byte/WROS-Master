@@ -41,6 +41,7 @@ class Candidate(Base):
     candidateExperience = Column(String(512), nullable=True)
     candidateSkills = Column(Text, nullable=True)
     candidateJoiningDate = Column(Date, nullable=True)
+    candidate_notice_period = Column(Integer, nullable=True)  # Notice period in days (30, 45, 60)
     candidateExpectedSalary = Column(String(512), nullable=True)
     candidateCurrentSalary = Column(String(512), nullable=True)
     candidateCurrentLocation = Column(String(512), nullable=True)
