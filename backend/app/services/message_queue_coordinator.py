@@ -108,16 +108,16 @@ class MessageQueueCoordinator:
                     ChannelQueueService.mark_processing(message.id, db)
                     logger.info(f"[Worker] Processing {message.type} message {message.id[:8]}...")
 
-                    # Route to appropriate processor based on channel
+                    # Route to appropriate processor based on channel_type
                     result = None
-                    if message.channel == "CANDIDATE_QUEUE":
+                    if message.channel_type == "CANDIDATE_QUEUE":
                         result = CandidateQueueProcessor.process(message, db)
                     else:
-                        logger.warning(f"Unknown queue channel: {message.channel}, skipping message {message.id}")
+                        logger.warning(f"Unknown queue channel_type: {message.channel_type}, skipping message {message.id}")
                         ChannelQueueService.mark_failed(
                             message.id,
                             db,
-                            error_msg=f"Unknown channel type: {message.channel}"
+                            error_msg=f"Unknown channel type: {message.channel_type}"
                         )
                         errors += 1
                         continue
