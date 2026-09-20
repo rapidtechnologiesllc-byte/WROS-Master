@@ -311,12 +311,16 @@ def create_candidate_endpoint(request: CandidateCreateRequest, db: Session = Dep
             raise HTTPException(status_code=500, detail=f"Failed to queue candidate: {str(e)}")
 
         # Return response - NO endpoint commit (handler commits)
+        # Extract message_id string from enqueue response dict
+        msg_id_str = message_id.get('message_id') if isinstance(message_id, dict) else message_id
+        temp_pass = "pending"  # Handler will generate actual password
+
         return CandidateCreateResponse(
             candidate_id=candidate_id,
             candidate_is_first_time=True,
-            candidate_password=None,  # Handler generates this
+            candidate_password=temp_pass,
             is_new=True,
-            message_id=message_id
+            message_id=msg_id_str
         )
 
     except HTTPException:
