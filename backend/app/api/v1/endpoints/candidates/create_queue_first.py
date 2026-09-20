@@ -143,6 +143,10 @@ async def create_candidate(
 
         logger.info(f"[CANDIDATE_CREATE] Queueing candidate: {email} ({first_name} {last_name})")
 
+        # Generate task_id BEFORE enqueue to ensure returned ID matches queued message
+        from uuid import uuid4
+        task_id = str(uuid4())
+
         payload = {
             "candidate_email": email,
             "candidate_first_name": first_name,
@@ -161,10 +165,15 @@ async def create_candidate(
 
         enqueue_result = MessageQueueService.enqueue(
             task_name='create_candidate',
+            task_id=task_id,
             data=payload,
         )
 
-        task_id = enqueue_result.get('task_id')
+        # Verify the task_id in response matches what we sent
+        returned_task_id = enqueue_result.get('task_id')
+        if returned_task_id != task_id:
+            logger.error(f"[CANDIDATE_CREATE] CRITICAL: task_id mismatch! Sent: {task_id}, Got: {returned_task_id}")
+        task_id = returned_task_id
         logger.info(f"[CANDIDATE_CREATE] Queued: task_id={task_id}")
 
         return CreateCandidateResponse(
