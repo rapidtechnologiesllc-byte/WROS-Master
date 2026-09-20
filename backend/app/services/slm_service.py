@@ -89,7 +89,7 @@ class SLMService:
                 }
 
             # Store decision
-            SLMService._store_decision(message_id, decision, db)
+            SLMService._store_decision(message_id, decision, db, handler_name)
 
             logger.info(
                 f"SLM analysis complete: message_id={message_id} "
@@ -312,6 +312,7 @@ class SLMService:
         message_id: str,
         decision: Dict[str, Any],
         db: Session,
+        handler_name: Optional[str] = None,
     ) -> str:
         """
         Store SLM decision in database.
@@ -320,6 +321,7 @@ class SLMService:
             message_id: Message ID
             decision: Decision dict
             db: Database session
+            handler_name: Name of handler that generated this decision
 
         Returns:
             Decision ID
