@@ -21,6 +21,7 @@ from app.models.linkedin_candidate_pipeline import (
 )
 from app.models.user import Users
 from app.services import linkedin_recruiter_workload_service
+from app.services.candidate_creation_wrapper import queue_candidate_creation
 from app.core.logging import logger
 
 # Custom exceptions
@@ -157,22 +158,24 @@ async def convert_linkedin_to_candidate_auto(
                 f"Email: {existing.candidateEmail}"
             )
 
-        # Step 6: Create Candidate
-        candidate = _create_candidate_with_consent(
+        # Step 6: Queue Candidate Creation (async via unified queue)
+        queue_result = _create_candidate_with_consent(
             db,
             enriched_data,
             linkedin_url=linkedin_url,
             import_path="fast",
             source_imported_at=datetime.utcnow(),
         )
+        message_id = queue_result.get('message_id')
         logger.info(
-            f"[LinkedIn Fast Path] {trace_id}: Created candidate {candidate.candidateID}"
+            f"[LinkedIn Fast Path] {trace_id}: Queued candidate creation, message_id={message_id}"
         )
 
         # Step 7: Queue to Thunder (async, non-blocking)
+        # Handler will create candidate and trigger Thunder engagement
         _queue_to_thunder(
             db,
-            candidate_id=candidate.candidateID,
+            candidate_id=None,  # Will be populated by handler after candidate creation
             email=email,
             phone=phone,
             import_path="fast",
@@ -413,7 +416,7 @@ async def import_pipeline_candidate_to_thunder(
             'open_to_work': True,
         }
 
-        candidate = _create_candidate_with_consent(
+        queue_result = _create_candidate_with_consent(
             db,
             enriched_data,
             linkedin_url=pipeline.linkedin_url,
@@ -421,12 +424,14 @@ async def import_pipeline_candidate_to_thunder(
             source_imported_at=datetime.utcnow(),
         )
 
+        message_id = queue_result.get('message_id')
         logger.info(
-            f"[LinkedIn Import] {trace_id}: Created candidate {candidate.candidateID}"
+            f"[LinkedIn Import] {trace_id}: Queued candidate creation, message_id={message_id}"
         )
 
         # Step 7: Update pipeline
-        pipeline.candidate_id = candidate.candidateID
+        # Note: candidate_id will be populated by handler after creation completes
+        pipeline.queue_message_id = message_id  # Track queue message for polling
         pipeline.status = LinkedInPipelineStatus.IMPORTED_TO_THUNDER
         pipeline.imported_at = datetime.utcnow()
 
@@ -608,9 +613,12 @@ def _create_candidate_with_consent(
     linkedin_url: Optional[str] = None,
     import_path: str = "fast",
     source_imported_at: Optional[datetime] = None,
-) -> Candidate:
+) -> Dict[str, Any]:
     """
-    Create new Candidate record with LinkedIn enrichment data.
+    Queue candidate creation with LinkedIn enrichment data (async via queue).
+
+    Candidates are created asynchronously by the message handler.
+    Use message_id for polling creation status.
 
     Args:
         db: Database session
@@ -620,7 +628,15 @@ def _create_candidate_with_consent(
         source_imported_at: Timestamp of import
 
     Returns:
-        Created Candidate object
+        Queue result dict with message_id for polling:
+        {
+            'status': 'queued',
+            'message_id': str,
+            'task_id': str,
+            'queue_item_id': str,
+            'polling_endpoint': str,
+            'polling_interval_seconds': int
+        }
     """
     email = enriched_data.get('email') or f"linkedin_{str(uuid.uuid4())[:8]}@temp.blitzenx.local"
     phone = enriched_data.get('phone')
@@ -631,32 +647,30 @@ def _create_candidate_with_consent(
     first_name = name_parts[0] if len(name_parts) > 0 else "LinkedIn"
     last_name = name_parts[1] if len(name_parts) > 1 else "Candidate"
 
-    # Create via THE ONLY sanctioned path (create_candidate enforces dedup + queue + consent)
-    from app.services.candidate_service import create_candidate
-
+    # Queue candidate creation via unified queue system (async processing)
+    # This ensures idempotency, SLM orchestration, and Thunder engagement
     try:
-        candidate, is_new = create_candidate(
+        queue_result = queue_candidate_creation(
             db=db,
             email=email,
+            first_name=first_name,
+            last_name=last_name,
+            tenant_id=1,
+            source=f'linkedin_{import_path}',
             mobile=phone,
             linkedin_url=linkedin_url,
-            candidateFirstName=first_name,
-            candidateLastName=last_name,
-            candidateSource="LinkedIn",
-            candidateJobTitle=enriched_data.get('title'),
-            candidateIsVerified=True,
-            candidateRole="Candidate",
         )
+
+        logger.info(
+            f"Queued LinkedIn candidate: {first_name} {last_name} "
+            f"({email}) via {import_path} path, message_id={queue_result['message_id']}"
+        )
+
+        # Return the queue result with message_id for polling
+        return queue_result
     except Exception as e:
-        logger.error(f"Failed to create candidate from LinkedIn: {e}", exc_info=True)
+        logger.error(f"Failed to queue candidate from LinkedIn: {e}", exc_info=True)
         raise
-
-    logger.info(
-        f"Created candidate {candidate.candidateID}: {first_name} {last_name} "
-        f"({email}) via {import_path} path"
-    )
-
-    return candidate
 
 
 def _queue_to_thunder(
