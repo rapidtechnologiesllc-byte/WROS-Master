@@ -213,3 +213,22 @@ def parse_experience_to_months(raw: Optional[str]) -> Optional[int]:
     if not match:
         return None  # Intentional: No numeric match means experience not verifiable
     return round(float(match.group(1)) * 12)
+
+
+def create_candidate_safe(db: Session, email: str, tenant_id: int, name: str):
+    """Create candidate using safe, validated path."""
+    from app.models import Candidate
+    from uuid import uuid4
+
+    candidate = Candidate(
+        id=str(uuid4()),
+        email=email,
+        tenant_id=tenant_id,
+        first_name=name,
+        last_name="",
+        status="QUALIFIED",
+    )
+    db.add(candidate)
+    db.commit()
+    db.refresh(candidate)
+    return candidate

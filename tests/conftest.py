@@ -6,6 +6,11 @@ POSTGRESQL ONLY - No SQLite fallback
 
 import pytest
 import os
+import sys
+
+# Add backend to path for app module imports
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'backend'))
+
 from sqlalchemy import create_engine, text, event, inspect
 from sqlalchemy.orm import sessionmaker, Session
 from fastapi.testclient import TestClient
@@ -132,7 +137,19 @@ def setup_database():
     # Step 3: Verify all models are loaded into Base.metadata
     verify_models_loaded()
 
-    # Step 4: Create all tables from models
+    # Step 4: Create custom schemas if needed
+    print("Creating custom schemas...")
+    try:
+        with engine.connect() as conn:
+            conn.connection.set_isolation_level(0)
+            # Create app_schema if it doesn't exist
+            conn.execute(text("CREATE SCHEMA IF NOT EXISTS app_schema"))
+            conn.connection.set_isolation_level(1)
+        print("✓ PostgreSQL: Custom schemas created")
+    except Exception as e:
+        print(f"  Warning: Schema creation issue: {e}")
+
+    # Step 5: Create all tables from models
     print("Creating schema from SQLAlchemy models...")
     try:
         # Use checkfirst=True to check if tables already exist
@@ -173,6 +190,13 @@ def setup_database():
     try:
         Base.metadata.drop_all(bind=engine)
         print("✓ PostgreSQL: Test tables dropped")
+
+        # Drop custom schemas
+        with engine.connect() as conn:
+            conn.connection.set_isolation_level(0)
+            conn.execute(text("DROP SCHEMA IF EXISTS app_schema CASCADE"))
+            conn.connection.set_isolation_level(1)
+        print("✓ PostgreSQL: Custom schemas dropped")
     except Exception as e:
         print(f"⚠ Warning during cleanup: {e}")
 

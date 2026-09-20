@@ -268,6 +268,7 @@ class CandidateStatus(Base):
     candidateID = Column(String(512), ForeignKey("candidates.candidateID"), nullable=False)
     piplineStatus = Column(String(512), nullable=True, default="Applied")
     status = Column(String(512), nullable=True, default="Active")
+    thunder_assigned_at = Column(DateTime(timezone=True), nullable=True)
     createdAt = Column(DateTime(timezone=False), server_default=func.now())
     updatedAt = Column(DateTime(timezone=False), server_default=func.now(), onupdate=func.now())
     # candidate = relationship("Candidate")
