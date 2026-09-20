@@ -104,6 +104,7 @@ class MessageQueueService:
 
             return {
                 "status": "queued",
+                "task_id": task_id,
                 "message_id": task_id,
                 "queue_item_id": queue_item.id if hasattr(queue_item, 'id') else task_id
             }

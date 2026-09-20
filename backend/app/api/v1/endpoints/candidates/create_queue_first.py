@@ -143,10 +143,7 @@ async def create_candidate(
 
         logger.info(f"[CANDIDATE_CREATE] Queueing candidate: {email} ({first_name} {last_name})")
 
-        candidate_id = candidate_id_generator()
-
         payload = {
-            "candidate_id": candidate_id,
             "candidate_email": email,
             "candidate_first_name": first_name,
             "candidate_last_name": last_name,
@@ -164,17 +161,16 @@ async def create_candidate(
 
         enqueue_result = MessageQueueService.enqueue(
             task_name='create_candidate',
-            task_id=candidate_id,
             data=payload,
         )
 
-        message_id = enqueue_result.get('message_id', candidate_id)
-        logger.info(f"[CANDIDATE_CREATE] Queued: candidate_id={candidate_id}, message_id={message_id}")
+        task_id = enqueue_result.get('task_id')
+        logger.info(f"[CANDIDATE_CREATE] Queued: task_id={task_id}")
 
         return CreateCandidateResponse(
             status="queued",
-            message_id=message_id,
-            polling_endpoint=f"/api/v1/message-queue/status/{message_id}",
+            message_id=task_id,
+            polling_endpoint=f"/api/v1/message-queue/status/{task_id}",
             polling_interval_seconds=2,
         )
 
