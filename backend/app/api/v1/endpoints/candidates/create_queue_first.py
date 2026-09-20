@@ -169,17 +169,49 @@ async def create_candidate(
             data=payload,
         )
 
-        # Verify the task_id in response matches what we sent
+        # CRITICAL: Verify the enqueue result contains message_id/task_id
+        if not enqueue_result:
+            raise RuntimeError("Enqueue returned empty result - message not queued")
+
         returned_task_id = enqueue_result.get('task_id')
+        returned_message_id = enqueue_result.get('message_id')
+
+        if not returned_task_id:
+            raise RuntimeError(f"CRITICAL: Enqueue failed to return task_id. Result: {enqueue_result}")
+
+        if not returned_message_id:
+            raise RuntimeError(f"CRITICAL: Enqueue failed to return message_id. Result: {enqueue_result}")
+
+        # Verify the task_id in response matches what we sent
         if returned_task_id != task_id:
-            logger.error(f"[CANDIDATE_CREATE] CRITICAL: task_id mismatch! Sent: {task_id}, Got: {returned_task_id}")
-        task_id = returned_task_id
-        logger.info(f"[CANDIDATE_CREATE] Queued: task_id={task_id}")
+            logger.error(f"[CANDIDATE_CREATE] WARNING: task_id mismatch! Sent: {task_id}, Got: {returned_task_id}")
+            # Use the returned task_id as it's the one in the queue
+            task_id = returned_task_id
+
+        # CRITICAL: Verify queue item actually exists in database
+        try:
+            from app.models.channel_queue import ChannelQueueItem
+            from app.core.database import SessionLocal
+            verify_db = SessionLocal()
+            queue_item = verify_db.query(ChannelQueueItem).filter(
+                ChannelQueueItem.message_id == returned_task_id
+            ).first()
+            verify_db.close()
+
+            if not queue_item:
+                raise RuntimeError(f"CRITICAL: Queue message {returned_task_id} not found in database after enqueue")
+
+            logger.info(f"[CANDIDATE_CREATE] ✅ Queue item verified in DB: {returned_task_id}")
+        except Exception as verify_err:
+            logger.error(f"[CANDIDATE_CREATE] Failed to verify queue item: {verify_err}", exc_info=True)
+            raise RuntimeError(f"Failed to verify queue creation: {str(verify_err)}")
+
+        logger.info(f"[CANDIDATE_CREATE] ✅ Queued: task_id={task_id}, message_id={returned_message_id}")
 
         return CreateCandidateResponse(
             status="queued",
-            message_id=task_id,
-            polling_endpoint=f"/api/v1/message-queue/status/{task_id}",
+            message_id=returned_message_id,
+            polling_endpoint=f"/api/v1/message-queue/status/{returned_message_id}",
             polling_interval_seconds=2,
         )
 
