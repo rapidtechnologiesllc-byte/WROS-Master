@@ -47,9 +47,9 @@ class StuckMessageDetector:
     """Detects messages stuck in processing"""
 
     # Thresholds
-    STUCK_THRESHOLD_SECONDS = 5 * 60  # 5 minutes
-    CRITICAL_THRESHOLD_SECONDS = 10 * 60  # 10 minutes
-    MAX_RETRIES = 3
+    STUCK_THRESHOLD_SECONDS = 10  # 10 seconds - if not processed in 10s, mark FAILED
+    CRITICAL_THRESHOLD_SECONDS = 30  # 30 seconds - escalate if critical
+    MAX_RETRIES = 5  # Allow up to 5 retry attempts
 
     @staticmethod
     def get_stuck_messages(db: Session, threshold_seconds: int = STUCK_THRESHOLD_SECONDS) -> List[Dict[str, Any]]:
