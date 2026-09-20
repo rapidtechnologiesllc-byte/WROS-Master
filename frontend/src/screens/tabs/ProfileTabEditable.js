@@ -204,6 +204,7 @@ export default function ProfileTabEditable({ candidateId, candidate = {}, onRefr
         updatePayload.candidate_experience = editForm.experience || null;
         updatePayload.candidate_source = editForm.source || null;
         updatePayload.candidate_joining_date = editForm.joining_date || null;
+        updatePayload.candidate_notice_period = editForm.notice_period || null;
         updatePayload.candidate_expected_salary = editForm.expected_salary || null;
         updatePayload.candidate_expected_salary_type = editForm.expected_salary_type || null;
         updatePayload.candidate_current_salary = editForm.current_salary || null;
@@ -235,6 +236,8 @@ export default function ProfileTabEditable({ candidateId, candidate = {}, onRefr
             setCandidateFullDetails(fullDetails);
           }
         } catch (refreshErr) {
+          console.error("Failed to refresh candidate data after update:", refreshErr);
+          setActionError("Changes saved but failed to refresh data. Please reload the page.");
         }
       }, 300);
 
