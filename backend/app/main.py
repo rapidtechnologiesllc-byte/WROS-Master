@@ -472,8 +472,8 @@ app.include_router(career_portal_router)
 # Removed duplicate registration here to avoid double-registration
 # Include candidate audit log routes with /api/v1/candidates prefix (audit trail)
 app.include_router(candidate_audit_log_router, prefix="/api/v1")
-# Include candidates routes with /api/v1 prefix (candidate management)
-app.include_router(candidates_router, prefix="/api/v1")
+# NOTE: candidates_router is registered in routes.py and included via main router
+# Removed duplicate registration here to avoid double-registration (causes 405 routing conflicts)
 # Include Desire Intelligence (SLM) routes for candidate psychology/motivation analysis
 app.include_router(desire_intelligence_router, prefix="/api/v1")
 # NOTE: employee_referrals_router is registered in routes.py with /api/v1/referrals prefix
