@@ -32,7 +32,8 @@ from app.models.candidate_ai import CandidateConversation, ConversationEvent
 from app.models.consent import ConsentRecord
 from app.models.user import Jobs, Users
 from app.services.ai_conversation_service import assign_ai_agent, resolve_default_tenant_id
-from app.services.candidate_service import create_candidate, find_duplicate_candidate
+from app.services.candidate_service import find_duplicate_candidate
+from app.services.candidate_creation_sync_wait import queue_and_wait_for_candidate
 from app.services.escalation_detection_service import ESCALATION_EXIT_MESSAGE, check_escalation, execute_escalation
 from app.services.objection_handling_service import ObjectionEscalatedError, handle_objection
 from app.services.sentiment_analysis_service import analyze_sentiment
@@ -145,17 +146,26 @@ def start_public_chat(
     if existing:
         candidate = existing
     else:
-        candidate, is_new = create_candidate(
-            db,
+        # Queue candidate creation and wait for completion (sync-wait pattern)
+        # This is necessary for public_chat to create conversation in same request
+        candidate, message_id = queue_and_wait_for_candidate(
+            db=db,
             email=email,
+            first_name=first_name,
+            last_name=last_name,
+            tenant_id=1,
+            source='public_web_chat',
             mobile=phone,
-            candidateFirstName=first_name,
-            candidateLastName=last_name,
-            candidateRole="Candidate",
-            candidateSource="public_web_chat",
-            job_id=job_id,
+            timeout_seconds=10,
         )
-        db.flush()
+
+        if not candidate:
+            # Handler timeout - candidate creation is in progress asynchronously
+            # For now, raise error since we need candidate_id for conversation
+            raise RuntimeError(
+                f"Candidate creation timed out (message_id={message_id}). "
+                f"Retry or check queue status."
+            )
 
     # 2026-08-12: was per-branch (job.recuriterID/contactPerson when a
     # job was linked, else a locally-duplicated copy of "first Super
