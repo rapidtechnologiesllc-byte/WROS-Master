@@ -240,23 +240,33 @@ async def complete_linkedin_import(
     # Parse URL to get profile info
     profile_slug = parse_linkedin_url(request.linkedin_url)
 
-    # Create Candidate record via THE ONLY sanctioned path (create_candidate)
-    from app.services.candidate_service import create_candidate
+    # Create Candidate record via unified queue (sync-wait for immediate response)
+    from app.services.candidate_creation_sync_wait import queue_and_wait_for_candidate
 
     temp_email = f"candidate+{str(uuid4())[:8]}@blitzenx.com"
+    candidate_name = profile_slug.replace("-", " ").title()
+    name_parts = candidate_name.split(" ", 1)
+    first_name = name_parts[0] if name_parts else "Candidate"
+    last_name = name_parts[1] if len(name_parts) > 1 else ""
+
     try:
-        candidate, is_new = create_candidate(
+        candidate, message_id = queue_and_wait_for_candidate(
             db=db,
             email=temp_email,
+            first_name=first_name,
+            last_name=last_name,
             mobile=request.phone_number,
             linkedin_url=request.linkedin_url,
-            candidateFirstName=profile_slug.replace("-", " ").title(),
-            candidateSource="linkedin_import",
-            candidateRole="Candidate",
+            source="linkedin_import",
+            timeout_seconds=10,
         )
     except Exception as e:
-        logger.error(f"[LINKEDIN] Failed to create candidate: {e}", exc_info=True)
+        logger.error(f"[LINKEDIN] Failed to queue candidate: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to create candidate: {str(e)}")
+
+    if not candidate:
+        logger.error(f"[LINKEDIN] Candidate creation timed out for LinkedIn import")
+        raise HTTPException(status_code=500, detail="Candidate creation processing. Please try again.")
 
     # Update pipeline
     pipeline_item.status = LinkedInPipelineStatus.IMPORTED_TO_THUNDER
@@ -271,26 +281,6 @@ async def complete_linkedin_import(
         logger.error(f"[LINKEDIN] Failed to commit pipeline update: {e}", exc_info=True)
         db.rollback()
         raise HTTPException(status_code=500, detail="Failed to update pipeline")
-
-    # Queue to Thunder if new candidate
-    if is_new:
-        try:
-            from app.services.message_queue_service import MessageQueueService
-            MessageQueueService.enqueue(
-                task_name='create_candidate',
-                data={
-                    'candidateID': candidate.candidateID,
-                    'email': candidate.candidateEmail,
-                    'phone': candidate.candidateMobile,
-                    'linkedin_url': candidate.linkedin_url,
-                    'source': 'linkedin_import',
-                    'tenant_id': 1
-                }
-            )
-            logger.info(f"[LINKEDIN] Queued candidate {candidate.candidateID} to Thunder")
-        except Exception as e:
-            logger.error(f"[LINKEDIN] Failed to queue candidate: {e}", exc_info=True)
-            # Non-critical - candidate is created, just not queued yet
 
     return {
         "status": "SUCCESS",

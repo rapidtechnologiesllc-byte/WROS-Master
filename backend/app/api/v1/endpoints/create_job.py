@@ -13,7 +13,7 @@ from app.core.logging import logger
 from app.core.rate_limiter import rate_limit
 from app.core.csrf_protection import generate_csrf_token
 from app.services.ai_conversation_service import run_auto_assign_ai_agent_in_background
-from app.services.candidate_service import create_candidate, find_duplicate_candidate, DuplicateCandidateError
+from app.services.candidate_service import find_duplicate_candidate
 from app.services.message_queue_service import MessageQueueService
 from app.services.ready_for_opportunity_service import scan_new_job_for_matches
 from app.models.user import Jobs
@@ -1128,30 +1128,37 @@ async def apply_for_job(
     first_name = name_parts[0]
     last_name = name_parts[1] if len(name_parts) > 1 else None
 
-    # 6/7. R-07: createCandidateSafe() is the only sanctioned creation path.
+    # 6/7. R-07: Queue candidate creation via unified queue-driven path
+    from app.services.candidate_creation_sync_wait import queue_and_wait_for_candidate
+
     try:
-        candidate, is_new = create_candidate(
-            db,
+        candidate, message_id = queue_and_wait_for_candidate(
+            db=db,
             email=email,
+            first_name=first_name,
+            last_name=last_name,
             mobile=phone,
-            candidateRole=job.jobTitle,
-            candidateFirstName=first_name,
-            candidateLastName=last_name,
-            candidateExperience=total_experience_years,
-            candidateCurrentLocation=current_location,
-            candidateCurrentSalary=current_lpa,
-            candidateExpectedSalary=expected_lpa,
-            candidateSource="public_application",
-            candidateCreatedAt=datetime.now(),
+            source="public_application",
+            timeout_seconds=10,
         )
-    except DuplicateCandidateError as exc:
+    except Exception as exc:
+        logger.error(f"[JOB_APPLY] Failed to queue candidate: {exc}", exc_info=True)
         return JobApplicationResponse(
-            status="Already Applied",
-            message="An application with this email address already exists.",
-            candidate_id=exc.existing.candidateID,
+            status="Error",
+            message=f"Failed to process application: {str(exc)}",
+            candidate_id=None,
         )
+
+    if not candidate:
+        # Handler didn't complete in time, return error
+        logger.warning(f"[JOB_APPLY] Candidate creation timed out for {email}")
+        return JobApplicationResponse(
+            status="Error",
+            message="Application processing in progress. Please try again in a few moments.",
+            candidate_id=None,
+        )
+
     candidate_id = candidate.candidateID
-    db.flush()  # persist candidate so FK is satisfied
 
     # 8. Create CandidateStatus row (after candidate row exists)
     candidate_status = CandidateStatus(

@@ -66,29 +66,30 @@ class ReferralSubmissionHandler:
                 f"referrer={referrer_user_id}, candidate={candidate_email}"
             )
 
-            # PHASE 1: Create or get candidate via THE ONLY sanctioned path (create_candidate)
-            from app.services.candidate_service import create_candidate
+            # PHASE 1: Queue and wait for candidate creation via unified queue
+            from app.services.candidate_creation_sync_wait import queue_and_wait_for_candidate
 
             name_parts = candidate_name.split() if candidate_name else ['Unknown']
             first_name = name_parts[0] if len(name_parts) > 0 else 'Unknown'
             last_name = name_parts[-1] if len(name_parts) > 1 else ''
 
             try:
-                candidate, is_new_candidate = create_candidate(
+                candidate, message_id = queue_and_wait_for_candidate(
                     db=db,
                     email=candidate_email,
-                    mobile=payload.get('candidate_phone', '') or None,
-                    candidate_id=None,
-                    tenant_id=payload.get('tenant_id'),
-                    candidateFirstName=first_name,
-                    candidateLastName=last_name,
-                    candidateStatus='REFERRED',
-                    created_by=referrer_user_id
+                    first_name=first_name,
+                    last_name=last_name,
+                    mobile=payload.get('candidate_phone'),
+                    tenant_id=payload.get('tenant_id', 1),
+                    source='employee_referral',
+                    timeout_seconds=15,
                 )
-                if is_new_candidate:
-                    logger.info(f"[ReferralSubmission] Created new candidate from referral")
-                else:
-                    logger.info(f"[ReferralSubmission] Linked to existing candidate")
+
+                if not candidate:
+                    logger.error(f"[ReferralSubmission] Candidate creation timed out: {message_id}")
+                    raise RuntimeError(f"Candidate creation failed or timed out")
+
+                logger.info(f"[ReferralSubmission] Candidate created: {candidate.candidateID}")
             except Exception as e:
                 logger.error(f"[ReferralSubmission] Failed to create candidate: {e}", exc_info=True)
                 raise
@@ -124,7 +125,6 @@ class ReferralSubmissionHandler:
             return {
                 'referral_id': str(referral_id),
                 'candidate_id': str(candidate.candidateID),
-                'is_new_candidate': is_new_candidate,
                 'status': 'PENDING'
             }
 

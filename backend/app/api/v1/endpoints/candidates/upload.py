@@ -55,48 +55,37 @@ async def create_upload_session(
                 "expected_documents": expected_document_count,
             }
 
-        # Create new candidate via the ONLY authorized path (create_candidate enforces dedup + queue)
-        from app.services.candidate_service import create_candidate
+        # Create new candidate via queue (async with sync-wait for immediate response)
+        from app.services.candidate_creation_sync_wait import queue_and_wait_for_candidate
 
         try:
-            candidate, is_new = create_candidate(
+            candidate, message_id = queue_and_wait_for_candidate(
                 db=db,
                 email=email.lower(),
-                candidateFirstName=first_name,
-                candidateLastName=last_name,
-                candidateCreatedAt=datetime.utcnow(),
-                upload_status="uploading",
-                expected_document_count=expected_document_count,
-                actual_document_count=0,
-                upload_started_at=datetime.utcnow(),
+                first_name=first_name,
+                last_name=last_name,
+                source="upload",
+                timeout_seconds=10,
             )
 
-            if not is_new:
-                # Duplicate detected, return existing candidate
-                logger.info(f"[UPLOAD] Candidate already exists: {email}")
+            if not candidate:
+                # Handler didn't complete in time, but message is queued for async processing
+                logger.warning(f"[UPLOAD] Candidate creation timed out, queued async: {message_id}")
                 return {
-                    "status": "exists",
-                    "candidate_id": candidate.candidateID,
-                    "session_token": f"session_{candidate.candidateID}",
+                    "status": "queued",
+                    "candidate_id": None,
+                    "message_id": message_id,
+                    "session_token": f"session_{message_id}",
                     "expected_documents": expected_document_count,
+                    "polling_endpoint": f"/api/v1/message-queue/status/{message_id}",
                 }
 
             candidate_id = candidate.candidateID
-
-            # CRITICAL: Commit candidate to DB (create_candidate doesn't commit)
-            try:
-                db.commit()
-            except Exception as commit_err:
-                db.rollback()
-                logger.error(f"[UPLOAD] Failed to commit candidate: {commit_err}", exc_info=True)
-                raise HTTPException(status_code=500, detail=f"Failed to persist session: {str(commit_err)}")
+            logger.info(f"[UPLOAD] ✅ Created and queued candidate: {candidate_id} ({email})")
 
         except Exception as e:
-            db.rollback()
             logger.error(f"[UPLOAD] Failed to create candidate: {e}", exc_info=True)
             raise HTTPException(status_code=500, detail=f"Failed to create session: {str(e)}")
-
-        logger.info(f"[UPLOAD] ✅ Created and committed candidate: {candidate_id} ({email})")
 
         return {
             "status": "created",
