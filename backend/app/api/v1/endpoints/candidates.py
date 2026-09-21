@@ -211,7 +211,7 @@ def list_candidates(
     "/all",
     response_model=list,
 )
-def get_all_candidates(
+async def get_all_candidates(
     db: Session = Depends(get_db),
     current_user = Depends(get_current_user),
 ):
