@@ -211,42 +211,24 @@ def list_candidates(
     "/all",
     response_model=list,
 )
-async def get_all_candidates(
+def get_all_candidates(
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_user),
 ):
-    """Get all candidates (for dashboard, search, etc.)"""
+    """Get all candidates for tenant 1"""
     try:
-        logger.info(f"[GET /candidates/all] User: {getattr(current_user, 'email', 'unknown')}")
-
-        # Get tenant_id, defaulting to 1 if not found
-        tenant_id = getattr(current_user, 'tenant_id', 1)
-        if not tenant_id:
-            tenant_id = 1
-        logger.info(f"[GET /candidates/all] Tenant ID: {tenant_id}")
-
-        logger.info(f"[GET /candidates/all] Querying candidates...")
-        candidates = db.query(Candidate).filter(
-            Candidate.tenant_id == tenant_id
-        ).all()
-        logger.info(f"[GET /candidates/all] Found {len(candidates)} candidates")
-
-        result = []
-        for c in candidates:
-            logger.info(f"[GET /candidates/all] Processing candidate: {c.candidateID}")
-            result.append({
-                'candidateID': c.candidateID,
-                'candidateEmail': c.candidateEmail or '',
-                'candidateFirstName': c.candidateFirstName or '',
-                'candidateLastName': c.candidateLastName or '',
-                'candidateRole': c.candidateRole or '',
-                'candidateSource': c.candidateSource or '',
-                'candidateCreatedAt': c.candidateCreatedAt.isoformat() if c.candidateCreatedAt else None,
-            })
-        logger.info(f"[GET /candidates/all] Returning {len(result)} candidates")
+        candidates = db.query(Candidate).filter(Candidate.tenant_id == 1).all()
+        result = [{
+            'candidateID': c.candidateID,
+            'candidateEmail': c.candidateEmail or '',
+            'candidateFirstName': c.candidateFirstName or '',
+            'candidateLastName': c.candidateLastName or '',
+            'candidateRole': c.candidateRole or '',
+            'candidateSource': c.candidateSource or '',
+            'candidateCreatedAt': c.candidateCreatedAt.isoformat() if c.candidateCreatedAt else None,
+        } for c in candidates]
         return result
     except Exception as e:
-        logger.error(f"[GET /candidates/all] Error fetching candidates: {e}", exc_info=True)
+        logger.error(f"Error fetching candidates: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
 
 
