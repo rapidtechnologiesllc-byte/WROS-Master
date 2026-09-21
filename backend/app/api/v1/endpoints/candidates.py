@@ -211,24 +211,18 @@ def list_candidates(
     "/all",
     response_model=list,
 )
-def get_all_candidates(
-    db: Session = Depends(get_db),
-):
+def get_all_candidates(db: Session = Depends(get_db)):
     """Get all candidates for tenant 1"""
-    try:
-        candidates = db.query(Candidate).filter(Candidate.tenant_id == 1).all()
-        result = [{
-            'candidateID': c.candidateID,
-            'candidateEmail': c.candidateEmail or '',
-            'candidateFirstName': c.candidateFirstName or '',
-            'candidateLastName': c.candidateLastName or '',
-            'candidateRole': c.candidateRole or '',
-            'candidateSource': c.candidateSource or '',
-            'candidateCreatedAt': c.candidateCreatedAt.isoformat() if c.candidateCreatedAt else None,
-        } for c in candidates]
-        return result
-    except Exception as e:
-        logger.error(f"Error fetching candidates: {e}", exc_info=True)
+    candidates = db.query(Candidate).filter(Candidate.tenant_id == 1).all()
+    return [{
+        'candidateID': c.candidateID,
+        'candidateEmail': c.candidateEmail or '',
+        'candidateFirstName': c.candidateFirstName or '',
+        'candidateLastName': c.candidateLastName or '',
+        'candidateRole': c.candidateRole or '',
+        'candidateSource': c.candidateSource or '',
+        'candidateCreatedAt': c.candidateCreatedAt.isoformat() if c.candidateCreatedAt else None,
+    } for c in candidates]
         raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
 
 
