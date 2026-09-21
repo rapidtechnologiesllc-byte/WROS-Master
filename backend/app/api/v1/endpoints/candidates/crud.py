@@ -219,14 +219,14 @@ def _build_candidate_response(
 
 @router.get(
     "/all",
-    response_model=list,
+    response_model=dict,
     dependencies=[Depends(require_role_template_permission("candidates", "can_view"))]
 )
 def get_all_candidates(db: Session = Depends(get_db)):
     """Get all candidates for tenant 1"""
     try:
         candidates = db.query(Candidate).filter(Candidate.tenant_id == 1).all()
-        return [{
+        candidates_data = [{
             'candidateID': c.candidateID,
             'candidateEmail': c.candidateEmail or '',
             'candidateFirstName': c.candidateFirstName or '',
@@ -235,6 +235,10 @@ def get_all_candidates(db: Session = Depends(get_db)):
             'candidateSource': c.candidateSource or '',
             'candidateCreatedAt': c.candidateCreatedAt.isoformat() if c.candidateCreatedAt else None,
         } for c in candidates]
+        return {
+            'total_candidates': len(candidates_data),
+            'candidates': candidates_data
+        }
     except Exception as e:
         logger.error(f"Error in get_all_candidates: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
