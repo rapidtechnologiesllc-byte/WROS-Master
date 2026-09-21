@@ -207,25 +207,6 @@ def list_candidates(
         logger.error(f"Error fetching candidates: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.get(
-    "/all",
-    response_model=list,
-)
-def get_all_candidates(db: Session = Depends(get_db)):
-    """Get all candidates for tenant 1"""
-    candidates = db.query(Candidate).filter(Candidate.tenant_id == 1).all()
-    return [{
-        'candidateID': c.candidateID,
-        'candidateEmail': c.candidateEmail or '',
-        'candidateFirstName': c.candidateFirstName or '',
-        'candidateLastName': c.candidateLastName or '',
-        'candidateRole': c.candidateRole or '',
-        'candidateSource': c.candidateSource or '',
-        'candidateCreatedAt': c.candidateCreatedAt.isoformat() if c.candidateCreatedAt else None,
-    } for c in candidates]
-        raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
-
-
 # ============================================================================
 # Update Candidate Endpoint (PUT)
 # ============================================================================

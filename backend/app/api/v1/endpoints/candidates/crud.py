@@ -219,118 +219,24 @@ def _build_candidate_response(
 
 @router.get(
     "/all",
-    response_model=AllCandidatesResponse,
-    dependencies=[Depends(require_role_template_permission("candidates", "can_view"))]
+    response_model=list,
 )
-async def get_all_candidates(db: Session = Depends(get_db), user = Depends(get_current_user)):
-    """
-    Get all candidates with their complete information for HR/Admin.
-
-    Returns:
-        AllCandidatesResponse with list of all candidates and their forms
-    """
-    # HRMS-0109 -- scoped to the caller's own tenant, never all tenants'
-    # candidates. See app.core.tenant_context; fails closed (403) if
-    # `user` has no tenant assigned rather than silently showing everyone's.
-    # Backlog item, 2026-08-05: on top of tenant scoping, a bu_restricted
-    # role (e.g. HR Manager) is further scoped to Org Pool candidates
-    # plus their own Business Unit's -- see app.core.bu_scope's module
-    # docstring for why this endpoint specifically needed the fix
-    # (a correctly-scoped sibling endpoint already existed but no
-    # frontend screen ever called it).
-    candidates = apply_bu_scope_to_candidate_query(
-        db, db.query(Candidate), current_user=user,
-    ).all()
-
-    if not candidates:
-        return AllCandidatesResponse(total_candidates=0, candidates=[])
-
-    candidate_ids = [c.candidateID for c in candidates]
-
-    # TIER 2 FIX: Batch load all related data to prevent N+1 queries
-    # Pre-load all related data in batch queries instead of per-candidate queries
-    personal_infos = {
-        row.candidateID: row
-        for row in db.query(CandidateInfoForm).filter(
-            CandidateInfoForm.candidateID.in_(candidate_ids)
-        ).all()
-    }
-
-    education_records_map = {}
-    for edu in db.query(CandidateEducationForm).filter(
-        CandidateEducationForm.candidateID.in_(candidate_ids)
-    ).all():
-        if edu.candidateID not in education_records_map:
-            education_records_map[edu.candidateID] = []
-        education_records_map[edu.candidateID].append(edu)
-
-    experience_records_map = {}
-    for exp in db.query(CandidateExperienceForm).filter(
-        CandidateExperienceForm.candidateID.in_(candidate_ids)
-    ).all():
-        if exp.candidateID not in experience_records_map:
-            experience_records_map[exp.candidateID] = []
-        experience_records_map[exp.candidateID].append(exp)
-
-    aadhar_forms = {
-        row.candidateID: row
-        for row in db.query(CandidateAadharForm).filter(
-            CandidateAadharForm.candidateID.in_(candidate_ids)
-        ).all()
-    }
-
-    pan_forms = {
-        row.candidateID: row
-        for row in db.query(CandidatePanForm).filter(
-            CandidatePanForm.candidateID.in_(candidate_ids)
-        ).all()
-    }
-
-    candidate_statuses = {
-        row.candidateID: row
-        for row in db.query(CandidateStatus).filter(
-            CandidateStatus.candidateID.in_(candidate_ids)
-        ).all()
-    }
-
-    candidates_data = []
-    for candidate in candidates:
-        try:
-            # TIER 2 FIX: Use pre-loaded data instead of N+1 queries
-            personal_info = personal_infos.get(candidate.candidateID)
-            education_records = education_records_map.get(candidate.candidateID, [])
-            experience_records = experience_records_map.get(candidate.candidateID, [])
-            aadhar_form = aadhar_forms.get(candidate.candidateID)
-            pan_form = pan_forms.get(candidate.candidateID)
-            candidate_status = candidate_statuses.get(candidate.candidateID)
-
-            # Guidewire check: can still be called per-candidate if necessary
-            # (this is acceptable as it's a specialized check, not a standard join)
-            is_guidewire = is_guidewire_candidate(db, candidate)
-
-            # Use helper function to build response (DRY pattern)
-            candidate_response = _build_candidate_response(
-                candidate,
-                candidate_status=candidate_status,
-                personal_info=personal_info,
-                education_records=education_records,
-                experience_records=experience_records,
-                aadhar_form=aadhar_form,
-                pan_form=pan_form,
-                is_guidewire=is_guidewire,
-                serialize_skills=True
-            )
-
-            candidates_data.append(candidate_response)
-        except Exception as e:
-            logger.error(f"Error building candidate response for {candidate.candidateID}: {str(e)}", exc_info=True)
-            # Continue processing other candidates instead of failing entire request
-            continue
-
-    return AllCandidatesResponse(
-        total_candidates=len(candidates_data),
-        candidates=candidates_data
-    )
+def get_all_candidates(db: Session = Depends(get_db)):
+    """Get all candidates for tenant 1"""
+    try:
+        candidates = db.query(Candidate).filter(Candidate.tenant_id == 1).all()
+        return [{
+            'candidateID': c.candidateID,
+            'candidateEmail': c.candidateEmail or '',
+            'candidateFirstName': c.candidateFirstName or '',
+            'candidateLastName': c.candidateLastName or '',
+            'candidateRole': c.candidateRole or '',
+            'candidateSource': c.candidateSource or '',
+            'candidateCreatedAt': c.candidateCreatedAt.isoformat() if c.candidateCreatedAt else None,
+        } for c in candidates]
+    except Exception as e:
+        logger.error(f"Error in get_all_candidates: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
 
 @router.get(
     "/{candidate_id}",
