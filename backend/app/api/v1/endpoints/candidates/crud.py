@@ -979,7 +979,7 @@ def delete_candidate(candidate_id: str, db: Session = Depends(get_db), user = De
 # ============================================
 
 @router.post(
-    "/candidates/{candidate_id}/convert-to-employee",
+    "/{candidate_id}/convert-to-employee",
     dependencies=[Depends(require_role_template_permission("candidates", "can_edit"))],
     summary="Convert candidate to employee (only when status=OFFER and start_date met)"
 )
