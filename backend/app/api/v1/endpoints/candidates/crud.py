@@ -223,18 +223,37 @@ def _build_candidate_response(
     dependencies=[Depends(require_role_template_permission("candidates", "can_view"))]
 )
 def get_all_candidates(db: Session = Depends(get_db)):
-    """Get all candidates for tenant 1"""
+    """Get all candidates for tenant 1 with dashboard-ready fields"""
     try:
         candidates = db.query(Candidate).filter(Candidate.tenant_id == 1).all()
-        candidates_data = [{
-            'candidateID': c.candidateID,
-            'candidateEmail': c.candidateEmail or '',
-            'candidateFirstName': c.candidateFirstName or '',
-            'candidateLastName': c.candidateLastName or '',
-            'candidateRole': c.candidateRole or '',
-            'candidateSource': c.candidateSource or '',
-            'candidateCreatedAt': c.candidateCreatedAt.isoformat() if c.candidateCreatedAt else None,
-        } for c in candidates]
+        candidates_data = []
+
+        for c in candidates:
+            # Get candidate status
+            candidate_status = db.query(CandidateStatus).filter(
+                CandidateStatus.candidateID == c.candidateID
+            ).first()
+
+            # Build name
+            name_parts = [c.candidateFirstName or "", c.candidateLastName or ""]
+            name = " ".join(filter(None, name_parts)).strip() or "N/A"
+
+            candidates_data.append({
+                'candidateID': c.candidateID,
+                'name': name,
+                'contact': c.candidateEmail or '',
+                'candidateEmail': c.candidateEmail or '',
+                'candidateFirstName': c.candidateFirstName or '',
+                'candidateLastName': c.candidateLastName or '',
+                'candidateRole': c.candidateRole or '',
+                'candidateSource': c.candidateSource or '',
+                'jobTitle': c.candidateJobTitle or '',
+                'location': c.candidateCurrentLocation or '',
+                'status': candidate_status.status if candidate_status else 'Active',
+                'pipelineStatus': candidate_status.piplineStatus if candidate_status else 'Applied',
+                'candidateCreatedAt': c.candidateCreatedAt.isoformat() if c.candidateCreatedAt else None,
+            })
+
         return {
             'total_candidates': len(candidates_data),
             'candidates': candidates_data
