@@ -220,6 +220,7 @@ def _build_candidate_response(
 @router.get(
     "/all",
     response_model=list,
+    dependencies=[Depends(require_role_template_permission("candidates", "can_view"))]
 )
 def get_all_candidates(db: Session = Depends(get_db)):
     """Get all candidates for tenant 1"""
