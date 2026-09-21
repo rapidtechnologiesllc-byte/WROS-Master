@@ -434,42 +434,20 @@ class CandidateCreationHandler:
             except Exception as log_err:
                 logger.warning(f"[Handler] Failed to log candidate creation activity: {log_err}, but creation succeeded")
 
-            # ===== VALIDATION STEP 1: Verify candidate_id is not null =====
-            # CRITICAL: Candidate must have been assigned an ID
-            if not candidate_id or candidate_id.strip() == "":
-                raise RuntimeError(f"Candidate creation failed: candidateID is null or empty")
-            logger.info(f"[Handler] ✅ Candidate ID assigned: {candidate_id}")
+            # ===== NOTE: Detailed validation happens in validate() method =====
+            # This process() method creates the candidate and logs the ID.
+            # The validate() method (called by on_success() in worker) performs all checks:
+            # - Verify candidate_id is not null
+            # - Verify candidate exists in database
+            # - Verify email matches (or is acceptable mismatch for duplicates)
+            # - Verify tenant assignment
+            # This separation ensures:
+            # 1. Creation is atomic and isolated
+            # 2. Validation happens AFTER successful commit
+            # 3. Detailed validation logging is tied to on_success() call for queue monitoring
 
-            # ===== VALIDATION STEP 2: Verify candidate exists in database =====
-            # CRITICAL: Must verify record is actually persisted before marking success!
-            # Use the refreshed candidate object from commit - no need to query again
-            db_candidate = candidate
-            if not db_candidate:
-                raise RuntimeError(
-                    f"Candidate creation failed: candidate {candidate_id} not found in database after creation. "
-                    f"Data persistence verification failed."
-                )
-            logger.info(f"[Handler] ✅ Candidate verified in database: {candidate_id}")
-
-            # ===== VALIDATION STEP 3: Verify email (allow mismatch if merged duplicate) =====
-            expected_email = payload.get('candidate_email')
-            if expected_email and db_candidate.candidateEmail != expected_email:
-                # Check if this is an acceptable mismatch (merged duplicate scenario)
-                if not is_new:
-                    # This was a merged candidate - it's OK that the email doesn't match payload
-                    # The existing candidate kept their original email
-                    logger.info(
-                        f"[Handler] ✅ Email mismatch accepted (merged duplicate): "
-                        f"payload='{expected_email}', existing='{db_candidate.candidateEmail}'"
-                    )
-                else:
-                    # This is a new candidate but email doesn't match - data corruption
-                    raise RuntimeError(
-                        f"Email mismatch for {candidate_id}: expected '{expected_email}', "
-                        f"got '{db_candidate.candidateEmail}'"
-                    )
-            else:
-                logger.info(f"[Handler] ✅ Email verified: {db_candidate.candidateEmail}")
+            # For now, just log the candidate ID for debugging:
+            logger.info(f"[Handler] Candidate created: {candidate_id} (validation happens in on_success())")
 
             # PHASE: Send welcome message via WhatsApp + EMAIL
             whatsapp_delivery_id = None

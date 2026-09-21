@@ -181,15 +181,70 @@ def process_message_queue(batch_size: int = 10, timeout_minutes: int = 30) -> Di
                             logger.error(f"[Worker] Failed to mark FAILED: {commit_err}", exc_info=True)
                         continue
 
-                    # Mark as COMPLETED (already in session, no add needed)
-                    message.status = "COMPLETED"
-                    message.result = result
-                    message.completed_at = datetime.utcnow()
+                    # ===== CRITICAL: Call on_success() for validation before marking COMPLETED =====
+                    # This ensures candidate was actually persisted to DB and data is consistent
+                    # on_success() will:
+                    # 1. Call validate() to verify candidate exists in database
+                    # 2. Check email, tenant, status matches expected values
+                    # 3. Only mark COMPLETED if validation passes
+                    # 4. Schedule retry if validation fails (retryable error)
+                    # 5. Mark FAILED if data corruption (non-retryable error)
                     try:
-                        db.commit()
-                    except Exception as commit_err:
+                        # Get handler class to call on_success()
+                        handler_class = None
+                        if message.type == 'create_candidate':
+                            from app.services.message_handlers.candidate_creation_handler import CandidateCreationHandler
+                            handler_class = CandidateCreationHandler
+
+                        if handler_class and hasattr(handler_class, 'on_success'):
+                            # Call on_success() - this validates and marks COMPLETED
+                            handler_class.on_success(message, result, db)
+                            logger.info(
+                                f"[Worker] ✅ Message {message.id} validated and marked COMPLETED "
+                                f"(candidate_id={result.get('candidate_id', 'unknown')})"
+                            )
+                        else:
+                            # Fallback: directly mark COMPLETED (for handlers without on_success)
+                            logger.warning(
+                                f"[Worker] Handler {message.type} has no on_success() method, "
+                                f"marking COMPLETED without validation (UNSAFE)"
+                            )
+                            message.status = "COMPLETED"
+                            message.result = result
+                            message.completed_at = datetime.utcnow()
+                            db.commit()
+                    except ValueError as ve:
+                        # Non-retryable validation error (data corruption, candidate not found, etc.)
+                        logger.error(
+                            f"[Worker] NON-RETRYABLE validation error for message {message.id}: {ve}",
+                            exc_info=True
+                        )
                         db.rollback()
-                        logger.error(f"[Worker] Failed to mark COMPLETED: {commit_err}", exc_info=True)
+                        message.status = "FAILED"
+                        message.error = f"Validation failed: {str(ve)}"
+                        message.completed_at = datetime.utcnow()
+                        try:
+                            db.commit()
+                        except Exception as commit_err:
+                            db.rollback()
+                            logger.error(f"[Worker] Failed to mark as FAILED: {commit_err}", exc_info=True)
+                    except RuntimeError as re:
+                        # Retryable validation error (database connection, temporary issue, etc.)
+                        logger.warning(
+                            f"[Worker] RETRYABLE validation error for message {message.id}: {re}",
+                            exc_info=True
+                        )
+                        db.rollback()
+                        message.status = "FAILED"
+                        message.error = f"Validation error (will retry): {str(re)}"
+                        message.completed_at = datetime.utcnow()
+                        message.retry_count = (message.retry_count or 0) + 1
+                        message.next_retry_at = datetime.utcnow() + timedelta(minutes=5)
+                        try:
+                            db.commit()
+                        except Exception as commit_err:
+                            db.rollback()
+                            logger.error(f"[Worker] Failed to schedule retry: {commit_err}", exc_info=True)
 
                     # Phase 2: Complete diagnostics tracking
                     QueueDoctorService.complete_tracking(doctor_state, message, db)
