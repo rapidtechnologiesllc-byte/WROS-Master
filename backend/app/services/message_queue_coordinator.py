@@ -288,8 +288,8 @@ class MessageQueueCoordinator:
 
         try:
             if queue_type == QUEUE_TYPE_THUNDERQUEUE:
-                from app.services.message_handlers.candidate_creation_handler import (
-                    CandidateCreationHandler
+                from app.services.message_handlers.candidate_creation_unified_handler import (
+                    CandidateCreationUnifiedHandler
                 )
 
                 payload = message.payload or {}
@@ -298,7 +298,7 @@ class MessageQueueCoordinator:
                 if not candidate_id:
                     raise ValueError("No candidate_id in message payload")
 
-                result = CandidateCreationHandler.process(message, db)
+                result = CandidateCreationUnifiedHandler.process(message, db)
                 if result.get('status') != 'success':
                     raise RuntimeError(f"Handler failed: {result.get('error', 'Unknown error')}")
 

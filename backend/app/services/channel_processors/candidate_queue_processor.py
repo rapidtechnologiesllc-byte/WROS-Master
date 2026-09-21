@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.core.logging import logger
 from app.models.channel_queue import ChannelQueueItem
-from app.services.message_handlers.candidate_creation_handler import CandidateCreationHandler
+from app.services.message_handlers.candidate_creation_unified_handler import CandidateCreationUnifiedHandler
 from app.services.message_handlers.candidate_conversion_handler import CandidateConversionHandler
 
 logger = logging.getLogger(__name__)
@@ -47,10 +47,7 @@ class CandidateQueueProcessor:
 
         try:
             if message_type == "create_candidate":
-                result = CandidateCreationHandler.process(message, db)
-                # NOTE: on_success() call removed - let queue_processor_service handle it
-                # This prevents race condition where message marked COMPLETED before Thunder queuing
-                # queue_processor_service.py will: validate → queue Thunder → call on_success()
+                result = CandidateCreationUnifiedHandler.process(message, db)
                 return result
 
             elif message_type == "convert_candidate_to_employee":
@@ -64,7 +61,7 @@ class CandidateQueueProcessor:
         except Exception as e:
             # Route to appropriate handler's retry logic
             if message_type == "create_candidate":
-                handler_class = CandidateCreationHandler
+                handler_class = CandidateCreationUnifiedHandler
             elif message_type == "convert_candidate_to_employee":
                 handler_class = CandidateConversionHandler
             else:

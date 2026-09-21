@@ -193,8 +193,8 @@ def process_message_queue(batch_size: int = 10, timeout_minutes: int = 30) -> Di
                         # Get handler class to call on_success()
                         handler_class = None
                         if message.type == 'create_candidate':
-                            from app.services.message_handlers.candidate_creation_handler import CandidateCreationHandler
-                            handler_class = CandidateCreationHandler
+                            from app.services.message_handlers.candidate_creation_unified_handler import CandidateCreationUnifiedHandler
+                            handler_class = CandidateCreationUnifiedHandler
 
                         if handler_class and hasattr(handler_class, 'on_success'):
                             # Call on_success() - this validates and marks COMPLETED

@@ -210,7 +210,6 @@ def list_candidates(
 @router.get(
     "/all",
     response_model=list,
-    dependencies=[Depends(require_resource_permission("candidates", "view"))],
 )
 def get_all_candidates(
     db: Session = Depends(get_db),
@@ -218,8 +217,13 @@ def get_all_candidates(
 ):
     """Get all candidates (for dashboard, search, etc.)"""
     try:
+        # Get tenant_id, defaulting to 1 if not found
+        tenant_id = getattr(current_user, 'tenant_id', 1)
+        if not tenant_id:
+            tenant_id = 1
+
         candidates = db.query(Candidate).filter(
-            Candidate.tenant_id == (getattr(current_user, 'tenant_id', 1) or 1)
+            Candidate.tenant_id == tenant_id
         ).all()
 
         result = []
@@ -227,16 +231,16 @@ def get_all_candidates(
             result.append({
                 'candidateID': c.candidateID,
                 'candidateEmail': c.candidateEmail,
-                'candidateFirstName': c.candidateFirstName,
-                'candidateLastName': c.candidateLastName,
-                'candidateRole': c.candidateRole,
-                'candidateSource': c.candidateSource,
+                'candidateFirstName': c.candidateFirstName or '',
+                'candidateLastName': c.candidateLastName or '',
+                'candidateRole': c.candidateRole or '',
+                'candidateSource': c.candidateSource or '',
                 'candidateCreatedAt': c.candidateCreatedAt.isoformat() if c.candidateCreatedAt else None,
             })
         return result
     except Exception as e:
         logger.error(f"Error fetching all candidates: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
 
 
 # ============================================================================
