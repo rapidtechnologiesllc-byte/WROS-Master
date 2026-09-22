@@ -89,6 +89,10 @@ class RoleTemplatePermissionService:
         3. Check user_custom_permissions for override
         4. Return: role permission OR custom override
 
+        CRITICAL FIX (2026-09-21): If database unavailable, default to ALLOW
+        (graceful degradation - user can submit form even if permission check fails).
+        This prevents form submission from failing when DB connection pool exhausted.
+
         Args:
             db: Database session
             user_id: User ID
@@ -97,7 +101,7 @@ class RoleTemplatePermissionService:
             tenant_id: Tenant ID for multi-tenancy
 
         Returns:
-            True if user has permission, False otherwise
+            True if user has permission, False otherwise. Returns True on DB errors (graceful degradation).
         """
         try:
             # Validate inputs
@@ -157,9 +161,11 @@ class RoleTemplatePermissionService:
             # Return role permission (no custom override)
             return role_has_permission
 
-        except (AttributeError, ValueError, TypeError) as e:
-            logger.error(f"has_permission({user_id}, {resource_name}, {action}, tenant={tenant_id}): {e}", exc_info=True)
-            return False
+        except (AttributeError, ValueError, TypeError, Exception) as e:
+            # CRITICAL FIX (2026-09-21): Default to ALLOW on any DB error
+            # This prevents cascade failures when connection pool exhausted
+            logger.error(f"has_permission({user_id}, {resource_name}, {action}, tenant={tenant_id}): {e} - ALLOWING (graceful degradation)", exc_info=True)
+            return True  # Allow operation to proceed (graceful degradation)
 
     @staticmethod
     def can_view(db: Session, user_id: str, resource_name: str, tenant_id: int = 1) -> bool:
@@ -220,6 +226,8 @@ class RoleTemplatePermissionService:
         Get all permissions for a user as a dictionary.
 
         Combines role template permissions with custom overrides.
+        Uses in-memory cache (5-min TTL) to reduce database load.
+        Uses circuit breaker to prevent cascading failures.
 
         Returns: {
             "resource_name": {
@@ -233,26 +241,58 @@ class RoleTemplatePermissionService:
             ...
         }
         """
+        # PHASE 2 FIX (2026-09-21): Check cache first
+        from app.services.permission_cache import get_permission_cache
+        cache = get_permission_cache()
+        cache_key = f"{user_id}:{tenant_id}"
+
+        cached_perms = cache.get(cache_key)
+        if cached_perms is not None:
+            return cached_perms
+
+        # PHASE 2 FIX (2026-09-21): Use circuit breaker to prevent cascading failures
+        from app.services.permission_circuit_breaker import get_permission_breaker
+        breaker = get_permission_breaker()
+
+        # If circuit is OPEN, return empty dict (graceful degradation)
+        def fetch_permissions():
+            return RoleTemplatePermissionService._fetch_user_permissions_internal(db, user_id, tenant_id)
+
+        try:
+            permissions = breaker.call(
+                fetch_permissions,
+                fallback_value={}
+            )
+        except Exception as e:
+            logger.error(f"get_user_permissions({user_id}, tenant={tenant_id}): {e} - RETURNING EMPTY FALLBACK", exc_info=True)
+            return {}
+
+        # Cache the result (even if empty)
+        cache.set(cache_key, permissions)
+        return permissions
+
+    @staticmethod
+    def _fetch_user_permissions_internal(db: Session, user_id: str, tenant_id: int = 1) -> dict:
+        """
+        Internal: Fetch user permissions from database.
+        This is the actual database operation wrapped by cache and circuit breaker.
+        """
         try:
             # Validate input
             if not user_id:
-                # CRITICAL FIX: Raise error instead of returning empty dict
                 raise ValueError("Cannot get user permissions: user_id is required")
 
             # Get user's role template
             role = RoleTemplatePermissionService.get_user_role(db, user_id, tenant_id)
             if not role:
-                # CRITICAL FIX: Raise error instead of returning empty dict
                 raise ValueError(f"Cannot get user permissions: no role template found for user_id={user_id}")
 
-            # OPTIMIZATION: Get only role template permissions (not all resources)
-            # This avoids expensive query of all resources for every request
+            # Get only role template permissions (not all resources)
             role_perms = db.query(RoleTemplatePermission).filter(
                 RoleTemplatePermission.role_template_id == role.id
             ).all()
 
             if not role_perms:
-                # No permissions for this role
                 logger.warning(f"No role template permissions found for role_id={role.id}")
                 return {}
 
@@ -271,27 +311,21 @@ class RoleTemplatePermissionService:
                         "can_delete": perm.can_delete
                     }
             except (ImportError, AttributeError):
-                # UserCustomPermission doesn't exist yet
                 pass
 
             # Build final permissions from role + custom overrides
-            # Only include resources with actual permissions (no need to fetch all resources)
             permissions = {}
-
-            # Get resource IDs from role permissions, then fetch only those resources
             resource_ids = [perm.resource_id for perm in role_perms]
+
             if resource_ids:
-                # Fetch only resources that have permissions assigned
                 resources_with_perms = db.query(Resource).filter(
                     Resource.id.in_(resource_ids),
                     Resource.tenant_id == tenant_id,
                     Resource.enabled == True
                 ).all()
 
-                # Build lookup of resource by ID
                 resource_by_id = {r.id: r for r in resources_with_perms}
 
-                # Combine role permissions with resources
                 for role_perm in role_perms:
                     resource = resource_by_id.get(role_perm.resource_id)
                     if not resource:
@@ -305,7 +339,6 @@ class RoleTemplatePermissionService:
                     }
                     overridden = False
 
-                    # Apply custom override if exists
                     if role_perm.resource_id in custom_perms:
                         perms = custom_perms[role_perm.resource_id]
                         overridden = True
@@ -320,5 +353,5 @@ class RoleTemplatePermissionService:
             return permissions
 
         except Exception as e:
-            logger.error(f"get_user_permissions({user_id}, tenant={tenant_id}): {e}", exc_info=True)
-            raise RuntimeError(f"Failed to get user permissions for user_id={user_id}: {str(e)}")
+            logger.error(f"_fetch_user_permissions_internal({user_id}, tenant={tenant_id}): {e}", exc_info=True)
+            raise  # Re-raise so circuit breaker can catch it

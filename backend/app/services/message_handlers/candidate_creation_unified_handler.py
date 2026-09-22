@@ -8,6 +8,7 @@ import logging
 from typing import Dict, Any
 from datetime import datetime
 from sqlalchemy.orm import Session
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
 
 from app.core.logging import logger as base_logger
 from app.models.channel_queue import ChannelQueueItem
@@ -23,9 +24,64 @@ class CandidateCreationUnifiedHandler:
     TIMEOUT_SECONDS = 30
 
     @staticmethod
+    def _do_process(message: ChannelQueueItem, db: Session) -> Dict[str, Any]:
+        """Internal: actual candidate creation logic (wrapped with timeout)."""
+        if not message.payload:
+            raise ValueError(f"Message {message.id} has no payload")
+
+        payload = message.payload
+
+        email = payload.get('candidate_email')
+        first_name = payload.get('candidate_first_name')
+        last_name = payload.get('candidate_last_name')
+        mobile = payload.get('candidate_mobile')
+        source = payload.get('candidate_source', 'unknown')
+        tenant_id = payload.get('tenant_id', 1)
+
+        if not all([email, first_name, last_name]):
+            raise ValueError("Missing required fields: email, first_name, last_name")
+
+        logger.info(
+            f"[CandidateCreationUnified] Processing: {email} ({first_name} {last_name}), "
+            f"source={source}"
+        )
+
+        # THE ONLY place create_candidate() is called
+        from app.services.candidate_service import create_candidate
+
+        candidate, is_new = create_candidate(
+            db=db,
+            email=email,
+            mobile=mobile,
+            linkedin_url=payload.get('linkedin_url'),
+            candidate_id=None,
+            tenant_id=tenant_id,
+            candidateFirstName=first_name,
+            candidateLastName=last_name,
+            candidateSource=source,
+            candidateRole="Candidate",
+        )
+
+        db.flush()
+        candidate_id = candidate.candidateID
+
+        logger.info(
+            f"[CandidateCreationUnified] ✅ Created: {candidate_id} "
+            f"(new={is_new}, source={source})"
+        )
+
+        return {
+            'status': 'success',
+            'candidate_id': candidate_id,
+            'email': candidate.candidateEmail,
+            'is_new': is_new,
+            'source': source,
+        }
+
+    @staticmethod
     def process(message: ChannelQueueItem, db: Session) -> Dict[str, Any]:
         """
-        Process candidate creation message from queue.
+        Process candidate creation message from queue with timeout protection.
 
         This is the ONLY place where candidates are actually created
         (all queue wrappers defer to here).
@@ -35,60 +91,27 @@ class CandidateCreationUnifiedHandler:
           thunder_test_demo, employee_referral, progressive_upload
         """
         try:
-            if not message.payload:
-                raise ValueError(f"Message {message.id} has no payload")
-
-            payload = message.payload
-
-            email = payload.get('candidate_email')
-            first_name = payload.get('candidate_first_name')
-            last_name = payload.get('candidate_last_name')
-            mobile = payload.get('candidate_mobile')
-            source = payload.get('candidate_source', 'unknown')
-            tenant_id = payload.get('tenant_id', 1)
-
-            if not all([email, first_name, last_name]):
-                raise ValueError("Missing required fields: email, first_name, last_name")
-
-            logger.info(
-                f"[CandidateCreationUnified] Processing: {email} ({first_name} {last_name}), "
-                f"source={source}"
+            # Enforce timeout to prevent stuck messages
+            executor = ThreadPoolExecutor(max_workers=1)
+            future = executor.submit(
+                CandidateCreationUnifiedHandler._do_process,
+                message,
+                db
             )
-
-            # THE ONLY place create_candidate() is called
-            from app.services.candidate_service import create_candidate
-
-            candidate, is_new = create_candidate(
-                db=db,
-                email=email,
-                mobile=mobile,
-                linkedin_url=payload.get('linkedin_url'),
-                candidate_id=None,
-                tenant_id=tenant_id,
-                candidateFirstName=first_name,
-                candidateLastName=last_name,
-                candidateSource=source,
-                candidateRole="Candidate",
-            )
-
-            db.flush()
-            candidate_id = candidate.candidateID
-
-            logger.info(
-                f"[CandidateCreationUnified] ✅ Created: {candidate_id} "
-                f"(new={is_new}, source={source})"
-            )
-
-            return {
-                'status': 'success',
-                'candidate_id': candidate_id,
-                'email': candidate.candidateEmail,
-                'is_new': is_new,
-                'source': source,
-            }
+            try:
+                return future.result(timeout=CandidateCreationUnifiedHandler.TIMEOUT_SECONDS)
+            except FuturesTimeoutError:
+                raise RuntimeError(
+                    f"Candidate creation exceeded {CandidateCreationUnifiedHandler.TIMEOUT_SECONDS}s timeout"
+                )
+            finally:
+                executor.shutdown(wait=False)
 
         except ValueError as e:
             logger.error(f"[CandidateCreationUnified] Validation error: {e}")
+            raise
+        except RuntimeError as e:
+            logger.error(f"[CandidateCreationUnified] Runtime error: {e}")
             raise
         except Exception as e:
             logger.error(f"[CandidateCreationUnified] Processing error: {e}", exc_info=True)

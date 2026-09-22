@@ -68,12 +68,15 @@ except ProductionDatabaseError as e:
     raise RuntimeError(str(e)) from e
 
 # PostgreSQL connection pool settings (FIX #15: Production-grade pooling)
+# CRITICAL FIX (2026-09-21): Increased pool size to prevent stuck message monitor exhaustion
+# Monitor runs every 10s and holds 8-10 connections. Old size (20) starved normal requests.
+# New size (40) provides: 10 for normal requests + 10 for monitor + 10 buffer
 _engine_kwargs = {
     "pool_pre_ping": True,      # Check connection health before use
     "echo": False,              # Set to True for SQL debugging
-    "pool_size": 20,            # Keep 20 connections in pool (PRODUCTION)
-    "max_overflow": 10,         # Allow 10 extra connections if pool full (PRODUCTION)
-    "pool_recycle": 3600,       # Recycle connections after 1 hour (60 minutes)
+    "pool_size": 40,            # Keep 40 connections in pool (PRODUCTION) - increased from 20
+    "max_overflow": 20,         # Allow 20 extra connections if pool full (PRODUCTION) - increased from 10
+    "pool_recycle": 1800,       # Recycle connections after 30 minutes - changed from 3600 to detect stale faster
 }
 
 # Create SQLAlchemy engine

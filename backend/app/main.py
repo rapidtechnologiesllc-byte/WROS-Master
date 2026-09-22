@@ -40,6 +40,7 @@ from app.api.v1.endpoints.desire_intelligence import router as desire_intelligen
 from app.api.v1.endpoints.role_template_modules import router as role_template_modules_router
 # from app.api.v1.endpoints.pl_reports import router as pl_reports_router  # MISSING
 from app.api.v1.endpoints.slm_exports import router as slm_exports_router
+from app.api.v1.endpoints.system_diagnostics import router as system_diagnostics_router
 # from app.api.v1.endpoints.phase2_monitoring import router as phase2_monitoring_router  # MISSING
 # from app.api.v1.endpoints.ceo_dashboard import router as ceo_dashboard_router  # MISSING
 
@@ -432,6 +433,16 @@ async def startup_event():
     # init_phase2_scheduler() is synchronous and may block startup
     logger.info("[Startup] Phase 2 P&L Agent Scheduler deferred to background (prevents startup hang)")
 
+    # PHASE 3 FIX (2026-09-21): Initialize database pool monitoring
+    try:
+        from app.services.database_pool_monitor import get_pool_monitor
+        monitor = get_pool_monitor(engine)
+        if monitor:
+            health = monitor.check_pool_health()
+            logger.info(f"[OK] Database pool monitor initialized (capacity: {health.get('total_capacity')} connections)")
+    except Exception as e:
+        logger.warning(f"[Startup] Failed to initialize pool monitor: {e}")
+
     logger.info(f"[OK] {settings.APP_NAME} v{settings.APP_VERSION} started successfully")
     logger.info(f"[OK] Server running on http://{settings.HOST}:{settings.PORT}")
 
@@ -494,6 +505,8 @@ app.include_router(monitoring_router)
 # app.include_router(pl_reports_router, prefix="/api/v1")  # MISSING FILE
 # Include SLM export routes with /api/v1 prefix (employee intelligence for agents)
 app.include_router(slm_exports_router)
+# Include system diagnostics routes (PHASE 3 FIX: operational monitoring)
+app.include_router(system_diagnostics_router)
 # Include Phase 2 monitoring routes with /api/v1 prefix (P&L agent monitoring)
 # app.include_router(phase2_monitoring_router)  # MISSING FILE
 # Include CEO dashboard routes (executive reporting)

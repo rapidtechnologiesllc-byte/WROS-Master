@@ -92,18 +92,24 @@ class StuckMessageMonitorService:
 
     def _run_cycle(self):
         """Run one complete monitoring cycle"""
-        db = SessionLocal()
+        # CRITICAL FIX (2026-09-21): Release DB connection between sub-operations
+        # Original code held ONE connection for entire cycle (detect + heal + analyze + dead letter detection)
+        # If these operations take 5+ seconds and monitor runs every 10s, connection pool gets exhausted
+        # New: Create fresh connection for each operation, close immediately after
         try:
             self.status_lock.acquire()
             self.status_cache["cycles_completed"] = self.status_cache.get("cycles_completed", 0) + 1
             self.status_cache["last_check"] = datetime.utcnow().isoformat()
             self.status_lock.release()
 
-            # STEP 1: Detect stuck messages
-            stuck_messages = self.detector.get_all_stuck_messages(db)
-
-            if stuck_messages:
-                logger.warning(StuckMessageDetector.format_stuck_message_report(stuck_messages))
+            # STEP 1: Detect stuck messages (fresh connection, close immediately after)
+            db = SessionLocal()
+            try:
+                stuck_messages = self.detector.get_all_stuck_messages(db)
+                if stuck_messages:
+                    logger.warning(StuckMessageDetector.format_stuck_message_report(stuck_messages))
+            finally:
+                db.close()
 
             # Update cache with detection results
             with self.status_lock:
@@ -113,66 +119,76 @@ class StuckMessageMonitorService:
                 # No stuck messages - cycle complete
                 return
 
-            # STEP 2: Heal stuck messages (sync wrapper for async functions)
-            if not self.healer:
-                self.healer = StuckMessageHealer(db)
-            else:
-                self.healer.db = db
-
-            # Run async heal function
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
+            # STEP 2: Heal stuck messages (fresh connection, close immediately after)
+            db = SessionLocal()  # Fresh connection for healing step
             try:
-                healing_results = loop.run_until_complete(self.healer.heal_stuck_messages(stuck_messages))
+                if not self.healer:
+                    self.healer = StuckMessageHealer(db)
+                else:
+                    self.healer.db = db
+
+                # Run async heal function
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                try:
+                    healing_results = loop.run_until_complete(self.healer.heal_stuck_messages(stuck_messages))
+                finally:
+                    loop.close()
+
+                with self.status_lock:
+                    self.status_cache["healed"] = healing_results.get("retried", [])
+                    self.status_cache["failed"] = healing_results.get("moved_to_dlq", [])
+
+                logger.info(
+                    f"[StuckMessageMonitor] Healed: {len(healing_results.get('retried', []))} "
+                    f"| DLQ: {len(healing_results.get('moved_to_dlq', []))}"
+                )
             finally:
-                loop.close()
+                db.close()
 
-            with self.status_lock:
-                self.status_cache["healed"] = healing_results.get("retried", [])
-                self.status_cache["failed"] = healing_results.get("moved_to_dlq", [])
-
-            logger.info(
-                f"[StuckMessageMonitor] Healed: {len(healing_results.get('retried', []))} "
-                f"| DLQ: {len(healing_results.get('moved_to_dlq', []))}"
-            )
-
-            # STEP 3: Architect analyzes (once per cycle)
-            if not self.architect:
-                self.architect = StuckMessageArchitect(self.detector, self.healer)
-            else:
-                self.architect.detector = self.detector
-                self.architect.healer = self.healer
-
-            # Run async analysis function
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
+            # STEP 3: Architect analyzes (fresh connection, close immediately after)
+            db = SessionLocal()  # Fresh connection for analysis step
             try:
-                root_causes = loop.run_until_complete(self.architect.analyze_stuck_messages(stuck_messages))
+                if not self.architect:
+                    self.architect = StuckMessageArchitect(self.detector, self.healer)
+                else:
+                    self.architect.detector = self.detector
+                    self.architect.healer = self.healer
+
+                # Run async analysis function
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                try:
+                    root_causes = loop.run_until_complete(self.architect.analyze_stuck_messages(stuck_messages))
+                finally:
+                    loop.close()
+
+                with self.status_lock:
+                    self.status_cache["root_causes"] = [
+                        {
+                            "task_name": cause.get("task_name"),
+                            "root_cause": cause.get("root_cause"),
+                            "severity": cause.get("severity")
+                        }
+                        for cause in root_causes
+                    ]
+
+                if root_causes:
+                    logger.warning(f"[StuckMessageMonitor] Found {len(root_causes)} root causes")
+                    for cause in root_causes[:3]:
+                        logger.warning(f"  • {cause['task_name']}: {cause['root_cause']}")
             finally:
-                loop.close()
+                db.close()
 
-            with self.status_lock:
-                self.status_cache["root_causes"] = [
-                    {
-                        "task_name": cause.get("task_name"),
-                        "root_cause": cause.get("root_cause"),
-                        "severity": cause.get("severity")
-                    }
-                    for cause in root_causes
-                ]
-
-            if root_causes:
-                logger.warning(f"[StuckMessageMonitor] Found {len(root_causes)} root causes")
-                for cause in root_causes[:3]:
-                    logger.warning(f"  • {cause['task_name']}: {cause['root_cause']}")
-
-            # STEP 4: Monitor dead-letter patterns (90-second cycle)
-            self._monitor_dead_letters(db)
+            # STEP 4: Monitor dead-letter patterns (fresh connection, close immediately after)
+            db = SessionLocal()
+            try:
+                self._monitor_dead_letters(db)
+            finally:
+                db.close()
 
         except Exception as e:
             logger.error(f"[StuckMessageMonitor] Cycle error: {e}", exc_info=True)
-        finally:
-            db.close()
 
     def _monitor_dead_letters(self, db: Session):
         """
