@@ -3,6 +3,7 @@ from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 import logging
+import os
 from pathlib import Path
 
 from app.core.config import settings
@@ -129,6 +130,24 @@ async def startup_event():
     import time
     from concurrent.futures import ThreadPoolExecutor
     from sqlalchemy.exc import OperationalError
+
+    # MEDIUM FIX #11: Initialize Sentry error tracking
+    try:
+        import sentry_sdk
+        sentry_dsn = os.getenv("SENTRY_DSN", "")
+        if sentry_dsn:
+            sentry_sdk.init(
+                dsn=sentry_dsn,
+                traces_sample_rate=0.1,
+                environment=os.getenv("ENVIRONMENT", "development")
+            )
+            logger.info("[OK] Sentry error tracking initialized")
+        else:
+            logger.warning("[Startup] SENTRY_DSN not set - error tracking disabled")
+    except ImportError:
+        logger.warning("[Startup] sentry_sdk not installed - error tracking disabled")
+    except Exception as e:
+        logger.warning(f"[Startup] Failed to initialize Sentry: {e}")
 
     # Validate configuration immediately
     settings.validate_config()

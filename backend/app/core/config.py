@@ -139,6 +139,17 @@ class Settings:
         if missing:
             raise ValueError(f"Missing required environment variables: {', '.join(missing)}")
 
+        # MEDIUM FIX: Warn about missing critical API keys
+        critical_keys = [
+            ("GEMINI_API_KEY", os.getenv("GEMINI_API_KEY", ""), "AI features (memory, summaries, scoring)"),
+            ("SENTRY_DSN", os.getenv("SENTRY_DSN", ""), "Error tracking and monitoring"),
+            ("FIELD_ENCRYPTION_KEY", cls.FIELD_ENCRYPTION_KEY, "Bank account field encryption"),
+        ]
+
+        for key_name, key_value, purpose in critical_keys:
+            if not key_value or key_value.startswith("your_"):
+                logger.warning(f"[Config] {key_name} not configured - {purpose} will be disabled/stubbed")
+
         return True
 
 # Create a global settings instance

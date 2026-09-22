@@ -209,8 +209,28 @@ def _handle_thunder_engagement(message: Any, db: Session) -> Dict[str, Any]:
         raise
 
 
+# MEDIUM FIX #12: Initialize handlers and validate
+def _validate_handler_registry():
+    """Validate that critical handlers are registered."""
+    critical_handlers = [
+        "create_candidate",
+        "job_created_flash",
+        "flash_recruiter",
+    ]
+
+    registered = MessageHandlerRegistry.get_all_handlers()
+    missing = [h for h in critical_handlers if h not in registered]
+
+    if missing:
+        logger.error(f"[Registry] CRITICAL: Missing handlers: {missing}")
+    else:
+        logger.info(f"[Registry] All critical handlers registered ({len(registered)} total)")
+
+    return len(missing) == 0
+
 # Initialize default handlers on module load
 try:
     _initialize_default_handlers()
+    _validate_handler_registry()
 except Exception as e:
     logger.warning(f"[Registry] Failed to initialize default handlers: {e}")
