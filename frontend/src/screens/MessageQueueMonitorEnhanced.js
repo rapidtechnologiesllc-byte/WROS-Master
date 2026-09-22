@@ -275,12 +275,12 @@ const MessageQueueMonitorEnhanced = () => {
                                   >
                                     {expandedPayloads[row.id] ? '▼' : '▶'}
                                   </button>
-                                  <span title={row.id} style={{fontSize: '12px', fontFamily: 'monospace'}}>
-                                    {row.id ? row.id.substring(0, 8) : 'N/A'}...
+                                  <span title={row.message_id} style={{fontSize: '12px', fontFamily: 'monospace'}}>
+                                    {row.message_id ? row.message_id.substring(0, 8) : 'N/A'}...
                                   </span>
                                   <button
                                     onClick={(e) => {
-                                      navigator.clipboard.writeText(row.id);
+                                      navigator.clipboard.writeText(row.message_id);
                                       e.target.textContent = '✓';
                                       setTimeout(() => { e.target.textContent = '📋'; }, 1500);
                                     }}
