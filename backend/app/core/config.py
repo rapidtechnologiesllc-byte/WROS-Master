@@ -97,6 +97,11 @@ class Settings:
     # CRITICAL: Load from secrets vault for production
     FIELD_ENCRYPTION_KEY: str = get_secret("field-encryption-key", default=os.getenv("FIELD_ENCRYPTION_KEY", ""))
 
+    # Admin user initial password (SECURITY: Load from environment, NOT hardcoded)
+    # For production: Set via ADMIN_PASSWORD environment variable
+    # For development: Falls back to temporary random password (forces reset on first login)
+    ADMIN_PASSWORD: str = os.getenv("ADMIN_PASSWORD", "")
+
     # S-017/HRMS-0417 -- base URL used to build the candidate portal
     # link Thunder sends via WhatsApp/Email (/candidate/{token}).
     # Defaults to localhost for development; must be set via FRONTEND_BASE_URL

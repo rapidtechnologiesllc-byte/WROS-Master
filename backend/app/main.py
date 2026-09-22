@@ -162,6 +162,14 @@ async def startup_event():
     # Run DB operations synchronously (not in background thread)
     # This ensures tables exist before app accepts requests
     try:
+        logger.info("[Startup] Creating database schema...")
+        from sqlalchemy import text
+        with engine.connect() as conn:
+            # Create schema if not exists
+            conn.execute(text("CREATE SCHEMA IF NOT EXISTS app_schema"))
+            conn.commit()
+        logger.info("[OK] Schema 'app_schema' created/verified")
+
         logger.info("[Startup] Creating database tables...")
         Base.metadata.create_all(bind=engine, checkfirst=True)
         logger.info("[OK] Database tables initialized")
@@ -173,9 +181,10 @@ async def startup_event():
     try:
         from app.core.db_contract import initialize_database
         initialize_database()
+        logger.info("[OK] Database contract initialized successfully")
     except Exception as exc:
-        logger.error(f"[Startup] Failed to initialize database contract: {exc}", exc_info=True)
-        return  # Don't crash startup, but contract won't be initialized
+        logger.error(f"[CRITICAL] Failed to initialize database contract: {exc}", exc_info=True)
+        raise RuntimeError(f"Database contract initialization failed: {exc}. Server cannot start without RBAC and admin user.")
 
     # Initialize default organizational positions (CEO, Partner, BU Head, etc.)
     try:

@@ -15,6 +15,8 @@ Run on every backend startup to ensure data integrity.
 
 import os
 import uuid
+import secrets
+import string
 from sqlalchemy.orm import Session
 from app.core.database import SessionLocal, engine
 from app.models.base import Base
@@ -23,6 +25,7 @@ from app.models.role_template import Module, Resource, RoleTemplate, RoleTemplat
 from app.models.user import Users
 from app.core.security import get_password_hash
 from app.core.logging import logger
+from app.core.config import settings
 
 def initialize_database():
     """
@@ -207,20 +210,27 @@ def _initialize_admin_user():
                 logger.error("[Contract] Admin role template not found - cannot create admin user")
                 return
 
+            # Get admin password from environment or generate random one
+            admin_password = settings.ADMIN_PASSWORD
+            if not admin_password:
+                admin_password = ''.join(secrets.choice(string.ascii_letters + string.digits) for _ in range(16))
+                logger.warning("[Contract] ADMIN_PASSWORD not set - generated temporary password. Set ADMIN_PASSWORD env var for production.")
+
             # Create admin user
             admin_user = Users(
                 UserID=str(uuid.uuid4()),
                 UserEmail="admin@blitzenx.com",
-                UserPassword=get_password_hash("Admin@123"),
+                UserPassword=get_password_hash(admin_password),
                 UserRole="Admin",
                 UserName="Admin User",
                 role_template_id=admin_role.id,
                 tenant_id=1,
-                timezone="Asia/Kolkata"
+                timezone="Asia/Kolkata",
+                password_reset_required=True
             )
             db.add(admin_user)
             db.commit()
-            logger.info("[Contract] Created admin user: admin@blitzenx.com (password: Admin@123)")
+            logger.info("[Contract] Created admin user: admin@blitzenx.com (password reset required on first login)")
         else:
             # Verify admin user has role template
             admin_role = db.query(RoleTemplate).filter(RoleTemplate.name == "Admin").first()
