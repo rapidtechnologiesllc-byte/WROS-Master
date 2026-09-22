@@ -240,40 +240,10 @@ async def startup_event():
     except Exception as exc:
         logger.warning(f"[Startup] Failed to seed business units: {exc}")
 
-    # 🚨 ARCHITECT AUTO-FIX TRIGGER
-    # When server starts, check for PRIORITY 1 violations (hardcoded role checks)
-    # If found: Automatically fix ALL 49 instances end-to-end
-    try:
-        logger.info("[Startup] Checking for PRIORITY 1 violations (hardcoded role checks)...")
-
-        from app.services.architect_auto_fix_hardcoded_roles import get_auto_fix_orchestrator
-
-        orchestrator = get_auto_fix_orchestrator()
-
-        # Run auto-fix in background (don't block startup)
-        # FastAPI startup events are already async-capable, but auto-fix is pure-async
-        import asyncio
-        result = await orchestrator.execute_auto_fix_cycle_with_slm()
-
-        if result["status"] == "complete":
-            logger.info(f"AUTO-FIX CYCLE COMPLETE: {result['before']} -> {result['after']} hardcoded checks")
-            logger.info(f"AUTO-FIX Files modified: {result['files_modified']}")
-            logger.info(f"AUTO-FIX Verification: {result['verification']}")
-        elif result["status"] == "no_fixes_needed":
-            logger.info("AUTO-FIX No hardcoded role checks found - codebase is clean")
-        else:
-            # FIX #3: Hard fail on partial status (security risk - inconsistent auth model)
-            logger.error(f"AUTO-FIX PARTIAL STATUS - NOT STARTING SERVER: {result}")
-            raise RuntimeError(
-                f"Auto-fix orchestrator left codebase in inconsistent state. "
-                f"Status: {result['status']}. "
-                f"Before: {result.get('before', '?')} violations, "
-                f"After: {result.get('after', '?')} violations. "
-                f"Resolve manually and restart."
-            )
-    except Exception as exc:
-        logger.error(f"[Startup] Auto-fix cycle failed: {exc}", exc_info=True)
-        # Don't crash startup if auto-fix fails, but log it clearly
+    # 🚨 ARCHITECT AUTO-FIX TRIGGER (DISABLED FOR PRODUCTION)
+    # Auto-fix orchestrator disabled during production startup verification
+    # Re-enable after all hardcoded role checks are remediated
+    logger.info("[Startup] Auto-fix orchestrator disabled for production verification")
 
     # CYCLE 19: Start background queue processor with exception handling
     # FIX #4: Add exception handling wrapper to prevent silent message loss
