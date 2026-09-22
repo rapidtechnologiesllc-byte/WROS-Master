@@ -231,6 +231,13 @@ class AuthenticationMiddleware(BaseHTTPMiddleware):
                 details=f"Path: {path} | Invalid JWT token"
             )
             raise
+        except Exception as e:
+            # Catch-all for any other auth errors (malformed tokens, etc.)
+            logger.error(f"Unexpected auth error: {str(e)}", exc_info=True)
+            return JSONResponse(
+                status_code=401,
+                content={"detail": "Invalid or expired token"}
+            )
 
     def _is_public_route(self, path: str) -> bool:
         """
