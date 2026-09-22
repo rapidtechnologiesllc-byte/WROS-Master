@@ -57,8 +57,10 @@ class DatabasePoolMonitor:
 
             # Get pool status
             available = pool.checkedout() if hasattr(pool, 'checkedout') else 0
-            # Total = pool_size + max_overflow
-            total = getattr(pool, 'size', 20) + getattr(pool, 'max_overflow', 10)
+            # Total = pool_size + max_overflow (size and max_overflow are methods)
+            size = pool.size() if callable(getattr(pool, 'size', None)) else getattr(pool, 'size', 20)
+            max_overflow = pool.max_overflow() if callable(getattr(pool, 'max_overflow', None)) else getattr(pool, 'max_overflow', 10)
+            total = size + max_overflow
             checked_out = available
             available = total - checked_out
 
