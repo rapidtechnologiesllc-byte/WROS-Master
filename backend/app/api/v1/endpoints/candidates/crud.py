@@ -1234,11 +1234,38 @@ try:
     _legacy_module = importlib.util.module_from_spec(_spec)
     _spec.loader.exec_module(_legacy_module)
 
-    # Directly copy all routes from legacy router to avoid FastAPI prefix issues
+    # Re-register each route through proper FastAPI mechanism (add_api_route)
+    # This ensures Starlette rebuilds its routing tree correctly
+    # The legacy router uses prefix="/candidate", we convert to use crud's "/candidates" prefix
+    _legacy_routes_count = 0
     for _route in _legacy_module.router.routes:
-        router.routes.append(_route)
+        if hasattr(_route, 'endpoint') and hasattr(_route, 'methods'):
+            # Extract the path and remove the legacy "/candidate" prefix
+            path = _route.path
+            if path.startswith("/candidate"):
+                # Remove "/candidate" and keep the rest (e.g., "/candidate/create" -> "/create")
+                path = path.replace("/candidate", "", 1)
+                if not path:
+                    path = "/"
 
-    logger.info(f"[CANDIDATES] Legacy routes copied: {len(_legacy_module.router.routes)} routes")
+            # Re-register each HTTP method separately through proper FastAPI mechanism
+            for method in (_route.methods or ["GET"]):
+                router.add_api_route(
+                    path,
+                    _route.endpoint,
+                    methods=[method],
+                    response_model=getattr(_route, 'response_model', None),
+                    dependencies=getattr(_route, 'dependencies', None),
+                    status_code=getattr(_route, 'status_code', None),
+                    tags=getattr(_route, 'tags', ['legacy-candidates']),
+                    summary=getattr(_route, 'summary', None),
+                    description=getattr(_route, 'description', None),
+                    name=getattr(_route, 'name', None),
+                    include_in_schema=getattr(_route, 'include_in_schema', True),
+                )
+                _legacy_routes_count += 1
+
+    logger.info(f"[CANDIDATES] Legacy routes re-registered: {_legacy_routes_count} route handlers")
 except Exception as e:
     logger.error(f"[CANDIDATES] Failed to load legacy routes: {e}", exc_info=True)
 
