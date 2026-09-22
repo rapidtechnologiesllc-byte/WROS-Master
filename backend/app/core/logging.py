@@ -107,8 +107,10 @@ def setup_logging(
     )
     
     # Console handler
+    # FIX #2: Add UTF-8 encoding to prevent UnicodeEncodeError on Windows (cp1252 codec issue)
     if log_to_console:
         console_handler = logging.StreamHandler(sys.stdout)
+        console_handler.encoding = 'utf-8'
         console_handler.setLevel(logging.DEBUG)
         console_handler.setFormatter(console_formatter)
         logger.addHandler(console_handler)

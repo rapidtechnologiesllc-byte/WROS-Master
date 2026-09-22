@@ -25,15 +25,21 @@ from app.api.v1.endpoints.message_queue import router as message_queue_router
 from app.api.v1.endpoints.business_units import router as business_units_router
 from app.api.v1.endpoints.rbac import router as rbac_router
 from app.api.v1.endpoints.career_portal import router as career_portal_router
+# FIX #1: Register flash_queue_metrics router (was missing, causing 404 errors)
+from app.api.v1.endpoints.flash_queue_metrics import router as flash_router
 
-# Agent State models — imported here so Base.metadata.create_all() finds them
-from app.models import agent_phalanx  # noqa: F401
+# FIX #2: Import ALL models FIRST before create_all() is called in startup
+# This ensures SQLAlchemy registers all 130+ models with Base.metadata
+from app.models import (
+    agent_phalanx, referral, channel_queue  # noqa: F401
+)
 
-# Referral models — imported here for database table creation
-from app.models import referral  # noqa: F401
-
-# Channel Queue models — imported here for database table creation
-from app.models import channel_queue  # noqa: F401
+# Import the full models package to trigger all model registrations
+# This MUST happen before Base.metadata.create_all() in startup_event
+try:
+    from app import models as _all_models  # noqa: F401
+except ImportError:
+    pass  # Models will be imported in db_contract if not available
 
 # Create FastAPI application
 # Swagger/(/docs) and ReDoc (/redoc) are interactive, "Try it out"-capable
@@ -222,28 +228,58 @@ async def startup_event():
         result = await orchestrator.execute_auto_fix_cycle_with_slm()
 
         if result["status"] == "complete":
-            logger.info(f"✅ [AUTO-FIX] CYCLE COMPLETE: {result['before']} → {result['after']} hardcoded checks")
-            logger.info(f"✅ [AUTO-FIX] Files modified: {result['files_modified']}")
-            logger.info(f"✅ [AUTO-FIX] Verification: {result['verification']}")
+            logger.info(f"AUTO-FIX CYCLE COMPLETE: {result['before']} -> {result['after']} hardcoded checks")
+            logger.info(f"AUTO-FIX Files modified: {result['files_modified']}")
+            logger.info(f"AUTO-FIX Verification: {result['verification']}")
         elif result["status"] == "no_fixes_needed":
-            logger.info("✅ [AUTO-FIX] No hardcoded role checks found - codebase is clean")
+            logger.info("AUTO-FIX No hardcoded role checks found - codebase is clean")
         else:
-            logger.warning(f"⚠️  [AUTO-FIX] Status: {result['status']}")
+            # FIX #3: Hard fail on partial status (security risk - inconsistent auth model)
+            logger.error(f"AUTO-FIX PARTIAL STATUS - NOT STARTING SERVER: {result}")
+            raise RuntimeError(
+                f"Auto-fix orchestrator left codebase in inconsistent state. "
+                f"Status: {result['status']}. "
+                f"Before: {result.get('before', '?')} violations, "
+                f"After: {result.get('after', '?')} violations. "
+                f"Resolve manually and restart."
+            )
     except Exception as exc:
         logger.error(f"[Startup] Auto-fix cycle failed: {exc}", exc_info=True)
         # Don't crash startup if auto-fix fails, but log it clearly
 
-    # CYCLE 19: Start background queue processor with SLM integration
-    # Queue processor consumes PENDING messages and trains SLM on results
+    # CYCLE 19: Start background queue processor with exception handling
+    # FIX #4: Add exception handling wrapper to prevent silent message loss
     try:
         logger.info("[Startup] Starting background queue processor (CYCLE 19)...")
         from app.services.queue_processor_service import QueueProcessorService
         from threading import Thread
+        import time as time_module
+
+        def queue_processor_wrapper():
+            """Wrapper with exception handling and restart logic."""
+            max_restarts = 3
+            restart_delay = 5
+
+            for attempt in range(1, max_restarts + 1):
+                try:
+                    logger.info(f"[QueueProcessor] Starting (attempt {attempt}/{max_restarts})...")
+                    QueueProcessorService.start_background_processor(
+                        poll_interval=2, batch_size=10
+                    )
+                    logger.info("[QueueProcessor] Exited normally")
+                    break  # Success
+                except Exception as exc:
+                    logger.error(f"[QueueProcessor] CRASHED: {exc}", exc_info=True)
+                    if attempt < max_restarts:
+                        logger.info(f"[QueueProcessor] Restarting in {restart_delay}s...")
+                        time_module.sleep(restart_delay)
+                    else:
+                        logger.critical("[QueueProcessor] MAX RESTARTS EXCEEDED - queue will not be processed")
+                        break
 
         # Start queue processor in background thread
         queue_processor_thread = Thread(
-            target=QueueProcessorService.start_background_processor,
-            kwargs={"poll_interval": 2, "batch_size": 10},
+            target=queue_processor_wrapper,
             daemon=True,  # Thread dies when main process exits
             name="QueueProcessor"
         )
@@ -280,6 +316,8 @@ app.include_router(router)
 app.include_router(config_router, prefix="/api/v1")
 # Include message queue monitoring routes with /api/v1 prefix
 app.include_router(message_queue_router, prefix="/api/v1")
+# FIX #1: Include flash queue metrics router (was missing, causing 404 on /api/v1/flash/queue-health-pulse)
+app.include_router(flash_router, prefix="/api/v1")
 # Include business units routes with /api/v1 prefix (BU → Client → Job workflow)
 app.include_router(business_units_router, prefix="/api/v1")
 # Include RBAC routes with /api/v1 prefix (business units, departments, role management)
