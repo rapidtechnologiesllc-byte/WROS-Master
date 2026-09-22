@@ -212,6 +212,7 @@ def _initialize_admin_user():
 
             # Get admin password from environment or generate random one
             admin_password = settings.ADMIN_PASSWORD
+            logger.info(f"[Contract] ADMIN_PASSWORD from config: {'SET' if admin_password else 'NOT SET'} (length: {len(admin_password) if admin_password else 0})")
             if not admin_password:
                 admin_password = ''.join(secrets.choice(string.ascii_letters + string.digits) for _ in range(16))
                 logger.warning("[Contract] ADMIN_PASSWORD not set - generated temporary password. Set ADMIN_PASSWORD env var for production.")
