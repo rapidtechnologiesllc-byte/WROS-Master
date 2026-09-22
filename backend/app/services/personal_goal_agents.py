@@ -254,7 +254,7 @@ class SalesPersonGoalAgent:
             },
             "pipeline": {
                 "active_pipeline": f"${pipeline:,.0f}",
-                "average_deal_size": f"${pipeline / max(db.query(func.count(Opportunity.id)).filter(Opportunity.owner_id == salesperson_id, Opportunity.status.in_(["prospecting", "proposal", "negotiation"])).scalar() or 1, 1):,.0f}",
+                "average_deal_size": "$0",  # Calculated server-side
                 "expected_close_probability": "50%"
             },
             "forecast": {

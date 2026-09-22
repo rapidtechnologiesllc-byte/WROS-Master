@@ -84,7 +84,7 @@ class ResumeParsedAgent:
             # CRITICAL FIX: Raise error instead of returning None
             raise RuntimeError(f"Failed to extract experience from resume: {str(e)}")
 
-            async def extract_education(self, resume_text: str) -> Optional[list]:
+    async def extract_education(self, resume_text: str) -> Optional[list]:
         """
         Extract education details from resume text.
 

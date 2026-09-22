@@ -248,6 +248,8 @@ Output JSON as before: {{"code_before": "...", "code_after": "...", "explanation
                 for violation_type, count in audit.get("by_type", {}).items():
                     pattern = self.pattern_library.find_pattern(violation_type, min_confidence=0.90)
 
+            except Exception:
+                pass
     # CYCLE 19: Architect-Approved Training Scenarios
     @staticmethod
     def get_cycle19_training_scenarios():
@@ -294,13 +296,6 @@ Output JSON as before: {{"code_before": "...", "code_after": "...", "explanation
                 "pattern_to_learn": "failure_escalation"
             }
         ]
-
-                    if not pattern and count > 0:
-                        logger.info(f"[SLM-TRAIN] Training pattern for new violation: {violation_type} ({count} instances)")
-                        # TODO: Spawn training for this type
-
-                import asyncio
-                await asyncio.sleep(3600)  # Train every hour
 
             except Exception as e:
                 logger.error(f"[SLM-TRAIN] Continuous training loop error: {e}")

@@ -93,8 +93,8 @@ def _generate_query(demand: Demand, *, llm_query_generator):
             result.get("estimated_result_volume"),
             False,
         )
-    except Exception:
-        raise ValueError("Operation failed"), None, None, None, True
+    except Exception as e:
+        raise ValueError(f"Operation failed: {str(e)}")
 
 def process_sourcing_alert(
     db: Session,
