@@ -1218,3 +1218,27 @@ def get_candidate_contacts(
         "job_recruiter":      job_recruiter,
     }
 
+
+# ============================================================
+# Include legacy candidate routes (self-service + creation)
+# ============================================================
+# Load and include the legacy candidates.py module which contains
+# self-service routes (/candidate/create, /candidate/import/linkedin, etc.)
+# This consolidates both HR admin routes (/candidates/*) and candidate
+# self-service routes (/candidate/*) into a single integrated router
+try:
+    import importlib.util
+    from pathlib import Path
+    _legacy_path = Path(__file__).parent.parent / "candidates.py"
+    _spec = importlib.util.spec_from_file_location("candidates_legacy", str(_legacy_path))
+    _legacy_module = importlib.util.module_from_spec(_spec)
+    _spec.loader.exec_module(_legacy_module)
+
+    # Directly copy all routes from legacy router to avoid FastAPI prefix issues
+    for _route in _legacy_module.router.routes:
+        router.routes.append(_route)
+
+    logger.info(f"[CANDIDATES] Legacy routes copied: {len(_legacy_module.router.routes)} routes")
+except Exception as e:
+    logger.error(f"[CANDIDATES] Failed to load legacy routes: {e}", exc_info=True)
+
