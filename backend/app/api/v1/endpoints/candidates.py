@@ -56,7 +56,7 @@ from app.services.linkedin_import_service import (
 )
 from app.services.apollo_integration import search_apollo_by_linkedin_url
 
-router = APIRouter(prefix="/candidate", tags=["candidate"])
+router = APIRouter(prefix="/candidates", tags=["candidates"])
 
 
 # ============================================================================

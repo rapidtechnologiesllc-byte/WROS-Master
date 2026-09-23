@@ -50,7 +50,7 @@ export const LoadTestRunner = {
         batchPromises.push(
           (async () => {
             try {
-              await apiRequest('/candidate/create', {
+              await apiRequest('/candidates/create', {
                 method: 'POST',
                 body: JSON.stringify(candidateData),
               });

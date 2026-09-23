@@ -298,8 +298,8 @@ export default function AppRoutes() {
   // internal login gate below, same precedent as /careers-chat, since
   // a candidate arriving via a WhatsApp/Email link has no internal
   // account and must never see the internal login screen.
-  if (window.location.pathname.startsWith("/candidate/")) {
-    const portalToken = window.location.pathname.split("/candidate/")[1]?.split("/")[0];
+  if (window.location.pathname.startsWith("/candidates/")) {
+    const portalToken = window.location.pathname.split("/candidates/")[1]?.split("/")[0];
     return <CandidatePortalScreen token={portalToken} />;
   }
 

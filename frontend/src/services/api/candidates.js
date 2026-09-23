@@ -2,7 +2,7 @@
 import { apiRequest } from "./client";
 
 export const createCandidate = async (payload) => {
-  const { data } = await apiRequest("/candidate/create", {
+  const { data } = await apiRequest("/candidates/create", {
     method: "POST",
     body: JSON.stringify(payload),
   });
@@ -10,14 +10,14 @@ export const createCandidate = async (payload) => {
 };
 
 export const getAllCandidates = async () => {
-  const { data } = await apiRequest("/candidate/all", {
+  const { data } = await apiRequest("/candidates/all", {
     method: "GET",
   });
   return data;
 };
 
 export const updateCandidateThunderEnabled = async (candidateId, enabled) => {
-  const { data } = await apiRequest(`/candidate/${candidateId}/thunder-config`, {
+  const { data } = await apiRequest(`/candidates/${candidateId}/thunder-config`, {
     method: "PATCH",
     body: JSON.stringify({ thunder_enabled: enabled }),
   });
@@ -25,7 +25,7 @@ export const updateCandidateThunderEnabled = async (candidateId, enabled) => {
 };
 
 export const getCandidateById = async (candidateId) => {
-  const { data } = await apiRequest(`/candidate/${candidateId}`, {
+  const { data } = await apiRequest(`/candidates/${candidateId}`, {
     method: "GET",
   });
   return data;

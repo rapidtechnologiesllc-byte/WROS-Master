@@ -893,9 +893,14 @@ def delete_candidate_restful(candidate_id: str, db: Session = Depends(get_db), u
     "/hr/delete_candidate/{candidate_id}",
     response_model=DeleteResponse,
     dependencies=[Depends(require_role_template_permission("candidates", "can_delete"))],
+    deprecated=True,
 )
 def delete_candidate_legacy(candidate_id: str, db: Session = Depends(get_db), user = Depends(get_current_user)):
     """
+    ⚠️ DEPRECATED: Use DELETE /candidates/{candidate_id} instead.
+
+    This endpoint will be removed on 2027-03-23. Please migrate to the RESTful endpoint.
+
     Delete a candidate and all associated records.
 
     Args:
