@@ -91,10 +91,23 @@ def create_all_tables(db_engine):
         from app.models.base import Base
         import app.models  # Import all models
 
+        print(f"DEBUG: Base.metadata.tables count = {len(Base.metadata.tables)}")
+        print(f"DEBUG: Base.metadata.tables = {list(Base.metadata.tables.keys())[:5]}")
+
         Base.metadata.create_all(bind=db_engine)
+
+        print(f"DEBUG: After create_all, verifying tables...")
+        # Verify tables were created
+        with db_engine.connect() as conn:
+            from sqlalchemy import text
+            result = conn.execute(text("SELECT table_name FROM information_schema.tables WHERE table_schema = 'public'"))
+            table_names = [row[0] for row in result]
+            print(f"DEBUG: Tables in database after create_all: {len(table_names)}")
+
         logger.info(f"[INIT] All tables created/verified")
         return True
     except Exception as e:
+        print(f"DEBUG: Exception in create_all_tables: {e}")
         logger.error(f"[INIT] Failed to create tables: {e}", exc_info=True)
         return False
 
@@ -300,49 +313,82 @@ def seed_admin_user(db):
 
 def initialize_database():
     """Run complete database initialization on startup."""
+    print("DEBUG: initialize_database() called")  # Add print for visibility
     logger.info("=" * 60)
     logger.info("[INIT] Starting database initialization...")
     logger.info("=" * 60)
 
     # Step 1: Ensure database exists
-    if not ensure_database_exists():
+    print("DEBUG: Calling ensure_database_exists()")
+    result = ensure_database_exists()
+    print(f"DEBUG: ensure_database_exists() returned {result}")
+    if not result:
         logger.error("[INIT] Failed to ensure database exists")
         return False
 
     # Step 2: Connect to wros_dev
-    from app.core.database import engine, SessionLocal
+    print("DEBUG: About to import engine and SessionLocal")
+    try:
+        from app.core.database import engine, SessionLocal
+        print("DEBUG: Successfully imported engine and SessionLocal")
+    except Exception as e:
+        print(f"DEBUG: Failed to import: {e}")
+        raise
 
+    print("DEBUG: About to call ensure_schema_exists()")
     # Step 3: Ensure schema exists
-    if not ensure_schema_exists(engine):
+    schema_result = ensure_schema_exists(engine)
+    print(f"DEBUG: ensure_schema_exists returned {schema_result}")
+    if not schema_result:
+        print("DEBUG: Returning False because schema step failed")
         logger.error("[INIT] Failed to ensure schema exists")
         return False
 
+    print("DEBUG: Schema step passed, about to create tables")
     # Step 4: Create all tables
-    if not create_all_tables(engine):
+    tables_result = create_all_tables(engine)
+    print(f"DEBUG: create_all_tables returned {tables_result}")
+    if not tables_result:
         logger.error("[INIT] Failed to create tables")
         return False
 
     # Step 5: Seed roles and permissions
+    print("DEBUG: About to seed roles and permissions")
     db = SessionLocal()
     try:
-        if not seed_roles_and_permissions(db):
+        roles_result = seed_roles_and_permissions(db)
+        print(f"DEBUG: seed_roles_and_permissions returned {roles_result}")
+        if not roles_result:
             logger.error("[INIT] Failed to seed roles and permissions")
             return False
+    except Exception as e:
+        print(f"DEBUG: Exception in seed_roles_and_permissions: {e}")
+        raise
     finally:
         db.close()
+        print("DEBUG: Closed db connection after roles seeding")
 
     # Step 6: Create admin user
+    print("DEBUG: About to seed admin user")
     db = SessionLocal()
     try:
-        if not seed_admin_user(db):
+        admin_result = seed_admin_user(db)
+        print(f"DEBUG: seed_admin_user returned {admin_result}")
+        if not admin_result:
             logger.error("[INIT] Failed to create admin user")
             return False
+    except Exception as e:
+        print(f"DEBUG: Exception in seed_admin_user: {e}")
+        raise
     finally:
         db.close()
+        print("DEBUG: Closed db connection after admin seeding")
 
+    print("DEBUG: About to log completion")
     logger.info("=" * 60)
     logger.info("[INIT] Database initialization COMPLETE")
     logger.info("[INIT] Users: admin@test.com (Admin@123)")
     logger.info("[INIT] Users: recruiter@test.com (Recruiter@123)")
     logger.info("=" * 60)
+    print("DEBUG: Returning True from initialize_database()")
     return True
