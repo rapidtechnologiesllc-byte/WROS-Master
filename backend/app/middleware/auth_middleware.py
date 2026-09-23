@@ -164,6 +164,11 @@ class AuthenticationMiddleware(BaseHTTPMiddleware):
         # Skip authentication for OPTIONS requests (CORS preflight)
         if request.method == "OPTIONS":
             response = await call_next(request)
+            # Ensure OPTIONS responses have CORS headers
+            response.headers["Access-Control-Allow-Origin"] = "*"
+            response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS, PATCH"
+            response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-Requested-With"
+            response.headers["Access-Control-Max-Age"] = "3600"
             return response
 
         # Skip authentication for public routes
