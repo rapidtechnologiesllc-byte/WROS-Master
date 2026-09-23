@@ -240,7 +240,7 @@ async def create_candidate(
         )
 
         message_id = result['message_id']
-        polling_endpoint = f"/api/v1/tasks/{message_id}/status"
+        polling_endpoint = f"/api/v1/message-queue/tasks/{message_id}/status"
 
         logger.info(f"Candidate creation queued: {message_id} ({email})")
 

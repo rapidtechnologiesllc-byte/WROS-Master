@@ -1323,9 +1323,14 @@ try:
         if hasattr(_route, 'endpoint') and hasattr(_route, 'methods'):
             # Extract the path and remove the legacy "/candidate" prefix
             path = _route.path
-            if path.startswith("/candidate"):
-                # Remove "/candidate" and keep the rest (e.g., "/candidate/create" -> "/create")
-                path = path.replace("/candidate", "", 1)
+            if path.startswith("/candidates"):
+                # Remove "/candidates" from "/candidates/create" -> "/create"
+                path = path[len("/candidates"):]
+                if not path:
+                    path = "/"
+            elif path.startswith("/candidate"):
+                # Also handle old "/candidate" prefix (without 's')
+                path = path[len("/candidate"):]
                 if not path:
                     path = "/"
 
