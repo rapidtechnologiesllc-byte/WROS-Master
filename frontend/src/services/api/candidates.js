@@ -2,7 +2,7 @@
 import { apiRequest } from "./client";
 
 export const createCandidate = async (payload) => {
-  const { data } = await apiRequest("/api/v1/candidates/create", {
+  const { data } = await apiRequest("/candidate/create", {
     method: "POST",
     body: JSON.stringify(payload),
   });
@@ -10,14 +10,14 @@ export const createCandidate = async (payload) => {
 };
 
 export const getAllCandidates = async () => {
-  const { data } = await apiRequest("/api/v1/candidates/all", {
+  const { data } = await apiRequest("/candidate/all", {
     method: "GET",
   });
   return data;
 };
 
 export const updateCandidateThunderEnabled = async (candidateId, enabled) => {
-  const { data } = await apiRequest(`/api/v1/candidates/${candidateId}/thunder-config`, {
+  const { data } = await apiRequest(`/candidate/${candidateId}/thunder-config`, {
     method: "PATCH",
     body: JSON.stringify({ thunder_enabled: enabled }),
   });
@@ -25,7 +25,7 @@ export const updateCandidateThunderEnabled = async (candidateId, enabled) => {
 };
 
 export const getCandidateById = async (candidateId) => {
-  const { data } = await apiRequest(`/api/v1/candidates/${candidateId}`, {
+  const { data } = await apiRequest(`/candidate/${candidateId}`, {
     method: "GET",
   });
   return data;
@@ -96,9 +96,9 @@ export const updateCandidate = async (candidateId, payload) => {
   if (payload?.candidate_current_salary_type != null)
     body.candidate_current_salary_type = payload.candidate_current_salary_type;
 
-  console.log(`[updateCandidate] Calling PUT /api/v1/candidates/${candidateId}`, body);
+  console.log(`[updateCandidate] Calling PUT /candidate/${candidateId}`, body);
   const { data } = await apiRequest(
-    `/api/v1/candidates/${candidateId}`,
+    `/candidate/${candidateId}`,
     {
       method: "PUT",
       body: JSON.stringify(body),
@@ -110,7 +110,7 @@ export const updateCandidate = async (candidateId, payload) => {
 
 export const deleteCandidate = async (candidateId) => {
   const { data } = await apiRequest(
-    `/api/v1/candidates/${candidateId}`,
+    `/candidate/${candidateId}`,
     {
       method: "DELETE",
     },
@@ -142,7 +142,7 @@ export const getAssignedCandidates = async () => {
 };
 export const getCandidateContacts = async (candidateId) => {
   const { data } = await apiRequest(
-    `/api/v1/candidates/${candidateId}/contacts`,
+    `/candidate/${candidateId}/contacts`,
     {
       method: "GET",
     },
