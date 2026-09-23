@@ -36,4 +36,13 @@ module.exports = function(app) {
       changeOrigin: true,
     })
   );
+
+  // Also proxy /candidate (singular) for form endpoints (legacy)
+  app.use(
+    '/candidate',
+    createProxyMiddleware({
+      target: 'http://localhost:8081',
+      changeOrigin: true,
+    })
+  );
 };

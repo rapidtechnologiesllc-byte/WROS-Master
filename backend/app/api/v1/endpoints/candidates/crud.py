@@ -813,12 +813,104 @@ def update_candidate(candidate_id: str, request: CandidateUpdateRequest, db: Ses
         candidate_source=candidate.candidateSource,
     )
 
+@router.patch(
+    "/{candidate_id}/thunder-config",
+    response_model=CandidateCompleteResponse,
+    dependencies=[Depends(require_role_template_permission("candidates", "can_edit"))],
+)
+def update_thunder_config(
+    candidate_id: str,
+    body: dict,
+    db: Session = Depends(get_db),
+    user = Depends(get_current_user)
+):
+    """
+    Update Thunder autonomous processing flag for a candidate.
+
+    Args:
+        candidate_id: ID of candidate to update
+        body: {"thunder_enabled": true/false}
+        db: Database session
+        user: Authenticated HR/Admin user
+
+    Returns:
+        Updated CandidateCompleteResponse
+
+    Raises:
+        HTTPException: If candidate not found or user lacks permission
+    """
+    if "thunder_enabled" not in body:
+        raise HTTPException(status_code=400, detail="Missing 'thunder_enabled' field in request body")
+
+    candidate = get_candidate_by_id_with_bu_scope(db, candidate_id, user)
+    if not candidate:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Candidate with ID {candidate_id} not found"
+        )
+
+    old_value = candidate.thunder_enabled
+    candidate.thunder_enabled = bool(body["thunder_enabled"])
+
+    try:
+        db.commit()
+        db.refresh(candidate)
+        logger.info(f"Thunder config updated for {candidate_id}: {old_value} → {candidate.thunder_enabled}")
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to update thunder config: {str(e)}")
+
+    return CandidateCompleteResponse(
+        candidate_id=candidate.candidateID,
+        candidate_email=candidate.candidateEmail,
+        candidate_first_name=candidate.candidateFirstName,
+        candidate_last_name=candidate.candidateLastName,
+        candidate_mobile=candidate.candidateMobile,
+        candidate_gender=candidate.candidateGender,
+        candidate_date_of_birth=candidate.candidateDateOfBirth,
+        candidate_job_title=candidate.candidateJobTitle,
+        candidate_experience=candidate.candidateExperience,
+        candidate_current_location=candidate.candidateCurrentLocation,
+        candidate_joining_date=candidate.candidateJoiningDate,
+        candidate_expected_salary=candidate.candidateExpectedSalary,
+        candidate_current_salary=candidate.candidateCurrentSalary,
+        candidate_source=candidate.candidateSource,
+        thunder_enabled=candidate.thunder_enabled,
+    )
+
+@router.delete(
+    "/{candidate_id}",
+    response_model=DeleteResponse,
+    dependencies=[Depends(require_role_template_permission("candidates", "can_delete"))],
+)
+def delete_candidate_restful(candidate_id: str, db: Session = Depends(get_db), user = Depends(get_current_user)):
+    """
+    Delete a candidate and all associated records (RESTful endpoint).
+
+    This is the standard DELETE /candidates/{candidate_id} endpoint.
+    The old /candidates/hr/delete_candidate/{candidate_id} is deprecated
+    but kept for backward compatibility.
+
+    Args:
+        candidate_id: ID of the candidate to delete
+        db: Database session
+        user: Authenticated HR/Admin user
+
+    Returns:
+        DeleteResponse with success message
+
+    Raises:
+        HTTPException: If candidate not found or user lacks BU permission
+    """
+    # Delegate to the legacy implementation
+    return delete_candidate_legacy(candidate_id, db, user)
+
 @router.delete(
     "/hr/delete_candidate/{candidate_id}",
     response_model=DeleteResponse,
     dependencies=[Depends(require_role_template_permission("candidates", "can_delete"))],
 )
-def delete_candidate(candidate_id: str, db: Session = Depends(get_db), user = Depends(get_current_user)):
+def delete_candidate_legacy(candidate_id: str, db: Session = Depends(get_db), user = Depends(get_current_user)):
     """
     Delete a candidate and all associated records.
 

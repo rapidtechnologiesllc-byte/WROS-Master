@@ -59,11 +59,14 @@ class CandidateCreationHandler:
                 logger.error(f"[Handler] Invalid tenant_id {tenant_id} for {candidate_email}")
                 raise ValueError(f"Invalid tenant_id: {tenant_id}")
 
-            candidate = Candidate(
-                candidateID=candidate_id_generator(),
-                candidateEmail=candidate_email,
-                candidateMobile=payload.get("candidate_mobile"),
-                candidatePassword=payload.get("candidate_password"),  # Hashed password from API
+            # R-07: Use create_candidate_safe() for all creates - dedup on email, phone, LinkedIn
+            plain_password = payload.get("candidate_temp_password")
+            candidate, is_new = create_candidate_safe(
+                db=db,
+                email=candidate_email,
+                mobile=payload.get("candidate_mobile"),
+                linkedin_url=payload.get("linkedin_url"),
+                plain_password=plain_password,
                 candidateRole=payload.get("candidate_role", "Candidate"),
                 candidateEmployeeType=payload.get("candidate_employee_type"),
                 candidateFirstName=payload.get("candidate_first_name"),
@@ -78,18 +81,13 @@ class CandidateCreationHandler:
                 candidateJoiningDate=payload.get("candidate_joining_date"),
                 candidateExpectedSalary=payload.get("candidate_expected_salary"),
                 candidateCurrentSalary=payload.get("candidate_current_salary"),
-                candidateCreatedAt=datetime.now(),
             )
 
-            # Check for duplicates before adding
-            is_new = True
-            existing = db.query(Candidate).filter(Candidate.candidateEmail == candidate_email).first()
-            if existing:
-                is_new = False
-                candidate = existing
-                logger.info(f"[Handler] Candidate already exists: {candidate_email}")
+            # If new candidate, add to session; if duplicate, already in DB
+            if is_new:
+                logger.info(f"[Handler] New candidate created: {candidate_email}")
             else:
-                db.add(candidate)
+                logger.info(f"[Handler] Candidate already exists (dedup): {candidate_email}")
 
             # Flush candidate to get candidateID (but don't commit yet)
             try:

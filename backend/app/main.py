@@ -18,6 +18,7 @@ from app.core.database_init import initialize_database
 from app.api.v1.endpoints.auth import router as auth_router
 from app.api.v1.endpoints.users_access_control import router as users_access_control_router
 from app.api.v1.endpoints.candidates.crud import router as candidates_router
+from app.api.v1.endpoints.candidates import router as candidate_forms_router
 from app.api.v1.endpoints.config import router as config_router
 from app.api.v1.endpoints.message_queue import router as message_queue_router
 from app.api.v1.endpoints.business_units import router as business_units_router
@@ -45,6 +46,7 @@ app.add_middleware(RequestLoggingMiddleware)
 app.include_router(auth_router)
 app.include_router(users_access_control_router, prefix="/api/v1")
 app.include_router(candidates_router)
+app.include_router(candidate_forms_router)
 app.include_router(config_router, prefix="/api/v1")
 app.include_router(message_queue_router, prefix="/api/v1")
 app.include_router(business_units_router, prefix="/api/v1")
