@@ -194,3 +194,28 @@ def get_queue_stats(db: Session = Depends(get_db)):
         "by_queue": by_queue,
         "timestamp": datetime.utcnow().isoformat(),
     }
+
+
+@router.get("/tasks/{task_id}/status")
+def get_task_status(task_id: str, db: Session = Depends(get_db)):
+    """
+    Get the status of a queued task by message ID.
+
+    Returns: {status: "pending|processing|completed|failed", result: {...}, error: "..."}
+    """
+    message = db.query(ChannelQueueItem).filter(ChannelQueueItem.id == task_id).first()
+
+    if not message:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail=f"Task {task_id} not found")
+
+    return {
+        "task_id": message.id,
+        "status": message.status.lower() if message.status else "unknown",
+        "type": message.type,
+        "result": message.result,
+        "error": message.error,
+        "created_at": message.created_at.isoformat() if message.created_at else None,
+        "completed_at": message.completed_at.isoformat() if message.completed_at else None,
+        "retry_count": message.retry_count or 0,
+    }

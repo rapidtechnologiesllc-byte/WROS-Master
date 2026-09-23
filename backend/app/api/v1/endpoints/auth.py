@@ -547,23 +547,21 @@ def refresh_token_endpoint(
     raise HTTPException(status_code=401, detail="User or candidate not found")
 
 
-@router.post("/reset-password", dependencies=[Depends(require_role_template_permission("user", "manage"))])
+@router.post("/reset-password")
 async def reset_password(
     request: dict,
     current_user: Users = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Reset user password. Protected endpoint - requires authentication and permission."""
+    """Reset user password. Any authenticated user can reset their own password."""
     if not request:
         logger.error("Password reset failed: request is None")
         raise HTTPException(status_code=400, detail="Request body is required")
 
-    user_id = request.get("user_id")
     new_password = request.get("new_password")
 
-    if not user_id:
-        logger.error("Password reset failed: user_id missing")
-        raise HTTPException(status_code=400, detail="user_id is required")
+    # Use current_user from token, not from request
+    user_id = current_user.UserID
 
     if not new_password:
         logger.error("Password reset failed: new_password missing")

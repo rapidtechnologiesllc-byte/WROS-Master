@@ -79,7 +79,6 @@ class CandidateCreationHandler:
                 candidateExpectedSalary=payload.get("candidate_expected_salary"),
                 candidateCurrentSalary=payload.get("candidate_current_salary"),
                 candidateCreatedAt=datetime.now(),
-                tenant_id=tenant_id,  # ✅ Assign tenant_id from payload
             )
 
             # Check for duplicates before adding
@@ -203,6 +202,7 @@ class CandidateCreationHandler:
 
             # 6. QUEUE FIRST ENGAGEMENT EMAIL IMMEDIATELY
             try:
+                candidate_first_name = payload.get("candidate_first_name", "Candidate")
                 MessageQueueService.enqueue(
                     task_name='send_email',
                     channel_type='EMAIL_QUEUE',

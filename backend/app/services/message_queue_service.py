@@ -49,6 +49,7 @@ class MessageQueueService:
 
             # Create queue item in database
             queue_item = ChannelQueueItem(
+                id=task_id,  # Use task_id as primary key for tracking
                 message_id=task_id,
                 type=task_name,
                 channel_type=QUEUE_TYPE_THUNDER if 'engage_candidate_with_thunder' in task_name.lower() or 'assign_thunder' in task_name.lower() else (QUEUE_TYPE_CANDIDATE if 'candidate' in task_name.lower() else QUEUE_TYPE_THUNDER),
