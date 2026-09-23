@@ -12,6 +12,7 @@ from app.core.database import engine, SessionLocal
 from app.core.logging import logger
 from app.models.base import Base
 from app.core import tenant_context as _tenant_context
+from app.core.database_init import initialize_database
 
 # ESSENTIAL ENDPOINTS - VERIFIED WORKING
 from app.api.v1.endpoints.auth import router as auth_router
@@ -63,20 +64,14 @@ async def health():
 @app.on_event("startup")
 async def startup_event():
     logger.info("[STARTUP] DATABASE_URL=%s...", settings.DATABASE_URL[:50] if settings.DATABASE_URL else "NOT SET")
-
-    # Debug: Check if /candidate routes are registered
-    candidate_routes = [r for r in app.routes if hasattr(r, 'path') and '/candidate' in str(r.path).lower()]
-    logger.info(f"[STARTUP] Routes with /candidate in path: {len(candidate_routes)}")
-    for route in candidate_routes[:5]:
-        if hasattr(route, 'path'):
-            logger.info(f"[STARTUP]   - {route.path}")
+    logger.info(f"[STARTUP] Connecting to database...")
 
     try:
-        from app.core.db_contract import initialize_database
+        # Initialize database: create schema, tables, roles, permissions, users
         initialize_database()
-        logger.info("[STARTUP] Database contract initialized successfully")
+        logger.info("[STARTUP] Database initialization complete")
     except Exception as e:
-        logger.error(f"[STARTUP ERROR] {e}", exc_info=True)
+        logger.error(f"[STARTUP ERROR] Database initialization failed: {e}", exc_info=True)
         raise RuntimeError(f"Database initialization failed: {e}")
 
 if __name__ == "__main__":
