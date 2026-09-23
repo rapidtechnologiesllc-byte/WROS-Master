@@ -860,23 +860,7 @@ def update_thunder_config(
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Failed to update thunder config: {str(e)}")
 
-    return CandidateCompleteResponse(
-        candidate_id=candidate.candidateID,
-        candidate_email=candidate.candidateEmail,
-        candidate_first_name=candidate.candidateFirstName,
-        candidate_last_name=candidate.candidateLastName,
-        candidate_mobile=candidate.candidateMobile,
-        candidate_gender=candidate.candidateGender,
-        candidate_date_of_birth=candidate.candidateDateOfBirth,
-        candidate_job_title=candidate.candidateJobTitle,
-        candidate_experience=candidate.candidateExperience,
-        candidate_current_location=candidate.candidateCurrentLocation,
-        candidate_joining_date=candidate.candidateJoiningDate,
-        candidate_expected_salary=candidate.candidateExpectedSalary,
-        candidate_current_salary=candidate.candidateCurrentSalary,
-        candidate_source=candidate.candidateSource,
-        thunder_enabled=candidate.thunder_enabled,
-    )
+    return _build_candidate_response(candidate)
 
 @router.delete(
     "/{candidate_id}",

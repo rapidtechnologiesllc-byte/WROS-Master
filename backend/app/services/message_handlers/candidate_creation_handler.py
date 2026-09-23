@@ -257,7 +257,7 @@ class CandidateCreationHandler:
                         db,
                         email=healed_payload.get("candidate_email"),
                         mobile=healed_payload.get("candidate_mobile"),
-                        plain_password=healed_payload.get("candidate_password"),
+                        plain_password=healed_payload.get("candidate_temp_password"),
                         tenant_id=healed_payload.get("tenant_id"),
                         candidateRole=healed_payload.get("candidate_role", "Candidate"),
                         candidateEmployeeType=healed_payload.get("candidate_employee_type"),
