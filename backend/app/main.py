@@ -43,7 +43,7 @@ app.add_middleware(AuthenticationMiddleware)
 app.add_middleware(RequestLoggingMiddleware)
 
 # Register essential routers only
-app.include_router(auth_router)
+app.include_router(auth_router, prefix="/api/v1")
 app.include_router(users_access_control_router, prefix="/api/v1")
 app.include_router(candidates_router)
 app.include_router(candidate_forms_router)
