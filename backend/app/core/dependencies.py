@@ -315,6 +315,13 @@ def require_role_template_permission(resource_name: str, field_name: str = "can_
         if not user:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
 
+        # PRODUCTION SAFETY: User MUST have tenant_id assigned
+        if not user.tenant_id:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="User has no tenant assigned"
+            )
+
         # Super User bypass - always grants all permissions
         if RoleTemplatePermissionService.is_super_user(db, user.UserID, user.tenant_id):
             return user

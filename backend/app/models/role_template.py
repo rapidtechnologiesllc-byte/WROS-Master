@@ -61,6 +61,7 @@ class RoleTemplate(Base):
     specialization = Column(String(512), nullable=False, default="General")  # Defines expertise domain
 
     is_system = Column(Boolean, default=False)  # True for built-in roles, False for custom
+    is_super_user = Column(Boolean, default=False, nullable=False, server_default="false")  # True for Admin role - bypasses all permission checks
     # PRODUCTION SAFETY: enabled MUST default to True, never allow None
     enabled = Column(Boolean, default=True, nullable=False, server_default="true")
     # Org-level access: True if role should see organization-level data (all BUs)
@@ -82,12 +83,16 @@ class RoleTemplatePermission(Base):
     id = Column(Integer, primary_key=True)
     role_template_id = Column(Integer, ForeignKey("role_templates.id"), nullable=False)
     resource_id = Column(Integer, ForeignKey("resources.id"), nullable=False)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False)
     can_view = Column(Boolean, default=False)
     can_create = Column(Boolean, default=False)
     can_edit = Column(Boolean, default=False)
     can_delete = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Composite unique constraint to prevent duplicates per tenant
+    __table_args__ = (UniqueConstraint('role_template_id', 'resource_id', 'tenant_id', name='uq_permission_per_tenant'),)
 
     # Relationships
     role_template = relationship("RoleTemplate", back_populates="permissions")

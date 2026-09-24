@@ -8,7 +8,18 @@ import logging
 from fastapi import HTTPException, status
 
 ALGORITHM = "HS256"
-SECRET_KEY = os.getenv("JWT_SECRET", "dev-secret-key-super-secure-in-production")
+
+# PRODUCTION SAFETY: JWT_SECRET MUST be set via environment variable
+# No default fallback allowed - forces explicit configuration
+SECRET_KEY = os.getenv("JWT_SECRET")
+if not SECRET_KEY:
+    raise ValueError(
+        "🚨 FATAL: JWT_SECRET environment variable not set.\n"
+        "Set it in .env file with a strong random string.\n"
+        "Example: JWT_SECRET='your-secret-key-min-32-chars-required'\n"
+        "This is CRITICAL for token signing and verification."
+    )
+
 ACCESS_TOKEN_EXPIRE_MINUTES = 480  # 8 hours
 REFRESH_TOKEN_EXPIRE_DAYS = 7
 

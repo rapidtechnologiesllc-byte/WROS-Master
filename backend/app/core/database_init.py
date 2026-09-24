@@ -157,19 +157,36 @@ def seed_roles_and_permissions(db):
         db.flush()
         logger.info(f"[INIT] Created module: {module.id}")
 
-        # Create candidates resource
-        resource = Resource(
-            tenant_id=tenant_id,
-            module_id=module.id,
-            name="candidates",
-            display_name="Candidates",
-            route_path="/candidates",
-            description="Candidate management",
-            enabled=True
-        )
-        db.add(resource)
-        db.flush()
-        logger.info(f"[INIT] Created resource: {resource.id}")
+        # Create all resources needed by the system
+        resource_configs = [
+            {"name": "candidates", "display_name": "Candidates", "route": "/candidates", "desc": "Candidate management"},
+            {"name": "jobs", "display_name": "Jobs", "route": "/jobs", "desc": "Job postings"},
+            {"name": "users", "display_name": "Users", "route": "/users", "desc": "User management"},
+            {"name": "interviews", "display_name": "Interviews", "route": "/interviews", "desc": "Interview scheduling"},
+            {"name": "offers", "display_name": "Offers", "route": "/offers", "desc": "Offer management"},
+            {"name": "documents", "display_name": "Documents", "route": "/documents", "desc": "Document management"},
+            {"name": "projects", "display_name": "Projects", "route": "/projects", "desc": "Project management"},
+            {"name": "timesheets", "display_name": "Timesheets", "route": "/timesheets", "desc": "Timesheet tracking"},
+            {"name": "reports", "display_name": "Reports", "route": "/reports", "desc": "Reporting"},
+            {"name": "admin", "display_name": "Admin", "route": "/admin", "desc": "Admin controls"},
+        ]
+
+        # Create each resource and store for later permission assignment
+        resources_by_name = {}
+        for cfg in resource_configs:
+            resource = Resource(
+                tenant_id=tenant_id,
+                module_id=module.id,
+                name=cfg["name"],
+                display_name=cfg["display_name"],
+                route_path=cfg["route"],
+                description=cfg["desc"],
+                enabled=True
+            )
+            db.add(resource)
+            db.flush()
+            resources_by_name[cfg["name"]] = resource
+            logger.info(f"[INIT] Created resource: {cfg['name']} (id={resource.id})")
 
         # Create Admin role (super user: name='Admin' triggers bypass)
         admin_role = RoleTemplate(
@@ -181,7 +198,8 @@ def seed_roles_and_permissions(db):
             specialization="Administration",
             is_system=True,
             enabled=True,
-            org_level_access=True
+            org_level_access=True,
+            is_super_user=True
         )
         db.add(admin_role)
         db.flush()
@@ -203,29 +221,35 @@ def seed_roles_and_permissions(db):
         db.flush()
         logger.info(f"[INIT] Created Recruiter role: {recruiter_role.id}")
 
-        # Create permissions for Admin (all actions)
-        admin_perm = RoleTemplatePermission(
-            role_template_id=admin_role.id,
-            resource_id=resource.id,
-            can_view=True,
-            can_create=True,
-            can_edit=True,
-            can_delete=True
-        )
-        db.add(admin_perm)
-        logger.info("[INIT] Created Admin permissions: view, create, edit, delete")
+        # Create permissions for Admin - all resources, all actions
+        for resource_name, resource in resources_by_name.items():
+            admin_perm = RoleTemplatePermission(
+                role_template_id=admin_role.id,
+                resource_id=resource.id,
+                tenant_id=tenant_id,
+                can_view=True,
+                can_create=True,
+                can_edit=True,
+                can_delete=True
+            )
+            db.add(admin_perm)
+            logger.info(f"[INIT] Created Admin permissions for {resource_name}")
 
-        # Create permissions for Recruiter
-        recruiter_perm = RoleTemplatePermission(
-            role_template_id=recruiter_role.id,
-            resource_id=resource.id,
-            can_view=True,
-            can_create=True,
-            can_edit=True,
-            can_delete=False
-        )
-        db.add(recruiter_perm)
-        logger.info("[INIT] Created Recruiter permissions: view, create, edit")
+        # Create permissions for Recruiter - view/create/edit for key resources
+        recruiter_resources = ["candidates", "jobs", "interviews", "offers", "documents"]
+        for resource_name in recruiter_resources:
+            if resource_name in resources_by_name:
+                recruiter_perm = RoleTemplatePermission(
+                    role_template_id=recruiter_role.id,
+                    resource_id=resources_by_name[resource_name].id,
+                    tenant_id=tenant_id,
+                    can_view=True,
+                    can_create=True,
+                    can_edit=True,
+                    can_delete=False
+                )
+                db.add(recruiter_perm)
+                logger.info(f"[INIT] Created Recruiter permissions for {resource_name}")
 
         db.commit()
         logger.info("[INIT] Roles and permissions initialized successfully")

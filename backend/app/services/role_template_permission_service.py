@@ -64,15 +64,17 @@ class RoleTemplatePermissionService:
 
     @staticmethod
     def get_resource_by_name(db: Session, resource_name: str, tenant_id: int = 1) -> Resource | None:
-        """Get a resource by name."""
+        """Get a resource by name (case-insensitive)."""
         print(f"[DEBUG] get_resource_by_name: resource={resource_name}, tenant_id={tenant_id}")
         if not resource_name:
             print(f"[DEBUG] Resource name is empty")
             return None
 
         try:
+            from sqlalchemy import func
+            # Case-insensitive lookup: lower(name) = lower(resource_name)
             resource = db.query(Resource).filter(
-                Resource.name == resource_name,
+                func.lower(Resource.name) == resource_name.lower(),
                 Resource.tenant_id == tenant_id,
                 Resource.enabled == True
             ).first()
@@ -151,11 +153,12 @@ class RoleTemplatePermissionService:
                 return False
             print(f"[DEBUG] Found resource: id={resource.id}, name={resource.name}, tenant={resource.tenant_id}")
 
-            # Step 1: Check role template permission
-            print(f"[DEBUG] Querying permission: role_id={role.id}, resource_id={resource.id}")
+            # Step 1: Check role template permission (with tenant isolation)
+            print(f"[DEBUG] Querying permission: role_id={role.id}, resource_id={resource.id}, tenant_id={tenant_id}")
             role_perm = db.query(RoleTemplatePermission).filter(
                 RoleTemplatePermission.role_template_id == role.id,
-                RoleTemplatePermission.resource_id == resource.id
+                RoleTemplatePermission.resource_id == resource.id,
+                RoleTemplatePermission.tenant_id == tenant_id
             ).first()
 
             role_has_permission = False
@@ -194,18 +197,23 @@ class RoleTemplatePermissionService:
     def is_super_user(db: Session, user_id: str, tenant_id: int = 1) -> bool:
         """Check if user is a super user (has all permissions)."""
         try:
-            user = db.query(Users).filter(Users.UserID == user_id).first()
+            if not user_id:
+                return False
+
+            user = db.query(Users).filter(
+                Users.UserID == user_id,
+                Users.tenant_id == tenant_id
+            ).first()
             if not user:
                 return False
 
-            # Check if user has a super user role
+            # Check if user has a super user role (database flag, not hardcoded names)
             role = RoleTemplatePermissionService.get_user_role(db, user_id, tenant_id)
             if not role:
                 return False
 
-            # Super user roles typically have a name like "Super User" or "Admin"
-            # or have a super_user flag in the database
-            return getattr(role, 'is_super_user', False) or role.name in ['Super User', 'Admin']
+            # Check is_super_user flag (production safe)
+            return role.is_super_user is True
         except Exception as e:
             logger.error(f"is_super_user({user_id}): {e}", exc_info=True)
             return False
@@ -263,8 +271,10 @@ class RoleTemplatePermissionService:
 
             # OPTIMIZATION: Get only role template permissions (not all resources)
             # This avoids expensive query of all resources for every request
+            # Filter by tenant to prevent cross-tenant leaks
             role_perms = db.query(RoleTemplatePermission).filter(
-                RoleTemplatePermission.role_template_id == role.id
+                RoleTemplatePermission.role_template_id == role.id,
+                RoleTemplatePermission.tenant_id == tenant_id
             ).all()
 
             if not role_perms:
