@@ -60,7 +60,7 @@ router = APIRouter(prefix="/thunder", tags=["thunder"])
 
 @router.post(
     "/test-chat",
-    dependencies=[Depends(require_resource_permission("unknown", "create"))],
+    dependencies=[Depends(require_resource_permission("ask-thunder", "create"))],
     response_model=TestChatMessageResponse,
     summary="Send a message to Thunder as a test candidate and get a real reply",
     description=(
@@ -75,7 +75,7 @@ router = APIRouter(prefix="/thunder", tags=["thunder"])
 def send_test_chat_message(
     body: TestChatMessageRequest,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(require_resource_permission("thunder", "edit")),
+    current_user: Users = Depends(require_resource_permission("ask-thunder", "edit")),
 ):
     try:
         result = run_test_chat_turn(
@@ -101,13 +101,13 @@ def send_test_chat_message(
 
 @router.get(
     "/test-chat/history",
-    dependencies=[Depends(require_resource_permission("candidate", "view"))],
+    dependencies=[Depends(require_resource_permission("ask-thunder", "view"))],
     response_model=TestChatHistoryResponse,
     summary="Get the current tester's Test Thunder conversation history",
 )
 def get_test_chat_history_endpoint(
     db: Session = Depends(get_db),
-    current_user: Users = Depends(require_resource_permission("thunder", "edit")),
+    current_user: Users = Depends(require_resource_permission("ask-thunder", "edit")),
 ):
     messages = get_test_chat_history(db, tenant_id=current_user.UserID)
     return TestChatHistoryResponse(
@@ -117,7 +117,7 @@ def get_test_chat_history_endpoint(
 
 @router.post(
     "/test-chat/reset",
-    dependencies=[Depends(require_resource_permission("candidate", "view"))],
+    dependencies=[Depends(require_resource_permission("ask-thunder", "view"))],
     status_code=200,
     summary="Start a fresh Test Thunder conversation",
     description=(
@@ -128,7 +128,7 @@ def get_test_chat_history_endpoint(
 )
 def reset_test_chat_endpoint(
     db: Session = Depends(get_db),
-    current_user: Users = Depends(require_resource_permission("thunder", "edit")),
+    current_user: Users = Depends(require_resource_permission("ask-thunder", "edit")),
 ):
     reset_test_chat(db, tenant_id=current_user.UserID)
     return {"message": "Test Thunder conversation reset."}

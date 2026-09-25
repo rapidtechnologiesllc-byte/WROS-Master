@@ -55,7 +55,7 @@ const HealthCheckError = () => (
 export function HealthCheckProvider({ children }) {
   const [isHealthy, setIsHealthy] = useState(null);
   const requireHealthCheck = process.env.REACT_APP_REQUIRE_BACKEND_HEALTH === 'true';
-  const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:8081';
+  const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:8080';
 
   useEffect(() => {
     if (!requireHealthCheck) {

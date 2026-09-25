@@ -290,7 +290,7 @@ class BusinessUnitCreateRequest(BaseModel):
 
 @router.get(
     "/business-units",
-    dependencies=[Depends(require_resource_permission("business-unit", "view"))]
+    dependencies=[Depends(require_resource_permission("business-units", "view"))]
 )
 def list_business_units(
     db: Session = Depends(get_db),
@@ -342,7 +342,7 @@ def list_business_units(
 
 @router.post(
     "/business-units",
-    dependencies=[Depends(require_resource_permission("business-unit", "create"))]
+    dependencies=[Depends(require_resource_permission("business-units", "create"))]
 )
 def create_business_unit(
     req: BusinessUnitCreateRequest,
@@ -379,7 +379,7 @@ def create_business_unit(
 
 @router.put(
     "/business-units/{bu_id}",
-    dependencies=[Depends(require_resource_permission("business-unit", "update"))]
+    dependencies=[Depends(require_resource_permission("business-units", "update"))]
 )
 def update_business_unit(
     bu_id: int,
@@ -415,7 +415,7 @@ def update_business_unit(
 
 @router.delete(
     "/business-units/{bu_id}",
-    dependencies=[Depends(require_resource_permission("business-unit", "delete"))]
+    dependencies=[Depends(require_resource_permission("business-units", "delete"))]
 )
 def delete_business_unit(
     bu_id: int,
@@ -445,7 +445,7 @@ class DeliveryCenterCreateRequest(BaseModel):
 
 @router.get(
     "/delivery-centers",
-    dependencies=[Depends(require_resource_permission("delivery-center", "view"))]
+    dependencies=[Depends(require_resource_permission("delivery-centers", "view"))]
 )
 def list_delivery_centers(
     db: Session = Depends(get_db),
@@ -482,7 +482,7 @@ def list_delivery_centers(
 
 @router.post(
     "/delivery-centers",
-    dependencies=[Depends(require_resource_permission("delivery-center", "create"))]
+    dependencies=[Depends(require_resource_permission("delivery-centers", "create"))]
 )
 def create_delivery_center(
     req: DeliveryCenterCreateRequest,
@@ -519,7 +519,7 @@ def create_delivery_center(
 
 @router.put(
     "/delivery-centers/{dc_id}",
-    dependencies=[Depends(require_resource_permission("delivery-center", "update"))]
+    dependencies=[Depends(require_resource_permission("delivery-centers", "update"))]
 )
 def update_delivery_center(
     dc_id: int,
@@ -559,7 +559,7 @@ def update_delivery_center(
 
 @router.delete(
     "/delivery-centers/{dc_id}",
-    dependencies=[Depends(require_resource_permission("delivery-center", "delete"))]
+    dependencies=[Depends(require_resource_permission("delivery-centers", "delete"))]
 )
 def delete_delivery_center(
     dc_id: int,
@@ -747,7 +747,7 @@ class RoleTemplateCreateRequest(BaseModel):
 
 @router.get(
     "/role-templates",
-    dependencies=[Depends(require_resource_permission("role-template", "view"))]
+    dependencies=[Depends(require_resource_permission("role-templates", "view"))]
 )
 def list_role_templates(
     db: Session = Depends(get_db),
@@ -783,7 +783,7 @@ def list_role_templates(
 
 @router.get(
     "/role-templates/{template_id}",
-    dependencies=[Depends(require_resource_permission("role-template", "view"))]
+    dependencies=[Depends(require_resource_permission("role-templates", "view"))]
 )
 def get_role_template(
     template_id: int,
@@ -832,7 +832,7 @@ def get_role_template(
 
 @router.post(
     "/role-templates",
-    dependencies=[Depends(require_resource_permission("role-template", "create"))]
+    dependencies=[Depends(require_resource_permission("role-templates", "create"))]
 )
 def create_role_template(
     req: RoleTemplateCreateRequest,
@@ -869,7 +869,7 @@ def create_role_template(
 
 @router.put(
     "/role-templates/{template_id}",
-    dependencies=[Depends(require_resource_permission("role-template", "update"))]
+    dependencies=[Depends(require_resource_permission("role-templates", "update"))]
 )
 def update_role_template(
     template_id: int,
@@ -905,7 +905,7 @@ def update_role_template(
 
 @router.delete(
     "/role-templates/{template_id}",
-    dependencies=[Depends(require_resource_permission("role-template", "delete"))]
+    dependencies=[Depends(require_resource_permission("role-templates", "delete"))]
 )
 def delete_role_template(
     template_id: int,

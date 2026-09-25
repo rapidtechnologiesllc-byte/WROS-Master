@@ -148,7 +148,7 @@ def recognize_revenue(
 @router.post(
     "/entries",
     dependencies=[
-        Depends(require_resource_permission("recognition", "create")),
+        Depends(require_resource_permission("revenue", "create")),
         Depends(get_current_internal_user),
     ],
     response_model=RevenueEntriesResponse,
@@ -206,7 +206,7 @@ def create_entries(
 @router.get(
     "/monthly",
     dependencies=[
-        Depends(require_resource_permission("recognition", "view")),
+        Depends(require_resource_permission("revenue", "view")),
         Depends(get_current_internal_user),
     ],
     response_model=dict,
@@ -238,7 +238,7 @@ def get_revenue_monthly(
 @router.get(
     "/by-module",
     dependencies=[
-        Depends(require_resource_permission("recognition", "view")),
+        Depends(require_resource_permission("revenue", "view")),
         Depends(get_current_internal_user),
     ],
     response_model=RevenueByModuleResponse,
@@ -268,7 +268,7 @@ def get_revenue_module(
 @router.get(
     "/by-client-owner",
     dependencies=[
-        Depends(require_resource_permission("recognition", "view")),
+        Depends(require_resource_permission("revenue", "view")),
         Depends(get_current_internal_user),
     ],
     response_model=dict,
@@ -298,7 +298,7 @@ def get_revenue_client_owner(
 @router.get(
     "/partner-shares",
     dependencies=[
-        Depends(require_resource_permission("recognition", "view")),
+        Depends(require_resource_permission("revenue", "view")),
         Depends(get_current_internal_user),
     ],
     response_model=PartnerRevenueShareResponse,
@@ -328,7 +328,7 @@ def get_partner_shares(
 @router.get(
     "/forecast-vs-actual",
     dependencies=[
-        Depends(require_resource_permission("recognition", "view")),
+        Depends(require_resource_permission("revenue", "view")),
         Depends(get_current_internal_user),
     ],
     response_model=dict,
@@ -362,7 +362,7 @@ def get_forecast_actual(
 @router.get(
     "/negative-margins",
     dependencies=[
-        Depends(require_resource_permission("recognition", "view")),
+        Depends(require_resource_permission("revenue", "view")),
         Depends(get_current_internal_user),
     ],
     response_model=dict,
@@ -393,7 +393,7 @@ def get_negative_margins(
 @router.get(
     "/pnl-summary",
     dependencies=[
-        Depends(require_resource_permission("recognition", "view")),
+        Depends(require_resource_permission("revenue", "view")),
         Depends(get_current_internal_user),
     ],
     response_model=dict,

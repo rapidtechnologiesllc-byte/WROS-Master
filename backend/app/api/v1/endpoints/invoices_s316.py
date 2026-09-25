@@ -98,7 +98,7 @@ def _to_invoice_response(db: Session, invoice: Invoice, tenant_id: int) -> Invoi
 @router.post(
     "/generate",
     dependencies=[
-        Depends(require_resource_permission("invoice", "create")),
+        Depends(require_resource_permission("invoices", "create")),
         Depends(get_current_internal_user),
     ],
     response_model=GenerateInvoiceResponse,
@@ -197,7 +197,7 @@ def generate_invoice_endpoint(
 @router.get(
     "/{invoice_id}/calculate",
     dependencies=[
-        Depends(require_resource_permission("s316", "view")),
+        Depends(require_resource_permission("invoices", "view")),
         Depends(get_current_internal_user),
     ],
     response_model=CalculateBillAmountResponse,
@@ -236,7 +236,7 @@ def calculate_bill_amount_endpoint(
 @router.post(
     "/{invoice_id}/send",
     dependencies=[
-        Depends(require_resource_permission("s316", "create")),
+        Depends(require_resource_permission("invoices", "create")),
         Depends(get_current_internal_user),
     ],
     
@@ -312,7 +312,7 @@ def send_invoice_endpoint(
 @router.post(
     "/{invoice_id}/pay",
     dependencies=[
-        Depends(require_resource_permission("s316", "create")),
+        Depends(require_resource_permission("invoices", "create")),
         Depends(get_current_internal_user),
     ],
     
@@ -375,7 +375,7 @@ def track_payment_endpoint(
 @router.get(
     "/{invoice_id}",
     dependencies=[
-        Depends(require_resource_permission("s316", "view")),
+        Depends(require_resource_permission("invoices", "view")),
         Depends(get_current_internal_user),
     ],
     response_model=InvoiceDetailResponse,
@@ -409,7 +409,7 @@ def get_invoice_endpoint(
 @router.get(
     "",
     dependencies=[
-        Depends(require_resource_permission("s316", "view")),
+        Depends(require_resource_permission("invoices", "view")),
         Depends(get_current_internal_user),
     ],
     response_model=InvoiceListResponse,

@@ -96,7 +96,7 @@ def initialize_org_structure(
 @router.get(
     "/positions",
     dependencies=[
-        Depends(require_resource_permission("org", "view")),
+        Depends(require_resource_permission("admin-settings", "view")),
         Depends(get_current_internal_user),
     ],
     response_model=List[OrgPositionResponse],

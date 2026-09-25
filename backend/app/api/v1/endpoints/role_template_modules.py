@@ -12,7 +12,7 @@ router = APIRouter(prefix="/admin/modules", tags=["Modules & Resources"])
 
 @router.get(
     "",
-    dependencies=[Depends(require_resource_permission("unknown", "view"))]
+    dependencies=[Depends(require_resource_permission("role-templates", "view"))]
 )
 def list_modules_and_resources(
     db: Session = Depends(get_db),
@@ -55,7 +55,7 @@ def list_modules_and_resources(
 
 @router.get(
     "/{module_id}/resources",
-    dependencies=[Depends(require_resource_permission("role_template_modules", "view"))]
+    dependencies=[Depends(require_resource_permission("role-templates", "view"))]
 )
 def get_module_resources(
     module_id: int,

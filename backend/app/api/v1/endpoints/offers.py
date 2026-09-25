@@ -228,7 +228,7 @@ def send_offer_to_candidate(
 
 @router.post(
     "/{offer_id}/reject",
-    dependencies=[Depends(require_resource_permission("offer", "manage"))],
+    dependencies=[Depends(require_resource_permission("offers", "manage"))],
     response_model=OfferStatusResponse,
     summary="Reject an offer (candidate action)"
 )
@@ -335,7 +335,7 @@ def retract_offer(
 
 @router.post(
     "/{offer_id}/accept",
-    dependencies=[Depends(require_resource_permission("offer", "manage"))],
+    dependencies=[Depends(require_resource_permission("offers", "manage"))],
     response_model=OfferAcceptanceResponse,
     summary="Accept an offer (candidate action)"
 )
@@ -488,7 +488,7 @@ def list_offers(
 
 @router.get(
     "/candidate/{candidate_id}",
-    dependencies=[Depends(require_resource_permission("offer", "manage"))],
+    dependencies=[Depends(require_resource_permission("offers", "manage"))],
     response_model=OfferListResponse,
     summary="Get all offers for a candidate"
 )

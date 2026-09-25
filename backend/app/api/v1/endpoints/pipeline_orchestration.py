@@ -175,7 +175,7 @@ async def execute_all_agents(
 
 @router.get(
     "/queue/{queue_name}",
-    dependencies=[Depends(require_resource_permission("queue", "view"))]
+    dependencies=[Depends(require_resource_permission("message-queue", "view"))]
 )
 async def peek_queue(
     queue_name: str,
@@ -218,7 +218,7 @@ async def peek_queue(
 
 @router.get(
     "/run-demo",
-    dependencies=[Depends(require_resource_permission("run-demo", "view"))]
+    dependencies=[Depends(require_resource_permission("agents", "view"))]
 )
 async def run_demo_pipeline(
     db: Session = Depends(get_db),

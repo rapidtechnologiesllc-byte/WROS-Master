@@ -40,7 +40,7 @@ router = APIRouter(prefix="/portal/conversations", tags=["portal-messages"])
 @router.post(
     "/{conversation_id}/messages",
     dependencies=[
-        Depends(require_resource_permission("message", "create")),
+        Depends(require_resource_permission("candidates", "create")),
         Depends(get_current_internal_user),
     ],
     response_model=PortalMessageResponse,
@@ -69,7 +69,7 @@ def post_portal_message(
 @router.get(
     "/{conversation_id}/messages",
     dependencies=[
-        Depends(require_resource_permission("message", "view")),
+        Depends(require_resource_permission("candidates", "view")),
         Depends(get_current_internal_user),
     ],
     response_model=PortalMessageHistoryResponse,
@@ -91,7 +91,7 @@ def list_portal_messages(
 @router.get(
     "/{conversation_id}/messages/poll",
     dependencies=[
-        Depends(require_resource_permission("message", "view")),
+        Depends(require_resource_permission("candidates", "view")),
         Depends(get_current_internal_user),
     ],
     response_model=PortalMessageHistoryResponse,

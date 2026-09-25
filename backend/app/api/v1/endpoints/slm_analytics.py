@@ -38,7 +38,7 @@ def get_time_range(time_range: str = "24h"):
     return now - timedelta(hours=24)  # Default 24h
 
 
-@router.get("/metrics", dependencies=[Depends(require_resource_permission("system", "view"))])
+@router.get("/metrics", dependencies=[Depends(require_resource_permission("slm-training-data", "view"))])
 def get_slm_metrics(time_range: str = Query("24h"), db: Session = Depends(get_db)):
     """
     Get SLM decision metrics for the specified time range.
@@ -133,7 +133,7 @@ def get_slm_metrics(time_range: str = Query("24h"), db: Session = Depends(get_db
     }
 
 
-@router.get("/decisions", dependencies=[Depends(require_resource_permission("system", "view"))])
+@router.get("/decisions", dependencies=[Depends(require_resource_permission("slm-training-data", "view"))])
 def get_slm_decisions(
     limit: int = Query(50, ge=1, le=500),
     time_range: str = Query("24h"),
@@ -181,7 +181,7 @@ def get_slm_decisions(
     }
 
 
-@router.get("/escalation-patterns", dependencies=[Depends(require_resource_permission("system", "view"))])
+@router.get("/escalation-patterns", dependencies=[Depends(require_resource_permission("slm-training-data", "view"))])
 def get_escalation_patterns(db: Session = Depends(get_db)):
     """
     Identify why decisions are being escalated.
@@ -211,7 +211,7 @@ def get_escalation_patterns(db: Session = Depends(get_db)):
     }
 
 
-@router.get("/validation-outcomes", dependencies=[Depends(require_resource_permission("system", "view"))])
+@router.get("/validation-outcomes", dependencies=[Depends(require_resource_permission("slm-training-data", "view"))])
 def get_validation_outcomes(days: int = Query(90), db: Session = Depends(get_db)):
     """
     Get 90-day validation outcomes for past decisions.

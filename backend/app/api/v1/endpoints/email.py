@@ -107,7 +107,7 @@ class SendLoginCredentialsRequest(BaseModel):
 @router.post(
     "/send",
     dependencies=[
-        Depends(require_resource_permission("email", "create")),
+        Depends(require_resource_permission("message-queue", "create")),
         Depends(get_current_internal_user),
     ],
     summary="Send a plain or HTML email from the HRMS service mailbox",
@@ -134,7 +134,7 @@ def send_mail(
 @router.post(
     "/send-with-attachments",
     dependencies=[
-        Depends(require_resource_permission("email", "create")),
+        Depends(require_resource_permission("message-queue", "create")),
         Depends(get_current_internal_user),
     ],
     summary="Send an email with one or more file attachments",
@@ -202,7 +202,7 @@ async def send_mail_with_attachments(
 @router.post(
     "/notify",
     dependencies=[
-        Depends(require_resource_permission("email", "create")),
+        Depends(require_resource_permission("message-queue", "create")),
         Depends(get_current_internal_user),
     ],
     summary="Send a styled HRMS notification email",
@@ -227,7 +227,7 @@ def send_notification(
 
 @router.post(
     "/notify/event",
-    dependencies=[Depends(require_resource_permission("message", "send"))],
+    dependencies=[Depends(require_resource_permission("message-queue", "send"))],
     summary="Send a rich event notification email (open to any authenticated user)",
     response_description="Email send result",
 )
@@ -302,7 +302,7 @@ def send_event_notification(
 @router.post(
     "/interview/invite/{interview_id}",
     dependencies=[
-        Depends(require_resource_permission("email", "create")),
+        Depends(require_resource_permission("message-queue", "create")),
         Depends(get_current_internal_user),
     ],
     summary="Send interview invite for an existing scheduled interview",
@@ -400,7 +400,7 @@ def send_interview_invite_by_id(
 @router.post(
     "/interview/cancel/{interview_id}",
     dependencies=[
-        Depends(require_resource_permission("email", "delete")),
+        Depends(require_resource_permission("message-queue", "delete")),
         Depends(get_current_internal_user),
     ],
     summary="Cancel a scheduled interview",

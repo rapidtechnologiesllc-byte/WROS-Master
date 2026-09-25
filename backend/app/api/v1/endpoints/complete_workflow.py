@@ -39,7 +39,7 @@ def _get_services():
 # ============ INTERVIEW DECISIONS ============
 @router.get(
     "/interviews/{interview_id}/status",
-    dependencies=[Depends(require_resource_permission("interview", "view"))]
+    dependencies=[Depends(require_resource_permission("interviews", "view"))]
 )
 def get_interview_status(interview_id: int, db: Session = Depends(get_db)):
     """Get complete interview status with all feedback."""
@@ -60,7 +60,7 @@ def get_interview_status(interview_id: int, db: Session = Depends(get_db)):
 
 @router.post(
     "/interviews/{interview_id}/decide",
-    dependencies=[Depends(require_resource_permission("interview", "create"))]
+    dependencies=[Depends(require_resource_permission("interviews", "create"))]
 )
 def calculate_interview_decision(interview_id: int, db: Session = Depends(get_db)):
     """Calculate panel decision from feedback."""
@@ -82,7 +82,7 @@ def calculate_interview_decision(interview_id: int, db: Session = Depends(get_db
 # ============ OFFERS ============
 @router.post(
     "/offers",
-    dependencies=[Depends(require_resource_permission("offer", "create"))]
+    dependencies=[Depends(require_resource_permission("offers", "create"))]
 )
 def create_offer(candidate_id: str, job_id: str, salary: int, db: Session = Depends(get_db)):
     """Create new offer."""
@@ -105,7 +105,7 @@ def create_offer(candidate_id: str, job_id: str, salary: int, db: Session = Depe
 
 @router.post(
     "/offers/{offer_id}/approve",
-    dependencies=[Depends(require_resource_permission("offer", "create"))]
+    dependencies=[Depends(require_resource_permission("offers", "create"))]
 )
 def approve_offer(offer_id: str, approved_by: str, db: Session = Depends(get_db)):
     """Approve offer for sending."""
@@ -126,7 +126,7 @@ def approve_offer(offer_id: str, approved_by: str, db: Session = Depends(get_db)
 
 @router.post(
     "/offers/{offer_id}/send",
-    dependencies=[Depends(require_resource_permission("offer", "create"))]
+    dependencies=[Depends(require_resource_permission("offers", "create"))]
 )
 def send_offer(offer_id: str, candidate_email: str, db: Session = Depends(get_db)):
     """Send offer to candidate."""
@@ -149,7 +149,7 @@ def send_offer(offer_id: str, candidate_email: str, db: Session = Depends(get_db
 
 @router.post(
     "/offers/{offer_id}/accept",
-    dependencies=[Depends(require_resource_permission("offer", "create"))]
+    dependencies=[Depends(require_resource_permission("offers", "create"))]
 )
 def accept_offer(offer_id: str, candidate_id: str, db: Session = Depends(get_db)):
     """Accept offer."""
@@ -171,7 +171,7 @@ def accept_offer(offer_id: str, candidate_id: str, db: Session = Depends(get_db)
 # ============ EMPLOYEE CONVERSION ============
 @router.post(
     "/employees/convert",
-    dependencies=[Depends(require_resource_permission("employee", "create"))]
+    dependencies=[Depends(require_resource_permission("employees", "create"))]
 )
 def convert_candidate(candidate_id: str, name: str, email: str, bu_id: int, db: Session = Depends(get_db)):
     """Convert candidate to employee."""
@@ -197,7 +197,7 @@ def convert_candidate(candidate_id: str, name: str, email: str, bu_id: int, db: 
 # ============ PROJECT ALLOCATION ============
 @router.post(
     "/allocations",
-    dependencies=[Depends(require_resource_permission("allocation", "create"))]
+    dependencies=[Depends(require_resource_permission("allocations", "create"))]
 )
 def allocate_to_project(employee_id: str, project_id: str, db: Session = Depends(get_db)):
     """Allocate employee to project."""
@@ -219,7 +219,7 @@ def allocate_to_project(employee_id: str, project_id: str, db: Session = Depends
 # ============ TIMESHEETS ============
 @router.post(
     "/timesheets",
-    dependencies=[Depends(require_resource_permission("timesheet", "create"))]
+    dependencies=[Depends(require_resource_permission("timesheets", "create"))]
 )
 def create_timesheet(employee_id: str, allocation_id: str, db: Session = Depends(get_db)):
     """Create timesheet."""
@@ -240,7 +240,7 @@ def create_timesheet(employee_id: str, allocation_id: str, db: Session = Depends
 
 @router.post(
     "/timesheets/{timesheet_id}/submit",
-    dependencies=[Depends(require_resource_permission("timesheet", "create"))]
+    dependencies=[Depends(require_resource_permission("timesheets", "create"))]
 )
 def submit_timesheet(timesheet_id: str, db: Session = Depends(get_db)):
     """Submit timesheet."""
@@ -261,7 +261,7 @@ def submit_timesheet(timesheet_id: str, db: Session = Depends(get_db)):
 
 @router.post(
     "/timesheets/{timesheet_id}/approve",
-    dependencies=[Depends(require_resource_permission("timesheet", "create"))]
+    dependencies=[Depends(require_resource_permission("timesheets", "create"))]
 )
 def approve_timesheet(timesheet_id: str, approver_id: str, db: Session = Depends(get_db)):
     """Approve timesheet."""
@@ -283,7 +283,7 @@ def approve_timesheet(timesheet_id: str, approver_id: str, db: Session = Depends
 # ============ INVOICES ============
 @router.post(
     "/invoices/generate",
-    dependencies=[Depends(require_resource_permission("invoice", "create"))]
+    dependencies=[Depends(require_resource_permission("invoices", "create"))]
 )
 def generate_invoice(client_id: str, project_id: str, db: Session = Depends(get_db)):
     """Generate invoice from timesheets."""
@@ -304,7 +304,7 @@ def generate_invoice(client_id: str, project_id: str, db: Session = Depends(get_
 
 @router.post(
     "/invoices/{invoice_id}/send",
-    dependencies=[Depends(require_resource_permission("invoice", "create"))]
+    dependencies=[Depends(require_resource_permission("invoices", "create"))]
 )
 def send_invoice(invoice_id: str, client_email: str, db: Session = Depends(get_db)):
     """Send invoice to client."""
@@ -327,7 +327,7 @@ def send_invoice(invoice_id: str, client_email: str, db: Session = Depends(get_d
 
 @router.post(
     "/invoices/{invoice_id}/payment",
-    dependencies=[Depends(require_resource_permission("invoice", "create"))]
+    dependencies=[Depends(require_resource_permission("invoices", "create"))]
 )
 def record_payment(invoice_id: str, amount: int, db: Session = Depends(get_db)):
     """Record payment received."""
@@ -372,7 +372,7 @@ def record_payment(invoice_id: str, amount: int, db: Session = Depends(get_db)):
 # ============ CANDIDATE SCORING ============
 @router.post(
     "/candidates/{candidate_id}/score",
-    dependencies=[Depends(require_resource_permission("candidate", "create"))]
+    dependencies=[Depends(require_resource_permission("candidates", "create"))]
 )
 def score_candidate(candidate_id: str, job_id: str, db: Session = Depends(get_db)):
     """Score candidate against job."""
@@ -393,7 +393,7 @@ def score_candidate(candidate_id: str, job_id: str, db: Session = Depends(get_db
 
 @router.get(
     "/jobs/{job_id}/candidates/ranked",
-    dependencies=[Depends(require_resource_permission("job", "view"))]
+    dependencies=[Depends(require_resource_permission("jobs", "view"))]
 )
 def rank_candidates(job_id: str, db: Session = Depends(get_db)):
     """Rank all candidates for job."""
@@ -415,7 +415,7 @@ def rank_candidates(job_id: str, db: Session = Depends(get_db)):
 # ============ HIRING MANAGER VALIDATION ============
 @router.post(
     "/validation/send",
-    dependencies=[Depends(require_resource_permission("validation", "create"))]
+    dependencies=[Depends(require_resource_permission("candidates", "create"))]
 )
 def send_validation(job_id: str, candidate_id: str, hm_email: str, db: Session = Depends(get_db)):
     """Send validation to hiring manager."""
@@ -438,7 +438,7 @@ def send_validation(job_id: str, candidate_id: str, hm_email: str, db: Session =
 
 @router.post(
     "/validation/{validation_id}/respond",
-    dependencies=[Depends(require_resource_permission("validation", "create"))]
+    dependencies=[Depends(require_resource_permission("candidates", "create"))]
 )
 def record_validation_response(validation_id: str, decision: str, db: Session = Depends(get_db)):
     """Record HM validation response."""
@@ -464,7 +464,7 @@ def record_validation_response(validation_id: str, decision: str, db: Session = 
 # See core_pull_service module for standalone functions
 # @router.post(
 #     "/allocations/{allocation_id}/core-pull",
-#     dependencies=[Depends(require_resource_permission("allocation", "create"))]
+#     dependencies=[Depends(require_resource_permission("allocations", "create"))]
 # )
 # def apply_core_pull(allocation_id: str, db: Session = Depends(get_db)):
 #     """Apply core-pull rules."""

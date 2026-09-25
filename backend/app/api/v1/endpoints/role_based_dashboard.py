@@ -14,7 +14,7 @@ router = APIRouter(prefix="/dashboard", tags=["Role-Based Dashboard"])
 
 @router.get(
     "/my-dashboard",
-    dependencies=[Depends(require_resource_permission("my-dashboard", "view"))]
+    dependencies=[Depends(require_resource_permission("dashboard", "view"))]
 )
 def get_my_dashboard(
     db: Session = Depends(get_db),
@@ -52,7 +52,7 @@ def get_my_dashboard(
 
 @router.get(
     "/ceo-strategic",
-    dependencies=[Depends(require_resource_permission("ceo-strategic", "view"))]
+    dependencies=[Depends(require_resource_permission("dashboard", "view"))]
 )
 def get_ceo_dashboard(
     db: Session = Depends(get_db),
@@ -89,7 +89,7 @@ def get_ceo_dashboard(
 
 @router.get(
     "/recruiter-pipeline",
-    dependencies=[Depends(require_resource_permission("recruiter-pipeline", "view"))]
+    dependencies=[Depends(require_resource_permission("dashboard", "view"))]
 )
 def get_recruiter_dashboard(
     db: Session = Depends(get_db),
@@ -131,7 +131,7 @@ def get_recruiter_dashboard(
 
 @router.get(
     "/hr-people",
-    dependencies=[Depends(require_resource_permission("hr-people", "view"))]
+    dependencies=[Depends(require_resource_permission("dashboard", "view"))]
 )
 def get_hr_dashboard(
     db: Session = Depends(get_db),
@@ -173,7 +173,7 @@ def get_hr_dashboard(
 
 @router.get(
     "/finance-revenue",
-    dependencies=[Depends(require_resource_permission("finance-revenue", "view"))]
+    dependencies=[Depends(require_resource_permission("dashboard", "view"))]
 )
 def get_finance_dashboard(
     db: Session = Depends(get_db),

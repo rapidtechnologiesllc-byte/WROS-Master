@@ -199,9 +199,14 @@ def _initialize_rbac():
 
         db.commit()
 
-        # Ensure all role templates have full permissions
+        # Ensure the baseline SYSTEM role templates (Super Admin, Admin, Manager,
+        # User, Ops) always have full permissions. Custom/tenant-created role
+        # templates are intentionally excluded: their permissions are managed
+        # explicitly, and a zero-permission custom role must stay zero-permission
+        # (see the zero-permission login gate in auth.py) rather than being
+        # silently granted full CRUD on every restart.
         resources = db.query(Resource).all()
-        role_templates = db.query(RoleTemplate).all()
+        role_templates = db.query(RoleTemplate).filter(RoleTemplate.is_system == True).all()
 
         for role_template in role_templates:
             permissions_granted = 0
@@ -216,6 +221,7 @@ def _initialize_rbac():
                     perm = RoleTemplatePermission(
                         role_template_id=role_template.id,
                         resource_id=resource.id,
+                        tenant_id=role_template.tenant_id,
                         can_view=True,
                         can_create=True,
                         can_edit=True,
@@ -363,7 +369,7 @@ def _verify_admin_screen_permissions(db: Session, admin_role: RoleTemplate):
         return
 
     # Admin screen requires these resource permissions
-    required_admin_resources = ["users", "settings", "candidates", "jobs", "interviews", "offers"]
+    required_admin_resources = ["users", "admin-settings", "candidates", "jobs", "interviews", "offers"]
 
     for resource_name in required_admin_resources:
         resource = db.query(Resource).filter(Resource.name == resource_name).first()
@@ -391,6 +397,7 @@ def _verify_admin_screen_permissions(db: Session, admin_role: RoleTemplate):
             perm = RoleTemplatePermission(
                 role_template_id=admin_role.id,
                 resource_id=resource.id,
+                tenant_id=admin_role.tenant_id,
                 can_view=True,
                 can_create=True,
                 can_edit=True,
@@ -521,43 +528,49 @@ def _create_performance_indexes():
         try:
             db.execute(text("""
                 CREATE INDEX IF NOT EXISTS idx_candidate_history_event_at
-                ON candidate_history(event_at DESC, candidateID)
+                ON app_schema.candidate_history(event_at DESC, "candidateID")
             """))
+            db.commit()
             logger.info("[Contract] Created index: idx_candidate_history_event_at")
         except Exception as e:
             logger.warning(f"[Contract] Could not create idx_candidate_history_event_at: {e}")
+            db.rollback()
 
         # Index for CandidateHistory - query by candidateID and event_type
         try:
             db.execute(text("""
                 CREATE INDEX IF NOT EXISTS idx_candidate_history_candidate_type
-                ON candidate_history(candidateID, event_type)
+                ON app_schema.candidate_history("candidateID", event_type)
             """))
+            db.commit()
             logger.info("[Contract] Created index: idx_candidate_history_candidate_type")
         except Exception as e:
             logger.warning(f"[Contract] Could not create idx_candidate_history_candidate_type: {e}")
+            db.rollback()
 
         # Index for ActivityTimeline - query by created_at (global feed)
         try:
             db.execute(text("""
                 CREATE INDEX IF NOT EXISTS idx_activity_timeline_created_at
-                ON activity_timeline(created_at DESC, entity_id)
+                ON app_schema.activity_timeline(created_at DESC, entity_id)
             """))
+            db.commit()
             logger.info("[Contract] Created index: idx_activity_timeline_created_at")
         except Exception as e:
             logger.warning(f"[Contract] Could not create idx_activity_timeline_created_at: {e}")
+            db.rollback()
 
         # Index for ActivityTimeline - query by entity (candidate/user filters)
         try:
             db.execute(text("""
                 CREATE INDEX IF NOT EXISTS idx_activity_timeline_entity
-                ON activity_timeline(entity_type, entity_id)
+                ON app_schema.activity_timeline(entity_type, entity_id)
             """))
+            db.commit()
             logger.info("[Contract] Created index: idx_activity_timeline_entity")
         except Exception as e:
             logger.warning(f"[Contract] Could not create idx_activity_timeline_entity: {e}")
-
-        db.commit()
+            db.rollback()
     except Exception as e:
         logger.warning(f"[Contract] Could not create performance indexes: {e}")
         # Don't fail startup if indexes can't be created
@@ -578,11 +591,11 @@ def _run_schema_migrations():
         # These fields store user IDs (emails), not integer IDs
         try:
             db.execute(text("""
-                ALTER TABLE api_keys_config
+                ALTER TABLE app_schema.api_keys_config
                 ALTER COLUMN created_by TYPE VARCHAR(512);
             """))
             db.execute(text("""
-                ALTER TABLE api_keys_config
+                ALTER TABLE app_schema.api_keys_config
                 ALTER COLUMN updated_by TYPE VARCHAR(512);
             """))
             db.commit()
@@ -599,7 +612,7 @@ def _run_schema_migrations():
         # This column tracks when Thunder was assigned to the candidate
         try:
             db.execute(text("""
-                ALTER TABLE candidate_status
+                ALTER TABLE app_schema.candidate_status
                 ADD COLUMN thunder_assigned_at TIMESTAMP WITH TIME ZONE NULL;
             """))
             db.commit()
@@ -613,6 +626,105 @@ def _run_schema_migrations():
             else:
                 logger.warning(f"[Contract] Migration warning: {e}")
             db.rollback()
+
+        # Migration 3: Add candidate columns present on the Candidate model but
+        # missing from the live table (schema drift from create_all() never
+        # altering existing tables).
+        candidate_columns = [
+            ("tenant_id", "INTEGER NOT NULL DEFAULT 1"),
+            ("candidate_notice_period", "INTEGER NULL"),
+            ("referral_id", "VARCHAR(512) NULL"),
+            ("created_by_user_id", "VARCHAR(512) NULL"),
+            ("created_by_name", "VARCHAR(512) NULL"),
+            ("recruitment_source", "VARCHAR(512) NULL"),
+            ("assigned_recruiter_id", "VARCHAR(512) NULL"),
+            ("assigned_recruiter_changed_at", "TIMESTAMP NULL"),
+            ("assigned_recruiter_changed_by", "VARCHAR(512) NULL"),
+        ]
+        for column_name, column_def in candidate_columns:
+            try:
+                db.execute(text(f"""
+                    ALTER TABLE app_schema.candidates
+                    ADD COLUMN IF NOT EXISTS {column_name} {column_def};
+                """))
+                db.commit()
+                logger.info(f"[Contract] Migration: Ensured candidates.{column_name} exists")
+            except Exception as e:
+                if "table" in str(e).lower() and "does not exist" in str(e).lower():
+                    logger.debug(f"[Contract] Migration skipped (candidates table doesn't exist yet): {e}")
+                else:
+                    logger.warning(f"[Contract] Migration warning for candidates.{column_name}: {e}")
+                db.rollback()
+
+        # Migration 4: FK integrity + indexes for the candidate columns added
+        # above (candidates.referral_id -> employee_referrals.referral_id,
+        # plus lookup indexes on the audit/referral columns).
+        try:
+            db.execute(text("""
+                ALTER TABLE app_schema.candidates
+                ADD CONSTRAINT fk_candidate_referral
+                FOREIGN KEY (referral_id) REFERENCES app_schema.employee_referrals(referral_id)
+                ON DELETE SET NULL;
+            """))
+            db.commit()
+            logger.info("[Contract] Migration: Added fk_candidate_referral constraint")
+        except Exception as e:
+            if "already exists" in str(e).lower() or "duplicate" in str(e).lower():
+                logger.debug(f"[Contract] Migration skipped (fk_candidate_referral already exists): {e}")
+            else:
+                logger.warning(f"[Contract] Migration warning for fk_candidate_referral: {e}")
+            db.rollback()
+
+        candidate_indexes = [
+            ("ix_candidate_referral_id", "referral_id"),
+            ("ix_candidate_created_by_user_id", "created_by_user_id"),
+            ("ix_candidate_recruitment_source", "recruitment_source"),
+        ]
+        for index_name, column_name in candidate_indexes:
+            try:
+                db.execute(text(f"""
+                    CREATE INDEX IF NOT EXISTS {index_name}
+                    ON app_schema.candidates({column_name});
+                """))
+                db.commit()
+                logger.info(f"[Contract] Migration: Ensured index {index_name} exists")
+            except Exception as e:
+                logger.warning(f"[Contract] Migration warning for index {index_name}: {e}")
+                db.rollback()
+
+        # Migration 5: Schema drift on other tables where the model has columns
+        # the live table lacks (same create_all()-never-alters-existing-tables
+        # gap as Migration 3). Discovered via a full model-vs-DB column scan.
+        drifted_tables = {
+            "jobs": [
+                ("is_deleted", "BOOLEAN NOT NULL DEFAULT false"),
+                ("deleted_at", "TIMESTAMP NULL"),
+            ],
+            "conversation_events": [
+                ("tenant_id", "VARCHAR(50) NOT NULL DEFAULT '1'"),
+            ],
+            "linkedin_candidate_pipeline": [
+                ("email_collected_at", "TIMESTAMP NULL"),
+                ("email_from_recruiter", "VARCHAR(255) NULL"),
+                ("phone_verified_by", "VARCHAR(255) NULL"),
+                ("task_id", "VARCHAR(36) NULL"),
+            ],
+        }
+        for table_name, columns in drifted_tables.items():
+            for column_name, column_def in columns:
+                try:
+                    db.execute(text(f"""
+                        ALTER TABLE app_schema.{table_name}
+                        ADD COLUMN IF NOT EXISTS {column_name} {column_def};
+                    """))
+                    db.commit()
+                    logger.info(f"[Contract] Migration: Ensured {table_name}.{column_name} exists")
+                except Exception as e:
+                    if "table" in str(e).lower() and "does not exist" in str(e).lower():
+                        logger.debug(f"[Contract] Migration skipped ({table_name} table doesn't exist yet): {e}")
+                    else:
+                        logger.warning(f"[Contract] Migration warning for {table_name}.{column_name}: {e}")
+                    db.rollback()
 
     except Exception as e:
         logger.warning(f"[Contract] Schema migrations failed: {e}")

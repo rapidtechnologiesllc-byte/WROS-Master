@@ -58,7 +58,7 @@ def _employee_name_map(db: Session, employee_ids) -> dict:
 @router.get(
     "",
     response_model=ClientListResponse,
-    dependencies=[Depends(require_resource_permission("unknown", "view"))]
+    dependencies=[Depends(require_resource_permission("clients", "view"))]
 )
 def list_clients(
     active_only: bool = True,
@@ -91,7 +91,7 @@ def list_clients(
 
 @router.get(
     "/business-units/{business_unit_id}/assignments",
-    dependencies=[Depends(require_resource_permission("business-unit", "view"))]
+    dependencies=[Depends(require_resource_permission("business-units", "view"))]
 )
 def get_business_unit_assignments(
     business_unit_id: int,
@@ -133,7 +133,7 @@ def get_business_unit_assignments(
     "",
     response_model=ClientCreateResponse,
     status_code=201,
-    dependencies=[Depends(require_resource_permission("unknown", "create"))]
+    dependencies=[Depends(require_resource_permission("clients", "create"))]
 )
 def create_client_endpoint(
     body: ClientCreateRequest,

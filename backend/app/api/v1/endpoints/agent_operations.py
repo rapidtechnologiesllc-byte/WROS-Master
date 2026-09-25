@@ -51,7 +51,7 @@ def get_kpi_alerts(
 # HR Agent Endpoints
 # ============================================================================
 
-@router.get("/hr/dashboard", dependencies=[Depends(require_resource_permission("hr", "view"))])
+@router.get("/hr/dashboard", dependencies=[Depends(require_resource_permission("employees", "view"))])
 def get_hr_dashboard(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user)
@@ -67,7 +67,7 @@ def get_hr_dashboard(
         logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.get("/hr/attrition-risks", dependencies=[Depends(require_resource_permission("hr", "view"))])
+@router.get("/hr/attrition-risks", dependencies=[Depends(require_resource_permission("employees", "view"))])
 def detect_attrition_risks(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user)
@@ -83,7 +83,7 @@ def detect_attrition_risks(
         logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.get("/hr/development-needs", dependencies=[Depends(require_resource_permission("hr", "view"))])
+@router.get("/hr/development-needs", dependencies=[Depends(require_resource_permission("employees", "view"))])
 def get_development_needs(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user)
@@ -99,7 +99,7 @@ def get_development_needs(
         logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.get("/hr/engagement-metrics", dependencies=[Depends(require_resource_permission("hr", "view"))])
+@router.get("/hr/engagement-metrics", dependencies=[Depends(require_resource_permission("employees", "view"))])
 def get_engagement_metrics(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user)
@@ -119,7 +119,7 @@ def get_engagement_metrics(
 # Employee Mental Health Agent Endpoints
 # ============================================================================
 
-@router.get("/wellness/dashboard", dependencies=[Depends(require_resource_permission("hr", "view"))])
+@router.get("/wellness/dashboard", dependencies=[Depends(require_resource_permission("employees", "view"))])
 def get_wellness_dashboard(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user)
@@ -135,7 +135,7 @@ def get_wellness_dashboard(
         logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.get("/wellness/team-snapshot", dependencies=[Depends(require_resource_permission("hr", "view"))])
+@router.get("/wellness/team-snapshot", dependencies=[Depends(require_resource_permission("employees", "view"))])
 def get_team_wellbeing(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user)
@@ -151,7 +151,7 @@ def get_team_wellbeing(
         logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.get("/wellness/burnout-risks", dependencies=[Depends(require_resource_permission("hr", "view"))])
+@router.get("/wellness/burnout-risks", dependencies=[Depends(require_resource_permission("employees", "view"))])
 def get_burnout_risks(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user)
@@ -167,7 +167,7 @@ def get_burnout_risks(
         logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.get("/wellness/employee/{employee_id}", dependencies=[Depends(require_resource_permission("hr", "view"))])
+@router.get("/wellness/employee/{employee_id}", dependencies=[Depends(require_resource_permission("employees", "view"))])
 def get_employee_wellness(
     employee_id: str,
     db: Session = Depends(get_db),

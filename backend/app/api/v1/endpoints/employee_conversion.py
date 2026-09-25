@@ -21,7 +21,7 @@ router = APIRouter(prefix="/employees", tags=["employees"])
 @router.post(
     "/convert-candidate",
     response_model=EmployeeConversionResponse,
-    dependencies=[Depends(require_resource_permission("convert-candidate", "create"))]
+    dependencies=[Depends(require_resource_permission("convert-to-employee", "create"))]
 )
 def convert_candidate(request: EmployeeConversionRequest, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     candidate = db.query(Candidate).filter(Candidate.candidateID == request.candidate_id).first()
@@ -62,7 +62,7 @@ def convert_candidate(request: EmployeeConversionRequest, db: Session = Depends(
 @router.post(
     "/create-account",
     response_model=EmployeeAccountResponse,
-    dependencies=[Depends(require_resource_permission("create-account", "create"))]
+    dependencies=[Depends(require_resource_permission("convert-to-employee", "create"))]
 )
 def create_employee_account(request: EmployeeAccountRequest, db: Session = Depends(get_db)):
     try:
@@ -92,7 +92,7 @@ def create_employee_account(request: EmployeeAccountRequest, db: Session = Depen
 @router.post(
     "/send-welcome-email",
     response_model=WelcomeEmailResponse,
-    dependencies=[Depends(require_resource_permission("send-welcome-email", "create"))]
+    dependencies=[Depends(require_resource_permission("convert-to-employee", "create"))]
 )
 def send_welcome_email(request: WelcomeEmailRequest, db: Session = Depends(get_db)):
     employee = db.query(Employee).filter(Employee.id == request.employee_id).first()
@@ -123,7 +123,7 @@ def send_welcome_email(request: WelcomeEmailRequest, db: Session = Depends(get_d
 
 @router.get(
     "/status/{employee_id}",
-    dependencies=[Depends(require_resource_permission("statu", "view"))]
+    dependencies=[Depends(require_resource_permission("convert-to-employee", "view"))]
 )
 def get_employee_status(employee_id: str, db: Session = Depends(get_db)):
     employee = db.query(Employee).filter(Employee.id == employee_id).first()
@@ -139,7 +139,7 @@ def get_employee_status(employee_id: str, db: Session = Depends(get_db)):
 
 @router.put(
     "/update/{employee_id}",
-    dependencies=[Depends(require_resource_permission("update", "update"))]
+    dependencies=[Depends(require_resource_permission("convert-to-employee", "update"))]
 )
 def update_employee(employee_id: str, updates: dict, db: Session = Depends(get_db)):
     employee = db.query(Employee).filter(Employee.id == employee_id).first()
@@ -155,7 +155,7 @@ def update_employee(employee_id: str, updates: dict, db: Session = Depends(get_d
 
 @router.delete(
     "/delete/{employee_id}",
-    dependencies=[Depends(require_resource_permission("delete", "delete"))]
+    dependencies=[Depends(require_resource_permission("convert-to-employee", "delete"))]
 )
 def delete_employee(employee_id: str, db: Session = Depends(get_db)):
     employee = db.query(Employee).filter(Employee.id == employee_id).first()

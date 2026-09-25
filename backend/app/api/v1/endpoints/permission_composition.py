@@ -34,7 +34,7 @@ class PermissionValidationRequest(BaseModel):
 
 @router.post(
     "/expand",
-    dependencies=[Depends(require_resource_permission("expand", "create"))]
+    dependencies=[Depends(require_resource_permission("permission-composition", "create"))]
 )
 def expand_permissions(
     request: PermissionCheckRequest,
@@ -65,7 +65,7 @@ def expand_permissions(
 
 @router.post(
     "/check",
-    dependencies=[Depends(require_resource_permission("check", "create"))]
+    dependencies=[Depends(require_resource_permission("permission-composition", "create"))]
 )
 def check_permission(
     request: PermissionCheckRequest,
@@ -97,7 +97,7 @@ def check_permission(
 
 @router.post(
     "/validate",
-    dependencies=[Depends(require_resource_permission("validate", "create"))]
+    dependencies=[Depends(require_resource_permission("permission-composition", "create"))]
 )
 def validate_permissions(
     request: PermissionValidationRequest,
@@ -119,7 +119,7 @@ def validate_permissions(
 
 @router.get(
     "/{template_id}/tree",
-    dependencies=[Depends(require_resource_permission("permission_composition", "view"))]
+    dependencies=[Depends(require_resource_permission("permission-composition", "view"))]
 )
 def get_permission_tree(
     template_id: int,
@@ -148,7 +148,7 @@ def get_permission_tree(
 
 @router.get(
     "/hierarchy/rules",
-    dependencies=[Depends(require_resource_permission("hierarchy", "view"))]
+    dependencies=[Depends(require_resource_permission("permission-composition", "view"))]
 )
 def get_permission_hierarchy(
     db: Session = Depends(get_db),

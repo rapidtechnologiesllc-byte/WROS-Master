@@ -117,7 +117,7 @@ def send_message(body: PublicChatMessageRequest, background_tasks: BackgroundTas
 
 @router.get(
     "/history",
-    dependencies=[Depends(require_resource_permission("candidate", "view"))],
+    dependencies=[Depends(require_resource_permission("candidates", "view"))],
     response_model=PublicChatHistoryResponse,
     summary="Get this session's chat history — no auth required",
 )

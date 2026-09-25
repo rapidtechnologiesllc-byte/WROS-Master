@@ -87,7 +87,7 @@ def _get_invoice_or_404(db: Session, invoice_id: str) -> Invoice:
     "/generate",
     response_model=InvoiceItem,
     summary="Generate a DRAFT invoice for a project+billing period",
-    dependencies=[Depends(require_resource_permission("generate", "create"))]
+    dependencies=[Depends(require_resource_permission("invoices", "create"))]
 )
 def generate_invoice_endpoint(
     body: GenerateInvoiceRequest,
@@ -242,7 +242,7 @@ def get_invoice(
 @router.get(
     "/ar/aging",
     summary="EPIC-16 AR Follow-Up: overdue SENT invoices",
-    dependencies=[Depends(require_resource_permission("ar", "view"))]
+    dependencies=[Depends(require_resource_permission("invoices", "view"))]
 )
 def ar_aging(
     grace_days: int = 30,

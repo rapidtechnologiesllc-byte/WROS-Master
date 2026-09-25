@@ -59,7 +59,7 @@ def _auth_url(state: str = "xyz"):
 
 @router.get(
     "/auth/signin",
-    dependencies=[Depends(require_resource_permission("auth", "view"))]
+    dependencies=[Depends(require_resource_permission("configuration", "view"))]
 )
 def signin():
     return RedirectResponse(_auth_url())
@@ -87,7 +87,7 @@ LINK_STATE_TTL_MINUTES = 10
 
 @router.get(
     "/link/start",
-    dependencies=[Depends(require_resource_permission("link", "view"))]
+    dependencies=[Depends(require_resource_permission("configuration", "view"))]
 )
 def start_link(current_user: Users = Depends(get_current_internal_user)):
     """Returns the Microsoft sign-in URL for the CURRENTLY authenticated
@@ -103,7 +103,7 @@ def start_link(current_user: Users = Depends(get_current_internal_user)):
 
 @router.get(
     "/link-status",
-    dependencies=[Depends(require_resource_permission("link-statu", "view"))]
+    dependencies=[Depends(require_resource_permission("configuration", "view"))]
 )
 def link_status(current_user: Users = Depends(get_current_internal_user)):
     account_id = _account_id_by_user_id.get(current_user.UserID)
@@ -112,7 +112,7 @@ def link_status(current_user: Users = Depends(get_current_internal_user)):
 
 @router.post(
     "/unlink",
-    dependencies=[Depends(require_resource_permission("unlink", "create"))]
+    dependencies=[Depends(require_resource_permission("configuration", "create"))]
 )
 def unlink(current_user: Users = Depends(get_current_internal_user)):
     account_id = _account_id_by_user_id.pop(current_user.UserID, None)
@@ -137,7 +137,7 @@ def _decode_link_state(state: str):
 
 @router.post(
     "/auth/callback",
-    dependencies=[Depends(require_resource_permission("auth", "view"))]
+    dependencies=[Depends(require_resource_permission("configuration", "view"))]
 )
 def callback(request: Request, db: Session = Depends(get_db)):
     code = request.query_params.get("code")
@@ -267,7 +267,7 @@ def _make_graph_request(method: str, endpoint: str, access_token: str, json_data
 
 @router.get(
     "/me",
-    dependencies=[Depends(require_resource_permission("me", "view"))]
+    dependencies=[Depends(require_resource_permission("configuration", "view"))]
 )
 def me(db: Session = Depends(get_db), user: Users = Depends(get_current_internal_user)):
     """
@@ -319,7 +319,7 @@ def _require_account(current_user: Users = Depends(get_current_internal_user)) -
 # ---------- SEND MAIL ----------
 @router.post(
     "/mail/send",
-    dependencies=[Depends(require_resource_permission("mail", "create"))]
+    dependencies=[Depends(require_resource_permission("configuration", "create"))]
 )
 def send_mail(to: str, subject: str, body_text: str, account_id: str = Depends(_require_account)):
     token_data = _graph_client_for(account_id)
@@ -348,7 +348,7 @@ def send_mail(to: str, subject: str, body_text: str, account_id: str = Depends(_
 # ---------- CREATE MEETING (CALENDAR EVENT) ----------
 @router.post(
     "/calendar/schedule",
-    dependencies=[Depends(require_resource_permission("calendar", "create"))]
+    dependencies=[Depends(require_resource_permission("configuration", "create"))]
 )
 def schedule_meeting(
     subject: str,
@@ -393,7 +393,7 @@ def schedule_meeting(
 
 @router.get(
     "/calendar/meetings",
-    dependencies=[Depends(require_resource_permission("calendar", "view"))]
+    dependencies=[Depends(require_resource_permission("configuration", "view"))]
 )
 def get_my_meetings(
     top: int = 10,
@@ -473,7 +473,7 @@ from app.core.graph_auth import get_graph_token, GraphServiceAuth
 
 @router.get(
     "/service/calendar/events/{user_email}",
-    dependencies=[Depends(require_resource_permission("calendar", "view"))],
+    dependencies=[Depends(require_resource_permission("configuration", "view"))],
 )
 def get_user_calendar_events(
     user_email: str,
@@ -596,7 +596,7 @@ def get_user_calendar_events(
 
 @router.post(
     "/service/calendar/schedule",
-    dependencies=[Depends(require_resource_permission("calendar", "edit"))],
+    dependencies=[Depends(require_resource_permission("configuration", "edit"))],
 )
 def schedule_meeting_for_user(
     organizer_email: str,
@@ -727,7 +727,7 @@ def schedule_meeting_for_user(
 
 @router.get(
     "/sharepoint/test-connection",
-    dependencies=[Depends(require_resource_permission("roles-permissions", "edit"))],
+    dependencies=[Depends(require_resource_permission("configuration", "edit"))],
 )
 def test_sharepoint_connection(
     current_user: Users = Depends(get_current_internal_user)
@@ -880,7 +880,7 @@ def test_sharepoint_connection(
 
 @router.get(
     "/sharepoint/list-drives",
-    dependencies=[Depends(require_resource_permission("roles-permissions", "edit"))],
+    dependencies=[Depends(require_resource_permission("configuration", "edit"))],
 )
 def list_sharepoint_drives(
     current_user: Users = Depends(get_current_internal_user)

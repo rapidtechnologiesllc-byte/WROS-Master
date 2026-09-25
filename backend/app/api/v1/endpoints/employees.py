@@ -136,7 +136,7 @@ def _get_employee_or_404(db: Session, employee_id: str) -> Employee:
     "",
     response_model=EmployeeItem,
     summary="Create an employee profile",
-    dependencies=[Depends(require_resource_permission("employee", "create"))]
+    dependencies=[Depends(require_resource_permission("employees", "create"))]
 )
 def create_employee(
     body: EmployeeCreateRequest,
@@ -191,7 +191,7 @@ def create_employee(
 
 @router.post(
     "/convert-candidate/{candidate_id}", response_model=EmployeeItem,
-    dependencies=[Depends(require_resource_permission("employee", "create"))],
+    dependencies=[Depends(require_resource_permission("employees", "create"))],
     summary="Convert a candidate to an employee (HRMS-0708 minimal slice)",
 )
 def convert_candidate(
@@ -304,7 +304,7 @@ def _parse_bulk_import_date(raw) -> date:
 
 @router.post(
     "/bulk-import", response_model=BulkImportResponse,
-    dependencies=[Depends(require_resource_permission("employee", "create"))],
+    dependencies=[Depends(require_resource_permission("employees", "create"))],
     summary="One-time bulk employee load from an .xlsx file",
     description=(
         "Header row (first row, any casing) must include first_name, last_name, "
@@ -415,7 +415,7 @@ async def bulk_import_employees(
     "",
     response_model=EmployeeListResponse,
     summary="List employees",
-    dependencies=[Depends(require_resource_permission("employee", "view"))]
+    dependencies=[Depends(require_resource_permission("employees", "view"))]
 )
 def list_employees(
     db: Session = Depends(get_db),
@@ -431,7 +431,7 @@ def list_employees(
 
 @router.get(
     "/bench-pool", response_model=EmployeeListResponse,
-    dependencies=[Depends(require_resource_permission("employee", "view"))],
+    dependencies=[Depends(require_resource_permission("employees", "view"))],
     summary="View the current bench pool (S-247)",
 )
 def view_bench_pool(
@@ -448,7 +448,7 @@ def view_bench_pool(
 
 @router.get(
     "/bench-aging-alerts", response_model=BenchAgingAlertsResponse,
-    dependencies=[Depends(require_resource_permission("employee", "view"))],
+    dependencies=[Depends(require_resource_permission("employees", "view"))],
     summary="Employees who just crossed a 30/60/90-day bench milestone (S-248)",
 )
 def bench_aging_alerts(
@@ -465,7 +465,7 @@ def bench_aging_alerts(
 
 @router.get(
     "/utilization-summary", response_model=UtilizationSummaryResponse,
-    dependencies=[Depends(require_resource_permission("employee", "view"))],
+    dependencies=[Depends(require_resource_permission("employees", "view"))],
     summary="Employee Utilization Dashboard (S-254) -- latest utilization per employee + low-utilization alerts",
 )
 def utilization_summary(
@@ -500,7 +500,7 @@ def utilization_summary(
 
 @router.get(
     "/bench-cost-summary", response_model=BenchCostSummaryResponse,
-    dependencies=[Depends(require_resource_permission("employee", "view"))],
+    dependencies=[Depends(require_resource_permission("employees", "view"))],
     summary="Bench Cost Visibility (S-255) -- daily/monthly/running bench cost per employee + total",
 )
 def bench_cost_summary(
@@ -533,7 +533,7 @@ def bench_cost_summary(
     "/{employee_id}",
     response_model=EmployeeItem,
     summary="Get one employee",
-    dependencies=[Depends(require_resource_permission("employee", "view"))]
+    dependencies=[Depends(require_resource_permission("employees", "view"))]
 )
 def get_employee(
     employee_id: str,
@@ -545,7 +545,7 @@ def get_employee(
 
 @router.get(
     "/{employee_id}/staffing-eligibility", response_model=StaffingEligibilityResponse,
-    dependencies=[Depends(require_resource_permission("employee", "view"))],
+    dependencies=[Depends(require_resource_permission("employees", "view"))],
     summary="Staffing Eligibility Engine (S-250) -- can this employee appear in ranking for a delivery engine?",
 )
 def staffing_eligibility(
@@ -562,7 +562,7 @@ def staffing_eligibility(
 
 @router.get(
     "/{employee_id}/engine-history", response_model=EngineHistoryResponse,
-    dependencies=[Depends(require_resource_permission("employee", "view"))],
+    dependencies=[Depends(require_resource_permission("employees", "view"))],
     summary="S-351/HRMS-0512 -- read-only Speciality/Core engine change audit trail",
 )
 def engine_history(
@@ -595,7 +595,7 @@ def engine_history(
 
 @router.post(
     "/{employee_id}/record-utilization", response_model=UtilizationHistoryItem,
-    dependencies=[Depends(require_resource_permission("employee", "create"))],
+    dependencies=[Depends(require_resource_permission("employees", "create"))],
     summary="Calculate + snapshot one employee's utilization for a week (S-223/HRMS-0904) -- billable hours vs available hours",
 )
 def record_utilization(
@@ -615,7 +615,7 @@ def record_utilization(
 
 @router.get(
     "/{employee_id}/performance", response_model=PerformanceStoreResponse,
-    dependencies=[Depends(require_resource_permission("employee", "view"))],
+    dependencies=[Depends(require_resource_permission("employees", "view"))],
     summary="HRMS-0515 -- performance event timeline + score averages (BU Head/RM/HR only, never the employee)",
 )
 def get_employee_performance(
@@ -646,7 +646,7 @@ def get_employee_performance(
 
 @router.get(
     "/{employee_id}/utilization-history", response_model=UtilizationHistoryResponse,
-    dependencies=[Depends(require_resource_permission("employee", "view"))],
+    dependencies=[Depends(require_resource_permission("employees", "view"))],
     summary="Weekly utilization history for one employee (S-254)",
 )
 def utilization_history(
@@ -669,7 +669,7 @@ def utilization_history(
 
 @router.post(
     "/{employee_id}/mark-bench", response_model=EmployeeItem,
-    dependencies=[Depends(require_resource_permission("employee", "create"))],
+    dependencies=[Depends(require_resource_permission("employees", "create"))],
     summary="Mark an employee as on the bench (S-246)",
 )
 def mark_bench(
@@ -686,7 +686,7 @@ def mark_bench(
 
 @router.post(
     "/{employee_id}/remove-from-bench", response_model=EmployeeItem,
-    dependencies=[Depends(require_resource_permission("employee", "create"))],
+    dependencies=[Depends(require_resource_permission("employees", "create"))],
     summary="Remove an employee from the bench",
 )
 def remove_from_bench(
@@ -702,7 +702,7 @@ def remove_from_bench(
 
 @router.get(
     "/{employee_id}/bench-history", response_model=BenchPeriodHistoryResponse,
-    dependencies=[Depends(require_resource_permission("employee", "view"))],
+    dependencies=[Depends(require_resource_permission("employees", "view"))],
     summary="Full bench episode history for an employee",
 )
 def bench_history(

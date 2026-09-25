@@ -192,6 +192,8 @@ def unified_login(request: UnifiedLoginRequest, db: Session = Depends(get_db)):
                     "sub": user.UserID,
                     "email": user.UserEmail,
                     "type": "user",
+                    "tenant_id": user.tenant_id,
+                    "role_template_id": user.role_template_id,
                     "mfa_pending": True
                 },
                 expires_delta=timedelta(minutes=MFA_PENDING_TOKEN_MINUTES),
@@ -384,7 +386,12 @@ def unified_login(request: UnifiedLoginRequest, db: Session = Depends(get_db)):
                 logger.error(f"Failed to send candidate OTP email: {e}", exc_info=True)
 
             pending_token = create_access_token(
-                data={"sub": candidate.candidateID, "type": "candidate", "candidate_otp_pending": True},
+                data={
+                    "sub": candidate.candidateID,
+                    "type": "candidate",
+                    "tenant_id": candidate.tenant_id,
+                    "candidate_otp_pending": True,
+                },
                 expires_delta=timedelta(minutes=MFA_PENDING_TOKEN_MINUTES),
             )
 
@@ -405,6 +412,7 @@ def unified_login(request: UnifiedLoginRequest, db: Session = Depends(get_db)):
             data={
                 "sub": candidate.candidateID,
                 "type": "candidate",
+                "tenant_id": candidate.tenant_id,
             }
         )
 
@@ -437,7 +445,6 @@ def unified_login(request: UnifiedLoginRequest, db: Session = Depends(get_db)):
 def refresh_token_endpoint(
     credentials: HTTPAuthorizationCredentials = Depends(security),
     db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_user)
 ):
     """Refresh an access token using a refresh token. Protected endpoint."""
     if not credentials:
@@ -473,8 +480,8 @@ def refresh_token_endpoint(
     user = None
     candidate = None
     try:
-        user = check_user(db, None, user_id)
-        candidate = check_candidate(db, None, user_id) if not user else None
+        user = check_user(db, user_id)
+        candidate = check_candidate(db, user_id) if not user else None
     except Exception as e:
         logger.error(f"Failed to lookup user/candidate: {e}", exc_info=True)
         raise HTTPException(status_code=401, detail="User not found")
@@ -563,6 +570,7 @@ def refresh_token_endpoint(
             data={
                 "sub": candidate.candidateID,
                 "type": "candidate",
+                "tenant_id": candidate.tenant_id,
             }
         )
 

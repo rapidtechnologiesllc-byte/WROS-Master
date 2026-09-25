@@ -74,7 +74,7 @@ class ResumeVersionResponse:
 @router.get(
     "/{candidate_id}/resume-versions",
     response_model=List[dict],
-    dependencies=[Depends(require_resource_permission("resume_versions", "view"))]
+    dependencies=[Depends(require_resource_permission("resume-versions", "view"))]
 )
 def list_resume_versions(
     candidate_id: str,
@@ -103,7 +103,7 @@ def list_resume_versions(
 @router.get(
     "/{candidate_id}/resume-versions/{version_id}",
     response_model=dict,
-    dependencies=[Depends(require_resource_permission("resume_versions", "view"))]
+    dependencies=[Depends(require_resource_permission("resume-versions", "view"))]
 )
 def get_resume_version(
     candidate_id: str,
@@ -140,7 +140,7 @@ def get_resume_version(
 @router.get(
     "/{candidate_id}/resume-comparison",
     response_model=dict,
-    dependencies=[Depends(require_resource_permission("resume_versions", "view"))]
+    dependencies=[Depends(require_resource_permission("resume-versions", "view"))]
 )
 def compare_resume_versions(
     candidate_id: str,
@@ -219,7 +219,7 @@ def compare_resume_versions(
 
 @router.post(
     "/{candidate_id}/resume-search",
-    dependencies=[Depends(require_resource_permission("resume_versions", "create"))]
+    dependencies=[Depends(require_resource_permission("resume-versions", "create"))]
 )
 def search_candidate_resume(
     candidate_id: str,

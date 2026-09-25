@@ -43,7 +43,7 @@ router = APIRouter(prefix="/autonomous-jobs", tags=["autonomous-jobs"])
 @router.get(
     "/status/{job_id}",
     dependencies=[
-        Depends(require_resource_permission("management", "view")),
+        Depends(require_resource_permission("jobs", "view")),
         Depends(get_current_internal_user),
     ],
     response_model=JobClosureStatusResponse,
@@ -61,7 +61,7 @@ def get_job_status(job_id: str, db: Session = Depends(get_db)):
 @router.post(
     "/close/{job_id}",
     dependencies=[
-        Depends(require_resource_permission("management", "create")),
+        Depends(require_resource_permission("jobs", "create")),
         Depends(get_current_internal_user),
     ],
     response_model=JobClosureActionResponse,

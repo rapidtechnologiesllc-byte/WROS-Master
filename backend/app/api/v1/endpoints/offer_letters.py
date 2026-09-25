@@ -184,7 +184,7 @@ def list_offer_templates(
 @router.post(
     "/respond",
     response_model=OfferAcceptanceResponse,
-    dependencies=[Depends(require_resource_permission("respond", "create"))]
+    dependencies=[Depends(require_resource_permission("offer-letters", "create"))]
 )
 def respond_to_offer(
     request: OfferAcceptanceRequest,
@@ -265,7 +265,7 @@ def respond_to_offer(
 @router.get(
     "/my-offers",
     response_model=AllOffersResponse,
-    dependencies=[Depends(require_resource_permission("my-offer", "view"))]
+    dependencies=[Depends(require_resource_permission("offer-letters", "view"))]
 )
 def get_my_offers(
     db: Session = Depends(get_db),
@@ -540,7 +540,7 @@ def get_all_offers(
 @router.get(
     "/pending-approval",
     response_model=AllOffersResponse,
-    dependencies=[Depends(require_resource_permission("offer", "view"))],
+    dependencies=[Depends(require_resource_permission("offer-letters", "view"))],
     summary="List offer letters pending the authenticated Hiring Manager's approval",
 )
 def get_pending_approval_offers(
@@ -567,7 +567,7 @@ def get_pending_approval_offers(
 @router.get(
     "/pending-approval/by-job/{job_id}",
     response_model=AllOffersResponse,
-    dependencies=[Depends(require_resource_permission("offer", "view"))],
+    dependencies=[Depends(require_resource_permission("offer-letters", "view"))],
     summary="List awaiting-approval candidates for a specific job (Hiring Manager)",
 )
 def get_pending_approval_offers_by_job(
@@ -990,7 +990,7 @@ def release_offer_letter(
 @router.post(
     "/sign/{offer_id}",
     response_model=CandidateSignedAcceptanceResponse,
-    dependencies=[Depends(require_resource_permission("offer", "create"))],
+    dependencies=[Depends(require_resource_permission("offer-letters", "create"))],
     summary="Candidate signs the offer letter (uploads signature PNG)",
 )
 async def candidate_sign_offer(

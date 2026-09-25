@@ -52,7 +52,7 @@ router = APIRouter(prefix="/htd-intake", tags=["htd-intake"])
 @router.post(
     "/calculate-monthly-metric",
     dependencies=[
-        Depends(require_resource_permission("pause", "create")),
+        Depends(require_resource_permission("htd-intake", "create")),
         Depends(get_current_internal_user),
     ],
     response_model=MonthlyMetricItem,
@@ -89,7 +89,7 @@ def check_breach_endpoint(
     "/status",
     response_model=HtdIntakeStatusResponse,
     summary="Current HTD intake pause status",
-    dependencies=[Depends(require_resource_permission("statu", "view"))]
+    dependencies=[Depends(require_resource_permission("htd-intake", "view"))]
 )
 def get_status_endpoint(
     db: Session = Depends(get_db),
@@ -104,7 +104,7 @@ def get_status_endpoint(
 @router.post(
     "/resume",
     dependencies=[
-        Depends(require_resource_permission("pause", "create")),
+        Depends(require_resource_permission("htd-intake", "create")),
         Depends(get_current_internal_user),
     ],
     response_model=HtdIntakeStatusResponse,
@@ -130,7 +130,7 @@ def resume_endpoint(
     "/pause-log",
     response_model=PauseLogResponse,
     summary="Permanent pause/resume audit trail",
-    dependencies=[Depends(require_resource_permission("pause-log", "view"))]
+    dependencies=[Depends(require_resource_permission("htd-intake", "view"))]
 )
 def get_pause_log_endpoint(
     db: Session = Depends(get_db),

@@ -42,7 +42,7 @@ router = APIRouter(prefix="/flash", tags=["flash"])
 @router.post(
     "/",
     dependencies=[
-        Depends(require_resource_permission("flash", "create")),
+        Depends(require_resource_permission("ask-flash", "create")),
         Depends(get_current_internal_user),
     ],
     response_model=FlashResponse,

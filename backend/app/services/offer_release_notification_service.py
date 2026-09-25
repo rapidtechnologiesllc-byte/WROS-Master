@@ -91,7 +91,7 @@ def send_offer_release_notification(db: Session, offer: OfferLetter) -> Dict:
         return result
 
     conversation = _active_conversation(db, candidate.candidateID)
-    portal_link = generate_portal_link_url(candidate.candidateID)
+    portal_link = generate_portal_link_url(db, candidate.candidateID)
 
     if conversation is not None:
         message = _build_whatsapp_message(candidate, offer, portal_link)

@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Plus, Loader, CheckCircle, AlertCircle, Phone, Trash2, RefreshCw, X } from "lucide-react";
 import axios from "axios";
 
-const API_BASE = process.env.REACT_APP_API_URL || "http://localhost:8081";
+const API_BASE = process.env.REACT_APP_API_URL || "http://localhost:8080";
 
 export default function LinkedInPipelineScreen() {
   const [linkedInUrl, setLinkedInUrl] = useState("");

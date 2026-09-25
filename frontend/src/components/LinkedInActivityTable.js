@@ -3,7 +3,7 @@ import { ExternalLink, AlertCircle, Loader, ChevronRight } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 
-const API_BASE = process.env.REACT_APP_API_URL || "http://localhost:8081";
+const API_BASE = process.env.REACT_APP_API_URL || "http://localhost:8080";
 
 const STATUS_COLORS = {
   PENDING_CONNECTION: "bg-yellow-50 text-yellow-900",

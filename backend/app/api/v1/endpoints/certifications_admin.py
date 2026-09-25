@@ -59,7 +59,7 @@ class KPITargetResponse(BaseModel):
 @router.post(
     "/create",
     response_model=CertificationResponse,
-    dependencies=[Depends(require_resource_permission("system", "edit"))],
+    dependencies=[Depends(require_resource_permission("configuration", "edit"))],
 )
 def create_certification(
     request: CertificationRequest,
@@ -93,7 +93,7 @@ def create_certification(
 @router.get(
     "/list",
     response_model=List[CertificationResponse],
-    dependencies=[Depends(require_resource_permission("system", "edit"))],
+    dependencies=[Depends(require_resource_permission("configuration", "edit"))],
 )
 def list_certifications(db: Session = Depends(get_db)):
     """List all certification templates."""
@@ -103,7 +103,7 @@ def list_certifications(db: Session = Depends(get_db)):
 @router.post(
     "/assign-target",
     response_model=KPITargetResponse,
-    dependencies=[Depends(require_resource_permission("system", "edit"))],
+    dependencies=[Depends(require_resource_permission("configuration", "edit"))],
 )
 def assign_kpi_target(
     request: KPITargetRequest,
@@ -146,7 +146,7 @@ def assign_kpi_target(
 
 @router.post(
     "/mark-achieved/{target_id}",
-    dependencies=[Depends(require_resource_permission("system", "edit"))],
+    dependencies=[Depends(require_resource_permission("configuration", "edit"))],
 )
 def mark_target_achieved(
     target_id: str,
@@ -259,7 +259,7 @@ def recalculate_employee_kpi_score(db: Session, employee_id: str, business_unit_
 
 @router.get(
     "/business-units",
-    dependencies=[Depends(require_resource_permission("business-unit", "view"))]
+    dependencies=[Depends(require_resource_permission("business-units", "view"))]
 )
 def list_business_units_for_form(db: Session = Depends(get_db)):
     """List all business units for form dropdown"""
@@ -279,7 +279,7 @@ def list_business_units_for_form(db: Session = Depends(get_db)):
 
 @router.get(
     "/roles",
-    dependencies=[Depends(require_resource_permission("role", "view"))]
+    dependencies=[Depends(require_resource_permission("certifications", "view"))]
 )
 def list_roles_for_form(db: Session = Depends(get_db)):
     """List all role templates for form dropdown"""

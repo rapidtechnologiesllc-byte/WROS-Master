@@ -603,7 +603,7 @@ def hr_complete_item(
 @router.get(
     "/candidate/my-checklists",
     dependencies=[
-        Depends(require_resource_permission("checklist", "view")),
+        Depends(require_resource_permission("checklists", "view")),
         Depends(get_current_internal_user),
     ],
     response_model=CandidateChecklistListResponse,
@@ -632,7 +632,7 @@ def get_my_checklists(
 @router.patch(
     "/candidate/item/{item_id}/complete",
     dependencies=[
-        Depends(require_resource_permission("checklist", "edit")),
+        Depends(require_resource_permission("checklists", "edit")),
         Depends(get_current_internal_user),
     ],
     response_model=CompleteItemResponse,

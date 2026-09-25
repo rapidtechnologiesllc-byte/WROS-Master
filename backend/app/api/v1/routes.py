@@ -116,15 +116,29 @@ from app.api.v1.endpoints.slm_feedback import router as slm_feedback_router
 from app.api.v1.endpoints.slm_analytics import router as slm_analytics_router
 from app.api.v1.endpoints.message_queue import router as message_queue_router
 from app.api.v1.endpoints.linkedin_candidate_pipeline import router as linkedin_pipeline_router
+from app.api.v1.endpoints.linkedin_conversion import router as linkedin_conversion_router
 from app.api.v1.endpoints.business_units import router as business_units_router
+from app.api.v1.endpoints.admin_queue import router as admin_queue_router
+from app.api.v1.endpoints.complete_workflow import router as complete_workflow_router
+from app.api.v1.endpoints.employee_conversion import router as employee_conversion_router
+from app.api.v1.endpoints.hiring_manager_validation import router as hiring_manager_validation_router
+from app.api.v1.endpoints.invoices_s316 import router as invoices_s316_router
+from app.api.v1.endpoints.offers import router as offers_router
+from app.api.v1.endpoints.onboarding_orchestrator import router as onboarding_orchestrator_router
+from app.api.v1.endpoints.onboarding_workflow import router as onboarding_workflow_router
+from app.api.v1.endpoints.resume_versions import router as resume_versions_router
+from app.api.v1.endpoints.revenue_recognition import router as revenue_recognition_router
+from app.api.v1.endpoints.spartan_forecasting import router as spartan_forecasting_router
+from app.api.v1.endpoints.spartan_integration import router as spartan_integration_router
+from app.api.v1.endpoints.strategic_consul import router as strategic_consul_router
+from app.api.v1.endpoints.system_health import router as system_health_router
 
 try:
     router = fastapi.APIRouter(prefix="/api/v1")
 except Exception as e:
     raise RuntimeError(f"Failed to create API router: {str(e)}") from e
 
-# NOTE: auth_router is registered separately in main.py at root level (/auth)
-# to maintain backward compatibility. It is NOT included here.
+router.include_router(router=auth_router)
 router.include_router(router=navigation_router)
 router.include_router(router=role_templates_router)
 router.include_router(router=role_template_modules_router)
@@ -243,27 +257,21 @@ router.include_router(router=message_queue_router)
 router.include_router(router=sdlc_control_router)
 # UNREGISTERED ENDPOINTS - NEWLY ADDED
 router.include_router(router=admin_queue_router)
-router.include_router(router=agent_config_router)
-router.include_router(router=bi_explorer_router)
-router.include_router(router=bu_head_dashboard_router)
-router.include_router(router=candidate_ranking_router)
-router.include_router(router=candidate_rejection_router)
+# agent_config, bi_explorer, bu_head_dashboard, candidate_ranking, candidate_rejection,
+# dynamic_config, interview_decision, queue, resume_upload, training_dashboards:
+# endpoint modules were removed from the working tree; not registered until restored.
+# doctor_traces_dashboard: references app.models.doctor_trace.DoctorTrace, which was
+# never added to this codebase; not registered until that model exists.
 router.include_router(router=complete_workflow_router)
-router.include_router(router=doctor_traces_dashboard_router)
-router.include_router(router=dynamic_config_router)
 router.include_router(router=employee_conversion_router)
 router.include_router(router=hiring_manager_validation_router)
-router.include_router(router=interview_decision_router)
 router.include_router(router=invoices_s316_router)
 router.include_router(router=offers_router)
 router.include_router(router=onboarding_orchestrator_router)
 router.include_router(router=onboarding_workflow_router)
-router.include_router(router=queue_router)
-router.include_router(router=resume_upload_router)
 router.include_router(router=resume_versions_router)
 router.include_router(router=revenue_recognition_router)
 router.include_router(router=spartan_forecasting_router)
 router.include_router(router=spartan_integration_router)
 router.include_router(router=strategic_consul_router)
 router.include_router(router=system_health_router)
-router.include_router(router=training_dashboards_router)

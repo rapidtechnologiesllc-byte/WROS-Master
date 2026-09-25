@@ -89,7 +89,7 @@ def get_this_week_start():
 
 @router.get(
     "/tech-lead/{tech_lead_id}/weekly-report",
-    dependencies=[Depends(require_resource_permission("tech-lead", "view"))]
+    dependencies=[Depends(require_resource_permission("agent-pyramid", "view"))]
 )
 async def get_tech_lead_report(
     tech_lead_id: str,
@@ -120,7 +120,7 @@ async def get_tech_lead_report(
 
 @router.get(
     "/manager/{manager_id}/weekly-report",
-    dependencies=[Depends(require_resource_permission("manager", "view"))]
+    dependencies=[Depends(require_resource_permission("agent-pyramid", "view"))]
 )
 async def get_manager_report(
     manager_id: str,
@@ -151,7 +151,7 @@ async def get_manager_report(
 
 @router.get(
     "/architect/{architect_id}/weekly-report",
-    dependencies=[Depends(require_resource_permission("architect", "view"))]
+    dependencies=[Depends(require_resource_permission("agent-pyramid", "view"))]
 )
 async def get_architect_report(
     architect_id: str,
@@ -182,7 +182,7 @@ async def get_architect_report(
 
 @router.get(
     "/bu-head/{bu_head_id}/weekly-report",
-    dependencies=[Depends(require_resource_permission("bu-head", "view"))]
+    dependencies=[Depends(require_resource_permission("agent-pyramid", "view"))]
 )
 async def get_bu_head_report(
     bu_head_id: str,
@@ -213,7 +213,7 @@ async def get_bu_head_report(
 
 @router.get(
     "/partner/{partner_id}/weekly-consolidation",
-    dependencies=[Depends(require_resource_permission("partner", "view"))]
+    dependencies=[Depends(require_resource_permission("agent-pyramid", "view"))]
 )
 async def get_partner_consolidation(
     partner_id: str,
@@ -244,7 +244,7 @@ async def get_partner_consolidation(
 
 @router.post(
     "/submit-report",
-    dependencies=[Depends(require_resource_permission("submit-report", "create"))]
+    dependencies=[Depends(require_resource_permission("agent-pyramid", "create"))]
 )
 async def submit_pyramid_report(
     report_data: Dict[str, Any],
@@ -300,7 +300,7 @@ async def submit_pyramid_report(
 
 @router.get(
     "/ceo/executive-dashboard",
-    dependencies=[Depends(require_resource_permission("ceo", "view"))]
+    dependencies=[Depends(require_resource_permission("agent-pyramid", "view"))]
 )
 async def get_ceo_dashboard(
     current_user: Users = Depends(get_current_user),
@@ -352,7 +352,7 @@ async def get_ceo_dashboard(
 
 @router.post(
     "/tech-lead/{tech_lead_id}/validate-progress",
-    dependencies=[Depends(require_resource_permission("tech-lead", "create"))]
+    dependencies=[Depends(require_resource_permission("agent-pyramid", "create"))]
 )
 async def flash_validate_tech_lead_progress(
     tech_lead_id: str,
@@ -456,7 +456,7 @@ async def flash_validate_tech_lead_progress(
 
 @router.post(
     "/tech-lead/{tech_lead_id}/confirm-and-submit",
-    dependencies=[Depends(require_resource_permission("tech-lead", "create"))]
+    dependencies=[Depends(require_resource_permission("agent-pyramid", "create"))]
 )
 async def flash_confirm_and_submit(
     tech_lead_id: str,
@@ -580,7 +580,7 @@ def _get_next_reporting_level(current_level: str) -> str:
 
 @router.get(
     "/pyramid/schedule",
-    dependencies=[Depends(require_resource_permission("pyramid", "view"))]
+    dependencies=[Depends(require_resource_permission("agent-pyramid", "view"))]
 )
 async def get_reporting_schedule(
     current_user: Users = Depends(get_current_user)
@@ -649,7 +649,7 @@ async def get_reporting_schedule(
 
 @router.post(
     "/pyramid/send-thursday-reminder",
-    dependencies=[Depends(require_resource_permission("pyramid", "create"))]
+    dependencies=[Depends(require_resource_permission("agent-pyramid", "create"))]
 )
 async def send_thursday_reminder(
     current_user: Users = Depends(get_current_user),

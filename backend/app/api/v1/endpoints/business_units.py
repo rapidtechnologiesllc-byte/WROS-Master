@@ -44,7 +44,7 @@ class ClientResponse(BaseModel):
         from_attributes = True
 
 
-@router.get("", response_model=List[BusinessUnitResponse], dependencies=[Depends(require_resource_permission("unit", "view"))])
+@router.get("", response_model=List[BusinessUnitResponse], dependencies=[Depends(require_resource_permission("business-units", "view"))])
 async def get_business_units(
     db: Session = Depends(get_db),
 ):
@@ -59,7 +59,7 @@ async def get_business_units(
         )
 
 
-@router.post("", response_model=BusinessUnitResponse, dependencies=[Depends(require_resource_permission("business_units", "can_create"))])
+@router.post("", response_model=BusinessUnitResponse, dependencies=[Depends(require_resource_permission("business-units", "can_create"))])
 async def create_business_unit(
     request: BusinessUnitCreateRequest,
     db: Session = Depends(get_db),
@@ -102,7 +102,7 @@ async def create_business_unit(
         )
 
 
-@router.put("/{bu_id}", response_model=BusinessUnitResponse, dependencies=[Depends(require_resource_permission("business_units", "can_edit"))])
+@router.put("/{bu_id}", response_model=BusinessUnitResponse, dependencies=[Depends(require_resource_permission("business-units", "can_edit"))])
 async def update_business_unit(
     bu_id: int,
     request: BusinessUnitCreateRequest,
@@ -147,7 +147,7 @@ async def update_business_unit(
         )
 
 
-@router.delete("/{bu_id}", dependencies=[Depends(require_resource_permission("business_units", "can_delete"))])
+@router.delete("/{bu_id}", dependencies=[Depends(require_resource_permission("business-units", "can_delete"))])
 async def delete_business_unit(
     bu_id: int,
     db: Session = Depends(get_db),
@@ -175,7 +175,7 @@ async def delete_business_unit(
         )
 
 
-@router.get("/{bu_id}/clients", response_model=List[ClientResponse], dependencies=[Depends(require_resource_permission("unit", "view"))])
+@router.get("/{bu_id}/clients", response_model=List[ClientResponse], dependencies=[Depends(require_resource_permission("business-units", "view"))])
 async def get_clients_for_bu(
     bu_id: int,
     db: Session = Depends(get_db),
@@ -205,7 +205,7 @@ async def get_clients_for_bu(
         )
 
 
-@router.post("/{bu_id}/clients", response_model=ClientResponse, dependencies=[Depends(require_resource_permission("unit", "create"))])
+@router.post("/{bu_id}/clients", response_model=ClientResponse, dependencies=[Depends(require_resource_permission("business-units", "create"))])
 async def create_client(
     bu_id: int,
     name: str,

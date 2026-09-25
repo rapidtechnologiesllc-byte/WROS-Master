@@ -86,7 +86,7 @@ def _to_item(db: Session, submission: Submission) -> SubmissionItem:
 @router.post(
     "/",
     dependencies=[
-        Depends(require_resource_permission("submission", "create")),
+        Depends(require_resource_permission("submissions", "create")),
         Depends(get_current_internal_user),
     ],
     response_model=SubmissionItem,
@@ -150,7 +150,7 @@ def submit_candidate(
     "",
     response_model=SubmissionListResponse,
     summary="List submissions",
-    dependencies=[Depends(require_resource_permission("submission", "view"))]
+    dependencies=[Depends(require_resource_permission("submissions", "view"))]
 )
 def list_submissions(
     demand_id: Optional[str] = None,

@@ -1092,7 +1092,7 @@ def _rehire_review_to_response(db: Session, review: InterviewRehireReview) -> Re
 
 @router.get(
     "/rehire-reviews",
-    dependencies=[Depends(require_resource_permission("interview", "view"))],
+    dependencies=[Depends(require_resource_permission("interviews", "view"))],
     response_model=RehireReviewListResponse,
 )
 def list_rehire_reviews(
@@ -1331,7 +1331,7 @@ def get_panel_members(
 
 @router.delete(
     "/panel-members/{member_id}",
-    dependencies=[Depends(require_resource_permission("interview", "delete"))],
+    dependencies=[Depends(require_resource_permission("interviews", "delete"))],
     response_model=DeleteResponse,
 )
 def remove_panel_member(
@@ -1374,7 +1374,7 @@ def remove_panel_member(
 
 @router.post(
     "/create",
-    dependencies=[Depends(require_resource_permission("interview", "create"))],
+    dependencies=[Depends(require_resource_permission("interviews", "create"))],
     response_model=InterviewResponse,
     status_code=201,
 
@@ -1506,7 +1506,7 @@ def create_interview(
 
 @router.get(
     "/my-interviews",
-    dependencies=[Depends(require_resource_permission("interview", "view"))],
+    dependencies=[Depends(require_resource_permission("interviews", "view"))],
     response_model=MyInterviewsResponse,
     summary="Get my interviews",
     description=(
@@ -1804,7 +1804,7 @@ def get_all_interviews(
 
 @router.put(
     "/{interview_id}",
-    dependencies=[Depends(require_resource_permission("interview", "create"))],
+    dependencies=[Depends(require_resource_permission("interviews", "create"))],
     response_model=InterviewResponse,
 
 )
@@ -1902,7 +1902,7 @@ def update_interview(
 
 @router.delete(
     "/{interview_id}",
-    dependencies=[Depends(require_resource_permission("interview", "delete"))],
+    dependencies=[Depends(require_resource_permission("interviews", "delete"))],
     response_model=DeleteResponse,
 )
 def delete_interview(
@@ -2193,7 +2193,7 @@ def get_feedback_by_interview(
 @router.get(
     "/feedback/{feedback_id}",
     response_model=InterviewFeedbackWithDetails,
-    dependencies=[Depends(require_resource_permission("feedback", "view"))]
+    dependencies=[Depends(require_resource_permission("interviews", "view"))]
 )
 def get_feedback_by_id(
     feedback_id: int,
@@ -2250,7 +2250,7 @@ def get_feedback_by_id(
 @router.put(
     "/feedback/{feedback_id}",
     response_model=InterviewFeedbackResponse,
-    dependencies=[Depends(require_resource_permission("feedback", "update"))]
+    dependencies=[Depends(require_resource_permission("interviews", "update"))]
 )
 def update_interview_feedback(
     feedback_id: int,
@@ -2320,7 +2320,7 @@ def update_interview_feedback(
 @router.delete(
     "/feedback/{feedback_id}",
     response_model=DeleteResponse,
-    dependencies=[Depends(require_resource_permission("feedback", "delete"))]
+    dependencies=[Depends(require_resource_permission("interviews", "delete"))]
 )
 def delete_interview_feedback(
     feedback_id: int,
@@ -2363,7 +2363,7 @@ def delete_interview_feedback(
 @router.get(
     "/statistics",
     response_model=InterviewStatistics,
-    dependencies=[Depends(require_resource_permission("statistic", "view"))]
+    dependencies=[Depends(require_resource_permission("interviews", "view"))]
 )
 def get_interview_statistics(
     db: Session = Depends(get_db),
@@ -2500,7 +2500,7 @@ def get_candidate_interview_history(
 @router.get(
     "/interviewer-workload/{interviewer_id}",
     response_model=InterviewerWorkload,
-    dependencies=[Depends(require_resource_permission("interviewer-workload", "view"))]
+    dependencies=[Depends(require_resource_permission("interviews", "view"))]
 )
 def get_interviewer_workload(
     interviewer_id: str,
@@ -2602,7 +2602,7 @@ def get_interviewer_workload(
 
 @router.get(
     "/hm-review/my-candidates", response_model=HMCandidateReviewListResponse,
-    dependencies=[Depends(require_resource_permission("interview", "view"))],
+    dependencies=[Depends(require_resource_permission("interviews", "view"))],
     summary="S-102/HRMS-P207 -- the caller's own hiring-manager candidate review list: profile + all interview feedback per candidate",
 )
 def get_my_hiring_manager_candidate_review(

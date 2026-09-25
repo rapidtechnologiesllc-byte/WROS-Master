@@ -18,7 +18,7 @@ router = APIRouter(prefix="/spartan/forecasting", tags=["forecasting"])
 
 @router.post(
     "/recruitment/forecast",
-    dependencies=[Depends(require_resource_permission("recruitment", "create"))]
+    dependencies=[Depends(require_resource_permission("forecasts", "create"))]
 )
 def forecast_recruitment_needs(
     db: Session = Depends(get_db)
@@ -93,7 +93,7 @@ def forecast_revenue_needs(
 
 @router.post(
     "/decision/validate",
-    dependencies=[Depends(require_resource_permission("decision", "create"))]
+    dependencies=[Depends(require_resource_permission("forecasts", "create"))]
 )
 def validate_decision(
     decision_type: str,  # "APPROVE_PROPOSAL", "ADJUST_TIMELINE", "HIRE", "SET_PRICING"
@@ -138,7 +138,7 @@ def validate_decision(
 
 @router.post(
     "/alert/generate",
-    dependencies=[Depends(require_resource_permission("alert", "create"))]
+    dependencies=[Depends(require_resource_permission("forecasts", "create"))]
 )
 def generate_autonomous_alert(
     alert_type: str,  # "KPI_FALLEN", "DECISION_VIOLATES_POLICY", "FORECAST_NEED"
@@ -176,7 +176,7 @@ def generate_autonomous_alert(
 
 @router.get(
     "/health/summary",
-    dependencies=[Depends(require_resource_permission("health", "view"))]
+    dependencies=[Depends(require_resource_permission("forecasts", "view"))]
 )
 def forecasting_system_health(
     db: Session = Depends(get_db)

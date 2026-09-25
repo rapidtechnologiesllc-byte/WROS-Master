@@ -45,7 +45,7 @@ router = APIRouter(prefix="/resource-forecast", tags=["resource-forecast"])
 @router.get(
     "/expiring",
     dependencies=[
-        Depends(require_resource_permission("forecast", "view")),
+        Depends(require_resource_permission("resource-forecast", "view")),
         Depends(get_current_internal_user),
     ],
     response_model=ExpiringAllocationsResponse,
@@ -65,7 +65,7 @@ def expiring_allocations(
 @router.get(
     "/gap-analysis",
     dependencies=[
-        Depends(require_resource_permission("forecast", "view")),
+        Depends(require_resource_permission("resource-forecast", "view")),
         Depends(get_current_internal_user),
     ],
     response_model=SkillGapAnalysisResponse,

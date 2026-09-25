@@ -4,17 +4,17 @@
     {
       "name": "Backend",
       "runtimeExecutable": "python",
-      "runtimeArgs": ["-m", "uvicorn", "app.main:app", "--reload", "--host", "127.0.0.1", "--port", "8081"],
-      "port": 8081,
+      "runtimeArgs": ["-m", "uvicorn", "app.main:app", "--reload", "--host", "127.0.0.1", "--port", "8080"],
+      "port": 8080,
       "cwd": "backend",
-      "note": "FIXED: Port hardcoded to 8081 (autoPort removed). Kill any process on 8081 if startup fails."
+      "note": "Port hardcoded to 8080 (matches setupProxy.js and the documented backend port). Kill any process on 8080 if startup fails."
     },
     {
       "name": "Frontend",
       "runtimeExecutable": "npm",
       "runtimeArgs": ["start"],
       "port": 3000,
-      "url": "http://localhost:3000",
+      "autoPort": true,
       "cwd": "frontend"
     },
     {

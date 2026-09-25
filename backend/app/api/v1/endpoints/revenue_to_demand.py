@@ -18,7 +18,7 @@ router = APIRouter(tags=["revenue-to-demand"])
 @router.get(
     "/revenue-to-demand/bu/{business_unit_id}",
     response_model=RevenueToDemandProjectionResponse,
-    dependencies=[Depends(require_resource_permission("revenue-to-demand", "view"))]
+    dependencies=[Depends(require_resource_permission("revenue", "view"))]
 )
 def revenue_to_demand_projection(
     business_unit_id: int, year: int, month: int,

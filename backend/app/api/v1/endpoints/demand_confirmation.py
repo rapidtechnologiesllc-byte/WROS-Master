@@ -110,7 +110,7 @@ def _get_call_or_404(db: Session, call_id: str) -> DemandAlignmentCall:
 @router.post(
     "/demands/{demand_id}/confirm-sow",
     dependencies=[
-        Depends(require_resource_permission("confirmation", "create")),
+        Depends(require_resource_permission("demand-confirmation", "create")),
         Depends(get_current_internal_user),
     ],
     response_model=ConfirmSOWResponse,
@@ -141,7 +141,7 @@ def confirm_sow(
 @router.post(
     "/demands/{demand_id}/employees/{employee_id}/schedule-call",
     dependencies=[
-        Depends(require_resource_permission("confirmation", "create")),
+        Depends(require_resource_permission("demand-confirmation", "create")),
         Depends(get_current_internal_user),
     ],
     response_model=AlignmentCallItem,
@@ -170,7 +170,7 @@ def schedule_call(
 @router.get(
     "/demands/{demand_id}/calls",
     dependencies=[
-        Depends(require_resource_permission("confirmation", "view")),
+        Depends(require_resource_permission("demand-confirmation", "view")),
         Depends(get_current_internal_user),
     ],
     response_model=AlignmentCallListResponse,
@@ -193,7 +193,7 @@ def get_calls_for_demand(
 @router.post(
     "/calls/{call_id}/confirm-fit",
     dependencies=[
-        Depends(require_resource_permission("confirmation", "create")),
+        Depends(require_resource_permission("demand-confirmation", "create")),
         Depends(get_current_internal_user),
     ],
     response_model=ConfirmFitResponse,
@@ -221,7 +221,7 @@ def confirm_call_fit(
 @router.post(
     "/calls/{call_id}/trigger-release",
     dependencies=[
-        Depends(require_resource_permission("confirmation", "create")),
+        Depends(require_resource_permission("demand-confirmation", "create")),
         Depends(get_current_internal_user),
     ],
     response_model=TriggerReleaseResponse,

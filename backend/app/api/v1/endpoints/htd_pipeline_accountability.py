@@ -13,7 +13,7 @@ router = APIRouter(prefix="/htd", tags=["HTD Pipeline Accountability"])
 
 @router.get(
     "/bu/{bu_id}/pipeline",
-    dependencies=[Depends(require_resource_permission("hr-pipeline", "view"))]
+    dependencies=[Depends(require_resource_permission("htd-intake", "view"))]
 )
 async def get_bu_pipeline(
     bu_id: int,
@@ -47,7 +47,7 @@ async def get_bu_pipeline(
 
 @router.get(
     "/partners/conversion-health",
-    dependencies=[Depends(require_resource_permission("hr-pipeline", "view"))]
+    dependencies=[Depends(require_resource_permission("htd-intake", "view"))]
 )
 async def get_partners_conversion_health(
     db: Session = Depends(get_db),

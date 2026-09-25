@@ -867,6 +867,16 @@ export default function AppRoutes() {
             />
 
             {adminRoutes}
+
+            <Route
+              path="*"
+              element={
+                <div className="mx-auto max-w-2xl p-12 text-center">
+                  <h2 className="text-lg font-semibold text-gray-900 mb-2">Page not found</h2>
+                  <p className="text-gray-600">This screen doesn't exist yet, or the link is out of date.</p>
+                </div>
+              }
+            />
           </Route>
         </Routes>
         <ToastContainer position="top-right" autoClose={3000} />

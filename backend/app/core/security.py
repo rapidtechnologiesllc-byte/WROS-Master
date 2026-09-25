@@ -29,18 +29,32 @@ security = HTTPBearer()
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     """Create JWT access token using HS256
 
-    CRITICAL: data MUST include tenant_id and role_template_id
-    - tenant_id: int, extracted from user record
-    - role_template_id: int, extracted from user record
-    - No defaults, no fallback to hardcoded values
+    Real internal-user session tokens ("type": "user") MUST include both
+    tenant_id and role_template_id, no fallback, no hardcoded default -
+    every permission check downstream depends on these being accurate.
+
+    Real candidate session tokens ("type": "candidate") MUST include
+    tenant_id; candidates have no RBAC role template so role_template_id
+    does not apply to them.
+
+    Narrow-purpose tokens that carry no RBAC context at all (OAuth
+    link-state nonces, candidate portal magic links, system-audit probe
+    tokens, MFA-pending tokens are the "user"/"candidate" exception
+    above, not this one) are identified by any other `type` value and are
+    exempt from both checks - they're verified by their own specific
+    claim (e.g. "msgraph_link") rather than by tenant/role context.
     """
     to_encode = data.copy()
+    token_type = to_encode.get('type')
 
-    # Validate required fields - NO FALLBACK
-    if 'tenant_id' not in to_encode or to_encode['tenant_id'] is None:
-        raise ValueError("tenant_id is REQUIRED in token payload - cannot proceed without it")
-    if 'role_template_id' not in to_encode or to_encode['role_template_id'] is None:
-        raise ValueError("role_template_id is REQUIRED in token payload - cannot proceed without it")
+    if token_type == 'user':
+        if 'tenant_id' not in to_encode or to_encode['tenant_id'] is None:
+            raise ValueError("tenant_id is REQUIRED in token payload - cannot proceed without it")
+        if 'role_template_id' not in to_encode or to_encode['role_template_id'] is None:
+            raise ValueError("role_template_id is REQUIRED in token payload - cannot proceed without it")
+    elif token_type == 'candidate':
+        if 'tenant_id' not in to_encode or to_encode['tenant_id'] is None:
+            raise ValueError("tenant_id is REQUIRED in token payload - cannot proceed without it")
 
     if expires_delta:
         expire = datetime.utcnow() + expires_delta

@@ -8,8 +8,8 @@ import { toast } from 'react-toastify';
 import { hasPermission } from '../utils/permissionsRoleTemplate';
 
 export default function DeliveryCenterFormPage() {
-  // Permission Gate: Only users with delivery_centers.edit can create delivery centers
-  if (!hasPermission('delivery_centers', 'edit')) {
+  // Permission Gate: Only users with delivery-centers.edit can create delivery centers
+  if (!hasPermission('delivery-centers', 'edit')) {
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
         <div className="bg-white rounded-lg p-6 max-w-md">

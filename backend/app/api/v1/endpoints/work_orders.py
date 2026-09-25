@@ -83,7 +83,7 @@ def _to_item(wo: WorkOrder) -> WorkOrderItem:
 @router.post(
     "",
     response_model=WorkOrderItem,
-    dependencies=[Depends(require_resource_permission("unknown", "create"))]
+    dependencies=[Depends(require_resource_permission("work-orders", "create"))]
 )
 def create_work_order_endpoint(
     req: CreateWorkOrderRequest,
@@ -135,7 +135,7 @@ def create_work_order_endpoint(
 @router.get(
     "",
     response_model=WorkOrderListResponse,
-    dependencies=[Depends(require_resource_permission("unknown", "view"))]
+    dependencies=[Depends(require_resource_permission("work-orders", "view"))]
 )
 def list_work_orders(
     status: Optional[str] = Query(None, description="Filter by status (ACTIVE, ENDED, PAUSED)"),
@@ -170,7 +170,7 @@ def list_work_orders(
 @router.get(
     "/{work_order_id}",
     response_model=WorkOrderItem,
-    dependencies=[Depends(require_resource_permission("work_orders", "view"))]
+    dependencies=[Depends(require_resource_permission("work-orders", "view"))]
 )
 def get_work_order(
     work_order_id: str,
@@ -192,7 +192,7 @@ def get_work_order(
 @router.put(
     "/{work_order_id}",
     response_model=WorkOrderItem,
-    dependencies=[Depends(require_resource_permission("work_orders", "update"))]
+    dependencies=[Depends(require_resource_permission("work-orders", "update"))]
 )
 def update_work_order_endpoint(
     work_order_id: str,
@@ -244,7 +244,7 @@ def update_work_order_endpoint(
 @router.get(
     "/by-demand/{demand_id}",
     response_model=WorkOrderListResponse,
-    dependencies=[Depends(require_resource_permission("by-demand", "view"))]
+    dependencies=[Depends(require_resource_permission("work-orders", "view"))]
 )
 def get_work_orders_by_demand_endpoint(
     demand_id: str,
@@ -262,7 +262,7 @@ def get_work_orders_by_demand_endpoint(
 @router.get(
     "/by-project/{project_id}",
     response_model=WorkOrderListResponse,
-    dependencies=[Depends(require_resource_permission("by-project", "view"))]
+    dependencies=[Depends(require_resource_permission("work-orders", "view"))]
 )
 def get_work_orders_by_project_endpoint(
     project_id: str,
@@ -280,7 +280,7 @@ def get_work_orders_by_project_endpoint(
 @router.get(
     "/by-employee/{employee_id}",
     response_model=WorkOrderListResponse,
-    dependencies=[Depends(require_resource_permission("by-employee", "view"))]
+    dependencies=[Depends(require_resource_permission("work-orders", "view"))]
 )
 def get_work_orders_by_employee_endpoint(
     employee_id: str,
@@ -298,7 +298,7 @@ def get_work_orders_by_employee_endpoint(
 @router.get(
     "/by-client/{client_id}",
     response_model=WorkOrderListResponse,
-    dependencies=[Depends(require_resource_permission("by-client", "view"))]
+    dependencies=[Depends(require_resource_permission("work-orders", "view"))]
 )
 def get_work_orders_by_client_endpoint(
     client_id: str,
@@ -316,7 +316,7 @@ def get_work_orders_by_client_endpoint(
 @router.post(
     "/{work_order_id}/end",
     response_model=WorkOrderItem,
-    dependencies=[Depends(require_resource_permission("work_orders", "create"))]
+    dependencies=[Depends(require_resource_permission("work-orders", "create"))]
 )
 def end_work_order_endpoint(
     work_order_id: str,
@@ -346,7 +346,7 @@ def end_work_order_endpoint(
 @router.post(
     "/{work_order_id}/pause",
     response_model=WorkOrderItem,
-    dependencies=[Depends(require_resource_permission("work_orders", "create"))]
+    dependencies=[Depends(require_resource_permission("work-orders", "create"))]
 )
 def pause_work_order_endpoint(
     work_order_id: str,
@@ -376,7 +376,7 @@ def pause_work_order_endpoint(
 @router.post(
     "/{work_order_id}/resume",
     response_model=WorkOrderItem,
-    dependencies=[Depends(require_resource_permission("work_orders", "create"))]
+    dependencies=[Depends(require_resource_permission("work-orders", "create"))]
 )
 def resume_work_order_endpoint(
     work_order_id: str,

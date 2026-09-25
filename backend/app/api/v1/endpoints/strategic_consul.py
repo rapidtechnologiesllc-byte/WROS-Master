@@ -15,7 +15,7 @@ router = APIRouter(prefix="/spartan/governance", tags=["strategic-consul"])
 
 @router.post(
     "/delivery-escalation",
-    dependencies=[Depends(require_resource_permission("delivery-escalation", "create"))]
+    dependencies=[Depends(require_resource_permission("partner-dashboard", "create"))]
 )
 def resolve_delivery_escalation(
     escalation_id: str,
@@ -103,7 +103,7 @@ def resolve_delivery_escalation(
 
 @router.post(
     "/partner-escalation",
-    dependencies=[Depends(require_resource_permission("partner-escalation", "create"))]
+    dependencies=[Depends(require_resource_permission("partner-dashboard", "create"))]
 )
 def resolve_partner_escalation(
     escalation_id: str,
@@ -169,7 +169,7 @@ def resolve_partner_escalation(
 
 @router.post(
     "/consul-resolve",
-    dependencies=[Depends(require_resource_permission("consul-resolve", "create"))]
+    dependencies=[Depends(require_resource_permission("partner-dashboard", "create"))]
 )
 def resolve_escalation(
     escalation_id: str,
@@ -236,7 +236,7 @@ def resolve_escalation(
 
 @router.get(
     "/escalations/pending",
-    dependencies=[Depends(require_resource_permission("escalation", "view"))]
+    dependencies=[Depends(require_resource_permission("partner-dashboard", "view"))]
 )
 def list_pending_escalations(
     db: Session = Depends(get_db)
@@ -283,7 +283,7 @@ def list_pending_escalations(
 
 @router.get(
     "/formation/constraints",
-    dependencies=[Depends(require_resource_permission("formation", "view"))]
+    dependencies=[Depends(require_resource_permission("partner-dashboard", "view"))]
 )
 def get_active_constraints(
     db: Session = Depends(get_db)

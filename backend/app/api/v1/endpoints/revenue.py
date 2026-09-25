@@ -137,7 +137,7 @@ def log_leakage_reason(
     "/leakage",
     response_model=LeakageFlagsResponse,
     summary="List active (unresolved) leakage flags (cached from daily scan)",
-    dependencies=[Depends(require_resource_permission("leakage", "view"))]
+    dependencies=[Depends(require_resource_permission("revenue", "view"))]
 )
 def list_leakage_flags(
     db: Session = Depends(get_db),
@@ -156,7 +156,7 @@ def list_leakage_flags(
     "/leakage/statistics",
     response_model=dict,
     summary="Get revenue leakage statistics and totals",
-    dependencies=[Depends(require_resource_permission("leakage", "view"))]
+    dependencies=[Depends(require_resource_permission("revenue", "view"))]
 )
 def get_leakage_statistics(
     db: Session = Depends(get_db),
@@ -176,7 +176,7 @@ def get_leakage_statistics(
     "/leakage/rescan-all",
     response_model=dict,
     summary="Manually trigger full revenue scan (secondary action)",
-    dependencies=[Depends(require_resource_permission("leakage", "create"))]
+    dependencies=[Depends(require_resource_permission("revenue", "create"))]
 )
 def rescan_all_projects(
     db: Session = Depends(get_db),

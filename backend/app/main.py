@@ -16,7 +16,7 @@ from app.core.database import engine, SessionLocal
 from app.core.logging import logger
 from app.models.base import Base
 from app.core import tenant_context as _tenant_context
-from app.core.database_init import initialize_database
+from app.core.db_contract import initialize_database
 
 # COMPLETE API ROUTES - All production endpoints
 from app.api.v1.routes import router as api_router

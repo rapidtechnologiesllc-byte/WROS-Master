@@ -31,7 +31,7 @@ router = APIRouter(prefix="/conversations", tags=["conversation-search"])
 @router.get(
     "/search",
     response_model=SearchResponse,
-    dependencies=[Depends(require_resource_permission("search", "view"))]
+    dependencies=[Depends(require_resource_permission("candidates", "view"))]
 )
 def search_conversations_endpoint(
     q: str,

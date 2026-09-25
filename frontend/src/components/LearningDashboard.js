@@ -40,7 +40,7 @@ const LearningDashboard = () => {
   const [refreshInterval, setRefreshInterval] = useState(5 * 60 * 1000); // 5 minutes
 
   // API endpoints
-  const API_BASE = process.env.REACT_APP_API_URL || "http://localhost:8081/api/v1";
+  const API_BASE = process.env.REACT_APP_API_URL || "http://localhost:8080/api/v1";
 
   // Fetch SLM health score
   const fetchSLMHealth = async () => {

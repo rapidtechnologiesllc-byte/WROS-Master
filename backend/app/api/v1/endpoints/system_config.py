@@ -39,7 +39,7 @@ def _require_tenant(current_user: Users) -> int:
 @router.get(
     "/settings",
     response_model=SettingsPanelResponse,
-    dependencies=[Depends(require_resource_permission("setting", "view"))]
+    dependencies=[Depends(require_resource_permission("configuration", "view"))]
 )
 def get_settings(
     current_user: Users = Depends(get_current_internal_user),
@@ -52,7 +52,7 @@ def get_settings(
 
 @router.put(
     "/settings/{config_key}",
-    dependencies=[Depends(require_resource_permission("setting", "update"))]
+    dependencies=[Depends(require_resource_permission("configuration", "update"))]
 )
 def update_setting(
     config_key: str,
@@ -75,7 +75,7 @@ def update_setting(
 
 @router.put(
     "/locale",
-    dependencies=[Depends(require_resource_permission("locale", "update"))]
+    dependencies=[Depends(require_resource_permission("locale-currency", "update"))]
 )
 def update_locale(
     body: UpdateLocaleRequest,

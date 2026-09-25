@@ -32,7 +32,7 @@ router = APIRouter(prefix="/partner-incentives", tags=["partner-incentives"])
     "/rules",
     response_model=IncentiveRuleItem,
     status_code=201,
-    dependencies=[Depends(require_resource_permission("rule", "create"))]
+    dependencies=[Depends(require_resource_permission("partner-dashboard", "create"))]
 )
 def create_rule(
     body: IncentiveRuleCreateRequest,
@@ -48,7 +48,7 @@ def create_rule(
 @router.get(
     "/partners/{partner_user_id}/events",
     response_model=IncentiveEventListResponse,
-    dependencies=[Depends(require_resource_permission("partner", "view"))]
+    dependencies=[Depends(require_resource_permission("partner-dashboard", "view"))]
 )
 def get_partner_events(
     partner_user_id: str,
@@ -60,7 +60,7 @@ def get_partner_events(
 @router.post(
     "/clients/{client_id}/check-new-logo",
     response_model=IncentiveEventItem,
-    dependencies=[Depends(require_resource_permission("client", "create"))]
+    dependencies=[Depends(require_resource_permission("clients", "create"))]
 )
 def check_new_logo(
     client_id: str,
@@ -78,7 +78,7 @@ def check_new_logo(
 @router.post(
     "/partners/{partner_user_id}/calculate-revenue-share",
     response_model=RevenueShareCalculationResponse,
-    dependencies=[Depends(require_resource_permission("partner", "create"))]
+    dependencies=[Depends(require_resource_permission("partner-dashboard", "create"))]
 )
 def calculate_revenue_share(
     partner_user_id: str, year: int, month: int,
@@ -98,7 +98,7 @@ def calculate_revenue_share(
 @router.post(
     "/events/{event_id}/mark-paid",
     response_model=IncentiveEventItem,
-    dependencies=[Depends(require_resource_permission("event", "create"))]
+    dependencies=[Depends(require_resource_permission("partner-dashboard", "create"))]
 )
 def mark_paid(
     event_id: str,

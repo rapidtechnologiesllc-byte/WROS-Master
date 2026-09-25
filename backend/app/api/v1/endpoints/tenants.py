@@ -62,7 +62,7 @@ def _get_current_tenant_or_404(db: Session, current_user: Users) -> Tenant:
     "/me/locale",
     response_model=TenantLocaleResponse,
     summary="Get this tenant's locale/currency config",
-    dependencies=[Depends(require_resource_permission("me", "view"))]
+    dependencies=[Depends(require_resource_permission("configuration", "view"))]
 )
 def get_tenant_locale(
     db: Session = Depends(get_db),
@@ -75,7 +75,7 @@ def get_tenant_locale(
     "/me/locale",
     response_model=TenantLocaleResponse,
     summary="Update this tenant's locale/currency config",
-    dependencies=[Depends(require_resource_permission("me", "update"))]
+    dependencies=[Depends(require_resource_permission("configuration", "update"))]
 )
 def update_tenant_locale_endpoint(
     body: UpdateTenantLocaleRequest,

@@ -267,7 +267,7 @@ def get_candidate_portal_link(
     from app.services.candidate_portal_service import generate_portal_link_url
 
     _get_candidate_or_404(candidate_id, db)
-    return {"candidate_id": candidate_id, "portal_url": generate_portal_link_url(candidate_id)}
+    return {"candidate_id": candidate_id, "portal_url": generate_portal_link_url(db, candidate_id)}
 
 # ===========================================================================
 # GET /ai-agent/memory/{candidate_id}

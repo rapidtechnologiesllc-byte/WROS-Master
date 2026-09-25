@@ -128,7 +128,7 @@ export default function BulkLaunchScreen() {
 
     importPollRef.current = setInterval(async () => {
       try {
-        const response = await fetch(`http://localhost:8081/candidates/bulk-import/${jobId}/progress`);
+        const response = await fetch(`http://localhost:8080/candidates/bulk-import/${jobId}/progress`);
         if (response.ok) {
           const progress = await response.json();
           setImportProgress(progress);

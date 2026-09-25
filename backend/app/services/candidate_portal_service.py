@@ -67,15 +67,17 @@ STAGE_BADGE = {
 }
 DEFAULT_STAGE_BADGE = {"label": "In Progress", "color": "blue"}
 
-def generate_portal_link_token(candidate_id: str) -> str:
+def generate_portal_link_token(db: Session, candidate_id: str) -> str:
     """The 'magic link' itself -- a real, long-lived candidate JWT."""
+    candidate = db.query(Candidate).filter(Candidate.candidateID == candidate_id).first()
+    tenant_id = candidate.tenant_id if candidate else None
     return create_access_token(
-        data={"sub": candidate_id, "type": "candidate"},
+        data={"sub": candidate_id, "type": "candidate", "tenant_id": tenant_id},
         expires_delta=timedelta(days=PORTAL_LINK_EXPIRY_DAYS),
     )
 
-def generate_portal_link_url(candidate_id: str) -> str:
-    token = generate_portal_link_token(candidate_id)
+def generate_portal_link_url(db: Session, candidate_id: str) -> str:
+    token = generate_portal_link_token(db, candidate_id)
     return f"{Settings.FRONTEND_BASE_URL.rstrip('/')}/candidate/{token}"
 
 def _active_conversation(db: Session, candidate_id: str) -> Optional[CandidateConversation]:

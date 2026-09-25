@@ -32,7 +32,7 @@ router = APIRouter(prefix="/onboarding", tags=["onboarding-orchestrator"])
 @router.post(
     "/workflows/hire-complete",
     dependencies=[
-        Depends(require_resource_permission("orchestrator", "create")),
+        Depends(require_resource_permission("onboarding", "create")),
         Depends(get_current_internal_user),
     ],
     summary="Complete hiring pipeline: candidate → job → interview → offer → hire"
@@ -105,7 +105,7 @@ def hire_complete_workflow(
 @router.post(
     "/workflows/rehire",
     dependencies=[
-        Depends(require_resource_permission("orchestrator", "create")),
+        Depends(require_resource_permission("onboarding", "create")),
         Depends(get_current_internal_user),
     ],
     summary="Rehire workflow: employee → candidate → hire"
@@ -158,7 +158,7 @@ def rehire_workflow(
 @router.get(
     "/workflows/pipeline-status",
     dependencies=[
-        Depends(require_resource_permission("orchestrator", "view")),
+        Depends(require_resource_permission("onboarding", "view")),
         Depends(get_current_internal_user),
     ],
     summary="Get status of all hiring pipeline stages"

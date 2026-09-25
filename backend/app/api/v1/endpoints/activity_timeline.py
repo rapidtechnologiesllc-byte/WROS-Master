@@ -36,7 +36,7 @@ router = APIRouter(tags=["activity-timeline"])
 @router.get(
     "/activity-timeline/{entity_type}/{entity_id}",
     response_model=TimelineResponse,
-    dependencies=[Depends(require_resource_permission("activity-timeline", "view"))]
+    dependencies=[Depends(require_resource_permission("activity-feed", "view"))]
 )
 async def get_timeline(
     entity_type: str, entity_id: str, page: int = 1, per_page: int = 25,
@@ -50,7 +50,7 @@ async def get_timeline(
 @router.post(
     "/activity-timeline/{entity_type}/{entity_id}",
     response_model=TimelineResponse,
-    dependencies=[Depends(require_resource_permission("activity-timeline", "create"))]
+    dependencies=[Depends(require_resource_permission("activity-feed", "create"))]
 )
 def post_timeline_entry(
     entity_type: str, entity_id: str, body: WriteTimelineEntryRequest,
@@ -71,7 +71,7 @@ def post_timeline_entry(
 @router.post(
     "/file-uploads/{entity_type}/{entity_id}",
     response_model=FileUploadOut,
-    dependencies=[Depends(require_resource_permission("file-upload", "create"))]
+    dependencies=[Depends(require_resource_permission("documents", "create"))]
 )
 def post_file_upload(
     entity_type: str, entity_id: str,
@@ -104,7 +104,7 @@ def post_file_upload(
 @router.get(
     "/file-uploads/{file_id}/access-url",
     response_model=FileAccessUrlResponse,
-    dependencies=[Depends(require_resource_permission("file-upload", "view"))]
+    dependencies=[Depends(require_resource_permission("documents", "view"))]
 )
 def get_access_url(
     file_id: int,
@@ -121,7 +121,7 @@ def get_access_url(
 @router.get(
     "/file-uploads/{entity_type}/{entity_id}",
     response_model=list[FileUploadOut],
-    dependencies=[Depends(require_resource_permission("file-upload", "view"))]
+    dependencies=[Depends(require_resource_permission("documents", "view"))]
 )
 def get_files_for_entity(
     entity_type: str, entity_id: str,

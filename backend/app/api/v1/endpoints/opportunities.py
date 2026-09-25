@@ -80,7 +80,7 @@ def _scoped_query(db: Session, current_user: Users):
     "",
     response_model=OpportunityItem,
     status_code=201,
-    dependencies=[Depends(require_resource_permission("unknown", "create"))]
+    dependencies=[Depends(require_resource_permission("opportunities", "create"))]
 )
 def create_opportunity_endpoint(
     body: OpportunityCreateRequest,
@@ -106,7 +106,7 @@ def create_opportunity_endpoint(
 @router.get(
     "",
     response_model=OpportunityListResponse,
-    dependencies=[Depends(require_resource_permission("unknown", "view"))]
+    dependencies=[Depends(require_resource_permission("opportunities", "view"))]
 )
 def list_opportunities(
     stage: Optional[str] = None,
@@ -124,7 +124,7 @@ def list_opportunities(
 
 @router.get(
     "/eligible-owners",
-    dependencies=[Depends(require_resource_permission("eligible-owner", "view"))]
+    dependencies=[Depends(require_resource_permission("opportunities", "view"))]
 )
 def list_eligible_owners(
     db: Session = Depends(get_db),
@@ -150,7 +150,7 @@ def list_eligible_owners(
 @router.get(
     "/pipeline",
     response_model=PipelineResponse,
-    dependencies=[Depends(require_resource_permission("pipeline", "view"))]
+    dependencies=[Depends(require_resource_permission("pipeline-management", "view"))]
 )
 def get_pipeline(
     db: Session = Depends(get_db),

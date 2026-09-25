@@ -34,7 +34,7 @@ hm_service = HiringManagerValidationService()
 @router.post(
     "/jobs/{job_id}/create-questions",
     response_model=dict,
-    dependencies=[Depends(require_resource_permission("job", "create"))]
+    dependencies=[Depends(require_resource_permission("jobs", "create"))]
 )
 async def create_validation_questions_endpoint(
     job_id: str,
@@ -76,7 +76,7 @@ async def create_validation_questions_endpoint(
 @router.post(
     "/send-to-hiring-manager",
     response_model=SendValidationToHMResponse,
-    dependencies=[Depends(require_resource_permission("send-to-hiring-manager", "create"))]
+    dependencies=[Depends(require_resource_permission("jobs", "create"))]
 )
 async def send_to_hiring_manager(
     req: SendValidationToHMRequest,
@@ -115,7 +115,7 @@ async def send_to_hiring_manager(
 @router.post(
     "/record-response",
     response_model=dict,
-    dependencies=[Depends(require_resource_permission("record-response", "create"))]
+    dependencies=[Depends(require_resource_permission("jobs", "create"))]
 )
 async def record_hm_response_endpoint(
     validation_id: str,
@@ -157,7 +157,7 @@ async def record_hm_response_endpoint(
 @router.get(
     "",
     response_model=List[HMValidationListResponse],
-    dependencies=[Depends(require_resource_permission("unknown", "view"))]
+    dependencies=[Depends(require_resource_permission("jobs", "view"))]
 )
 async def list_validations(
     status: Optional[str] = Query(None),
@@ -206,7 +206,7 @@ async def list_validations(
 @router.get(
     "/{validation_id}",
     response_model=HMValidationDetailResponse,
-    dependencies=[Depends(require_resource_permission("hiring_manager_validation", "view"))]
+    dependencies=[Depends(require_resource_permission("jobs", "view"))]
 )
 async def get_validation(validation_id: str, db=None):
     """
@@ -258,7 +258,7 @@ async def get_validation(validation_id: str, db=None):
 @router.post(
     "/{validation_id}/respond",
     response_model=HMValidationDecisionResponse,
-    dependencies=[Depends(require_resource_permission("hiring_manager_validation", "create"))]
+    dependencies=[Depends(require_resource_permission("jobs", "create"))]
 )
 async def submit_validation_response(
     validation_id: str,
@@ -358,7 +358,7 @@ async def submit_validation_response(
 
 @router.put(
     "/{validation_id}/remind",
-    dependencies=[Depends(require_resource_permission("hiring_manager_validation", "update"))]
+    dependencies=[Depends(require_resource_permission("jobs", "update"))]
 )
 async def send_reminder(validation_id: str, db=None):
     """
@@ -405,7 +405,7 @@ async def send_reminder(validation_id: str, db=None):
 
 @router.get(
     "/{validation_id}/audit-trail",
-    dependencies=[Depends(require_resource_permission("hiring_manager_validation", "view"))]
+    dependencies=[Depends(require_resource_permission("jobs", "view"))]
 )
 async def get_audit_trail(validation_id: str, db=None):
     """
@@ -430,7 +430,7 @@ async def get_audit_trail(validation_id: str, db=None):
 @router.post(
     "/jobs/{job_id}/validation-template",
     response_model=dict,
-    dependencies=[Depends(require_resource_permission("job", "create"))]
+    dependencies=[Depends(require_resource_permission("jobs", "create"))]
 )
 async def create_validation_template(
     job_id: str,
@@ -467,7 +467,7 @@ async def create_validation_template(
 @router.get(
     "/jobs/{job_id}/validation-template",
     response_model=dict,
-    dependencies=[Depends(require_resource_permission("job", "view"))]
+    dependencies=[Depends(require_resource_permission("jobs", "view"))]
 )
 async def get_validation_template(job_id: str, db=None):
     """

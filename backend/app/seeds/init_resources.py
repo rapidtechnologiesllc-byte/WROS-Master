@@ -34,9 +34,11 @@ RESOURCE_ROUTES = {
 
     # Admin
     "users-access-control": "admin/users-access-control",
+    "role-templates": "admin/users-access-control",
     "roles-permissions": "admin/roles-permissions",
     "admin-settings": "admin/admin-settings",
-    "business-units": "admin/business-units",
+    "business-units": "admin/users-access-control/business-units",
+    "delivery-centers": "admin/users-access-control/delivery-centers",
     "certifications": "admin/certifications",
     "error-logs": "admin/error-log",
     "message-queue": "admin/messagequeue",

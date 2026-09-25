@@ -113,6 +113,12 @@ def get_user_navigation(db: Session = Depends(get_db), current_user = Depends(ge
             logger.error(f"Failed to load user permissions: {e}")
             all_permissions = {}
 
+        try:
+            is_super = RoleTemplatePermissionService.is_super_user(db, user_id, tenant_id)
+        except Exception as e:
+            logger.error(f"Failed to check super-user status: {e}")
+            is_super = False
+
         # Build navigation from init_resources
         import sys
         for module_name, resource_names in MODULES_AND_RESOURCES.items():
@@ -124,10 +130,13 @@ def get_user_navigation(db: Session = Depends(get_db), current_user = Depends(ge
                 if is_super:
                     can_view = True
                 else:
-                    # Regular user: Check from cached permissions (already loaded once above)
-                    # Convert hyphens to underscores for permission lookup (resource names may differ in format)
-                    normalized_resource = resource_name.replace("-", "_")
-                    can_view = all_permissions.get(normalized_resource, {}).get("can_view", False)
+                    # Regular user: Check from cached permissions (already loaded once
+                    # above). all_permissions is keyed by the resource's real name
+                    # (hyphenated, matching Resource.name / RESOURCE_ROUTES) -- do not
+                    # normalize hyphens to underscores here, that key never exists in
+                    # the permissions dict and silently hides every hyphenated
+                    # resource (most of them) from navigation for non-super-users.
+                    can_view = all_permissions.get(resource_name, {}).get("can_view", False)
 
                 if can_view:
                     route = RESOURCE_ROUTES.get(resource_name) or f"/{resource_name}"

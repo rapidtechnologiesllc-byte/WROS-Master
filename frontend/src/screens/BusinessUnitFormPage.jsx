@@ -9,8 +9,8 @@ import { toast } from 'react-toastify';
 import { hasPermission } from '../utils/permissionsRoleTemplate';
 
 export default function BusinessUnitFormPage() {
-  // Permission Gate: Only users with business_units.edit can create/edit business units
-  if (!hasPermission('business_units', 'edit')) {
+  // Permission Gate: Only users with business-units.edit can create/edit business units
+  if (!hasPermission('business-units', 'edit')) {
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
         <div className="bg-white rounded-lg p-6 max-w-md">

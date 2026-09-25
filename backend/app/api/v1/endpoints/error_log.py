@@ -27,7 +27,7 @@ router = APIRouter(prefix="/error-log", tags=["error-log"])
 @router.get(
     "/list",
     dependencies=[
-        Depends(require_resource_permission("log", "view")),
+        Depends(require_resource_permission("error-logs", "view")),
         Depends(get_current_internal_user),
     ],
     response_model=ErrorLogListResponse,

@@ -428,7 +428,7 @@ async def extract_personal_intelligence(
 
 @router.get(
     "/personalization/{candidate_id}",
-    dependencies=[Depends(require_resource_permission("personalization", "view"))]
+    dependencies=[Depends(require_resource_permission("agents", "view"))]
 )
 async def get_personalization_strategy(
     candidate_id: str,
@@ -478,7 +478,7 @@ async def get_personalization_strategy(
 
 @router.post(
     "/customize-offer/{candidate_id}",
-    dependencies=[Depends(require_resource_permission("customize-offer", "create"))]
+    dependencies=[Depends(require_resource_permission("offers", "create"))]
 )
 async def customize_offer(
     candidate_id: str,
@@ -522,7 +522,7 @@ async def customize_offer(
 
 @router.post(
     "/interactions/joining/{candidate_id}",
-    dependencies=[Depends(require_resource_permission("interaction", "create"))]
+    dependencies=[Depends(require_resource_permission("agents", "create"))]
 )
 async def capture_joining_signals(
     candidate_id: str,

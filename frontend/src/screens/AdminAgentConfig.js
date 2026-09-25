@@ -4,7 +4,7 @@ import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
 
 
 const AdminAgentConfig = () => {
-  const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8081';
+  const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8080';
 
   // State
   const [agents, setAgents] = useState([]);

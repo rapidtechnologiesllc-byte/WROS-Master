@@ -203,32 +203,15 @@ class AuthenticationMiddleware(BaseHTTPMiddleware):
         
         # Extract token
         token = auth_header.split(" ")[1]
-        
+
+        # Decode and validate the token ONLY. This try/except must not wrap
+        # call_next() below -- an unhandled exception from deep inside an
+        # endpoint (e.g. a database error) would otherwise be caught here
+        # and misreported to the client as "Invalid or expired token" (401),
+        # masking the real error and forcing the frontend into a bogus
+        # session-expired redirect to login.
         try:
-            # Decode and validate token
             payload = decode_access_token(token)
-
-            # Attach auth info to request state (no DB queries in middleware)
-            request.state.user_id = payload.get("sub")
-            request.state.user_email = payload.get("email")
-            request.state.user_type = payload.get("type")
-            request.state.user_name = payload.get("name")
-
-            # Log successful authentication
-            logger.debug(
-                f"Authenticated request | User: {request.state.user_email} | "
-                f"Type: {request.state.user_type} | Path: {path}"
-            )
-            
-            # Process request
-            response = await call_next(request)
-            
-            # Log response time (convert seconds to milliseconds)
-            process_time = (time.time() - start_time) * self.MS_PER_SECOND
-            response.headers["X-Process-Time"] = f"{process_time:.2f}ms"
-            
-            return response
-            
         except HTTPException as e:
             # decode_access_token raised HTTPException (401 Unauthorized, etc.)
             # Convert to JSONResponse for proper Starlette middleware handling
@@ -248,6 +231,30 @@ class AuthenticationMiddleware(BaseHTTPMiddleware):
                 status_code=401,
                 content={"detail": "Invalid or expired token"}
             )
+
+        # Attach auth info to request state (no DB queries in middleware)
+        request.state.user_id = payload.get("sub")
+        request.state.user_email = payload.get("email")
+        request.state.user_type = payload.get("type")
+        request.state.user_name = payload.get("name")
+
+        # Log successful authentication
+        logger.debug(
+            f"Authenticated request | User: {request.state.user_email} | "
+            f"Type: {request.state.user_type} | Path: {path}"
+        )
+
+        # Process request -- deliberately outside the auth try/except above,
+        # so an exception here propagates to Starlette's normal error
+        # handling (or the endpoint's own handling) instead of being
+        # reported as an auth failure.
+        response = await call_next(request)
+
+        # Log response time (convert seconds to milliseconds)
+        process_time = (time.time() - start_time) * self.MS_PER_SECOND
+        response.headers["X-Process-Time"] = f"{process_time:.2f}ms"
+
+        return response
 
     def _is_public_route(self, path: str) -> bool:
         """

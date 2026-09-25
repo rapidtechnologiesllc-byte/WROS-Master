@@ -68,7 +68,7 @@ def _get_candidate_or_404(candidate_id: str, db: Session) -> Candidate:
     "/{candidate_id}",
     response_model=CandidateHistoryCreateResponse,
     status_code=201,
-    dependencies=[Depends(require_resource_permission("history", "create"))],
+    dependencies=[Depends(require_resource_permission("candidates", "create"))],
     summary="Log a new timeline event for a candidate",
 )
 def create_candidate_history(

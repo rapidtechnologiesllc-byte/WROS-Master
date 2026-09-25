@@ -120,7 +120,7 @@ def _get_recommendation_or_404(db: Session, recommendation_id: str) -> BenchAllo
 @router.post(
     "/scan",
     dependencies=[
-        Depends(require_resource_permission("management", "create")),
+        Depends(require_resource_permission("resources", "create")),
         Depends(get_current_internal_user),
     ],
     response_model=ScanTriggerResponse,
@@ -137,7 +137,7 @@ def trigger_scan(
 @router.get(
     "/recommendations",
     dependencies=[
-        Depends(require_resource_permission("management", "view")),
+        Depends(require_resource_permission("resources", "view")),
         Depends(get_current_internal_user),
     ],
     response_model=RecommendationQueueResponse,
@@ -153,7 +153,7 @@ def get_queue(
 @router.get(
     "/recommendations/{recommendation_id}/pursue",
     dependencies=[
-        Depends(require_resource_permission("management", "create")),
+        Depends(require_resource_permission("resources", "create")),
         Depends(get_current_internal_user),
     ],
     
@@ -179,7 +179,7 @@ def pursue_recommendation(
 @router.get(
     "/recommendations/{recommendation_id}/approve",
     dependencies=[
-        Depends(require_resource_permission("management", "create")),
+        Depends(require_resource_permission("resources", "create")),
         Depends(get_current_internal_user),
     ],
     response_model=ApproveRecommendationResponse,
@@ -208,7 +208,7 @@ def approve_recommendation(
 @router.get(
     "/recommendations/{recommendation_id}/reject",
     dependencies=[
-        Depends(require_resource_permission("management", "create")),
+        Depends(require_resource_permission("resources", "create")),
         Depends(get_current_internal_user),
     ],
     response_model=RecommendationActionResponse,
@@ -233,7 +233,7 @@ def reject_recommendation(
 @router.get(
     "/employees/{employee_id}/actively-engaged",
     dependencies=[
-        Depends(require_resource_permission("management", "view")),
+        Depends(require_resource_permission("resources", "view")),
         Depends(get_current_internal_user),
     ],
     response_model=dict,
@@ -249,7 +249,7 @@ def check_actively_engaged(
 @router.get(
     "/demands/{demand_id}/matching-bench-resources",
     dependencies=[
-        Depends(require_resource_permission("management", "view")),
+        Depends(require_resource_permission("resources", "view")),
         Depends(get_current_internal_user),
     ],
     response_model=list,

@@ -60,7 +60,7 @@ def _to_item(m: EmployeeMilestone) -> EmployeeMilestoneItem:
     "",
     response_model=EmployeeMilestoneItem,
     summary="Create a milestone (PERSONAL/PROJECT/ORG)",
-    dependencies=[Depends(require_resource_permission("employee_milestones", "create"))]
+    dependencies=[Depends(require_resource_permission("employees", "create"))]
 )
 def create_milestone_endpoint(
     body: CreateEmployeeMilestoneRequest,
@@ -82,7 +82,7 @@ def create_milestone_endpoint(
 @router.get(
     "/employee/{employee_id}",
     dependencies=[
-        Depends(require_resource_permission("milestone", "view")),
+        Depends(require_resource_permission("employees", "view")),
         Depends(get_current_internal_user),
     ],
     response_model=EmployeeMilestoneListResponse,
@@ -99,7 +99,7 @@ def list_employee_milestones(
 @router.post(
     "/{milestone_id}/complete",
     dependencies=[
-        Depends(require_resource_permission("milestone", "create")),
+        Depends(require_resource_permission("employees", "create")),
         Depends(get_current_internal_user),
     ],
     response_model=EmployeeMilestoneItem,
@@ -125,7 +125,7 @@ def complete_milestone_endpoint(
 @router.post(
     "/scan-overdue",
     dependencies=[
-        Depends(require_resource_permission("milestone", "create")),
+        Depends(require_resource_permission("employees", "create")),
         Depends(get_current_internal_user),
     ],
     response_model=ScanOverdueMilestonesResponse,

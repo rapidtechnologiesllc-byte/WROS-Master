@@ -3,8 +3,8 @@ import { apiRequest } from '../services/api/client';
 import { hasPermission } from '../utils/permissionsRoleTemplate';
 
 const DeliveryCenterModal = ({ isOpen, onClose, onSuccess, mode = 'create', dc = null }) => {
-  // Permission Gate: Only users with delivery_center.manage can create/edit delivery centers
-  if (isOpen && !hasPermission('delivery_center', 'manage')) {
+  // Permission Gate: Only users with delivery-centers.manage can create/edit delivery centers
+  if (isOpen && !hasPermission('delivery-centers', 'manage')) {
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
         <div className="bg-white rounded-lg p-6 max-w-md">

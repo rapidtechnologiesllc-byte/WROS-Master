@@ -2,7 +2,7 @@ import { Award, Trophy, Zap } from "lucide-react";
 import { useState, useEffect } from "react";
 import axios from "axios";
 
-const API_BASE = process.env.REACT_APP_API_URL || "http://localhost:8081";
+const API_BASE = process.env.REACT_APP_API_URL || "http://localhost:8080";
 
 export default function WeeklyPerformersWidget() {
   const [performers, setPerformers] = useState([]);

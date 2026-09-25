@@ -51,7 +51,7 @@ router = APIRouter(tags=["cost-rate"])
     "/cost-rate-configs",
     response_model=CostRateConfigResponse,
     status_code=201,
-    dependencies=[Depends(require_resource_permission("cost-rate-config", "create"))]
+    dependencies=[Depends(require_resource_permission("revenue", "create"))]
 )
 def create_cost_rate_config(
     body: SetCostRateConfigRequest,
@@ -70,7 +70,7 @@ def create_cost_rate_config(
 @router.get(
     "/employees/{employee_id}/fully-loaded-cost",
     response_model=FullyLoadedCostResponse,
-    dependencies=[Depends(require_resource_permission("employee", "view"))]
+    dependencies=[Depends(require_resource_permission("employees", "view"))]
 )
 def fully_loaded_cost(
     employee_id: str, business_unit_id: Optional[int] = None,
@@ -92,7 +92,7 @@ def fully_loaded_cost(
 @router.get(
     "/blended-delivery-rate/bu/{business_unit_id}",
     response_model=BlendedDeliveryRateResponse,
-    dependencies=[Depends(require_resource_permission("blended-delivery-rate", "view"))]
+    dependencies=[Depends(require_resource_permission("revenue", "view"))]
 )
 def blended_delivery_rate(
     business_unit_id: int, year: int, month: int,
@@ -108,7 +108,7 @@ def blended_delivery_rate(
 @router.get(
     "/pnl/bu/{business_unit_id}",
     response_model=BuPnlResponse,
-    dependencies=[Depends(require_resource_permission("pnl", "view"))]
+    dependencies=[Depends(require_resource_permission("revenue", "view"))]
 )
 def bu_pnl(
     business_unit_id: int, year: int, month: int,
@@ -121,7 +121,7 @@ def bu_pnl(
     "/pnl/org-summary",
     response_model=OrgPnlSummaryResponse,
     summary="EPIC-16 Executive Dashboard: org-wide P&L rollup across all Business Units",
-    dependencies=[Depends(require_resource_permission("pnl", "view"))]
+    dependencies=[Depends(require_resource_permission("revenue", "view"))]
 )
 def org_pnl_summary(
     year: int, month: int,
@@ -134,7 +134,7 @@ def org_pnl_summary(
     "/reserve-fund/entries",
     response_model=ReserveFundEntryResponse,
     status_code=201,
-    dependencies=[Depends(require_resource_permission("reserve-fund", "create"))]
+    dependencies=[Depends(require_resource_permission("revenue", "create"))]
 )
 def create_reserve_fund_entry(
     body: RecordReserveFundEntryRequest,
@@ -154,7 +154,7 @@ def create_reserve_fund_entry(
 @router.get(
     "/reserve-fund/bu/{business_unit_id}/status",
     response_model=ReserveFundStatusResponse,
-    dependencies=[Depends(require_resource_permission("reserve-fund", "view"))]
+    dependencies=[Depends(require_resource_permission("revenue", "view"))]
 )
 def reserve_fund_status(
     business_unit_id: int, year: int, month: int,
@@ -166,7 +166,7 @@ def reserve_fund_status(
 @router.get(
     "/hiring-affordability/bu/{business_unit_id}",
     response_model=HiringAffordabilityResponse,
-    dependencies=[Depends(require_resource_permission("hiring-affordability", "view"))]
+    dependencies=[Depends(require_resource_permission("revenue", "view"))]
 )
 def hiring_affordability(
     business_unit_id: int, proposed_annual_salary_usd_cents: int, year: int, month: int,
@@ -182,7 +182,7 @@ def hiring_affordability(
     "/intercompany-settlements",
     response_model=IntercompanySettlementResponse,
     status_code=201,
-    dependencies=[Depends(require_resource_permission("intercompany-settlement", "create"))]
+    dependencies=[Depends(require_resource_permission("revenue", "create"))]
 )
 def create_intercompany_settlement(
     body: RecordIntercompanySettlementRequest,
@@ -201,7 +201,7 @@ def create_intercompany_settlement(
 @router.get(
     "/intercompany-settlements",
     response_model=list[IntercompanySettlementResponse],
-    dependencies=[Depends(require_resource_permission("intercompany-settlement", "view"))]
+    dependencies=[Depends(require_resource_permission("revenue", "view"))]
 )
 def list_intercompany_settlements(
     db: Session = Depends(get_db),
@@ -212,7 +212,7 @@ def list_intercompany_settlements(
 @router.get(
     "/intercompany-settlements/entity/{entity}/net-position",
     response_model=EntityNetPositionResponse,
-    dependencies=[Depends(require_resource_permission("intercompany-settlement", "view"))]
+    dependencies=[Depends(require_resource_permission("revenue", "view"))]
 )
 def entity_net_position(
     entity: str,
@@ -227,7 +227,7 @@ def entity_net_position(
     "/bank-transactions",
     response_model=BankTransactionResponse,
     status_code=201,
-    dependencies=[Depends(require_resource_permission("bank-transaction", "create"))]
+    dependencies=[Depends(require_resource_permission("revenue", "create"))]
 )
 def create_bank_transaction(
     body: RecordBankTransactionRequest,
@@ -245,7 +245,7 @@ def create_bank_transaction(
 @router.post(
     "/bank-transactions/{transaction_id}/match",
     response_model=BankTransactionResponse,
-    dependencies=[Depends(require_resource_permission("bank-transaction", "create"))]
+    dependencies=[Depends(require_resource_permission("revenue", "create"))]
 )
 def match_bank_transaction(
     transaction_id: int, body: MatchTransactionRequest,
@@ -268,7 +268,7 @@ def match_bank_transaction(
 @router.get(
     "/bank-transactions/unreconciled",
     response_model=list[BankTransactionResponse],
-    dependencies=[Depends(require_resource_permission("bank-transaction", "view"))]
+    dependencies=[Depends(require_resource_permission("revenue", "view"))]
 )
 def unreconciled_bank_transactions(
     db: Session = Depends(get_db),
@@ -279,7 +279,7 @@ def unreconciled_bank_transactions(
 @router.get(
     "/invoices/unmatched-paid",
     response_model=list[UnmatchedPaidInvoiceResponse],
-    dependencies=[Depends(require_resource_permission("invoice", "view"))]
+    dependencies=[Depends(require_resource_permission("invoices", "view"))]
 )
 def unmatched_paid_invoices(
     db: Session = Depends(get_db),

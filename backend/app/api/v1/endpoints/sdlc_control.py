@@ -38,7 +38,7 @@ def _check_development_environment():
 
 @router.post(
     "/run-cycle",
-    dependencies=[Depends(require_resource_permission("system", "manage"))],
+    dependencies=[Depends(require_resource_permission("system-health", "manage"))],
 )
 def trigger_sdlc_cycle(db: Session = Depends(get_db)):
     """
@@ -87,7 +87,7 @@ def trigger_sdlc_cycle(db: Session = Depends(get_db)):
 
 @router.get(
     "/status",
-    dependencies=[Depends(require_resource_permission("system", "view"))],
+    dependencies=[Depends(require_resource_permission("system-health", "view"))],
 )
 def get_sdlc_status(db: Session = Depends(get_db)):
     """
@@ -143,7 +143,7 @@ def get_sdlc_status(db: Session = Depends(get_db)):
 
 @router.post(
     "/audit",
-    dependencies=[Depends(require_resource_permission("system", "view"))],
+    dependencies=[Depends(require_resource_permission("system-health", "view"))],
 )
 def run_audit_only(db: Session = Depends(get_db)):
     """
@@ -182,7 +182,7 @@ def run_audit_only(db: Session = Depends(get_db)):
 
 @router.post(
     "/test",
-    dependencies=[Depends(require_resource_permission("system", "view"))],
+    dependencies=[Depends(require_resource_permission("system-health", "view"))],
 )
 def run_tests_only(db: Session = Depends(get_db)):
     """

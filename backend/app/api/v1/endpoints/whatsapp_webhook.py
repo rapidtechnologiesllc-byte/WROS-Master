@@ -38,7 +38,7 @@ router = APIRouter(prefix="/webhooks", tags=["whatsapp-webhook"])
 @router.post(
     "/whatsapp",
     dependencies=[
-        Depends(require_resource_permission("webhook", "view")),
+        Depends(require_resource_permission("webhooks", "view")),
         Depends(get_current_internal_user),
     ],
     summary="Meta WhatsApp Cloud API webhook verification handshake",
@@ -76,7 +76,7 @@ def _process_webhook_payload(payload: dict) -> None:
 @router.post(
     "/whatsapp",
     dependencies=[
-        Depends(require_resource_permission("webhook", "create")),
+        Depends(require_resource_permission("webhooks", "create")),
         Depends(get_current_internal_user),
     ],
     status_code=200,

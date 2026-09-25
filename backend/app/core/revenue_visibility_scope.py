@@ -37,7 +37,7 @@ REVENUE_BU_SCOPED_ROLES = {"Partner", "BU Head"}
 def get_user_role_name(db: Session, user: Users) -> Optional[str]:
     # Get user's primary role from role_template
     if hasattr(user, 'role_template') and user.role_template:
-        return user.role_template.RoleName
+        return user.role_template.name
     return None
 
 def is_revenue_bu_scoped(db: Session, user: Users) -> bool:

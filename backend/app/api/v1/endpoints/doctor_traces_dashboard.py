@@ -17,7 +17,7 @@ router = APIRouter(prefix="/admin/doctor", tags=["doctor-dashboard"])
 
 @router.get(
     "/traces",
-    dependencies=[Depends(require_resource_permission("trace", "view"))]
+    dependencies=[Depends(require_resource_permission("system-health", "view"))]
 )
 def get_doctor_traces(
     db: Session = Depends(get_db),
@@ -96,7 +96,7 @@ def get_doctor_traces(
 
 @router.get(
     "/traces/by-status/{status}",
-    dependencies=[Depends(require_resource_permission("trace", "view"))]
+    dependencies=[Depends(require_resource_permission("system-health", "view"))]
 )
 def get_doctor_traces_by_status(
     status: str,
@@ -162,7 +162,7 @@ def get_doctor_traces_by_status(
 
 @router.post(
     "/traces/{trace_id}/assign",
-    dependencies=[Depends(require_resource_permission("trace", "create"))]
+    dependencies=[Depends(require_resource_permission("system-health", "create"))]
 )
 def assign_escalation(
     trace_id: str,

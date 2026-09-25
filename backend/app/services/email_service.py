@@ -1181,7 +1181,7 @@ class EmailService:
     # ------------------------------------------------------------------
 
     # Colour & icon map for each event type
-            _EVENT_STYLES: Dict[str, Dict[str, str]] = {
+    _EVENT_STYLES: Dict[str, Dict[str, str]] = {
         "document_uploaded": {
             "colour": "#1a56db",
             "badge_bg": "#dbeafe",

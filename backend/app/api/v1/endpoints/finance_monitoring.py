@@ -138,7 +138,7 @@ async def get_finance_dashboard(
 
 @router.get(
     "/partner/{partner_id}/consolidation",
-    dependencies=[Depends(require_resource_permission("partner", "view"))]
+    dependencies=[Depends(require_resource_permission("forecasts", "view"))]
 )
 async def get_partner_consolidated_pl(
     partner_id: str,
@@ -165,7 +165,7 @@ async def get_partner_consolidated_pl(
 
 @router.get(
     "/bu/{bu_id}/metrics",
-    dependencies=[Depends(require_resource_permission("bu", "view"))]
+    dependencies=[Depends(require_resource_permission("forecasts", "view"))]
 )
 async def get_bu_pl(
     bu_id: str,
@@ -194,7 +194,7 @@ async def get_bu_pl(
 
 @router.get(
     "/forecast/{partner_id}",
-    dependencies=[Depends(require_resource_permission("forecast", "view"))]
+    dependencies=[Depends(require_resource_permission("forecasts", "view"))]
 )
 async def forecast_partner_margin(
     partner_id: str,
@@ -218,7 +218,7 @@ async def forecast_partner_margin(
 
 @router.get(
     "/anomalies/{partner_id}",
-    dependencies=[Depends(require_resource_permission("anomalie", "view"))]
+    dependencies=[Depends(require_resource_permission("forecasts", "view"))]
 )
 async def detect_cost_anomalies(
     partner_id: str,
@@ -250,7 +250,7 @@ async def detect_cost_anomalies(
 
 @router.get(
     "/health-check",
-    dependencies=[Depends(require_resource_permission("health-check", "view"))]
+    dependencies=[Depends(require_resource_permission("forecasts", "view"))]
 )
 async def hourly_profitability_check(
     current_user: Users = Depends(get_current_user),

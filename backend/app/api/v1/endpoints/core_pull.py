@@ -98,7 +98,7 @@ def _get_event_or_404(db: Session, event_id: str) -> CorePullEvent:
 @router.get(
     "/specialty-pool-status",
     dependencies=[
-        Depends(require_resource_permission("pull", "view")),
+        Depends(require_resource_permission("core-pull", "view")),
         Depends(get_current_internal_user),
     ],
     response_model=SpecialtyPoolStatusResponse,
@@ -114,7 +114,7 @@ def get_pool_status(
 @router.get(
     "/events",
     dependencies=[
-        Depends(require_resource_permission("pull", "view")),
+        Depends(require_resource_permission("core-pull", "view")),
         Depends(get_current_internal_user),
     ],
     response_model=CorePullEventQueueResponse,
@@ -138,7 +138,7 @@ def get_pending_events(
 @router.post(
     "/events/{event_id}/execute",
     dependencies=[
-        Depends(require_resource_permission("pull", "create")),
+        Depends(require_resource_permission("core-pull", "create")),
         Depends(get_current_internal_user),
     ],
     response_model=ExecuteCorePullResponse,
@@ -174,7 +174,7 @@ def execute_event(
 @router.post(
     "/events/{event_id}/override",
     dependencies=[
-        Depends(require_resource_permission("pull", "create")),
+        Depends(require_resource_permission("core-pull", "create")),
         Depends(get_current_internal_user),
     ],
     response_model=OverrideCorePullResponse,
@@ -209,7 +209,7 @@ def override_event(
 @router.post(
     "/replacement-plans",
     dependencies=[
-        Depends(require_resource_permission("pull", "create")),
+        Depends(require_resource_permission("core-pull", "create")),
         Depends(get_current_internal_user),
     ],
     response_model=ReplacementPlanResponse,

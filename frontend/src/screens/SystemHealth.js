@@ -17,7 +17,7 @@ const SystemHealth = () => {
       setLoading(true);
       setError(null);
 
-      const response = await fetch('http://localhost:8081/health');
+      const response = await fetch('http://localhost:8080/health');
 
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);

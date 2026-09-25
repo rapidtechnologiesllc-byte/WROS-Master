@@ -3,8 +3,8 @@ import { apiRequest } from '../services/api/client';
 import { hasPermission } from '../utils/permissionsRoleTemplate';
 
 const BusinessUnitModal = ({ isOpen, onClose, onSuccess, mode = 'create', bu = null }) => {
-  // Permission Gate: Only users with business_unit.manage can create/edit business units
-  if (isOpen && !hasPermission('business_unit', 'manage')) {
+  // Permission Gate: Only users with business-units.manage can create/edit business units
+  if (isOpen && !hasPermission('business-units', 'manage')) {
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
         <div className="bg-white rounded-lg p-6 max-w-md">

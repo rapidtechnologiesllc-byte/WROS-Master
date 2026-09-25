@@ -174,7 +174,7 @@ async def upload_resume(
 
     return response
 
-@router.post("/upload/pan", response_model=DocumentUploadResponse, dependencies=[Depends(require_resource_permission("upload", "create"))])
+@router.post("/upload/pan", response_model=DocumentUploadResponse, dependencies=[Depends(require_resource_permission("documents", "create"))])
 async def upload_pan(
     file: UploadFile = File(..., description="PAN card file (PDF, JPG, PNG)"),
     user = Depends(get_current_candidate),
@@ -183,7 +183,7 @@ async def upload_pan(
     """Upload PAN card document to SharePoint with database tracking."""
     return await _upload_document_helper(file, "pan", user, db)
 
-@router.post("/upload/aadhar", response_model=DocumentUploadResponse, dependencies=[Depends(require_resource_permission("upload", "create"))])
+@router.post("/upload/aadhar", response_model=DocumentUploadResponse, dependencies=[Depends(require_resource_permission("documents", "create"))])
 async def upload_aadhar(
     file: UploadFile = File(..., description="Aadhar card file (PDF, JPG, PNG)"),
     user = Depends(get_current_candidate),
@@ -192,7 +192,7 @@ async def upload_aadhar(
     """Upload Aadhar card document to SharePoint with database tracking."""
     return await _upload_document_helper(file, "aadhar", user, db)
 
-@router.post("/upload/education", response_model=DocumentUploadResponse, dependencies=[Depends(require_resource_permission("upload", "create"))])
+@router.post("/upload/education", response_model=DocumentUploadResponse, dependencies=[Depends(require_resource_permission("documents", "create"))])
 async def upload_education_certificate(
     file: UploadFile = File(..., description="Education certificate file (PDF, JPG, PNG)"),
     user = Depends(get_current_candidate),
@@ -201,7 +201,7 @@ async def upload_education_certificate(
     """Upload education certificate to SharePoint with database tracking."""
     return await _upload_document_helper(file, "education", user, db)
 
-@router.post("/upload/experience", response_model=DocumentUploadResponse, dependencies=[Depends(require_resource_permission("upload", "create"))])
+@router.post("/upload/experience", response_model=DocumentUploadResponse, dependencies=[Depends(require_resource_permission("documents", "create"))])
 async def upload_experience_letter(
     file: UploadFile = File(..., description="Experience letter file (PDF, JPG, PNG)"),
     user = Depends(get_current_candidate),
@@ -210,7 +210,7 @@ async def upload_experience_letter(
     """Upload experience letter to SharePoint with database tracking."""
     return await _upload_document_helper(file, "experience", user, db)
 
-@router.post("/upload/salary-slip", response_model=DocumentUploadResponse, dependencies=[Depends(require_resource_permission("upload", "create"))])
+@router.post("/upload/salary-slip", response_model=DocumentUploadResponse, dependencies=[Depends(require_resource_permission("documents", "create"))])
 async def upload_salary_slip(
     file: UploadFile = File(..., description="Salary slip file (PDF, JPG, PNG)"),
     user = Depends(get_current_candidate),
@@ -219,7 +219,7 @@ async def upload_salary_slip(
     """Upload salary slip to SharePoint with database tracking."""
     return await _upload_document_helper(file, "salary_slip", user, db)
 
-@router.post("/upload/bank-statement", response_model=DocumentUploadResponse, dependencies=[Depends(require_resource_permission("upload", "create"))])
+@router.post("/upload/bank-statement", response_model=DocumentUploadResponse, dependencies=[Depends(require_resource_permission("documents", "create"))])
 async def upload_bank_statement(
     file: UploadFile = File(..., description="Bank statement file (PDF, JPG, PNG)"),
     user = Depends(get_current_candidate),
@@ -228,7 +228,7 @@ async def upload_bank_statement(
     """Upload bank statement to SharePoint with database tracking."""
     return await _upload_document_helper(file, "bank_statement", user, db)
 
-@router.post("/upload/uan-pf", response_model=DocumentUploadResponse, dependencies=[Depends(require_resource_permission("upload", "create"))])
+@router.post("/upload/uan-pf", response_model=DocumentUploadResponse, dependencies=[Depends(require_resource_permission("documents", "create"))])
 async def upload_uan_pf(
     file: UploadFile = File(..., description="UAN-PF file (PDF, JPG, PNG)"),
     user = Depends(get_current_candidate),
@@ -244,7 +244,7 @@ async def upload_uan_pf(
 @router.get(
     "/my-documents",
     summary="Get all documents uploaded by the currently authenticated candidate",
-    dependencies=[Depends(require_resource_permission("document", "view"))]
+    dependencies=[Depends(require_resource_permission("documents", "view"))]
 )
 async def get_my_documents(
     current_user=Depends(get_current_candidate),
@@ -447,7 +447,7 @@ async def get_candidate_documents(
 @router.get(
     "/{document_id}",
     summary="Get a single document's metadata by its ID",
-    dependencies=[Depends(require_resource_permission("document", "view"))]
+    dependencies=[Depends(require_resource_permission("documents", "view"))]
 )
 async def get_document_by_id(
     document_id: int,
