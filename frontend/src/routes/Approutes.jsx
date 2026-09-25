@@ -361,7 +361,14 @@ export default function AppRoutes() {
     const refreshUserData = async () => {
       try {
         const { getHrMe } = await import("../services/api/users");
-        const user = await getHrMe();
+
+        // Add 5-second timeout to prevent infinite hang
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error("Permissions loading timeout")), 5000)
+        );
+
+        const user = await Promise.race([getHrMe(), timeoutPromise]);
+
         if (user) {
           // Update localStorage with fresh data from backend
           if (user.user_role) {
