@@ -43,6 +43,7 @@ from app.core.security import create_access_token
 from app.models.candidate import Candidate
 from app.models.user import Users
 from app.services.email_service import EmailService
+from app.services.role_template_permission_service import RoleTemplatePermissionService
 
 router = APIRouter(prefix="/auth/mfa", tags=["mfa"])
 
@@ -135,6 +136,26 @@ def verify_mfa(
     if not user.mfa_enabled or not user.mfa_secret:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="MFA is not enabled for this account")
 
+    # CRITICAL: Check permissions before issuing full token (prevents users with removed permissions from accessing system)
+    user_permissions = []
+    try:
+        user_permissions = RoleTemplatePermissionService.get_user_permissions(
+            db, user.UserID, user.tenant_id if hasattr(user, 'tenant_id') else None
+        )
+    except Exception as e:
+        logger.error(f"[MFA-VERIFY] Failed to fetch permissions: {e}", exc_info=True)
+        user_permissions = []
+
+    if not user_permissions or len(user_permissions) == 0:
+        logger.warning(
+            f"[MFA-VERIFY-REJECT] MFA verification rejected: user {user.UserID} ({user.UserEmail}) has ZERO permissions. "
+            f"Cannot issue full token until permissions are restored."
+        )
+        raise HTTPException(
+            status_code=403,
+            detail="Your permissions have been revoked. Please contact help desk."
+        )
+
     if body.code and verify_totp_code(user.mfa_secret, body.code):
         return _issue_full_token(user)
 
@@ -206,6 +227,26 @@ def verify_email_otp(
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Verification code has expired. Request a new one.")
     if not verify_email_otp_code(body.code, user.email_otp_code_hash):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid code")
+
+    # CRITICAL: Check permissions before issuing full token (prevents users with removed permissions from accessing system)
+    user_permissions = []
+    try:
+        user_permissions = RoleTemplatePermissionService.get_user_permissions(
+            db, user.UserID, user.tenant_id if hasattr(user, 'tenant_id') else None
+        )
+    except Exception as e:
+        logger.error(f"[EMAIL-OTP-VERIFY] Failed to fetch permissions: {e}", exc_info=True)
+        user_permissions = []
+
+    if not user_permissions or len(user_permissions) == 0:
+        logger.warning(
+            f"[EMAIL-OTP-VERIFY-REJECT] Email OTP verification rejected: user {user.UserID} ({user.UserEmail}) has ZERO permissions. "
+            f"Cannot issue full token until permissions are restored."
+        )
+        raise HTTPException(
+            status_code=403,
+            detail="Your permissions have been revoked. Please contact help desk."
+        )
 
     # Single-use: clear it the moment it's consumed, whether or not the
     # user has any other MFA factor -- same "never a reusable stored
