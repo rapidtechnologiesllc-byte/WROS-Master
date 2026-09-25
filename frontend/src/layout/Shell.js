@@ -453,13 +453,13 @@ export default function Shell({
             </div>
 
             <nav className="space-y-1">
-              {nav.standalone.map((n, idx) => (
+              {nav.standalone && nav.standalone.length > 0 && nav.standalone.map((n, idx) => (
                 <div key={`standalone-${n.key || n.label || idx}`}>
                   {renderLink(n)}
                 </div>
               ))}
 
-              {nav.groups.map((group) => {
+              {nav.groups && nav.groups.length > 0 && nav.groups.map((group) => {
                 // Backend returns icon as string name (e.g., "Users2"), convert to component
                 const GroupIcon = ICON_COMPONENTS_BY_NAME[group.icon] || LayoutDashboard;
                 const isOpen = openGroups.has(group.label);
@@ -521,6 +521,21 @@ export default function Shell({
                   </div>
                 );
               })}
+
+              {(!nav.standalone || nav.standalone.length === 0) && (!nav.groups || nav.groups.length === 0) && (
+                <div className="rounded-lg bg-yellow-50/10 border border-yellow-200/30 p-3 mt-4">
+                  <div className="text-xs font-semibold text-yellow-200 mb-2">No Access</div>
+                  <p className="text-xs text-white/70 leading-relaxed">
+                    You don't have permission to access any modules yet. Contact your administrator to assign roles or permissions.
+                  </p>
+                  <button
+                    onClick={onLogout}
+                    className="mt-3 text-xs px-2 py-1 bg-yellow-600/30 hover:bg-yellow-600/50 text-yellow-100 rounded border border-yellow-200/30 transition"
+                  >
+                    Logout & Try Again
+                  </button>
+                </div>
+              )}
             </nav>
           </div>
         </aside>
