@@ -1,0 +1,65 @@
+TIER 3: CRITICAL ENDPOINTS NEEDING PERMISSION PROTECTION
+
+JOBS ENDPOINTS (jobs.edit permission):
+- POST /jobs (create job)
+- PUT /jobs/{job_id} (edit job)
+- DELETE /jobs/{job_id} (delete job)
+- POST /jobs/assign (assign candidate to job)
+- File: app/api/v1/endpoints/jobs/crud.py
+
+INTERVIEWS ENDPOINTS (interviews.edit permission):
+- POST /interviews (schedule interview)
+- PUT /interviews/{interview_id} (update interview)
+- DELETE /interviews/{interview_id} (cancel interview)
+- POST /interviews/{interview_id}/feedback (submit feedback)
+- PUT /interviews/{interview_id}/decision (make hiring decision)
+- File: app/api/v1/endpoints/interviews.py
+
+CANDIDATES ENDPOINTS (candidates.edit permission):
+- PUT /candidates/{candidate_id} (edit candidate)
+- POST /candidates/bulk-update (bulk update)
+- DELETE /candidates/{candidate_id} (delete candidate)
+- POST /candidates/{candidate_id}/assign-job (assign to job)
+- File: app/api/v1/endpoints/candidates/crud.py
+
+BUSINESS UNITS ENDPOINTS (business_unit.manage permission):
+- POST /business-units (create)
+- PUT /business-units/{bu_id} (edit)
+- DELETE /business-units/{bu_id} (delete)
+- File: app/api/v1/endpoints/business_units.py
+
+DELIVERY CENTERS ENDPOINTS (delivery_center.manage permission):
+- POST /delivery-centers (create)
+- PUT /delivery-centers/{dc_id} (edit)
+- DELETE /delivery-centers/{dc_id} (delete)
+- File: app/api/v1/endpoints/delivery_centers.py (if exists)
+
+EMPLOYEES ENDPOINTS (employees.create/edit permission):
+- POST /employees (create/onboard)
+- PUT /employees/{emp_id} (edit)
+- File: app/api/v1/endpoints/employees.py
+
+OFFER ENDPOINTS (offers.create permission):
+- POST /offers (create offer)
+- PUT /offers/{offer_id} (update offer)
+- File: app/api/v1/endpoints/offer_letters.py
+
+PROJECTS ENDPOINTS (projects.edit permission):
+- POST /projects (create)
+- PUT /projects/{project_id} (edit)
+- DELETE /projects/{project_id} (delete)
+- File: app/api/v1/endpoints/projects.py
+
+PATTERN TO APPLY:
+@router.post(
+    "/endpoint",
+    response_model=...,
+    dependencies=[Depends(require_resource_permission("resource", "action"))]
+)
+def endpoint_function(...):
+    """docstring"""
+
+VERIFICATION:
+After adding decorators, test:
+1. Call with valid permission → 200/201 OK
+2. Call without permission → 403 Forbidden
