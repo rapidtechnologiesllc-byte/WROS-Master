@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { hasPermission } from "../../utils/permissionsRoleTemplate";
 import {
   createCandidateHistoryEvent,
   HISTORY_EVENT_TYPES,
@@ -105,6 +106,9 @@ export default function FeedbackTab({
   limitedMode = false,
   limitedInterview = null,
 }) {
+  // Permission check: User can view all interviews but can only submit feedback if they have interviews.edit
+  const canSubmitFeedback = hasPermission('interviews', 'edit');
+
   const [historyData, setHistoryData] = useState(null);
   const [feedbackMap, setFeedbackMap] = useState({});
   const [panelMembersMap, setPanelMembersMap] = useState({});

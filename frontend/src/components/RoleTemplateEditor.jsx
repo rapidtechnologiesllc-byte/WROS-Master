@@ -5,8 +5,8 @@ import { apiRequest } from '../services/api/client';
 import { hasPermission } from '../utils/permissionsRoleTemplate';
 
 const RoleTemplateEditor = ({ mode = 'create', templateId = null, onClose, onSuccess, modules }) => {
-  // Permission Gate: Only users with role_template.edit can access this component
-  if (!hasPermission('role_template', 'edit')) {
+  // Permission Gate: Only users with role_templates.edit can access this component
+  if (!hasPermission('role_templates', 'edit')) {
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
         <div className="bg-white rounded-lg p-6 max-w-md">

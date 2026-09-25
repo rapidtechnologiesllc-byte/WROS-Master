@@ -5,8 +5,27 @@ import Button from '../components/ui/Button';
 import Card from '../components/ui/Card';
 import Input from '../components/ui/Input';
 import { toast } from 'react-toastify';
+import { hasPermission } from '../utils/permissionsRoleTemplate';
 
 export default function DeliveryCenterFormPage() {
+  // Permission Gate: Only users with delivery_centers.edit can create delivery centers
+  if (!hasPermission('delivery_centers', 'edit')) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+        <div className="bg-white rounded-lg p-6 max-w-md">
+          <h2 className="text-lg font-semibold text-gray-900 mb-2">Access Denied</h2>
+          <p className="text-gray-600 mb-4">You do not have permission to manage delivery centers.</p>
+          <button
+            onClick={() => window.history.back()}
+            className="w-full px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+          >
+            Go Back
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   const navigate = useNavigate();
   const [saving, setSaving] = useState(false);
   const [formData, setFormData] = useState({

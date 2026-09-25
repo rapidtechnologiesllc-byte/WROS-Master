@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, AlertCircle } from 'lucide-react';
 import { apiRequest } from '../services/api/client';
+import { hasPermission } from '../utils/permissionsRoleTemplate';
 
 /**
  * Employee Onboarding Modal
@@ -21,6 +22,27 @@ export default function EmployeeOnboardingModal({
   candidateEmail,
   candidateName
 }) {
+  // Permission Gate: Only users with employees.create can onboard employees
+  if (!hasPermission('employees', 'create')) {
+    if (isOpen) {
+      return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-white rounded-lg p-6 max-w-md">
+            <h2 className="text-lg font-semibold text-gray-900 mb-2">Access Denied</h2>
+            <p className="text-gray-600 mb-4">You do not have permission to create employees.</p>
+            <button
+              onClick={onClose}
+              className="w-full px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      );
+    }
+    return null;
+  }
+
   const [formData, setFormData] = useState({
     first_name: '',
     last_name: '',

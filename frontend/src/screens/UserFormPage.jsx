@@ -15,11 +15,11 @@ export default function UserFormPage() {
 
   // Check permissions for create/edit
   useEffect(() => {
-    if (mode === 'create' && !hasPermission('user', 'edit')) {
+    if (mode === 'create' && !hasPermission('users', 'edit')) {
       toast.error('You do not have permission to create users');
       navigate('/admin/users-access-control/users');
     }
-    if (mode === 'edit' && !hasPermission('user', 'edit')) {
+    if (mode === 'edit' && !hasPermission('users', 'edit')) {
       toast.error('You do not have permission to edit users');
       navigate('/admin/users-access-control/users');
     }
