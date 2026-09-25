@@ -227,6 +227,17 @@ def unified_login(request: UnifiedLoginRequest, db: Session = Depends(get_db)):
                 logger.error(f"Failed to fetch permissions: {e}", exc_info=True)
                 user_permissions = []
 
+            # CRITICAL: Reject login if user has ZERO permissions (prevents dead-end state)
+            if not user_permissions or len(user_permissions) == 0:
+                logger.error(
+                    f"Login rejected (MFA path): user {user.UserID} ({user.UserEmail}) has zero permissions. "
+                    f"Role template: {role_template_id}. Please assign permissions to role template."
+                )
+                raise HTTPException(
+                    status_code=403,
+                    detail="Your role template has no permissions assigned. Please contact help desk to assign permissions."
+                )
+
             logger.info(f"Login MFA pending for user {user.UserID}")
             return UnifiedLoginResponse(
                 entity_type="user",
@@ -266,6 +277,17 @@ def unified_login(request: UnifiedLoginRequest, db: Session = Depends(get_db)):
         except Exception as e:
             logger.error(f"Failed to fetch permissions: {e}", exc_info=True)
             user_permissions = []
+
+        # CRITICAL: Reject login if user has ZERO permissions (prevents dead-end state)
+        if not user_permissions or len(user_permissions) == 0:
+            logger.error(
+                f"Login rejected: user {user.UserID} ({user.UserEmail}) has zero permissions. "
+                f"Role template: {role_template_id}. Please assign permissions to role template."
+            )
+            raise HTTPException(
+                status_code=403,
+                detail="Your role template has no permissions assigned. Please contact help desk to assign permissions."
+            )
 
         force_password_reset = getattr(user, 'password_reset_required', False)
 
