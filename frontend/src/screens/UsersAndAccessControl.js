@@ -1221,6 +1221,12 @@ function OrganizationalHierarchySection() {
         >
           Manage Positions
         </button>
+        <button
+          onClick={() => alert("Manage Department feature - Coming soon")}
+          className="flex items-center gap-2 px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 text-sm font-medium"
+        >
+          Manage Department
+        </button>
       </div>
 
       {showPositionsManager && (

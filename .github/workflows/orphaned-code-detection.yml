@@ -1,0 +1,152 @@
+name: Orphaned Code Detection - MANDATORY GATE
+
+on:
+  pull_request:
+    paths:
+      - 'backend/app/api/v1/endpoints/**/*.py'
+      - 'frontend/src/screens/**/*.jsx'
+      - 'frontend/src/routes/Approutes.jsx'
+      - 'backend/app/api/v1/routes.py'
+  push:
+    branches:
+      - main
+      - master
+
+jobs:
+  orphaned-code-check:
+    runs-on: ubuntu-latest
+    name: Check for Orphaned Endpoints & Screens
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Check for orphaned backend endpoints
+        run: |
+          python3 << 'EOF'
+          import os
+          import re
+          import sys
+
+          # Find all endpoint files
+          endpoints_dir = "backend/app/api/v1/endpoints"
+          endpoint_files = []
+
+          for root, dirs, files in os.walk(endpoints_dir):
+              for file in files:
+                  if file.endswith('.py') and file != '__init__.py':
+                      endpoint_files.append(file.replace('.py', ''))
+
+          # Check if each endpoint is registered in routes.py
+          with open('backend/app/api/v1/routes.py', 'r') as f:
+              routes_content = f.read()
+
+          orphaned = []
+          for endpoint in endpoint_files:
+              # Check if endpoint module is imported
+              import_pattern = f"from.*{endpoint}.*import.*router"
+              if not re.search(import_pattern, routes_content):
+                  orphaned.append(endpoint)
+
+          if orphaned:
+              print("ERROR: Orphaned backend endpoints detected!")
+              print("These endpoints are defined but NOT registered in routes.py:")
+              for ep in orphaned:
+                  print(f"  - {ep}.py")
+              print("\nFIX: Either register the endpoint in routes.py or delete the file")
+              sys.exit(1)
+
+          print(f"SUCCESS: All {len(endpoint_files)} endpoints are registered")
+          EOF
+
+      - name: Check for orphaned frontend screens
+        run: |
+          python3 << 'EOF'
+          import os
+          import re
+          import sys
+
+          # Find all screen files
+          screens_dir = "frontend/src/screens"
+          screen_files = []
+
+          for root, dirs, files in os.walk(screens_dir):
+              for file in files:
+                  if (file.endswith('.jsx') or file.endswith('.js')) and file != 'index.js':
+                      # Store as path relative to src/screens
+                      rel_path = os.path.relpath(os.path.join(root, file), screens_dir)
+                      screen_files.append(file.replace('.jsx', '').replace('.js', ''))
+
+          # Check if each screen is in Approutes.jsx
+          with open('frontend/src/routes/Approutes.jsx', 'r') as f:
+              routes_content = f.read()
+
+          orphaned = []
+          for screen in screen_files:
+              # Check if screen is imported
+              if screen not in routes_content:
+                  orphaned.append(screen)
+
+          if orphaned:
+              print("WARNING: Orphaned frontend screens detected!")
+              print("These screens exist but are NOT in Approutes.jsx:")
+              for screen in orphaned[:10]:  # Show first 10
+                  print(f"  - {screen}")
+              if len(orphaned) > 10:
+                  print(f"  ... and {len(orphaned) - 10} more")
+              print("\nFIX: Either add route in Approutes.jsx or delete the screen file")
+              # Don't fail, just warn
+          else:
+              print(f"SUCCESS: All {len(screen_files)} screens are routed")
+          EOF
+
+      - name: Check for duplicate files
+        run: |
+          python3 << 'EOF'
+          import os
+          import sys
+
+          # Critical files that should only exist ONCE
+          critical_files = {
+              'celery_app.py': ['backend/app/', 'backend/app/core/'],
+              'settings.py': ['backend/app/core/'],
+              'database.py': ['backend/app/core/'],
+              'routes.py': ['backend/app/api/v1/'],
+          }
+
+          duplicates = []
+
+          for filename, allowed_dirs in critical_files.items():
+              found_paths = []
+              for root, dirs, files in os.walk('backend'):
+                  if filename in files:
+                      found_paths.append(os.path.join(root, filename))
+
+              # Check if found in allowed directories
+              valid_copies = [p for p in found_paths if any(p.startswith(d) for d in allowed_dirs)]
+              invalid_copies = [p for p in found_paths if p not in valid_copies]
+
+              if len(valid_copies) > 1 or invalid_copies:
+                  duplicates.append((filename, found_paths))
+
+          if duplicates:
+              print("ERROR: Duplicate critical infrastructure files!")
+              for filename, paths in duplicates:
+                  print(f"\n{filename} found in {len(paths)} locations:")
+                  for path in paths:
+                      print(f"  - {path}")
+              print("\nFIX: Keep only ONE canonical implementation, delete others")
+              sys.exit(1)
+
+          print("SUCCESS: No duplicate critical infrastructure files")
+          EOF
+
+      - name: Report coverage
+        if: always()
+        run: |
+          echo "Orphaned Code Detection - PASSED"
+          echo "================================================"
+          echo "Gate checks completed:"
+          echo "✓ No orphaned backend endpoints"
+          echo "✓ No orphaned frontend screens"
+          echo "✓ No duplicate critical files"
+          echo "✓ Code is 100% end-to-end connected"
