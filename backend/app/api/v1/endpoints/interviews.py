@@ -995,9 +995,8 @@ def get_all_interview_panels(
 
 @router.delete(
     "/panels/{panel_id}",
-    dependencies=[Depends(get_current_internal_user)],
+    dependencies=[Depends(require_resource_permission("interviews", "can_delete"))],
     response_model=DeleteResponse,
-
 )
 def delete_interview_panel(
     panel_id: int,
@@ -1100,9 +1099,8 @@ def list_rehire_reviews(
 
 @router.post(
     "/rehire-reviews/{review_id}/decide",
-    dependencies=[Depends(get_current_internal_user)],
+    dependencies=[Depends(require_resource_permission("interviews", "can_edit"))],
     response_model=RehireReviewResponse,
-
 )
 def decide_rehire_review_endpoint(
     review_id: int,
@@ -1170,10 +1168,9 @@ def _panel_diversity_warning(db: Session, panel: InterviewPanel, interviewer_id:
 
 @router.post(
     "/panel-members/assign",
-    dependencies=[Depends(get_current_internal_user)],
+    dependencies=[Depends(require_resource_permission("interviews", "can_edit"))],
     response_model=PanelMemberResponse,
     status_code=201,
-
 )
 def assign_panel_member(
     request: PanelMemberCreate,
