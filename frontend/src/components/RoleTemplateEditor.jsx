@@ -2,8 +2,27 @@ import React, { useState, useEffect } from 'react';
 import { Input, Button } from './ui';
 import { toast } from 'react-toastify';
 import { apiRequest } from '../services/api/client';
+import { hasPermission } from '../utils/permissionsRoleTemplate';
 
 const RoleTemplateEditor = ({ mode = 'create', templateId = null, onClose, onSuccess, modules }) => {
+  // Permission Gate: Only users with role_template.edit can access this component
+  if (!hasPermission('role_template', 'edit')) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+        <div className="bg-white rounded-lg p-6 max-w-md">
+          <h2 className="text-lg font-semibold text-gray-900 mb-2">Access Denied</h2>
+          <p className="text-gray-600 mb-4">You do not have permission to manage role templates.</p>
+          <button
+            onClick={onClose}
+            className="w-full px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   const [loading, setLoading] = useState(mode === 'edit');
   const [saving, setSaving] = useState(false);
   const [formData, setFormData] = useState({

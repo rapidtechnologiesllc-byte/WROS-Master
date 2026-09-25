@@ -743,7 +743,7 @@ def _create_hm_review_task(db: Session, interview: Interview) -> None:
 
 @router.post(
     "/panels/create",
-    dependencies=[Depends(get_current_internal_user)],
+    dependencies=[Depends(require_resource_permission("interviews", "edit"))],
     response_model=InterviewPanelResponse,
     status_code=201,
 )
