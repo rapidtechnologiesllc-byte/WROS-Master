@@ -10,7 +10,7 @@
 // Hiring-Manager limitedMode single-interview review card (a different,
 // narrower context this merge doesn't touch).
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { AlertCircle, CheckCircle, X } from "lucide-react";
+import { hasPermission } from "../../utils/permissionsRoleTemplate";
 import {
   createCandidateHistoryEvent,
   HISTORY_EVENT_TYPES,
@@ -85,6 +85,9 @@ const getFeedbackBreakdown = (feedbackList = []) => {
 };
 
 export default function InterviewsTab({ candidateId, onScheduleInterview }) {
+  // Permission check: User can view all interviews but can only edit/submit feedback if they have interviews.edit
+  const canEditInterviews = hasPermission('interviews', 'edit');
+
   const [historyData, setHistoryData] = useState(null);
   const [feedbackMap, setFeedbackMap] = useState({});
   const [panelMembersMap, setPanelMembersMap] = useState({});

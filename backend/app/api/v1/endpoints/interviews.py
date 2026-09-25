@@ -758,7 +758,7 @@ def _create_hm_review_task(db: Session, interview: Interview) -> None:
 
 @router.post(
     "/panels/create",
-    dependencies=[Depends(require_resource_permission("interview", "create"))],
+    dependencies=[Depends(require_resource_permission("interviews", "edit"))],
     response_model=InterviewPanelResponse,
     status_code=201,
 )
@@ -1010,7 +1010,7 @@ def get_all_interview_panels(
 
 @router.delete(
     "/panels/{panel_id}",
-    dependencies=[Depends(require_resource_permission("interview", "delete"))],
+    dependencies=[Depends(require_resource_permission("interviews", "can_delete"))],
     response_model=DeleteResponse,
 )
 def delete_interview_panel(
@@ -1113,7 +1113,7 @@ def list_rehire_reviews(
 
 @router.post(
     "/rehire-reviews/{review_id}/decide",
-    dependencies=[Depends(require_resource_permission("interview", "create"))],
+    dependencies=[Depends(require_resource_permission("interviews", "can_edit"))],
     response_model=RehireReviewResponse,
 )
 def decide_rehire_review_endpoint(
@@ -1182,7 +1182,7 @@ def _panel_diversity_warning(db: Session, panel: InterviewPanel, interviewer_id:
 
 @router.post(
     "/panel-members/assign",
-    dependencies=[Depends(require_resource_permission("interview", "create"))],
+    dependencies=[Depends(require_resource_permission("interviews", "can_edit"))],
     response_model=PanelMemberResponse,
     status_code=201,
 )

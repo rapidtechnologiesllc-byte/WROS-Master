@@ -8,7 +8,19 @@ import logging
 from fastapi import HTTPException, status
 
 ALGORITHM = "HS256"
-SECRET_KEY = os.getenv("JWT_SECRET", "dev-secret-key-super-secure-in-production")
+
+# PRODUCTION SAFETY: JWT_SECRET MUST be set via environment variable
+# No default fallback allowed - forces explicit configuration
+SECRET_KEY = os.getenv("JWT_SECRET")
+print(f"[SECURITY-INIT] JWT_SECRET loaded: {SECRET_KEY[:20] if SECRET_KEY else 'NONE'}..., length={len(SECRET_KEY) if SECRET_KEY else 0}")
+if not SECRET_KEY:
+    raise ValueError(
+        "🚨 FATAL: JWT_SECRET environment variable not set.\n"
+        "Set it in .env file with a strong random string.\n"
+        "Example: JWT_SECRET='your-secret-key-min-32-chars-required'\n"
+        "This is CRITICAL for token signing and verification."
+    )
+
 ACCESS_TOKEN_EXPIRE_MINUTES = 480  # 8 hours
 REFRESH_TOKEN_EXPIRE_DAYS = 7
 
@@ -67,10 +79,12 @@ def decode_access_token(token: str):
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Token expired"
         )
-    except jwt.InvalidTokenError:
+    except jwt.InvalidTokenError as e:
+        import logging
+        logging.error(f"[JWT-ERROR] Token decode failed: {str(e)}, token_len={len(token)}, secret_len={len(SECRET_KEY) if SECRET_KEY else 0}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid token"
+            detail="Invalid or expired token"
         )
 
 def get_password_hash(password: str) -> str:

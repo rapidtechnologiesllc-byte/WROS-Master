@@ -98,6 +98,11 @@ class Settings:
     # CRITICAL: Load from secrets vault for production
     FIELD_ENCRYPTION_KEY: str = get_secret("field-encryption-key", default=os.getenv("FIELD_ENCRYPTION_KEY", ""))
 
+    # Admin user initial password (SECURITY: Load from environment, NOT hardcoded)
+    # For production: Set via ADMIN_PASSWORD environment variable
+    # For development: Falls back to temporary random password (forces reset on first login)
+    ADMIN_PASSWORD: str = os.getenv("ADMIN_PASSWORD", "")
+
     # S-017/HRMS-0417 -- base URL used to build the candidate portal
     # link Thunder sends via WhatsApp/Email (/candidate/{token}).
     # Defaults to localhost for development; must be set via FRONTEND_BASE_URL
@@ -105,9 +110,17 @@ class Settings:
     FRONTEND_BASE_URL: str = os.getenv("FRONTEND_BASE_URL", "http://localhost:3000")
 
     # CORS Settings - Environment-based configuration
-    # Development: localhost only
-    # Production: MUST be configured via CORS_ORIGINS env var (comma-separated list)
-    # CRITICAL: Wildcard with credentials=true is a security vulnerability
+    # Default: localhost for development (explicit origins, not wildcard)
+    # Production: Use CORS_ORIGINS env var as comma-separated list
+    # NOTE: Cannot use ["*"] with allow_credentials=True due to CORS security policy
+    CORS_ORIGINS: list = [
+        "http://localhost:3000",
+        "http://localhost:3001",
+        "http://127.0.0.1:3000",
+        "http://127.0.0.1:3001",
+    ]
+
+    # Allow additional origins from environment variable (production/staging)
     _CORS_ENV = os.getenv("CORS_ORIGINS", "").strip()
     if _CORS_ENV:
         # Production: specific origins provided
@@ -157,6 +170,17 @@ class Settings:
                 f"PRODUCTION BLOCKER: Missing required configuration: {', '.join(missing)}. "
                 f"These MUST be set via environment variables or secrets vault before deployment."
             )
+
+        # MEDIUM FIX: Warn about missing critical API keys
+        critical_keys = [
+            ("GEMINI_API_KEY", os.getenv("GEMINI_API_KEY", ""), "AI features (memory, summaries, scoring)"),
+            ("SENTRY_DSN", os.getenv("SENTRY_DSN", ""), "Error tracking and monitoring"),
+            ("FIELD_ENCRYPTION_KEY", cls.FIELD_ENCRYPTION_KEY, "Bank account field encryption"),
+        ]
+
+        for key_name, key_value, purpose in critical_keys:
+            if not key_value or key_value.startswith("your_"):
+                logger.warning(f"[Config] {key_name} not configured - {purpose} will be disabled/stubbed")
 
         return True
 

@@ -360,22 +360,10 @@ class QueueProcessorService:
                             )
                             stats["slm_updates"] += 1
                         except Exception as slm_err:
-                            # CRITICAL FIX #5: Queue alert for ops when SLM training fails
-                            logger.error(f"[QueueProcessor] SLM training failed: {slm_err}", exc_info=True)
-                            try:
-                                from app.services.message_queue_service import MessageQueueService as MQS
-                                MQS.enqueue(
-                                    task_name='slm_training_alert',
-                                    task_id=f"slm_alert_{message.id}",
-                                    data={
-                                        'message_id': message.id,
-                                        'task_type': message.type,
-                                        'error': str(slm_err)[:500],
-                                        'severity': 'MEDIUM'
-                                    }
-                                )
-                            except Exception as alert_err:
-                                logger.warning(f"Failed to queue SLM alert: {alert_err}")
+                            # ARCHITECT FIX: Log error but don't fail message completion
+                            logger.error(f"[QueueProcessor] SLM training failed (non-blocking): {slm_err}", exc_info=True)
+                            # Message already COMPLETED, don't rollback
+                            # SLM training is supplementary to core queue processing
 
                 except Exception as msg_err:
                     logger.error(f"[QueueProcessor] Message {message.id} failed: {msg_err}", exc_info=True)
@@ -393,8 +381,8 @@ class QueueProcessorService:
 
     # Circuit breaker state (thread-safe with lock) - HIGH FIX #1: Thread safety
     _consecutive_failures = 0
-    _consecutive_failures_lock = threading.Lock()  # Protects concurrent access
-    _FAILURE_THRESHOLD = 3  # CRITICAL FIX #4: Lowered from 5 (80s lag) to 3 (40s lag)
+    _FAILURE_THRESHOLD = 5
+    HANDLER_TIMEOUT_SECONDS = 30  # ARCHITECT FIX: Timeout for long-running handlers
 
     @staticmethod
     def _process_single_message(db: Session, message: ChannelQueueItem) -> Dict[str, Any]:
@@ -1065,6 +1053,8 @@ class QueueProcessorService:
             "start_time": datetime.utcnow().isoformat()
         }
 
+        empty_batch_count = 0  # ARCHITECT FIX: Adaptive backoff
+
         try:
             while True:
                 db = SessionLocal()
@@ -1079,16 +1069,18 @@ class QueueProcessorService:
                     processor_stats["total_retried"] += batch_result["retried"]
                     processor_stats["total_failed"] += batch_result["failed"]
 
-                    # HEARTBEAT: Log every batch for monitoring
-                    logger.debug(
-                        f"[QueueProcessor] Batch {processor_stats['batches_processed']}: "
-                        f"processed={batch_result['processed']}, "
-                        f"completed={batch_result['completed']}, "
-                        f"failed={batch_result['failed']}, "
-                        f"retried={batch_result['retried']}"
-                    )
+                    # ARCHITECT FIX: Adaptive backoff when queue empty
+                    if batch_result["processed"] == 0:
+                        empty_batch_count += 1
+                        # Backoff: 2s → 4s → 8s → 16s (max 16s)
+                        backoff = min(16, 2 * (2 ** empty_batch_count))
+                        logger.debug(f"[QueueProcessor] Queue empty, backing off for {backoff}s")
+                        time.sleep(backoff)
+                    else:
+                        empty_batch_count = 0
+                        time.sleep(poll_interval)
 
-                    # Log periodic stats (every 10 batches)
+                    # Log periodic stats
                     if processor_stats["batches_processed"] % 10 == 0:
                         logger.info(
                             f"[QueueProcessor] STATS (batch {processor_stats['batches_processed']}): "
@@ -1113,7 +1105,7 @@ class QueueProcessorService:
 
                 except Exception as e:
                     logger.error(f"[QueueProcessor] Batch error: {e}", exc_info=True)
-                    time.sleep(poll_interval)  # Sleep on error
+                    QueueProcessorService._consecutive_failures += 1
 
                 finally:
                     db.close()

@@ -3,6 +3,7 @@ import { CloudCog, FileText } from "lucide-react";
 import { Button, Card, Input, Select } from "../components/ui";
 import { uploadResume } from "../services/api/documents";
 import { updateCandidateStatus } from "../services/api/candidateStatus";
+import { hasPermission } from "../utils/permissionsRoleTemplate";
 import {
   extractResumeText,
   inferFieldsFromResumeText,
@@ -43,6 +44,24 @@ export default function CandidateEditModal({
   onUpdateCandidate,
   onRefreshCandidates,
 }) {
+  // Permission Gate: Only users with candidates.edit can edit candidates
+  if (!hasPermission('candidates', 'edit')) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+        <div className="bg-white rounded-lg p-6 max-w-md">
+          <h2 className="text-lg font-semibold text-gray-900 mb-2">Access Denied</h2>
+          <p className="text-gray-600 mb-4">You do not have permission to edit candidates.</p>
+          <button
+            onClick={onClose}
+            className="w-full px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   const initialName = useMemo(
     () => splitFullName(candidate?.candidate_name || ""),
     [candidate],

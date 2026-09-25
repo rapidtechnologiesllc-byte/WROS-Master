@@ -33,7 +33,7 @@ def get_approval_routing(db: Session, job: Jobs, creator: Users) -> Tuple[Option
     # BU Head creates job - route to their reporting manager
     # Check via 'business_unit.manage' permission (BU Head level)
             # Find manager with admin or finance permissions
-            for mgr in managers:
+for mgr in managers:
                 pass
         # Fallback: route to Admin user
         admins = db.query(Users).all()

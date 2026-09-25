@@ -54,7 +54,7 @@ class RoleTemplateResponse(BaseModel):
 
 @router.get(
     "",
-    dependencies=[Depends(require_resource_permission("unknown", "view"))]
+    dependencies=[Depends(require_resource_permission("role_template", "view"))]
 )
 def list_role_templates(
     db: Session = Depends(get_db),
@@ -145,7 +145,7 @@ def get_role_template(
 
 @router.post(
     "",
-    dependencies=[Depends(require_resource_permission("unknown", "create"))]
+    dependencies=[Depends(require_resource_permission("role_template", "edit"))]
 )
 def create_role_template(
     data: RoleTemplateCreate,
@@ -216,7 +216,7 @@ def create_role_template(
 
 @router.put(
     "/{template_id}",
-    dependencies=[Depends(require_resource_permission("role_templates", "update"))]
+    dependencies=[Depends(require_resource_permission("role_template", "edit"))]
 )
 def update_role_template(
     template_id: int,
@@ -290,7 +290,7 @@ def update_role_template(
 
 @router.post(
     "/{template_id}/grant-permission",
-    dependencies=[Depends(require_resource_permission("role_templates", "create"))]
+    dependencies=[Depends(require_resource_permission("role_template", "edit"))]
 )
 def grant_permission(
     template_id: int,
@@ -360,7 +360,7 @@ def grant_permission(
 
 @router.post(
     "/{template_id}/revoke-permission",
-    dependencies=[Depends(require_resource_permission("role_templates", "create"))]
+    dependencies=[Depends(require_resource_permission("role_template", "edit"))]
 )
 def revoke_permission(
     template_id: int,
@@ -422,7 +422,7 @@ def revoke_permission(
 
 @router.delete(
     "/{template_id}",
-    dependencies=[Depends(require_resource_permission("role_templates", "delete"))]
+    dependencies=[Depends(require_resource_permission("role_template", "edit"))]
 )
 def delete_role_template(
     template_id: int,

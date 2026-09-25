@@ -84,6 +84,20 @@ RESOURCES = {
         "description": "Client accounts and information"
     },
 
+    # Organization & Infrastructure
+    "business_units": {
+        "display_name": "Business Units",
+        "module": "Administration",
+        "actions": ["can_view", "can_create", "can_edit", "can_delete"],
+        "description": "Business unit management"
+    },
+    "delivery_centers": {
+        "display_name": "Delivery Centers",
+        "module": "Administration",
+        "actions": ["can_view", "can_create", "can_edit", "can_delete"],
+        "description": "Delivery center management"
+    },
+
     # Administration
     "users": {
         "display_name": "Users",
@@ -175,6 +189,12 @@ class Permissions:
     BUSINESS_UNITS_CREATE = ("business_units", "can_create")
     BUSINESS_UNITS_EDIT = ("business_units", "can_edit")
     BUSINESS_UNITS_DELETE = ("business_units", "can_delete")
+
+    # Delivery Centers
+    DELIVERY_CENTERS_VIEW = ("delivery_centers", "can_view")
+    DELIVERY_CENTERS_CREATE = ("delivery_centers", "can_create")
+    DELIVERY_CENTERS_EDIT = ("delivery_centers", "can_edit")
+    DELIVERY_CENTERS_DELETE = ("delivery_centers", "can_delete")
 
     # Users & Administration
     USERS_VIEW = ("users", "can_view")

@@ -135,7 +135,8 @@ def unified_login(request: UnifiedLoginRequest, db: Session = Depends(get_db)):
         logger.error("Login failed: missing email or password")
         raise HTTPException(status_code=400, detail="Email and password are required")
 
-    logger.info(f"Login attempt for email={request.email}")
+    logger.info(f"[LOGIN-START] Login attempt for email={request.email}")
+    logger.debug(f"[LOGIN-DEBUG] Request received, starting authentication flow")
 
     user = None
     try:
@@ -225,13 +226,28 @@ def unified_login(request: UnifiedLoginRequest, db: Session = Depends(get_db)):
                     logger.error(f"Failed to send OTP email: {e}", exc_info=True)
 
             user_permissions = []
+            logger.debug(f"[LOGIN-MFA-DEBUG] Fetching permissions for MFA user {user.UserID}")
             try:
                 user_permissions = RoleTemplatePermissionService.get_user_permissions(
                     db, user.UserID, user.tenant_id if hasattr(user, 'tenant_id') else None
                 )
+                logger.debug(f"[LOGIN-MFA-DEBUG] Permissions fetched: {len(user_permissions)} permissions found")
             except Exception as e:
-                logger.error(f"Failed to fetch permissions: {e}", exc_info=True)
+                logger.error(f"[LOGIN-MFA-ERROR] Failed to fetch permissions: {e}", exc_info=True)
                 user_permissions = []
+
+            # CRITICAL: Reject login if user has ZERO permissions (prevents dead-end state)
+            if not user_permissions or len(user_permissions) == 0:
+                logger.warning(
+                    f"[LOGIN-MFA-REJECT] Login rejected (MFA path): user {user.UserID} ({user.UserEmail}) has ZERO permissions. "
+                    f"Role template ID: {role_template_id}. This user cannot access any modules."
+                )
+                raise HTTPException(
+                    status_code=403,
+                    detail="Your role template has no permissions assigned. Please contact help desk to assign permissions."
+                )
+
+            logger.info(f"[LOGIN-MFA-PERMISSION-OK] MFA user {user.UserID} has {len(user_permissions)} permissions, proceeding with MFA")
 
             logger.info(f"Login MFA pending for user {user.UserID}")
             return UnifiedLoginResponse(
@@ -267,13 +283,28 @@ def unified_login(request: UnifiedLoginRequest, db: Session = Depends(get_db)):
         )
 
         user_permissions = []
+        logger.debug(f"[LOGIN-DEBUG] Fetching permissions for user {user.UserID}")
         try:
             user_permissions = RoleTemplatePermissionService.get_user_permissions(
                 db, user.UserID, user.tenant_id if hasattr(user, 'tenant_id') else None
             )
+            logger.debug(f"[LOGIN-DEBUG] Permissions fetched: {len(user_permissions)} permissions found")
         except Exception as e:
-            logger.error(f"Failed to fetch permissions: {e}", exc_info=True)
+            logger.error(f"[LOGIN-ERROR] Failed to fetch permissions: {e}", exc_info=True)
             user_permissions = []
+
+        # CRITICAL: Reject login if user has ZERO permissions (prevents dead-end state)
+        if not user_permissions or len(user_permissions) == 0:
+            logger.warning(
+                f"[LOGIN-REJECT] Login rejected: user {user.UserID} ({user.UserEmail}) has ZERO permissions. "
+                f"Role template ID: {role_template_id}. This user cannot access any modules."
+            )
+            raise HTTPException(
+                status_code=403,
+                detail="Your role template has no permissions assigned. Please contact help desk to assign permissions."
+            )
+
+        logger.info(f"[LOGIN-PERMISSION-OK] User {user.UserID} has {len(user_permissions)} permissions, proceeding with login")
 
         force_password_reset = getattr(user, 'password_reset_required', False)
 
@@ -488,6 +519,17 @@ def refresh_token_endpoint(
             logger.error(f"Failed to fetch permissions: {e}", exc_info=True)
             user_permissions = []
 
+        # CRITICAL: Reject refresh if user has ZERO permissions (prevents continued access after removal)
+        if not user_permissions or len(user_permissions) == 0:
+            logger.warning(
+                f"[REFRESH-REJECT] Token refresh rejected: user {user.UserID} ({user.UserEmail}) has ZERO permissions. "
+                f"Permissions must have been removed since last login."
+            )
+            raise HTTPException(
+                status_code=403,
+                detail="Your permissions have been revoked. Please contact help desk."
+            )
+
         user_role = "User"
         if user and hasattr(user, 'UserRole') and user.UserRole:
             user_role = user.UserRole
@@ -557,23 +599,21 @@ def refresh_token_endpoint(
     raise HTTPException(status_code=401, detail="User or candidate not found")
 
 
-@router.post("/reset-password", dependencies=[Depends(require_role_template_permission("user", "manage"))])
+@router.post("/reset-password")
 async def reset_password(
     request: dict,
     current_user: Users = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Reset user password. Protected endpoint - requires authentication and permission."""
+    """Reset user password. Any authenticated user can reset their own password."""
     if not request:
         logger.error("Password reset failed: request is None")
         raise HTTPException(status_code=400, detail="Request body is required")
 
-    user_id = request.get("user_id")
     new_password = request.get("new_password")
 
-    if not user_id:
-        logger.error("Password reset failed: user_id missing")
-        raise HTTPException(status_code=400, detail="user_id is required")
+    # Use current_user from token, not from request
+    user_id = current_user.UserID
 
     if not new_password:
         logger.error("Password reset failed: new_password missing")

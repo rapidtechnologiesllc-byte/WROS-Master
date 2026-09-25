@@ -80,169 +80,35 @@ class CandidateCreationHandler:
             tenant_id = validate_and_normalize_tenant_id(db, raw_tenant_id)
             logger.info(f"[Handler] Using tenant_id={tenant_id} for candidate")
 
-            # Create candidate via THE ONLY sanctioned path (create_candidate)
-            from app.services.candidate_service import create_candidate
+            # R-07: Use create_candidate_safe() for all creates - dedup on email, phone, LinkedIn
+            plain_password = payload.get("candidate_temp_password")
+            candidate, is_new = create_candidate_safe(
+                db=db,
+                email=candidate_email,
+                mobile=payload.get("candidate_mobile"),
+                linkedin_url=payload.get("linkedin_url"),
+                plain_password=plain_password,
+                candidateRole=payload.get("candidate_role", "Candidate"),
+                candidateEmployeeType=payload.get("candidate_employee_type"),
+                candidateFirstName=payload.get("candidate_first_name"),
+                candidateMiddleName=payload.get("candidate_middle_name"),
+                candidateLastName=payload.get("candidate_last_name"),
+                candidateGender=payload.get("candidate_gender"),
+                candidateDateOfBirth=payload.get("candidate_date_of_birth"),
+                candidateCurrentLocation=payload.get("candidate_current_location"),
+                candidateSource=payload.get("candidate_source"),
+                candidateExperience=payload.get("candidate_experience"),
+                candidateSkills=payload.get("candidate_skills"),
+                candidateJoiningDate=payload.get("candidate_joining_date"),
+                candidateExpectedSalary=payload.get("candidate_expected_salary"),
+                candidateCurrentSalary=payload.get("candidate_current_salary"),
+            )
 
-            candidate_mobile = payload.get("candidate_mobile")
-            source = payload.get("candidate_source", "form_submission")
-
-            # CRITICAL: Generate ID here since endpoint no longer provides it
-            generated_id = candidate_id_generator()
-
-            try:
-                candidate, is_new = create_candidate(
-                    db=db,
-                    email=candidate_email,
-                    mobile=candidate_mobile,
-                    linkedin_url=payload.get("candidate_linkedin_url"),
-                    candidate_id=generated_id,  # Use handler-generated ID
-                    plain_password=payload.get("candidate_password"),  # Use provided or auto-generate
-                    tenant_id=tenant_id,
-                    candidateRole=payload.get("candidate_role", "Candidate"),
-                    candidateEmployeeType=payload.get("candidate_employee_type"),
-                    candidateFirstName=payload.get("candidate_first_name"),
-                    candidateMiddleName=payload.get("candidate_middle_name"),
-                    candidateLastName=payload.get("candidate_last_name"),
-                    candidateGender=payload.get("candidate_gender"),
-                    candidateDateOfBirth=payload.get("candidate_date_of_birth"),
-                    candidateCurrentLocation=payload.get("candidate_current_location"),
-                    candidateSource=payload.get("candidate_source"),
-                    candidateExperience=payload.get("candidate_experience"),
-                    candidateSkills=payload.get("candidate_skills"),
-                    candidateJoiningDate=payload.get("candidate_joining_date"),
-                    candidateExpectedSalary=payload.get("candidate_expected_salary"),
-                    candidateCurrentSalary=payload.get("candidate_current_salary"),
-                    candidateCreatedAt=datetime.now(),
-                )
-            except Exception as e:
-                logger.error(f"[Handler] Failed to create candidate: {e}", exc_info=True)
-                raise
-
-            # For duplicates, apply field merges (update existing with fresh data)
-            if not is_new:
-                existing = candidate
-                candidate_id_existing = existing.candidateID
-
-                # Determine which field matched (email or phone)
-                match_field = "email"
-                match_value = candidate_email
-                if candidate_mobile and existing.candidateMobile == candidate_mobile and existing.candidateEmail != candidate_email:
-                    match_field = "phone"
-                    match_value = candidate_mobile
-                elif candidate_mobile and existing.candidateMobile == candidate_mobile and existing.candidateEmail == candidate_email:
-                    match_field = "email+phone"
-                    match_value = f"{candidate_email} / {candidate_mobile}"
-
-                logger.warning(
-                    f"[Handler] DUPLICATE DETECTED: {match_field.upper()} '{match_value}' already exists. "
-                    f"Existing candidate_id={candidate_id_existing}. "
-                    f"Merging new details into existing record (idempotent upsert)."
-                )
-
-                # MERGE: Update existing candidate with non-null/non-empty values from payload
-                # This implements proper upsert behavior - fresh submission data overwrites stale data
-                merge_count = 0
-
-                # SECURITY FIX #4: DO NOT update email on merge
-                # Scenario: Two people share phone number (family business line)
-                # Person A creates account: email=alice@example.com, phone=+1-555-0001
-                # Person B applies: email=bob@example.com, phone=+1-555-0001
-                # If we update Alice's email to Bob's, Bob controls Alice's account (EMAIL HIJACKING)
-                # Solution: Keep existing email, log for manual audit
-                old_email_for_audit = existing.candidateEmail
-                if candidate_email and candidate_email != existing.candidateEmail:
-                    logger.warning(
-                        f"[Handler] MERGE CONFLICT - Email mismatch on duplicate merge: "
-                        f"existing={old_email_for_audit}, payload={candidate_email}. "
-                        f"Keeping existing email (not updating - potential security risk)"
-                    )
-                    # Do NOT update: existing.candidateEmail = candidate_email
-                    # Let audit trail capture this for manual review
-                if payload.get("candidate_first_name"):
-                    existing.candidateFirstName = payload.get("candidate_first_name")
-                    merge_count += 1
-                if payload.get("candidate_middle_name"):
-                    existing.candidateMiddleName = payload.get("candidate_middle_name")
-                    merge_count += 1
-                if payload.get("candidate_last_name"):
-                    existing.candidateLastName = payload.get("candidate_last_name")
-                    merge_count += 1
-                if payload.get("candidate_mobile"):
-                    existing.candidateMobile = payload.get("candidate_mobile")
-                    merge_count += 1
-                if payload.get("candidate_current_location"):
-                    existing.candidateCurrentLocation = payload.get("candidate_current_location")
-                    merge_count += 1
-                if payload.get("candidate_gender"):
-                    existing.candidateGender = payload.get("candidate_gender")
-                    merge_count += 1
-                if payload.get("candidate_source"):
-                    existing.candidateSource = payload.get("candidate_source")
-                    merge_count += 1
-                if payload.get("candidate_experience"):
-                    existing.candidateExperience = payload.get("candidate_experience")
-                    merge_count += 1
-                if payload.get("candidate_skills"):
-                    existing.candidateSkills = payload.get("candidate_skills")
-                    merge_count += 1
-                if payload.get("candidate_joining_date"):
-                    existing.candidateJoiningDate = payload.get("candidate_joining_date")
-                    merge_count += 1
-                if payload.get("candidate_expected_salary"):
-                    existing.candidateExpectedSalary = payload.get("candidate_expected_salary")
-                    merge_count += 1
-                if payload.get("candidate_current_salary"):
-                    existing.candidateCurrentSalary = payload.get("candidate_current_salary")
-                    merge_count += 1
-                if payload.get("candidate_role"):
-                    existing.candidateRole = payload.get("candidate_role")
-                    merge_count += 1
-                if payload.get("candidate_employee_type"):
-                    existing.candidateEmployeeType = payload.get("candidate_employee_type")
-                    merge_count += 1
-
-                # CRITICAL FIX #5: DO NOT update candidateCreatedAt on merge
-                # candidateCreatedAt is immutable - it marks when the candidate was first created
-                # Updating it on merge breaks audit trail and compliance retention calculations
-                # existing.candidateCreatedAt = datetime.now()  # ❌ REMOVED - NEVER update creation timestamp
-                candidate = existing
-
-                # CRITICAL: Explicitly flush merged changes to session before final commit
-                # SQLAlchemy might not track object modifications unless we flush
-                try:
-                    db.flush()
-                    logger.info(f"[Handler] Flushed merged candidate {candidate_id_existing} to session")
-
-                    # ✅ LOG DUPLICATE MERGE TO AUDIT TRAIL
-                    # Capture the email change if it occurred
-                    if 'old_email_for_audit' in locals() and old_email_for_audit != candidate_email:
-                        try:
-                            log_duplicate_merged(
-                                db=db,
-                                candidate_id=candidate_id_existing,
-                                old_email=old_email_for_audit,
-                                new_email=candidate_email,
-                                match_field="phone"
-                            )
-                            logger.info(f"[Handler] ✅ Logged duplicate merge event for {candidate_id_existing}")
-                        except Exception as log_err:
-                            logger.error(f"[Handler] Failed to log duplicate merge: {log_err}", exc_info=True)
-                            # Don't fail the merge if logging fails
-
-                except Exception as e:
-                    logger.error(f"[Handler] Failed to flush merged candidate: {e}", exc_info=True)
-                    db.rollback()
-                    raise RuntimeError(f"Failed to flush merged candidate: {str(e)}") from e
-
-                logger.info(
-                    f"[Handler] DUPLICATE MERGE: Updated {merge_count} fields in {candidate_id_existing}. "
-                    f"Email: {old_email_for_audit} → {candidate_email} | "
-                    f"Name: {payload.get('candidate_first_name')} {payload.get('candidate_last_name')} | "
-                    f"Phone: {payload.get('candidate_mobile')}"
-                )
+            # If new candidate, add to session; if duplicate, already in DB
+            if is_new:
+                logger.info(f"[Handler] New candidate created: {candidate_email}")
             else:
-                db.add(candidate)
-                logger.info(f"[Handler] NEW candidate: {candidate_email} - creating new record")
+                logger.info(f"[Handler] Candidate already exists (dedup): {candidate_email}")
 
             # Flush candidate to get candidateID (but don't commit yet)
             try:
@@ -577,7 +443,22 @@ Recruiting Team
             # CRITICAL: SLM failures do NOT block candidate creation success
             # Candidate creation is the primary responsibility; SLM is optional downstream routing
             try:
-                from app.services.slm_service import SLMService
+                candidate_first_name = payload.get("candidate_first_name", "Candidate")
+                MessageQueueService.enqueue(
+                    task_name='send_email',
+                    channel_type='EMAIL_QUEUE',
+                    data={
+                        'candidate_id': candidate_id,
+                        'recipient_email': candidate_email,
+                        'email_type': 'FIRST_ENGAGEMENT',
+                        'subject': f'Welcome {candidate_first_name}! Your Application is Received',
+                        'body': f'Hi {candidate_first_name},\n\nThank you for applying! We have received your application and will review it shortly.\n\nBest regards,\nBlitzenX Team',
+                        'tenant_id': payload.get('tenant_id', 1),
+                    }
+                )
+                logger.info(f"[Handler] ✅ Queued first engagement email for {candidate_id}")
+            except Exception as e:
+                logger.warning(f"[Handler] Failed to queue email (non-blocking): {e}")
 
                 # Analyze candidate creation result
                 handler_result = {
@@ -651,7 +532,7 @@ Recruiting Team
                         db,
                         email=healed_payload.get("candidate_email"),
                         mobile=healed_payload.get("candidate_mobile"),
-                        plain_password=healed_payload.get("candidate_password"),
+                        plain_password=healed_payload.get("candidate_temp_password"),
                         tenant_id=healed_payload.get("tenant_id"),
                         candidateRole=healed_payload.get("candidate_role", "Candidate"),
                         candidateEmployeeType=healed_payload.get("candidate_employee_type"),

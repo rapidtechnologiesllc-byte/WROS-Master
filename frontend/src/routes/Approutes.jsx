@@ -300,8 +300,8 @@ export default function AppRoutes() {
   // internal login gate below, same precedent as /careers-chat, since
   // a candidate arriving via a WhatsApp/Email link has no internal
   // account and must never see the internal login screen.
-  if (window.location.pathname.startsWith("/candidate/")) {
-    const portalToken = window.location.pathname.split("/candidate/")[1]?.split("/")[0];
+  if (window.location.pathname.startsWith("/candidates/")) {
+    const portalToken = window.location.pathname.split("/candidates/")[1]?.split("/")[0];
     return <CandidatePortalScreen token={portalToken} />;
   }
 
@@ -363,7 +363,14 @@ export default function AppRoutes() {
     const refreshUserData = async () => {
       try {
         const { getHrMe } = await import("../services/api/users");
-        const user = await getHrMe();
+
+        // Add 5-second timeout to prevent infinite hang
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error("Permissions loading timeout")), 5000)
+        );
+
+        const user = await Promise.race([getHrMe(), timeoutPromise]);
+
         if (user) {
           // Update localStorage with fresh data from backend
           if (user.user_role) {

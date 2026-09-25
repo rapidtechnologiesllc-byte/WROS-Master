@@ -165,6 +165,11 @@ class AuthenticationMiddleware(BaseHTTPMiddleware):
         # Skip authentication for OPTIONS requests (CORS preflight)
         if request.method == "OPTIONS":
             response = await call_next(request)
+            # Ensure OPTIONS responses have CORS headers
+            response.headers["Access-Control-Allow-Origin"] = "*"
+            response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS, PATCH"
+            response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-Requested-With"
+            response.headers["Access-Control-Max-Age"] = "3600"
             return response
 
         # Skip authentication for public routes
@@ -224,14 +229,25 @@ class AuthenticationMiddleware(BaseHTTPMiddleware):
             
             return response
             
-        except HTTPException:
+        except HTTPException as e:
             # decode_access_token raised HTTPException (401 Unauthorized, etc.)
-            # Log and re-raise so FastAPI handles it with proper response format
+            # Convert to JSONResponse for proper Starlette middleware handling
+            # (re-raising bypasses FastAPI exception handler in middleware context)
             log_security_event(
                 "INVALID_TOKEN",
                 details=f"Path: {path} | Invalid JWT token"
             )
-            raise
+            return JSONResponse(
+                status_code=e.status_code,
+                content={"detail": e.detail}
+            )
+        except Exception as e:
+            # Catch-all for any other auth errors (malformed tokens, etc.)
+            logger.error(f"Unexpected auth error: {str(e)}", exc_info=True)
+            return JSONResponse(
+                status_code=401,
+                content={"detail": "Invalid or expired token"}
+            )
 
     def _is_public_route(self, path: str) -> bool:
         """

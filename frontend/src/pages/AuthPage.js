@@ -99,17 +99,13 @@ export default function AuthPage() {
       if (data.refresh_token) {
         localStorage.setItem("hrms_refresh_token", data.refresh_token);
       }
-      try {
-        const user = await getCurrentUser();
-        if (user) {
-          localStorage.setItem("user_info", JSON.stringify(user));
-          localStorage.setItem("permission_role", user.permission_role);
-        }
-      } catch (userError) {
-        console.error("[AuthPage] Non-critical: Failed to fetch user details:", userError);
-        throw userError;
+      // Use user data from login response directly
+      if (data) {
+        localStorage.setItem("user_info", JSON.stringify(data));
+        localStorage.setItem("user_email", data.user_email);
+        localStorage.setItem("user_name", data.user_name);
       }
-    // Fallback: use user_role from login response if permission_role not available
+    // Use user_role from login response for permission_role
     if (data?.user_role) {
       localStorage.setItem("permission_role", data.user_role);
     }

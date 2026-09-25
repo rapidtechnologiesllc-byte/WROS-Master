@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { FileText, Users } from "lucide-react";
 import { createCandidate } from "../services/api/candidates";
+import { apiRequest } from "../services/api/client";
 import { uploadResume } from "../services/api/documents";
 import { getMicrosoftSigninUrl } from "../services/api/msgraph";
 import { sendPlainEmail } from "../services/api/email";
@@ -705,21 +706,59 @@ export default function CandidateCreate({ onBack, onSave }) {
   const handleSaveOnly = async () => {
     try {
       const queueResponse = await handleCreateCandidate();
-      // Success case: show queue status
+      // Success case: poll for task completion
       if (queueResponse && queueResponse.message_id) {
         const messageId = queueResponse.message_id;
-        const pollingEndpoint = queueResponse.polling_endpoint || "/candidates";
 
-        // Show queue status modal with polling endpoint and email notification info
-        const message = `✓ Candidate creation queued successfully!\n\nMessage ID: ${messageId}\n\n📧 You will receive an email notification when the candidate is created.\n\n🔍 You can also check status anytime at:\n${pollingEndpoint}\n\nOnce created, you'll be able to upload a resume and manage the candidate.`;
-        showSuccess(message);
+        // Poll for task completion (max 30 seconds, check every 2 seconds)
+        let isCompleted = false;
+        let attemptCount = 0;
+        const maxAttempts = 15;
 
-        setTimeout(() => {
-          navigate("/candidates");
-        }, 3000);
+        showSuccess(`⏳ Creating candidate... Message ID: ${messageId}`);
+
+        while (attemptCount < maxAttempts && !isCompleted) {
+          attemptCount++;
+          await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2 seconds
+
+          try {
+            const statusResponse = await apiRequest(`/message-queue/tasks/${messageId}/status`, {
+              method: "GET",
+            });
+
+            if (statusResponse?.data) {
+              const taskStatus = statusResponse.data.status?.toLowerCase();
+
+              if (taskStatus === 'completed') {
+                showSuccess(`✓ Candidate created successfully!\n\nID: ${messageId}`);
+                isCompleted = true;
+
+                // Auto-redirect after success
+                setTimeout(() => {
+                  navigate("/candidates");
+                }, 2000);
+              } else if (taskStatus === 'failed') {
+                showError(`✗ Candidate creation failed: ${statusResponse.data.error || 'Unknown error'}`);
+                isCompleted = true;
+              }
+              // If still pending/processing, loop continues
+            }
+          } catch (pollError) {
+            // Continue polling even if status check fails
+            console.debug(`Poll attempt ${attemptCount}: status check not ready yet`);
+          }
+        }
+
+        // If still not completed after max attempts, show timeout message
+        if (!isCompleted) {
+          showSuccess(`✓ Candidate creation in progress (Message ID: ${messageId})\n\nYou can check status in the candidates list.`);
+          setTimeout(() => {
+            navigate("/candidates");
+          }, 3000);
+        }
       }
     } catch (error) {
-      // Error is already handled by handleCreateCandidate, just ensure we're not in saving state
+      // Error is already handled by handleCreateCandidate
       console.error("Candidate creation error handled");
     }
   };

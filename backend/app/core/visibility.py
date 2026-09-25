@@ -39,6 +39,11 @@ def is_org_level_user(user: Users) -> bool:
         logger.debug(f"User {user.UserEmail} is org-level via legacy UserRole: {user.UserRole}")
         return True
 
+    # Check role_template (new RBAC system) for org_level_access flag
+    if user.role_template and hasattr(user.role_template, 'org_level_access') and user.role_template.org_level_access:
+        logger.debug(f"User {user.UserEmail} is org-level via role_template: {user.role_template.name}")
+        return True
+
     return False
 
 

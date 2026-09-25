@@ -59,7 +59,6 @@ from app.api.v1.endpoints.conversation_search import router as conversation_sear
 from app.api.v1.endpoints.candidate_portal import router as candidate_portal_router
 from app.api.v1.endpoints.sla_breach import router as sla_breach_router
 from app.api.v1.endpoints.technical_scoring import router as technical_scoring_router
-from app.api.v1.endpoints.abandonment_scoring import router as abandonment_scoring_router
 from app.api.v1.endpoints.offer_readiness import router as offer_readiness_router
 from app.api.v1.endpoints.candidate_journey import router as candidate_journey_router
 from app.api.v1.endpoints.drop_risk import router as drop_risk_router
@@ -117,33 +116,7 @@ from app.api.v1.endpoints.slm_feedback import router as slm_feedback_router
 from app.api.v1.endpoints.slm_analytics import router as slm_analytics_router
 from app.api.v1.endpoints.message_queue import router as message_queue_router
 from app.api.v1.endpoints.linkedin_candidate_pipeline import router as linkedin_pipeline_router
-from app.api.v1.endpoints.linkedin_conversion import router as linkedin_conversion_router
-# UNREGISTERED ENDPOINTS - NEWLY ADDED
-from app.api.v1.endpoints.admin_queue import router as admin_queue_router
-from app.api.v1.endpoints.agent_config import router as agent_config_router
-from app.api.v1.endpoints.bi_explorer import router as bi_explorer_router
-from app.api.v1.endpoints.bu_head_dashboard import router as bu_head_dashboard_router
-from app.api.v1.endpoints.candidate_ranking import router as candidate_ranking_router
-from app.api.v1.endpoints.candidate_rejection import router as candidate_rejection_router
-from app.api.v1.endpoints.complete_workflow import router as complete_workflow_router
-from app.api.v1.endpoints.doctor_traces_dashboard import router as doctor_traces_dashboard_router
-from app.api.v1.endpoints.dynamic_config import router as dynamic_config_router
-from app.api.v1.endpoints.employee_conversion import router as employee_conversion_router
-from app.api.v1.endpoints.hiring_manager_validation import router as hiring_manager_validation_router
-from app.api.v1.endpoints.interview_decision import router as interview_decision_router
-from app.api.v1.endpoints.invoices_s316 import router as invoices_s316_router
-from app.api.v1.endpoints.offers import router as offers_router
-from app.api.v1.endpoints.onboarding_orchestrator import router as onboarding_orchestrator_router
-from app.api.v1.endpoints.onboarding_workflow import router as onboarding_workflow_router
-from app.api.v1.endpoints.queue import router as queue_router
-from app.api.v1.endpoints.resume_upload import router as resume_upload_router
-from app.api.v1.endpoints.resume_versions import router as resume_versions_router
-from app.api.v1.endpoints.revenue_recognition import router as revenue_recognition_router
-from app.api.v1.endpoints.spartan_forecasting import router as spartan_forecasting_router
-from app.api.v1.endpoints.spartan_integration import router as spartan_integration_router
-from app.api.v1.endpoints.strategic_consul import router as strategic_consul_router
-from app.api.v1.endpoints.system_health import router as system_health_router
-from app.api.v1.endpoints.training_dashboards import router as training_dashboards_router
+from app.api.v1.endpoints.business_units import router as business_units_router
 
 try:
     router = fastapi.APIRouter(prefix="/api/v1")
@@ -157,6 +130,7 @@ router.include_router(router=role_templates_router)
 router.include_router(router=role_template_modules_router)
 router.include_router(router=permission_composition_router)
 router.include_router(router=org_structure_router)
+router.include_router(router=business_units_router)
 router.include_router(router=users_router)
 router.include_router(router=create_job_router)
 router.include_router(router=create_queue_first_router)  # Must come BEFORE candidates_router to match POST /create first
@@ -215,7 +189,6 @@ router.include_router(router=conversation_search_router)
 router.include_router(router=candidate_portal_router)
 router.include_router(router=technical_scoring_router)
 router.include_router(router=sla_breach_router)
-router.include_router(router=abandonment_scoring_router)
 router.include_router(router=offer_readiness_router)
 router.include_router(router=candidate_journey_router)
 router.include_router(router=drop_risk_router)

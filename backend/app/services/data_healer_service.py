@@ -117,14 +117,14 @@ class DataHealerService:
             logger.info("[Healer] Fixed email format")
 
         # Phone validation
-        phone = payload.get('candidate_mobile', '').strip()
+        phone = (payload.get('candidate_mobile') or '').strip()
         if phone and not re.match(r'^[\d\s\-\+\(\)]+$', phone):
             healed['candidate_mobile'] = '+1-555-0000'
             recruiter_tasks.append(f"Phone format invalid: '{phone}' → fixed to placeholder")
             logger.info("[Healer] Fixed phone format")
 
         # Name validation
-        name = payload.get('candidate_first_name', '').strip()
+        name = (payload.get('candidate_first_name') or '').strip()
         if name and len(name) < 2:
             healed['candidate_first_name'] = 'Unknown'
             recruiter_tasks.append(f"First name too short: '{name}' → set to 'Unknown'")

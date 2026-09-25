@@ -796,13 +796,94 @@ def update_candidate(candidate_id: str, request: CandidateUpdateRequest, db: Ses
         candidate_source=candidate.candidateSource,
     )
 
+@router.patch(
+    "/{candidate_id}/thunder-config",
+    response_model=CandidateCompleteResponse,
+    dependencies=[Depends(require_role_template_permission("candidates", "can_edit"))],
+)
+def update_thunder_config(
+    candidate_id: str,
+    body: dict,
+    db: Session = Depends(get_db),
+    user = Depends(get_current_user)
+):
+    """
+    Update Thunder autonomous processing flag for a candidate.
+
+    Args:
+        candidate_id: ID of candidate to update
+        body: {"thunder_enabled": true/false}
+        db: Database session
+        user: Authenticated HR/Admin user
+
+    Returns:
+        Updated CandidateCompleteResponse
+
+    Raises:
+        HTTPException: If candidate not found or user lacks permission
+    """
+    if "thunder_enabled" not in body:
+        raise HTTPException(status_code=400, detail="Missing 'thunder_enabled' field in request body")
+
+    candidate = get_candidate_by_id_with_bu_scope(db, candidate_id, user)
+    if not candidate:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Candidate with ID {candidate_id} not found"
+        )
+
+    old_value = candidate.thunder_enabled
+    candidate.thunder_enabled = bool(body["thunder_enabled"])
+
+    try:
+        db.commit()
+        db.refresh(candidate)
+        logger.info(f"Thunder config updated for {candidate_id}: {old_value} → {candidate.thunder_enabled}")
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to update thunder config: {str(e)}")
+
+    return _build_candidate_response(candidate)
+
+@router.delete(
+    "/{candidate_id}",
+    response_model=DeleteResponse,
+    dependencies=[Depends(require_role_template_permission("candidates", "can_delete"))],
+)
+def delete_candidate_restful(candidate_id: str, db: Session = Depends(get_db), user = Depends(get_current_user)):
+    """
+    Delete a candidate and all associated records (RESTful endpoint).
+
+    This is the standard DELETE /candidates/{candidate_id} endpoint.
+    The old /candidates/hr/delete_candidate/{candidate_id} is deprecated
+    but kept for backward compatibility.
+
+    Args:
+        candidate_id: ID of the candidate to delete
+        db: Database session
+        user: Authenticated HR/Admin user
+
+    Returns:
+        DeleteResponse with success message
+
+    Raises:
+        HTTPException: If candidate not found or user lacks BU permission
+    """
+    # Delegate to the legacy implementation
+    return delete_candidate_legacy(candidate_id, db, user)
+
 @router.delete(
     "/hr/delete_candidate/{candidate_id}",
     response_model=DeleteResponse,
     dependencies=[Depends(require_role_template_permission("candidates", "can_delete"))],
+    deprecated=True,
 )
-def delete_candidate(candidate_id: str, db: Session = Depends(get_db), user = Depends(get_current_user)):
+def delete_candidate_legacy(candidate_id: str, db: Session = Depends(get_db), user = Depends(get_current_user)):
     """
+    ⚠️ DEPRECATED: Use DELETE /candidates/{candidate_id} instead.
+
+    This endpoint will be removed on 2027-03-23. Please migrate to the RESTful endpoint.
+
     Delete a candidate and all associated records.
 
     Args:
@@ -1225,354 +1306,58 @@ def get_candidate_contacts(
     }
 
 
-# ============================================
-# Message Display Endpoints (BLOCKER-1 FIX)
-# ============================================
+# ============================================================
+# Include legacy candidate routes (self-service + creation)
+# ============================================================
+# Load and include the legacy candidates.py module which contains
+# self-service routes (/candidate/create, /candidate/import/linkedin, etc.)
+# This consolidates both HR admin routes (/candidates/*) and candidate
+# self-service routes (/candidate/*) into a single integrated router
+try:
+    import importlib.util
+    from pathlib import Path
+    _legacy_path = Path(__file__).parent.parent / "candidates.py"
+    _spec = importlib.util.spec_from_file_location("candidates_legacy", str(_legacy_path))
+    _legacy_module = importlib.util.module_from_spec(_spec)
+    _spec.loader.exec_module(_legacy_module)
 
-from pydantic import BaseModel
-from typing import List
+    # Re-register each route through proper FastAPI mechanism (add_api_route)
+    # This ensures Starlette rebuilds its routing tree correctly
+    # The legacy router uses prefix="/candidate", we convert to use crud's "/candidates" prefix
+    _legacy_routes_count = 0
+    for _route in _legacy_module.router.routes:
+        if hasattr(_route, 'endpoint') and hasattr(_route, 'methods'):
+            # Extract the path and remove the legacy "/candidate" prefix
+            path = _route.path
+            if path.startswith("/candidates"):
+                # Remove "/candidates" from "/candidates/create" -> "/create"
+                path = path[len("/candidates"):]
+                if not path:
+                    path = "/"
+            elif path.startswith("/candidate"):
+                # Also handle old "/candidate" prefix (without 's')
+                path = path[len("/candidate"):]
+                if not path:
+                    path = "/"
 
-class MessageDeliveryResponse(BaseModel):
-    """Single message delivery record"""
-    id: int
-    delivery_type: str  # "whatsapp" | "email"
-    recipient: str
-    subject: Optional[str]
-    body: str
-    status: str  # "pending" | "sent" | "delivered" | "failed"
-    delivery_id: str
-    error: Optional[str]
-    created_at: datetime
-    sent_at: Optional[datetime]
-    delivered_at: Optional[datetime]
-
-    class Config:
-        from_attributes = True
-
-
-class MessagesResponse(BaseModel):
-    """List of messages for a candidate"""
-    candidate_id: str
-    total_messages: int
-    messages: List[MessageDeliveryResponse]
-
-
-@router.get(
-    "/{candidate_id}/messages",
-    response_model=MessagesResponse,
-    dependencies=[Depends(require_role_template_permission("candidates", "can_view"))],
-)
-def get_candidate_messages(
-    candidate_id: str,
-    db: Session = Depends(get_db),
-    user = Depends(get_current_user),
-):
-    """Get all messages (WhatsApp, Email) sent to a candidate."""
-    from app.models.message_delivery import MessageDeliveryLog
-    from app.models.candidate_ai import CandidateConversation
-
-    # Verify candidate exists
-    candidate = get_candidate_by_id_with_bu_scope(db, candidate_id, current_user=user)
-    if not candidate:
-        raise HTTPException(status_code=404, detail=f"Candidate {candidate_id} not found")
-
-    # Get all conversations for this candidate
-    conversations = db.query(CandidateConversation).filter(
-        CandidateConversation.candidate_id == candidate_id
-    ).all()
-
-    if not conversations:
-        return MessagesResponse(
-            candidate_id=candidate_id,
-            total_messages=0,
-            messages=[]
-        )
-
-    conversation_ids = [c.id for c in conversations]
-
-    # Get all message delivery logs for these conversations
-    messages = db.query(MessageDeliveryLog).filter(
-        MessageDeliveryLog.conversation_id.in_(conversation_ids)
-    ).order_by(MessageDeliveryLog.created_at.desc()).all()
-
-    return MessagesResponse(
-        candidate_id=candidate_id,
-        total_messages=len(messages),
-        messages=[
-            MessageDeliveryResponse(
-                id=m.id,
-                delivery_type=m.delivery_type,
-                recipient=m.recipient,
-                subject=m.subject,
-                body=m.body,
-                status=m.status,
-                delivery_id=m.delivery_id,
-                error=m.error,
-                created_at=m.created_at,
-                sent_at=m.sent_at,
-                delivered_at=m.delivered_at,
-            )
-            for m in messages
-        ]
-    )
-
-
-class ActivityFeedItemResponse(BaseModel):
-    """Single activity feed item"""
-    id: int
-    event_type: str
-    timestamp: datetime
-    description: str
-    event_data: Optional[dict]
-
-    class Config:
-        from_attributes = True
-
-
-class ActivityFeedResponse(BaseModel):
-    """Activity feed for a candidate"""
-    candidate_id: str
-    total_activities: int
-    activities: List[ActivityFeedItemResponse]
-
-
-@router.get(
-    "/{candidate_id}/activity-feed",
-    response_model=ActivityFeedResponse,
-    dependencies=[Depends(require_role_template_permission("candidates", "can_view"))],
-)
-def get_candidate_activity_feed(
-    candidate_id: str,
-    db: Session = Depends(get_db),
-    user = Depends(get_current_user),
-):
-    """Get activity timeline for a candidate (status changes, messages, interviews)."""
-    from app.models.activity_timeline import ActivityTimeline
-
-    # Verify candidate exists
-    candidate = get_candidate_by_id_with_bu_scope(db, candidate_id, current_user=user)
-    if not candidate:
-        raise HTTPException(status_code=404, detail=f"Candidate {candidate_id} not found")
-
-    # Get activity timeline for this candidate
-    activities = db.query(ActivityTimeline).filter(
-        ActivityTimeline.candidate_id == candidate_id
-    ).order_by(ActivityTimeline.timestamp.desc()).all()
-
-    return ActivityFeedResponse(
-        candidate_id=candidate_id,
-        total_activities=len(activities),
-        activities=[
-            ActivityFeedItemResponse(
-                id=a.id,
-                event_type=a.event_type,
-                timestamp=a.timestamp,
-                description=a.description or a.event_type,
-                event_data=a.event_data,
-            )
-            for a in activities
-        ]
-    )
-
-
-class EngagementTimelineResponse(BaseModel):
-    """Combined engagement timeline (messages + activities + interviews)"""
-    candidate_id: str
-    total_events: int
-    messages: List[MessageDeliveryResponse]
-    activities: List[ActivityFeedItemResponse]
-
-
-@router.get(
-    "/{candidate_id}/engagement-timeline",
-    response_model=EngagementTimelineResponse,
-    dependencies=[Depends(require_role_template_permission("candidates", "can_view"))],
-)
-def get_candidate_engagement_timeline(
-    candidate_id: str,
-    db: Session = Depends(get_db),
-    user = Depends(get_current_user),
-):
-    """Get complete engagement timeline combining messages and activity feed."""
-    from app.models.message_delivery import MessageDeliveryLog
-    from app.models.candidate_ai import CandidateConversation
-    from app.models.activity_timeline import ActivityTimeline
-
-    # Verify candidate exists
-    candidate = get_candidate_by_id_with_bu_scope(db, candidate_id, current_user=user)
-    if not candidate:
-        raise HTTPException(status_code=404, detail=f"Candidate {candidate_id} not found")
-
-    # Get conversations and messages
-    conversations = db.query(CandidateConversation).filter(
-        CandidateConversation.candidate_id == candidate_id
-    ).all()
-
-    messages = []
-    if conversations:
-        conversation_ids = [c.id for c in conversations]
-        messages_db = db.query(MessageDeliveryLog).filter(
-            MessageDeliveryLog.conversation_id.in_(conversation_ids)
-        ).order_by(MessageDeliveryLog.created_at.desc()).all()
-        messages = [
-            MessageDeliveryResponse(
-                id=m.id,
-                delivery_type=m.delivery_type,
-                recipient=m.recipient,
-                subject=m.subject,
-                body=m.body,
-                status=m.status,
-                delivery_id=m.delivery_id,
-                error=m.error,
-                created_at=m.created_at,
-                sent_at=m.sent_at,
-                delivered_at=m.delivered_at,
-            )
-            for m in messages_db
-        ]
-
-    # Get activities
-    activities_db = db.query(ActivityTimeline).filter(
-        ActivityTimeline.candidate_id == candidate_id
-    ).order_by(ActivityTimeline.timestamp.desc()).all()
-
-    activities = [
-        ActivityFeedItemResponse(
-            id=a.id,
-            event_type=a.event_type,
-            timestamp=a.timestamp,
-            description=a.description or a.event_type,
-            event_data=a.event_data,
-        )
-        for a in activities_db
-    ]
-
-    return EngagementTimelineResponse(
-        candidate_id=candidate_id,
-        total_events=len(messages) + len(activities),
-        messages=messages,
-        activities=activities,
-    )
-
-
-@router.post("/candidate-form/", response_model=candidateFormResponse, dependencies=[Depends(require_role_template_permission("candidates", "can_create"))])
-def candidate_info(request: candidateFormRequest, db: Session = Depends(get_db)):
-    """
-    Create or update candidate and fill information form.
-    Creates candidate if doesn't exist, then fills in form details.
-
-    Args:
-        request: candidateFormRequest containing candidate and form details
-        db: Database session
-
-    Returns:
-        candidateFormResponse with status and message
-
-    Raises:
-        HTTPException: If validation fails
-    """
-    from app.utils.uniq_id_generator import candidate_id_generator, generate_password
-    from app.core.security import get_password_hash
-
-    # Find or create candidate by email
-    candidate = db.query(Candidate).filter(Candidate.candidateEmail == request.candidate_email).first()
-
-    if not candidate:
-        try:
-            candidate_id = candidate_id_generator()
-            temp_password = generate_password()
-            candidate = Candidate(
-                candidateID=candidate_id,
-                candidateEmail=request.candidate_email,
-                candidateFirstName=request.candidate_first_name,
-                candidateLastName=request.candidate_last_name,
-                candidateMobile=request.candidate_mobile,
-                candidatePassword=get_password_hash(temp_password),
-                candidateSource=request.candidate_source,
-                candidateCurrentLocation=request.candidate_current_location,
-            )
-            db.add(candidate)
-            db.flush()
-            db.commit()
-
-            # Log candidate creation
-            try:
-                from app.services.candidate_activity_service import log_candidate_created
-                log_candidate_created(
-                    db,
-                    candidate_id=candidate.candidateID,
-                    created_by_name="System",
-                    recruitment_source=request.candidate_source or "Form Submission"
+            # Re-register each HTTP method separately through proper FastAPI mechanism
+            for method in (_route.methods or ["GET"]):
+                router.add_api_route(
+                    path,
+                    _route.endpoint,
+                    methods=[method],
+                    response_model=getattr(_route, 'response_model', None),
+                    dependencies=getattr(_route, 'dependencies', None),
+                    status_code=getattr(_route, 'status_code', None),
+                    tags=getattr(_route, 'tags', ['legacy-candidates']),
+                    summary=getattr(_route, 'summary', None),
+                    description=getattr(_route, 'description', None),
+                    name=getattr(_route, 'name', None),
+                    include_in_schema=getattr(_route, 'include_in_schema', True),
                 )
-            except Exception as log_err:
-                logger.warning(f"Failed to log candidate creation: {log_err}")
-        except Exception as e:
-            db.rollback()
-            logger.error(f"Failed to create candidate: {e}", exc_info=True)
-            raise HTTPException(
-                status_code=500,
-                detail=f"Failed to create candidate: {str(e)}"
-            ) from e
+                _legacy_routes_count += 1
 
-    # Check if form already exists for this candidate
-    existing_form = db.query(CandidateInfoForm).filter(
-        CandidateInfoForm.candidateID == candidate.candidateID
-    ).first()
-
-    if existing_form:
-        try:
-            existing_form.position = request.position
-            existing_form.department = request.department
-            existing_form.dob = request.dob
-            existing_form.gender = request.gender
-            existing_form.marital_status = request.marital_status
-            existing_form.nationality = request.nationality
-            existing_form.current_address = request.current_address
-            existing_form.permanent_address = request.permanent_address
-            existing_form.submittedAt = request.submitted_at
-
-            db.commit()
-            db.refresh(existing_form)
-        except Exception as e:
-            db.rollback()
-            logger.error(f"Failed to update candidate form: {e}", exc_info=True)
-            raise HTTPException(
-                status_code=500,
-                detail=f"Failed to update candidate form: {str(e)}"
-            ) from e
-
-        return candidateFormResponse(
-            status="Success",
-            message="Candidate form updated successfully"
-        )
-    else:
-        try:
-            new_form = CandidateInfoForm(
-                candidateID=candidate.candidateID,
-                position=request.position,
-                department=request.department,
-                dob=request.dob,
-                gender=request.gender,
-                marital_status=request.marital_status,
-                nationality=request.nationality,
-                current_address=request.current_address,
-                permanent_address=request.permanent_address,
-                submittedAt=request.submitted_at
-            )
-
-            db.add(new_form)
-            db.commit()
-            db.refresh(new_form)
-        except Exception as e:
-            db.rollback()
-            logger.error(f"Failed to create candidate form: {e}", exc_info=True)
-            raise HTTPException(
-                status_code=500,
-                detail=f"Failed to create candidate form: {str(e)}"
-            ) from e
-
-        return candidateFormResponse(
-            status="Success",
-            message="Candidate form submitted successfully"
-        )
+    logger.info(f"[CANDIDATES] Legacy routes re-registered: {_legacy_routes_count} route handlers")
+except Exception as e:
+    logger.error(f"[CANDIDATES] Failed to load legacy routes: {e}", exc_info=True)
 

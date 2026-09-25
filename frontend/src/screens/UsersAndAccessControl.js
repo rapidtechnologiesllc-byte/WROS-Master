@@ -315,7 +315,7 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
           onChange={(val) => setSearchTerm(val)}
           className="max-w-xs"
         />
-        {hasPermission("user", "create") && (
+        {hasPermission("users", "edit") && (
           <Button
             onClick={() => navigate('/admin/users-access-control/users/create')}
             className="gap-2"
@@ -1150,9 +1150,13 @@ function OrganizationalHierarchySection() {
   const [orgNodes, setOrgNodes] = useState([]);
   const [positions, setPositions] = useState(POSITIONS);
   const [businessUnits, setBusinessUnits] = useState([]);
+  const [departments, setDepartments] = useState([]);
   const [showAddOrgNodeModal, setShowAddOrgNodeModal] = useState(false);
   const [showPositionsManager, setShowPositionsManager] = useState(false);
   const [showAddPositionModal, setShowAddPositionModal] = useState(false);
+  const [showManageDepartmentsModal, setShowManageDepartmentsModal] = useState(false);
+  const [showAddDepartmentModal, setShowAddDepartmentModal] = useState(false);
+  const [editingDepartmentId, setEditingDepartmentId] = useState(null);
   const [editingOrgNodeId, setEditingOrgNodeId] = useState(null);
   const [newOrgNodeEmployeeName, setNewOrgNodeEmployeeName] = useState("");
   const [newOrgNodePosition, setNewOrgNodePosition] = useState("");
@@ -1166,6 +1170,8 @@ function OrganizationalHierarchySection() {
   const [editOrgNodeLocation, setEditOrgNodeLocation] = useState("");
   const [newPositionName, setNewPositionName] = useState("");
   const [newPositionRoleTemplate, setNewPositionRoleTemplate] = useState("");
+  const [newDepartmentName, setNewDepartmentName] = useState("");
+  const [editDepartmentName, setEditDepartmentName] = useState("");
   const [isSubmittingOrgNode, setIsSubmittingOrgNode] = useState(false);
   const [actionError, setActionError] = useState(null);
   const [actionSuccess, setActionSuccess] = useState(null);
@@ -1271,6 +1277,49 @@ function OrganizationalHierarchySection() {
     setPositions(positions.filter(p => p.id !== posId));
   };
 
+  const handleAddDepartment = () => {
+    if (!newDepartmentName.trim()) {
+      toast.error("Department name is required");
+      return;
+    }
+    setDepartments([...departments, {
+      id: Math.max(...departments.map(d => d.id), 0) + 1,
+      name: newDepartmentName
+    }]);
+    setNewDepartmentName("");
+    setShowAddDepartmentModal(false);
+    toast.success("Department added successfully");
+  };
+
+  const handleEditDepartment = (dept) => {
+    setEditingDepartmentId(dept.id);
+    setEditDepartmentName(dept.name);
+  };
+
+  const handleSaveEditDepartment = () => {
+    if (!editDepartmentName.trim()) {
+      toast.error("Department name is required");
+      return;
+    }
+    setDepartments(departments.map(d =>
+      d.id === editingDepartmentId ? { ...d, name: editDepartmentName } : d
+    ));
+    setEditingDepartmentId(null);
+    setEditDepartmentName("");
+    toast.success("Department updated successfully");
+  };
+
+  const handleDeleteDepartment = (deptId) => {
+    if (window.confirm("Are you sure you want to delete this department?")) {
+      setDepartments(departments.filter(d => d.id !== deptId));
+      toast.success("Department deleted");
+    }
+  };
+
+  const getDepartmentUserCount = (deptId) => {
+    return orgNodes.filter(node => node.department_id === deptId).length;
+  };
+
   const handleEditOrgNode = (node) => {
     setEditingOrgNodeId(node.id);
     setEditOrgNodeEmployeeName(node.employee_name);
@@ -1368,6 +1417,12 @@ function OrganizationalHierarchySection() {
         >
           Manage Positions
         </button>
+        <button
+          onClick={() => setShowManageDepartmentsModal(true)}
+          className="flex items-center gap-2 px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 text-sm font-medium"
+        >
+          Manage Department
+        </button>
       </div>
 
       {showPositionsManager && (
@@ -1431,6 +1486,133 @@ function OrganizationalHierarchySection() {
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {showManageDepartmentsModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="w-full max-w-md rounded-lg bg-white p-6 shadow-lg">
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-lg font-semibold">Manage Departments</h2>
+              <button
+                onClick={() => setShowManageDepartmentsModal(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-4 max-h-96 overflow-y-auto">
+              {departments.length === 0 ? (
+                <p className="text-sm text-gray-500 text-center py-4">No departments yet</p>
+              ) : (
+                departments.map((dept) => (
+                  <div key={dept.id} className="flex items-center justify-between bg-gray-50 p-3 rounded border border-gray-200">
+                    <div className="flex-1">
+                      {editingDepartmentId === dept.id ? (
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            value={editDepartmentName}
+                            onChange={(e) => setEditDepartmentName(e.target.value)}
+                            className="flex-1 px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:border-bx-orange"
+                            autoFocus
+                          />
+                          <button
+                            onClick={handleSaveEditDepartment}
+                            className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700"
+                          >
+                            Save
+                          </button>
+                          <button
+                            onClick={() => {
+                              setEditingDepartmentId(null);
+                              setEditDepartmentName("");
+                            }}
+                            className="px-2 py-1 text-xs bg-gray-400 text-white rounded hover:bg-gray-500"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-3">
+                          <span className="text-sm font-medium text-gray-900">{dept.name}</span>
+                          <span className="px-2 py-1 bg-blue-100 text-blue-800 text-xs font-medium rounded">
+                            {getDepartmentUserCount(dept.id)} users
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                    {editingDepartmentId !== dept.id && (
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => handleEditDepartment(dept)}
+                          className="p-1 text-blue-600 hover:bg-blue-50 rounded"
+                        >
+                          <Edit2 className="h-4 w-4" />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteDepartment(dept.id)}
+                          className="p-1 text-red-600 hover:bg-red-50 rounded"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+
+            {showAddDepartmentModal ? (
+              <div className="mt-4 space-y-3 bg-blue-50 p-3 rounded border border-blue-200">
+                <input
+                  type="text"
+                  value={newDepartmentName}
+                  onChange={(e) => setNewDepartmentName(e.target.value)}
+                  placeholder="Enter department name"
+                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:border-bx-orange"
+                  autoFocus
+                />
+                <div className="flex gap-2 justify-end">
+                  <button
+                    onClick={() => {
+                      setShowAddDepartmentModal(false);
+                      setNewDepartmentName("");
+                    }}
+                    className="px-3 py-1 text-xs text-gray-700 border border-gray-300 rounded hover:bg-gray-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleAddDepartment}
+                    className="px-3 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700"
+                    disabled={!newDepartmentName.trim()}
+                  >
+                    Add Department
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="mt-4">
+                <button
+                  onClick={() => setShowAddDepartmentModal(true)}
+                  className="w-full flex items-center justify-center gap-2 px-3 py-2 text-sm text-blue-600 border border-blue-300 rounded hover:bg-blue-50"
+                >
+                  <Plus className="h-4 w-4" /> Add Department
+                </button>
+              </div>
+            )}
+
+            <div className="mt-4 flex justify-end">
+              <button
+                onClick={() => setShowManageDepartmentsModal(false)}
+                className="px-4 py-2 text-sm bg-gray-600 text-white rounded hover:bg-gray-700"
+              >
+                Close
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

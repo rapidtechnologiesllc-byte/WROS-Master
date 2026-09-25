@@ -120,8 +120,14 @@ def get_user_navigation(db: Session = Depends(get_db), current_user = Depends(ge
             navigation_modules[module_name] = {"label": module_name, "icon": module_icon, "items": []}
 
             for resource_name in resource_names:
-                # Check from cached permissions (already loaded once above)
-                can_view = all_permissions.get(resource_name, {}).get("can_view", False)
+                # SUPER USER: Allow all resources without permission check
+                if is_super:
+                    can_view = True
+                else:
+                    # Regular user: Check from cached permissions (already loaded once above)
+                    # Convert hyphens to underscores for permission lookup (resource names may differ in format)
+                    normalized_resource = resource_name.replace("-", "_")
+                    can_view = all_permissions.get(normalized_resource, {}).get("can_view", False)
 
                 if can_view:
                     route = RESOURCE_ROUTES.get(resource_name) or f"/{resource_name}"

@@ -5,6 +5,7 @@ from app.core.database import get_db
 from app.core.dependencies import get_current_internal_user, require_resource_permission
 from app.core.permission_registry import Permissions
 from app.models.business_unit import BusinessUnit
+from app.models.user import Users
 from pydantic import BaseModel
 from typing import List, Optional
 
@@ -58,10 +59,11 @@ async def get_business_units(
         )
 
 
-@router.post("", response_model=BusinessUnitResponse, dependencies=[Depends(require_resource_permission("unit", "create"))])
+@router.post("", response_model=BusinessUnitResponse, dependencies=[Depends(require_resource_permission("business_units", "can_create"))])
 async def create_business_unit(
     request: BusinessUnitCreateRequest,
     db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     """Create a new business unit"""
     try:
@@ -100,11 +102,12 @@ async def create_business_unit(
         )
 
 
-@router.put("/{bu_id}", response_model=BusinessUnitResponse, dependencies=[Depends(require_resource_permission("unit", "edit"))])
+@router.put("/{bu_id}", response_model=BusinessUnitResponse, dependencies=[Depends(require_resource_permission("business_units", "can_edit"))])
 async def update_business_unit(
     bu_id: int,
     request: BusinessUnitCreateRequest,
     db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     """Update a business unit"""
     try:
@@ -144,11 +147,11 @@ async def update_business_unit(
         )
 
 
-@router.delete("/{bu_id}")
+@router.delete("/{bu_id}", dependencies=[Depends(require_resource_permission("business_units", "can_delete"))])
 async def delete_business_unit(
     bu_id: int,
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_internal_user)
+    current_user: Users = Depends(get_current_internal_user)
 ):
     """Soft delete a business unit (sets active=False, preserves data relationships)"""
     try:

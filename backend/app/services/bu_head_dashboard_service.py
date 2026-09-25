@@ -1,5 +1,6 @@
 import logging
 from app.core.logging import logger
+
 """BU Head Dashboard Service - Real data aggregation for Business Unit leadership."""
 
 from sqlalchemy.orm import Session

@@ -126,12 +126,31 @@ def _initialize_default_handlers():
     except ImportError as e:
         logger.warning(f"[Registry] Could not import job handlers: {e}")
 
-    # Register cascade failure signal handler (CRITICAL FIX #7)
+    # CYCLE 20A: Spartan Phalanx Formation Feedback (Thunder reports back to Flash)
     try:
-        from app.services.message_handlers.cascade_failure_signal_handler import CascadeFailureSignalHandler
-        MessageHandlerRegistry.register("cascade_failure_signal", CascadeFailureSignalHandler.process)
+        from app.services.message_handlers.thunder_outreach_handler import ThunderOutreachHandler
+
+        # Thunder sends outreach and reports delivery metrics back to Flash
+        MessageHandlerRegistry.register("engage_candidate_with_thunder", ThunderOutreachHandler.process)
+
+        # Formation feedback: Thunder → Flash (health metrics)
+        def _handle_formation_feedback(message: Any, db: Session) -> Dict[str, Any]:
+            """Formation feedback handler: Receive health reports from downstream neighbors."""
+            logger.info(f"[FormationFeedback] {message.payload.get('source')} → {message.payload.get('target')}: "
+                       f"{message.payload.get('metric')} = {message.payload.get('value'):.1%}")
+            return {
+                'status': 'feedback_received',
+                'source': message.payload.get('source'),
+                'target': message.payload.get('target'),
+                'metric': message.payload.get('metric'),
+                'value': message.payload.get('value')
+            }
+
+        MessageHandlerRegistry.register("formation_feedback_thunder_to_flash", _handle_formation_feedback)
+        MessageHandlerRegistry.register("formation_integrity_escalation", _handle_formation_feedback)
+
     except ImportError as e:
-        logger.warning(f"[Registry] Could not import cascade failure signal handler: {e}")
+        logger.warning(f"[Registry] Could not import Thunder/Formation handlers: {e}")
 
     # Register offer handlers
     try:
@@ -244,8 +263,28 @@ def _initialize_default_handlers():
 # See: app/services/message_handlers/thunder_engagement_handler.py
 
 
+# MEDIUM FIX #12: Initialize handlers and validate
+def _validate_handler_registry():
+    """Validate that critical handlers are registered."""
+    critical_handlers = [
+        "create_candidate",
+        "job_created_flash",
+        "flash_recruiter",
+    ]
+
+    registered = MessageHandlerRegistry.get_all_handlers()
+    missing = [h for h in critical_handlers if h not in registered]
+
+    if missing:
+        logger.error(f"[Registry] CRITICAL: Missing handlers: {missing}")
+    else:
+        logger.info(f"[Registry] All critical handlers registered ({len(registered)} total)")
+
+    return len(missing) == 0
+
 # Initialize default handlers on module load
 try:
     _initialize_default_handlers()
+    _validate_handler_registry()
 except Exception as e:
     logger.warning(f"[Registry] Failed to initialize default handlers: {e}")

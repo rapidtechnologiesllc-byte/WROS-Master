@@ -90,7 +90,7 @@ def receive_connect(dbapi_conn, connection_record):
     if "sqlite" not in DATABASE_URL.lower():
         cursor = dbapi_conn.cursor()
 
-        # Set schema search path - app_schema FIRST (application canonical)
+        # Set schema search path - app_schema FIRST since all tables are there
         cursor.execute("SET search_path TO app_schema, public")
 
         # Transaction isolation: READ COMMITTED (default PostgreSQL level)

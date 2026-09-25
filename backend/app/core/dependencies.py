@@ -308,13 +308,26 @@ def require_role_template_permission(resource_name: str, field_name: str = "can_
         db: Session = Depends(get_db),
     ):
         token = credentials.credentials
-        payload = decode_access_token(token)
+        print(f"[PERMISSION-CHECK] Checking {resource_name}.{field_name}, token_len={len(token)}")
+        try:
+            payload = decode_access_token(token)
+            print(f"[PERMISSION-CHECK] Decoded successfully, sub={payload.get('sub', 'NONE')[:8]}...")
+        except Exception as e:
+            print(f"[PERMISSION-CHECK] Decode FAILED: {e}")
+            raise
         _reject_if_mfa_pending(payload)
         user_id: str = payload.get("sub", "")
 
         user = db.query(Users).filter(Users.UserID == user_id).first()
         if not user:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
+
+        # PRODUCTION SAFETY: User MUST have tenant_id assigned
+        if not user.tenant_id:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="User has no tenant assigned"
+            )
 
         # Super User bypass - always grants all permissions
         if RoleTemplatePermissionService.is_super_user(db, user.UserID, user.tenant_id):

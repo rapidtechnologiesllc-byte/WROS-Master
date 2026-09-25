@@ -81,6 +81,7 @@ class MessageQueueService:
 
             # Create queue item in database
             queue_item = ChannelQueueItem(
+                id=task_id,  # Use task_id as primary key for tracking
                 message_id=task_id,
                 tenant_id=tenant_id,  # PHASE 2: Set tenant context for delivery_factory routing
                 type=task_name,
