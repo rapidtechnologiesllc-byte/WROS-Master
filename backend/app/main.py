@@ -1,5 +1,9 @@
 # PRODUCTION-READY MINIMAL - 136 ENDPOINTS (Clean)
 
+# Load .env file FIRST (before any other imports that use os.getenv)
+from dotenv import load_dotenv
+load_dotenv()
+
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -25,13 +29,14 @@ except ImportError:
 
 app = FastAPI(title=settings.APP_NAME, version=settings.APP_VERSION)
 
-# Setup middleware
+# Setup middleware - CRITICAL: CORSMiddleware MUST run first (added last in FastAPI)
 from app.middleware import setup_cors, RequestLoggingMiddleware
 from app.middleware.auth_middleware import AuthenticationMiddleware
 
-setup_cors(app)
-app.add_middleware(AuthenticationMiddleware)
+# Add in REVERSE order: CORS last (runs first), Logging first (runs last)
 app.add_middleware(RequestLoggingMiddleware)
+app.add_middleware(AuthenticationMiddleware)
+setup_cors(app)  # Add CORS LAST so it runs FIRST
 
 # Register complete API router (all production endpoints)
 app.include_router(api_router)

@@ -109,9 +109,15 @@ class Settings:
     FRONTEND_BASE_URL: str = os.getenv("FRONTEND_BASE_URL", "http://localhost:3000")
 
     # CORS Settings - Environment-based configuration
-    # Default: localhost for development
+    # Default: localhost for development (explicit origins, not wildcard)
     # Production: Use CORS_ORIGINS env var as comma-separated list
-    CORS_ORIGINS: list = ["*"]  # Temporary wildcard for dev testing
+    # NOTE: Cannot use ["*"] with allow_credentials=True due to CORS security policy
+    CORS_ORIGINS: list = [
+        "http://localhost:3000",
+        "http://localhost:3001",
+        "http://127.0.0.1:3000",
+        "http://127.0.0.1:3001",
+    ]
 
     # Allow additional origins from environment variable (production/staging)
     _CORS_ENV = os.getenv("CORS_ORIGINS", "").strip()

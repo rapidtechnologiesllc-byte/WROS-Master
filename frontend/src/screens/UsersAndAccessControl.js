@@ -278,7 +278,7 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
           onChange={(val) => setSearchTerm(val)}
           className="max-w-xs"
         />
-        {hasPermission("user", "create") && (
+        {hasPermission("user", "edit") && (
           <Button
             onClick={() => navigate('/admin/users-access-control/users/create')}
             className="gap-2"

@@ -115,6 +115,7 @@ from app.api.v1.endpoints.agent_pyramid_reporting import router as agent_pyramid
 from app.api.v1.endpoints.goals_management import router as goals_router
 from app.api.v1.endpoints.slm_feedback import router as slm_feedback_router
 from app.api.v1.endpoints.linkedin_candidate_pipeline import router as linkedin_pipeline_router
+from app.api.v1.endpoints.business_units import router as business_units_router
 
 try:
     router = fastapi.APIRouter(prefix="/api/v1")
@@ -127,6 +128,7 @@ router.include_router(router=role_templates_router)
 router.include_router(router=role_template_modules_router)
 router.include_router(router=permission_composition_router)
 router.include_router(router=org_structure_router)
+router.include_router(router=business_units_router)
 router.include_router(router=users_router)
 router.include_router(router=create_job_router)
 router.include_router(router=create_queue_first_router)  # Must come BEFORE candidates_router to match POST /create first

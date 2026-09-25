@@ -4,7 +4,7 @@ module.exports = function(app) {
   app.use(
     '/api',
     createProxyMiddleware({
-      target: 'http://localhost:8081',
+      target: 'http://localhost:8080',
       changeOrigin: true,
       pathRewrite: {
         '^/api': '/api',
@@ -16,7 +16,7 @@ module.exports = function(app) {
   app.use(
     '/auth',
     createProxyMiddleware({
-      target: 'http://localhost:8081',
+      target: 'http://localhost:8080',
       changeOrigin: true,
     })
   );
@@ -24,7 +24,7 @@ module.exports = function(app) {
   app.use(
     '/message-queue',
     createProxyMiddleware({
-      target: 'http://localhost:8081',
+      target: 'http://localhost:8080',
       changeOrigin: true,
     })
   );
@@ -32,7 +32,7 @@ module.exports = function(app) {
   app.use(
     '/candidates',
     createProxyMiddleware({
-      target: 'http://localhost:8081',
+      target: 'http://localhost:8080',
       changeOrigin: true,
     })
   );

@@ -6,11 +6,24 @@ import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
 import { apiRequest } from '../services/api/client';
 import { toast } from 'react-toastify';
+import { hasPermission } from '../utils/permissionsRoleTemplate';
 
 export default function UserFormPage() {
   const { userId } = useParams();
   const navigate = useNavigate();
   const mode = userId ? 'edit' : 'create';
+
+  // Check permissions for create/edit
+  useEffect(() => {
+    if (mode === 'create' && !hasPermission('user', 'edit')) {
+      toast.error('You do not have permission to create users');
+      navigate('/admin/users-access-control/users');
+    }
+    if (mode === 'edit' && !hasPermission('user', 'edit')) {
+      toast.error('You do not have permission to edit users');
+      navigate('/admin/users-access-control/users');
+    }
+  }, [mode, navigate]);
 
   const [formData, setFormData] = useState({
     user_name: '',
@@ -42,14 +55,19 @@ export default function UserFormPage() {
     try {
       const [rolesRes, busRes, posRes] = await Promise.all([
         apiRequest('/admin/role-templates'),
-        apiRequest('/admin/certifications/business-units'),
+        apiRequest('/business-units'),
         apiRequest('/org/positions')
       ]);
       // Filter to only enabled templates - disabled templates shouldn't be selectable
       const enabledTemplates = rolesRes.data?.role_templates?.filter(t => t.enabled !== false) || [];
       setRoleTemplates(enabledTemplates);
       setBusinessUnits(busRes.data || []);
-      setPositions(posRes.data || []);
+
+      // positions from /org/positions is an array of OrgPosition objects
+      const positionArray = Array.isArray(posRes.data) ? posRes.data : posRes.data?.positions || [];
+      setPositions(positionArray);
+
+      console.log('[DEBUG] Loaded positions:', positionArray);
     } catch (err) {
       console.error('Failed to load form data:', err);
       const message = err?.message || 'Failed to load form data. Please check your permissions.';
@@ -309,13 +327,15 @@ export default function UserFormPage() {
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-bx-orange disabled:bg-gray-100"
             >
               <option value="">Select Job Title</option>
-              {positions.map(position => {
+              {positions && positions.length > 0 ? positions.map(position => {
                 const posId = position.id || position.PositionID;
                 const posName = position.name || position.PositionName || position.position_name;
                 return (
                   <option key={posId} value={posName}>{posName}</option>
                 );
-              })}
+              }) : (
+                <option disabled>Loading job titles...</option>
+              )}
             </select>
           </div>
 

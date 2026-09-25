@@ -307,7 +307,13 @@ def require_role_template_permission(resource_name: str, field_name: str = "can_
         db: Session = Depends(get_db),
     ):
         token = credentials.credentials
-        payload = decode_access_token(token)
+        print(f"[PERMISSION-CHECK] Checking {resource_name}.{field_name}, token_len={len(token)}")
+        try:
+            payload = decode_access_token(token)
+            print(f"[PERMISSION-CHECK] Decoded successfully, sub={payload.get('sub', 'NONE')[:8]}...")
+        except Exception as e:
+            print(f"[PERMISSION-CHECK] Decode FAILED: {e}")
+            raise
         _reject_if_mfa_pending(payload)
         user_id: str = payload.get("sub", "")
 

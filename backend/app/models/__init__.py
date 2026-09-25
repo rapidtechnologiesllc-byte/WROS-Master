@@ -31,6 +31,12 @@ from app.models.candidate import (
 from app.models.document import CandidateDocument
 from app.models.offer_letter import OfferLetter
 from app.models.newsletter import Newsletter, NewsletterSubscriber
+from app.models.role_template import (
+    Module,
+    RoleTemplate,
+    Resource,
+    RoleTemplatePermission
+)
 # RBAC removed - using RoleTemplate system only
 # Stub classes for backwards compatibility during migration
 class Role:

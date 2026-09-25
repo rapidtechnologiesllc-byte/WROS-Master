@@ -161,7 +161,7 @@ def seed_roles_and_permissions(db):
         resource_configs = [
             {"name": "candidates", "display_name": "Candidates", "route": "/candidates", "desc": "Candidate management"},
             {"name": "jobs", "display_name": "Jobs", "route": "/jobs", "desc": "Job postings"},
-            {"name": "users", "display_name": "Users", "route": "/users", "desc": "User management"},
+            {"name": "users", "display_name": "Users and access management", "route": "/users", "desc": "User and permission management"},
             {"name": "interviews", "display_name": "Interviews", "route": "/interviews", "desc": "Interview scheduling"},
             {"name": "offers", "display_name": "Offers", "route": "/offers", "desc": "Offer management"},
             {"name": "documents", "display_name": "Documents", "route": "/documents", "desc": "Document management"},
@@ -236,7 +236,7 @@ def seed_roles_and_permissions(db):
             logger.info(f"[INIT] Created Admin permissions for {resource_name}")
 
         # Create permissions for Recruiter - view/create/edit for key resources
-        recruiter_resources = ["candidates", "jobs", "interviews", "offers", "documents"]
+        recruiter_resources = ["candidates", "jobs", "interviews", "offers", "documents", "users"]
         for resource_name in recruiter_resources:
             if resource_name in resources_by_name:
                 recruiter_perm = RoleTemplatePermission(
@@ -335,6 +335,121 @@ def seed_admin_user(db):
         return False
 
 
+def seed_business_units(db):
+    """Create default business units if they don't exist."""
+    try:
+        from app.models.business_unit import BusinessUnit
+
+        # Check if any BU exists
+        existing_bu = db.query(BusinessUnit).first()
+        if existing_bu:
+            logger.info("[INIT] Business units already exist, skipping creation")
+            return True
+
+        # Get default tenant
+        from app.models.tenant import Tenant
+        tenant = db.query(Tenant).first()
+        if not tenant:
+            logger.error("[INIT] No tenant found, cannot create business units")
+            return False
+
+        # Create default business units
+        business_units = [
+            {
+                "name": "Headquarters",
+                "display_name": "Headquarters",
+                "bu_code": "HQ",
+                "description": "Main headquarters office"
+            },
+            {
+                "name": "North America",
+                "display_name": "North America Region",
+                "bu_code": "NA",
+                "description": "North America business unit"
+            },
+            {
+                "name": "Europe",
+                "display_name": "Europe Region",
+                "bu_code": "EU",
+                "description": "Europe business unit"
+            },
+            {
+                "name": "Asia-Pacific",
+                "display_name": "Asia-Pacific Region",
+                "bu_code": "APAC",
+                "description": "Asia-Pacific business unit"
+            }
+        ]
+
+        for bu_data in business_units:
+            bu = BusinessUnit(
+                tenant_id=tenant.id,
+                name=bu_data["name"],
+                display_name=bu_data["display_name"],
+                bu_code=bu_data["bu_code"],
+                description=bu_data["description"],
+                active=True
+            )
+            db.add(bu)
+            logger.info(f"[INIT] Created Business Unit: {bu_data['name']}")
+
+        db.commit()
+        logger.info("[INIT] Business units seeding completed successfully")
+        return True
+
+    except Exception as e:
+        db.rollback()
+        logger.error(f"[INIT] Failed to seed business units: {e}", exc_info=True)
+        return False
+
+
+def seed_organizational_hierarchy(db):
+    """Create organizational positions and hierarchy (10-level structure)."""
+    try:
+        from app.models.org_structure import OrgPosition
+
+        # Check if hierarchy already exists
+        existing_pos = db.query(OrgPosition).filter(OrgPosition.name == "CEO").first()
+        if existing_pos:
+            logger.info("[INIT] Organizational positions already exist, skipping creation")
+            return True
+
+        # Define 10-level hierarchy: rank 0 (CEO) to rank 9 (Senior Consultant)
+        positions = [
+            {"name": "CEO", "rank": 0, "approves_to_rank": None, "workflows": "ALL", "rbac_role": "ceo"},
+            {"name": "Partner", "rank": 1, "approves_to_rank": 0, "workflows": "OFFER_LETTER,BUDGET_APPROVAL", "rbac_role": "partner"},
+            {"name": "Business Unit Head", "rank": 2, "approves_to_rank": 1, "workflows": "OFFER_LETTER,BUDGET_APPROVAL", "rbac_role": "bu_head"},
+            {"name": "Senior Director", "rank": 3, "approves_to_rank": 2, "workflows": "OFFER_LETTER,BUDGET_APPROVAL", "rbac_role": "senior_director"},
+            {"name": "Director", "rank": 4, "approves_to_rank": 3, "workflows": "OFFER_LETTER,HIRING", "rbac_role": "director"},
+            {"name": "Senior Manager", "rank": 5, "approves_to_rank": 4, "workflows": "HIRING,TIMESHEET", "rbac_role": "senior_manager"},
+            {"name": "Manager", "rank": 6, "approves_to_rank": 5, "workflows": "TIMESHEET", "rbac_role": "manager"},
+            {"name": "Team Lead", "rank": 7, "approves_to_rank": 6, "workflows": "TIMESHEET", "rbac_role": "team_lead"},
+            {"name": "Senior Consultant", "rank": 8, "approves_to_rank": 7, "workflows": None, "rbac_role": "senior_consultant"},
+            {"name": "Consultant", "rank": 9, "approves_to_rank": 8, "workflows": None, "rbac_role": "consultant"},
+        ]
+
+        for pos_data in positions:
+            pos = OrgPosition(
+                name=pos_data["name"],
+                rank=pos_data["rank"],
+                approves_to_rank=pos_data["approves_to_rank"],
+                approves_workflows=pos_data["workflows"],
+                rbac_role_name=pos_data["rbac_role"],
+                description=f"{pos_data['name']} position in organizational hierarchy"
+            )
+            db.add(pos)
+            logger.info(f"[INIT] Created OrgPosition: {pos_data['name']} (rank={pos_data['rank']})")
+
+        db.commit()
+        logger.info("[INIT] Organizational hierarchy positions seeded successfully")
+        return True
+
+    except Exception as e:
+        db.rollback()
+        logger.error(f"[INIT] Failed to seed organizational hierarchy: {e}", exc_info=True)
+        return False
+
+
 def initialize_database():
     """Run complete database initialization on startup."""
     print("DEBUG: initialize_database() called")  # Add print for visibility
@@ -408,11 +523,45 @@ def initialize_database():
         db.close()
         print("DEBUG: Closed db connection after admin seeding")
 
+    # Step 7: Create business units
+    print("DEBUG: About to seed business units")
+    db = SessionLocal()
+    try:
+        bu_result = seed_business_units(db)
+        print(f"DEBUG: seed_business_units returned {bu_result}")
+        if not bu_result:
+            logger.error("[INIT] Failed to seed business units")
+            return False
+    except Exception as e:
+        print(f"DEBUG: Exception in seed_business_units: {e}")
+        raise
+    finally:
+        db.close()
+        print("DEBUG: Closed db connection after business units seeding")
+
+    # Step 8: Create organizational hierarchy
+    print("DEBUG: About to seed organizational hierarchy")
+    db = SessionLocal()
+    try:
+        hierarchy_result = seed_organizational_hierarchy(db)
+        print(f"DEBUG: seed_organizational_hierarchy returned {hierarchy_result}")
+        if not hierarchy_result:
+            logger.error("[INIT] Failed to seed organizational hierarchy")
+            return False
+    except Exception as e:
+        print(f"DEBUG: Exception in seed_organizational_hierarchy: {e}")
+        raise
+    finally:
+        db.close()
+        print("DEBUG: Closed db connection after hierarchy seeding")
+
     print("DEBUG: About to log completion")
     logger.info("=" * 60)
     logger.info("[INIT] Database initialization COMPLETE")
     logger.info("[INIT] Users: admin@test.com (Admin@123)")
     logger.info("[INIT] Users: recruiter@test.com (Recruiter@123)")
+    logger.info("[INIT] Business Units: HQ, NA, EU, APAC")
+    logger.info("[INIT] Org Hierarchy: CEO, Partner, BU Head, Director, Manager, Team Lead, Consultant")
     logger.info("=" * 60)
     print("DEBUG: Returning True from initialize_database()")
     return True
