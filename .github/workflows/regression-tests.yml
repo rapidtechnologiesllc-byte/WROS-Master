@@ -46,7 +46,7 @@ jobs:
 
     - name: Set up PostgreSQL environment
       run: |
-        echo "DATABASE_URL=postgresql://postgres:test_password@localhost:5432/wros_test" >> $GITHUB_ENV
+        echo "DATABASE_URL=postgresql+psycopg2://postgres:test_password@localhost:5432/wros_test" >> $GITHUB_ENV
 
     - name: Wait for PostgreSQL
       run: |
@@ -60,7 +60,7 @@ jobs:
         cd backend && python -c "
         from sqlalchemy import create_engine
         from app.models.base import Base
-        engine = create_engine('postgresql://postgres:test_password@localhost:5432/wros_test')
+        engine = create_engine('postgresql+psycopg2://postgres:test_password@localhost:5432/wros_test')
         Base.metadata.create_all(engine)
         print('Database initialized')
         "
