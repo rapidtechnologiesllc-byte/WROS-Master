@@ -142,6 +142,11 @@ def setup_database():
     # Step 4: Create all tables from models
     print("Creating schema from SQLAlchemy models...")
     try:
+        # All models default to schema="app_schema" (app/models/base.py) - it
+        # doesn't exist on a freshly created database, only public does.
+        with engine.begin() as conn:
+            conn.execute(text("CREATE SCHEMA IF NOT EXISTS app_schema"))
+
         # Use checkfirst=True to check if tables already exist
         # This prevents errors when indexes already exist
         Base.metadata.create_all(bind=engine, checkfirst=True)
@@ -152,13 +157,14 @@ def setup_database():
         print(f"  Warning: create_all failed: {type(e).__name__}")
         print(f"  Attempting forced cleanup and retry...")
         try:
-            # Drop all tables with CASCADE
+            # Drop all tables with CASCADE - app_schema is where the models
+            # actually live, not public.
             with engine.connect() as conn:
                 conn.connection.set_isolation_level(0)
-                conn.execute(text("DROP SCHEMA public CASCADE"))
-                conn.execute(text("CREATE SCHEMA public"))
+                conn.execute(text("DROP SCHEMA IF EXISTS app_schema CASCADE"))
+                conn.execute(text("CREATE SCHEMA app_schema"))
                 conn.connection.set_isolation_level(1)
-            print("  Dropped and recreated public schema")
+            print("  Dropped and recreated app_schema")
 
             # Try create_all again
             Base.metadata.create_all(bind=engine)
