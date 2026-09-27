@@ -7,6 +7,7 @@ POSTGRESQL ONLY - No SQLite fallback
 import pytest
 import os
 import logging
+from urllib.parse import urlparse
 from sqlalchemy import create_engine, text, event, inspect
 from sqlalchemy.orm import sessionmaker, Session
 from fastapi.testclient import TestClient
@@ -18,7 +19,7 @@ logger = logging.getLogger(__name__)
 # PostgreSQL ONLY configuration
 DATABASE_URL = os.getenv(
     "DATABASE_URL",
-    "postgresql://postgres:123@localhost:5432/wros_test"
+    "postgresql+psycopg2://postgres:123@localhost:5432/wros_test"
 )
 
 # Enforce PostgreSQL
@@ -33,8 +34,10 @@ if "postgresql" not in DATABASE_URL:
 def create_test_database():
     """Create fresh PostgreSQL test database"""
     try:
-        # Connect to postgres default database with autocommit
-        admin_url = "postgresql://postgres:123@localhost:5432/postgres"
+        # Connect to the postgres default database with autocommit, using the
+        # same host/user/password/driver as DATABASE_URL (not a hardcoded
+        # local-dev credential that doesn't exist in CI).
+        admin_url = urlparse(DATABASE_URL)._replace(path="/postgres").geturl()
         admin_engine = create_engine(admin_url)
 
         @event.listens_for(admin_engine, 'connect')
