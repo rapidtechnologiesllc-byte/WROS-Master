@@ -45,7 +45,7 @@ class PartnerIntentProfile(Base):
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
     partner_user_id = Column(String(512), ForeignKey("users.UserID"), nullable=False, unique=True, index=True)
 
-    demand_count = Column(Integer, nullable=False, default = False)
+    demand_count = Column(Integer, nullable=False, default = 0)
     core_demand_pct = Column(Numeric(5, 2), nullable=True)
     specialty_demand_pct = Column(Numeric(5, 2), nullable=True)
     avg_experience_level = Column(Numeric(4, 1), nullable=True)

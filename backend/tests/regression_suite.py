@@ -23,6 +23,7 @@ from datetime import datetime, timedelta
 from sqlalchemy import inspect
 from sqlalchemy.orm import Session
 from typing import List, Dict, Any
+from app.models import Candidate
 
 # Fixtures for test data
 @pytest.fixture
@@ -39,7 +40,8 @@ def test_business_unit(db: Session, test_tenant):
     bu = BusinessUnit(
         tenant_id=test_tenant.id,
         name=f"test_bu_{random.randint(1000, 9999)}",
-        code=f"TBU{random.randint(100, 999)}"
+        display_name=f"Test BU {random.randint(1000, 9999)}",
+        bu_code=f"TBU{random.randint(100, 999)}"
     )
     db.add(bu)
     db.commit()
@@ -177,7 +179,7 @@ class TestModelOperations:
         """Verify all models have a primary key"""
         from app.models.base import Base
 
-        for mapper in inspect(Base).mappers:
+        for mapper in Base.registry.mappers:
             model_class = mapper.class_
             # Every model should have at least one primary key column
             pk_columns = [c.name for c in mapper.primary_key]

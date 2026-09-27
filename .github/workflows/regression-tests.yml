@@ -47,6 +47,7 @@ jobs:
     - name: Set up PostgreSQL environment
       run: |
         echo "DATABASE_URL=postgresql+psycopg2://postgres:test_password@localhost:5432/wros_test" >> $GITHUB_ENV
+        echo "JWT_SECRET=ci-test-jwt-secret-not-for-production-use-only" >> $GITHUB_ENV
 
     - name: Wait for PostgreSQL
       run: |

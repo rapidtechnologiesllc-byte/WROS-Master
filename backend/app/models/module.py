@@ -22,7 +22,7 @@ class SystemModule(Base):
     description = Column(Text, nullable=True)
     category = Column(String(512), nullable=False)  # Recruitment, Sales, Delivery, Finance, Admin
     is_active = Column(Boolean, default=True)
-    tenant_id = Column(Integer, nullable=False, default = True)
+    tenant_id = Column(Integer, nullable=False, default = 1)
 
     # Relationships
     permissions = relationship("SystemModulePermission", back_populates="module", cascade="all, delete-orphan")
@@ -43,7 +43,7 @@ class SystemModulePermission(Base):
     verb = Column(String(512), nullable=False)  # view, create, edit, delete, merge, approve, manage, etc.
     description = Column(Text, nullable=True)
     is_active = Column(Boolean, default=True)
-    tenant_id = Column(Integer, nullable=False, default = True)
+    tenant_id = Column(Integer, nullable=False, default = 1)
 
     # Relationships
     module = relationship("SystemModule", back_populates="permissions")
