@@ -536,6 +536,7 @@ class CreateUserWithRolesRequest(BaseModel):
     job_title: Optional[str] = Field(None, max_length=255, description="User's job position")
     partner_id: Optional[int] = Field(None, gt=0, description="Optional partner ID")
     business_unit_id: Optional[int] = Field(None, gt=0, description="Primary business unit ID")
+    department_id: Optional[str] = Field(None, description="Department within the business unit")
     parent_node_id: Optional[str] = Field(None, description="Org hierarchy: who this person reports to (validated by org_hierarchy_validator)")
 
     class Config:
@@ -596,6 +597,7 @@ class UpdateUserWithRolesRequest(BaseModel):
     job_title: Optional[str] = Field(None, max_length=255, description="User's job position/title")
     partner_id: Optional[int] = Field(None, gt=0, description="Partner ID (must be > 0)")
     business_unit_id: Optional[int] = Field(None, gt=0, description="Business unit ID (must be > 0)")
+    department_id: Optional[str] = Field(None, description="Department ID within the business unit")
     role_template_id: Optional[int] = Field(None, gt=0, description="RBAC role template ID (must be > 0, e.g., 1=SuperUser, 3=Recruiter)")
     assigned_at: Optional[str] = Field(None, description="ISO 8601 timestamp for role assignment")
 

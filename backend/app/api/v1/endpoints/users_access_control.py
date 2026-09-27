@@ -55,12 +55,14 @@ class UserCreateRequest(BaseModel):
     user_password: str
     job_title: Optional[str] = None
     business_unit_id: Optional[int] = None
+    department_id: Optional[str] = None
     role_template_id: int
 
 class UserUpdateRequest(BaseModel):
     user_name: Optional[str] = None
     job_title: Optional[str] = None
     business_unit_id: Optional[int] = None
+    department_id: Optional[str] = None
 
 @router.get(
     "/users",
@@ -114,6 +116,7 @@ def list_users(
                 "user_role": u.UserRole,
                 "job_title": getattr(u, 'job_title', None),
                 "business_unit_id": getattr(u, 'business_unit_id', None),
+                "department_id": getattr(u, 'department_id', None),
                 "created_at": getattr(u, 'created_at', None),
                 "is_active": getattr(u, 'is_active', True),
             }
@@ -174,6 +177,7 @@ def create_user(
         UserRole="User",  # Default legacy role
         job_title=req.job_title,
         business_unit_id=req.business_unit_id,
+        department_id=req.department_id,
         role_template_id=req.role_template_id,  # Assign role template
         is_active=True,
         tenant_id=current_user.tenant_id if hasattr(current_user, 'tenant_id') else 1
@@ -231,6 +235,8 @@ def update_user(
         user.job_title = req.job_title
     if req.business_unit_id:
         user.business_unit_id = req.business_unit_id
+    if req.department_id:
+        user.department_id = req.department_id
 
     db.commit()
     db.refresh(user)

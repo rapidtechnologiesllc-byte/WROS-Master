@@ -921,6 +921,7 @@ def create_user_with_roles(
                 'user_name': request.user_name,
                 'user_password': request.user_password,
                 'business_unit_id': request.business_unit_id,
+                'department_id': request.department_id,
                 'role_ids': [request.role_template_id],
                 'job_title': request.job_title,
                 'partner_id': request.partner_id,
@@ -1067,6 +1068,8 @@ def update_user(
         target.role_template_id = request.role_template_id
     if request.business_unit_id is not None:
         target.business_unit_id = request.business_unit_id
+    if request.department_id is not None:
+        target.department_id = request.department_id
 
     try:
         db.commit()
