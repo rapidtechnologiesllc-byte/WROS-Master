@@ -48,7 +48,19 @@ def test_business_unit(db: Session, test_tenant):
     return bu
 
 @pytest.fixture
-def test_user(db: Session, test_tenant, test_business_unit):
+def test_role_template(db: Session, test_tenant):
+    from app.models import RoleTemplate
+    role_template = RoleTemplate(
+        tenant_id=test_tenant.id,
+        name=f"test_role_{random.randint(1000, 9999)}",
+        display_name=f"Test Role {random.randint(1000, 9999)}",
+    )
+    db.add(role_template)
+    db.commit()
+    return role_template
+
+@pytest.fixture
+def test_user(db: Session, test_tenant, test_business_unit, test_role_template):
     from app.models import Users
     user = Users(
         UserID=f"test_user_{random.randint(10000, 99999)}",
@@ -56,7 +68,8 @@ def test_user(db: Session, test_tenant, test_business_unit):
         UserPassword="test_password_hash",
         UserRole="test_role",
         tenant_id=test_tenant.id,
-        business_unit_id=test_business_unit.id
+        business_unit_id=test_business_unit.id,
+        role_template_id=test_role_template.id
     )
     db.add(user)
     db.commit()
@@ -193,16 +206,16 @@ class TestServiceLogic:
     """Test business logic in services"""
 
     def test_candidate_service_create_safe(self, db: Session, test_tenant):
-        """Test createCandidateSafe - THE ONLY PATH TO CREATE CANDIDATES"""
-        from app.services.candidate_service import create_candidate_safe
+        """Test create_candidate - THE ONLY PATH TO CREATE CANDIDATES"""
+        from app.services.candidate_service import create_candidate
 
-        candidate = create_candidate_safe(
+        candidate, is_new = create_candidate(
             db=db,
             email=f"safe_{random.randint(10000, 99999)}@test.com",
             tenant_id=test_tenant.id,
-            name=f"Test Candidate {random.randint(1000, 9999)}"
         )
         assert candidate is not None
+        assert is_new is True
         assert candidate.candidateEmail is not None
 
     def test_thunder_assignment(self, db: Session, test_candidate):
