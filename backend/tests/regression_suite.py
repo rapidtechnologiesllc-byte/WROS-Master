@@ -220,8 +220,23 @@ class TestServiceLogic:
 
     def test_thunder_assignment(self, db: Session, test_candidate):
         """Test Thunder autonomous assignment"""
-        # Thunder should auto-assign candidates
-        assert hasattr(test_candidate, 'thunder_assigned_at')
+        # thunder_assigned_at lives on CandidateStatus (the candidate's
+        # pipeline/status record), not on Candidate itself - Thunder tracks
+        # assignment timing per pipeline entry, not on the candidate record.
+        from app.models import CandidateStatus
+
+        status = CandidateStatus(candidateID=test_candidate.candidateID)
+        db.add(status)
+        db.commit()
+
+        assert hasattr(status, 'thunder_assigned_at')
+        assert status.thunder_assigned_at is None  # not yet assigned
+
+        status.thunder_assigned_at = datetime.utcnow()
+        db.commit()
+
+        retrieved = db.query(CandidateStatus).filter_by(candidateID=test_candidate.candidateID).first()
+        assert retrieved.thunder_assigned_at is not None
 
     def test_notification_service(self, db: Session, test_user):
         """Test sendNotification - THE ONLY PATH FOR NOTIFICATIONS"""
