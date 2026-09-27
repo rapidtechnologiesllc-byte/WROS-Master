@@ -86,6 +86,7 @@ def initialize_database():
 
 def _initialize_tenant():
     """Ensure tenant_id=1 (BlitzenX) exists."""
+    from sqlalchemy import text
     db = SessionLocal()
     try:
         tenant = db.query(Tenant).filter(Tenant.id == 1).first()
@@ -96,6 +97,16 @@ def _initialize_tenant():
             logger.info("[Contract] Created tenant: BlitzenX (id=1)")
         else:
             logger.info("[Contract] Tenant exists: BlitzenX (id=1)")
+
+        # Explicit-PK inserts don't advance Postgres's identity sequence, so
+        # the next auto-generated tenant would also try to use id=1 and hit
+        # a duplicate-key error. Bump the sequence past whatever's actually
+        # in the table.
+        db.execute(text(
+            "SELECT setval(pg_get_serial_sequence('app_schema.tenants', 'id'), "
+            "(SELECT COALESCE(MAX(id), 1) FROM app_schema.tenants))"
+        ))
+        db.commit()
     finally:
         db.close()
 
