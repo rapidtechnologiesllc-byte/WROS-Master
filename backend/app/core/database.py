@@ -67,6 +67,14 @@ try:
 except ProductionDatabaseError as e:
     raise RuntimeError(str(e)) from e
 
+# Pin the driver explicitly. A bare "postgresql://" leaves SQLAlchemy to pick
+# a default dialect, and that default isn't stable across SQLAlchemy versions
+# (2.1 resolves it to the psycopg v3 dialect, which isn't installed - only
+# psycopg2-binary is, per requirements.txt). Without this, a fresh install on
+# a new machine or in CI can fail to even start the app.
+if DATABASE_URL.startswith("postgresql://"):
+    DATABASE_URL = "postgresql+psycopg2://" + DATABASE_URL[len("postgresql://"):]
+
 # PostgreSQL connection pool settings (FIX #15: Production-grade pooling)
 # CRITICAL FIX (2026-09-21): Increased pool size to prevent stuck message monitor exhaustion
 # Monitor runs every 10s and holds 8-10 connections. Old size (20) starved normal requests.
