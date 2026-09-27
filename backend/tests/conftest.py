@@ -176,7 +176,7 @@ def setup_database():
 
     # Step 5: Verify tables were created
     inspector = inspect(engine)
-    table_count = len(inspector.get_table_names())
+    table_count = len(inspector.get_table_names(schema="app_schema"))
     if table_count == 0:
         raise RuntimeError("Schema creation reported success but no tables exist in database!")
     print(f"✓ PostgreSQL: {table_count} tables created")
