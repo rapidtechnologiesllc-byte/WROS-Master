@@ -216,9 +216,27 @@ def db(test_db_engine) -> Session:
     connection.close()
 
 
+@pytest.fixture(scope="session")
+def _app_lifespan():
+    """Run the FastAPI app's startup/shutdown lifespan exactly once for the
+    whole test session. It runs initialize_database() (RBAC seeding, schema
+    migrations, etc.), which is expensive and only meant to run once against
+    an already-migrated database - entering a fresh TestClient(app) context
+    per test re-ran it for every single test, hammering the same "already
+    exists" migrations over and over and stalling the suite.
+    """
+    from app.main import app
+
+    with TestClient(app) as test_client:
+        yield test_client
+
+
 @pytest.fixture
-def client(db: Session):
-    """Get a test client for FastAPI with PostgreSQL backend"""
+def client(_app_lifespan, db: Session):
+    """Get a test client for FastAPI with PostgreSQL backend - reuses the
+    session-scoped app/lifespan, but swaps in this test's own transactional
+    db session so each test still gets an isolated, rolled-back transaction.
+    """
     from app.core.database import get_db
     from app.main import app
 
@@ -227,7 +245,6 @@ def client(db: Session):
 
     app.dependency_overrides[get_db] = override_get_db
 
-    with TestClient(app) as test_client:
-        yield test_client
+    yield _app_lifespan
 
     app.dependency_overrides.clear()
