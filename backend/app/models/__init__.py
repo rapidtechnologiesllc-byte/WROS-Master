@@ -59,6 +59,7 @@ from app.models.candidate import (
     CandidateJobApplication,
 )
 from app.models.document import CandidateDocument
+from app.models.offer import Offer, OfferStatus
 from app.models.offer_letter import OfferLetter
 from app.models.newsletter import Newsletter, NewsletterSubscriber
 from app.models.role_template import (
@@ -219,6 +220,9 @@ __all__ = [
     "CandidateStatus",
     "CandidateJobApplication",
     "CandidateDocument",
+    # Offer
+    "Offer",
+    "OfferStatus",
     # Offer Letter
     "OfferLetter",
     # Newsletter

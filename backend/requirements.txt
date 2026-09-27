@@ -45,6 +45,7 @@ python-dotenv>=1.0.0,<2.0.0      # Read environment variables from .env file
 # ----------------------------------------------------------------------------
 langgraph>=0.2.0,<1.0.0               # Build stateful, multi-actor applications with LLMs
 langchain-google-genai>=2.0.0,<3.0.0  # LangChain integration with Google Generative AI (used by thunder_service.py, llm_provider.py, ats_scorer.py)
+langchain-anthropic>=0.3.0,<1.0.0     # LangChain integration with Anthropic Claude (used by llm_provider.py, recruitment_job_creation_service.py)
 
 # Background Tasks & Scheduling
 # ----------------------------------------------------------------------------
