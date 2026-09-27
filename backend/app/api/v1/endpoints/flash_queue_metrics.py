@@ -25,7 +25,8 @@ router = APIRouter(prefix="/flash", tags=["Flash Queue Metrics"])
 
 @router.get(
     "/queue-health-pulse",
-    response_model=Dict[str, Any]
+    response_model=Dict[str, Any],
+    dependencies=[Depends(require_role_template_permission("admin-settings", "can_view"))]
 )
 def get_queue_health_pulse(db: Session = Depends(get_db)) -> Dict[str, Any]:
     """
@@ -112,7 +113,8 @@ def get_queue_health_pulse(db: Session = Depends(get_db)) -> Dict[str, Any]:
 
 @router.get(
     "/queue-bottleneck-analysis",
-    response_model=Dict[str, Any]
+    response_model=Dict[str, Any],
+    dependencies=[Depends(require_role_template_permission("admin-settings", "can_view"))]
 )
 def analyze_queue_bottleneck(db: Session = Depends(get_db)) -> Dict[str, Any]:
     """

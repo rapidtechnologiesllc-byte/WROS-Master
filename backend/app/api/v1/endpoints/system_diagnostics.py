@@ -13,7 +13,7 @@ from app.services.permission_circuit_breaker import get_permission_breaker
 from app.services.permission_cache import get_permission_cache
 from app.core.dependencies import require_role_template_permission
 
-router = APIRouter(prefix="/api/v1/system", tags=["system-diagnostics"])
+router = APIRouter(prefix="/system", tags=["system-diagnostics"])
 
 
 @router.get(

@@ -1,18 +1,20 @@
 """Architect findings and analysis endpoints"""
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from typing import List, Dict, Any
 import logging
 
+from app.core.dependencies import require_resource_permission
 from app.services.autonomous_architect import (
     get_autonomous_architect,
     FindingsGenerator,
 )
 
 router = APIRouter(
-    prefix="/api/v1/architect",
+    prefix="/architect",
     tags=["architect"],
     responses={404: {"description": "Not found"}},
+    dependencies=[Depends(require_resource_permission("admin-settings", "view"))],
 )
 
 logger = logging.getLogger(__name__)

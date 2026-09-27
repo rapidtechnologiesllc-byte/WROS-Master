@@ -1,20 +1,24 @@
 """System health monitoring endpoint (integrates Doctor + Healer + Architect)"""
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from typing import Dict, Any
 import logging
 
+from app.core.dependencies import require_resource_permission
 from app.services.integrated_architecture_system import get_integrated_system
 
 router = APIRouter(
-    prefix="/api/v1/system",
+    prefix="/system",
     tags=["system-health"],
 )
 
 logger = logging.getLogger(__name__)
 
 
-@router.get("/health")
+@router.get(
+    "/health",
+    dependencies=[Depends(require_resource_permission("admin-settings", "view"))],
+)
 async def get_system_health() -> Dict[str, Any]:
     """
     Get complete system health status

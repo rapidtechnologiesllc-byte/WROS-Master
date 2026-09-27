@@ -22,7 +22,7 @@ from app.services.slm_export_service import SLMExportService
 logger = logging.getLogger(__name__)
 
 router = APIRouter(
-    prefix="/api/v1/slm/export",
+    prefix="/slm/export",
     tags=["SLM Export"],
     dependencies=[Depends(get_db)]
 )

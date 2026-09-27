@@ -27,25 +27,57 @@ jobs:
           import re
           import sys
 
-          # Find all endpoint files
+          # Deliberately-unregistered files, with the reason on record. Keep this
+          # list short and specific - it is a documented exception, not a place
+          # to dump anything the gate complains about.
+          ALLOWLIST = {
+              "doctor_traces_dashboard": "references app.models.doctor_trace.DoctorTrace, "
+                                          "which was never added to this codebase; not "
+                                          "registered until that model exists.",
+          }
+
+          # Find all endpoint files, and remember which directory each lives in
+          # so package re-exports (e.g. candidates/__init__.py importing from
+          # candidates/crud.py) can be checked too, not just routes.py.
           endpoints_dir = "backend/app/api/v1/endpoints"
-          endpoint_files = []
+          endpoint_files = []  # list of (name, directory)
 
           for root, dirs, files in os.walk(endpoints_dir):
               for file in files:
                   if file.endswith('.py') and file != '__init__.py':
-                      endpoint_files.append(file.replace('.py', ''))
+                      endpoint_files.append((file.replace('.py', ''), root))
 
-          # Check if each endpoint is registered in routes.py
           with open('backend/app/api/v1/routes.py', 'r') as f:
               routes_content = f.read()
 
+          # Cache __init__.py contents per directory (covers package re-exports
+          # like app/api/v1/endpoints/candidates/__init__.py re-exporting crud.py's
+          # router under a different import path than routes.py sees directly).
+          init_content_cache = {}
+
+          def init_content_for(directory):
+              if directory not in init_content_cache:
+                  init_path = os.path.join(directory, '__init__.py')
+                  if os.path.isfile(init_path):
+                      with open(init_path, 'r') as f:
+                          init_content_cache[directory] = f.read()
+                  else:
+                      init_content_cache[directory] = ""
+              return init_content_cache[directory]
+
           orphaned = []
-          for endpoint in endpoint_files:
-              # Check if endpoint module is imported
+          for endpoint, directory in endpoint_files:
+              if endpoint in ALLOWLIST:
+                  continue
+              # Check if endpoint module is imported directly in routes.py, or
+              # re-exported via its package's __init__.py (which routes.py then
+              # imports as a single combined router).
               import_pattern = f"from.*{endpoint}.*import.*router"
-              if not re.search(import_pattern, routes_content):
-                  orphaned.append(endpoint)
+              if re.search(import_pattern, routes_content):
+                  continue
+              if re.search(import_pattern, init_content_for(directory)):
+                  continue
+              orphaned.append(endpoint)
 
           if orphaned:
               print("ERROR: Orphaned backend endpoints detected!")

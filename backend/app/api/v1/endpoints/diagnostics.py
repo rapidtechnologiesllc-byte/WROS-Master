@@ -4,12 +4,16 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from sqlalchemy import func, inspect
 from app.core.database import get_db
+from app.core.dependencies import require_resource_permission
 from app.models.user import Users
 
 router = APIRouter(prefix="/admin/diagnostics", tags=["diagnostics"])
 
 
-@router.get("/auth-state")
+@router.get(
+    "/auth-state",
+    dependencies=[Depends(require_resource_permission("admin-settings", "view"))],
+)
 def check_auth_state(db: Session = Depends(get_db)):
     """Check if user records have required fields for RequestContext"""
 

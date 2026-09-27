@@ -132,6 +132,22 @@ from app.api.v1.endpoints.spartan_forecasting import router as spartan_forecasti
 from app.api.v1.endpoints.spartan_integration import router as spartan_integration_router
 from app.api.v1.endpoints.strategic_consul import router as strategic_consul_router
 from app.api.v1.endpoints.system_health import router as system_health_router
+from app.api.v1.endpoints.users_access_control import router as users_access_control_router
+from app.api.v1.endpoints.learning import router as learning_router
+from app.api.v1.endpoints.health_check import router as health_check_router
+from app.api.v1.endpoints.slm_exports import router as slm_exports_router
+from app.api.v1.endpoints.flash_queue_metrics import router as flash_queue_metrics_router
+from app.api.v1.endpoints.csrf_token import router as csrf_token_router
+from app.api.v1.endpoints.diagnostics import router as diagnostics_router
+from app.api.v1.endpoints.queue_monitoring import router as queue_monitoring_router
+from app.api.v1.endpoints.abandonment_scoring import router as abandonment_scoring_router
+from app.api.v1.endpoints.permissions import router as permissions_router
+from app.api.v1.endpoints.candidate_audit_log import router as candidate_audit_log_router
+from app.api.v1.endpoints.system_diagnostics import router as system_diagnostics_router
+from app.api.v1.endpoints.orchestrate import router as orchestrate_router
+from app.api.v1.endpoints.api_keys import router as api_keys_router
+from app.api.v1.endpoints.architect import router as architect_router
+from app.api.v1.endpoints.role_templates import rbac_router
 
 try:
     router = fastapi.APIRouter(prefix="/api/v1")
@@ -141,10 +157,26 @@ except Exception as e:
 router.include_router(router=auth_router)
 router.include_router(router=navigation_router)
 router.include_router(router=role_templates_router)
+router.include_router(router=rbac_router)
 router.include_router(router=role_template_modules_router)
 router.include_router(router=permission_composition_router)
 router.include_router(router=org_structure_router)
 router.include_router(router=business_units_router)
+router.include_router(router=users_access_control_router)
+router.include_router(router=learning_router)
+router.include_router(router=health_check_router)
+router.include_router(router=slm_exports_router)
+router.include_router(router=flash_queue_metrics_router)
+router.include_router(router=csrf_token_router)
+router.include_router(router=diagnostics_router)
+router.include_router(router=queue_monitoring_router)
+router.include_router(router=abandonment_scoring_router)
+router.include_router(router=permissions_router)
+router.include_router(router=candidate_audit_log_router)
+router.include_router(router=system_diagnostics_router)
+router.include_router(router=orchestrate_router)
+router.include_router(router=api_keys_router)
+router.include_router(router=architect_router)
 router.include_router(router=users_router)
 router.include_router(router=create_job_router)
 router.include_router(router=create_queue_first_router)  # Must come BEFORE candidates_router to match POST /create first
