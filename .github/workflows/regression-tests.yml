@@ -69,14 +69,21 @@ jobs:
         "
 
     - name: Run Comprehensive Regression Suite
+      env:
+        # Coverage.py's tracer roughly doubles CPU/memory pressure on top of
+        # an already-heavy app (137 auto-imported models, langchain/langgraph,
+        # full RBAC seeding). Every single CI run died silently ~20-30s into
+        # this step, always at the same point, never reproducible locally
+        # even under the identical pytest+coverage invocation - consistent
+        # with the runner's memory ceiling being hit under load rather than
+        # a code bug. Dropped --cov here so the actual correctness check
+        # (does the suite pass) isn't coupled to a resource-hungry metric
+        # that isn't part of any gate. PYTHONUNBUFFERED so that if this ever
+        # recurs, whatever output was produced before a kill is actually
+        # visible instead of lost in an unflushed stdout buffer.
+        PYTHONUNBUFFERED: "1"
       run: |
-        cd backend && pytest tests/regression_suite.py -v --tb=short --cov=app --cov-report=xml --cov-report=term-missing
-
-    - name: Upload coverage to Codecov
-      uses: codecov/codecov-action@v3
-      with:
-        file: ./coverage.xml
-        fail_ci_if_error: false
+        cd backend && pytest tests/regression_suite.py -v --tb=short
 
     - name: Test Results Summary
       if: always()
