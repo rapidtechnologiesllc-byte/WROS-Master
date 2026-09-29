@@ -38,7 +38,6 @@ export default function EmployeeOnboardingModal({
     email: candidateEmail || '',
     org_node_id: '',
     reporting_manager_id: '',
-    delivery_center_id: '',
     business_unit_id: '',
     role_template_id: '', // Role will be assigned when user is auto-created
     joining_date: new Date().toISOString().split('T')[0],
@@ -47,7 +46,6 @@ export default function EmployeeOnboardingModal({
   });
 
   const [orgNodes, setOrgNodes] = useState([]);
-  const [deliveryCenters, setDeliveryCenters] = useState([]);
   const [businessUnits, setBusinessUnits] = useState([]);
   const [employees, setEmployees] = useState([]);
   const [roles, setRoles] = useState([]);
@@ -83,12 +81,8 @@ export default function EmployeeOnboardingModal({
       setLoading(true);
 
       // Load org nodes (position levels)
-      const orgNodesRes = await apiRequest('/org-nodes');
+      const orgNodesRes = await apiRequest('/org/nodes');
       setOrgNodes(orgNodesRes.data || []);
-
-      // Load delivery centers
-      const centersRes = await apiRequest('/delivery-centers');
-      setDeliveryCenters(centersRes.data || []);
 
       // Load business units
       const busRes = await apiRequest('/business-units');
@@ -99,8 +93,8 @@ export default function EmployeeOnboardingModal({
       setEmployees(empRes.data || []);
 
       // Load role templates (for user role assignment)
-      const rolesRes = await apiRequest('/role-templates');
-      setRoles(rolesRes.data || []);
+      const rolesRes = await apiRequest('/admin/role-templates');
+      setRoles(rolesRes.data?.role_templates || []);
     } catch (err) {
       console.error('Failed to load data:', err);
       setErrors({ load: 'Failed to load form data' });
@@ -116,7 +110,6 @@ export default function EmployeeOnboardingModal({
     if (!formData.last_name?.trim()) newErrors.last_name = 'Last name is required';
     if (!formData.email?.trim()) newErrors.email = 'Email is required';
     if (!formData.org_node_id) newErrors.org_node_id = 'Position is required';
-    if (!formData.delivery_center_id) newErrors.delivery_center_id = 'Delivery center is required';
     if (!formData.business_unit_id) newErrors.business_unit_id = 'Business unit is required';
     if (!formData.joining_date) newErrors.joining_date = 'Joining date is required';
     if (!formData.role_template_id) newErrors.role_template_id = 'Role template is required (user will be auto-created with this role)';
@@ -145,9 +138,8 @@ export default function EmployeeOnboardingModal({
         email: formData.email.trim(),
         org_node_id: formData.org_node_id,
         reporting_manager_id: formData.reporting_manager_id || null,
-        delivery_center_id: formData.delivery_center_id,
-        business_unit_id: formData.business_unit_id,
-        role_template_id: formData.role_template_id, // Will auto-create user with this role
+        business_unit_id: parseInt(formData.business_unit_id, 10),
+        role_template_id: formData.role_template_id ? parseInt(formData.role_template_id, 10) : null, // Will auto-create user with this role
         joining_date: formData.joining_date,
         employment_type: formData.employment_type,
         work_location: formData.work_location
@@ -156,7 +148,7 @@ export default function EmployeeOnboardingModal({
       // Create employee
       const response = await apiRequest('/employees', {
         method: 'POST',
-        body: payload
+        body: JSON.stringify(payload)
       });
 
       if (onSuccess) {
@@ -348,30 +340,6 @@ export default function EmployeeOnboardingModal({
               )}
             </div>
           )}
-
-          {/* Delivery Center */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Delivery Center (Office) *
-            </label>
-            <select
-              value={formData.delivery_center_id}
-              onChange={(e) => setFormData({ ...formData, delivery_center_id: e.target.value })}
-              className={`w-full px-3 py-2 border rounded-md text-sm ${
-                errors.delivery_center_id ? 'border-red-500 bg-red-50' : 'border-gray-300'
-              }`}
-            >
-              <option value="">Select a delivery center...</option>
-              {deliveryCenters.map(dc => (
-                <option key={dc.id} value={dc.id}>
-                  {dc.name} ({dc.code})
-                </option>
-              ))}
-            </select>
-            {errors.delivery_center_id && (
-              <p className="text-xs text-red-600 mt-1">{errors.delivery_center_id}</p>
-            )}
-          </div>
 
           {/* Joining Date */}
           <div>

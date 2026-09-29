@@ -5,6 +5,12 @@ import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
 import { apiRequest } from '../services/api/client';
 
+// The delivery-centers CRUD lives in users_access_control.py, which is
+// mounted at /api/admin/users-access-control (not the bare /delivery-centers
+// this screen used to call) - pass the full path so apiRequest's "starts
+// with /api" check uses it as-is instead of prepending /api/v1 again.
+const DELIVERY_CENTERS_PATH = '/api/v1/api/admin/users-access-control/delivery-centers';
+
 export default function DeliveryCentersAdmin() {
   const [centers, setCenters] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -13,11 +19,10 @@ export default function DeliveryCentersAdmin() {
   const [actionError, setActionError] = useState(null);
   const [form, setForm] = useState({
     name: '',
-    code: '',
-    location: '',
-    contact_email: '',
-    contact_phone: '',
-    active: true
+    city: '',
+    country: '',
+    center_type: 'Delivery',
+    headcount: 0
   });
   const [errors, setErrors] = useState({});
 
@@ -28,8 +33,8 @@ export default function DeliveryCentersAdmin() {
   const loadDeliveryCenters = async () => {
     try {
       setLoading(true);
-      const res = await apiRequest('/delivery-centers');
-      setCenters(res.data || []);
+      const res = await apiRequest(DELIVERY_CENTERS_PATH);
+      setCenters(res.data?.delivery_centers || []);
     } catch (err) {
       console.error("Failed to load delivery centers:", err);
       setActionError("Failed to load delivery centers");
@@ -41,8 +46,6 @@ export default function DeliveryCentersAdmin() {
   const validateForm = () => {
     const newErrors = {};
     if (!form.name?.trim()) newErrors.name = "Center name is required";
-    if (!form.code?.trim()) newErrors.code = "Code is required";
-    if (!form.location?.trim()) newErrors.location = "Location is required";
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -52,18 +55,23 @@ export default function DeliveryCentersAdmin() {
     setEditingId(null);
     setForm({
       name: '',
-      code: '',
-      location: '',
-      contact_email: '',
-      contact_phone: '',
-      active: true
+      city: '',
+      country: '',
+      center_type: 'Delivery',
+      headcount: 0
     });
     setShowForm(true);
   };
 
   const handleEdit = (center) => {
     setEditingId(center.id);
-    setForm(center);
+    setForm({
+      name: center.name || '',
+      city: center.city || '',
+      country: center.country || '',
+      center_type: center.center_type || 'Delivery',
+      headcount: center.headcount || 0
+    });
     setShowForm(true);
   };
 
@@ -72,15 +80,15 @@ export default function DeliveryCentersAdmin() {
 
     try {
       if (editingId) {
-        await apiRequest(`/delivery-centers/${editingId}`, {
+        await apiRequest(`${DELIVERY_CENTERS_PATH}/${editingId}`, {
           method: 'PUT',
-          body: form
+          body: JSON.stringify(form)
         });
         setActionError(null);
       } else {
-        await apiRequest('/delivery-centers', {
+        await apiRequest(DELIVERY_CENTERS_PATH, {
           method: 'POST',
-          body: form
+          body: JSON.stringify(form)
         });
         setActionError(null);
       }
@@ -96,7 +104,7 @@ export default function DeliveryCentersAdmin() {
     if (!confirm("Are you sure?")) return;
 
     try {
-      await apiRequest(`/delivery-centers/${id}`, { method: 'DELETE' });
+      await apiRequest(`${DELIVERY_CENTERS_PATH}/${id}`, { method: 'DELETE' });
       setActionError(null);
       loadDeliveryCenters();
     } catch (err) {
@@ -153,62 +161,49 @@ export default function DeliveryCentersAdmin() {
               {errors.name && <p className="text-red-500 text-xs mt-1">{errors.name}</p>}
             </div>
 
-            {/* Code */}
+            {/* City */}
             <div>
-              <label className="block text-sm font-medium mb-1">Code *</label>
+              <label className="block text-sm font-medium mb-1">City</label>
               <Input
-                value={form.code}
-                onChange={(e) => setForm({ ...form, code: e.target.value })}
-                placeholder="e.g., BNG"
-                error={errors.code}
-              />
-              {errors.code && <p className="text-red-500 text-xs mt-1">{errors.code}</p>}
-            </div>
-
-            {/* Location */}
-            <div>
-              <label className="block text-sm font-medium mb-1">Location *</label>
-              <Input
-                value={form.location}
-                onChange={(e) => setForm({ ...form, location: e.target.value })}
-                placeholder="e.g., Bangalore, India"
-                error={errors.location}
-              />
-              {errors.location && <p className="text-red-500 text-xs mt-1">{errors.location}</p>}
-            </div>
-
-            {/* Email */}
-            <div>
-              <label className="block text-sm font-medium mb-1">Contact Email</label>
-              <Input
-                type="email"
-                value={form.contact_email || ''}
-                onChange={(e) => setForm({ ...form, contact_email: e.target.value })}
-                placeholder="center@company.com"
+                value={form.city}
+                onChange={(e) => setForm({ ...form, city: e.target.value })}
+                placeholder="e.g., Bangalore"
               />
             </div>
 
-            {/* Phone */}
+            {/* Country */}
             <div>
-              <label className="block text-sm font-medium mb-1">Contact Phone</label>
+              <label className="block text-sm font-medium mb-1">Country</label>
               <Input
-                value={form.contact_phone || ''}
-                onChange={(e) => setForm({ ...form, contact_phone: e.target.value })}
-                placeholder="+91 8000..."
+                value={form.country}
+                onChange={(e) => setForm({ ...form, country: e.target.value })}
+                placeholder="e.g., India"
               />
             </div>
 
-            {/* Active */}
+            {/* Center Type */}
             <div>
-              <label className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  checked={form.active}
-                  onChange={(e) => setForm({ ...form, active: e.target.checked })}
-                  className="w-4 h-4"
-                />
-                <span className="text-sm font-medium">Active</span>
-              </label>
+              <label className="block text-sm font-medium mb-1">Center Type</label>
+              <select
+                value={form.center_type}
+                onChange={(e) => setForm({ ...form, center_type: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none"
+              >
+                <option value="HQ">HQ</option>
+                <option value="Delivery">Delivery</option>
+              </select>
+            </div>
+
+            {/* Headcount */}
+            <div>
+              <label className="block text-sm font-medium mb-1">Headcount</label>
+              <Input
+                type="number"
+                min="0"
+                value={form.headcount}
+                onChange={(e) => setForm({ ...form, headcount: parseInt(e.target.value, 10) || 0 })}
+                placeholder="0"
+              />
             </div>
 
             {/* Actions */}
@@ -238,15 +233,15 @@ export default function DeliveryCentersAdmin() {
                 <div className="flex-1">
                   <div className="flex items-center gap-2 mb-2">
                     <h3 className="font-semibold text-lg">{center.name}</h3>
-                    <span className="text-xs bg-gray-200 px-2 py-1 rounded">{center.code}</span>
-                    {!center.active && <span className="text-xs bg-red-200 px-2 py-1 rounded">Inactive</span>}
+                    {center.center_type && (
+                      <span className="text-xs bg-gray-200 px-2 py-1 rounded">{center.center_type}</span>
+                    )}
                   </div>
-                  <p className="text-sm text-gray-600 mb-2">{center.location}</p>
-                  {center.contact_email && (
-                    <p className="text-sm text-gray-600">{center.contact_email}</p>
-                  )}
-                  {center.contact_phone && (
-                    <p className="text-sm text-gray-600">{center.contact_phone}</p>
+                  <p className="text-sm text-gray-600 mb-2">
+                    {[center.city, center.country].filter(Boolean).join(', ') || 'No location set'}
+                  </p>
+                  {!!center.headcount && (
+                    <p className="text-sm text-gray-600">{center.headcount} headcount</p>
                   )}
                 </div>
                 <div className="flex gap-2">

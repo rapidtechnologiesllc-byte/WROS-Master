@@ -26,6 +26,13 @@ class EmployeeCreateRequest(BaseModel):
     base_salary_usd_cents: Optional[int] = None
     billing_rate_usd_cents: Optional[int] = None
     nationality: Optional[str] = None
+    org_node_id: Optional[str] = None
+    business_unit_id: Optional[int] = Field(None, description="Maps to Employee.bu_id")
+    reporting_manager_id: Optional[str] = Field(None, description="Users.UserID this employee reports to - maps to Employee.reporting_manager_user_id")
+    role_template_id: Optional[int] = Field(
+        None,
+        description="If set, a login account is created for this employee with this role template.",
+    )
 
 class BulkImportRowError(BaseModel):
     row: int

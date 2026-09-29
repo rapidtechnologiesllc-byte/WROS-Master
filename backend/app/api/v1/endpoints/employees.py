@@ -158,6 +158,46 @@ def create_employee(
         fields["billing_rate_usd_cents"] = body.billing_rate_usd_cents
     if body.nationality is not None:
         fields["nationality"] = body.nationality
+    if body.org_node_id is not None:
+        fields["org_node_id"] = body.org_node_id
+    if body.business_unit_id is not None:
+        fields["bu_id"] = body.business_unit_id
+    if body.reporting_manager_id is not None:
+        fields["reporting_manager_user_id"] = body.reporting_manager_id
+
+    # Optionally create a login account for this employee with the given
+    # role template - do this before creating the Employee row so a bad
+    # role_template_id fails the whole request instead of leaving an
+    # Employee with no linked account.
+    new_user = None
+    if body.role_template_id is not None:
+        from app.models.role_template import RoleTemplate
+        role_template = db.query(RoleTemplate).filter(RoleTemplate.id == body.role_template_id).first()
+        if not role_template:
+            raise HTTPException(status_code=400, detail="Role template not found")
+        if db.query(Users).filter(Users.UserEmail == body.email).first():
+            raise HTTPException(status_code=409, detail=f"A user account already exists for {body.email}")
+
+        from app.core.security import get_password_hash
+        from app.utils.uniq_id_generator import user_id_generator
+        import secrets as _secrets
+        import string as _string
+
+        temp_password = "".join(_secrets.choice(_string.ascii_letters + _string.digits) for _ in range(16))
+        new_user = Users(
+            UserID=user_id_generator(),
+            UserEmail=body.email,
+            UserName=f"{body.first_name} {body.last_name}".strip(),
+            UserPassword=get_password_hash(temp_password),
+            UserRole="User",
+            role_template_id=body.role_template_id,
+            business_unit_id=body.business_unit_id,
+            tenant_id=current_user.tenant_id,
+            password_reset_required=True,
+        )
+        db.add(new_user)
+        db.flush()
+        fields["wros_user_id"] = new_user.UserID
 
     try:
         employee = create_employee_profile(
@@ -167,6 +207,7 @@ def create_employee(
             **fields,
         )
     except DuplicateEmployeeEmail as exc:
+        db.rollback()
         raise HTTPException(status_code=409, detail=str(exc))
     db.commit()
     db.refresh(employee)
