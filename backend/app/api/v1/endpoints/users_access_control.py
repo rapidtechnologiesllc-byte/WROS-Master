@@ -528,7 +528,7 @@ def create_delivery_center(
     dependencies=[Depends(require_resource_permission("delivery-centers", "edit"))]
 )
 def update_delivery_center(
-    dc_id: int,
+    dc_id: str,
     req: DeliveryCenterCreateRequest,
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user)
@@ -568,7 +568,7 @@ def update_delivery_center(
     dependencies=[Depends(require_resource_permission("delivery-centers", "delete"))]
 )
 def delete_delivery_center(
-    dc_id: int,
+    dc_id: str,
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user)
 ):
@@ -683,7 +683,7 @@ def create_org_node(
     dependencies=[Depends(require_resource_permission("organizational-hierarchy", "edit"))]
 )
 def update_org_node(
-    node_id: int,
+    node_id: str,
     req: OrgNodeUpdateRequest,
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user)
@@ -723,7 +723,7 @@ def update_org_node(
     dependencies=[Depends(require_resource_permission("organizational-hierarchy", "delete"))]
 )
 def delete_org_node(
-    node_id: int,
+    node_id: str,
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user)
 ):
