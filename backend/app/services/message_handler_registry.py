@@ -258,6 +258,14 @@ def _initialize_default_handlers():
     except ImportError:
         logger.info("[Registry] Offer generated handler not yet available")
 
+    # Register create_user_with_roles handler (POST /hr/users/create-with-roles
+    # queues this - previously had no handler, so queued accounts never got created)
+    try:
+        from app.services.message_handlers.create_user_with_roles_handler import handle_create_user_with_roles
+        MessageHandlerRegistry.register("create_user_with_roles", handle_create_user_with_roles)
+    except ImportError as e:
+        logger.warning(f"[Registry] Could not import create_user_with_roles handler: {e}")
+
     # Register dead-letter escalation handler (the safety net for every other
     # handler's exhausted retries - without this, permanent failures were
     # silently invisible instead of escalated)

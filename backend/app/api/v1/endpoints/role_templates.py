@@ -92,6 +92,8 @@ def list_role_templates(
             "description": template.description,
             "is_system": template.is_system,
             "enabled": template.enabled,
+            "hierarchy_level": template.hierarchy_level,
+            "specialization": template.specialization,
             "permissions": perm_list,
         })
 
@@ -140,6 +142,8 @@ def get_role_template(
         "description": template.description,
         "is_system": template.is_system,
         "enabled": template.enabled,
+        "hierarchy_level": template.hierarchy_level,
+        "specialization": template.specialization,
         "permissions": perm_list,
     }
 

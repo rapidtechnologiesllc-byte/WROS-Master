@@ -111,6 +111,39 @@ def list_org_positions(
     return [OrgPositionResponse.from_orm(p) for p in positions]
 
 @router.get(
+    "/valid-supervisors",
+    response_model=List[OrgNodeResponse],
+    summary="List valid supervisors for a new hire's hierarchy level/specialization",
+    description=(
+        "Wraps OrgHierarchyValidator.get_valid_supervisors() - returns the org "
+        "nodes a person at the given hierarchy_level/specialization could "
+        "report to, so a parent_node_id can be picked before creating them."
+    ),
+    dependencies=[Depends(require_resource_permission("admin-settings", "view"))],
+)
+def list_valid_supervisors(
+    hierarchy_level: int,
+    specialization: str,
+    business_unit_id: Optional[int] = None,
+    current_user = Depends(get_current_internal_user),
+    db: Session = Depends(get_db),
+) -> List[OrgNodeResponse]:
+    """Get the org nodes eligible to be this hierarchy_level/specialization's parent_node_id."""
+    from app.services.org_hierarchy_validator import OrgHierarchyValidator
+
+    if hierarchy_level >= 17:
+        # CEO reports to nobody - nothing to pick.
+        return []
+
+    supervisors = OrgHierarchyValidator.get_valid_supervisors(
+        db,
+        employee_hierarchy_level=hierarchy_level,
+        employee_specialization=specialization,
+        business_unit_id=str(business_unit_id) if business_unit_id else None,
+    )
+    return [OrgNodeResponse.from_orm(s) for s in supervisors]
+
+@router.get(
     "/nodes",
     response_model=List[OrgNodeResponse],
     summary="List org nodes for a tenant",

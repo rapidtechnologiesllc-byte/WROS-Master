@@ -32,12 +32,16 @@ export default function UserFormPage() {
     job_title: '',
     business_unit_id: '',
     role_template_id: '',
-    whatsapp_number: ''
+    whatsapp_number: '',
+    hierarchy_level: '',
+    specialization: '',
+    parent_node_id: ''
   });
 
   const [roleTemplates, setRoleTemplates] = useState([]);
   const [businessUnits, setBusinessUnits] = useState([]);
   const [positions, setPositions] = useState([]);
+  const [validSupervisors, setValidSupervisors] = useState([]);
   const [loading, setLoading] = useState(mode === 'edit');
   const [saving, setSaving] = useState(false);
   const [selectedTemplatePermissions, setSelectedTemplatePermissions] = useState([]);
@@ -156,14 +160,51 @@ export default function UserFormPage() {
         const response = await apiRequest(`/admin/role-templates/${templateId}`);
         const permissions = response.data?.permissions || [];
         setSelectedTemplatePermissions(permissions);
+        // The role template already encodes the org hierarchy level and
+        // specialization for this role - inherit them rather than asking
+        // the admin to pick from scratch.
+        setFormData(prev => ({
+          ...prev,
+          hierarchy_level: response.data?.hierarchy_level ?? '',
+          specialization: response.data?.specialization ?? '',
+          parent_node_id: '' // reset - valid supervisors depend on hierarchy_level/specialization
+        }));
       } catch (error) {
         console.error('Failed to fetch template permissions:', error);
         setSelectedTemplatePermissions([]);
       }
     } else {
       setSelectedTemplatePermissions([]);
+      setFormData(prev => ({ ...prev, hierarchy_level: '', specialization: '', parent_node_id: '' }));
     }
   };
+
+  // Fetch valid supervisors whenever hierarchy_level/specialization/business_unit_id
+  // (all needed by OrgHierarchyValidator) are known.
+  useEffect(() => {
+    const { hierarchy_level, specialization, business_unit_id } = formData;
+    if (!hierarchy_level || !specialization) {
+      setValidSupervisors([]);
+      return;
+    }
+    if (Number(hierarchy_level) >= 17) {
+      // CEO reports to nobody.
+      setValidSupervisors([]);
+      return;
+    }
+    const params = new URLSearchParams({
+      hierarchy_level: String(hierarchy_level),
+      specialization,
+    });
+    if (business_unit_id) params.set('business_unit_id', String(business_unit_id));
+
+    apiRequest(`/org/valid-supervisors?${params.toString()}`)
+      .then(res => setValidSupervisors(Array.isArray(res.data) ? res.data : []))
+      .catch(err => {
+        console.error('Failed to fetch valid supervisors:', err);
+        setValidSupervisors([]);
+      });
+  }, [formData.hierarchy_level, formData.specialization, formData.business_unit_id]);
 
   const handleSave = async (e) => {
     e.preventDefault();
@@ -188,19 +229,29 @@ export default function UserFormPage() {
       setActionError('Role Template is required');
       return;
     }
+    if (mode === 'create' && (!formData.hierarchy_level || !formData.specialization)) {
+      setActionError('Selected role template is missing a hierarchy level/specialization - pick a different role template');
+      return;
+    }
+    if (mode === 'create' && Number(formData.hierarchy_level) < 17 && !formData.parent_node_id) {
+      setActionError('Reports To is required for this hierarchy level');
+      return;
+    }
 
     setSaving(true);
     try {
-      const payload = {
-        user_name: formData.user_name.trim(),
-        user_email: formData.user_email.trim(),
-        job_title: formData.job_title.trim(),
-        business_unit_id: parseInt(formData.business_unit_id, 10),
-        role_template_id: parseInt(formData.role_template_id, 10)
-      };
-
       if (mode === 'create') {
-        payload.user_password = formData.user_password;
+        const payload = {
+          user_name: formData.user_name.trim(),
+          user_email: formData.user_email.trim(),
+          job_title: formData.job_title.trim(),
+          business_unit_id: parseInt(formData.business_unit_id, 10),
+          role_template_id: parseInt(formData.role_template_id, 10),
+          hierarchy_level: parseInt(formData.hierarchy_level, 10),
+          specialization: formData.specialization,
+          parent_node_id: formData.parent_node_id || null,
+          user_password: formData.user_password
+        };
         await apiRequest('/hr/users/create-with-roles', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -208,6 +259,13 @@ export default function UserFormPage() {
         });
         setActionError(null);
       } else {
+        const payload = {
+          user_name: formData.user_name.trim(),
+          user_email: formData.user_email.trim(),
+          job_title: formData.job_title.trim(),
+          business_unit_id: parseInt(formData.business_unit_id, 10),
+          role_template_id: parseInt(formData.role_template_id, 10)
+        };
         await apiRequest(`/hr/users/${userId}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
@@ -403,6 +461,50 @@ export default function UserFormPage() {
               })}
             </select>
           </div>
+
+          {/* Hierarchy level / specialization - inherited from the selected role template */}
+          {mode === 'create' && formData.role_template_id && (
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Hierarchy Level
+                </label>
+                <Input type="text" value={formData.hierarchy_level ? `Level ${formData.hierarchy_level}` : ''} disabled />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Specialization
+                </label>
+                <Input type="text" value={formData.specialization || ''} disabled />
+              </div>
+            </div>
+          )}
+
+          {/* Reports To - required for anyone below CEO level */}
+          {mode === 'create' && formData.hierarchy_level && Number(formData.hierarchy_level) < 17 && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Reports To *
+              </label>
+              <select
+                value={formData.parent_node_id || ''}
+                onChange={(e) => setFormData(prev => ({ ...prev, parent_node_id: e.target.value }))}
+                disabled={saving}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-bx-orange disabled:bg-gray-100"
+                required
+              >
+                <option value="">Select Supervisor</option>
+                {validSupervisors.map(node => (
+                  <option key={node.id} value={node.id}>{node.name}</option>
+                ))}
+              </select>
+              {formData.specialization && validSupervisors.length === 0 && (
+                <p className="text-xs text-amber-600 mt-1">
+                  No eligible supervisors found for this hierarchy level/specialization/business unit yet.
+                </p>
+              )}
+            </div>
+          )}
 
           {/* Template Permissions Display */}
           {selectedTemplatePermissions.length > 0 && (
