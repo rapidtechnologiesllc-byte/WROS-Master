@@ -566,6 +566,57 @@ def create_business_unit_rbac(
         "status": "created"
     }
 
+@rbac_router.put("/business-units/{bu_id}")
+def update_business_unit_rbac(
+    bu_id: int,
+    req: BusinessUnitCreateRequest,
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_internal_user)
+):
+    """Update a business unit. Accessible from RBAC endpoints (matches create_business_unit_rbac's field set - region/continent are accepted but BusinessUnit has no such columns, same as create)."""
+    bu = db.query(BusinessUnit).filter(
+        BusinessUnit.id == bu_id,
+        BusinessUnit.tenant_id == (current_user.tenant_id if hasattr(current_user, 'tenant_id') and current_user.tenant_id else 1),
+    ).first()
+    if not bu:
+        raise HTTPException(status_code=404, detail="Business unit not found")
+
+    if req.name:
+        bu.name = req.name
+    if req.display_name:
+        bu.display_name = req.display_name
+    if req.description is not None:
+        bu.description = req.description
+
+    db.commit()
+    db.refresh(bu)
+
+    return {
+        "id": bu.id,
+        "name": bu.name,
+        "display_name": bu.display_name,
+        "status": "updated"
+    }
+
+@rbac_router.delete("/business-units/{bu_id}")
+def delete_business_unit_rbac(
+    bu_id: int,
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_internal_user)
+):
+    """Delete a business unit. Accessible from RBAC endpoints."""
+    bu = db.query(BusinessUnit).filter(
+        BusinessUnit.id == bu_id,
+        BusinessUnit.tenant_id == (current_user.tenant_id if hasattr(current_user, 'tenant_id') and current_user.tenant_id else 1),
+    ).first()
+    if not bu:
+        raise HTTPException(status_code=404, detail="Business unit not found")
+
+    db.delete(bu)
+    db.commit()
+
+    return {"status": "deleted"}
+
 @router.get(
     "/{template_id}/audit-trail",
     dependencies=[Depends(require_resource_permission("role-templates", "view"))]

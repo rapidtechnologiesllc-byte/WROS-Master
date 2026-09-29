@@ -96,7 +96,12 @@ const InvoiceManagementScreen = () => {
     }
 
     try {
-      const response = await fetch('/api/v1/invoices', {
+      // /invoices has no bare POST route - invoice creation is a DRAFT
+      // "generate" step keyed on project_id + billing period, which is
+      // exactly what this form already collects. GenerateInvoiceRequest
+      // (app/schemas/invoice.py) only takes project_id/period_start/
+      // period_end - no opportunity_id/currency field exists there.
+      const response = await fetch('/api/v1/invoices/generate', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
@@ -104,10 +109,8 @@ const InvoiceManagementScreen = () => {
         },
         body: JSON.stringify({
           project_id: createForm.projectId,
-          opportunity_id: createForm.opportunityId || null,
-          billing_period_start: createForm.billingPeriodStart,
-          billing_period_end: createForm.billingPeriodEnd,
-          currency: createForm.currency,
+          period_start: createForm.billingPeriodStart,
+          period_end: createForm.billingPeriodEnd,
         }),
       });
 

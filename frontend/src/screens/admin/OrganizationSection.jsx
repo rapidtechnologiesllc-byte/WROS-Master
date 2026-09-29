@@ -274,12 +274,16 @@ export default function OrganizationSection({ orgTab = "business-units" }) {
         const payload = {
           employee_name: newOrgNodeEmployeeName,
           position_id: parseInt(newOrgNodePosition),
-          reports_to: newOrgNodeReportsTo || null,
-          business_unit: newOrgNodeBusinessUnit || null,
+          reports_to_id: newOrgNodeReportsTo || null,
+          business_unit_id: newOrgNodeBusinessUnit ? parseInt(newOrgNodeBusinessUnit, 10) : null,
           location: newOrgNodeLocation || null
         };
 
-        const { data } = await apiRequest("/org/nodes", "POST", payload);
+        const { data } = await apiRequest("/org/nodes", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
 
         if (data && data.id) {
           setOrgNodes([...orgNodes, data]);

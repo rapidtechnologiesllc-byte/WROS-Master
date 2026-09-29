@@ -946,8 +946,23 @@ ${jobDescription}
       showNotice("Candidate details are missing", "error");
       return;
     }
+    if (!candidate.candidateJoiningDate) {
+      showNotice("Candidate has no joining date set - required to convert to employee", "error");
+      return;
+    }
+    const buId = candidate.business_unit_id || candidate.associated_bu_id || candidate.submission_bu_id;
+    if (!buId) {
+      showNotice("Candidate has no business unit assigned - required to convert to employee", "error");
+      return;
+    }
     try {
-      const response = await fetch("/employees/convert-from-candidate", {
+      // employees.py also has a simpler /convert-candidate/{candidate_id}
+      // route, but it creates no login account at all. This one
+      // (employee_conversion.py) is the real match for what this screen
+      // has always tried to send - it creates the Employee AND the Users
+      // login account with role_ids, which is what business_unit_id/
+      // role_ids here are actually for.
+      const response = await fetch("/api/v1/employees/convert-candidate", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -955,12 +970,13 @@ ${jobDescription}
         },
         body: JSON.stringify({
           candidate_id: candidate.id,
-          employee_name: candidate.name || candidate.candidate_name || "",
           employee_email: candidate.email || candidate.candidate_email || "",
-          business_unit_id: candidate.business_unit_id || 1,
-          role_ids: [3],
-          position: candidate.jobTitle || "Employee",
           joining_date: candidate.candidateJoiningDate,
+          business_unit_id: buId,
+          role_ids: [3],
+          first_name: candidate.candidateFirstName || (candidate.name || candidate.candidate_name || "").split(" ")[0] || null,
+          last_name: candidate.candidateLastName || (candidate.name || candidate.candidate_name || "").split(" ").slice(1).join(" ") || null,
+          job_title: candidate.jobTitle || null,
         }),
       });
       if (!response.ok) {
