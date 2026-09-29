@@ -1835,18 +1835,50 @@ function OrganizationalHierarchySection() {
 
 // LOCATIONS SECTION (DELIVERY CENTERS)
 
+// The delivery-centers CRUD lives in users_access_control.py, which is
+// mounted at /api/admin/users-access-control (not the bare /delivery-centers
+// this screen used to call) - pass the full path so apiRequest's "starts
+// with /api" check uses it as-is instead of prepending /api/v1 again.
+const DELIVERY_CENTERS_PATH = '/api/v1/api/admin/users-access-control/delivery-centers';
+
 function LocationsSection() {
   const navigate = useNavigate();
-  const [deliveryCenters, setDeliveryCenters] = useState([
-    { id: 1, name: "Austin, TX", type: "HQ", buServed: ["North America"], headcount: 150, city: "Austin", country: "USA" },
-    { id: 2, name: "Youngstown, OH", type: "Delivery", buServed: ["North America"], headcount: 300, city: "Youngstown", country: "USA" },
-  ]);
+  const [deliveryCenters, setDeliveryCenters] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
   const [actionSuccess, setActionSuccess] = useState(null);
 
-  const handleDelete = (dcId) => {
-    if (window.confirm("Are you sure you want to delete this delivery center?")) {
-      setDeliveryCenters(deliveryCenters.filter(dc => dc.id !== dcId));
+  useEffect(() => {
+    loadDeliveryCenters();
+  }, []);
+
+  const loadDeliveryCenters = async () => {
+    try {
+      setLoading(true);
+      const res = await apiRequest(DELIVERY_CENTERS_PATH);
+      setDeliveryCenters(res.data?.delivery_centers || []);
+      setLoadError(null);
+    } catch (err) {
+      console.error("Failed to load delivery centers:", err);
+      setLoadError("Failed to load delivery centers");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleEdit = (dc) => {
+    navigate(`/admin/users-access-control/delivery-centers/${dc.id}/edit`);
+  };
+
+  const handleDelete = async (dcId) => {
+    if (!window.confirm("Are you sure you want to delete this delivery center?")) return;
+    try {
+      await apiRequest(`${DELIVERY_CENTERS_PATH}/${dcId}`, { method: "DELETE" });
       setActionSuccess("Delivery Center deleted");
+      loadDeliveryCenters();
+    } catch (err) {
+      console.error("Failed to delete delivery center:", err);
+      setLoadError("Failed to delete delivery center");
     }
   };
 
@@ -1870,7 +1902,16 @@ function LocationsSection() {
         </div>
       )}
 
-      {hasPermission("delivery_center", "create") && (
+      {loadError && (
+        <div className="p-4 bg-rose-50 border border-rose-200 rounded-lg flex items-start justify-between">
+          <p className="text-rose-700 text-sm font-medium">{loadError}</p>
+          <button onClick={() => setLoadError(null)} className="text-rose-600 hover:text-rose-800 flex-shrink-0">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+      )}
+
+      {hasPermission("delivery-centers", "create") && (
         <button
           onClick={() => navigate('/admin/users-access-control/delivery-centers/create')}
           className="flex items-center gap-2 px-4 py-2 bg-bx-orange text-white rounded-lg hover:bg-bx-orange-hover text-sm font-medium"
@@ -1878,42 +1919,48 @@ function LocationsSection() {
           <Plus className="h-4 w-4" /> Add Delivery Center
         </button>
       )}
-      <div className="space-y-3">
-        {deliveryCenters.map((dc) => (
-          <div key={dc.id} className="border border-gray-200 rounded-lg p-4 flex items-start justify-between hover:bg-gray-50">
-            <div className="flex-1">
-              <div className="flex items-center gap-3">
-                <h4 className="font-semibold text-gray-900">{dc.name}</h4>
-                <span className={`px-2 py-1 rounded text-xs font-medium ${
-                  dc.type === "HQ"
-                    ? "bg-purple-100 text-purple-800"
-                    : "bg-blue-100 text-blue-800"
-                }`}>
-                  {dc.type}
-                </span>
+      {loading ? (
+        <p className="text-sm text-gray-500">Loading...</p>
+      ) : deliveryCenters.length === 0 ? (
+        <p className="text-sm text-gray-500">No delivery centers yet. Create one to get started.</p>
+      ) : (
+        <div className="space-y-3">
+          {deliveryCenters.map((dc) => (
+            <div key={dc.id} className="border border-gray-200 rounded-lg p-4 flex items-start justify-between hover:bg-gray-50">
+              <div className="flex-1">
+                <div className="flex items-center gap-3">
+                  <h4 className="font-semibold text-gray-900">{dc.name}</h4>
+                  <span className={`px-2 py-1 rounded text-xs font-medium ${
+                    dc.center_type === "HQ"
+                      ? "bg-purple-100 text-purple-800"
+                      : "bg-blue-100 text-blue-800"
+                  }`}>
+                    {dc.center_type}
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 gap-4 mt-2 text-sm text-gray-600">
+                  <div><span className="font-medium">Location:</span> {dc.city}, {dc.country}</div>
+                  <div><span className="font-medium">Headcount:</span> {dc.headcount}</div>
+                </div>
               </div>
-              <div className="grid grid-cols-2 gap-4 mt-2 text-sm text-gray-600">
-                <div><span className="font-medium">Location:</span> {dc.city}, {dc.country}</div>
-                <div><span className="font-medium">Headcount:</span> {dc.headcount}</div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => handleEdit(dc)}
+                  className="p-2 text-blue-600 hover:bg-blue-50 rounded"
+                >
+                  <Edit2 className="h-4 w-4" />
+                </button>
+                <button
+                  onClick={() => handleDelete(dc.id)}
+                  className="p-2 text-red-600 hover:bg-red-50 rounded"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
               </div>
             </div>
-            <div className="flex gap-2">
-              <button
-                onClick={() => handleEdit(dc)}
-                className="p-2 text-blue-600 hover:bg-blue-50 rounded"
-              >
-                <Edit2 className="h-4 w-4" />
-              </button>
-              <button
-                onClick={() => handleDelete(dc.id)}
-                className="p-2 text-red-600 hover:bg-red-50 rounded"
-              >
-                <Trash2 className="h-4 w-4" />
-              </button>
-            </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

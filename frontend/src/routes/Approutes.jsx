@@ -17,7 +17,6 @@ import PreOnboardingPage from "../screens/PreOnboarding";
 import ChecklistTemplatesScreen from "../screens/ChecklistTemplatesScreen";
 import UsersAndAccessControl from "../screens/UsersAndAccessControl";
 import UserFormPage from "../screens/UserFormPage";
-import DeliveryCentersAdmin from "../screens/DeliveryCentersAdmin";
 import EmployeesConsolidatedScreen from "../screens/EmployeesConsolidatedScreen";
 import BusinessUnitFormPage from "../screens/BusinessUnitFormPage";
 import DeliveryCenterFormPage from "../screens/DeliveryCenterFormPage";
@@ -695,6 +694,7 @@ export default function AppRoutes() {
             <Route path="admin/users-access-control/business-units/create" element={<BusinessUnitFormPage />} />
             <Route path="admin/users-access-control/business-units/:buId/edit" element={<BusinessUnitFormPage />} />
             <Route path="admin/users-access-control/delivery-centers/create" element={<DeliveryCenterFormPage />} />
+            <Route path="admin/users-access-control/delivery-centers/:dcId/edit" element={<DeliveryCenterFormPage />} />
 
             <Route path="training-certification" element={<TrainingCertificationDashboard />} />
             <Route path="troy-partner-dashboard" element={<TroyPartnerDashboard />} />

@@ -1,14 +1,20 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, AlertCircle, X } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { ArrowLeft, X } from 'lucide-react';
 import Button from '../components/ui/Button';
 import Card from '../components/ui/Card';
 import Input from '../components/ui/Input';
-import { toast } from 'react-toastify';
+import { apiRequest } from '../services/api/client';
 import { hasPermission } from '../utils/permissionsRoleTemplate';
 
+// The delivery-centers CRUD lives in users_access_control.py, which is
+// mounted at /api/admin/users-access-control (not the bare /delivery-centers
+// this screen used to call) - pass the full path so apiRequest's "starts
+// with /api" check uses it as-is instead of prepending /api/v1 again.
+const DELIVERY_CENTERS_PATH = '/api/v1/api/admin/users-access-control/delivery-centers';
+
 export default function DeliveryCenterFormPage() {
-  // Permission Gate: Only users with delivery-centers.edit can create delivery centers
+  // Permission Gate: Only users with delivery-centers.edit can create/edit delivery centers
   if (!hasPermission('delivery-centers', 'edit')) {
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
@@ -26,22 +32,59 @@ export default function DeliveryCenterFormPage() {
     );
   }
 
+  const { dcId } = useParams();
   const navigate = useNavigate();
-  const [saving, setSaving] = useState(false);
-  const [actionError, setActionError] = useState(null);
+  const mode = dcId ? 'edit' : 'create';
+
   const [formData, setFormData] = useState({
     name: '',
-    type: 'Delivery',
+    center_type: 'Delivery',
     city: '',
     country: '',
     headcount: 0
   });
+  const [loading, setLoading] = useState(mode === 'edit');
+  const [saving, setSaving] = useState(false);
+  const [actionError, setActionError] = useState(null);
 
-  const handleInputChange = (e) => {
-    const { name, value } = e.target;
+  useEffect(() => {
+    if (mode === 'edit' && dcId) {
+      loadDeliveryCenter();
+    }
+  }, [dcId, mode]);
+
+  const loadDeliveryCenter = async () => {
+    try {
+      setLoading(true);
+      const res = await apiRequest(DELIVERY_CENTERS_PATH);
+      const dc = (res.data?.delivery_centers || []).find(d => String(d.id) === String(dcId));
+      if (dc) {
+        setFormData({
+          name: dc.name || '',
+          center_type: dc.center_type || 'Delivery',
+          city: dc.city || '',
+          country: dc.country || '',
+          headcount: dc.headcount || 0
+        });
+      } else {
+        setActionError('Delivery Center not found');
+      }
+    } catch (err) {
+      console.error('Failed to load delivery center:', err);
+      setActionError('Failed to load delivery center');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Input (components/ui/Input.js) calls onChange with the raw string value,
+  // not a synthetic event; the native <select> below still passes a real event.
+  // Accept either shape so both control types can share one handler per field.
+  const setField = (field) => (valOrEvent) => {
+    const value = valOrEvent && valOrEvent.target ? valOrEvent.target.value : valOrEvent;
     setFormData(prev => ({
       ...prev,
-      [name]: name === 'headcount' ? parseInt(value) || 0 : value
+      [field]: field === 'headcount' ? parseInt(value, 10) || 0 : value
     }));
   };
 
@@ -54,15 +97,21 @@ export default function DeliveryCenterFormPage() {
 
     setSaving(true);
     try {
-      // TODO: Add API call here
-      // await apiRequest('/delivery-centers', {
-      //   method: 'POST',
-      //   body: JSON.stringify(formData)
-      // });
+      if (mode === 'create') {
+        await apiRequest(DELIVERY_CENTERS_PATH, {
+          method: 'POST',
+          body: JSON.stringify(formData)
+        });
+      } else {
+        await apiRequest(`${DELIVERY_CENTERS_PATH}/${dcId}`, {
+          method: 'PUT',
+          body: JSON.stringify(formData)
+        });
+      }
       setActionError(null);
       navigate('/admin/users-access-control/delivery-centers');
     } catch (err) {
-      setActionError(err?.message || 'Failed to save delivery center');
+      setActionError(err?.data?.detail || err?.message || 'Failed to save delivery center');
     } finally {
       setSaving(false);
     }
@@ -71,6 +120,14 @@ export default function DeliveryCenterFormPage() {
   const handleCancel = () => {
     navigate('/admin/users-access-control/delivery-centers');
   };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <div className="text-gray-500">Loading...</div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -85,7 +142,7 @@ export default function DeliveryCenterFormPage() {
         </button>
         <div>
           <h1 className="text-2xl font-bold text-gray-900">
-            Add Delivery Center
+            {mode === 'create' ? 'Add Delivery Center' : 'Edit Delivery Center'}
           </h1>
         </div>
       </div>
@@ -107,9 +164,8 @@ export default function DeliveryCenterFormPage() {
             </label>
             <Input
               type="text"
-              name="name"
               value={formData.name}
-              onChange={handleInputChange}
+              onChange={setField('name')}
               placeholder="e.g., Mumbai, India"
               disabled={saving}
               required
@@ -121,9 +177,9 @@ export default function DeliveryCenterFormPage() {
               Type
             </label>
             <select
-              name="type"
-              value={formData.type}
-              onChange={handleInputChange}
+              name="center_type"
+              value={formData.center_type}
+              onChange={setField('center_type')}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-bx-orange"
               disabled={saving}
             >
@@ -139,9 +195,8 @@ export default function DeliveryCenterFormPage() {
               </label>
               <Input
                 type="text"
-                name="city"
                 value={formData.city}
-                onChange={handleInputChange}
+                onChange={setField('city')}
                 placeholder="City"
                 disabled={saving}
               />
@@ -152,9 +207,8 @@ export default function DeliveryCenterFormPage() {
               </label>
               <Input
                 type="text"
-                name="country"
                 value={formData.country}
-                onChange={handleInputChange}
+                onChange={setField('country')}
                 placeholder="Country"
                 disabled={saving}
               />
@@ -167,9 +221,8 @@ export default function DeliveryCenterFormPage() {
             </label>
             <Input
               type="number"
-              name="headcount"
               value={formData.headcount}
-              onChange={handleInputChange}
+              onChange={setField('headcount')}
               placeholder="Number of employees"
               disabled={saving}
             />
@@ -189,7 +242,7 @@ export default function DeliveryCenterFormPage() {
               disabled={saving || !formData.name.trim()}
               className="bg-bx-orange hover:bg-bx-orange-hover text-white"
             >
-              {saving ? 'Adding...' : 'Add Delivery Center'}
+              {saving ? (mode === 'create' ? 'Adding...' : 'Updating...') : (mode === 'create' ? 'Add Delivery Center' : 'Update Delivery Center')}
             </Button>
           </div>
         </form>

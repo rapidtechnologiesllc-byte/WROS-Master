@@ -68,9 +68,11 @@ export default function BusinessUnitFormPage() {
     }
   };
 
-  const handleInputChange = (e) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
+  // Input (components/ui/Input.js) calls onChange with the raw string value,
+  // not a synthetic event, so this handler must be curried per field rather
+  // than reading e.target.name/e.target.value.
+  const setField = (field) => (val) => {
+    setFormData(prev => ({ ...prev, [field]: val }));
   };
 
   const handleSave = async (e) => {
@@ -159,9 +161,8 @@ export default function BusinessUnitFormPage() {
             </label>
             <Input
               type="text"
-              name="name"
               value={formData.name}
-              onChange={handleInputChange}
+              onChange={setField('name')}
               placeholder="e.g., Asia Pacific"
               disabled={saving}
               required
@@ -175,7 +176,7 @@ export default function BusinessUnitFormPage() {
             <textarea
               name="description"
               value={formData.description}
-              onChange={handleInputChange}
+              onChange={(e) => setField('description')(e.target.value)}
               placeholder="Add a description..."
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-bx-orange"
               rows="3"
@@ -189,9 +190,8 @@ export default function BusinessUnitFormPage() {
             </label>
             <Input
               type="text"
-              name="region"
               value={formData.region}
-              onChange={handleInputChange}
+              onChange={setField('region')}
               placeholder="e.g., Asia, Europe, North America"
               disabled={saving}
             />
@@ -203,9 +203,8 @@ export default function BusinessUnitFormPage() {
             </label>
             <Input
               type="text"
-              name="continent"
               value={formData.continent}
-              onChange={handleInputChange}
+              onChange={setField('continent')}
               placeholder="e.g., Asia, Europe, North America"
               disabled={saving}
             />
