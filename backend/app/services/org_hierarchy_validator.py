@@ -35,7 +35,7 @@ import logging
 from typing import Optional, Tuple
 from sqlalchemy.orm import Session
 
-from app.models.org_structure import OrgNode
+from app.models.org_structure import OrgNode, Department
 from app.core.logging import logger
 
 # Define the 17-level hierarchy with specialization rules
@@ -236,10 +236,11 @@ class OrgHierarchyValidator:
             if employee_hierarchy_level < 13:
                 query = query.filter(OrgNode.specialization == employee_specialization)
 
-            # Filter by business unit if specified
+            # Filter by business unit if specified (OrgNode has no business_unit_id;
+            # business unit is derived via OrgNode.department_id -> Department.business_unit_id)
             if business_unit_id:
-                query = query.filter(
-                    (OrgNode.business_unit_id == business_unit_id)
+                query = query.outerjoin(Department, OrgNode.department_id == Department.id).filter(
+                    (Department.business_unit_id == int(business_unit_id))
                     | (OrgNode.hierarchy_level >= 16)  # Org-wide roles (Partner/CEO)
                 )
 
