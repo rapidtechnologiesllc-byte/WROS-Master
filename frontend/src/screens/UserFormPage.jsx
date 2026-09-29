@@ -35,13 +35,17 @@ export default function UserFormPage() {
     whatsapp_number: '',
     hierarchy_level: '',
     specialization: '',
-    parent_node_id: ''
+    parent_node_id: '',
+    department_id: '',
+    location_id: ''
   });
 
   const [roleTemplates, setRoleTemplates] = useState([]);
   const [businessUnits, setBusinessUnits] = useState([]);
   const [positions, setPositions] = useState([]);
   const [validSupervisors, setValidSupervisors] = useState([]);
+  const [departments, setDepartments] = useState([]);
+  const [deliveryCenters, setDeliveryCenters] = useState([]);
   const [loading, setLoading] = useState(mode === 'edit');
   const [saving, setSaving] = useState(false);
   const [selectedTemplatePermissions, setSelectedTemplatePermissions] = useState([]);
@@ -59,10 +63,11 @@ export default function UserFormPage() {
 
   const loadInitialData = async () => {
     try {
-      const [rolesRes, busRes, posRes] = await Promise.all([
+      const [rolesRes, busRes, posRes, dcRes] = await Promise.all([
         apiRequest('/admin/role-templates'),
         apiRequest('/business-units'),
-        apiRequest('/org/positions')
+        apiRequest('/org/positions'),
+        apiRequest('/api/v1/api/admin/users-access-control/delivery-centers')
       ]);
       // Filter to only enabled templates - disabled templates shouldn't be selectable
       const enabledTemplates = rolesRes.data?.role_templates?.filter(t => t.enabled !== false) || [];
@@ -72,8 +77,7 @@ export default function UserFormPage() {
       // positions from /org/positions is an array of OrgPosition objects
       const positionArray = Array.isArray(posRes.data) ? posRes.data : posRes.data?.positions || [];
       setPositions(positionArray);
-
-      console.log('[DEBUG] Loaded positions:', positionArray);
+      setDeliveryCenters(dcRes.data?.delivery_centers || []);
     } catch (err) {
       console.error('Failed to load form data:', err);
       const message = err?.message || 'Failed to load form data. Please check your permissions.';
@@ -147,8 +151,22 @@ export default function UserFormPage() {
   };
 
   const handleBusinessUnitChange = (e) => {
-    setFormData(prev => ({ ...prev, business_unit_id: e.target.value }));
+    // Departments and eligible supervisors are both scoped to the business unit
+    setFormData(prev => ({ ...prev, business_unit_id: e.target.value, department_id: '', parent_node_id: '' }));
   };
+
+  useEffect(() => {
+    if (!formData.business_unit_id) {
+      setDepartments([]);
+      return;
+    }
+    apiRequest(`/org/departments?business_unit_id=${encodeURIComponent(formData.business_unit_id)}`)
+      .then(res => setDepartments(Array.isArray(res.data) ? res.data : []))
+      .catch(err => {
+        console.error('Failed to load departments:', err);
+        setDepartments([]);
+      });
+  }, [formData.business_unit_id]);
 
   const handleRoleTemplateChange = async (e) => {
     const templateId = e.target.value;
@@ -250,6 +268,8 @@ export default function UserFormPage() {
           hierarchy_level: parseInt(formData.hierarchy_level, 10),
           specialization: formData.specialization,
           parent_node_id: formData.parent_node_id || null,
+          department_id: formData.department_id || null,
+          location_id: formData.location_id || null,
           user_password: formData.user_password
         };
         await apiRequest('/hr/users/create-with-roles', {
@@ -439,6 +459,42 @@ export default function UserFormPage() {
             </select>
           </div>
 
+          {mode === 'create' && (
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Department</label>
+                <select
+                  value={formData.department_id || ''}
+                  onChange={(e) => setFormData(prev => ({ ...prev, department_id: e.target.value }))}
+                  disabled={saving || !formData.business_unit_id}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-bx-orange disabled:bg-gray-100"
+                >
+                  <option value="">{formData.business_unit_id ? 'No department' : 'Select a business unit first'}</option>
+                  {departments.map(dept => (
+                    <option key={dept.id} value={dept.id}>{dept.name}</option>
+                  ))}
+                </select>
+                {formData.business_unit_id && departments.length === 0 && (
+                  <p className="text-xs text-gray-500 mt-1">This business unit has no departments yet - add them under Organizational Hierarchy.</p>
+                )}
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Delivery Center</label>
+                <select
+                  value={formData.location_id || ''}
+                  onChange={(e) => setFormData(prev => ({ ...prev, location_id: e.target.value }))}
+                  disabled={saving}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-bx-orange disabled:bg-gray-100"
+                >
+                  <option value="">No delivery center</option>
+                  {deliveryCenters.map(dc => (
+                    <option key={dc.id} value={dc.id}>{dc.name}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          )}
+
           {/* Role Template */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -495,12 +551,12 @@ export default function UserFormPage() {
               >
                 <option value="">Select Supervisor</option>
                 {validSupervisors.map(node => (
-                  <option key={node.id} value={node.id}>{node.name}</option>
+                  <option key={node.id} value={node.id}>{node.name} (Level {node.hierarchy_level}, {node.specialization})</option>
                 ))}
               </select>
               {formData.specialization && validSupervisors.length === 0 && (
                 <p className="text-xs text-amber-600 mt-1">
-                  No eligible supervisors found for this hierarchy level/specialization/business unit yet.
+                  No eligible supervisors yet. This role must report to a Level {Number(formData.hierarchy_level) + 1}-{Math.min(Number(formData.hierarchy_level) + 2, 17)} node in this business unit (same specialization unless the supervisor is Level 13+) - add one under Organizational Hierarchy.
                 </p>
               )}
             </div>
@@ -550,13 +606,13 @@ export default function UserFormPage() {
         </form>
       </Card>
 
-      {/* Note */}
-      <Card className="p-4 bg-blue-50 border-blue-200">
-        <p className="font-semibold text-blue-900 mb-1">Note: Employee Details Are Managed Separately</p>
-        <p className="text-sm text-blue-800">
-          This form creates login accounts (RBAC) only. Employee organizational details (job title, reporting manager, delivery center) are managed in the Employee onboarding flow.
-        </p>
-      </Card>
+      {mode === 'create' && (
+        <Card className="p-4 bg-blue-50 border-blue-200">
+          <p className="text-sm text-blue-800">
+            Creating a user also places them in the org chart under the selected supervisor, in the chosen department. Their hierarchy level and specialization come from the role template.
+          </p>
+        </Card>
+      )}
     </div>
   );
 }

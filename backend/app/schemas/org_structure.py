@@ -31,6 +31,8 @@ class OrgNodeResponse(BaseModel):
     name: str = Field(..., description="Descriptive name for this specific node")
     parent_id: Optional[str] = None
     department_id: Optional[str] = None
+    hierarchy_level: int
+    specialization: str
     active: bool = True
     created_at: Union[str, datetime]
     updated_at: Union[str, datetime]
@@ -50,7 +52,7 @@ class DepartmentResponse(BaseModel):
     id: str
     tenant_id: int
     tenant_name: Optional[str] = None
-    business_unit_id: str
+    business_unit_id: int
     business_unit_name: Optional[str] = None
     name: str
     description: Optional[str] = None

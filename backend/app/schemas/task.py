@@ -12,7 +12,7 @@ class TaskCreateRequest(BaseModel):
     title: str
     description: Optional[str] = None
     priority: str = "MEDIUM"
-    department_id: Optional[int] = None
+    department_id: Optional[str] = None
     due_date: Optional[datetime] = None
     is_external: bool = False
     visibility_scope: str = "ASSIGNEE_MANAGER_DEPARTMENT"
@@ -29,7 +29,7 @@ class TaskResponse(BaseModel):
     priority_challenged: bool
     priority_challenge_note: Optional[str]
     status: str
-    department_id: Optional[int]
+    department_id: Optional[str]
     assigned_to_user_id: Optional[str]
     created_by_user_id: Optional[str]
     parent_task_id: Optional[int]

@@ -1,15 +1,8 @@
 """Create User With Roles Handler - Creates the Users row queued by
-POST /hr/users/create-with-roles.
-
-The endpoint already validates the org-reporting structure (hierarchy_level,
-specialization, parent_node_id) via OrgHierarchyValidator before queueing -
-this handler's job is just to actually create the account. hierarchy_level/
-specialization/parent_node_id have nowhere to persist on Users itself (no
-such columns exist), so this handler creates the login account and role
-assignment; linking the new user into an OrgNode for org-chart purposes is
-a separate, not-yet-built feature (there's no verified mapping from the
-17-level hierarchy scale used here to OrgPosition's separate 10-rank scale
-to safely invent one).
+POST /hr/users/create-with-roles, together with the user's own seat in the
+org chart (an OrgNode under parent_node_id) so the account, its role
+template, business unit, department, delivery center and reporting line are
+written in one transaction and can't drift apart.
 """
 import logging
 from typing import Any, Dict
@@ -17,7 +10,9 @@ from typing import Any, Dict
 from sqlalchemy.orm import Session
 
 from app.core.security import get_password_hash
+from app.models.role_template import RoleTemplate
 from app.models.user import Users
+from app.services.org_structure_service import create_org_node
 from app.utils.uniq_id_generator import user_id_generator
 
 logger = logging.getLogger(__name__)
@@ -47,29 +42,51 @@ def handle_create_user_with_roles(message: Any, db: Session) -> Dict[str, Any]:
         # but the queue can be slower than a second concurrent request.
         raise ValueError(f"User with email {user_email} already exists")
 
-    user = Users(
-        UserID=user_id_generator(),
-        UserEmail=user_email,
-        UserName=user_name,
-        UserPassword=get_password_hash(user_password),
-        UserRole="User",  # legacy field - role_template_id is the real RBAC assignment
-        role_template_id=role_ids[0],
-        business_unit_id=payload.get("business_unit_id"),
-        department_id=payload.get("department_id"),
-        job_title=payload.get("job_title"),
-        tenant_id=tenant_id,
-        password_reset_required=True,
-    )
-    db.add(user)
-    db.commit()
+    role_template = db.query(RoleTemplate).filter(RoleTemplate.id == role_ids[0]).first()
+    if role_template is None:
+        raise ValueError(f"Role template {role_ids[0]} not found")
+
+    try:
+        # Re-validated here: the org chart may have changed since the endpoint queued this.
+        org_node = create_org_node(
+            db,
+            tenant_id=tenant_id,
+            name=user_name,
+            hierarchy_level=payload.get("hierarchy_level") or role_template.hierarchy_level,
+            specialization=payload.get("specialization") or role_template.specialization,
+            parent_id=payload.get("parent_node_id"),
+            department_id=payload.get("department_id"),
+        )
+
+        user = Users(
+            UserID=user_id_generator(),
+            UserEmail=user_email,
+            UserName=user_name,
+            UserPassword=get_password_hash(user_password),
+            UserRole=role_template.name,
+            role_template_id=role_template.id,
+            business_unit_id=payload.get("business_unit_id"),
+            department_id=payload.get("department_id"),
+            location_id=payload.get("location_id"),
+            org_node_id=org_node.id,
+            job_title=payload.get("job_title"),
+            tenant_id=tenant_id,
+            password_reset_required=True,
+        )
+        db.add(user)
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
 
     logger.info(
         f"[CreateUserWithRoles] Created user {user.UserID} ({user_email}) "
-        f"role_template_id={role_ids[0]} tenant_id={tenant_id}"
+        f"role_template_id={role_template.id} org_node_id={org_node.id} tenant_id={tenant_id}"
     )
 
     return {
         "status": "user_created",
         "user_id": user.UserID,
         "user_email": user_email,
+        "org_node_id": org_node.id,
     }

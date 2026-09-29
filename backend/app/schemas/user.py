@@ -111,7 +111,7 @@ class UserResponse(BaseModel):
     job_title: Optional[str] = None
     role_template_id: Optional[int] = None
     permission_role: Optional[str] = None
-    department_id: Optional[int] = None
+    department_id: Optional[str] = None
     department_name: Optional[str] = None
     business_unit_id: Optional[int] = None
     business_unit_name: Optional[str] = None
@@ -149,7 +149,7 @@ class JobCreateRequest(BaseModel):
     recuriter_id: Optional[str] = None
     hiring_manager_id: Optional[str] = None
     business_unit: Optional[int] = None
-    department_id: Optional[int] = None
+    department_id: Optional[str] = None
     start_date: Optional[date] = None
 
 class JobCreateResponse(BaseModel):
@@ -176,7 +176,7 @@ class JobResponse(BaseModel):
     hiring_manager_name: Optional[str] = None
     recuriter_id: Optional[str] = None
     business_unit: Optional[int] = None
-    department_id: Optional[int] = None
+    department_id: Optional[str] = None
     salary_range: Optional[str] = None
     required_skills_canonical: Optional[list] = None
     job_skills_boolean_mode: Optional[str] = None
@@ -335,7 +335,7 @@ class JobUpdateRequest(BaseModel):
     recuriter_id: Optional[str] = None
     hiring_manager_id: Optional[str] = None
     business_unit: Optional[int] = None
-    department_id: Optional[int] = None
+    department_id: Optional[str] = None
 
 class CandidateUpdateRequest(BaseModel):
     candidate_first_name: Optional[str] = None
@@ -537,6 +537,7 @@ class CreateUserWithRolesRequest(BaseModel):
     partner_id: Optional[int] = Field(None, gt=0, description="Optional partner ID")
     business_unit_id: Optional[int] = Field(None, gt=0, description="Primary business unit ID")
     department_id: Optional[str] = Field(None, description="Department within the business unit")
+    location_id: Optional[str] = Field(None, description="Delivery center (locations.id) the user works out of")
     parent_node_id: Optional[str] = Field(None, description="Org hierarchy: who this person reports to (validated by org_hierarchy_validator)")
 
     class Config:
@@ -674,6 +675,9 @@ class SingleUserResponse(BaseModel):
     permission_role: Optional[str] = None
     role_template_id: Optional[int] = None
     business_unit_id: Optional[int] = None
+    department_id: Optional[str] = None
+    location_id: Optional[str] = None
+    org_node_id: Optional[str] = None
     created_at: datetime
 
 # ── Hiring Manager Section ────────────────────────────────────────────────────

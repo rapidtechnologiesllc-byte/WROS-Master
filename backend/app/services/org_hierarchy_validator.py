@@ -88,12 +88,20 @@ class OrgHierarchyValidator:
     """Validates organizational hierarchy with 17 levels and specialization enforcement"""
 
     @staticmethod
+    def parent_business_unit_id(node: OrgNode) -> Optional[int]:
+        """OrgNode has no business_unit_id column - it's reachable only via its department."""
+        if node.department_id and node.department:
+            return node.department.business_unit_id
+        return None
+
+    @staticmethod
     def validate_reporting_relationship(
         session: Session,
         employee_hierarchy_level: int,
         employee_specialization: str,
         parent_node_id: Optional[str],
         business_unit_id: Optional[str] = None,
+        tenant_id: Optional[int] = None,
     ) -> Tuple[bool, Optional[str]]:
         """
         Validate that a new employee's reporting relationship is valid
@@ -135,8 +143,10 @@ class OrgHierarchyValidator:
                     f"Valid parent levels: {', '.join(valid_level_names)} (levels {valid_levels})"
                 )
 
-            # Get the parent node
-            parent = session.query(OrgNode).filter(OrgNode.id == parent_node_id).first()
+            parent_query = session.query(OrgNode).filter(OrgNode.id == parent_node_id, OrgNode.active == True)
+            if tenant_id is not None:
+                parent_query = parent_query.filter(OrgNode.tenant_id == tenant_id)
+            parent = parent_query.first()
 
             if not parent:
                 return (False, f"Parent node not found: {parent_node_id}")
@@ -165,18 +175,19 @@ class OrgHierarchyValidator:
                         f"Reporting must stay within same specialization domain."
                     )
 
-            # Check business unit consistency (within same BU unless parent is org-wide)
-            if business_unit_id and parent.business_unit_id:
-                # Org-wide roles (CFO, CWP) can manage across BUs
+            # Check business unit consistency (within same BU unless parent is org-wide).
+            # A parent with no department isn't scoped to any BU.
+            parent_bu = OrgHierarchyValidator.parent_business_unit_id(parent)
+            if business_unit_id and parent_bu is not None:
                 parent_is_org_wide = parent.hierarchy_level >= 16  # Partner or CEO level
-                if not parent_is_org_wide and parent.business_unit_id != business_unit_id:
+                if not parent_is_org_wide and parent_bu != int(business_unit_id):
                     return (
                         False,
-                        f"Employee is in BU {business_unit_id} but reports to someone in BU {parent.business_unit_id}. "
+                        f"Employee is in BU {business_unit_id} but reports to someone in BU {parent_bu}. "
                         f"Reporting must be within same BU (unless parent is org-wide role like CFO/CWP)."
                     )
 
-            # Check for circular reporting (would create a loop)
+            # The parent's own reporting chain must not already contain a loop
             if OrgHierarchyValidator._has_circular_reporting(
                 session, parent_node_id, parent_node_id
             ):
@@ -203,14 +214,14 @@ class OrgHierarchyValidator:
 
         node = session.query(OrgNode).filter(OrgNode.id == node_id).first()
 
-        if not node or not node.parent_node_id:
+        if not node or not node.parent_id:
             return False
 
-        if node.parent_node_id == check_against_id:
+        if node.parent_id == check_against_id:
             return True
 
         return OrgHierarchyValidator._has_circular_reporting(
-            session, node.parent_node_id, check_against_id, visited
+            session, node.parent_id, check_against_id, visited
         )
 
     @staticmethod
@@ -219,32 +230,39 @@ class OrgHierarchyValidator:
         employee_hierarchy_level: int,
         employee_specialization: str,
         business_unit_id: Optional[str] = None,
+        tenant_id: Optional[int] = None,
     ) -> list:
         """
-        Get list of valid supervisors for an employee
-
-        Returns list of OrgNode records that can supervise this employee
+        Get list of valid supervisors for an employee. Mirrors the rules in
+        validate_reporting_relationship so every node offered here passes it.
         """
         try:
             valid_parent_levels = get_valid_parent_levels(employee_hierarchy_level)
 
             query = session.query(OrgNode).filter(
-                OrgNode.hierarchy_level.in_(valid_parent_levels)
+                OrgNode.hierarchy_level.in_(valid_parent_levels),
+                OrgNode.active == True,
             )
+            if tenant_id is not None:
+                query = query.filter(OrgNode.tenant_id == tenant_id)
 
-            # Filter by specialization (non-executive roles must match specialization)
+            # Non-executive employees must match a non-executive parent's specialization
             if employee_hierarchy_level < 13:
-                query = query.filter(OrgNode.specialization == employee_specialization)
+                query = query.filter(
+                    (OrgNode.specialization == employee_specialization)
+                    | (OrgNode.hierarchy_level >= 13)
+                )
 
-            # Filter by business unit if specified (OrgNode has no business_unit_id;
-            # business unit is derived via OrgNode.department_id -> Department.business_unit_id)
+            # OrgNode has no business_unit_id; its BU comes from its department.
+            # Nodes without a department aren't BU-scoped; Partner/CEO are org-wide.
             if business_unit_id:
                 query = query.outerjoin(Department, OrgNode.department_id == Department.id).filter(
                     (Department.business_unit_id == int(business_unit_id))
-                    | (OrgNode.hierarchy_level >= 16)  # Org-wide roles (Partner/CEO)
+                    | (OrgNode.department_id.is_(None))
+                    | (OrgNode.hierarchy_level >= 16)
                 )
 
-            return query.all()
+            return query.order_by(OrgNode.hierarchy_level.desc(), OrgNode.name).all()
 
         except Exception as e:
             logger.error(f"Error getting valid supervisors: {e}", exc_info=True)
@@ -284,7 +302,8 @@ def validate_before_employee_creation(
     hierarchy_level: int,
     specialization: str,
     parent_node_id: Optional[str],
-    business_unit_id: Optional[str]
+    business_unit_id: Optional[str],
+    tenant_id: Optional[int] = None,
 ) -> Tuple[bool, Optional[str]]:
     """
     Wrapper function for employee creation validation
@@ -295,5 +314,34 @@ def validate_before_employee_creation(
         (is_valid, error_message)
     """
     return OrgHierarchyValidator.validate_reporting_relationship(
-        session, hierarchy_level, specialization, parent_node_id, business_unit_id
+        session, hierarchy_level, specialization, parent_node_id, business_unit_id, tenant_id
     )
+
+
+# Maps the 17-level hierarchy onto the 10 OrgPosition codes seeded in
+# org_positions, so OrgNode.position_id is always derived from hierarchy_level
+# instead of being picked independently on a second, conflicting scale.
+LEVEL_POSITION_CODES = {
+    17: "ceo",
+    16: "partner",
+    15: "bu_head", 14: "bu_head", 13: "bu_head",
+    12: "senior_director",
+    11: "director", 10: "director",
+    9: "senior_manager",
+    8: "manager", 7: "manager",
+    6: "team_lead",
+    5: "senior_consultant",
+    4: "consultant", 3: "consultant", 2: "consultant", 1: "consultant",
+}
+
+
+def position_id_for_level(session: Session, hierarchy_level: int) -> int:
+    from app.models.org_structure import OrgPosition
+
+    code = LEVEL_POSITION_CODES.get(hierarchy_level)
+    if code is None:
+        raise ValueError(f"Invalid hierarchy level: {hierarchy_level}. Must be 1-17.")
+    position = session.query(OrgPosition).filter(OrgPosition.rbac_role_name == code).first()
+    if position is None:
+        raise ValueError(f"Org position '{code}' is not seeded - run org initialization first")
+    return position.id

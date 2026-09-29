@@ -1134,696 +1134,407 @@ function BusinessUnitsSection() {
 // ORGANIZATIONAL HIERARCHY SECTION
 
 function OrganizationalHierarchySection() {
-  const POSITIONS = [
-    { id: 1, name: "CEO" },
-    { id: 2, name: "Partner" },
-    { id: 3, name: "BU Head" },
-    { id: 4, name: "Senior Director" },
-    { id: 5, name: "Director" },
-    { id: 6, name: "Technical Manager" },
-    { id: 7, name: "Senior Manager" },
-    { id: 8, name: "Manager" },
-    { id: 9, name: "Team Lead" },
-    { id: 10, name: "Senior Consultant" }
-  ];
+  const EMPTY_NODE_FORM = { name: "", hierarchy_level: "", specialization: "", parent_id: "", department_id: "" };
 
   const [orgNodes, setOrgNodes] = useState([]);
-  const [positions, setPositions] = useState(POSITIONS);
-  const [businessUnits, setBusinessUnits] = useState([]);
   const [departments, setDepartments] = useState([]);
-  const [showAddOrgNodeModal, setShowAddOrgNodeModal] = useState(false);
-  const [showPositionsManager, setShowPositionsManager] = useState(false);
-  const [showAddPositionModal, setShowAddPositionModal] = useState(false);
-  const [showManageDepartmentsModal, setShowManageDepartmentsModal] = useState(false);
-  const [showAddDepartmentModal, setShowAddDepartmentModal] = useState(false);
-  const [editingDepartmentId, setEditingDepartmentId] = useState(null);
-  const [editingOrgNodeId, setEditingOrgNodeId] = useState(null);
-  const [newOrgNodeEmployeeName, setNewOrgNodeEmployeeName] = useState("");
-  const [newOrgNodePosition, setNewOrgNodePosition] = useState("");
-  const [newOrgNodeReportsTo, setNewOrgNodeReportsTo] = useState("");
-  const [newOrgNodeBusinessUnit, setNewOrgNodeBusinessUnit] = useState("");
-  const [newOrgNodeLocation, setNewOrgNodeLocation] = useState("");
-  const [editOrgNodeEmployeeName, setEditOrgNodeEmployeeName] = useState("");
-  const [editOrgNodePosition, setEditOrgNodePosition] = useState("");
-  const [editOrgNodeReportsTo, setEditOrgNodeReportsTo] = useState("");
-  const [editOrgNodeBusinessUnit, setEditOrgNodeBusinessUnit] = useState("");
-  const [editOrgNodeLocation, setEditOrgNodeLocation] = useState("");
-  const [newPositionName, setNewPositionName] = useState("");
-  const [newPositionRoleTemplate, setNewPositionRoleTemplate] = useState("");
-  const [newDepartmentName, setNewDepartmentName] = useState("");
-  const [editDepartmentName, setEditDepartmentName] = useState("");
-  const [isSubmittingOrgNode, setIsSubmittingOrgNode] = useState(false);
+  const [businessUnits, setBusinessUnits] = useState([]);
+  const [reference, setReference] = useState({ levels: [], specializations: [] });
+  const [loading, setLoading] = useState(true);
   const [actionError, setActionError] = useState(null);
   const [actionSuccess, setActionSuccess] = useState(null);
 
+  const [showAddNode, setShowAddNode] = useState(false);
+  const [nodeForm, setNodeForm] = useState(EMPTY_NODE_FORM);
+  const [eligibleParents, setEligibleParents] = useState([]);
+  const [submittingNode, setSubmittingNode] = useState(false);
+
+  const [showDepartments, setShowDepartments] = useState(false);
+  const [deptForm, setDeptForm] = useState({ name: "", business_unit_id: "" });
+  const [editingDept, setEditingDept] = useState(null);
+
+  const loadAll = async () => {
+    setLoading(true);
+    try {
+      const [nodesRes, deptRes, buRes, refRes] = await Promise.all([
+        apiRequest("/org/nodes"),
+        apiRequest("/org/departments"),
+        apiRequest("/api/v1/business-units"),
+        apiRequest("/org/hierarchy-reference"),
+      ]);
+      setOrgNodes(Array.isArray(nodesRes.data) ? nodesRes.data : []);
+      setDepartments(Array.isArray(deptRes.data) ? deptRes.data : []);
+      setBusinessUnits(Array.isArray(buRes.data) ? buRes.data : []);
+      setReference(refRes.data || { levels: [], specializations: [] });
+    } catch (err) {
+      setActionError(err?.message || "Failed to load organizational hierarchy");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    loadOrgNodes();
-    loadBusinessUnits();
+    loadAll();
   }, []);
 
-  const loadOrgNodes = async () => {
-    try {
-      // Fetch org nodes from the new API endpoint (includes tenant_id, tenant_name)
-      const { data } = await apiRequest("/org/nodes");
-      const nodesList = Array.isArray(data) ? data : [];
-      setOrgNodes(nodesList);
-    } catch (err) {
-      // Fallback to users if org/nodes endpoint is not available
-      try {
-        const { data } = await apiRequest("/hr/users/all");
-        const usersList = data?.users || [];
-        const nodes = usersList.map(u => ({
-          id: u.user_id,
-          name: u.user_name,
-          employee_name: u.user_name,
-          position_id: u.permission_role_id,
-          position: u.permission_role || u.user_role,
-          business_unit: u.business_unit_name,
-          reports_to: null,
-          location: null
-        }));
-        setOrgNodes(Array.isArray(nodes) ? nodes : []);
-      } catch (fallbackErr) {
-        console.error("Failed to load org nodes:", err, fallbackErr);
-      }
-    }
-  };
+  const levelName = (level) => reference.levels.find(l => l.level === level)?.name || `Level ${level}`;
+  const departmentById = (id) => departments.find(d => d.id === id);
 
-  const loadBusinessUnits = async () => {
-    try {
-      const response = await apiRequest("/api/v1/business-units");
-      const busData = Array.isArray(response) ? response : response?.data || [];
-      setBusinessUnits(busData);
-    } catch (err) {
-      console.error("Failed to load business units:", err);
-    }
-  };
-
-  const handleAddOrgNode = async (e) => {
-    e.preventDefault();
-    setActionError(null);
-    if (!newOrgNodeEmployeeName.trim() || !newOrgNodePosition.trim()) {
-      setActionError("Employee name and position are required");
+  // Eligible parents depend on level, specialization and the BU implied by the chosen department
+  useEffect(() => {
+    const level = Number(nodeForm.hierarchy_level);
+    if (!showAddNode || !level || !nodeForm.specialization || level >= 17) {
+      setEligibleParents([]);
       return;
     }
-    setIsSubmittingOrgNode(true);
-    try {
-      const payload = {
-        employee_name: newOrgNodeEmployeeName,
-        position_id: parseInt(newOrgNodePosition),
-        reports_to: newOrgNodeReportsTo || null,
-        business_unit: newOrgNodeBusinessUnit || null,
-        location: newOrgNodeLocation || null
-      };
+    const params = new URLSearchParams({ hierarchy_level: String(level), specialization: nodeForm.specialization });
+    const dept = departmentById(nodeForm.department_id);
+    if (dept) params.set("business_unit_id", String(dept.business_unit_id));
+    apiRequest(`/org/valid-supervisors?${params.toString()}`)
+      .then(res => setEligibleParents(Array.isArray(res.data) ? res.data : []))
+      .catch(() => setEligibleParents([]));
+  }, [showAddNode, nodeForm.hierarchy_level, nodeForm.specialization, nodeForm.department_id, departments]);
 
-      await apiRequest("/org/nodes", { method: "POST", body: JSON.stringify(payload) });
-      setActionSuccess("Org node created successfully");
-      loadOrgNodes();
-      setShowAddOrgNodeModal(false);
-      setNewOrgNodeEmployeeName("");
-      setNewOrgNodePosition("");
-      setNewOrgNodeReportsTo("");
-      setNewOrgNodeBusinessUnit("");
-      setNewOrgNodeLocation("");
+  const closeAddNode = () => {
+    setShowAddNode(false);
+    setNodeForm(EMPTY_NODE_FORM);
+  };
+
+  const handleAddNode = async (e) => {
+    e.preventDefault();
+    setActionError(null);
+    setSubmittingNode(true);
+    try {
+      await apiRequest("/org/nodes", {
+        method: "POST",
+        body: JSON.stringify({
+          name: nodeForm.name.trim(),
+          hierarchy_level: Number(nodeForm.hierarchy_level),
+          specialization: nodeForm.specialization,
+          parent_id: nodeForm.parent_id || null,
+          department_id: nodeForm.department_id || null,
+        }),
+      });
+      setActionSuccess(`Added ${nodeForm.name.trim()} to the org chart`);
+      closeAddNode();
+      loadAll();
     } catch (err) {
       setActionError(err?.message || "Failed to create org node");
     } finally {
-      setIsSubmittingOrgNode(false);
+      setSubmittingNode(false);
     }
   };
 
-  const handleAddPosition = (e) => {
+  const handleDeleteNode = async (node) => {
+    if (!window.confirm(`Remove ${node.name} from the org chart?`)) return;
+    setActionError(null);
+    try {
+      await apiRequest(`/org/nodes/${node.id}`, { method: "DELETE" });
+      setActionSuccess(`Removed ${node.name}`);
+      loadAll();
+    } catch (err) {
+      setActionError(err?.message || "Failed to delete org node");
+    }
+  };
+
+  const handleSaveDepartment = async (e) => {
     e.preventDefault();
     setActionError(null);
-    if (newPositionName.trim()) {
-      setPositions([...positions, {
-        id: Math.max(...positions.map(p => p.id), 0) + 1,
-        name: newPositionName,
-        role_template_id: newPositionRoleTemplate ? parseInt(newPositionRoleTemplate) : null
-      }]);
-      setNewPositionName("");
-      setNewPositionRoleTemplate("");
-      setShowAddPositionModal(false);
-      setActionSuccess("Position added");
+    const form = editingDept || deptForm;
+    try {
+      await apiRequest(editingDept ? `/org/departments/${editingDept.id}` : "/org/departments", {
+        method: editingDept ? "PUT" : "POST",
+        body: JSON.stringify({ name: form.name.trim(), business_unit_id: Number(form.business_unit_id) }),
+      });
+      setActionSuccess(editingDept ? "Department updated" : "Department added");
+      setEditingDept(null);
+      setDeptForm({ name: "", business_unit_id: "" });
+      loadAll();
+    } catch (err) {
+      setActionError(err?.message || "Failed to save department");
     }
   };
 
-  const handleDeletePosition = (posId) => {
+  const handleDeleteDepartment = async (dept) => {
+    if (!window.confirm(`Delete department ${dept.name}?`)) return;
     setActionError(null);
-    if (positions.length <= 1) {
-      setActionError("You must have at least one position");
-      return;
-    }
-    setPositions(positions.filter(p => p.id !== posId));
-  };
-
-  const handleAddDepartment = () => {
-    if (!newDepartmentName.trim()) {
-      toast.error("Department name is required");
-      return;
-    }
-    setDepartments([...departments, {
-      id: Math.max(...departments.map(d => d.id), 0) + 1,
-      name: newDepartmentName
-    }]);
-    setNewDepartmentName("");
-    setShowAddDepartmentModal(false);
-    toast.success("Department added successfully");
-  };
-
-  const handleEditDepartment = (dept) => {
-    setEditingDepartmentId(dept.id);
-    setEditDepartmentName(dept.name);
-  };
-
-  const handleSaveEditDepartment = () => {
-    if (!editDepartmentName.trim()) {
-      toast.error("Department name is required");
-      return;
-    }
-    setDepartments(departments.map(d =>
-      d.id === editingDepartmentId ? { ...d, name: editDepartmentName } : d
-    ));
-    setEditingDepartmentId(null);
-    setEditDepartmentName("");
-    toast.success("Department updated successfully");
-  };
-
-  const handleDeleteDepartment = (deptId) => {
-    if (window.confirm("Are you sure you want to delete this department?")) {
-      setDepartments(departments.filter(d => d.id !== deptId));
-      toast.success("Department deleted");
+    try {
+      await apiRequest(`/org/departments/${dept.id}`, { method: "DELETE" });
+      setActionSuccess("Department deleted");
+      loadAll();
+    } catch (err) {
+      setActionError(err?.message || "Failed to delete department");
     }
   };
 
-  const getDepartmentUserCount = (deptId) => {
-    return orgNodes.filter(node => node.department_id === deptId).length;
+  const childrenByParent = useMemo(() => {
+    const ids = new Set(orgNodes.map(n => n.id));
+    const map = { root: [] };
+    orgNodes.forEach(n => {
+      const key = n.parent_id && ids.has(n.parent_id) ? n.parent_id : "root";
+      (map[key] = map[key] || []).push(n);
+    });
+    Object.values(map).forEach(list => list.sort((a, b) => b.hierarchy_level - a.hierarchy_level || a.name.localeCompare(b.name)));
+    return map;
+  }, [orgNodes]);
+
+  const renderNode = (node, depth) => {
+    const dept = departmentById(node.department_id);
+    return (
+      <div key={node.id}>
+        <div
+          className="flex items-center justify-between bg-white p-3 rounded border border-gray-200 hover:bg-gray-50"
+          style={{ marginLeft: depth * 24 }}
+        >
+          <div className="flex items-center gap-2 flex-wrap">
+            <h4 className="font-semibold text-gray-900">{node.name}</h4>
+            <span className="px-2 py-1 bg-purple-100 text-purple-800 text-xs font-medium rounded">
+              L{node.hierarchy_level} · {levelName(node.hierarchy_level)}
+            </span>
+            <span className="px-2 py-1 bg-gray-100 text-gray-700 text-xs font-medium rounded">{node.specialization}</span>
+            {dept && (
+              <span className="px-2 py-1 bg-blue-100 text-blue-800 text-xs font-medium rounded">
+                {dept.name} · {dept.business_unit_name}
+              </span>
+            )}
+          </div>
+          <button
+            onClick={() => handleDeleteNode(node)}
+            className="p-2 text-red-600 hover:bg-red-50 rounded"
+            aria-label={`Remove ${node.name}`}
+          >
+            <Trash2 className="h-4 w-4" />
+          </button>
+        </div>
+        {(childrenByParent[node.id] || []).map(child => renderNode(child, depth + 1))}
+      </div>
+    );
   };
 
-  const handleEditOrgNode = (node) => {
-    setEditingOrgNodeId(node.id);
-    setEditOrgNodeEmployeeName(node.employee_name);
-    setEditOrgNodePosition(node.position_id ? node.position_id.toString() : "");
-    setEditOrgNodeReportsTo(node.reports_to ? node.reports_to.toString() : "");
-    setEditOrgNodeBusinessUnit(node.business_unit || "");
-    setEditOrgNodeLocation(node.location || "");
-  };
-
-  const handleSaveEditedOrgNode = () => {
-    setActionError(null);
-    if (!editOrgNodeEmployeeName.trim() || !editOrgNodePosition.trim()) {
-      setActionError("Employee name and position are required");
-      return;
-    }
-    setOrgNodes(orgNodes.map(node =>
-      node.id === editingOrgNodeId
-        ? {
-            ...node,
-            employee_name: editOrgNodeEmployeeName,
-            position_id: parseInt(editOrgNodePosition),
-            reports_to: editOrgNodeReportsTo ? parseInt(editOrgNodeReportsTo) : null,
-            business_unit: editOrgNodeBusinessUnit,
-            location: editOrgNodeLocation
-          }
-        : node
-    ));
-    setEditingOrgNodeId(null);
-    setEditOrgNodeEmployeeName("");
-    setEditOrgNodePosition("");
-    setEditOrgNodeReportsTo("");
-    setEditOrgNodeBusinessUnit("");
-    setEditOrgNodeLocation("");
-    setActionSuccess("Org node updated successfully");
-  };
-
-  const handleDeleteOrgNode = (nodeId) => {
-    if (window.confirm("Are you sure you want to remove this person from the organizational hierarchy?")) {
-      setOrgNodes(orgNodes.filter(n => n.id !== nodeId));
-      setActionSuccess("Node removed");
-    }
-  };
-
-  const getPositionName = (positionId) => positions.find(p => p.id === positionId)?.name || "Unknown";
-  const getBusinessUnitName = (buId) => businessUnits.find(bu => bu.id === buId)?.name || "-";
+  const nodeLevel = Number(nodeForm.hierarchy_level);
+  const canSubmitNode =
+    nodeForm.name.trim() && nodeLevel && nodeForm.specialization && (nodeLevel >= 17 || nodeForm.parent_id);
 
   return (
     <div className="space-y-4">
-      {/* Action Error Banner */}
       {actionError && (
-        <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
-          <div className="flex items-start gap-3">
-            <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
-            <div className="flex-1">
-              <p className="text-red-700 text-sm font-medium">{actionError}</p>
-            </div>
-            <button
-              onClick={() => setActionError(null)}
-              className="text-red-600 hover:text-red-800 flex-shrink-0"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          </div>
+        <div className="p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
+          <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+          <p className="flex-1 text-red-700 text-sm font-medium">{actionError}</p>
+          <button onClick={() => setActionError(null)} className="text-red-600 hover:text-red-800"><X className="w-5 h-5" /></button>
         </div>
       )}
-
-      {/* Action Success Banner */}
       {actionSuccess && (
-        <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
-          <div className="flex items-start gap-3">
-            <CheckCircle className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
-            <div className="flex-1">
-              <p className="text-green-700 text-sm font-medium">{actionSuccess}</p>
-            </div>
-            <button
-              onClick={() => setActionSuccess(null)}
-              className="text-green-600 hover:text-green-800 flex-shrink-0"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          </div>
+        <div className="p-4 bg-green-50 border border-green-200 rounded-lg flex items-start gap-3">
+          <CheckCircle className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+          <p className="flex-1 text-green-700 text-sm font-medium">{actionSuccess}</p>
+          <button onClick={() => setActionSuccess(null)} className="text-green-600 hover:text-green-800"><X className="w-5 h-5" /></button>
         </div>
       )}
 
       <div className="flex gap-2">
         <button
-          onClick={() => setShowAddOrgNodeModal(true)}
+          onClick={() => setShowAddNode(true)}
           className="flex items-center gap-2 px-4 py-2 bg-bx-orange text-white rounded-lg hover:bg-bx-orange-hover text-sm font-medium"
         >
           <Plus className="h-4 w-4" /> Add Org Node
         </button>
         <button
-          onClick={() => setShowPositionsManager(!showPositionsManager)}
+          onClick={() => setShowDepartments(true)}
           className="flex items-center gap-2 px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 text-sm font-medium"
         >
-          Manage Positions
-        </button>
-        <button
-          onClick={() => setShowManageDepartmentsModal(true)}
-          className="flex items-center gap-2 px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 text-sm font-medium"
-        >
-          Manage Department
+          Manage Departments
         </button>
       </div>
 
-      {showPositionsManager && (
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-3">
-          <div className="flex justify-between items-center">
-            <h4 className="font-semibold text-gray-900">Position Reference List</h4>
-            <button
-              onClick={() => setShowAddPositionModal(!showAddPositionModal)}
-              className="flex items-center gap-1 px-3 py-1 text-sm text-blue-600 hover:bg-blue-100 rounded"
-            >
-              <Plus className="h-4 w-4" /> Add Position
-            </button>
-          </div>
-          <div className="grid grid-cols-2 gap-2">
-            {positions.map((pos) => (
-              <div key={pos.id} className="flex items-center justify-between bg-white p-2 rounded border border-gray-200">
-                <span className="text-sm text-gray-700">{pos.name}</span>
-                <button
-                  onClick={() => handleDeletePosition(pos.id)}
-                  className="text-red-600 hover:text-red-700 p-1"
-                >
-                  <Trash2 className="h-3 w-3" />
-                </button>
-              </div>
-            ))}
-          </div>
-          {showAddPositionModal && (
-            <div className="bg-white p-3 rounded border border-blue-300 space-y-2">
-              <input
-                type="text"
-                value={newPositionName}
-                onChange={(e) => setNewPositionName(e.target.value)}
-                placeholder="Enter new position name"
-                className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:border-bx-orange"
-              />
-              <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">Role Template (Optional)</label>
-                <select
-                  value={newPositionRoleTemplate}
-                  onChange={(e) => setNewPositionRoleTemplate(e.target.value)}
-                  className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:border-bx-orange"
-                >
-                  <option value="">No role template</option>
-                </select>
-                <p className="text-xs text-gray-500 mt-1">Optionally assign a role template to this position</p>
-              </div>
-              <div className="flex gap-2 justify-end">
-                <button
-                  onClick={() => { setShowAddPositionModal(false); setNewPositionRoleTemplate(""); }}
-                  className="px-3 py-1 text-xs text-gray-700 border border-gray-300 rounded hover:bg-gray-50"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleAddPosition}
-                  className="px-3 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700"
-                  disabled={!newPositionName.trim()}
-                >
-                  Add
-                </button>
-              </div>
+      {!loading && (
+        <div className="rounded-lg border border-gray-200 p-4">
+          <h4 className="text-sm font-semibold text-gray-900 mb-2">Departments ({departments.length})</h4>
+          {departments.length === 0 ? (
+            <p className="text-sm text-gray-500">No departments yet. Use "Manage Departments" to add one to a business unit.</p>
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              {departments.map(dept => (
+                <span key={dept.id} className="px-3 py-1 bg-blue-50 border border-blue-200 text-blue-800 text-xs font-medium rounded-full">
+                  {dept.name} · {dept.business_unit_name} · {orgNodes.filter(n => n.department_id === dept.id).length} nodes
+                </span>
+              ))}
             </div>
           )}
         </div>
       )}
 
-      {showManageDepartmentsModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="w-full max-w-md rounded-lg bg-white p-6 shadow-lg">
-            <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-lg font-semibold">Manage Departments</h2>
-              <button
-                onClick={() => setShowManageDepartmentsModal(false)}
-                className="text-gray-400 hover:text-gray-600"
-              >
-                ✕
-              </button>
-            </div>
-
-            <div className="space-y-4 max-h-96 overflow-y-auto">
-              {departments.length === 0 ? (
-                <p className="text-sm text-gray-500 text-center py-4">No departments yet</p>
-              ) : (
-                departments.map((dept) => (
-                  <div key={dept.id} className="flex items-center justify-between bg-gray-50 p-3 rounded border border-gray-200">
-                    <div className="flex-1">
-                      {editingDepartmentId === dept.id ? (
-                        <div className="flex gap-2">
-                          <input
-                            type="text"
-                            value={editDepartmentName}
-                            onChange={(e) => setEditDepartmentName(e.target.value)}
-                            className="flex-1 px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:border-bx-orange"
-                            autoFocus
-                          />
-                          <button
-                            onClick={handleSaveEditDepartment}
-                            className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700"
-                          >
-                            Save
-                          </button>
-                          <button
-                            onClick={() => {
-                              setEditingDepartmentId(null);
-                              setEditDepartmentName("");
-                            }}
-                            className="px-2 py-1 text-xs bg-gray-400 text-white rounded hover:bg-gray-500"
-                          >
-                            Cancel
-                          </button>
-                        </div>
-                      ) : (
-                        <div className="flex items-center gap-3">
-                          <span className="text-sm font-medium text-gray-900">{dept.name}</span>
-                          <span className="px-2 py-1 bg-blue-100 text-blue-800 text-xs font-medium rounded">
-                            {getDepartmentUserCount(dept.id)} users
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                    {editingDepartmentId !== dept.id && (
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => handleEditDepartment(dept)}
-                          className="p-1 text-blue-600 hover:bg-blue-50 rounded"
-                        >
-                          <Edit2 className="h-4 w-4" />
-                        </button>
-                        <button
-                          onClick={() => handleDeleteDepartment(dept.id)}
-                          className="p-1 text-red-600 hover:bg-red-50 rounded"
-                        >
-                          <Trash2 className="h-3 w-3" />
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                ))
-              )}
-            </div>
-
-            {showAddDepartmentModal ? (
-              <div className="mt-4 space-y-3 bg-blue-50 p-3 rounded border border-blue-200">
-                <input
-                  type="text"
-                  value={newDepartmentName}
-                  onChange={(e) => setNewDepartmentName(e.target.value)}
-                  placeholder="Enter department name"
-                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:border-bx-orange"
-                  autoFocus
-                />
-                <div className="flex gap-2 justify-end">
-                  <button
-                    onClick={() => {
-                      setShowAddDepartmentModal(false);
-                      setNewDepartmentName("");
-                    }}
-                    className="px-3 py-1 text-xs text-gray-700 border border-gray-300 rounded hover:bg-gray-50"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={handleAddDepartment}
-                    className="px-3 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700"
-                    disabled={!newDepartmentName.trim()}
-                  >
-                    Add Department
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <div className="mt-4">
-                <button
-                  onClick={() => setShowAddDepartmentModal(true)}
-                  className="w-full flex items-center justify-center gap-2 px-3 py-2 text-sm text-blue-600 border border-blue-300 rounded hover:bg-blue-50"
-                >
-                  <Plus className="h-4 w-4" /> Add Department
-                </button>
-              </div>
-            )}
-
-            <div className="mt-4 flex justify-end">
-              <button
-                onClick={() => setShowManageDepartmentsModal(false)}
-                className="px-4 py-2 text-sm bg-gray-600 text-white rounded hover:bg-gray-700"
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {orgNodes.length > 0 ? (
-        <div className="bg-gray-50 p-4 rounded-lg border border-gray-200 space-y-2">
-          <div className="text-sm text-gray-600 mb-4">Organizational Structure</div>
-          {orgNodes
-            .filter(node => !node.reports_to)
-            .map((node) => (
-              <div key={node.id} className="border-l-4 border-bx-orange pl-4 py-2">
-                <div className="flex items-center justify-between bg-white p-3 rounded border border-gray-200 hover:bg-gray-50">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <h4 className="font-bold text-gray-900">{node.name || node.employee_name}</h4>
-                      <span className="px-2 py-1 bg-purple-100 text-purple-800 text-xs font-medium rounded">
-                        {getPositionName(node.position_id)}
-                      </span>
-                      {node.tenant_name && (
-                        <span className="px-2 py-1 bg-blue-100 text-blue-800 text-xs font-medium rounded">
-                          {node.tenant_name}
-                        </span>
-                      )}
-                      {node.tenant_id && !node.tenant_name && (
-                        <span className="px-2 py-1 bg-gray-200 text-gray-700 text-xs font-medium rounded">
-                          Tenant {node.tenant_id}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => handleEditOrgNode(node)}
-                      className="p-2 text-blue-600 hover:bg-blue-50 rounded"
-                    >
-                      <Edit2 className="h-4 w-4" />
-                    </button>
-                    <button
-                      onClick={() => handleDeleteOrgNode(node.id)}
-                      className="p-2 text-red-600 hover:bg-red-50 rounded"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ))}
+      {loading ? (
+        <p className="text-sm text-gray-500">Loading...</p>
+      ) : orgNodes.length === 0 ? (
+        <div className="text-center py-8 text-gray-500">
+          <p>The org chart is empty. Start with the top of the organization (Level 17) - every other seat must report to someone.</p>
         </div>
       ) : (
-        <div className="text-center py-8 text-gray-500">
-          <p>No organizational nodes created yet. Click "Add Org Node" to add people to the organizational hierarchy.</p>
+        <div className="bg-gray-50 p-4 rounded-lg border border-gray-200 space-y-2">
+          {childrenByParent.root.map(node => renderNode(node, 0))}
         </div>
       )}
 
-      {showAddOrgNodeModal && (
-        <SimpleModal isOpen={true} onClose={() => { setShowAddOrgNodeModal(false); setNewOrgNodeEmployeeName(""); setNewOrgNodePosition(""); setNewOrgNodeReportsTo(""); setNewOrgNodeBusinessUnit(""); setNewOrgNodeLocation(""); }} title="Add Organizational Node">
-          <form onSubmit={handleAddOrgNode} className="space-y-4">
+      {showAddNode && (
+        <SimpleModal isOpen={true} onClose={closeAddNode} title="Add Organizational Node">
+          <form onSubmit={handleAddNode} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Employee Name *</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Name *</label>
               <input
                 type="text"
-                value={newOrgNodeEmployeeName}
-                onChange={(e) => setNewOrgNodeEmployeeName(e.target.value)}
-                placeholder="e.g., John Smith"
+                value={nodeForm.name}
+                onChange={(e) => setNodeForm(f => ({ ...f, name: e.target.value }))}
+                placeholder="e.g., Jane Smith or Recruitment Lead - East"
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-bx-orange"
               />
             </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Hierarchy Level *</label>
+                <select
+                  value={nodeForm.hierarchy_level}
+                  onChange={(e) => setNodeForm(f => ({ ...f, hierarchy_level: e.target.value, parent_id: "" }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-bx-orange"
+                >
+                  <option value="">Select level</option>
+                  {reference.levels.map(l => (
+                    <option key={l.level} value={l.level}>L{l.level} · {l.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Specialization *</label>
+                <select
+                  value={nodeForm.specialization}
+                  onChange={(e) => setNodeForm(f => ({ ...f, specialization: e.target.value, parent_id: "" }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-bx-orange"
+                >
+                  <option value="">Select specialization</option>
+                  {reference.specializations.map(s => (
+                    <option key={s} value={s}>{s}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Position *</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Department</label>
               <select
-                value={newOrgNodePosition}
-                onChange={(e) => setNewOrgNodePosition(e.target.value)}
+                value={nodeForm.department_id}
+                onChange={(e) => setNodeForm(f => ({ ...f, department_id: e.target.value, parent_id: "" }))}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-bx-orange"
               >
-                <option value="">Select a position</option>
-                {positions.map((pos) => (
-                  <option key={pos.id} value={pos.id}>{pos.name}</option>
+                <option value="">No department (not tied to a business unit)</option>
+                {departments.map(d => (
+                  <option key={d.id} value={d.id}>{d.name} · {d.business_unit_name}</option>
                 ))}
               </select>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Reports To</label>
-              <select
-                value={newOrgNodeReportsTo}
-                onChange={(e) => setNewOrgNodeReportsTo(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-bx-orange"
-              >
-                <option value="">CEO / Top Level</option>
-                {orgNodes.map((node) => (
-                  <option key={node.id} value={node.id}>{node.employee_name} ({getPositionName(node.position_id)})</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Business Unit</label>
-              <select
-                value={newOrgNodeBusinessUnit}
-                onChange={(e) => setNewOrgNodeBusinessUnit(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-bx-orange"
-              >
-                <option value="">Select Business Unit</option>
-                {businessUnits.map((bu) => (
-                  <option key={bu.id} value={bu.id}>{bu.name}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Location</label>
-              <input
-                type="text"
-                value={newOrgNodeLocation}
-                onChange={(e) => setNewOrgNodeLocation(e.target.value)}
-                placeholder="e.g., Austin, TX"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-bx-orange"
-              />
-            </div>
+            {nodeLevel > 0 && nodeLevel < 17 && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Reports To *</label>
+                <select
+                  value={nodeForm.parent_id}
+                  onChange={(e) => setNodeForm(f => ({ ...f, parent_id: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-bx-orange"
+                >
+                  <option value="">Select supervisor</option>
+                  {eligibleParents.map(p => (
+                    <option key={p.id} value={p.id}>{p.name} (L{p.hierarchy_level} · {p.specialization})</option>
+                  ))}
+                </select>
+                {nodeForm.specialization && eligibleParents.length === 0 && (
+                  <p className="text-xs text-amber-600 mt-1">
+                    No eligible supervisor. Level {nodeLevel} must report to Level {nodeLevel + 1}-{Math.min(nodeLevel + 2, 17)}
+                    {nodeLevel < 13 ? " in the same specialization (unless the supervisor is Level 13+)" : ""}.
+                  </p>
+                )}
+              </div>
+            )}
             <div className="flex gap-2 justify-end pt-4">
-              <button
-                type="button"
-                onClick={() => { setShowAddOrgNodeModal(false); setNewOrgNodeEmployeeName(""); setNewOrgNodePosition(""); setNewOrgNodeReportsTo(""); setNewOrgNodeBusinessUnit(""); setNewOrgNodeLocation(""); }}
-                className="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50"
-              >
+              <button type="button" onClick={closeAddNode} className="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50">
                 Cancel
               </button>
               <button
                 type="submit"
                 className="px-4 py-2 bg-bx-orange text-white rounded-lg hover:bg-bx-orange-hover disabled:opacity-60"
-                disabled={isSubmittingOrgNode || !newOrgNodeEmployeeName.trim() || !newOrgNodePosition.trim()}
+                disabled={submittingNode || !canSubmitNode}
               >
-                {isSubmittingOrgNode ? "Adding..." : "Add Node"}
+                {submittingNode ? "Adding..." : "Add Node"}
               </button>
             </div>
           </form>
         </SimpleModal>
       )}
 
-      {editingOrgNodeId && (
-        <SimpleModal isOpen={true} onClose={() => { setEditingOrgNodeId(null); setEditOrgNodeEmployeeName(""); setEditOrgNodePosition(""); setEditOrgNodeReportsTo(""); setEditOrgNodeBusinessUnit(""); setEditOrgNodeLocation(""); }} title="Edit Organizational Node">
-          <form onSubmit={(e) => { e.preventDefault(); handleSaveEditedOrgNode(); }} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Employee Name *</label>
-              <input
-                type="text"
-                value={editOrgNodeEmployeeName}
-                onChange={(e) => setEditOrgNodeEmployeeName(e.target.value)}
-                placeholder="e.g., John Smith"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-bx-orange"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Position *</label>
-              <select
-                value={editOrgNodePosition}
-                onChange={(e) => setEditOrgNodePosition(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-bx-orange"
-              >
-                <option value="">Select a position</option>
-                {positions.map((pos) => (
-                  <option key={pos.id} value={pos.id}>{pos.name}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Reports To</label>
-              <select
-                value={editOrgNodeReportsTo}
-                onChange={(e) => setEditOrgNodeReportsTo(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-bx-orange"
-              >
-                <option value="">CEO / Top Level</option>
-                {orgNodes.filter(n => n.id !== editingOrgNodeId).map((node) => (
-                  <option key={node.id} value={node.id}>{node.employee_name} ({getPositionName(node.position_id)})</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Business Unit</label>
-              <select
-                value={editOrgNodeBusinessUnit}
-                onChange={(e) => setEditOrgNodeBusinessUnit(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-bx-orange"
-              >
-                <option value="">Select Business Unit</option>
-                {businessUnits.map((bu) => (
-                  <option key={bu.id} value={bu.id}>{bu.name}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Location</label>
-              <input
-                type="text"
-                value={editOrgNodeLocation}
-                onChange={(e) => setEditOrgNodeLocation(e.target.value)}
-                placeholder="e.g., Austin, TX"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-bx-orange"
-              />
-            </div>
-            <div className="flex gap-2 justify-end pt-4">
-              <button
-                type="button"
-                onClick={() => { setEditingOrgNodeId(null); setEditOrgNodeEmployeeName(""); setEditOrgNodePosition(""); setEditOrgNodeReportsTo(""); setEditOrgNodeBusinessUnit(""); setEditOrgNodeLocation(""); }}
-                className="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50"
-              >
-                Cancel
-              </button>
+      {showDepartments && (
+        <SimpleModal isOpen={true} onClose={() => { setShowDepartments(false); setEditingDept(null); }} title="Manage Departments">
+          <div className="space-y-3 max-h-80 overflow-y-auto">
+            {departments.length === 0 ? (
+              <p className="text-sm text-gray-500 text-center py-4">No departments yet</p>
+            ) : (
+              departments.map(dept => (
+                <div key={dept.id} className="flex items-center justify-between bg-gray-50 p-3 rounded border border-gray-200">
+                  <div>
+                    <span className="text-sm font-medium text-gray-900">{dept.name}</span>
+                    <span className="ml-2 text-xs text-gray-500">{dept.business_unit_name}</span>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setEditingDept({ id: dept.id, name: dept.name, business_unit_id: String(dept.business_unit_id) })}
+                      className="p-1 text-blue-600 hover:bg-blue-50 rounded"
+                      aria-label={`Edit ${dept.name}`}
+                    >
+                      <Edit2 className="h-4 w-4" />
+                    </button>
+                    <button
+                      onClick={() => handleDeleteDepartment(dept)}
+                      className="p-1 text-red-600 hover:bg-red-50 rounded"
+                      aria-label={`Delete ${dept.name}`}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+
+          <form onSubmit={handleSaveDepartment} className="mt-4 space-y-3 bg-blue-50 p-3 rounded border border-blue-200">
+            <p className="text-sm font-medium text-gray-800">{editingDept ? "Edit department" : "Add department"}</p>
+            <input
+              type="text"
+              value={(editingDept || deptForm).name}
+              onChange={(e) => editingDept
+                ? setEditingDept(d => ({ ...d, name: e.target.value }))
+                : setDeptForm(d => ({ ...d, name: e.target.value }))}
+              placeholder="Department name"
+              className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:border-bx-orange"
+            />
+            <select
+              value={(editingDept || deptForm).business_unit_id}
+              onChange={(e) => editingDept
+                ? setEditingDept(d => ({ ...d, business_unit_id: e.target.value }))
+                : setDeptForm(d => ({ ...d, business_unit_id: e.target.value }))}
+              className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:border-bx-orange"
+            >
+              <option value="">Select business unit</option>
+              {businessUnits.map(bu => (
+                <option key={bu.id} value={bu.id}>{bu.display_name || bu.name}</option>
+              ))}
+            </select>
+            <div className="flex gap-2 justify-end">
+              {editingDept && (
+                <button type="button" onClick={() => setEditingDept(null)} className="px-3 py-1 text-xs text-gray-700 border border-gray-300 rounded hover:bg-gray-50">
+                  Cancel
+                </button>
+              )}
               <button
                 type="submit"
-                className="px-4 py-2 bg-bx-orange text-white rounded-lg hover:bg-bx-orange-hover disabled:opacity-60"
-                disabled={!editOrgNodeEmployeeName.trim() || !editOrgNodePosition.trim()}
+                className="px-3 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-60"
+                disabled={!(editingDept || deptForm).name.trim() || !(editingDept || deptForm).business_unit_id}
               >
-                Save Changes
+                {editingDept ? "Save" : "Add Department"}
               </button>
             </div>
           </form>

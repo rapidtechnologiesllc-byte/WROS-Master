@@ -255,29 +255,50 @@ def create_department(
 def create_org_node(
     db: Session,
     tenant_id: int,
-    position_name: str,  # e.g., "Manager", "Team Lead"
-    node_name: str,  # e.g., "John Smith", "East Coast Team"
-    parent_id: str,
-    department_id: Optional[str] = None
+    name: str,
+    hierarchy_level: int,
+    specialization: str,
+    parent_id: Optional[str] = None,
+    department_id: Optional[str] = None,
 ) -> OrgNode:
     """
-    Create an org node for a specific position.
+    Validate and add (without committing) an org node. position_id is derived
+    from hierarchy_level so the two scales can't disagree. Raises ValueError
+    with a caller-safe message when the placement breaks the reporting rules.
     """
-    position = get_position_by_name(db, position_name)
-    if not position:
-        raise ValueError(f"Position '{position_name}' not found")
+    from app.services.org_hierarchy_validator import OrgHierarchyValidator, position_id_for_level
+
+    if not name or not name.strip():
+        raise ValueError("Name is required")
+
+    business_unit_id = None
+    if department_id:
+        department = db.query(Department).filter(
+            Department.id == department_id, Department.tenant_id == tenant_id
+        ).first()
+        if department is None:
+            raise ValueError("Department not found")
+        business_unit_id = department.business_unit_id
+
+    is_valid, error = OrgHierarchyValidator.validate_reporting_relationship(
+        db, hierarchy_level, specialization, parent_id or None, business_unit_id, tenant_id
+    )
+    if not is_valid:
+        raise ValueError(error)
 
     node = OrgNode(
         id=str(uuid.uuid4()),
         tenant_id=tenant_id,
-        position_id=position.id,
-        name=node_name,
-        parent_id=parent_id,
-        department_id=department_id,
-        active=True
+        position_id=position_id_for_level(db, hierarchy_level),
+        name=name.strip(),
+        parent_id=parent_id or None,
+        department_id=department_id or None,
+        hierarchy_level=hierarchy_level,
+        specialization=specialization,
+        active=True,
     )
     db.add(node)
-    db.commit()
+    db.flush()
     return node
 
 def assign_partner_to_bu(

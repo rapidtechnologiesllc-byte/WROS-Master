@@ -20,7 +20,7 @@ class TicketCreateRequest(BaseModel):
 class TicketCategoryResponse(BaseModel):
     category: str
     subcategory: Optional[str]
-    department_id: int
+    department_id: str
 
     class Config:
         from_attributes = True
@@ -28,7 +28,7 @@ class TicketCategoryResponse(BaseModel):
 class TicketCategoryRouteCreateRequest(BaseModel):
     category: str
     subcategory: Optional[str] = None
-    department_id: int
+    department_id: str
 
 class TicketSLAPolicyUpdateRequest(BaseModel):
     response_minutes: int

@@ -40,6 +40,7 @@ from app.models.location import Location
 from app.models.org_structure import OrgNode
 from app.models.role_template import RoleTemplate
 from app.schemas.user import AllUsersResponse, UserResponse
+from app.services.role_template_permission_service import RoleTemplatePermissionService
 from pydantic import BaseModel
 
 router = APIRouter(prefix="/api/admin/users-access-control", tags=["Users Access Control"])
@@ -313,7 +314,7 @@ def list_business_units(
         query = db.query(BusinessUnit)
 
         # Super users see all BUs, others see only their assigned BU
-        is_super = current_user.UserRole and "super" in current_user.UserRole.lower()
+        is_super = RoleTemplatePermissionService.is_super_user(db, current_user.UserID, current_user.tenant_id)
         if not is_super and current_user.business_unit_id:
             query = query.filter(BusinessUnit.id == current_user.business_unit_id)
 
@@ -496,10 +497,6 @@ def create_delivery_center(
     current_user: Users = Depends(get_current_internal_user)
 ):
     """Create a new delivery center (Admin and Super User only)."""
-    # Check permissions
-    if not (current_user.UserRole and current_user.UserRole.lower() in ["super user", "admin"]):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions")
-
     # Validate input
     if not req.name:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Delivery Center name is required")
@@ -534,10 +531,6 @@ def update_delivery_center(
     current_user: Users = Depends(get_current_internal_user)
 ):
     """Update delivery center (Admin and Super User only)."""
-    # Check permissions
-    if not (current_user.UserRole and current_user.UserRole.lower() in ["super user", "admin"]):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions")
-
     dc = db.query(Location).filter(Location.id == dc_id).first()
     if not dc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Delivery Center not found")
@@ -573,10 +566,6 @@ def delete_delivery_center(
     current_user: Users = Depends(get_current_internal_user)
 ):
     """Delete delivery center (Super User only)."""
-    # Check permissions - Super User only
-    if not (current_user.UserRole and current_user.UserRole.lower() == "super user"):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Super User access required")
-
     dc = db.query(Location).filter(Location.id == dc_id).first()
     if not dc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Delivery Center not found")
@@ -651,10 +640,6 @@ def create_org_node(
     current_user: Users = Depends(get_current_internal_user)
 ):
     """Create organizational hierarchy node (Admin and Super User only)."""
-    # Check permissions
-    if not (current_user.UserRole and current_user.UserRole.lower() in ["super user", "admin"]):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions")
-
     # Validate input
     if not req.employee_name or not req.position_id:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Employee name and position are required")
@@ -689,10 +674,6 @@ def update_org_node(
     current_user: Users = Depends(get_current_internal_user)
 ):
     """Update organizational hierarchy node (Admin and Super User only)."""
-    # Check permissions
-    if not (current_user.UserRole and current_user.UserRole.lower() in ["super user", "admin"]):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions")
-
     node = db.query(OrgNode).filter(OrgNode.id == node_id).first()
     if not node:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Organizational node not found")
@@ -728,10 +709,6 @@ def delete_org_node(
     current_user: Users = Depends(get_current_internal_user)
 ):
     """Delete organizational hierarchy node (Super User only)."""
-    # Check permissions - Super User only
-    if not (current_user.UserRole and current_user.UserRole.lower() == "super user"):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Super User access required")
-
     node = db.query(OrgNode).filter(OrgNode.id == node_id).first()
     if not node:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Organizational node not found")
@@ -846,10 +823,6 @@ def create_role_template(
     current_user: Users = Depends(get_current_internal_user)
 ):
     """Create a new role template (Admin and Super User only)."""
-    # Check permissions
-    if not (current_user.UserRole and current_user.UserRole.lower() in ["super user", "admin"]):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions")
-
     # Validate input
     if not req.name:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Role template name is required")
@@ -884,10 +857,6 @@ def update_role_template(
     current_user: Users = Depends(get_current_internal_user)
 ):
     """Update role template (Admin and Super User only)."""
-    # Check permissions
-    if not (current_user.UserRole and current_user.UserRole.lower() in ["super user", "admin"]):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions")
-
     template = db.query(RoleTemplate).filter(RoleTemplate.id == template_id).first()
     if not template:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Role template not found")
@@ -919,10 +888,6 @@ def delete_role_template(
     current_user: Users = Depends(get_current_internal_user)
 ):
     """Delete role template (Super User only)."""
-    # Check permissions - Super User only
-    if not (current_user.UserRole and current_user.UserRole.lower() == "super user"):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Super User access required")
-
     template = db.query(RoleTemplate).filter(RoleTemplate.id == template_id).first()
     if not template:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Role template not found")

@@ -8,6 +8,7 @@ Endpoints for:
 - Linking employees to org nodes
 - Retrieving approval chains for employees
 """
+import uuid
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
@@ -37,8 +38,15 @@ from app.services.org_structure_service import (
     setup_approval_chains,
     get_employee_approvers,
 )
+from app.services.org_hierarchy_validator import (
+    HIERARCHY_LEVELS,
+    SPECIALIZATIONS,
+    OrgHierarchyValidator,
+)
 from app.models.org_structure import OrgPosition, OrgNode, Department, ApprovalChain
 from app.models.business_unit import BusinessUnit
+from app.models.tenant import Tenant
+from app.models.user import Users
 
 router = APIRouter(prefix="/org", tags=["Organization Structure"])
 
@@ -129,8 +137,6 @@ def list_valid_supervisors(
     db: Session = Depends(get_db),
 ) -> List[OrgNodeResponse]:
     """Get the org nodes eligible to be this hierarchy_level/specialization's parent_node_id."""
-    from app.services.org_hierarchy_validator import OrgHierarchyValidator
-
     if hierarchy_level >= 17:
         # CEO reports to nobody - nothing to pick.
         return []
@@ -140,8 +146,20 @@ def list_valid_supervisors(
         employee_hierarchy_level=hierarchy_level,
         employee_specialization=specialization,
         business_unit_id=str(business_unit_id) if business_unit_id else None,
+        tenant_id=current_user.tenant_id,
     )
     return [OrgNodeResponse.from_orm(s) for s in supervisors]
+
+@router.get(
+    "/hierarchy-reference",
+    summary="Hierarchy levels and specializations accepted by the org validator",
+    dependencies=[Depends(require_resource_permission("admin-settings", "view"))],
+)
+def get_hierarchy_reference(current_user = Depends(get_current_internal_user)):
+    return {
+        "levels": [{"level": level, "name": name} for level, name in sorted(HIERARCHY_LEVELS.items(), reverse=True)],
+        "specializations": SPECIALIZATIONS,
+    }
 
 @router.get(
     "/nodes",
@@ -155,8 +173,6 @@ def list_org_nodes(
     db: Session = Depends(get_db),
 ) -> List[OrgNodeResponse]:
     """Get all organizational nodes for the current tenant."""
-    from app.models.tenant import Tenant
-
     tenant_id = current_user.tenant_id
     if not tenant_id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User is not assigned to a tenant")
@@ -235,16 +251,20 @@ def get_approvers_for_node(
     dependencies=[Depends(require_resource_permission("admin-settings", "view"))],
 )
 def list_departments(
+    business_unit_id: Optional[int] = None,
     current_user = Depends(get_current_internal_user),
     db: Session = Depends(get_db),
 ) -> List[DepartmentResponse]:
-    """Get all departments for the current tenant."""
+    """Get all departments for the current tenant, optionally for one business unit."""
 
     tenant_id = current_user.tenant_id
     if not tenant_id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User is not assigned to a tenant")
 
-    departments = db.query(Department).filter(Department.tenant_id == tenant_id).all()
+    query = db.query(Department).filter(Department.tenant_id == tenant_id)
+    if business_unit_id is not None:
+        query = query.filter(Department.business_unit_id == business_unit_id)
+    departments = query.order_by(Department.name).all()
     tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
     tenant_name = tenant.name if tenant else f"Tenant {tenant_id}"
 
@@ -280,17 +300,17 @@ def list_approval_chains(
     return [ApprovalChainResponse.from_orm(c) for c in chains]
 
 class CreateOrgNodeRequest(BaseModel):
-    employee_name: str
-    position_id: int
-    reports_to_id: Optional[str] = None
-    business_unit_id: Optional[int] = None
-    location: Optional[str] = None
+    name: str
+    hierarchy_level: int
+    specialization: str
+    parent_id: Optional[str] = None
+    department_id: Optional[str] = None
 
 @router.post(
     "/nodes",
     response_model=OrgNodeResponse,
     summary="Create an organizational node",
-    description="Create a new organizational node (position instance)",
+    description="Create a seat in the org chart. Position is derived from hierarchy_level; placement is validated against the reporting rules.",
     dependencies=[Depends(require_resource_permission("admin-settings", "create"))],
 )
 def create_org_node_endpoint(
@@ -298,28 +318,175 @@ def create_org_node_endpoint(
     current_user = Depends(get_current_internal_user),
     db: Session = Depends(get_db),
 ) -> OrgNodeResponse:
-    """Create a new organizational node for the current tenant."""
     tenant_id = current_user.tenant_id
     if not tenant_id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User is not assigned to a tenant")
 
     try:
         node = create_org_node(
-            db=db,
+            db,
             tenant_id=tenant_id,
-            employee_name=request.employee_name,
-            position_id=request.position_id,
-            reports_to_id=request.reports_to_id,
-            business_unit_id=request.business_unit_id,
-            location=request.location,
+            name=request.name,
+            hierarchy_level=request.hierarchy_level,
+            specialization=request.specialization,
+            parent_id=request.parent_id,
+            department_id=request.department_id,
         )
         db.commit()
+        db.refresh(node)
         return OrgNodeResponse.from_orm(node)
-    except Exception as e:
-        logger.error(f"Error: {str(e)}", exc_info=True)
+    except ValueError as e:
         db.rollback()
-        logger.error(f"[OrgNode] Tenant {tenant_id}: Failed to create node: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to create org node: {str(e)}"
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except Exception as e:
+        db.rollback()
+        logger.error(f"[OrgNode] Tenant {tenant_id}: Failed to create node: {e}", exc_info=True)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to create org node")
+
+@router.delete(
+    "/nodes/{org_node_id}",
+    summary="Delete an org node",
+    description="Only a node with no reports and no people assigned to it can be deleted.",
+    dependencies=[Depends(require_resource_permission("admin-settings", "delete"))],
+)
+def delete_org_node_endpoint(
+    org_node_id: str,
+    current_user = Depends(get_current_internal_user),
+    db: Session = Depends(get_db),
+):
+    from app.models.employee import Employee
+
+    tenant_id = current_user.tenant_id
+    node = db.query(OrgNode).filter(OrgNode.id == org_node_id, OrgNode.tenant_id == tenant_id).first()
+    if not node:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Org node not found")
+
+    if db.query(OrgNode).filter(OrgNode.parent_id == org_node_id).count():
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Reassign this node's direct reports before deleting it")
+    if db.query(Users).filter(Users.org_node_id == org_node_id).count():
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="A user is placed on this node - reassign them before deleting it")
+    if db.query(Employee).filter(Employee.org_node_id == org_node_id).count():
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="An employee is placed on this node - reassign them before deleting it")
+    if db.query(Department).filter(Department.hiring_manager_id == org_node_id).count():
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="This node is a department's hiring manager - change that first")
+
+    db.delete(node)
+    db.commit()
+    return {"status": "deleted", "id": org_node_id}
+
+class DepartmentRequest(BaseModel):
+    name: str
+    business_unit_id: int
+    description: Optional[str] = None
+    cost_center_code: Optional[str] = None
+
+def _department_response(dept: Department, tenant_id: int, db: Session) -> DepartmentResponse:
+    tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
+    data = DepartmentResponse.from_orm(dept).dict()
+    data["tenant_name"] = tenant.name if tenant else None
+    data["business_unit_name"] = dept.business_unit.name if dept.business_unit else None
+    return DepartmentResponse(**data)
+
+def _tenant_business_unit(db: Session, business_unit_id: int, tenant_id: int) -> BusinessUnit:
+    bu = db.query(BusinessUnit).filter(BusinessUnit.id == business_unit_id, BusinessUnit.tenant_id == tenant_id).first()
+    if not bu:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Business unit not found")
+    return bu
+
+@router.post(
+    "/departments",
+    response_model=DepartmentResponse,
+    summary="Create a department within a business unit",
+    dependencies=[Depends(require_resource_permission("admin-settings", "create"))],
+)
+def create_department_endpoint(
+    request: DepartmentRequest,
+    current_user = Depends(get_current_internal_user),
+    db: Session = Depends(get_db),
+) -> DepartmentResponse:
+    tenant_id = current_user.tenant_id
+    if not request.name.strip():
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Department name is required")
+    _tenant_business_unit(db, request.business_unit_id, tenant_id)
+
+    duplicate = db.query(Department).filter(
+        Department.tenant_id == tenant_id,
+        Department.business_unit_id == request.business_unit_id,
+        Department.name == request.name.strip(),
+    ).first()
+    if duplicate:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="A department with this name already exists in that business unit")
+
+    dept = Department(
+        id=str(uuid.uuid4()),
+        tenant_id=tenant_id,
+        business_unit_id=request.business_unit_id,
+        name=request.name.strip(),
+        description=request.description,
+        cost_center_code=request.cost_center_code,
+        active=True,
+    )
+    db.add(dept)
+    db.commit()
+    db.refresh(dept)
+    return _department_response(dept, tenant_id, db)
+
+@router.put(
+    "/departments/{department_id}",
+    response_model=DepartmentResponse,
+    summary="Update a department",
+    dependencies=[Depends(require_resource_permission("admin-settings", "edit"))],
+)
+def update_department_endpoint(
+    department_id: str,
+    request: DepartmentRequest,
+    current_user = Depends(get_current_internal_user),
+    db: Session = Depends(get_db),
+) -> DepartmentResponse:
+    tenant_id = current_user.tenant_id
+    dept = db.query(Department).filter(Department.id == department_id, Department.tenant_id == tenant_id).first()
+    if not dept:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Department not found")
+    if not request.name.strip():
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Department name is required")
+
+    if request.business_unit_id != dept.business_unit_id:
+        # Moving a department would silently move every node/user in it to another BU.
+        in_use = (
+            db.query(OrgNode).filter(OrgNode.department_id == department_id).count()
+            or db.query(Users).filter(Users.department_id == department_id).count()
         )
+        if in_use:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Department has people or org nodes - it can't be moved to another business unit")
+        _tenant_business_unit(db, request.business_unit_id, tenant_id)
+        dept.business_unit_id = request.business_unit_id
+
+    dept.name = request.name.strip()
+    dept.description = request.description
+    dept.cost_center_code = request.cost_center_code
+    db.commit()
+    db.refresh(dept)
+    return _department_response(dept, tenant_id, db)
+
+@router.delete(
+    "/departments/{department_id}",
+    summary="Delete an unused department",
+    dependencies=[Depends(require_resource_permission("admin-settings", "delete"))],
+)
+def delete_department_endpoint(
+    department_id: str,
+    current_user = Depends(get_current_internal_user),
+    db: Session = Depends(get_db),
+):
+    tenant_id = current_user.tenant_id
+    dept = db.query(Department).filter(Department.id == department_id, Department.tenant_id == tenant_id).first()
+    if not dept:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Department not found")
+    if db.query(OrgNode).filter(OrgNode.department_id == department_id).count():
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Org nodes belong to this department - move them first")
+    if db.query(Users).filter(Users.department_id == department_id).count():
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Users belong to this department - move them first")
+
+    db.delete(dept)
+    db.commit()
+    return {"status": "deleted", "id": department_id}

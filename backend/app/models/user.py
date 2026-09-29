@@ -25,6 +25,10 @@ class Users(Base):
     business_unit_id = Column(Integer, ForeignKey("business_units.id"), nullable=True, index=True)
     job_title = Column(String(150), nullable=True)  # e.g., "CEO", "Developer", "HR Manager"
     department_id = Column(String(512), ForeignKey("departments.id"), nullable=True, index=True)
+    # The user's own seat in the org chart (created alongside the account)
+    org_node_id = Column(String(512), ForeignKey("org_nodes.id", use_alter=True, name="fk_users_org_node_id"), nullable=True, index=True)
+    # Delivery center (locations table) the user works out of
+    location_id = Column(String(512), ForeignKey("locations.id"), nullable=True, index=True)
     # PRODUCTION SAFETY: tenant_id MUST be set, never allow None. Default to 1
     # All new users get tenant_id from creator's tenant (fallback to 1)
     # Every tenant-scoped query must filter on this column via app.core.tenant_context,

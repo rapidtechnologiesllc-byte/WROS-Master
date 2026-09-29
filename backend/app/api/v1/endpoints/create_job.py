@@ -340,7 +340,7 @@ def get_active_jobs(
 )
 def filter_jobs(
     business_unit: Optional[int] = None,
-    department_id: Optional[int] = None,
+    department_id: Optional[str] = None,
     job_status: Optional[str] = None,
     contact_person: Optional[str] = None,
     company_type: Optional[str] = None,
@@ -354,7 +354,7 @@ def filter_jobs(
     with AND logic.
 
     - **business_unit**: business_unit_id (integer)
-    - **department_id**: department_id (integer)
+    - **department_id**: department_id (UUID string)
     - **job_status**: e.g. active, pending_approval, draft
     - **contact_person**: partial / exact match on contact_person field
     - **company_type**: e.g. full time, contract, internship

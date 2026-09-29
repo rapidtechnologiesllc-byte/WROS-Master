@@ -210,50 +210,40 @@ def _initialize_rbac():
 
         db.commit()
 
-        # Ensure the baseline SYSTEM role templates (Super Admin, Admin, Manager,
-        # User, Ops) always have full permissions. Custom/tenant-created role
-        # templates are intentionally excluded: their permissions are managed
-        # explicitly, and a zero-permission custom role must stay zero-permission
-        # (see the zero-permission login gate in auth.py) rather than being
-        # silently granted full CRUD on every restart.
+        # Seed a permission row for any (system role template, resource) pair
+        # that has none yet. Existing rows are never touched: they reflect what
+        # an admin configured in the Role Templates editor, and rewriting them
+        # here would silently undo every revoke on the next restart/deploy.
+        # Custom/tenant-created role templates are excluded entirely - a
+        # zero-permission custom role must stay zero-permission (see the
+        # zero-permission login gate in auth.py).
         resources = db.query(Resource).all()
         role_templates = db.query(RoleTemplate).filter(RoleTemplate.is_system == True).all()
 
         for role_template in role_templates:
+            existing_resource_ids = {
+                resource_id for (resource_id,) in db.query(RoleTemplatePermission.resource_id).filter(
+                    RoleTemplatePermission.role_template_id == role_template.id
+                )
+            }
             permissions_granted = 0
-            permissions_fixed = 0
             for resource in resources:
-                perm = db.query(RoleTemplatePermission).filter(
-                    RoleTemplatePermission.role_template_id == role_template.id,
-                    RoleTemplatePermission.resource_id == resource.id
-                ).first()
-
-                if not perm:
-                    perm = RoleTemplatePermission(
-                        role_template_id=role_template.id,
-                        resource_id=resource.id,
-                        tenant_id=role_template.tenant_id,
-                        can_view=True,
-                        can_create=True,
-                        can_edit=True,
-                        can_delete=True
-                    )
-                    db.add(perm)
-                    permissions_granted += 1
-                else:
-                    # Ensure existing permissions have full access
-                    if not (perm.can_view and perm.can_create and perm.can_edit and perm.can_delete):
-                        perm.can_view = True
-                        perm.can_create = True
-                        perm.can_edit = True
-                        perm.can_delete = True
-                        permissions_fixed += 1
+                if resource.id in existing_resource_ids:
+                    continue
+                db.add(RoleTemplatePermission(
+                    role_template_id=role_template.id,
+                    resource_id=resource.id,
+                    tenant_id=role_template.tenant_id,
+                    can_view=True,
+                    can_create=True,
+                    can_edit=True,
+                    can_delete=True
+                ))
+                permissions_granted += 1
 
             db.commit()
-            if permissions_granted > 0 or permissions_fixed > 0:
-                logger.info(f"[Contract] Role {role_template.name}: Granted {permissions_granted}, Fixed {permissions_fixed}")
-            else:
-                logger.info(f"[Contract] Role {role_template.name} already has full permissions")
+            if permissions_granted:
+                logger.info(f"[Contract] Role {role_template.name}: seeded {permissions_granted} missing permission rows")
 
     finally:
         db.close()
@@ -719,6 +709,10 @@ def _run_schema_migrations():
                 ("email_from_recruiter", "VARCHAR(255) NULL"),
                 ("phone_verified_by", "VARCHAR(255) NULL"),
                 ("task_id", "VARCHAR(36) NULL"),
+            ],
+            "users": [
+                ("org_node_id", "VARCHAR(512) NULL REFERENCES app_schema.org_nodes(id)"),
+                ("location_id", "VARCHAR(512) NULL REFERENCES app_schema.locations(id)"),
             ],
         }
         for table_name, columns in drifted_tables.items():

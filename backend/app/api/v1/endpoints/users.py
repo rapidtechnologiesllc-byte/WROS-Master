@@ -7,7 +7,7 @@ from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db, check_user
-from app.core.security import get_password_hash, create_access_token
+from app.core.security import get_password_hash, create_access_token, verify_password
 from app.core.dependencies import get_current_internal_user, require_resource_permission
 from app.services.permission_helper import PermissionHelper
 from app.models import Users, Candidate, CandidateAssignment, Interview, InterviewPanel, InterviewFeedback, PanelMember, BusinessUnit, Department
@@ -39,6 +39,7 @@ from app.utils.uniq_id_generator import user_id_generator
 from app.services.org_hierarchy_validator import validate_before_employee_creation
 from app.services.message_queue_service import MessageQueueService
 from app.models.org_structure import OrgNode
+from app.models.location import Location
 
 logger = logging.getLogger(__name__)
 
@@ -886,6 +887,34 @@ def create_user_with_roles(
         logger.error(f"Failed to check role template: {role_error}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to validate role template")
 
+    # The role template is the source of truth for org level/specialization
+    if (request.hierarchy_level, request.specialization) != (role_template.hierarchy_level, role_template.specialization):
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"hierarchy_level/specialization must match role template '{role_template.name}' "
+                f"(level {role_template.hierarchy_level}, {role_template.specialization})"
+            ),
+        )
+
+    if request.department_id:
+        department = db.query(Department).filter(
+            Department.id == request.department_id,
+            Department.tenant_id == current_user.tenant_id,
+        ).first()
+        if not department:
+            raise HTTPException(status_code=400, detail="Department not found")
+        if request.business_unit_id and department.business_unit_id != request.business_unit_id:
+            raise HTTPException(status_code=400, detail="Department does not belong to the selected business unit")
+
+    if request.location_id:
+        location = db.query(Location).filter(
+            Location.id == request.location_id,
+            Location.tenant_id == current_user.tenant_id,
+        ).first()
+        if not location:
+            raise HTTPException(status_code=400, detail="Delivery center not found")
+
     # Validate org hierarchy with 17-level system + specialization
     try:
         is_valid, error_msg = validate_before_employee_creation(
@@ -893,7 +922,8 @@ def create_user_with_roles(
             hierarchy_level=request.hierarchy_level,
             specialization=request.specialization,
             parent_node_id=request.parent_node_id,
-            business_unit_id=request.business_unit_id
+            business_unit_id=request.business_unit_id,
+            tenant_id=current_user.tenant_id,
         )
 
         if not is_valid:
@@ -922,6 +952,7 @@ def create_user_with_roles(
                 'user_password': request.user_password,
                 'business_unit_id': request.business_unit_id,
                 'department_id': request.department_id,
+                'location_id': request.location_id,
                 'role_ids': [request.role_template_id],
                 'job_title': request.job_title,
                 'partner_id': request.partner_id,
@@ -1428,16 +1459,20 @@ def get_user_by_id(
             detail=f"User with ID '{user_id}' not found",
         )
 
-    role = db.query(Role).filter(Role.id == target.role_id).first() if target.role_id else None
+    role = db.query(RoleTemplate).filter(RoleTemplate.id == target.role_template_id).first()
 
     return SingleUserResponse(
         user_id=target.UserID,
         user_name=target.UserName,
         user_email=target.UserEmail,
         user_role=target.UserRole,
+        job_title=target.job_title,
         permission_role=role.name if role else None,
-        role_id=target.role_id,
+        role_template_id=target.role_template_id,
         business_unit_id=target.business_unit_id,
+        department_id=target.department_id,
+        location_id=target.location_id,
+        org_node_id=target.org_node_id,
         created_at=target.CreatedAt,
     )
 
