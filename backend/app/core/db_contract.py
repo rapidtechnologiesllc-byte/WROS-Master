@@ -347,7 +347,7 @@ def _initialize_admin_user():
             )
             db.add(superuser)
             db.commit()
-            logger.info("[Contract] Created superuser: superuser@blitzenx.com (password: TestUser@123)")
+            logger.info("[Contract] Created superuser: superuser@blitzenx.com")
         else:
             # Update existing superuser if missing tenant_id or role_template_id
             updated = False

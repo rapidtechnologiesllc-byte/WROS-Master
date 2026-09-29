@@ -33,7 +33,7 @@ async def get_daily_standup_report(
         return report
     except Exception as e:
         logger.error(f"Error: {str(e)}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 @router.get("/scrum-of-scrums", dependencies=[Depends(require_resource_permission("admin-settings", "view"))])
 async def get_scrum_of_scrums(
@@ -62,7 +62,7 @@ async def get_scrum_of_scrums(
         raise
     except Exception as e:
         logger.error(f"Error: {str(e)}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 @router.get("/weekly-feedback", dependencies=[Depends(require_resource_permission("admin-settings", "view"))])
 async def get_weekly_feedback(
@@ -89,4 +89,4 @@ async def get_weekly_feedback(
         return feedback
     except Exception as e:
         logger.error(f"Error: {str(e)}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")

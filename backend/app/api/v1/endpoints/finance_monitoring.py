@@ -58,7 +58,7 @@ def check_bu_access(user_id: str, bu_id: str, tenant_id: int, db: Session) -> bo
 
 @router.get(
     "/dashboard",
-    dependencies=[Depends(require_resource_permission("dashboard", "view"))]
+    dependencies=[Depends(require_resource_permission("forecasts", "view"))]
 )
 async def get_finance_dashboard(
     current_user: Users = Depends(get_current_user),

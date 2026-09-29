@@ -55,10 +55,7 @@ async def get_current_user(
         from app.core.logging import logger
 
         token = credentials.credentials
-        logger.warning(f"[AUTH-DEBUG] Token: {token[:30]}...")
-
         payload = decode_access_token(token)
-        logger.warning(f"[AUTH-DEBUG] Decoded payload: sub={payload.get('sub')}, type={payload.get('type')}, email={payload.get('email')}")
 
         _reject_if_mfa_pending(payload)
         _reject_if_candidate_otp_pending(payload)
@@ -66,35 +63,25 @@ async def get_current_user(
         user_id: str = payload.get("sub")
         user_type: str = payload.get("type", "candidate")
 
-        logger.warning(f"[AUTH-DEBUG] user_id={user_id}, user_type={user_type}")
-
         if not user_id:
-            logger.error("[AUTH-DEBUG] No user_id in token")
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
 
         if user_type == "user":
             # "sub" contains UserID
-            logger.warning(f"[AUTH-DEBUG] Querying Users by UserID: {user_id}")
             user = db.query(Users).filter(Users.UserID == user_id).first()
-            if not user:
-                logger.error(f"[AUTH-DEBUG] User not found with UserID: {user_id}")
         else:
-            logger.warning(f"[AUTH-DEBUG] Querying Candidate by candidateID: {user_id}")
             user = db.query(Candidate).filter(Candidate.candidateID == user_id).first()
-            if not user:
-                logger.error(f"[AUTH-DEBUG] Candidate not found with ID: {user_id}")
 
         if not user:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
 
-        logger.warning(f"[AUTH-DEBUG] User found: {getattr(user, 'UserEmail', getattr(user, 'candidateEmail', 'N/A'))}")
         return user
 
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"[AUTH-DEBUG] Exception in get_current_user: {str(e)}", exc_info=True)
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=f"Auth failed: {str(e)}")
+        logger.error(f"Auth failed in get_current_user: {e}", exc_info=True)
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication failed")
 
 async def get_current_candidate(
     credentials: HTTPAuthorizationCredentials = Depends(security),
@@ -292,8 +279,13 @@ def require_resource_permission(resource_name: str, action: str = "view"):
     return require_role_template_permission(resource_name, action)
 
 def require_role_template_permission(resource_name: str, field_name: str = "can_view"):
-    """Data-driven role template permission check. Queries database, no hard-coded permissions."""
-    # Map field names to action names for the service layer
+    """Data-driven role template permission check. Queries database, no hard-coded permissions.
+
+    field_name accepts either spelling ("view" or "can_view", etc.) - callers using
+    Permissions.X tuples pass "can_view"-style names, require_resource_permission's
+    callers pass plain "view"-style names. field_to_action normalizes the can_-prefixed
+    form; the .get(..., field_name) fallback passes the plain form through unchanged.
+    """
     field_to_action = {
         "can_view": "view",
         "can_create": "create",
@@ -308,13 +300,7 @@ def require_role_template_permission(resource_name: str, field_name: str = "can_
         db: Session = Depends(get_db),
     ):
         token = credentials.credentials
-        print(f"[PERMISSION-CHECK] Checking {resource_name}.{field_name}, token_len={len(token)}")
-        try:
-            payload = decode_access_token(token)
-            print(f"[PERMISSION-CHECK] Decoded successfully, sub={payload.get('sub', 'NONE')[:8]}...")
-        except Exception as e:
-            print(f"[PERMISSION-CHECK] Decode FAILED: {e}")
-            raise
+        payload = decode_access_token(token)
         _reject_if_mfa_pending(payload)
         user_id: str = payload.get("sub", "")
 

@@ -44,7 +44,7 @@ def evaluate_agent_for_kill_switch(
         raise
     except Exception as e:
         logger.error(f"Error: {str(e)}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 @router.get("/evaluate-all", dependencies=[Depends(require_resource_permission("admin-settings", "view"))])
 def evaluate_all_agents_for_kill_switch(
@@ -84,7 +84,7 @@ def evaluate_all_agents_for_kill_switch(
         raise
     except Exception as e:
         logger.error(f"Error: {str(e)}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 @router.post("/execute/{agent_name}", dependencies=[Depends(require_resource_permission("admin-settings", "edit"))])
 def execute_kill_switch(
@@ -137,7 +137,7 @@ def execute_kill_switch(
         raise
     except Exception as e:
         logger.error(f"Error: {str(e)}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 @router.post("/reenable/{agent_name}", dependencies=[Depends(require_resource_permission("admin-settings", "edit"))])
 def reenable_agent(
@@ -182,4 +182,4 @@ def reenable_agent(
         raise
     except Exception as e:
         logger.error(f"Error: {str(e)}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")

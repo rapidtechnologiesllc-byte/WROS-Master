@@ -70,7 +70,7 @@ def create_cost_rate_config(
 @router.get(
     "/employees/{employee_id}/fully-loaded-cost",
     response_model=FullyLoadedCostResponse,
-    dependencies=[Depends(require_resource_permission("employees", "view"))]
+    dependencies=[Depends(require_resource_permission("revenue", "view"))]
 )
 def fully_loaded_cost(
     employee_id: str, business_unit_id: Optional[int] = None,

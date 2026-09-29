@@ -9,7 +9,6 @@ env:
   PROD_SERVER: ${{ secrets.PROD_SERVER_HOST }}
   PROD_USER: ${{ secrets.PROD_USER }}
   PROD_PATH: /home/HRMS/WROS-Master
-  DATABASE_URL: postgresql://app_user:P7kQmR9xL2wJnV5sT8pM@localhost:5432/onboarding_prod
 
 jobs:
   detect-changes:

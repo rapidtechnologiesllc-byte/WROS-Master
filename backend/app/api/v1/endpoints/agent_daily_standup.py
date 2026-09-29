@@ -43,7 +43,7 @@ async def get_daily_standup(
         return report
     except Exception as e:
         logger.error(f"Error: {str(e)}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 @router.get("/scrum-8-30", dependencies=[Depends(require_resource_permission("admin-settings", "view"))])
 async def get_scrum_of_scrums(
@@ -74,4 +74,4 @@ async def get_scrum_of_scrums(
         return scrum
     except Exception as e:
         logger.error(f"Error: {str(e)}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
