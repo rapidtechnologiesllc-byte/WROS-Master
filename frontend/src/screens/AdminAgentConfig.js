@@ -23,7 +23,7 @@ const AdminAgentConfig = () => {
   const fetchAgents = async () => {
     try {
       setLoading(true);
-      const token = localStorage.getItem('access_token');
+      const token = localStorage.getItem('hrms_token');
       const response = await fetch(
         `${API_BASE_URL}/admin/agents/config`,
         {
@@ -67,7 +67,7 @@ const AdminAgentConfig = () => {
   const handleSaveAgent = async (values) => {
     try {
       setSyncing(true);
-      const token = localStorage.getItem('access_token');
+      const token = localStorage.getItem('hrms_token');
       const method = editingAgent ? 'PUT' : 'POST';
       const url = editingAgent
         ? `${API_BASE_URL}/admin/agents/config/${editingAgent.id}`
@@ -105,7 +105,7 @@ const AdminAgentConfig = () => {
       cancelText: 'No',
       onOk: async () => {
         try {
-          const token = localStorage.getItem('access_token');
+          const token = localStorage.getItem('hrms_token');
           const response = await fetch(
             `${API_BASE_URL}/admin/agents/config/${agentId}`,
             {

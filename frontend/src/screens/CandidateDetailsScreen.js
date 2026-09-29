@@ -117,7 +117,7 @@ function UsersBUDetailsPanel({ candidate, onUpdate }) {
       try {
         setLoadingJobBU(true);
         const response = await fetch(`/candidates/${candidate.id}/applications`, {
-          headers: { "Authorization": `Bearer ${localStorage.getItem("access_token")}` },
+          headers: { "Authorization": `Bearer ${localStorage.getItem("hrms_token")}` },
         });
         if (response.ok) {
           const data = await response.json();
@@ -162,7 +162,7 @@ function UsersBUDetailsPanel({ candidate, onUpdate }) {
         setLoadingBUs(true);
         const response = await fetch(`/api/business-units`, {
           headers: {
-            "Authorization": `Bearer ${localStorage.getItem("access_token")}`,
+            "Authorization": `Bearer ${localStorage.getItem("hrms_token")}`,
           },
         });
         if (response.ok) {
@@ -966,7 +966,7 @@ ${jobDescription}
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${localStorage.getItem("access_token")}`,
+          Authorization: `Bearer ${localStorage.getItem("hrms_token")}`,
         },
         body: JSON.stringify({
           candidate_id: candidate.id,

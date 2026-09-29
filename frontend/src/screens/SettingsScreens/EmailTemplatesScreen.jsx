@@ -37,7 +37,7 @@ export default function EmailTemplatesScreen() {
   const fetchTemplates = async () => {
     try {
       const response = await fetch('/api/v1/email-templates', {
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('access_token')}` }
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('hrms_token')}` }
       })
       const data = await response.json()
       const templateMap = {}
@@ -53,7 +53,7 @@ export default function EmailTemplatesScreen() {
   const fetchCandidates = async () => {
     try {
       const response = await fetch('/api/v1/candidates', {
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('access_token')}` }
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('hrms_token')}` }
       })
       const data = await response.json()
       setCandidates(data.candidates || [])
@@ -72,7 +72,7 @@ export default function EmailTemplatesScreen() {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+          'Authorization': `Bearer ${localStorage.getItem('hrms_token')}`
         },
         body: JSON.stringify({
           subject,
@@ -109,7 +109,7 @@ export default function EmailTemplatesScreen() {
       const response = await fetch(
         `/api/v1/email-templates/${selectedStage}/preview?candidate_name=${candidateName}&job_title=${jobTitle}`,
         {
-          headers: { 'Authorization': `Bearer ${localStorage.getItem('access_token')}` }
+          headers: { 'Authorization': `Bearer ${localStorage.getItem('hrms_token')}` }
         }
       )
       const data = await response.json()

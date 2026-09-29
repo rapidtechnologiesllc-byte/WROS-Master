@@ -49,7 +49,7 @@ export default function CertificationManagementScreen() {
     setLoading(true);
     try {
       const response = await fetch("/admin/certifications/list", {
-        headers: { Authorization: `Bearer ${localStorage.getItem("access_token")}` },
+        headers: { Authorization: `Bearer ${localStorage.getItem("hrms_token")}` },
       });
       if (!response.ok) throw new Error("Failed to load certifications");
       const data = await response.json();
@@ -95,7 +95,7 @@ export default function CertificationManagementScreen() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${localStorage.getItem("access_token")}`,
+          Authorization: `Bearer ${localStorage.getItem("hrms_token")}`,
         },
         body: JSON.stringify(certForm),
       });
@@ -129,7 +129,7 @@ export default function CertificationManagementScreen() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${localStorage.getItem("access_token")}`,
+          Authorization: `Bearer ${localStorage.getItem("hrms_token")}`,
         },
         body: JSON.stringify({
           ...targetForm,

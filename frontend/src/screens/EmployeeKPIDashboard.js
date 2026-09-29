@@ -18,7 +18,7 @@ export default function EmployeeKPIDashboard({ employeeId, onClose }) {
     try {
       // Load KPI score
       const scoreResponse = await fetch(`/admin/certifications/employee/${employeeId}/score`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem("access_token")}` },
+        headers: { Authorization: `Bearer ${localStorage.getItem("hrms_token")}` },
       });
       if (scoreResponse.ok) {
         const scoreData = await scoreResponse.json();
@@ -27,7 +27,7 @@ export default function EmployeeKPIDashboard({ employeeId, onClose }) {
 
       // Load targets
       const targetsResponse = await fetch(`/admin/certifications/employee/${employeeId}/targets`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem("access_token")}` },
+        headers: { Authorization: `Bearer ${localStorage.getItem("hrms_token")}` },
       });
       if (targetsResponse.ok) {
         const targetsData = await targetsResponse.json();
@@ -45,7 +45,7 @@ export default function EmployeeKPIDashboard({ employeeId, onClose }) {
       const response = await fetch(`/admin/certifications/mark-achieved/${targetId}`, {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${localStorage.getItem("access_token")}`,
+          Authorization: `Bearer ${localStorage.getItem("hrms_token")}`,
         },
       });
 

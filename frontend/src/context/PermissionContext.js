@@ -16,7 +16,7 @@ export const PermissionProvider = ({ children }) => {
     setError(null);
 
     try {
-      const token = localStorage.getItem('access_token');
+      const token = localStorage.getItem('hrms_token');
       if (!token) {
         setPermissions([]);
         setModules([]);

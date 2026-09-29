@@ -72,7 +72,7 @@ const InvoiceManagementScreen = () => {
     setLoading(true);
     try {
       const response = await fetch('/api/v1/invoices', {
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('access_token')}` }
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('hrms_token')}` }
       });
 
       if (!response.ok) throw new Error('Failed to fetch invoices');
@@ -104,7 +104,7 @@ const InvoiceManagementScreen = () => {
       const response = await fetch('/api/v1/invoices/generate', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
+          'Authorization': `Bearer ${localStorage.getItem('hrms_token')}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
@@ -138,7 +138,7 @@ const InvoiceManagementScreen = () => {
 
       const response = await fetch(endpoint, {
         method: 'POST',
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('access_token')}` }
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('hrms_token')}` }
       });
 
       if (!response.ok) throw new Error(`Failed to transition invoice`);

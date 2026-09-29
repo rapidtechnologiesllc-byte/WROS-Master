@@ -21,7 +21,7 @@ export default function BusinessUnitsScreen() {
       setLoading(true);
       const response = await fetch("/api/business-units", {
         headers: {
-          "Authorization": `Bearer ${localStorage.getItem("access_token")}`,
+          "Authorization": `Bearer ${localStorage.getItem("hrms_token")}`,
         },
       });
       if (response.ok) {
@@ -63,7 +63,7 @@ export default function BusinessUnitsScreen() {
         method,
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${localStorage.getItem("access_token")}`,
+          "Authorization": `Bearer ${localStorage.getItem("hrms_token")}`,
         },
         body: JSON.stringify(formData),
       });
@@ -87,7 +87,7 @@ export default function BusinessUnitsScreen() {
       const response = await fetch(`/api/business-units/${id}`, {
         method: "DELETE",
         headers: {
-          "Authorization": `Bearer ${localStorage.getItem("access_token")}`,
+          "Authorization": `Bearer ${localStorage.getItem("hrms_token")}`,
         },
       });
 
