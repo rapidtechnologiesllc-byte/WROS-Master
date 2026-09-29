@@ -50,7 +50,7 @@ export default function BusinessUnitFormPage() {
   const loadBusinessUnit = async () => {
     try {
       setLoading(true);
-      const { data } = await apiRequest(`/rbac/business-units/${buId}`, { skipAuth: true });
+      const { data } = await apiRequest(`/rbac/business-units/${buId}`);
       if (data) {
         setFormData({
           name: data.name || '',

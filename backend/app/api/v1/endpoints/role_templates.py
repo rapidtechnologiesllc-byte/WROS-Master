@@ -529,6 +529,27 @@ class BusinessUnitCreateRequest(BaseModel):
     region: Optional[str] = None
     continent: Optional[str] = None
 
+@rbac_router.get("/business-units/{bu_id}")
+def get_business_unit_rbac(
+    bu_id: int,
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_internal_user)
+):
+    """Get a single business unit by id. Used by the edit form to prefill fields."""
+    bu = db.query(BusinessUnit).filter(
+        BusinessUnit.id == bu_id,
+        BusinessUnit.tenant_id == (current_user.tenant_id if hasattr(current_user, 'tenant_id') and current_user.tenant_id else 1),
+    ).first()
+    if not bu:
+        raise HTTPException(status_code=404, detail="Business unit not found")
+
+    return {
+        "id": bu.id,
+        "name": bu.name,
+        "display_name": bu.display_name,
+        "description": bu.description,
+    }
+
 @rbac_router.post("/business-units")
 def create_business_unit_rbac(
     req: BusinessUnitCreateRequest,
