@@ -5,6 +5,7 @@ Runs the message queue processor in an infinite loop every 30 seconds.
 """
 import sys
 import time
+import signal
 import logging
 from app.workers.message_queue_worker import process_message_queue
 
@@ -15,8 +16,21 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+_shutdown_requested = False
+
+def _handle_shutdown_signal(signum, frame):
+    """SIGTERM (systemctl stop / container stop) and SIGINT both request a
+    clean exit after the current cycle finishes, instead of being killed
+    mid-cycle."""
+    global _shutdown_requested
+    logger.info(f"[WORKER] Received signal {signum}, will stop after current cycle...")
+    _shutdown_requested = True
+
 def main():
     """Start the background worker process."""
+    signal.signal(signal.SIGTERM, _handle_shutdown_signal)
+    signal.signal(signal.SIGINT, _handle_shutdown_signal)
+
     logger.info("[WORKER] Starting message queue worker...")
     logger.info("[WORKER] Processing queue every 30 seconds")
     logger.info("[WORKER] Press Ctrl+C to stop")
@@ -24,7 +38,7 @@ def main():
     cycle_count = 0
 
     try:
-        while True:
+        while not _shutdown_requested:
             cycle_count += 1
             try:
                 logger.debug(f"[WORKER] Cycle {cycle_count}: Processing message queue...")
@@ -38,10 +52,12 @@ def main():
             except Exception as e:
                 logger.error(f"[WORKER] Cycle {cycle_count}: Error processing queue: {e}", exc_info=True)
 
-            # Wait 30 seconds before next cycle
-            time.sleep(30)
+            # Wait up to 30 seconds before the next cycle, but wake immediately on shutdown
+            for _ in range(30):
+                if _shutdown_requested:
+                    break
+                time.sleep(1)
 
-    except KeyboardInterrupt:
         logger.info("[WORKER] Shutting down gracefully...")
         sys.exit(0)
     except Exception as e:

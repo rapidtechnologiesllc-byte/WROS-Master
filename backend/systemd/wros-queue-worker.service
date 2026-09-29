@@ -1,0 +1,46 @@
+[Unit]
+Description=WROS Message Queue Worker (start_worker.py)
+After=network.target postgresql.service
+Wants=postgresql.service
+
+[Service]
+Type=simple
+User=hrms
+Group=hrms
+WorkingDirectory=/home/HRMS/WROS-Master/backend
+
+# Environment variables
+Environment="PYTHONUNBUFFERED=1"
+Environment="ENVIRONMENT=production"
+
+# Load .env file if it exists (secrets should be in /etc/wros/backend.env)
+EnvironmentFile=-/etc/wros/backend.env
+EnvironmentFile=-/home/HRMS/WROS-Master/backend/.env.production
+
+# Start command - uses absolute path to venv Python
+ExecStart=/home/HRMS/WROS-Master/venv/bin/python start_worker.py
+
+# start_worker.py catches SIGTERM and drains the current cycle before
+# exiting - give it enough headroom to do that cleanly.
+KillSignal=SIGTERM
+TimeoutStopSec=45
+
+# Restart policy
+Restart=always
+RestartSec=10
+StartLimitInterval=600
+StartLimitBurst=5
+
+# Resource limits
+MemoryLimit=512M
+CPUQuota=50%
+
+# Logging
+StandardOutput=append:/var/log/wros/queue-worker.log
+StandardError=append:/var/log/wros/queue-worker-error.log
+
+# Permissions
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

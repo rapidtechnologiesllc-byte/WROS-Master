@@ -258,6 +258,43 @@ def _initialize_default_handlers():
     except ImportError:
         logger.info("[Registry] Offer generated handler not yet available")
 
+    # Register dead-letter escalation handler (the safety net for every other
+    # handler's exhausted retries - without this, permanent failures were
+    # silently invisible instead of escalated)
+    try:
+        from app.services.message_handlers.dead_letter_escalation_handler import handle_dead_letter_escalation
+        MessageHandlerRegistry.register("dead_letter_escalation", handle_dead_letter_escalation)
+    except ImportError as e:
+        logger.warning(f"[Registry] Could not import dead-letter escalation handler: {e}")
+
+    # Register candidate lifecycle handlers (deletion, conversion to employee)
+    try:
+        from app.services.message_handlers.candidate_deleted_handler import handle_candidate_deleted
+        from app.services.message_handlers.candidate_converted_to_employee_handler import (
+            handle_candidate_converted_to_employee,
+        )
+        MessageHandlerRegistry.register("candidate_deleted", handle_candidate_deleted)
+        MessageHandlerRegistry.register("candidate_converted_to_employee", handle_candidate_converted_to_employee)
+    except ImportError as e:
+        logger.warning(f"[Registry] Could not import candidate lifecycle handlers: {e}")
+
+    # Register the generic flash-notification handler for every internal
+    # lifecycle-event task name that was previously enqueued with no handler
+    # at all (job/invoice/interview/milestone/offer/employee notifications).
+    try:
+        from app.services.message_handlers.flash_notification_handler import (
+            FLASH_NOTIFICATION_TASK_NAMES,
+            handle_flash_notification,
+        )
+        for _task_name in FLASH_NOTIFICATION_TASK_NAMES:
+            MessageHandlerRegistry.register(_task_name, handle_flash_notification)
+        logger.info(
+            f"[Registry] Registered generic flash-notification handler for "
+            f"{len(FLASH_NOTIFICATION_TASK_NAMES)} task names"
+        )
+    except ImportError as e:
+        logger.warning(f"[Registry] Could not import flash notification handler: {e}")
+
 
 # Thunder engagement handler moved to ThunderEngagementHandler class
 # See: app/services/message_handlers/thunder_engagement_handler.py

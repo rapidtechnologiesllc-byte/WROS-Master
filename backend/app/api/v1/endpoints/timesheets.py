@@ -181,23 +181,19 @@ def create_draft(
 
     try:
         MessageQueueService.enqueue(
-            message_type="timesheet_created",
-            payload={
+            task_name="timesheet_created",
+            data={
                 "timesheet_id": timesheet.id,
                 "employee_id": timesheet.employee_id,
                 "week_starting": str(timesheet.week_starting_date),
                 "status": timesheet.status,
             },
-            resource_id=timesheet.id,
-            queue_type="DASHBOARD_QUEUE",
-            created_by=current_user.UserID,
-            db=db,
         )
         db.refresh(timesheet)
     except Exception as e:
         db.rollback()
         logger.error(f"Failed to create timesheet {timesheet.id}: {str(e)}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Failed to create timesheet: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to create timesheet")
     return _to_item(db, timesheet)
 
 @router.put(
@@ -223,24 +219,20 @@ def upsert_timesheet_entries(
 
     try:
         MessageQueueService.enqueue(
-            message_type="timesheet_entries_updated",
-            payload={
+            task_name="timesheet_entries_updated",
+            data={
                 "timesheet_id": timesheet.id,
                 "employee_id": timesheet.employee_id,
                 "entries_count": len(entries),
                 "status": timesheet.status,
             },
-            resource_id=timesheet.id,
-            queue_type="DASHBOARD_QUEUE",
-            created_by=current_user.UserID,
-            db=db,
         )
         db.refresh(timesheet)
         return _to_item(db, timesheet)
     except Exception as e:
         db.rollback()
         logger.error(f"Failed to update timesheet entries {timesheet.id}: {str(e)}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Failed to update timesheet: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to update timesheet")
 
 @router.post(
     "/{timesheet_id}/submit",
@@ -266,25 +258,21 @@ def submit(
     try:
         # Queue timesheet_submitted for manager dashboard & commission recalculation
         MessageQueueService.enqueue(
-            message_type="timesheet_submitted",
-            payload={
+            task_name="timesheet_submitted",
+            data={
                 "timesheet_id": timesheet_id,
                 "employee_id": timesheet.employee_id,
                 "week_of": str(timesheet.week_of),
                 "total_hours": sum(e.hours_logged or 0 for e in timesheet.entries) if timesheet.entries else 0,
                 "submitted_by": current_user.UserID,
             },
-            resource_id=timesheet_id,
-            queue_type="DASHBOARD_QUEUE",
-            created_by=current_user.UserID,
-            db=db,
         )
         db.refresh(timesheet)
         return _to_item(db, timesheet)
     except Exception as e:
         db.rollback()
         logger.error(f"Failed to submit timesheet {timesheet_id}: {str(e)}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Failed to submit timesheet: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to submit timesheet")
 
 @router.post(
     "/{timesheet_id}/approve",
@@ -305,23 +293,19 @@ def approve(
 
     try:
         MessageQueueService.enqueue(
-            message_type="timesheet_approved",
-            payload={
+            task_name="timesheet_approved",
+            data={
                 "timesheet_id": timesheet_id,
                 "employee_id": timesheet.employee_id,
                 "approved_by": current_user.UserID,
             },
-            resource_id=timesheet_id,
-            queue_type="DASHBOARD_QUEUE",
-            created_by=current_user.UserID,
-            db=db,
         )
         db.refresh(timesheet)
         return _to_item(db, timesheet)
     except Exception as e:
         db.rollback()
         logger.error(f"Failed to approve timesheet {timesheet_id}: {str(e)}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Failed to approve timesheet: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to approve timesheet")
 
 @router.post(
     "/{timesheet_id}/reject",
@@ -345,24 +329,20 @@ def reject(
 
     try:
         MessageQueueService.enqueue(
-            message_type="timesheet_rejected",
-            payload={
+            task_name="timesheet_rejected",
+            data={
                 "timesheet_id": timesheet_id,
                 "employee_id": timesheet.employee_id,
                 "rejection_reason": body.reason,
                 "rejected_by": current_user.UserID,
             },
-            resource_id=timesheet_id,
-            queue_type="DASHBOARD_QUEUE",
-            created_by=current_user.UserID,
-            db=db,
         )
         db.refresh(timesheet)
         return _to_item(db, timesheet)
     except Exception as e:
         db.rollback()
         logger.error(f"Failed to reject timesheet {timesheet_id}: {str(e)}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Failed to reject timesheet: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to reject timesheet")
 
 @router.post(
     "/{timesheet_id}/reopen",
@@ -383,23 +363,19 @@ def reopen(
 
     try:
         MessageQueueService.enqueue(
-            message_type="timesheet_reopened",
-            payload={
+            task_name="timesheet_reopened",
+            data={
                 "timesheet_id": timesheet_id,
                 "employee_id": timesheet.employee_id,
                 "reopened_by": current_user.UserID,
             },
-            resource_id=timesheet_id,
-            queue_type="DASHBOARD_QUEUE",
-            created_by=current_user.UserID,
-            db=db,
         )
         db.refresh(timesheet)
         return _to_item(db, timesheet)
     except Exception as e:
         db.rollback()
         logger.error(f"Failed to reopen timesheet {timesheet_id}: {str(e)}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Failed to reopen timesheet: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to reopen timesheet")
 
 @router.post(
     "/bulk-approve",
@@ -419,16 +395,12 @@ def bulk_approve_endpoint(
         # Queue approval for each approved timesheet
         for approved_id in result.get("approved", []):
             MessageQueueService.enqueue(
-                message_type="timesheet_approved",
-                payload={
+                task_name="timesheet_approved",
+                data={
                     "timesheet_id": approved_id,
                     "approved_by": current_user.UserID,
                     "bulk_approve": True,
                 },
-                resource_id=approved_id,
-                queue_type="DASHBOARD_QUEUE",
-                created_by=current_user.UserID,
-                db=db,
             )
         return BulkApproveResponse(
             approved=result["approved"],
@@ -437,7 +409,7 @@ def bulk_approve_endpoint(
     except Exception as e:
         db.rollback()
         logger.error(f"Failed to bulk approve timesheets: {str(e)}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Failed to approve timesheets: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to approve timesheets")
 
 @router.get(
     "",
@@ -499,22 +471,18 @@ def scan_anomalies(
 
     try:
         MessageQueueService.enqueue(
-            message_type="timesheet_anomalies_scanned",
-            payload={
+            task_name="timesheet_anomalies_scanned",
+            data={
                 "timesheet_id": timesheet_id,
                 "employee_id": timesheet.employee_id,
                 "flags_count": len(flags),
             },
-            resource_id=timesheet_id,
-            queue_type="DASHBOARD_QUEUE",
-            created_by=current_user.UserID,
-            db=db,
         )
         return AnomalyFlagsResponse(flags=[_flag_to_item(f) for f in flags])
     except Exception as e:
         db.rollback()
         logger.error(f"Failed to scan timesheet anomalies {timesheet_id}: {str(e)}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Failed to scan anomalies: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to scan anomalies")
 
 @router.get(
     "/{timesheet_id}/anomalies",
@@ -570,25 +538,21 @@ def create_dispute(
 
     try:
         MessageQueueService.enqueue(
-            message_type="dispute_raised",
-            payload={
+            task_name="dispute_raised",
+            data={
                 "dispute_id": dispute.id,
                 "timesheet_id": timesheet_id,
                 "raised_by": body.raised_by,
                 "reason": body.reason,
                 "disputed_hours": float(body.disputed_hours) if body.disputed_hours else None,
             },
-            resource_id=dispute.id,
-            queue_type="DASHBOARD_QUEUE",
-            created_by=current_user.UserID,
-            db=db,
         )
         db.refresh(dispute)
         return _dispute_to_item(dispute)
     except Exception as e:
         db.rollback()
         logger.error(f"Failed to create dispute for timesheet {timesheet_id}: {str(e)}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Failed to raise dispute: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to raise dispute")
 
 @router.get(
     "/{timesheet_id}/disputes",
@@ -639,25 +603,21 @@ def resolve_dispute_endpoint(
 
     try:
         MessageQueueService.enqueue(
-            message_type="dispute_resolved",
-            payload={
+            task_name="dispute_resolved",
+            data={
                 "dispute_id": dispute_id,
                 "timesheet_id": dispute.timesheet_id,
                 "resolution": body.resolution,
                 "resolution_notes": body.resolution_notes,
                 "adjusted_hours": float(body.adjusted_hours) if body.adjusted_hours else None,
             },
-            resource_id=dispute_id,
-            queue_type="DASHBOARD_QUEUE",
-            created_by=current_user.UserID,
-            db=db,
         )
         db.refresh(dispute)
         return _dispute_to_item(dispute)
     except Exception as e:
         db.rollback()
         logger.error(f"Failed to resolve dispute {dispute_id}: {str(e)}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Failed to resolve dispute: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to resolve dispute")
 
 @router.post(
     "/nag-cascade/run",
