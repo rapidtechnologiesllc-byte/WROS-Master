@@ -2250,7 +2250,7 @@ def get_feedback_by_id(
 @router.put(
     "/feedback/{feedback_id}",
     response_model=InterviewFeedbackResponse,
-    dependencies=[Depends(require_resource_permission("interviews", "update"))]
+    dependencies=[Depends(require_resource_permission("interviews", "edit"))]
 )
 def update_interview_feedback(
     feedback_id: int,

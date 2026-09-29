@@ -72,7 +72,7 @@ def my_current_timesheet(
 @router.put(
     "/timesheet/{timesheet_id}/entries",
     response_model=TimesheetItem,
-    dependencies=[Depends(require_resource_permission("my-timesheet", "update"))]
+    dependencies=[Depends(require_resource_permission("my-timesheet", "edit"))]
 )
 def log_my_hours(
     timesheet_id: str, body: UpsertEntriesRequest,

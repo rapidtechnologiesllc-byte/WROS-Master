@@ -52,7 +52,7 @@ def get_settings(
 
 @router.put(
     "/settings/{config_key}",
-    dependencies=[Depends(require_resource_permission("configuration", "update"))]
+    dependencies=[Depends(require_resource_permission("configuration", "edit"))]
 )
 def update_setting(
     config_key: str,
@@ -75,7 +75,7 @@ def update_setting(
 
 @router.put(
     "/locale",
-    dependencies=[Depends(require_resource_permission("locale-currency", "update"))]
+    dependencies=[Depends(require_resource_permission("locale-currency", "edit"))]
 )
 def update_locale(
     body: UpdateLocaleRequest,

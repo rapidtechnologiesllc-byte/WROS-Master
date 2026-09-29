@@ -358,7 +358,7 @@ async def submit_validation_response(
 
 @router.put(
     "/{validation_id}/remind",
-    dependencies=[Depends(require_resource_permission("jobs", "update"))]
+    dependencies=[Depends(require_resource_permission("jobs", "edit"))]
 )
 async def send_reminder(validation_id: str, db=None):
     """

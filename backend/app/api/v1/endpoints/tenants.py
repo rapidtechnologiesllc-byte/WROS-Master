@@ -75,7 +75,7 @@ def get_tenant_locale(
     "/me/locale",
     response_model=TenantLocaleResponse,
     summary="Update this tenant's locale/currency config",
-    dependencies=[Depends(require_resource_permission("configuration", "update"))]
+    dependencies=[Depends(require_resource_permission("configuration", "edit"))]
 )
 def update_tenant_locale_endpoint(
     body: UpdateTenantLocaleRequest,

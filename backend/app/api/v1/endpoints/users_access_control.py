@@ -385,7 +385,7 @@ def create_business_unit(
 
 @router.put(
     "/business-units/{bu_id}",
-    dependencies=[Depends(require_resource_permission("business-units", "update"))]
+    dependencies=[Depends(require_resource_permission("business-units", "edit"))]
 )
 def update_business_unit(
     bu_id: int,
@@ -525,7 +525,7 @@ def create_delivery_center(
 
 @router.put(
     "/delivery-centers/{dc_id}",
-    dependencies=[Depends(require_resource_permission("delivery-centers", "update"))]
+    dependencies=[Depends(require_resource_permission("delivery-centers", "edit"))]
 )
 def update_delivery_center(
     dc_id: int,
@@ -680,7 +680,7 @@ def create_org_node(
 
 @router.put(
     "/organizational-hierarchy/{node_id}",
-    dependencies=[Depends(require_resource_permission("organizational-hierarchy", "update"))]
+    dependencies=[Depends(require_resource_permission("organizational-hierarchy", "edit"))]
 )
 def update_org_node(
     node_id: int,
@@ -875,7 +875,7 @@ def create_role_template(
 
 @router.put(
     "/role-templates/{template_id}",
-    dependencies=[Depends(require_resource_permission("role-templates", "update"))]
+    dependencies=[Depends(require_resource_permission("role-templates", "edit"))]
 )
 def update_role_template(
     template_id: int,

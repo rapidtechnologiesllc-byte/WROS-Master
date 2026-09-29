@@ -1029,7 +1029,7 @@ def add_education_record(
         message=f"Education record added successfully with ID {new_education.formID}"
     )
 
-@router.put("/education/{education_id}", response_model=candidateFormResponse, dependencies=[Depends(require_resource_permission("candidates", "update"))])
+@router.put("/education/{education_id}", response_model=candidateFormResponse, dependencies=[Depends(require_resource_permission("candidates", "edit"))])
 @handle_db_errors
 def update_education_record(
     education_id: int,
@@ -1197,7 +1197,7 @@ def add_experience_record(
         message=f"Experience record added successfully with ID {new_experience.formID}"
     )
 
-@router.put("/experience/{experience_id}", response_model=candidateFormResponse, dependencies=[Depends(require_resource_permission("candidates", "update"))])
+@router.put("/experience/{experience_id}", response_model=candidateFormResponse, dependencies=[Depends(require_resource_permission("candidates", "edit"))])
 @handle_db_errors
 def update_experience_record(
     experience_id: int,

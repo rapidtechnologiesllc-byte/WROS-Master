@@ -171,7 +171,7 @@ def get_timesheet_kpis(
 # Job Management Endpoints
 @router.put(
     "/jobs/{job_id}",
-    dependencies=[Depends(require_resource_permission("jobs", "update"))]
+    dependencies=[Depends(require_resource_permission("jobs", "edit"))]
 )
 def update_job(
     job_id: str,
@@ -252,7 +252,7 @@ def create_demand(
 
 @router.put(
     "/demand/{demand_id}",
-    dependencies=[Depends(require_resource_permission("kpi-dashboard", "update"))]
+    dependencies=[Depends(require_resource_permission("kpi-dashboard", "edit"))]
 )
 def adjust_demand(
     demand_id: str,

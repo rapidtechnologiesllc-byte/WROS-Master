@@ -359,7 +359,7 @@ async def get_cascaded_goals(
 
 @router.put(
     "/strategic/{goal_id}",
-    dependencies=[Depends(require_resource_permission("goals", "update"))]
+    dependencies=[Depends(require_resource_permission("goals", "edit"))]
 )
 async def update_strategic_goal(
     goal_id: str,

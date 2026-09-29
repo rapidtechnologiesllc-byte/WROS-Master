@@ -90,7 +90,7 @@ def portal_profile_fields(
 @router.patch(
     "/profile",
     response_model=PortalProfileUpdateResponse,
-    dependencies=[Depends(require_resource_permission("candidates", "update"))]
+    dependencies=[Depends(require_resource_permission("candidates", "edit"))]
 )
 def portal_profile_update(
     body: PortalProfileUpdateRequest,

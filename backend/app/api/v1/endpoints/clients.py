@@ -231,7 +231,7 @@ def add_client_contact_endpoint(
 @router.patch(
     "/{client_id}",
     response_model=ClientDetailResponse,
-    dependencies=[Depends(require_resource_permission("clients", "update"))]
+    dependencies=[Depends(require_resource_permission("clients", "edit"))]
 )
 def update_client_endpoint(
     client_id: str,

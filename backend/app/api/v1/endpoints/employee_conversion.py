@@ -139,7 +139,7 @@ def get_employee_status(employee_id: str, db: Session = Depends(get_db)):
 
 @router.put(
     "/update/{employee_id}",
-    dependencies=[Depends(require_resource_permission("convert-to-employee", "update"))]
+    dependencies=[Depends(require_resource_permission("convert-to-employee", "edit"))]
 )
 def update_employee(employee_id: str, updates: dict, db: Session = Depends(get_db)):
     employee = db.query(Employee).filter(Employee.id == employee_id).first()

@@ -192,7 +192,7 @@ def get_work_order(
 @router.put(
     "/{work_order_id}",
     response_model=WorkOrderItem,
-    dependencies=[Depends(require_resource_permission("work-orders", "update"))]
+    dependencies=[Depends(require_resource_permission("work-orders", "edit"))]
 )
 def update_work_order_endpoint(
     work_order_id: str,
