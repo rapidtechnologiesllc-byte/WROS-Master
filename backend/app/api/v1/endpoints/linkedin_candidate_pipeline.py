@@ -1,52 +1,73 @@
 """
 LinkedIn Candidate Pipeline Endpoints
 
-Manages candidate queuing from LinkedIn URLs with deduplication.
+A recruiter queues a LinkedIn profile for manual outreach. Queuing creates
+the candidate straight away (Thunder off) so every follow-up task is tied to
+a real candidate; the recruiter then moves it Pending Connection ->
+Connected -> Phone Collected, and Import adds phone/email and switches
+Thunder on.
+
+Endpoints are plain `def` on purpose: candidate creation waits on the queue
+worker (blocking poll), which must not run on the event loop.
 """
 import re
 from datetime import datetime
 from typing import Optional
-from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.dependencies import get_current_internal_user
 from app.core.logging import logger
-from app.models.linkedin_candidate_pipeline import LinkedInCandidatePipeline, LinkedInPipelineStatus
+from app.models.candidate import Candidate
 from app.models.consent import ConsentRecord
+from app.models.linkedin_candidate_pipeline import LinkedInCandidatePipeline, LinkedInPipelineStatus
 from app.models.user import Users
-from fastapi import Request
+from app.services.linkedin_pipeline_task_service import (
+    creation_pending, is_placeholder_email, link_candidate_to_pipeline, name_from_slug,
+    queue_pipeline_candidate, sync_outreach_task,
+)
 
 router = APIRouter(prefix="/linkedin-candidate-pipeline", tags=["LinkedIn Pipeline"])
 
+EMAIL_PATTERN = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+
+PENDING_ACTIONS = {
+    "PENDING_CONNECTION": "Send LinkedIn Connection Request",
+    "CONNECTED": "Collect Phone Number and Email",
+    "PHONE_COLLECTED": "Import to Thunder",
+    "IMPORTED_TO_THUNDER": "Monitor Engagement",
+}
+
+# Forward-only manual transitions. IMPORTED_TO_THUNDER is only reachable via
+# /complete-import, which finalises the candidate and turns Thunder on.
+_ALLOWED_TRANSITIONS = {
+    LinkedInPipelineStatus.PENDING_CONNECTION: {LinkedInPipelineStatus.CONNECTED},
+    LinkedInPipelineStatus.CONNECTED: {LinkedInPipelineStatus.PHONE_COLLECTED},
+    LinkedInPipelineStatus.PHONE_COLLECTED: set(),
+    LinkedInPipelineStatus.IMPORTED_TO_THUNDER: set(),
+}
+
 class LinkedInQueueRequest(BaseModel):
     linkedin_url: str
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    email: Optional[str] = None
 
 class LinkedInImportRequest(BaseModel):
-    linkedin_url: str
+    linkedin_url: Optional[str] = None
     phone_number: Optional[str] = None
+    email: Optional[str] = None
 
-class LinkedInPipelineItemResponse(BaseModel):
-    id: str
-    linkedin_url: str
-    linkedin_profile_slug: str
+class LinkedInStatusUpdateRequest(BaseModel):
     status: str
-    phone_number: Optional[str]
-    candidate_id: Optional[str]
-    created_at: str
-    updated_at: str
-    notes: Optional[str]
-
-    class Config:
-        from_attributes = True
+    notes: Optional[str] = None
 
 def parse_linkedin_url(linkedin_url: str) -> str:
     """Extract profile slug from LinkedIn URL."""
-    # Match /in/profile-slug pattern
-    match = re.search(r'/in/([a-z0-9-]+)', linkedin_url.lower())
+    match = re.search(r'/in/([a-z0-9_%-]+)', (linkedin_url or "").lower())
     if not match:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -54,327 +75,359 @@ def parse_linkedin_url(linkedin_url: str) -> str:
         )
     return match.group(1)
 
+def canonical_linkedin_url(profile_slug: str) -> str:
+    """One stored form per profile, so http/https, www, trailing slash and
+    query strings can't create duplicate entries for the same person."""
+    return f"https://www.linkedin.com/in/{profile_slug}"
+
+def _clean_email(email: Optional[str]) -> Optional[str]:
+    email = (email or "").strip().lower()
+    if not email:
+        return None
+    if not EMAIL_PATTERN.match(email):
+        raise HTTPException(status_code=400, detail=f"Invalid email address: {email}")
+    return email
+
+def _candidate_with_profile(db: Session, profile_slug: str):
+    """Existing candidate whose LinkedIn URL points at the same profile."""
+    rows = db.query(Candidate).filter(Candidate.linkedin_url.ilike(f"%/in/{profile_slug}%")).all()
+    for candidate in rows:
+        try:
+            if parse_linkedin_url(candidate.linkedin_url) == profile_slug:
+                return candidate
+        except HTTPException:
+            continue
+    return None
+
+def _candidate_name(candidate: Candidate) -> str:
+    return " ".join(filter(None, [candidate.candidateFirstName, candidate.candidateLastName])) or candidate.candidateEmail
+
+def _user_display_name(db: Session, user_id: Optional[str]) -> Optional[str]:
+    if not user_id:
+        return None
+    user = db.query(Users).filter(Users.UserID == user_id).first()
+    return (user.UserName or user.UserEmail) if user else user_id
+
+def _ensure_candidate(db: Session, item: LinkedInCandidatePipeline, current_user: Users) -> Optional[Candidate]:
+    """The item's candidate if it exists. Links one already created for this
+    profile; for items queued before candidates were created at queue time,
+    queues creation now. Returns None while creation is still pending."""
+    if item.candidate_id:
+        return db.query(Candidate).filter(Candidate.candidateID == item.candidate_id).first()
+    candidate = _candidate_with_profile(db, item.linkedin_profile_slug)
+    if candidate is not None:
+        link_candidate_to_pipeline(db, str(item.id), candidate.candidateID)
+        return candidate
+    if not creation_pending(db, item, current_user.tenant_id):  # don't queue twice
+        queue_pipeline_candidate(
+            db, item, created_by_user_id=current_user.UserID, tenant_id=current_user.tenant_id,
+        )
+    return None
+
+def _item_payload(db: Session, item: LinkedInCandidatePipeline, owner_names: dict) -> dict:
+    status_value = item.status.value if hasattr(item.status, "value") else str(item.status)
+    candidate = (
+        db.query(Candidate).filter(Candidate.candidateID == item.candidate_id).first()
+        if item.candidate_id else _candidate_with_profile(db, item.linkedin_profile_slug)
+    )
+    if candidate is not None:
+        name = _candidate_name(candidate)
+        email = None if is_placeholder_email(candidate.candidateEmail) else candidate.candidateEmail
+        phone = item.phone_number or candidate.candidateMobile
+    else:
+        name = " ".join(name_from_slug(item.linkedin_profile_slug)).replace(" (LinkedIn)", "")
+        email = None
+        phone = item.phone_number
+    return {
+        "id": str(item.id),
+        "linkedin_url": item.linkedin_url,
+        "linkedin_profile_slug": item.linkedin_profile_slug,
+        "candidate_id": candidate.candidateID if candidate is not None else None,
+        "candidate_pending": candidate is None,
+        "candidate_name": name,
+        "email": email,
+        "phone_number": phone,
+        "status": status_value,
+        "pending_action": PENDING_ACTIONS.get(status_value, "Unknown"),
+        "assigned_to": owner_names.get(item.assigned_to_user_id) or item.assigned_to_user_id,
+        "days_in_pipeline": (datetime.utcnow() - item.created_at).days if item.created_at else 0,
+        "notes": item.notes,
+        "created_at": item.created_at.isoformat() if item.created_at else None,
+        "updated_at": item.updated_at.isoformat() if item.updated_at else None,
+    }
+
+def _items_for_user(db: Session, current_user: Users, status_filter: Optional[str] = None) -> list:
+    query = db.query(LinkedInCandidatePipeline).filter(
+        LinkedInCandidatePipeline.assigned_to_user_id == current_user.UserID
+    )
+    if status_filter:
+        try:
+            query = query.filter(LinkedInCandidatePipeline.status == LinkedInPipelineStatus[status_filter])
+        except KeyError:
+            raise HTTPException(status_code=400, detail=f"Invalid status filter: {status_filter}")
+    items = query.order_by(LinkedInCandidatePipeline.created_at.desc()).all()
+    owner_names = {current_user.UserID: current_user.UserName or current_user.UserEmail}
+    return [_item_payload(db, item, owner_names) for item in items]
+
 @router.post("/linkedin-queue")
-async def queue_linkedin_candidate(
+def queue_linkedin_candidate(
     request: LinkedInQueueRequest,
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user)
 ):
     """
-    Queue a LinkedIn candidate for manual outreach.
+    Queue a LinkedIn profile for manual outreach and create its candidate.
 
-    Deduplication:
-    1. Check if candidate already exists in candidates table
-    2. Check if already in linkedin_candidate_pipeline queue
-    3. Only create new record if both checks pass
+    Duplicates (matched on the profile, not the raw URL string):
+    1. Already in the pipeline (any owner) -> ALREADY_QUEUED
+    2. Already a candidate (same LinkedIn profile or same email) -> ALREADY_EXISTS
     """
-    print(f"[ENDPOINT CALLED] LinkedIn queue endpoint with URL: {request.linkedin_url}", flush=True)
-    import logging
-    logger = logging.getLogger(__name__)
+    if not current_user.UserID or str(current_user.UserID).strip() == "system":
+        raise HTTPException(status_code=400, detail="Invalid user ID: authenticate with a real user account.")
 
+    profile_slug = parse_linkedin_url(request.linkedin_url)
+    linkedin_url = canonical_linkedin_url(profile_slug)
+    email = _clean_email(request.email)
+
+    existing_pipeline = db.query(LinkedInCandidatePipeline).filter(
+        LinkedInCandidatePipeline.linkedin_profile_slug == profile_slug
+    ).first()
+    if existing_pipeline:
+        owner = _user_display_name(db, existing_pipeline.assigned_to_user_id)
+        mine = existing_pipeline.assigned_to_user_id == current_user.UserID
+        pipeline_status = existing_pipeline.status.value if hasattr(existing_pipeline.status, "value") else str(existing_pipeline.status)
+        return {
+            "status": "ALREADY_QUEUED",
+            "message": "Already in your LinkedIn queue" if mine else f"Already in {owner}'s LinkedIn queue",
+            "pipeline_item": {"id": str(existing_pipeline.id), "status": pipeline_status, "assigned_to": owner},
+        }
+
+    existing_candidate = _candidate_with_profile(db, profile_slug)
+    if existing_candidate is None and email:
+        existing_candidate = db.query(Candidate).filter(Candidate.candidateEmail == email).first()
+    if existing_candidate:
+        return {
+            "status": "ALREADY_EXISTS",
+            "message": "Candidate already in the system",
+            "candidate": {"id": existing_candidate.candidateID, "name": _candidate_name(existing_candidate)},
+        }
+
+    pipeline_item = LinkedInCandidatePipeline(
+        linkedin_url=linkedin_url,
+        linkedin_profile_slug=profile_slug,
+        status=LinkedInPipelineStatus.PENDING_CONNECTION,
+        assigned_to_user_id=str(current_user.UserID),
+        created_by_user_id=str(current_user.UserID),
+        tenant_id=str(current_user.tenant_id) if current_user.tenant_id is not None else None,
+    )
     try:
-        linkedin_url = request.linkedin_url
-        profile_slug = parse_linkedin_url(linkedin_url)
-        print(f"[PARSED] Profile slug: {profile_slug}", flush=True)
+        db.add(pipeline_item)
+        db.flush()
+        sync_outreach_task(db, pipeline_item, current_user.tenant_id)
+        db.commit()
+        db.refresh(pipeline_item)
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception as exc:
+        db.rollback()
+        logger.error(f"[LinkedInPipeline] Queue failed for {linkedin_url}: {exc}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to add the profile to the pipeline.")
 
-        # Query 1: Check if already in pipeline (skip Candidate check to avoid SQLAlchemy reflection issue in HTTP context)
-        existing_pipeline = db.query(LinkedInCandidatePipeline).filter(
-            LinkedInCandidatePipeline.linkedin_url == linkedin_url
-        ).first()
-
-        if existing_pipeline:
-            return {
-                "status": "ALREADY_QUEUED",
-                "message": f"Already in your LinkedIn queue",
-                "pipeline_item": {
-                    "id": str(existing_pipeline.id),
-                    "status": existing_pipeline.status,
-                    "created_at": existing_pipeline.created_at.isoformat(),
-                    "updated_at": existing_pipeline.updated_at.isoformat(),
-                    "notes": existing_pipeline.notes
-                }
-            }
-
-        # Query 3: All checks passed - create new pipeline record
-        # Use the authenticated user's ID (may be email string or UUID depending on user model)
-        user_id = current_user.UserID
-
-        # Validate user_id like the /list endpoint does
-        if not user_id or str(user_id).strip() == 'system':
-            logger.error(f"[LinkedIn Queue] INVALID user_id: {user_id}")
-            raise HTTPException(
-                status_code=400,
-                detail=f"Invalid user ID: cannot use 'system' user. Please authenticate with a real user account."
-            )
-
-        # Check string length constraint (field is VARCHAR(255))
-        user_id_str = str(user_id)
-        if len(user_id_str) > 255:
-            logger.error(f"[LinkedIn Queue] user_id too long: {len(user_id_str)} > 255 chars")
-            raise HTTPException(
-                status_code=500,
-                detail=f"Internal error: user identifier exceeds field length limit"
-            )
-
-        pipeline_item = LinkedInCandidatePipeline(
-            linkedin_url=linkedin_url,
-            linkedin_profile_slug=profile_slug,
-            status=LinkedInPipelineStatus.PENDING_CONNECTION,
-            assigned_to_user_id=user_id_str,
-            created_by_user_id=user_id_str
+    # Candidate is created by the queue worker and linked to this item (and
+    # its task) by the handler. Enqueued after the commit so the worker can
+    # always find the item; if this fails, the next status change re-queues.
+    try:
+        message_id = queue_pipeline_candidate(
+            db, pipeline_item,
+            created_by_user_id=current_user.UserID, tenant_id=current_user.tenant_id,
+            first_name=request.first_name, last_name=request.last_name, email=email,
+        )
+    except Exception as exc:
+        logger.error(f"[LinkedInPipeline] Candidate creation not queued for {pipeline_item.id}: {exc}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail="Added to your pipeline, but creating the candidate record failed. It will be retried on the next status change.",
         )
 
-        try:
-            db.add(pipeline_item)
-            db.flush()  # Test for constraint violations BEFORE commit
-            db.commit()
-            db.refresh(pipeline_item)
-        except Exception as ie:
-            db.rollback()
-            logger.error(f"[LinkedIn Queue] Database error: {ie}")
-            raise HTTPException(
-                status_code=500,
-                detail=f"Failed to create pipeline item: {str(ie)[:100]}"
-            )
-
-        return {
-            "status": "QUEUED",
-            "message": "Added to your LinkedIn pipeline",
-            "pipeline_item_id": str(pipeline_item.id),
-            "profile_slug": profile_slug
-        }
-    except Exception as e:
-        import logging
-        import traceback
-        logger = logging.getLogger(__name__)
-        tb = traceback.format_exc()
-        logger.error(f"[LinkedIn Pipeline Queue] Error: {e}\n{tb}", exc_info=True)
-        logger.error(f"[LinkedIn Pipeline Queue] Full traceback:\n{tb}")
-        raise HTTPException(status_code=500, detail=f"Failed to queue candidate: {str(e)}")
+    return {
+        "status": "QUEUED",
+        "message": "Added to your LinkedIn pipeline; the candidate record is being created",
+        "pipeline_item_id": str(pipeline_item.id),
+        "candidate_message_id": message_id,
+        "profile_slug": profile_slug,
+    }
 
 @router.get("/list")
-async def list_pipeline_items(
+def list_pipeline_items(
     status_filter: Optional[str] = None,
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user)
 ):
-    """List LinkedIn pipeline items for current user."""
-    import logging
-    logger = logging.getLogger(__name__)
+    """The logged-in user's pipeline items with candidate name and contact details."""
+    items = _items_for_user(db, current_user, status_filter)
+    return {"count": len(items), "items": items}
+
+@router.get("/dashboard/activity")
+def get_linkedin_activity_for_dashboard(
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_internal_user)
+):
+    """Dashboard view of the logged-in user's LinkedIn outreach."""
+    items = _items_for_user(db, current_user)
+    return {"count": len(items), "items": items}
+
+@router.put("/{pipeline_id}/status")
+def update_pipeline_status(
+    pipeline_id: str,
+    request: LinkedInStatusUpdateRequest,
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_internal_user)
+):
+    """Move a pipeline item to its next stage (JSON body: {status, notes}).
+
+    Forward-only: Pending Connection -> Connected -> Phone Collected.
+    Imported to Thunder is set by /complete-import. Each move completes the
+    current follow-up task and opens the next one, linked to the candidate.
+    """
+    pipeline_item = db.query(LinkedInCandidatePipeline).filter(
+        LinkedInCandidatePipeline.id == pipeline_id
+    ).first()
+    if not pipeline_item:
+        raise HTTPException(status_code=404, detail="Pipeline item not found")
 
     try:
-        user_id = current_user.UserID
-        logger.info(f"[LinkedIn List] user_id={user_id}, email={current_user.UserEmail}")
-
-        # Validate user_id - should never be 'system' or empty
-        if not user_id or str(user_id).strip() == 'system':
-            logger.error(f"[LinkedIn List] INVALID user_id: {user_id}")
-            raise HTTPException(
-                status_code=400,
-                detail=f"Invalid user ID: cannot use 'system' user. Please authenticate with a real user account."
-            )
-
-        # Query with schema-qualified table name
-        query = db.query(LinkedInCandidatePipeline).filter(
-            LinkedInCandidatePipeline.assigned_to_user_id == user_id
+        new_status = LinkedInPipelineStatus[request.status]
+    except KeyError:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid status: {request.status}. Valid values: {[s.value for s in LinkedInPipelineStatus]}"
         )
 
-        if status_filter:
-            # Convert string to enum if needed
-            try:
-                status_enum = LinkedInPipelineStatus[status_filter] if isinstance(status_filter, str) else status_filter
-                query = query.filter(LinkedInCandidatePipeline.status == status_enum)
-            except (KeyError, AttributeError):
-                # Invalid status value, just ignore the filter
-                pass
+    current_status = pipeline_item.status
+    if new_status not in _ALLOWED_TRANSITIONS.get(current_status, set()):
+        if new_status == LinkedInPipelineStatus.IMPORTED_TO_THUNDER:
+            detail = "Use Import (with phone number and email) to move a candidate to Imported to Thunder."
+        else:
+            detail = f"Cannot move from {current_status.value} to {new_status.value}."
+        raise HTTPException(status_code=400, detail=detail)
 
-        items = query.order_by(LinkedInCandidatePipeline.created_at.desc()).all()
-
-        return {
-            "count": len(items),
-            "items": [
-                {
-                    "id": str(item.id),
-                    "linkedin_url": item.linkedin_url,
-                    "linkedin_profile_slug": item.linkedin_profile_slug,
-                    "status": item.status.value if hasattr(item.status, 'value') else str(item.status),
-                    "phone_number": item.phone_number,
-                    "candidate_id": str(item.candidate_id) if item.candidate_id else None,
-                    "created_at": item.created_at.isoformat() if item.created_at else None,
-                    "updated_at": item.updated_at.isoformat() if item.updated_at else None,
-                    "notes": item.notes
-                }
-                for item in items
-            ]
-        }
+    try:
+        # Links/queues the candidate for items added before candidates were
+        # created at queue time; the move itself doesn't wait for it
+        _ensure_candidate(db, pipeline_item, current_user)
+        pipeline_item.status = new_status
+        if new_status == LinkedInPipelineStatus.CONNECTED:
+            pipeline_item.connected_at = datetime.utcnow()
+        if request.notes:
+            pipeline_item.notes = request.notes
+        pipeline_item.updated_at = datetime.utcnow()
+        sync_outreach_task(db, pipeline_item, current_user.tenant_id)
+        db.commit()
+        db.refresh(pipeline_item)
     except HTTPException:
+        db.rollback()
         raise
-    except Exception as e:
-        logger.error(f"[LinkedIn Pipeline List] Error: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Failed to list pipeline items: {str(e)}")
+    except Exception as exc:
+        db.rollback()
+        logger.error(f"[LinkedInPipeline] Status update failed for {pipeline_id}: {exc}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to update the pipeline status.")
+
+    return {
+        "id": str(pipeline_item.id),
+        "status": pipeline_item.status.value,
+        "candidate_id": pipeline_item.candidate_id,
+        "updated_at": pipeline_item.updated_at.isoformat(),
+    }
 
 @router.post("/{pipeline_id}/complete-import")
-async def complete_linkedin_import(
+def complete_linkedin_import(
     pipeline_id: str,
     request: LinkedInImportRequest,
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user)
 ):
     """
-    Complete LinkedIn import: Add phone number and create candidate.
-
-    Workflow:
-    1. Get pipeline record
-    2. Create Candidate record with phone + linkedin_url
-    3. Record WhatsApp consent
-    4. Update pipeline status to IMPORTED_TO_THUNDER
+    Finish outreach: save phone + email on the candidate, record WhatsApp
+    consent, switch Thunder on and mark the item Imported to Thunder.
     """
-    # Get pipeline record
     pipeline_item = db.query(LinkedInCandidatePipeline).filter(
         LinkedInCandidatePipeline.id == pipeline_id
     ).first()
-
     if not pipeline_item:
         raise HTTPException(status_code=404, detail="Pipeline item not found")
+    if pipeline_item.status != LinkedInPipelineStatus.PHONE_COLLECTED:
+        raise HTTPException(status_code=400, detail="Only items in Phone Collected can be imported.")
 
-    # Parse URL to get profile info
-    profile_slug = parse_linkedin_url(request.linkedin_url)
-
-    # Create Candidate record via unified queue (sync-wait for immediate response)
-    from app.services.candidate_creation_sync_wait import queue_and_wait_for_candidate
-
-    temp_email = f"candidate+{str(uuid4())[:8]}@blitzenx.com"
-    candidate_name = profile_slug.replace("-", " ").title()
-    name_parts = candidate_name.split(" ", 1)
-    first_name = name_parts[0] if name_parts else "Candidate"
-    last_name = name_parts[1] if len(name_parts) > 1 else ""
+    phone = (request.phone_number or "").strip()
+    if not phone:
+        raise HTTPException(status_code=400, detail="Phone number is required to import.")
+    email = _clean_email(request.email)
 
     try:
-        candidate, message_id = queue_and_wait_for_candidate(
-            db=db,
-            email=temp_email,
-            first_name=first_name,
-            last_name=last_name,
-            mobile=request.phone_number,
-            linkedin_url=request.linkedin_url,
-            source="linkedin_import",
-            timeout_seconds=10,
-        )
-    except Exception as e:
-        logger.error(f"[LINKEDIN] Failed to queue candidate: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Failed to create candidate: {str(e)}")
+        candidate = _ensure_candidate(db, pipeline_item, current_user)
+        if candidate is None:
+            db.commit()  # keep any creation that _ensure_candidate just queued
+            raise HTTPException(
+                status_code=409,
+                detail="The candidate record is still being created. Try Import again in a minute.",
+            )
 
-    if not candidate:
-        logger.error(f"[LINKEDIN] Candidate creation timed out for LinkedIn import")
-        raise HTTPException(status_code=500, detail="Candidate creation processing. Please try again.")
+        if is_placeholder_email(candidate.candidateEmail):
+            if not email:
+                raise HTTPException(status_code=400, detail="Email address is required to import.")
+            taken = db.query(Candidate).filter(
+                Candidate.candidateEmail == email, Candidate.candidateID != candidate.candidateID
+            ).first()
+            if taken:
+                raise HTTPException(
+                    status_code=409,
+                    detail=f"{email} already belongs to candidate {_candidate_name(taken)}.",
+                )
+            candidate.candidateEmail = email
+        elif email and email != candidate.candidateEmail:
+            raise HTTPException(
+                status_code=400,
+                detail=f"This candidate already has email {candidate.candidateEmail}.",
+            )
 
-    # Update pipeline
-    pipeline_item.status = LinkedInPipelineStatus.IMPORTED_TO_THUNDER
-    pipeline_item.phone_number = request.phone_number
-    pipeline_item.candidate_id = candidate.candidateID
-    pipeline_item.imported_at = datetime.utcnow()
-    pipeline_item.updated_at = datetime.utcnow()
+        candidate.candidateMobile = phone
+        candidate.thunder_enabled = True
+        db.add(candidate)
 
-    try:
+        # Phone collected through outreach = consent for WhatsApp follow-up,
+        # same rule create_candidate() applies to phones given at creation
+        has_consent = db.query(ConsentRecord).filter(
+            ConsentRecord.subject_id == candidate.candidateID,
+            ConsentRecord.consent_type == "whatsapp_outreach",
+        ).first()
+        if not has_consent:
+            db.add(ConsentRecord(
+                subject_type="candidate", subject_id=candidate.candidateID,
+                consent_type="whatsapp_outreach", consent_given=True,
+                captured_by="linkedin_pipeline_import",
+            ))
+
+        pipeline_item.status = LinkedInPipelineStatus.IMPORTED_TO_THUNDER
+        pipeline_item.phone_number = phone
+        pipeline_item.imported_at = datetime.utcnow()
+        pipeline_item.updated_at = datetime.utcnow()
+        # Closes the "import to Thunder" task; Thunder owns outreach from here
+        sync_outreach_task(db, pipeline_item, current_user.tenant_id)
         db.commit()
-    except Exception as e:
-        logger.error(f"[LINKEDIN] Failed to commit pipeline update: {e}", exc_info=True)
+    except HTTPException:
         db.rollback()
-        raise HTTPException(status_code=500, detail="Failed to update pipeline")
+        raise
+    except Exception as exc:
+        db.rollback()
+        logger.error(f"[LinkedInPipeline] Import failed for {pipeline_id}: {exc}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to import the candidate.")
 
     return {
         "status": "SUCCESS",
         "message": "Candidate imported and ready for Thunder autonomous outreach",
-        "candidate_id": str(candidate.candidateID),
-        "phone": request.phone_number,
-        "linkedin_url": request.linkedin_url,
-        "pipeline_id": str(pipeline_item.id)
-    }
-
-@router.get("/dashboard/activity")
-async def get_linkedin_activity_for_dashboard(
-    db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_internal_user)
-):
-    """
-    Get LinkedIn activity for dashboard display.
-
-    Returns detailed view with all pipeline candidates and their status.
-    Includes: candidate name, URL, assigned recruiter, days in pipeline,
-    status, and pending actions.
-    """
-
-    query = db.query(LinkedInCandidatePipeline).order_by(
-        LinkedInCandidatePipeline.created_at.desc()
-    ).all()
-
-    items = []
-    for item in query:
-        days_in_pipeline = (datetime.utcnow() - item.created_at).days if item.created_at else 0
-
-        # Determine pending action based on status
-        status_value = item.status.value if hasattr(item.status, 'value') else str(item.status)
-        pending_action = {
-            "PENDING_CONNECTION": "Send LinkedIn Connection Request",
-            "CONNECTED": "Collect Phone Number",
-            "PHONE_COLLECTED": "Import to Thunder",
-            "IMPORTED_TO_THUNDER": "Monitor Engagement"
-        }.get(status_value, "Unknown")
-
-        items.append({
-            "id": str(item.id),
-            "candidate_name": item.linkedin_profile_slug.replace("-", " ").title(),
-            "linkedin_url": item.linkedin_url,
-            "assigned_to": "Unassigned" if not item.assigned_to_user_id else str(item.assigned_to_user_id),
-            "days_in_pipeline": days_in_pipeline,
-            "status": item.status.value if item.status else "Unknown",
-            "phone_number": item.phone_number,
-            "pending_action": pending_action,
-            "notes": item.notes,
-            "created_at": item.created_at.isoformat() if item.created_at else None,
-            "updated_at": item.updated_at.isoformat() if item.updated_at else None
-        })
-
-    return {
-        "count": len(items),
-        "items": items
-    }
-
-@router.put("/{pipeline_id}/status")
-async def update_pipeline_status(
-    pipeline_id: str,
-    status: str,
-    notes: Optional[str] = None,
-    db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_internal_user)
-):
-    """Update pipeline item status and notes."""
-    pipeline_item = db.query(LinkedInCandidatePipeline).filter(
-        LinkedInCandidatePipeline.id == pipeline_id
-    ).first()
-
-    if not pipeline_item:
-        raise HTTPException(status_code=404, detail="Pipeline item not found")
-
-    # Convert string status to enum
-    try:
-        status_enum = LinkedInPipelineStatus[status] if isinstance(status, str) else status
-        pipeline_item.status = status_enum
-    except (KeyError, AttributeError):
-        raise HTTPException(
-            status_code=400,
-            detail=f"Invalid status: {status}. Valid values: {[s.value for s in LinkedInPipelineStatus]}"
-        )
-
-    if notes:
-        pipeline_item.notes = notes
-    pipeline_item.updated_at = datetime.utcnow()
-
-    db.commit()
-    db.refresh(pipeline_item)
-
-    return {
-        "id": str(pipeline_item.id),
-        "status": pipeline_item.status.value,
-        "updated_at": pipeline_item.updated_at.isoformat()
+        "candidate_id": candidate.candidateID,
+        "phone": phone,
+        "email": candidate.candidateEmail,
+        "pipeline_id": str(pipeline_item.id),
     }

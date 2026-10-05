@@ -77,12 +77,31 @@ def initialize_database():
         _create_performance_indexes()
         logger.info("[OK] Database indexes created")
 
+        # Step 7: Follow-up tasks for LinkedIn pipeline items queued before
+        # task creation existed (idempotent)
+        logger.info("[Contract] Step 7: Backfilling LinkedIn outreach tasks...")
+        _initialize_linkedin_outreach_tasks()
+        logger.info("[OK] LinkedIn outreach tasks backfilled")
+
         logger.info("[OK] Database contract validated - all systems ready")
 
     except Exception as e:
         logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"[FAILED] Database contract violation: {e}", exc_info=True)
         raise
+
+def _initialize_linkedin_outreach_tasks():
+    """Open a follow-up task for in-progress LinkedIn pipeline items that have none."""
+    from app.services.linkedin_pipeline_task_service import backfill_outreach_tasks
+    db = SessionLocal()
+    try:
+        backfill_outreach_tasks(db)
+    except Exception as e:
+        db.rollback()
+        logger.error(f"[Contract] LinkedIn outreach task backfill failed: {e}", exc_info=True)
+        raise
+    finally:
+        db.close()
 
 def _initialize_tenant():
     """Ensure tenant_id=1 (BlitzenX) exists."""
@@ -733,6 +752,35 @@ def _run_schema_migrations():
                     else:
                         logger.warning(f"[Contract] Migration warning for {table_name}.{column_name}: {e}")
                     db.rollback()
+
+        # Migration 5b: linkedin_candidate_pipeline was first created with
+        # uuid columns for user/candidate ids, but ids in this system are
+        # strings ("admin@...", "USER-...", "CAN-..."), so every query by
+        # user failed with InvalidTextRepresentation. Convert to text only
+        # while still uuid (idempotent; uuid -> text never loses data).
+        pipeline_columns = {
+            "assigned_to_user_id": "VARCHAR(255)",
+            "created_by_user_id": "VARCHAR(255)",
+            "candidate_id": "VARCHAR(512)",
+        }
+        for column_name, column_type in pipeline_columns.items():
+            try:
+                current_type = db.execute(text("""
+                    SELECT data_type FROM information_schema.columns
+                    WHERE table_schema = 'app_schema'
+                      AND table_name = 'linkedin_candidate_pipeline'
+                      AND column_name = :col
+                """), {"col": column_name}).scalar()
+                if current_type == "uuid":
+                    db.execute(text(f"""
+                        ALTER TABLE app_schema.linkedin_candidate_pipeline
+                        ALTER COLUMN {column_name} TYPE {column_type} USING {column_name}::text;
+                    """))
+                    db.commit()
+                    logger.info(f"[Contract] Migration: linkedin_candidate_pipeline.{column_name} uuid -> {column_type}")
+            except Exception as e:
+                logger.warning(f"[Contract] Migration warning for linkedin_candidate_pipeline.{column_name}: {e}")
+                db.rollback()
 
         # Migration 6: job_created_flash never set Jobs.tenant_id, so every
         # queue-created job was invisible to the tenant-scoped job list.

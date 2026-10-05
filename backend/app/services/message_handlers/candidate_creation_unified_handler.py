@@ -149,6 +149,16 @@ class CandidateCreationUnifiedHandler:
         # No commit here: queue_processor_service commits candidate + records together.
         if is_new:
             _add_education_and_experience(db, candidate_id, payload)
+            # LinkedIn pipeline: recruiter is still doing manual outreach, so
+            # Thunder stays off until the pipeline Import step
+            if payload.get('thunder_enabled') is False:
+                candidate.thunder_enabled = False
+                db.add(candidate)
+
+        # Queued from the LinkedIn pipeline: link the item and its open task
+        if payload.get('linkedin_pipeline_id'):
+            from app.services.linkedin_pipeline_task_service import link_candidate_to_pipeline
+            link_candidate_to_pipeline(db, payload['linkedin_pipeline_id'], candidate_id)
 
         logger.info(
             f"[CandidateCreationUnified] ✅ Created: {candidate_id} "

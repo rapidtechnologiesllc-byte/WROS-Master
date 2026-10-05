@@ -15,7 +15,8 @@ export default function LinkedInActivityWidget() {
   });
   const [loading, setLoading] = useState(true);
 
-  const token = localStorage.getItem("token");
+  // The app stores the session token under "hrms_token"
+  const token = localStorage.getItem("hrms_token");
 
   useEffect(() => {
     const fetchStats = async () => {

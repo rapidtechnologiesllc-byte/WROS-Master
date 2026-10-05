@@ -23,10 +23,9 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import require_resource_permission
+from app.core.dependencies import get_current_internal_user, require_resource_permission
 from app.schemas.activity_feed import ActivityFeedResponse, MarkAllReadResponse
 from app.services.activity_feed_service import get_activity_feed, mark_all_read, mark_read
-from app.services.ai_conversation_service import resolve_default_tenant_id
 
 router = APIRouter(prefix="/activity-feed", tags=["activity-feed"])
 
@@ -37,20 +36,24 @@ def list_activity_feed(
     page: int = Query(default=1, ge=1),
     per_page: int = Query(default=25, ge=1, le=100),
     db: Session = Depends(get_db),
+    current_user=Depends(get_current_internal_user),
 ):
-    tenant_id = resolve_default_tenant_id()
-    return get_activity_feed(db, tenant_id, candidate_id=candidate_id, severity=severity, page=page, per_page=per_page)
+    return get_activity_feed(
+        db, current_user.tenant_id or 1, candidate_id=candidate_id, severity=severity, page=page, per_page=per_page,
+    )
 
 @router.patch("/{activity_id}/read", dependencies=[Depends(require_resource_permission("candidates", "view"))])
-def mark_activity_read(activity_id: int, db: Session = Depends(get_db)):
-    tenant_id = resolve_default_tenant_id()
-    ok = mark_read(db, tenant_id, activity_id)
+def mark_activity_read(activity_id: int, db: Session = Depends(get_db), current_user=Depends(get_current_internal_user)):
+    ok = mark_read(db, current_user.UserID, activity_id)
     return {"marked": ok}
 
 @router.patch("/read-all", response_model=MarkAllReadResponse, dependencies=[Depends(require_resource_permission("candidates", "view"))])
-def mark_activity_feed_read_all(candidate_id: Optional[str] = Query(default=None), db: Session = Depends(get_db)):
-    tenant_id = resolve_default_tenant_id()
-    count = mark_all_read(db, tenant_id, candidate_id=candidate_id)
+def mark_activity_feed_read_all(
+    candidate_id: Optional[str] = Query(default=None),
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_internal_user),
+):
+    count = mark_all_read(db, current_user.tenant_id or 1, current_user.UserID, candidate_id=candidate_id)
     return MarkAllReadResponse(marked_count=count)
 
 @router.get("/standup", dependencies=[Depends(require_resource_permission("candidates", "view"))])

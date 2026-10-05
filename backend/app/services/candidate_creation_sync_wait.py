@@ -29,6 +29,7 @@ def queue_and_wait_for_candidate(
     tenant_id: int = 1,
     source: str = "unknown",
     mobile: Optional[str] = None,
+    linkedin_url: Optional[str] = None,
     timeout_seconds: int = SYNC_WAIT_TIMEOUT_SECONDS,
 ) -> Tuple[Optional[Candidate], str]:
     """
@@ -63,6 +64,7 @@ def queue_and_wait_for_candidate(
         tenant_id=tenant_id,
         source=source,
         mobile=mobile,
+        linkedin_url=linkedin_url,
     )
 
     message_id = queue_result.get('message_id')
@@ -74,9 +76,11 @@ def queue_and_wait_for_candidate(
         elapsed = time.time() - start_time
 
         # Check if message is COMPLETED
+        # populate_existing: re-read the row each poll instead of returning
+        # the session's cached copy (the worker updates it in another session)
         queue_item = db.query(ChannelQueueItem).filter(
             ChannelQueueItem.message_id == message_id
-        ).first()
+        ).populate_existing().first()
 
         if not queue_item:
             logger.warning(f"[SyncWait] Queue item not found: {message_id}")

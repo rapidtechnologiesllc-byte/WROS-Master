@@ -14,7 +14,7 @@ const STATUS_COLORS = {
 
 const PENDING_ACTION_COLORS = {
   "Send LinkedIn Connection Request": "text-yellow-700",
-  "Collect Phone Number": "text-blue-700",
+  "Collect Phone Number and Email": "text-blue-700",
   "Import to Thunder": "text-purple-700",
   "Monitor Engagement": "text-green-700",
 };
@@ -26,7 +26,8 @@ export default function LinkedInActivityTable() {
   const [sortBy, setSortBy] = useState("created_at");
   const [sortOrder, setSortOrder] = useState("desc");
 
-  const token = localStorage.getItem("token");
+  // The app stores the session token under "hrms_token"
+  const token = localStorage.getItem("hrms_token");
 
   useEffect(() => {
     const fetchActivity = async () => {

@@ -116,7 +116,9 @@ def run_thunder_autonomous_cycle(db: Session) -> dict:
                             candidate = db.query(Candidate).filter(
                                 Candidate.candidateID == candidate_id
                             ).first()
-                            if candidate:
+                            # Respect the per-candidate Thunder switch (e.g. LinkedIn
+                            # pipeline candidates stay off until Import)
+                            if candidate and candidate.thunder_enabled:
                                 queue_candidates.append(candidate)
                                 # Mark message as processed by Thunder
                                 msg.status = "PROCESSED_BY_THUNDER"
@@ -135,6 +137,7 @@ def run_thunder_autonomous_cycle(db: Session) -> dict:
         # Step 2: Find all candidates pending outreach (no active conversation = never contacted)
         # Query: all candidates without an existing CandidateConversation record
         pending_candidates = db.query(Candidate).filter(
+            Candidate.thunder_enabled.is_(True),
             ~db.query(CandidateConversation).filter(
                 CandidateConversation.candidate_id == Candidate.candidateID
             ).exists()
