@@ -732,11 +732,57 @@ def _run_schema_migrations():
             "users": [
                 ("org_node_id", "VARCHAR(512) NULL REFERENCES app_schema.org_nodes(id)"),
                 ("location_id", "VARCHAR(512) NULL REFERENCES app_schema.locations(id)"),
+                # Existing users must not be forced into a password reset;
+                # the model still defaults new users to True.
+                ("password_reset_required", "BOOLEAN NOT NULL DEFAULT false"),
             ],
             "clients": [
                 ("account_manager_user_id", 'VARCHAR(512) NULL REFERENCES app_schema.users("UserID") ON DELETE SET NULL'),
             ],
+            # Production startup crashed on role_templates.hierarchy_level
+            # (2026-10-05); the rest were found by the same full scan.
+            "role_templates": [
+                ("hierarchy_level", "INTEGER NOT NULL DEFAULT 5"),
+                ("specialization", "VARCHAR(512) NOT NULL DEFAULT 'General'"),
+                ("is_super_user", "BOOLEAN NOT NULL DEFAULT false"),
+                ("org_level_access", "BOOLEAN NOT NULL DEFAULT false"),
+            ],
+            "org_nodes": [
+                ("hierarchy_level", "INTEGER NOT NULL DEFAULT 5"),
+                ("specialization", "VARCHAR(512) NOT NULL DEFAULT 'General'"),
+            ],
+            "role_template_permissions": [
+                ("tenant_id", "INTEGER NOT NULL DEFAULT 1 REFERENCES app_schema.tenants(id)"),
+            ],
+            "candidates": [
+                ("thunder_enabled", "BOOLEAN NOT NULL DEFAULT true"),
+                ("status_changed_at", "TIMESTAMP NULL"),
+                ("previous_status", "VARCHAR(100) NULL"),
+                ("status_change_reason", "VARCHAR(500) NULL"),
+                ("upload_status", "VARCHAR(50) NULL"),
+                ("expected_document_count", "INTEGER NULL"),
+                ("actual_document_count", "INTEGER NULL"),
+                ("upload_started_at", "TIMESTAMP NULL"),
+                ("last_document_uploaded_at", "TIMESTAMP NULL"),
+                ("queued_at", "TIMESTAMP NULL"),
+                ("processing_started_at", "TIMESTAMP NULL"),
+                ("processing_completed_at", "TIMESTAMP NULL"),
+                ("upload_error", "TEXT NULL"),
+                ("celery_task_id", "VARCHAR(512) NULL"),
+            ],
+            "candidate_conversations": [
+                ("next_touch_scheduled_at", "TIMESTAMP NULL"),
+            ],
+            "candidate_documents": [
+                ("document_name", "VARCHAR(512) NULL"),
+                ("upload_sequence", "INTEGER NULL"),
+            ],
         }
+        super_flag_existed = db.execute(text("""
+            SELECT 1 FROM information_schema.columns
+            WHERE table_schema = 'app_schema' AND table_name = 'role_templates'
+              AND column_name = 'is_super_user'
+        """)).scalar() is not None
         for table_name, columns in drifted_tables.items():
             for column_name, column_def in columns:
                 try:
@@ -752,6 +798,20 @@ def _run_schema_migrations():
                     else:
                         logger.warning(f"[Contract] Migration warning for {table_name}.{column_name}: {e}")
                     db.rollback()
+
+        # Flag the existing Super Admin template only when the column was
+        # just created, so a later deliberate change is never overwritten.
+        if not super_flag_existed:
+            try:
+                db.execute(text("""
+                    UPDATE app_schema.role_templates SET is_super_user = true
+                    WHERE name = 'Super Admin'
+                """))
+                db.commit()
+                logger.info("[Contract] Migration: flagged existing Super Admin role template")
+            except Exception as e:
+                logger.warning(f"[Contract] Migration warning for role_templates.is_super_user backfill: {e}")
+                db.rollback()
 
         # Migration 5b: linkedin_candidate_pipeline was first created with
         # uuid columns for user/candidate ids, but ids in this system are
