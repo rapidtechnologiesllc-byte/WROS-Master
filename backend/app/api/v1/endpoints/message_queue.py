@@ -8,15 +8,14 @@ Used by frontend Message Queue Monitor for debugging and monitoring.
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 from app.core.database import get_db
-from app.core.dependencies import require_role_template_permission, get_current_user
-from app.core.permission_registry import Permissions
+from app.core.dependencies import require_resource_permission, get_current_user
 from app.models.channel_queue import ChannelQueueItem
 from datetime import datetime
 
 router = APIRouter(prefix="/message-queue", tags=["Message Queue Monitor"])
 
 
-@router.get("/types", dependencies=[Depends(require_role_template_permission(*Permissions.ROLE_TEMPLATES_EDIT))])
+@router.get("/types", dependencies=[Depends(require_resource_permission("message-queue", "view"))])
 def get_queue_types(db: Session = Depends(get_db)):
     """
     Get all unique queue types currently in the system.
@@ -63,7 +62,7 @@ def get_message_status(message_id: str, db: Session = Depends(get_db), current_u
     }
 
 
-@router.get("/display")
+@router.get("/display", dependencies=[Depends(require_resource_permission("message-queue", "view"))])
 def get_message_queue_display(
     status: str = Query("", description="Filter by status: PENDING, PROCESSING, COMPLETED, FAILED"),
     message_type: str = Query("", description="Filter by message type"),
@@ -114,7 +113,7 @@ def get_message_queue_display(
     }
 
 
-@router.post("/{message_id}/retry", dependencies=[Depends(require_role_template_permission(*Permissions.ROLE_TEMPLATES_EDIT))])
+@router.post("/{message_id}/retry", dependencies=[Depends(require_resource_permission("message-queue", "edit"))])
 def retry_queue_message(message_id: str, db: Session = Depends(get_db)):
     """Retry a failed queue message."""
     from app.services.queue_doctor_service import QueueDoctorService
@@ -144,7 +143,7 @@ def retry_queue_message(message_id: str, db: Session = Depends(get_db)):
     }
 
 
-@router.post("/{message_id}/stop-and-retry", dependencies=[Depends(require_role_template_permission(*Permissions.ROLE_TEMPLATES_EDIT))])
+@router.post("/{message_id}/stop-and-retry", dependencies=[Depends(require_resource_permission("message-queue", "edit"))])
 def stop_and_retry_message(message_id: str, db: Session = Depends(get_db)):
     """Stop a PROCESSING message and mark it for retry (fail current attempt, queue next)."""
     from app.services.queue_doctor_service import QueueDoctorService
@@ -173,7 +172,7 @@ def stop_and_retry_message(message_id: str, db: Session = Depends(get_db)):
     }
 
 
-@router.post("/{message_id}/fail", dependencies=[Depends(require_role_template_permission(*Permissions.ROLE_TEMPLATES_EDIT))])
+@router.post("/{message_id}/fail", dependencies=[Depends(require_resource_permission("message-queue", "edit"))])
 def fail_queue_message(message_id: str, reason: str = Query("Manual failure"), db: Session = Depends(get_db)):
     """Manually mark a message as FAILED (for PROCESSING messages stuck > 10 seconds)."""
     from app.services.queue_doctor_service import QueueDoctorService
@@ -201,7 +200,7 @@ def fail_queue_message(message_id: str, reason: str = Query("Manual failure"), d
     }
 
 
-@router.post("/retry-failed", dependencies=[Depends(require_role_template_permission(*Permissions.ROLE_TEMPLATES_EDIT))])
+@router.post("/retry-failed", dependencies=[Depends(require_resource_permission("message-queue", "edit"))])
 def retry_failed_messages(
     queue_type: str = Query("", description="Filter by queue type (optional)"),
     db: Session = Depends(get_db),
@@ -252,7 +251,7 @@ def retry_failed_messages(
     }
 
 
-@router.get("/stats", dependencies=[Depends(require_role_template_permission(*Permissions.ROLE_TEMPLATES_EDIT))])
+@router.get("/stats", dependencies=[Depends(require_resource_permission("message-queue", "view"))])
 def get_queue_stats(db: Session = Depends(get_db)):
     """Get overall queue statistics."""
     total = db.query(ChannelQueueItem).count()
@@ -277,7 +276,7 @@ def get_queue_stats(db: Session = Depends(get_db)):
     }
 
 
-@router.get("/tasks/{task_id}/status")
+@router.get("/tasks/{task_id}/status", dependencies=[Depends(get_current_user)])
 def get_task_status(task_id: str, db: Session = Depends(get_db)):
     """
     Get the status of a queued task by message ID.

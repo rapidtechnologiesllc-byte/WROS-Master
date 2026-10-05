@@ -26,7 +26,7 @@ router = APIRouter(prefix="/flash", tags=["Flash Queue Metrics"])
 @router.get(
     "/queue-health-pulse",
     response_model=Dict[str, Any],
-    dependencies=[Depends(require_role_template_permission("admin-settings", "can_view"))]
+    dependencies=[Depends(require_role_template_permission("message-queue", "can_view"))]
 )
 def get_queue_health_pulse(db: Session = Depends(get_db)) -> Dict[str, Any]:
     """

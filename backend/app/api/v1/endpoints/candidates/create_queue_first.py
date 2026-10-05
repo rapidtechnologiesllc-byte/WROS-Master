@@ -12,15 +12,21 @@ Workflow:
 """
 
 import logging
-from typing import Optional
+from datetime import date
+from typing import List, Optional, Union
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.dependencies import get_current_user, require_resource_permission
+from app.schemas.candidate import EducationRecord, ExperienceRecord
 from app.services.message_queue_service import MessageQueueService
 from app.utils.uniq_id_generator import candidate_id_generator
+
+# CandidateEducationForm.percentage is String(10); an over-length value would
+# fail the queued commit and retry until the message is FAILED.
+MAX_PERCENTAGE_LENGTH = 10
 
 logger = logging.getLogger(__name__)
 
@@ -47,6 +53,23 @@ class CreateCandidateRequest(BaseModel):
     education: Optional[list] = None
     experience: Optional[list] = None
     certifications: Optional[list] = None
+    # Fields sent by the Add Candidate form (CandidateCreate.js). Previously
+    # undeclared, so Pydantic silently discarded them.
+    candidate_role: Optional[str] = None  # accepted but ignored - the role is always "Candidate"
+    candidate_middle_name: Optional[str] = None
+    candidate_job_title: Optional[str] = None
+    candidate_experience: Optional[str] = None
+    candidate_skills: Optional[Union[str, List[str]]] = None
+    candidate_date_of_birth: Optional[date] = None
+    candidate_joining_date: Optional[date] = None
+    candidate_expected_salary: Optional[str] = None
+    candidate_expected_salary_type: Optional[str] = None
+    candidate_current_salary: Optional[str] = None
+    candidate_current_salary_type: Optional[str] = None
+    assigned_hr_manager_id: Optional[str] = None
+    assigned_report_manager_id: Optional[str] = None
+    education_records: Optional[List[EducationRecord]] = None
+    experience_records: Optional[List[ExperienceRecord]] = None
 
     class Config:
         populate_by_name = True
@@ -140,6 +163,12 @@ async def create_candidate(
             raise HTTPException(status_code=400, detail="First name is required")
         if not last_name:
             raise HTTPException(status_code=400, detail="Last name is required")
+        for i, record in enumerate(request.education_records or []):
+            if len(record.percentage or "") > MAX_PERCENTAGE_LENGTH:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Education row {i + 1}: percentage must be at most {MAX_PERCENTAGE_LENGTH} characters",
+                )
 
         logger.info(f"[CANDIDATE_CREATE] Queueing candidate: {email} ({first_name} {last_name})")
 
@@ -159,6 +188,21 @@ async def create_candidate(
             "education": request.education,
             "experience": request.experience,
             "certifications": request.certifications,
+            "candidate_middle_name": request.candidate_middle_name,
+            "candidate_job_title": request.candidate_job_title,
+            "candidate_experience": request.candidate_experience,
+            "candidate_skills": request.candidate_skills,
+            # enqueue() json.dumps the payload, so dates travel as ISO strings
+            "candidate_date_of_birth": request.candidate_date_of_birth.isoformat() if request.candidate_date_of_birth else None,
+            "candidate_joining_date": request.candidate_joining_date.isoformat() if request.candidate_joining_date else None,
+            "candidate_expected_salary": request.candidate_expected_salary,
+            "candidate_expected_salary_type": request.candidate_expected_salary_type,
+            "candidate_current_salary": request.candidate_current_salary,
+            "candidate_current_salary_type": request.candidate_current_salary_type,
+            "assigned_hr_manager_id": request.assigned_hr_manager_id,
+            "assigned_report_manager_id": request.assigned_report_manager_id,
+            "education_records": [r.model_dump(mode="json") for r in request.education_records or []],
+            "experience_records": [r.model_dump(mode="json") for r in request.experience_records or []],
             "created_by_user_id": getattr(current_user, 'UserID', None),
             "tenant_id": getattr(current_user, 'tenant_id', 1),
         }

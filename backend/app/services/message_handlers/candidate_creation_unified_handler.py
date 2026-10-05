@@ -5,8 +5,8 @@ This is the ONLY place where create_candidate() actually runs.
 """
 
 import logging
-from typing import Dict, Any
-from datetime import datetime
+from typing import Dict, Any, Optional
+from datetime import date, datetime
 from sqlalchemy.orm import Session
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
 
@@ -14,6 +14,84 @@ from app.core.logging import logger as base_logger
 from app.models.channel_queue import ChannelQueueItem
 
 logger = logging.getLogger(__name__)
+
+
+def _parse_iso_date(value: Any) -> Optional[date]:
+    """Optional fields must never fail a creation - an unparseable date becomes None."""
+    if value in (None, ""):
+        return None
+    if isinstance(value, date):
+        return value
+    try:
+        return date.fromisoformat(str(value)[:10])
+    except ValueError:
+        logger.warning(f"[CandidateCreationUnified] Ignoring unparseable date: {value!r}")
+        return None
+
+
+def _optional_candidate_fields(payload: Dict[str, Any]) -> Dict[str, Any]:
+    """Map optional payload keys to Candidate columns.
+
+    A fixed whitelist on purpose: other producers (progressive upload, bulk
+    import) put keys like upload_status in the payload that must never reach
+    the Candidate constructor. Salary rate types and assigned managers have
+    no column yet and are intentionally not persisted.
+    """
+    skills = payload.get("candidate_skills")
+    if isinstance(skills, list):
+        skills = ", ".join(str(s).strip() for s in skills if str(s).strip())
+
+    fields = {
+        "candidateMiddleName": payload.get("candidate_middle_name"),
+        "candidateJobTitle": payload.get("candidate_job_title"),
+        "candidateGender": payload.get("candidate_gender"),
+        "candidateCurrentLocation": payload.get("candidate_current_location"),
+        "candidateDateOfBirth": _parse_iso_date(payload.get("candidate_date_of_birth")),
+        "candidateJoiningDate": _parse_iso_date(payload.get("candidate_joining_date")),
+        "candidateExperience": payload.get("candidate_experience"),
+        "candidateSkills": skills,
+        "candidateExpectedSalary": payload.get("candidate_expected_salary"),
+        "candidateCurrentSalary": payload.get("candidate_current_salary"),
+        "created_by_user_id": payload.get("created_by_user_id"),
+    }
+    return {k: v for k, v in fields.items() if v not in (None, "")}
+
+
+def _add_education_and_experience(db: Session, candidate_id: str, payload: Dict[str, Any]) -> None:
+    from app.models.candidate import CandidateEducationForm, CandidateExperienceForm
+
+    education = payload.get("education_records")
+    for edu in education if isinstance(education, list) else []:
+        if not isinstance(edu, dict):
+            continue
+        db.add(CandidateEducationForm(
+            candidateID=candidate_id,
+            education_institute=edu.get("education_institute"),
+            degree=edu.get("degree"),
+            field_of_study=edu.get("field_of_study"),
+            starting_year=edu.get("starting_year"),
+            year_of_passing=edu.get("year_of_passing"),
+            percentage=edu.get("percentage"),
+            submittedAt=_parse_iso_date(edu.get("submitted_at")),
+            document_is_submitted=edu.get("document_is_submitted"),
+            document_id=edu.get("document_id"),
+        ))
+
+    experience = payload.get("experience_records")
+    for exp in experience if isinstance(experience, list) else []:
+        if not isinstance(exp, dict):
+            continue
+        db.add(CandidateExperienceForm(
+            candidateID=candidate_id,
+            company_name=exp.get("company_name"),
+            job_title=exp.get("job_title"),
+            start_date=_parse_iso_date(exp.get("start_date")),
+            end_date=_parse_iso_date(exp.get("end_date")),
+            year_of_experience=exp.get("year_of_experience"),
+            submittedAt=_parse_iso_date(exp.get("submitted_at")),
+            document_is_submitted=exp.get("document_is_submitted"),
+            document_id=exp.get("document_id"),
+        ))
 
 
 class CandidateCreationUnifiedHandler:
@@ -60,10 +138,17 @@ class CandidateCreationUnifiedHandler:
             candidateLastName=last_name,
             candidateSource=source,
             candidateRole="Candidate",
+            **_optional_candidate_fields(payload),
         )
 
         db.flush()
         candidate_id = candidate.candidateID
+
+        # A duplicate can match on phone alone (possibly a different person),
+        # so records are only attached to a candidate created by this message.
+        # No commit here: queue_processor_service commits candidate + records together.
+        if is_new:
+            _add_education_and_experience(db, candidate_id, payload)
 
         logger.info(
             f"[CandidateCreationUnified] ✅ Created: {candidate_id} "

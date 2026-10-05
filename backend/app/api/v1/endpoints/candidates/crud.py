@@ -252,6 +252,22 @@ def get_all_candidates(db: Session = Depends(get_db)):
                 'status': candidate_status.status if candidate_status else 'Active',
                 'pipline_status': candidate_status.piplineStatus if candidate_status else 'Applied',
                 'candidateCreatedAt': c.candidateCreatedAt.isoformat() if c.candidateCreatedAt else None,
+                # snake_case keys read by the frontend list mapper (Approutes.jsx
+                # mapCandidateFromApi), CandidateSearch, ChecklistTemplates and
+                # MessageTemplates. Additive: every key above is kept unchanged.
+                'candidate_id': c.candidateID,
+                'candidate_first_name': c.candidateFirstName or '',
+                'candidate_last_name': c.candidateLastName or '',
+                'candidate_mobile': c.candidateMobile or '',
+                'candidate_job_title': c.candidateJobTitle or '',
+                'candidate_gender': c.candidateGender or '',
+                'candidate_date_of_birth': c.candidateDateOfBirth.isoformat() if c.candidateDateOfBirth else None,
+                'candidate_joining_date': c.candidateJoiningDate.isoformat() if c.candidateJoiningDate else None,
+                'candidate_source': c.candidateSource or '',
+                'candidate_experience': c.candidateExperience or '',
+                'candidate_skills': _serialize_skills(c.candidateSkills),
+                'candidate_expected_salary': c.candidateExpectedSalary or '',
+                'candidate_current_salary': c.candidateCurrentSalary or '',
             })
 
         return {
