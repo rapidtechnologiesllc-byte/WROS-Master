@@ -2,11 +2,24 @@ import { useEffect, useState } from "react";
 import { Briefcase, Users, Award, TrendingUp, AlertCircle, X, AlertTriangle } from "lucide-react";
 import { Card, Button } from "../components/ui";
 import { apiRequest } from "../services/api/client";
+import { listBusinessUnits } from "../services/api/rbac";
+import { getHrMe } from "../services/api/users";
 
 export default function TroyPartnerDashboard() {
   const [loading, setLoading] = useState(true);
   const [dashboard, setDashboard] = useState(null);
   const [actionError, setActionError] = useState(null);
+  const [buName, setBuName] = useState("");
+
+  // BU label = the logged-in user's business unit (Users & Access Control > Business Units)
+  useEffect(() => {
+    Promise.all([getHrMe(), listBusinessUnits()])
+      .then(([me, bus]) => {
+        const bu = bus.find((b) => String(b.id) === String(me?.business_unit_id));
+        setBuName(bu?.name || "");
+      })
+      .catch((err) => setActionError(`Failed to load business unit: ${err.message}`));
+  }, []);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -57,7 +70,7 @@ export default function TroyPartnerDashboard() {
 
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold text-gray-900">Troy's Partner Dashboard</h1>
-        <div className="text-sm text-gray-600">North America BU</div>
+        <div className="text-sm text-gray-600">{buName || "No business unit assigned"}</div>
       </div>
 
       {/* KPI Cards */}

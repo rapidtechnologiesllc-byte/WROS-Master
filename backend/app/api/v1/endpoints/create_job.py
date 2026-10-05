@@ -791,7 +791,6 @@ def approve_job(
     # Queue job approval event for FLASH orchestrator
     MessageQueueService.enqueue(
         task_name='job_approved_flash',
-        task_id=job_id,
         data={
             'job_id': job_id,
             'job_title': job.jobTitle,
@@ -885,10 +884,11 @@ def update_job(job_id: str, request: JobUpdateRequest, db: Session = Depends(get
     db.commit()
     db.refresh(job)
 
-    # Queue job update event for FLASH orchestrator
+    # Queue job update event for FLASH orchestrator. No task_id: it is the
+    # queue row's primary key, and job_created_flash already used job_id, so
+    # reusing it made every update after creation fail with a duplicate key.
     MessageQueueService.enqueue(
         task_name='job_updated_flash',
-        task_id=job_id,
         data={
             'job_id': job_id,
             'job_title': job.jobTitle,
@@ -955,7 +955,6 @@ def delete_job(job_id: str, db: Session = Depends(get_db), user = Depends(get_cu
     # Queue job deletion event for FLASH orchestrator
     MessageQueueService.enqueue(
         task_name='job_deleted_flash',
-        task_id=job_id,
         data={
             'job_id': job_id,
             'job_title': job.jobTitle,
@@ -1205,7 +1204,6 @@ async def apply_for_job(
     # Queue candidate job application event for FLASH orchestrator
     MessageQueueService.enqueue(
         task_name='candidate_job_application_created',
-        task_id=f"{candidate_id}:{job_id}",
         data={
             'candidate_id': candidate_id,
             'candidate_email': candidate.candidateEmail,
@@ -1292,7 +1290,6 @@ def assign_candidate_to_job(
     # Queue candidate assignment event for FLASH orchestrator
     MessageQueueService.enqueue(
         task_name='candidate_assigned_to_job',
-        task_id=f"{candidate_id}:{job_id}",
         data={
             'candidate_id': candidate_id,
             'candidate_email': candidate.candidateEmail,
@@ -1360,7 +1357,6 @@ def unassign_candidate_from_job(
     # Queue candidate unassignment event for FLASH orchestrator
     MessageQueueService.enqueue(
         task_name='candidate_unassigned_from_job',
-        task_id=f"{candidate_id}:{job_id_before}",
         data={
             'candidate_id': candidate_id,
             'candidate_email': candidate.candidateEmail,
@@ -1491,7 +1487,6 @@ def create_job_application(
     # Queue job application event for FLASH orchestrator
     MessageQueueService.enqueue(
         task_name='job_application_created',
-        task_id=str(application.id),
         data={
             'application_id': application.id,
             'candidate_id': candidate_id,
@@ -1542,7 +1537,6 @@ def remove_job_application(
     # Queue job application removal event for FLASH orchestrator
     MessageQueueService.enqueue(
         task_name='job_application_removed',
-        task_id=f"{candidate_id}:{job_id}",
         data={
             'application_id': app_id,
             'candidate_id': candidate_id,
@@ -1588,7 +1582,6 @@ def update_job_application_status(
     # Queue job application status update event for FLASH orchestrator
     MessageQueueService.enqueue(
         task_name='job_application_status_updated',
-        task_id=str(application.id),
         data={
             'application_id': application.id,
             'candidate_id': candidate_id,

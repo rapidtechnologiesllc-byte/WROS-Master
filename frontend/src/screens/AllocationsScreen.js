@@ -9,6 +9,7 @@ import { Briefcase, RefreshCw, LogOut, Plus, Download } from "lucide-react";
 import { Card, Button, Input, Select } from "../components/ui";
 import cx from "../utils/cx";
 import { createAllocation, getAllocations, endAllocation, getAllocationDropdowns } from "../services/api/allocations";
+import { listClients } from "../services/api/clients";
 
 const formatUsdCents = (cents) =>
   cents == null
@@ -176,6 +177,7 @@ export default function AllocationsScreen() {
   // Filters & Sorting
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [clientFilter, setClientFilter] = useState("");
+  const [clients, setClients] = useState([]);
   const [sortBy, setSortBy] = useState("created_at_desc");
 
   const load = async () => {
@@ -193,6 +195,9 @@ export default function AllocationsScreen() {
 
   useEffect(() => {
     load();
+    listClients({ activeOnly: false })
+      .then((data) => setClients(data?.clients || []))
+      .catch((err) => setError(err.message || "Failed to load clients."));
   }, []);
 
   const handleFormSaved = () => {
@@ -257,10 +262,11 @@ export default function AllocationsScreen() {
     filtered = [...filtered].sort((a, b) => (b.billing_rate_usd_cents || 0) - (a.billing_rate_usd_cents || 0));
   }
 
-  const clientOptions = [...new Set(allocations.map((a) => a.client_name).filter(Boolean))].map((c) => ({
-    value: c,
-    label: c,
-  }));
+  // Client names from Client Management (the clients list), not from whatever rows happen to be loaded
+  const clientOptions = [
+    { value: "", label: "All clients" },
+    ...clients.map((c) => ({ value: c.company_name, label: c.company_name })),
+  ];
 
   return (
     <div className="space-y-4 p-6">

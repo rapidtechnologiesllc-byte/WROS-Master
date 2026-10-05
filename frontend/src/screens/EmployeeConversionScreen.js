@@ -3,6 +3,9 @@ import { ChevronDown, Plus, Check, X, AlertCircle, CheckCircle } from "lucide-re
 import { Card, Button, Input, Select } from "../components/ui";
 import { apiRequest } from "../services/api/client";
 import { getAllCandidates } from "../services/api/candidates";
+import { listBusinessUnits } from "../services/api/rbac";
+import { listRoleTemplates } from "../services/api/role_templates";
+import { getHrMe } from "../services/api/users";
 import { getBusinessUnitId } from "../utils/permissionsRoleTemplate";
 
 export default function EmployeeConversionScreen() {
@@ -41,21 +44,31 @@ export default function EmployeeConversionScreen() {
         : candidatesRes?.candidates || [];
 
       // Filter to only OFFER status candidates who are ready for conversion
+      // (/candidates/all spells the pipeline key "pipline_status")
       const offerCandidates = candidatesList.filter(
         (c) =>
           c.status?.toUpperCase() === "OFFER" ||
-          c.pipeline_status?.toUpperCase() === "OFFER" ||
+          (c.pipeline_status || c.pipline_status)?.toUpperCase() === "OFFER" ||
           c.candidate_is_verified
       );
       setCandidates(offerCandidates);
 
-      // Load business units
-      const busRes = await apiRequest("/api/admin/users-access-control/business-units");
-      setBusinessUnits(Array.isArray(busRes) ? busRes : busRes?.data || []);
+      // Business units from the same source as Users & Access Control > Business Units
+      const bus = await listBusinessUnits();
+      setBusinessUnits(bus);
 
-      // Load roles for conversion
-      const rolesRes = await apiRequest("/employees/roles-for-conversion");
-      setRoles(Array.isArray(rolesRes) ? rolesRes : rolesRes?.roles || []);
+      // Default BU = the logged-in user's BU, only if it exists in the list
+      const me = await getHrMe();
+      const myBu = me?.business_unit_id;
+      if (myBu != null && bus.some((b) => String(b.id) === String(myBu))) {
+        setFormData((prev) =>
+          prev.business_unit_id ? prev : { ...prev, business_unit_id: String(myBu) }
+        );
+      }
+
+      // Roles = enabled role templates (Users & Access Control > Roles)
+      const templates = await listRoleTemplates();
+      setRoles(templates.filter((t) => t.enabled !== false));
     } catch (error) {
       console.error("Error loading conversion data:", error);
       setActionError("Failed to load conversion data");
@@ -81,12 +94,10 @@ export default function EmployeeConversionScreen() {
     }
   };
 
-  const handleRoleToggle = (roleId) => {
+  const handleRoleSelect = (roleId) => {
     setFormData((prev) => ({
       ...prev,
-      role_ids: prev.role_ids.includes(roleId)
-        ? prev.role_ids.filter((id) => id !== roleId)
-        : [...prev.role_ids, roleId],
+      role_ids: roleId ? [roleId] : [],
     }));
   };
 
@@ -115,7 +126,7 @@ export default function EmployeeConversionScreen() {
       return false;
     }
     if (formData.role_ids.length === 0) {
-      setActionError("Please select at least one role");
+      setActionError("Please select a role");
       return false;
     }
     if (!formData.position.trim()) {
@@ -135,25 +146,27 @@ export default function EmployeeConversionScreen() {
 
     setSubmitting(true);
     try {
+      // Contract: EmployeeConversionRequest (backend/app/schemas/employee_conversion.py)
+      const nameParts = formData.employee_name.trim().split(/\s+/);
       const payload = {
         candidate_id: formData.candidate_id,
-        employee_name: formData.employee_name,
         employee_email: formData.employee_email,
+        first_name: nameParts[0],
+        last_name: nameParts.slice(1).join(" ") || null,
         business_unit_id: parseInt(formData.business_unit_id, 10),
         role_ids: formData.role_ids.map((id) => parseInt(id, 10)),
-        position: formData.position,
+        job_title: formData.position,
         joining_date: formData.joining_date,
       };
 
-      const result = await apiRequest(
-        "/employees/convert-from-candidate",
-        "POST",
-        payload
-      );
+      const { data: result } = await apiRequest("/employees/convert-candidate", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      });
 
-      if (result?.status === "success" || result?.employee_user_id) {
+      if (result?.status === "success") {
         setActionSuccess(
-          `Employee created successfully! ID: ${result.employee_user_id}`
+          `Employee created successfully! Employee ID: ${result.employee_id}`
         );
         // Reset form
         setFormData({
@@ -225,10 +238,13 @@ export default function EmployeeConversionScreen() {
               value={formData.candidate_id}
               onChange={(value) => handleCandidateSelect(value)}
               disabled={submitting}
-              options={candidates.map((c) => ({
-                value: String(c.candidate_id || c.id),
-                label: `${c.candidate_name || c.name} (${c.candidate_email || c.email})`,
-              }))}
+              options={[
+                { value: "", label: "Select a candidate" },
+                ...candidates.map((c) => ({
+                  value: String(c.candidate_id || c.id),
+                  label: `${c.candidate_name || c.name} (${c.candidate_email || c.email})`,
+                })),
+              ]}
             />
             {selectedCandidate && (
               <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
@@ -304,61 +320,29 @@ export default function EmployeeConversionScreen() {
                   handleInputChange("business_unit_id", value)
                 }
                 disabled={submitting}
-                options={businessUnits.map((bu) => ({
-                  value: String(bu.id),
-                  label: bu.bu_name || bu.name || `BU ${bu.id}`,
-                }))}
-                required
+                options={[
+                  { value: "", label: "Select a business unit" },
+                  ...businessUnits.map((bu) => ({
+                    value: String(bu.id),
+                    label: bu.bu_name || bu.name || `BU ${bu.id}`,
+                  })),
+                ]}
               />
 
-              <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-3">
-                  Assign Roles (select one or more)
-                </label>
-                <div className="space-y-2">
-                  {roles.length === 0 ? (
-                    <p className="text-sm text-gray-500">
-                      No roles available for assignment
-                    </p>
-                  ) : (
-                    roles.map((role) => (
-                      <label
-                        key={role.id}
-                        className="flex items-center p-3 border rounded-lg hover:bg-gray-50 cursor-pointer"
-                      >
-                        <input
-                          type="checkbox"
-                          checked={formData.role_ids.includes(role.id)}
-                          onChange={() => handleRoleToggle(role.id)}
-                          disabled={submitting}
-                          className="w-4 h-4 text-blue-600 rounded"
-                        />
-                        <div className="ml-3">
-                          <p className="font-medium text-gray-900">
-                            {role.name}
-                          </p>
-                          {role.description && (
-                            <p className="text-xs text-gray-500">
-                              {role.description}
-                            </p>
-                          )}
-                        </div>
-                      </label>
-                    ))
-                  )}
-                </div>
-                {formData.role_ids.length > 0 && (
-                  <div className="mt-3 p-3 bg-green-50 rounded border border-green-200">
-                    <p className="text-sm text-green-800">
-                      <strong>Selected roles:</strong>{" "}
-                      {roles
-                        .filter((r) => formData.role_ids.includes(r.id))
-                        .map((r) => r.name)
-                        .join(", ")}
-                    </p>
-                  </div>
-                )}
-              </div>
+              {/* One role template per user (Users.role_template_id) */}
+              <Select
+                label="Role"
+                value={formData.role_ids[0] != null ? String(formData.role_ids[0]) : ""}
+                onChange={(value) => handleRoleSelect(value)}
+                disabled={submitting}
+                options={[
+                  { value: "", label: roles.length ? "Select a role" : "No roles available" },
+                  ...roles.map((role) => ({
+                    value: String(role.id),
+                    label: role.display_name || role.name,
+                  })),
+                ]}
+              />
             </div>
           </div>
 

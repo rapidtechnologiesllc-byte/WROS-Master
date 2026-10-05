@@ -116,16 +116,39 @@ export default function JobDetails({ job, onSubmit, onGoApproval, onUpdate, mode
     setInternalJD(job.internalJD || job.jobDescription || "");
   }, [job]);
 
-  const saveSection = (section) => {
+  // Payload uses PUT /jobs/update_job field names (JobUpdateRequest) and only
+  // carries the section being saved, so other fields are never overwritten.
+  const isoDate = (value) => (/^\d{4}-\d{2}-\d{2}$/.test(String(value || "")) ? value : undefined);
+  const sectionPayload = (section) => {
     const skills = skillsText.split(",").map((s) => s.trim()).filter(Boolean);
-    onUpdate({
-      title, positionType, priority, companyClient, companyType, contactPerson,
-      division, dept, location, experienceLevel, payRange, startDate, endDate,
-      jobStatus, noOfPositions, hiringManager, skills,
-      hiringManagerOneLiner: hmOneLiner, internalJD, jobDescription: internalJD,
-      status: jobStatus || "Draft"
-    });
-    setEditingSection(null);
+    switch (section) {
+      case "basic":
+        return { job_title: title, salary_range: payRange };
+      case "company":
+        return { company_name: companyClient, company_type: companyType, contact_person: contactPerson };
+      case "skills":
+        return { job_experience: experienceLevel, job_location: location, job_skills: skills.join(", ") };
+      case "timeline": {
+        const payload = { start_date: isoDate(startDate), end_date: isoDate(endDate), no_of_positions: noOfPositions };
+        if (jobStatus !== (job.jobStatus || job.status)) payload.job_status = jobStatus;
+        return payload;
+      }
+      case "description":
+        return { job_description: internalJD };
+      default:
+        return {};
+    }
+  };
+
+  const [saveError, setSaveError] = useState(null);
+  const saveSection = async (section) => {
+    setSaveError(null);
+    try {
+      await onUpdate(sectionPayload(section));
+      setEditingSection(null);
+    } catch (err) {
+      setSaveError(err?.message || "Failed to save job");
+    }
   };
 
   const cancelSection = () => {
@@ -143,6 +166,9 @@ export default function JobDetails({ job, onSubmit, onGoApproval, onUpdate, mode
           {/* Details Tab */}
           {activeTab === "details" && (
             <div className="space-y-4">
+      {saveError && (
+        <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{saveError}</div>
+      )}
       {/* Basic Information */}
       <CardBlock title="Basic Information" subtitle="Job title, position type, priority, and pay range">
         {editingSection === "basic" ? (

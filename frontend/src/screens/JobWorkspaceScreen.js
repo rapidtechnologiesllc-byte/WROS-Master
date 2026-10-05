@@ -63,6 +63,7 @@ export default function JobWorkspaceScreen({
   setSelectedCandidateId,
   setCandidateDetailsDefaultTab,
   setAutoOpenSchedule,
+  onUpdateJob,
 }) {
   const [activeTab, setActiveTab] = useState("Candidates");
   const [query, setQuery] = useState("");
@@ -447,9 +448,9 @@ export default function JobWorkspaceScreen({
       </div>
 
       {activeTab === "Job Details" ? (
-        <JobDetails job={job} candidates={candidates} mode="edit" defaultTab="details" />
+        <JobDetails job={job} candidates={candidates} mode="edit" defaultTab="details" onUpdate={onUpdateJob} />
       ) : activeTab === "Candidates" ? (
-        <JobDetails job={job} candidates={candidates} mode="edit" defaultTab="candidates" />
+        <JobDetails job={job} candidates={candidates} mode="edit" defaultTab="candidates" onUpdate={onUpdateJob} />
       ) : activeTab === "Job Analytics" ? (
         <>
           <div className="grid gap-2 rounded-2xl border bg-white p-3 shadow-sm md:grid-cols-4">

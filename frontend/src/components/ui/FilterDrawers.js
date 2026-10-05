@@ -41,7 +41,8 @@ const FIlterDrawer = ({ open, onClose, filters, setFilters, onApply }) => {
     listClients()
       .then((data) =>
         setClientOptions(
-          (data?.clients || []).map((c) => ({ label: c.company_name, value: c.id })),
+          // Jobs store the client by name (Jobs.companyName), so filter by name
+          (data?.clients || []).map((c) => ({ label: c.company_name, value: c.company_name })),
         ),
       )
       .catch(() => setClientOptions([]));
@@ -94,25 +95,28 @@ const FIlterDrawer = ({ open, onClose, filters, setFilters, onApply }) => {
           onChange={(v) => handleChange("type", v)}
           allowClear
         />
+        {/* Keys match GET /jobs/filter params: business_unit, department_id, company_name */}
         <Select
           placeholder="BU"
           options={buOptions}
-          value={filters.bu}
-          onChange={(v) => handleChange("bu", v)}
+          value={filters.business_unit}
+          onChange={(v) => handleChange("business_unit", v)}
           style={{ width: "100%" }}
           allowClear
         />
         <Select
           placeholder="Department"
           options={deptOptions}
-          onChange={(v) => handleChange("dept", v)}
+          value={filters.department_id}
+          onChange={(v) => handleChange("department_id", v)}
           allowClear
           style={{ width: "100%" }}
         />
         <Select
           placeholder="Client"
           options={clientOptions}
-          onChange={(v) => handleChange("client", v)}
+          value={filters.company_name}
+          onChange={(v) => handleChange("company_name", v)}
           allowClear
           style={{ width: "100%" }}
         />

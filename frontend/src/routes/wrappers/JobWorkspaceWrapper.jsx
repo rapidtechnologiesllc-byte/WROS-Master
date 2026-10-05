@@ -5,8 +5,8 @@ import { AlertCircle } from "lucide-react";
 import JobWorkspaceScreen from "../../screens/JobWorkspaceScreen";
 import { getAllJobs } from "../../services/api/jobs";
 import { getCandidateById } from "../../services/api/candidates";
-import { getJobById } from "../../services/api/jobs";
-import { mapJobFromApi } from "../Approutes";
+import { getJobById, updateJob } from "../../services/api/jobs";
+import { mapJobFromApi, normalizeJobStatusForApi } from "../Approutes";
 
 export default function JobWorkspaceWrapper({ candidates, notify }) {
   const { jobId } = useParams();
@@ -69,6 +69,15 @@ export default function JobWorkspaceWrapper({ candidates, notify }) {
       onFetchCandidateById={async (candidateId) => {
         const res = await getCandidateById(candidateId);
         return res;
+      }}
+      onUpdateJob={async (fields) => {
+        // fields are JobUpdateRequest keys; job_status arrives as the UI label
+        const payload = Object.fromEntries(
+          Object.entries(fields).filter(([, v]) => v !== undefined),
+        );
+        if (payload.job_status) payload.job_status = normalizeJobStatusForApi(payload.job_status);
+        const updated = await updateJob(job.id, payload);
+        setJob(mapJobFromApi(updated, users));
       }}
     />
   );

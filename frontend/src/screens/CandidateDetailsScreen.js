@@ -102,43 +102,15 @@ const roundNameOptions = [
 function UsersBUDetailsPanel({ candidate, onUpdate }) {
   const [isEditing, setIsEditing] = useState(false);
   const [recruiters, setRecruiters] = useState([]);
-  const [businessUnits, setBusinessUnits] = useState([]);
   const [loadingRecruiters, setLoadingRecruiters] = useState(false);
-  const [loadingBUs, setLoadingBUs] = useState(false);
-  const [loadingJobBU, setLoadingJobBU] = useState(false);
   const [selectedRecruiter, setSelectedRecruiter] = useState(candidate?.assigned_recruiter_id || "");
-  const [selectedBU, setSelectedBU] = useState(candidate?.business_unit_id || "");
-  const [jobBU, setJobBU] = useState(null);
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
-    const loadJobBU = async () => {
-      if (!candidate?.id) return;
-      try {
-        setLoadingJobBU(true);
-        const response = await fetch(`/candidates/${candidate.id}/applications`, {
-          headers: { "Authorization": `Bearer ${localStorage.getItem("hrms_token")}` },
-        });
-        if (response.ok) {
-          const data = await response.json();
-          const applications = data.applications || [];
-          if (applications.length > 0) {
-            const activeJob = applications[0];
-            if (activeJob.business_unit_id && !selectedBU) {
-              setJobBU(activeJob.business_unit_id);
-              setSelectedBU(activeJob.business_unit_id);
-            }
-          }
-        }
-      } catch (error) {
-        console.error("Failed to load candidate job BU:", error);
-      } finally {
-        setLoadingJobBU(false);
-      }
-    };
-
-    loadJobBU();
-  }, [candidate?.id]);
+  // Candidate BU is not editable here: it is set when the candidate is first
+  // submitted to a BU and then locked (Candidate.submission_bu_id /
+  // associated_bu_id), so it is shown by name only.
+  const candidateBuName =
+    candidate?.associated_bu_name || candidate?.submission_bu_name || null;
 
   useEffect(() => {
     if (!isEditing) return;
@@ -157,53 +129,24 @@ function UsersBUDetailsPanel({ candidate, onUpdate }) {
       } finally {
         setLoadingRecruiters(false);
       }
-
-      try {
-        setLoadingBUs(true);
-        const response = await fetch(`/api/business-units`, {
-          headers: {
-            "Authorization": `Bearer ${localStorage.getItem("hrms_token")}`,
-          },
-        });
-        if (response.ok) {
-          const buData = await response.json();
-          const buList = Array.isArray(buData) ? buData : buData.business_units || [];
-          setBusinessUnits(buList);
-        } else {
-          setBusinessUnits([]);
-        }
-      } catch (error) {
-        console.error("Failed to load business units:", error);
-        setBusinessUnits([]);
-      } finally {
-        setLoadingBUs(false);
-      }
     };
 
     loadData();
   }, [isEditing]);
 
   const handleSave = async () => {
-    if (!selectedRecruiter && !selectedBU) {
-      alert("Please select at least a recruiter or business unit");
+    if (!selectedRecruiter) {
+      alert("Please select a recruiter");
       return;
     }
 
     try {
       setSaving(true);
-      const updates = {};
-
-      if (selectedRecruiter) {
-        const recruiter = recruiters.find(r => r.user_id === selectedRecruiter);
-        updates.assigned_recruiter_id = selectedRecruiter;
-        updates.assigned_recruiter_name = recruiter?.user_name || "";
-      }
-
-      if (selectedBU) {
-        const bu = businessUnits.find(b => String(b.id) === String(selectedBU));
-        updates.business_unit_id = selectedBU;
-        updates.business_unit_name = bu?.name || bu?.bu_name || "";
-      }
+      const recruiter = recruiters.find(r => r.user_id === selectedRecruiter);
+      const updates = {
+        assigned_recruiter_id: selectedRecruiter,
+        assigned_recruiter_name: recruiter?.user_name || "",
+      };
 
       if (onUpdate) {
         await onUpdate(updates);
@@ -240,7 +183,7 @@ function UsersBUDetailsPanel({ candidate, onUpdate }) {
 
           <div className="border-t pt-3">
             <div className="text-gray-600 font-medium mb-1">Business Unit</div>
-            <div className="text-gray-900 font-semibold">{candidate?.business_unit_id || "—"}</div>
+            <div className="text-gray-900 font-semibold">{candidateBuName || "Not yet submitted to a BU"}</div>
           </div>
 
           {candidate?.has_job_submission && (
@@ -307,19 +250,8 @@ function UsersBUDetailsPanel({ candidate, onUpdate }) {
 
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">Business Unit</label>
-          <select
-            value={selectedBU}
-            onChange={(e) => setSelectedBU(e.target.value)}
-            disabled={loadingBUs}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="">{loadingBUs ? "Loading business units..." : "Select a business unit"}</option>
-            {businessUnits.map((bu) => (
-              <option key={bu.id} value={bu.id}>
-                {bu.name || bu.bu_name}
-              </option>
-            ))}
-          </select>
+          <div className="text-sm text-gray-900">{candidateBuName || "Not yet submitted to a BU"}</div>
+          <p className="mt-1 text-xs text-gray-500">Set when the candidate is first submitted to a business unit.</p>
         </div>
       </div>
       <div className="border-t px-5 py-4 flex gap-3 justify-end">
@@ -332,7 +264,7 @@ function UsersBUDetailsPanel({ candidate, onUpdate }) {
         </button>
         <button
           onClick={handleSave}
-          disabled={saving || (!selectedRecruiter && !selectedBU)}
+          disabled={saving || !selectedRecruiter}
           className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-medium text-sm disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {saving ? "Saving..." : "Save"}

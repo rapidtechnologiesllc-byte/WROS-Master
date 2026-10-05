@@ -4,7 +4,8 @@
 // -- each response is labeled as such by the backend.
 import { useEffect, useState } from "react";
 import { AlertOctagon, RefreshCw, GitCompareArrows, LineChart } from "lucide-react";
-import { Card, Button, Input, TextArea } from "../components/ui";
+import { Card, Button, Input, Select, TextArea } from "../components/ui";
+import { listClients } from "../services/api/clients";
 import cx from "../utils/cx";
 import {
   scanRevenueLeakage,
@@ -189,13 +190,20 @@ function ReconciliationAlertRow({ alert, onChanged }) {
 
 function ClientDashboardPanel() {
   const [clientId, setClientId] = useState("");
+  const [clients, setClients] = useState([]);
   const [dashboard, setDashboard] = useState(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
+  useEffect(() => {
+    listClients({ activeOnly: false })
+      .then((data) => setClients(data?.clients || []))
+      .catch((err) => setError(err.message || "Failed to load clients."));
+  }, []);
+
   const handleLoad = async () => {
     if (!clientId.trim()) {
-      setError("Client ID is required.");
+      setError("Select a client.");
       return;
     }
     setBusy(true);
@@ -216,7 +224,17 @@ function ClientDashboardPanel() {
   return (
     <div className="rounded-2xl border p-4">
       <div className="flex flex-wrap items-end gap-2">
-        <Input label="Client ID" value={clientId} onChange={setClientId} placeholder="client UUID" />
+        <div className="min-w-[240px]">
+          <Select
+            label="Client"
+            value={clientId}
+            onChange={setClientId}
+            options={[
+              { value: "", label: "Select a client" },
+              ...clients.map((c) => ({ value: c.id, label: c.company_name })),
+            ]}
+          />
+        </div>
         <Button variant="primary" disabled={busy} onClick={handleLoad}>
           {busy ? "Loading…" : "Load Dashboard"}
         </Button>

@@ -259,7 +259,7 @@ def resolve_reconciliation_alert_endpoint(
         Depends(require_resource_permission("resources", "view")),
         Depends(get_current_internal_user),
     ],
-    response_model=dict,
+    response_model=ClientRevenueDashboardResponse,
     summary="Get revenue dashboard for a client",
 )
 def get_client_dashboard(

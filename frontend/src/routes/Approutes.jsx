@@ -54,7 +54,7 @@ import CandidateDetailsScreen from "../screens/CandidateDetailsScreen";
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import OfferListing from "../screens/OfferListing";
-import { BrowserRouter, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import AuthPage from "../pages/AuthPage";
 import Shell from "../layout/Shell";
 import { adminRoutes } from "./AdminRoutes";
@@ -117,7 +117,6 @@ import SLABreachBanner from "../components/SLABreachBanner";
 import AdminAgentStateDashboard from "../screens/AdminAgentStateDashboard";
 import AdminWeeklyRecapDashboard from "../screens/AdminWeeklyRecapDashboard";
 import EmployeeConversionScreen from "../screens/EmployeeConversionScreen";
-import BusinessUnitsScreen from "../screens/BusinessUnitsScreen";
 import ForcePasswordReset from "../pages/ForcePasswordReset";
 import CEOExecutiveDashboardScreen from "../screens/CEOExecutiveDashboardScreen";
 import TrainingCertificationDashboard from "../screens/TrainingCertificationDashboard";
@@ -209,6 +208,12 @@ const mapCandidateFromApi = (c) => {
     pipelineStatus: c.pipline_status || c.pipeline_status || "",
     accountStatus: c.status || "",
     businessUnitId: c.business_unit_id || null,
+    // Read by the candidate detail "Users & BU" panel
+    associated_bu_id: c.associated_bu_id ?? null,
+    associated_bu_name: c.associated_bu_name || null,
+    submission_bu_name: c.submission_bu_name || null,
+    assigned_recruiter_id: c.assigned_recruiter_id || "",
+    assigned_recruiter_name: c.assigned_recruiter_name || "",
   };
 };
 
@@ -270,7 +275,7 @@ export const mapJobFromApi = (j, users = []) => {
   };
 };
 
-const normalizeJobStatusForApi = (uiStatus) => {
+export const normalizeJobStatusForApi = (uiStatus) => {
   const raw = String(uiStatus || "").trim();
   const lower = raw.toLowerCase();
   if (lower === "open") return "active";
@@ -278,7 +283,8 @@ const normalizeJobStatusForApi = (uiStatus) => {
   if (lower === "draft") return "draft";
   if (lower === "submitted") return "submitted";
   if (lower === "closed") return "closed";
-  return lower;
+  // e.g. "Pending Approval" -> "pending_approval"
+  return lower.replace(/\s+/g, "_");
 };
 
 // NOTE: normalizeRole() REMOVED - role checking is now entirely permission-based
@@ -690,7 +696,8 @@ export default function AppRoutes() {
             <Route path="admin/users-access-control/:section" element={<UsersAndAccessControl />} />
             <Route path="admin/users-access-control/users/create" element={<UserFormPage />} />
             <Route path="admin/users-access-control/users/:userId/edit" element={<UserFormPage />} />
-            <Route path="admin/business-units" element={<BusinessUnitsScreen />} />
+            {/* Business units are managed in one place: Users & Access Control > Business Units */}
+            <Route path="admin/business-units" element={<Navigate to="/admin/users-access-control/business-units" replace />} />
             <Route path="admin/certifications" element={<CertificationManagementScreen />} />
             <Route path="admin/agent-state-dashboard" element={<AdminAgentStateDashboard />} />
             <Route path="admin/weekly-recap" element={<AdminWeeklyRecapDashboard />} />
