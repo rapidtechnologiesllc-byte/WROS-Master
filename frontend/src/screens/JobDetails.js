@@ -36,7 +36,6 @@ export default function JobDetails({ job, onSubmit, onGoApproval, onUpdate, mode
   const [payAmount, setPayAmount] = useState("");
   const [startDate, setStartDate] = useState(job.startDate || "");
   const [endDate, setEndDate] = useState(job.endDate || "");
-  const [jobStatus, setJobStatus] = useState(job.jobStatus || job.status || "Draft");
   const [noOfPositions, setNoOfPositions] = useState(job.noOfPositions || 1);
   const [hiringManager, setHiringManager] = useState(job.hiringManager || "");
   const [skillsText, setSkillsText] = useState((job.skills || []).join(", "));
@@ -108,7 +107,6 @@ export default function JobDetails({ job, onSubmit, onGoApproval, onUpdate, mode
     setPayAmount(parsedPay.amount);
     setStartDate(job.startDate || "");
     setEndDate(job.endDate || "");
-    setJobStatus(job.jobStatus || job.status || "Draft");
     setNoOfPositions(job.noOfPositions || 1);
     setHiringManager(job.hiringManager || "");
     setSkillsText((job.skills || []).join(", "));
@@ -128,11 +126,9 @@ export default function JobDetails({ job, onSubmit, onGoApproval, onUpdate, mode
         return { company_name: companyClient, company_type: companyType, contact_person: contactPerson };
       case "skills":
         return { job_experience: experienceLevel, job_location: location, job_skills: skills.join(", ") };
-      case "timeline": {
-        const payload = { start_date: isoDate(startDate), end_date: isoDate(endDate), no_of_positions: noOfPositions };
-        if (jobStatus !== (job.jobStatus || job.status)) payload.job_status = jobStatus;
-        return payload;
-      }
+      case "timeline":
+        // Status is not editable here: it only changes through the approval flow
+        return { start_date: isoDate(startDate), end_date: isoDate(endDate), no_of_positions: noOfPositions > 0 ? noOfPositions : undefined };
       case "description":
         return { job_description: internalJD };
       default:
@@ -317,8 +313,7 @@ export default function JobDetails({ job, onSubmit, onGoApproval, onUpdate, mode
           <div className="grid gap-3 md:grid-cols-2">
             <Input label="Start Date" value={startDate} onChange={setStartDate} type="date" />
             <Input label="End Date" value={endDate} onChange={setEndDate} type="date" />
-            <Select label="Job Status" value={jobStatus} onChange={setJobStatus}
-              options={["Draft", "Open", "Public", "Submitted", "Closed"]} />
+            <Info label="Status (set by approval)" value={job.jobStatus || job.status} />
             <Input label="No. of Positions" value={String(noOfPositions)}
               onChange={(value) => setNoOfPositions(Number(value || 0))} type="number" />
             <div className="md:col-span-2 flex gap-2 justify-end">

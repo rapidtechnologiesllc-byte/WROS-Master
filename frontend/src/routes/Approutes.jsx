@@ -271,11 +271,14 @@ export const mapJobFromApi = (j, users = []) => {
     startDate: j.start_date || "",
     endDate: j.end_date || "",
     jobDescription: j.job_description || "",
+    // Section saves on Job Details echo these back, so they must round-trip
+    noOfPositions: j.no_of_positions ?? null,
+    payRange: j.salary_range || "",
     businessUnitId: j.business_unit || null,
   };
 };
 
-export const normalizeJobStatusForApi = (uiStatus) => {
+const normalizeJobStatusForApi = (uiStatus) => {
   const raw = String(uiStatus || "").trim();
   const lower = raw.toLowerCase();
   if (lower === "open") return "active";

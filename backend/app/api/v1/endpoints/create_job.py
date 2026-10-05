@@ -844,7 +844,19 @@ def update_job(job_id: str, request: JobUpdateRequest, db: Session = Depends(get
             status_code=404,
             detail=f"Job with ID {job_id} not found"
         )
-    
+
+    # Status only moves through the approval flow (create decides
+    # active/pending_approval, POST /approve_job activates). Echoing the
+    # current status back is allowed so full-form saves keep working.
+    if request.job_status is not None and request.job_status != job.jobStatus:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"Job status cannot be changed here (current: '{job.jobStatus}'). "
+                "Status changes go through the job approval flow."
+            ),
+        )
+
     # Update only provided fields
     if request.job_title is not None:
         job.jobTitle = request.job_title
@@ -862,8 +874,6 @@ def update_job(job_id: str, request: JobUpdateRequest, db: Session = Depends(get
         job.companyName = request.company_name
     if request.contact_person is not None:
         job.contactPerson = request.contact_person
-    if request.job_status is not None:
-        job.jobStatus = request.job_status
     if request.no_of_positions is not None:
         job.noOfPositions = request.no_of_positions
     if request.start_date is not None:

@@ -58,7 +58,6 @@ const emptyForm = {
   billing_currency: "USD",
   business_unit_id: "",
   account_manager_user_id: "",
-  client_owner_id: "",
   notes: "",
 };
 
@@ -70,7 +69,7 @@ function ClientForm({ mode, initial, onCancel, onSaved, businessUnits = [] }) {
   const [usersLoaded, setUsersLoaded] = useState(false);
 
   useEffect(() => {
-    // Account manager / client owner choices = users from Users & Access Control
+    // Account manager choices = users from Users & Access Control
     listAccountManagerOptions()
       .then((list) => {
         setUsers(list);
@@ -107,14 +106,6 @@ function ClientForm({ mode, initial, onCancel, onSaved, businessUnits = [] }) {
     }))
   ], [users]);
 
-  const clientOwnerOptions = useMemo(() => [
-    { label: "Select Client Owner", value: "", disabled: true },
-    ...(Array.isArray(users) ? users : []).map(u => ({
-      label: u.user_name ? `${u.user_name} (${u.user_email})` : u.user_email,
-      value: String(u.user_id)
-    }))
-  ], [users]);
-
   const set = (field) => (value) => setForm((f) => ({ ...f, [field]: value }));
 
   const handleSave = async () => {
@@ -130,9 +121,9 @@ function ClientForm({ mode, initial, onCancel, onSaved, businessUnits = [] }) {
     setError("");
     try {
       if (mode === "edit") {
-        const { company_name, company_short_name, country, line_type, website, tier, billing_currency, business_unit_id, notes, account_manager_user_id, client_owner_id } = form;
+        const { company_name, company_short_name, country, line_type, website, tier, billing_currency, business_unit_id, notes, account_manager_user_id } = form;
         await updateClient(form.id, {
-          company_name, company_short_name, country, line_type, website, tier, billing_currency, business_unit_id, notes, account_manager_user_id: account_manager_user_id || null, client_owner_id,
+          company_name, company_short_name, country, line_type, website, tier, billing_currency, business_unit_id, notes, account_manager_user_id: account_manager_user_id || null,
         });
       } else {
         await createClient({
@@ -178,7 +169,6 @@ function ClientForm({ mode, initial, onCancel, onSaved, businessUnits = [] }) {
         <Select label="Tier" value={form.tier} onChange={set("tier")} options={CLIENT_TIERS} />
         <Select label="Billing Currency" value={form.billing_currency} onChange={set("billing_currency")} options={BILLING_CURRENCIES} />
         <Select label="Account Manager" value={form.account_manager_user_id || ""} onChange={set("account_manager_user_id")} options={userOptions} />
-        <Select label="Client Owner" value={form.client_owner_id || ""} onChange={set("client_owner_id")} options={clientOwnerOptions} />
         {mode === "edit" && (
           <Select label="Status" value={form.status || "PROSPECT"} onChange={set("status")} options={CLIENT_STATUSES} />
         )}
@@ -266,7 +256,6 @@ export default function ClientManagementScreen() {
         billing_currency: full.billing_currency || "USD",
         business_unit_id: full.business_unit_id ? String(full.business_unit_id) : "",
         account_manager_user_id: full.account_manager_user_id || "",
-        client_owner_id: full.client_owner_id || "",
         notes: full.notes || "",
       });
     } catch (err) {
@@ -502,10 +491,8 @@ function ClientDetailModal({
 }) {
   const [selectedBU, setSelectedBU] = useState(String(client?.business_unit_id || ""));
   const [selectedAccountManager, setSelectedAccountManager] = useState(String(client?.account_manager_user_id || ""));
-  const [selectedClientOwner, setSelectedClientOwner] = useState(String(client?.client_owner_id || ""));
   const [buSaving, setBuSaving] = useState(false);
   const [amSaving, setAmSaving] = useState(false);
-  const [coSaving, setCoSaving] = useState(false);
   const [users, setUsers] = useState([]);
 
   useEffect(() => {
@@ -518,7 +505,6 @@ function ClientDetailModal({
   useEffect(() => {
     setSelectedBU(String(client?.business_unit_id || ""));
     setSelectedAccountManager(String(client?.account_manager_user_id || ""));
-    setSelectedClientOwner(String(client?.client_owner_id || ""));
     // The modal mounts with a list-row stub before the full record arrives,
     // so re-sync when the saved values land, not only when the id changes.
   }, [client?.id, client?.account_manager_user_id, client?.business_unit_id]);
@@ -538,14 +524,6 @@ function ClientDetailModal({
     }
     return options;
   }, [users, client?.account_manager_user_id, client?.account_manager_name]);
-
-  const clientOwnerOptions = useMemo(() => [
-    { label: "Select Client Owner", value: "", disabled: true },
-    ...(Array.isArray(users) ? users : []).map(u => ({
-      label: u.user_name ? `${u.user_name} (${u.user_email})` : u.user_email,
-      value: String(u.user_id)
-    }))
-  ], [users]);
 
   const handleBUChange = async (buId) => {
     setSelectedBU(buId);
@@ -574,21 +552,6 @@ function ClientDetailModal({
       setSelectedAccountManager(String(client.account_manager_user_id || ""));
     } finally {
       setAmSaving(false);
-    }
-  };
-
-  const handleClientOwnerChange = async (coId) => {
-    setSelectedClientOwner(coId);
-    if (!client?.id) return;
-
-    setCoSaving(true);
-    try {
-      await updateClient(client.id, { client_owner_id: coId || null });
-    } catch (err) {
-      console.error("Failed to update client owner:", err);
-      setSelectedClientOwner(String(client.client_owner_id || ""));
-    } finally {
-      setCoSaving(false);
     }
   };
 
@@ -684,16 +647,6 @@ function ClientDetailModal({
                     disabled={amSaving}
                   />
                   {amSaving && <div className="mt-1 text-xs text-gray-500">Saving...</div>}
-                </div>
-                <div>
-                  <label className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Client Owner</label>
-                  <Select
-                    value={selectedClientOwner}
-                    onChange={handleClientOwnerChange}
-                    options={clientOwnerOptions}
-                    disabled={coSaving}
-                  />
-                  {coSaving && <div className="mt-1 text-xs text-gray-500">Saving...</div>}
                 </div>
               </FieldGroup>
 
