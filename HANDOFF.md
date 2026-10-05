@@ -3,37 +3,60 @@
 Start a new Claude Code session on `main` and say: "Read HANDOFF.md and continue."
 Work directly on `main` (no feature branches); push to `origin main` after checks.
 
-## Production status (hrms.blitzenx.com)
+## Production status (hrms.blitzenx.com) — UP since 2026-10-05 ~20:00 UTC
 
-- **Backend is DOWN.** Every `/api/*` request returns `502 Bad Gateway` from nginx.
-  The frontend loads, but nginx can't reach the backend process. Cause not visible
-  from outside. On the server:
-  ```
-  sudo systemctl status wros-backend
-  sudo journalctl -u wros-backend -n 200 --no-pager
-  sudo systemctl status wros-queue-worker
-  ```
-  If it fails at startup, the log will name it. The LinkedIn startup backfill
-  can no longer block startup (fixed in 5f3067ed).
+Verified: `https://hrms.blitzenx.com/api/health` → 200, login UI reaches the
+backend (validate-email / login), queue worker running, a queued LinkedIn
+`create_candidate` completed (`CAN-9dab3d60…`). Not verified: a real user
+login (needs a real password; do it in the browser yourself).
 
-## CI/CD — deploy to prod (fixed in this session, verify first run)
+### What was wrong and what was fixed (2026-10-05, second session)
 
-The deploy pipeline never actually deployed (at least since 2026-09-23):
-
-| Workflow | Problem | Fix |
+| # | Problem | Fix |
 |---|---|---|
-| `test-and-deploy.yml` (the real SSH deploy) | Change detection diffed `origin/main...HEAD`, always empty on a push to main, so it skipped every deploy and reported success | Diff `github.event.before..HEAD`; deploy unless a test job failed (skipped test jobs no longer block) |
-| `test-and-deploy.yml` backend step | Ran `alembic upgrade head` (Alembic isn't used; schema is created by `db_contract.initialize_database()` at startup), so the step failed before the restart | Install into `/home/HRMS/WROS-Master/venv`, `systemctl restart wros-backend` and `wros-queue-worker`; health check prints `journalctl` on failure |
-| `test-and-deploy.yml` frontend step | Rebuilt on the server against `http://46.224.149.7:8080` (plain-http IP, so the browser blocks it on https) and overwrote the CI build | Removed; the frontend is deployed only by `deploy.yml` |
-| `deploy.yml` (frontend) | `npm ci` failed: `package-lock.json` had typescript 7.0.2, `package.json` wants 4.9.5 | Lock regenerated (`npm install --package-lock-only`); `npm ci --dry-run` passes |
-| `deploy-backend.yml` | Invalid file (top-level `outputs:`), plus Celery steps (no Celery in repo) | Fixed; it validates/simulates only — it does **not** deploy |
+| 1 | Server was still on `aaaae253`, which crashes on import (`IndentationError` in `secrets_manager.py`) → systemd restart loop → nginx 502 | Shipped `main` to the server as a git bundle over ssh (server has no GitHub credentials) |
+| 2 | Startup then died: 25 model columns missing from the prod DB (`role_templates.hierarchy_level` first). `create_all()` never alters existing tables | `db_contract.py` Migration 5 adds them (`3ac04ba6`). Existing users get `password_reset_required=false` (no forced reset) |
+| 3 | Every candidate creation failed: `tasks.candidate_id VARCHAR(36)` vs 40-char `CAN-<uuid>`. 676 varchar columns in prod were shorter than the models | Migration 7 `_widen_short_varchar_columns()` — generic, widen-only, idempotent (`71e1ef79`, `9849cd2f`). Model-vs-prod scan now clean except `api_keys_config.created_by/updated_by` (DB varchar on purpose, Migration 1) |
+| 4 | Worker left failed messages in `PROCESSING` forever (marked FAILED on an already-broken session) | `db.rollback()` before marking FAILED (`9849cd2f`); the stuck message was re-queued and completed |
+| 5 | Frontend live since 09-12 called `http://localhost:8080`; `.env.production` pointed at `api.blitzenx.com` (doesn't resolve publicly) | `REACT_APP_API_URL=https://hrms.blitzenx.com/api` (nginx strips `/api`, backend serves `/api/v1/...`), built and deployed (`1690d5cf`). Previous build kept at `frontend/build-prev-1791230584` |
+| 6 | No `wros-queue-worker` unit exists on the server | Cron watchdog in `HRMS`'s crontab: `flock` single instance, restarts within 1 min, survives reboot. Log: `/home/HRMS/wros-queue-worker.log` |
+| 7 | Startup printed `DATABASE_URL` with the password (journald) — and the same password is in git history | Logs now mask it (`***`). **DB password rotated** (40 random chars, generated on the server, only in `backend/.env` there). Old password rejected by Postgres |
+| 8 | CI `npm ci` failed: lock written by npm 11, runners use npm 10; Node 18 too old | Lock regenerated with npm 10.9 (`b132a4c5`); `test-and-deploy.yml` on Node 22 |
 
-**Next:** watch the Actions run for this push. Required secrets: `PROD_SSH_KEY`,
-`PROD_SERVER_HOST`, `PROD_USER`. The SSH user needs passwordless `sudo systemctl
-restart wros-backend wros-queue-worker` and `journalctl`. If the SSH deploy fails,
-the log shows which step.
+## Deploying
 
-## Done today (all on main)
+The `HRMS` user has **no usable sudo** (`sudo -l` lists NOPASSWD ALL, but every
+`sudo -n` asks for a password) and the server **cannot `git fetch`**. So:
+
+- **Backend:** `backend/scripts/deploy_backend.sh` runs on the server, piped over
+  ssh. It fetches a git bundle, `pip install`s, refuses to restart if `import
+  app.main` fails, restarts by killing the uvicorn process (unit has
+  `Restart=always`), health-checks `/health` for 200, **rolls back** on failure,
+  installs the worker cron and restarts the worker. `test-and-deploy.yml` calls
+  it. Manual deploy from a dev machine (ssh key in `~/.ssh` works, port 22587):
+  ```
+  SHA=$(git rev-parse HEAD); SERVER_SHA=$(ssh -p 22587 HRMS@46.224.149.7 "git -C /home/HRMS/WROS-Master rev-parse HEAD")
+  git bundle create /tmp/deploy.bundle "$SERVER_SHA..HEAD"
+  scp -P 22587 /tmp/deploy.bundle HRMS@46.224.149.7:/tmp/wros-deploy.bundle
+  ssh -p 22587 HRMS@46.224.149.7 "bash -s -- /tmp/wros-deploy.bundle $SHA" < backend/scripts/deploy_backend.sh
+  ```
+- **Frontend:** `deploy.yml` (build in CI, scp to `frontend/build-new`, swap). nginx
+  root is `/home/HRMS/WROS-Master/frontend/build/build`. Manual: `npm run build`
+  locally, upload to `frontend/build-new/build`, `mv build build-prev-<ts>; mv build-new build`.
+- **GitHub Actions has not run a deploy yet:** today's jobs failed with "not
+  acquired by Runner" (hosted-runner capacity / billing on the account). The new
+  backend deploy path was exercised manually (3 deploys today), not from CI.
+
+### Server loose ends (need sudo or a decision)
+
+- A proper `wros-queue-worker` systemd unit would be better than cron (needs sudo).
+- `wros-queue-worker.log` has no rotation (~1 line / 30 s).
+- `frontend/build-old` is owned by another user and can't be removed without sudo;
+  `build-prev-*` directories accumulate.
+- The old DB password is still in git history, `CLAUDE.md` and several tracked
+  `backend/*.py` scripts. It no longer opens prod; it's still the local-dev password.
+
+## Done earlier today (all on main)
 
 - Client/BU fields use real dropdowns; Account Manager comes from users (`clients.account_manager_user_id`); Client Owner removed.
 - Job approval flow commented out: every new job is `active` (create_job, Flash chat, queue handler). Status can't be edited directly.
