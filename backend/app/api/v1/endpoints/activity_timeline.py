@@ -71,7 +71,7 @@ def post_timeline_entry(
 @router.post(
     "/file-uploads/{entity_type}/{entity_id}",
     response_model=FileUploadOut,
-    dependencies=[Depends(require_resource_permission("documents", "create"))]
+    dependencies=[Depends(require_resource_permission("candidates", "create"))]
 )
 def post_file_upload(
     entity_type: str, entity_id: str,
@@ -104,7 +104,7 @@ def post_file_upload(
 @router.get(
     "/file-uploads/{file_id}/access-url",
     response_model=FileAccessUrlResponse,
-    dependencies=[Depends(require_resource_permission("documents", "view"))]
+    dependencies=[Depends(require_resource_permission("candidates", "view"))]
 )
 def get_access_url(
     file_id: int,
@@ -121,7 +121,7 @@ def get_access_url(
 @router.get(
     "/file-uploads/{entity_type}/{entity_id}",
     response_model=list[FileUploadOut],
-    dependencies=[Depends(require_resource_permission("documents", "view"))]
+    dependencies=[Depends(require_resource_permission("candidates", "view"))]
 )
 def get_files_for_entity(
     entity_type: str, entity_id: str,
