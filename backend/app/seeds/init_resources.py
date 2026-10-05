@@ -22,8 +22,10 @@ from app.contracts import MODULES_AND_RESOURCES as CONTRACT_MODULES_AND_RESOURCE
 # This ensures database always matches the contract
 MODULES_AND_RESOURCES = CONTRACT_MODULES_AND_RESOURCES
 
-# Resource-specific route paths (custom routes for certain resources)
-# Maps resource name to frontend route path
+# Resource -> frontend page. A resource listed here is a screen and appears in
+# the nav menu (navigation.py); a resource NOT listed here is permission-only
+# (e.g. dashboard-view grants) and never becomes a menu item. Every route must
+# exist in frontend/src/routes/Approutes.jsx or AdminRoutes.jsx.
 RESOURCE_ROUTES = {
     # Personal
     "dashboard": "/",
@@ -31,83 +33,76 @@ RESOURCE_ROUTES = {
     "my-timesheet": "/my-timesheet",
     "my-expenses": "/my-expenses",
     "my-referrals": "/my-referrals",
-
-    # Admin
-    "users-access-control": "admin/users-access-control",
-    "role-templates": "admin/users-access-control",
-    "roles-permissions": "admin/roles-permissions",
-    "admin-settings": "admin/admin-settings",
-    "business-units": "admin/users-access-control/business-units",
-    "delivery-centers": "admin/users-access-control/delivery-centers",
-    "certifications": "admin/certifications",
-    "error-logs": "admin/error-log",
-    "message-queue": "admin/messagequeue",
-    "ticket-routing": "admin/ticket-routing",
-    "ai-config": "admin/ai-config",
-    "locale-currency": "settings/locale",
-    "message-templates": "settings/templates",
-    "slm-dashboard": "admin/slm-dashboard",
-    "slm-training-data": "admin/slm-training",
-
     # Recruitment
-    "candidate-review": "hm-candidate-review",
-    "risk-dashboard": "recruiter/risk-dashboard",
-    "thunder-analytics": "recruiter/thunder-analytics",
-    "bulk-launch": "recruiter/bulk-launch",
-    "intervention-queue": "recruiter/intervention-queue",
-    "rehire-approval": "recruiter/rehire-approvals",
-    "offer-letters": "offers",
-
+    "candidates": "/candidates",
+    "jobs": "/jobs",
+    "submissions": "/submissions",
+    "offer-letters": "/offers-listing",
+    "intervention-queue": "/recruiter/intervention-queue",
+    "rehire-approval": "/recruiter/rehire-approvals",
+    "thunder-analytics": "/recruiter/thunder-analytics",
+    "checklists": "/checklist-templates",
+    "candidate-review": "/hm-candidate-review",
+    "risk-dashboard": "/recruiter/risk-dashboard",
+    "bulk-launch": "/recruiter/bulk-launch",
     # Workforce
-    "htd-intake": "htd-intake",
-    "buddy-program": "buddy-program",
-    "convert-to-employee": "employee-conversion",
-    "allocations": "allocations",
-
+    "employees": "/employees",
+    "allocations": "/allocations",
+    "timesheets": "/timesheets",
+    "htd-intake": "/htd-intake",
+    "buddy-program": "/buddy-program",
+    "convert-to-employee": "/employee-conversion",
+    "utilization-dashboard": "/utilization-dashboard",
+    "resource-forecast": "/forecast",
     # Sales
-    "clients": "client-management",
-    "opportunities": "opportunity-pipeline",
-    "sales-ops": "revenue",
-    "partner-roi": "partner-roi",
-    "demand-confirmation": "demand-confirmation",
-
+    "clients": "/client-management",
+    "opportunities": "/opportunity-pipeline",
+    "sales-ops": "/revenue",
+    "demand-confirmation": "/demand-confirmation",
     # Project Management
-    "core-pull": "core-pull",
-    "utilization-dashboard": "utilization-dashboard",
-    "resource-forecast": "forecast",
-    "forecast-vs-actual": "forecast-vs-actual",
-
+    "projects": "/projects",
+    "core-pull": "/core-pull",
     # Finance
-    "invoice-management": "invoice-management",
-    "finance-operations": "finance-operations",
-    "executive-revenue-dashboard": "executive-revenue-dashboard",
-    "revenue": "revenue",
-    "forecasts": "forecast",
-
+    "invoices": "/invoices",
+    "forecasts": "/forecast",
+    "invoice-management": "/invoice-management",
+    "finance-operations": "/finance-operations",
+    "executive-revenue-dashboard": "/executive-revenue-dashboard",
+    "revenue": "/revenue",
     # Reporting
-    "bi-explorer": "bi-explorer",
-
+    "bi-explorer": "/bi-explorer",
+    # System
+    "api-keys": "/api-keys",
+    "error-logs": "/admin/error-log",
+    "system-health": "/system-health",
+    "slm-training-data": "/admin/slm-training",
+    "message-queue": "/admin/messagequeue",
+    "ticket-routing": "/admin/ticket-routing",
+    "ai-config": "/admin/ai-config",
+    "locale-currency": "/settings/locale",
     # Executive
-    "ceo-dashboard": "ceo-fy-progress",
-    "cfo-dashboard": "cfo-dashboard",
-    "partner-dashboard": "troy-partner-dashboard",
-    "bu-head-dashboard": "bu-head-dashboard",
-    "executive-signal": "executive-signal",
-    "admin-agent-state": "admin/agent-state-dashboard",
-    "admin-weekly-recap": "admin/weekly-recap",
-    "training-certification": "training-certification",
-
+    "ceo-dashboard": "/ceo-fy-progress",
+    "cfo-dashboard": "/cfo-dashboard",
+    "partner-dashboard": "/troy-partner-dashboard",
+    "executive-signal": "/executive-signal",
+    "admin-agent-state": "/admin/agent-state-dashboard",
+    "admin-weekly-recap": "/admin/weekly-recap",
+    "bu-head-dashboard": "/bu-head-dashboard",
+    # Admin
+    "users-access-control": "/admin/users-access-control/users",
+    "certifications": "/admin/certifications",
+    "role-templates": "/admin/users-access-control/role-templates",
+    "business-units": "/admin/users-access-control/business-units",
+    "delivery-centers": "/admin/users-access-control/delivery-centers",
+    "organizational-hierarchy": "/admin/users-access-control/organizational-hierarchy",
     # Executive Dashboards
-    "ceo-dashboard-view": "ceo-fy-progress",
-    "cfo-dashboard-view": "cfo-dashboard",
-    "partner-dashboard-view": "troy-partner-dashboard",
-    "bu-head-dashboard-view": "bu-head-dashboard",
-
+    "ceo-dashboard-view": "/ceo-fy-progress",
+    "cfo-dashboard-view": "/cfo-dashboard",
+    "partner-dashboard-view": "/troy-partner-dashboard",
+    "bu-head-dashboard-view": "/bu-head-dashboard",
     # AI & Automation
-    "ask-thunder": "ai/thunder",
-    "thunder-analytics": "ai/thunder-analytics",
-    "ask-flash": "ai/flash",
-    "ai-coaching": "ai/coaching",
+    "ask-thunder": "/thunder",
+    "slm-dashboard": "/admin/slm-dashboard",
 }
 
 def init_modules_and_resources(db: Session, tenant_id: int = 1):

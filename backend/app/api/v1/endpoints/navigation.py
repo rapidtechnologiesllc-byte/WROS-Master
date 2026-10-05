@@ -119,13 +119,19 @@ def get_user_navigation(db: Session = Depends(get_db), current_user = Depends(ge
             logger.error(f"Failed to check super-user status: {e}")
             is_super = False
 
-        # Build navigation from init_resources
-        import sys
+        # Build navigation from init_resources. Only resources with a page
+        # (RESOURCE_ROUTES) become menu items; the rest are permission-only.
+        # Each page appears once, under the first module that lists it.
+        seen_routes = set()
         for module_name, resource_names in MODULES_AND_RESOURCES.items():
             module_icon = module_icons.get(module_name, "Briefcase")
             navigation_modules[module_name] = {"label": module_name, "icon": module_icon, "items": []}
 
             for resource_name in resource_names:
+                route = RESOURCE_ROUTES.get(resource_name)
+                if not route or route in seen_routes:
+                    continue
+
                 # SUPER USER: Allow all resources without permission check
                 if is_super:
                     can_view = True
@@ -139,10 +145,7 @@ def get_user_navigation(db: Session = Depends(get_db), current_user = Depends(ge
                     can_view = all_permissions.get(resource_name, {}).get("can_view", False)
 
                 if can_view:
-                    route = RESOURCE_ROUTES.get(resource_name) or f"/{resource_name}"
-                    if not route.startswith('/'):
-                        route = f"/{route}"
-
+                    seen_routes.add(route)
                     navigation_modules[module_name]["items"].append({
                         "key": resource_name,
                         "label": resource_name.replace('-', ' ').title(),
