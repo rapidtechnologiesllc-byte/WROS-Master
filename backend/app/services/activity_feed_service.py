@@ -173,18 +173,23 @@ def _serialize(db: Session, event: ConversationEvent, candidate: Optional[Candid
 
 
 def get_activity_feed(
-    db: Session, tenant_id: str, *, candidate_id: Optional[str] = None, severity: Optional[str] = None,
+    db: Session, tenant_id, *, candidate_id: Optional[str] = None, severity: Optional[str] = None,
     page: int = 1, per_page: int = 25, since_days: int = DEFAULT_RETENTION_DAYS,
 ) -> Dict:
     """Step 3. Never raises -- callers should still catch to satisfy
     this story's own "show 'Activity feed unavailable', do not crash"
-    integration note, but internal query failures aren't expected here."""
+    integration note, but internal query failures aren't expected here.
+
+    Scoped by the candidate's tenant (Candidate.tenant_id).
+    CandidateConversation.tenant_id holds a users.UserID, not a tenant, so
+    filtering on it with a tenant id never matched anything."""
     since = datetime.utcnow() - timedelta(days=since_days)
 
     query = (
         db.query(ConversationEvent, CandidateConversation)
         .join(CandidateConversation, ConversationEvent.conversation_id == CandidateConversation.id)
-        .filter(CandidateConversation.tenant_id == tenant_id, ConversationEvent.event_type.in_(ACTIVITY_EVENT_TYPES), ConversationEvent.created_at >= since)
+        .join(Candidate, Candidate.candidateID == CandidateConversation.candidate_id)
+        .filter(Candidate.tenant_id == int(tenant_id), ConversationEvent.event_type.in_(ACTIVITY_EVENT_TYPES), ConversationEvent.created_at >= since)
     )
     if candidate_id:
         query = query.filter(CandidateConversation.candidate_id == candidate_id)
@@ -208,7 +213,8 @@ def get_activity_feed(
     unread_count_query = (
         db.query(ConversationEvent)
         .join(CandidateConversation, ConversationEvent.conversation_id == CandidateConversation.id)
-        .filter(CandidateConversation.tenant_id == tenant_id, ConversationEvent.event_type.in_(ACTIVITY_EVENT_TYPES), ConversationEvent.created_at >= since)
+        .join(Candidate, Candidate.candidateID == CandidateConversation.candidate_id)
+        .filter(Candidate.tenant_id == int(tenant_id), ConversationEvent.event_type.in_(ACTIVITY_EVENT_TYPES), ConversationEvent.created_at >= since)
     )
     if candidate_id:
         unread_count_query = unread_count_query.filter(CandidateConversation.candidate_id == candidate_id)
@@ -224,19 +230,20 @@ def get_activity_feed(
     }
 
 
-def mark_read(db: Session, tenant_id: str, activity_id: int) -> bool:
-    """Step 3 PATCH /activity-feed/{id}/read. Idempotent."""
+def mark_read(db: Session, reader_user_id: str, activity_id: int) -> bool:
+    """Step 3 PATCH /activity-feed/{id}/read. Idempotent.
+    ActivityFeedReadState.tenant_id is a FK to users.UserID: the reader."""
     event = db.query(ConversationEvent).filter(ConversationEvent.id == activity_id).first()
     if event is None:
         return False
     existing = db.query(ActivityFeedReadState).filter(ActivityFeedReadState.conversation_event_id == activity_id).first()
     if existing is None:
-        db.add(ActivityFeedReadState(tenant_id=tenant_id, conversation_event_id=activity_id))
+        db.add(ActivityFeedReadState(tenant_id=reader_user_id, conversation_event_id=activity_id))
         db.commit()
     return True
 
 
-def mark_all_read(db: Session, tenant_id: str, *, candidate_id: Optional[str] = None, since_days: int = DEFAULT_RETENTION_DAYS) -> int:
+def mark_all_read(db: Session, tenant_id, reader_user_id: str, *, candidate_id: Optional[str] = None, since_days: int = DEFAULT_RETENTION_DAYS) -> int:
     """Step 3 PATCH /activity-feed/read-all. BR-01: only INFO/WARNING --
     ACTION_REQUIRED items are never auto-marked read here."""
     since = datetime.utcnow() - timedelta(days=since_days)
@@ -245,7 +252,8 @@ def mark_all_read(db: Session, tenant_id: str, *, candidate_id: Optional[str] = 
     query = (
         db.query(ConversationEvent)
         .join(CandidateConversation, ConversationEvent.conversation_id == CandidateConversation.id)
-        .filter(CandidateConversation.tenant_id == tenant_id, ConversationEvent.event_type.in_(clearable_types), ConversationEvent.created_at >= since)
+        .join(Candidate, Candidate.candidateID == CandidateConversation.candidate_id)
+        .filter(Candidate.tenant_id == int(tenant_id), ConversationEvent.event_type.in_(clearable_types), ConversationEvent.created_at >= since)
     )
     if candidate_id:
         query = query.filter(CandidateConversation.candidate_id == candidate_id)
@@ -256,7 +264,7 @@ def mark_all_read(db: Session, tenant_id: str, *, candidate_id: Optional[str] = 
     newly_marked = 0
     for event_id in event_ids:
         if event_id not in already_read:
-            db.add(ActivityFeedReadState(tenant_id=tenant_id, conversation_event_id=event_id))
+            db.add(ActivityFeedReadState(tenant_id=reader_user_id, conversation_event_id=event_id))
             newly_marked += 1
     if newly_marked:
         db.commit()

@@ -268,6 +268,9 @@ def get_all_candidates(db: Session = Depends(get_db)):
                 'candidate_skills': _serialize_skills(c.candidateSkills),
                 'candidate_expected_salary': c.candidateExpectedSalary or '',
                 'candidate_current_salary': c.candidateCurrentSalary or '',
+                # Real flag for the list's Thunder toggle (it defaulted to
+                # "Enabled" when this key was missing)
+                'thunder_enabled': bool(c.thunder_enabled),
             })
 
         return {

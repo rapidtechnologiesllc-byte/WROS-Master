@@ -322,3 +322,20 @@ class ConversationEvent(Base):
         foreign_keys=[conversation_id],
         back_populates="events",
     )
+
+
+from sqlalchemy import event as _sa_event, select as _sa_select
+
+
+@_sa_event.listens_for(ConversationEvent, "before_insert")
+def _conversation_event_inherit_tenant(mapper, connection, target):
+    """tenant_id is NOT NULL with no default (deliberately: no silent '1'),
+    but nearly every one of the ~85 call sites that log an event omits it,
+    so those inserts failed. When omitted, inherit it from the parent
+    conversation -- the same users.UserID-valued owner key -- rather than
+    guessing. Still fails loudly if the conversation itself has none."""
+    if target.tenant_id is None and target.conversation_id is not None:
+        conversations = CandidateConversation.__table__
+        target.tenant_id = connection.execute(
+            _sa_select(conversations.c.tenant_id).where(conversations.c.id == target.conversation_id)
+        ).scalar()
