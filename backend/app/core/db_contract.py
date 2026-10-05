@@ -77,12 +77,31 @@ def initialize_database():
         _create_performance_indexes()
         logger.info("[OK] Database indexes created")
 
+        # Step 7: Follow-up tasks for LinkedIn pipeline items queued before
+        # task creation existed (idempotent)
+        logger.info("[Contract] Step 7: Backfilling LinkedIn outreach tasks...")
+        _initialize_linkedin_outreach_tasks()
+        logger.info("[OK] LinkedIn outreach tasks backfilled")
+
         logger.info("[OK] Database contract validated - all systems ready")
 
     except Exception as e:
         logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"[FAILED] Database contract violation: {e}", exc_info=True)
         raise
+
+def _initialize_linkedin_outreach_tasks():
+    """Open a follow-up task for in-progress LinkedIn pipeline items that have none."""
+    from app.services.linkedin_pipeline_task_service import backfill_outreach_tasks
+    db = SessionLocal()
+    try:
+        backfill_outreach_tasks(db)
+    except Exception as e:
+        db.rollback()
+        logger.error(f"[Contract] LinkedIn outreach task backfill failed: {e}", exc_info=True)
+        raise
+    finally:
+        db.close()
 
 def _initialize_tenant():
     """Ensure tenant_id=1 (BlitzenX) exists."""

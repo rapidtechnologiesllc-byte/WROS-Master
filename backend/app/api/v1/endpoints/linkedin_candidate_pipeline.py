@@ -18,6 +18,7 @@ from app.core.logging import logger
 from app.models.linkedin_candidate_pipeline import LinkedInCandidatePipeline, LinkedInPipelineStatus
 from app.models.consent import ConsentRecord
 from app.models.user import Users
+from app.services.linkedin_pipeline_task_service import sync_outreach_task
 from fastapi import Request
 
 router = APIRouter(prefix="/linkedin-candidate-pipeline", tags=["LinkedIn Pipeline"])
@@ -43,16 +44,52 @@ class LinkedInPipelineItemResponse(BaseModel):
     class Config:
         from_attributes = True
 
+class LinkedInStatusUpdateRequest(BaseModel):
+    status: str
+    notes: Optional[str] = None
+
 def parse_linkedin_url(linkedin_url: str) -> str:
     """Extract profile slug from LinkedIn URL."""
     # Match /in/profile-slug pattern
-    match = re.search(r'/in/([a-z0-9-]+)', linkedin_url.lower())
+    match = re.search(r'/in/([a-z0-9_%-]+)', linkedin_url.lower())
     if not match:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid LinkedIn URL format. Expected: https://linkedin.com/in/profile-slug"
         )
     return match.group(1)
+
+def canonical_linkedin_url(profile_slug: str) -> str:
+    """One stored form per profile, so http/https, www, trailing slash and
+    query strings can't create duplicate entries for the same person."""
+    return f"https://www.linkedin.com/in/{profile_slug}"
+
+def _candidate_with_profile(db: Session, profile_slug: str):
+    """Existing candidate whose LinkedIn URL points at the same profile."""
+    from app.models.candidate import Candidate
+    rows = db.query(Candidate).filter(Candidate.linkedin_url.ilike(f"%/in/{profile_slug}%")).all()
+    for candidate in rows:
+        try:
+            if parse_linkedin_url(candidate.linkedin_url) == profile_slug:
+                return candidate
+        except HTTPException:
+            continue
+    return None
+
+def _user_display_name(db: Session, user_id: Optional[str]) -> Optional[str]:
+    if not user_id:
+        return None
+    user = db.query(Users).filter(Users.UserID == user_id).first()
+    return (user.UserName or user.UserEmail) if user else user_id
+
+# Forward-only manual transitions. IMPORTED_TO_THUNDER is only reachable via
+# /complete-import, which actually creates the candidate.
+_ALLOWED_TRANSITIONS = {
+    LinkedInPipelineStatus.PENDING_CONNECTION: {LinkedInPipelineStatus.CONNECTED},
+    LinkedInPipelineStatus.CONNECTED: {LinkedInPipelineStatus.PHONE_COLLECTED},
+    LinkedInPipelineStatus.PHONE_COLLECTED: set(),
+    LinkedInPipelineStatus.IMPORTED_TO_THUNDER: set(),
+}
 
 @router.post("/linkedin-queue")
 async def queue_linkedin_candidate(
@@ -73,26 +110,42 @@ async def queue_linkedin_candidate(
     logger = logging.getLogger(__name__)
 
     try:
-        linkedin_url = request.linkedin_url
-        profile_slug = parse_linkedin_url(linkedin_url)
-        print(f"[PARSED] Profile slug: {profile_slug}", flush=True)
+        profile_slug = parse_linkedin_url(request.linkedin_url)
+        linkedin_url = canonical_linkedin_url(profile_slug)
 
-        # Query 1: Check if already in pipeline (skip Candidate check to avoid SQLAlchemy reflection issue in HTTP context)
+        # Duplicate 1: same profile already in the pipeline (any owner), matched
+        # on the profile slug so URL variants of the same person are caught
         existing_pipeline = db.query(LinkedInCandidatePipeline).filter(
-            LinkedInCandidatePipeline.linkedin_url == linkedin_url
+            LinkedInCandidatePipeline.linkedin_profile_slug == profile_slug
         ).first()
 
         if existing_pipeline:
+            owner = _user_display_name(db, existing_pipeline.assigned_to_user_id)
+            pipeline_status = existing_pipeline.status.value if hasattr(existing_pipeline.status, "value") else str(existing_pipeline.status)
+            mine = existing_pipeline.assigned_to_user_id == current_user.UserID
             return {
                 "status": "ALREADY_QUEUED",
-                "message": f"Already in your LinkedIn queue",
+                "message": "Already in your LinkedIn queue" if mine else f"Already in {owner}'s LinkedIn queue",
                 "pipeline_item": {
                     "id": str(existing_pipeline.id),
-                    "status": existing_pipeline.status,
+                    "status": pipeline_status,
+                    "assigned_to": owner,
                     "created_at": existing_pipeline.created_at.isoformat(),
                     "updated_at": existing_pipeline.updated_at.isoformat(),
                     "notes": existing_pipeline.notes
                 }
+            }
+
+        # Duplicate 2: this person is already a candidate
+        existing_candidate = _candidate_with_profile(db, profile_slug)
+        if existing_candidate:
+            candidate_name = " ".join(
+                filter(None, [existing_candidate.candidateFirstName, existing_candidate.candidateLastName])
+            ) or existing_candidate.candidateEmail
+            return {
+                "status": "ALREADY_EXISTS",
+                "message": "Candidate already in the system",
+                "candidate": {"id": existing_candidate.candidateID, "name": candidate_name},
             }
 
         # Query 3: All checks passed - create new pipeline record
@@ -121,12 +174,15 @@ async def queue_linkedin_candidate(
             linkedin_profile_slug=profile_slug,
             status=LinkedInPipelineStatus.PENDING_CONNECTION,
             assigned_to_user_id=user_id_str,
-            created_by_user_id=user_id_str
+            created_by_user_id=user_id_str,
+            tenant_id=str(current_user.tenant_id) if current_user.tenant_id is not None else None,
         )
 
         try:
             db.add(pipeline_item)
             db.flush()  # Test for constraint violations BEFORE commit
+            # Follow-up task for the first step (send connection request)
+            sync_outreach_task(db, pipeline_item, current_user.tenant_id)
             db.commit()
             db.refresh(pipeline_item)
         except Exception as ie:
@@ -143,6 +199,8 @@ async def queue_linkedin_candidate(
             "pipeline_item_id": str(pipeline_item.id),
             "profile_slug": profile_slug
         }
+    except HTTPException:
+        raise
     except Exception as e:
         import logging
         import traceback
@@ -276,6 +334,8 @@ async def complete_linkedin_import(
     pipeline_item.updated_at = datetime.utcnow()
 
     try:
+        # Closes the "import to Thunder" task; Thunder owns outreach from here
+        sync_outreach_task(db, pipeline_item, current_user.tenant_id)
         db.commit()
     except Exception as e:
         logger.error(f"[LINKEDIN] Failed to commit pipeline update: {e}", exc_info=True)
@@ -304,9 +364,13 @@ async def get_linkedin_activity_for_dashboard(
     status, and pending actions.
     """
 
-    query = db.query(LinkedInCandidatePipeline).order_by(
+    # The logged-in user's own outreach (items assigned to them)
+    query = db.query(LinkedInCandidatePipeline).filter(
+        LinkedInCandidatePipeline.assigned_to_user_id == current_user.UserID
+    ).order_by(
         LinkedInCandidatePipeline.created_at.desc()
     ).all()
+    owner_name = current_user.UserName or current_user.UserEmail
 
     items = []
     for item in query:
@@ -325,7 +389,7 @@ async def get_linkedin_activity_for_dashboard(
             "id": str(item.id),
             "candidate_name": item.linkedin_profile_slug.replace("-", " ").title(),
             "linkedin_url": item.linkedin_url,
-            "assigned_to": "Unassigned" if not item.assigned_to_user_id else str(item.assigned_to_user_id),
+            "assigned_to": owner_name,
             "days_in_pipeline": days_in_pipeline,
             "status": item.status.value if item.status else "Unknown",
             "phone_number": item.phone_number,
@@ -343,12 +407,17 @@ async def get_linkedin_activity_for_dashboard(
 @router.put("/{pipeline_id}/status")
 async def update_pipeline_status(
     pipeline_id: str,
-    status: str,
-    notes: Optional[str] = None,
+    request: LinkedInStatusUpdateRequest,
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user)
 ):
-    """Update pipeline item status and notes."""
+    """Move a pipeline item to its next stage (JSON body: {status, notes}).
+
+    Forward-only: Pending Connection -> Connected -> Phone Collected.
+    Imported to Thunder is set by /complete-import, which creates the
+    candidate. Each move completes the current follow-up task and opens the
+    next one for the item's owner.
+    """
     pipeline_item = db.query(LinkedInCandidatePipeline).filter(
         LinkedInCandidatePipeline.id == pipeline_id
     ).first()
@@ -356,20 +425,30 @@ async def update_pipeline_status(
     if not pipeline_item:
         raise HTTPException(status_code=404, detail="Pipeline item not found")
 
-    # Convert string status to enum
     try:
-        status_enum = LinkedInPipelineStatus[status] if isinstance(status, str) else status
-        pipeline_item.status = status_enum
-    except (KeyError, AttributeError):
+        new_status = LinkedInPipelineStatus[request.status]
+    except KeyError:
         raise HTTPException(
             status_code=400,
-            detail=f"Invalid status: {status}. Valid values: {[s.value for s in LinkedInPipelineStatus]}"
+            detail=f"Invalid status: {request.status}. Valid values: {[s.value for s in LinkedInPipelineStatus]}"
         )
 
-    if notes:
-        pipeline_item.notes = notes
+    current_status = pipeline_item.status
+    if new_status not in _ALLOWED_TRANSITIONS.get(current_status, set()):
+        if new_status == LinkedInPipelineStatus.IMPORTED_TO_THUNDER:
+            detail = "Use Import (with the phone number) to move a candidate to Imported to Thunder."
+        else:
+            detail = f"Cannot move from {current_status.value} to {new_status.value}."
+        raise HTTPException(status_code=400, detail=detail)
+
+    pipeline_item.status = new_status
+    if new_status == LinkedInPipelineStatus.CONNECTED:
+        pipeline_item.connected_at = datetime.utcnow()
+    if request.notes:
+        pipeline_item.notes = request.notes
     pipeline_item.updated_at = datetime.utcnow()
 
+    sync_outreach_task(db, pipeline_item, current_user.tenant_id)
     db.commit()
     db.refresh(pipeline_item)
 

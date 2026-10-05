@@ -26,7 +26,8 @@ export default function LinkedInActivityTable() {
   const [sortBy, setSortBy] = useState("created_at");
   const [sortOrder, setSortOrder] = useState("desc");
 
-  const token = localStorage.getItem("token");
+  // The app stores the session token under "hrms_token"
+  const token = localStorage.getItem("hrms_token");
 
   useEffect(() => {
     const fetchActivity = async () => {

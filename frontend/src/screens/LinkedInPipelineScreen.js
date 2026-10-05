@@ -89,7 +89,8 @@ export default function LinkedInPipelineScreen() {
       } else if (result.status === "ALREADY_EXISTS") {
         setActionError(`⚠️ Candidate already in system: ${result.candidate?.name}`);
       } else if (result.status === "ALREADY_QUEUED") {
-        setActionError(`📋 Already in your queue (status: ${result.pipeline_item?.status})`);
+        const st = (result.pipeline_item?.status || "").replace(/_/g, " ");
+        setActionError(`📋 ${result.message} (status: ${st})`);
       }
     } catch (error) {
       const msg = error.response?.data?.detail || "Failed to queue candidate";
@@ -138,10 +139,10 @@ export default function LinkedInPipelineScreen() {
         { status: newStatus },
         { headers: { Authorization: `Bearer ${token}` } }
       );
-      setActionSuccess("✅ Status updated");
+      setActionSuccess("✅ Status updated. Your next follow-up task is on My Tasks.");
       loadPipeline();
     } catch (error) {
-      setActionError("Failed to update status");
+      setActionError(error.response?.data?.detail || "Failed to update status");
     }
   };
 
@@ -155,12 +156,12 @@ export default function LinkedInPipelineScreen() {
     return colors[status] || "bg-gray-100 text-gray-800";
   };
 
-  const STATUS_OPTIONS = [
-    "PENDING_CONNECTION",
-    "CONNECTED",
-    "PHONE_COLLECTED",
-    "IMPORTED_TO_THUNDER",
-  ];
+  // Forward-only manual steps (mirrors the backend). Imported to Thunder is
+  // reached through Import, which creates the candidate.
+  const NEXT_STATUS = {
+    PENDING_CONNECTION: "CONNECTED",
+    CONNECTED: "PHONE_COLLECTED",
+  };
 
   return (
     <div className="p-6 max-w-6xl mx-auto">
@@ -344,21 +345,18 @@ export default function LinkedInPipelineScreen() {
                   </div>
 
                   {/* Status Transitions */}
-                  {item.status !== "IMPORTED_TO_THUNDER" && (
+                  {NEXT_STATUS[item.status] && (
                     <div className="mb-4 p-3 bg-white border border-gray-200 rounded">
                       <label className="text-sm font-medium text-gray-700 block mb-2">
                         Update Status:
                       </label>
                       <div className="flex gap-2 flex-wrap">
-                        {STATUS_OPTIONS.filter((s) => s !== item.status).map((status) => (
-                          <button
-                            key={status}
-                            onClick={() => handleUpdateStatus(item.id, status)}
-                            className="px-3 py-1 text-sm bg-blue-100 text-blue-700 rounded hover:bg-blue-200 transition"
-                          >
-                            → {status.replace(/_/g, " ")}
-                          </button>
-                        ))}
+                        <button
+                          onClick={() => handleUpdateStatus(item.id, NEXT_STATUS[item.status])}
+                          className="px-3 py-1 text-sm bg-blue-100 text-blue-700 rounded hover:bg-blue-200 transition"
+                        >
+                          → {NEXT_STATUS[item.status].replace(/_/g, " ")}
+                        </button>
                       </div>
                     </div>
                   )}
