@@ -27,7 +27,14 @@ jobs:
       - name: Check for changes in each service
         id: changes
         run: |
-          git diff origin/main...HEAD --name-only > /tmp/changed_files.txt || echo "" > /tmp/changed_files.txt
+          # Compare against the commit before this push (origin/main == HEAD on
+          # a push to main, so the old diff always found nothing to deploy)
+          BEFORE="${{ github.event.before }}"
+          if [ -z "$BEFORE" ] || [ "$BEFORE" = "0000000000000000000000000000000000000000" ] || ! git cat-file -e "$BEFORE" 2>/dev/null; then
+            BEFORE="HEAD~1"
+          fi
+          git diff "$BEFORE" HEAD --name-only > /tmp/changed_files.txt || echo "" > /tmp/changed_files.txt
+          echo "Changed files:"; cat /tmp/changed_files.txt
 
           if grep -q "^backend/" /tmp/changed_files.txt; then
             echo "backend=true" >> $GITHUB_OUTPUT
@@ -149,7 +156,9 @@ jobs:
     name: Deploy Changed Services
     needs: [detect-changes, test-backend, test-frontend, test-careers]
     runs-on: ubuntu-latest
-    if: success()
+    # Test jobs for unchanged services are skipped; plain success() would then
+    # skip the deploy too. Deploy unless a test job actually failed.
+    if: ${{ !cancelled() && !contains(needs.*.result, 'failure') && (needs.detect-changes.outputs.backend-changed == 'true' || needs.detect-changes.outputs.frontend-changed == 'true') }}
 
     steps:
       - uses: actions/checkout@v4
@@ -172,23 +181,13 @@ jobs:
       - name: Deploy backend
         if: needs.detect-changes.outputs.backend-changed == 'true'
         run: |
+          # Schema changes are applied by db_contract.initialize_database() at
+          # startup (no Alembic in this project). Restart the real systemd services.
           ssh -o StrictHostKeyChecking=no -p 22587 ${{ env.PROD_USER }}@${{ env.PROD_SERVER }} \
             "bash -lc 'cd ${{ env.PROD_PATH }}/backend && \
-             python3 -m pip install --break-system-packages -r requirements.txt && \
-             python3 -m alembic upgrade head && \
-             sudo pkill -f uvicorn; sleep 1; \
-             nohup python3 -m uvicorn app.main:app --host 0.0.0.0 --port 8080 > /tmp/backend.log 2>&1 &'"
-        continue-on-error: true
-
-      - name: Deploy frontend
-        if: needs.detect-changes.outputs.frontend-changed == 'true'
-        run: |
-          ssh -o StrictHostKeyChecking=no -p 22587 ${{ env.PROD_USER }}@${{ env.PROD_SERVER }} \
-            "bash -lc 'cd ${{ env.PROD_PATH }}/frontend && \
-             npm install && \
-             REACT_APP_API_BASE_URL=http://46.224.149.7:8080 npm run build && \
-             sudo cp -r build/* /var/www/html/ 2>/dev/null || true'"
-        continue-on-error: true
+             ${{ env.PROD_PATH }}/venv/bin/python -m pip install -r requirements.txt && \
+             sudo systemctl restart wros-backend && \
+             (sudo systemctl restart wros-queue-worker 2>/dev/null || true)'"
 
       - name: Restart Nginx
         run: |
@@ -208,6 +207,9 @@ jobs:
             fi
             sleep 2
           done
+          echo "Backend did not become healthy. Recent service log:"
+          ssh -o StrictHostKeyChecking=no -p 22587 ${{ env.PROD_USER }}@${{ env.PROD_SERVER }} \
+            "sudo journalctl -u wros-backend -n 80 --no-pager" || true
           exit 1
 
       - name: Deployment summary
