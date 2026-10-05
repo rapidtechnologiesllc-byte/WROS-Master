@@ -375,9 +375,11 @@ export default function JobDetails({ job, onSubmit, onGoApproval, onUpdate, mode
       {/* Action Buttons */}
       {editingSection === null && (
         <div className="flex flex-wrap gap-2 justify-end">
+          {/* Job approval flow is disabled for now (jobs publish on create).
           <Button variant="secondary" onClick={onGoApproval}>
             Send to hiring manager (approval)
           </Button>
+          */}
           <Button onClick={onSubmit}>Submit to internal hiring team</Button>
         </div>
       )}

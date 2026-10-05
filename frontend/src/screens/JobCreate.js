@@ -1042,12 +1042,9 @@ export default function JobCreate({
 
         {current === 1 ? (
           <div className="mt-2 flex flex-wrap items-center justify-end gap-2">
-            <Button onClick={handleCreateJob} disabled={isSaving || !canCreateJobDirectly} title={!canCreateJobDirectly ? "You don't have permission to create jobs directly. Please submit for approval." : ""}>
-              {isSaving
-                ? "Creating..."
-                : canCreateJobDirectly
-                  ? "Create Job"
-                  : "Submit For Approval (No Permission)"}
+            {/* Job approval flow is disabled, so there is no "submit for approval" path */}
+            <Button onClick={handleCreateJob} disabled={isSaving || !canCreateJobDirectly} title={!canCreateJobDirectly ? "You don't have permission to create jobs." : ""}>
+              {isSaving ? "Creating..." : "Create Job"}
             </Button>
             <Button
               variant="secondary"

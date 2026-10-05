@@ -610,49 +610,56 @@ def create_job(request: JobCreateRequest, background_tasks: BackgroundTasks, db:
                     detail=f"User '{user_id}' provided for {field_name} does not exist in the system."
                 )
 
-    # VALIDATION: Prevent BU Head from being their own Hiring Manager (separation of duties)
-    if request.hiring_manager_id and request.business_unit:
-        from app.models.bu_access import BUAccess
-
-        # Get BU Head for this business unit
-        bu_head_role = db.query(RoleTemplate).filter(RoleTemplate.name == "BU Head").first()
-        if bu_head_role:
-            bu_head = db.query(Users).filter(
-                Users.role_template_id == bu_head_role.id,
-                Users.business_unit_id == request.business_unit
-            ).first()
-
-            # If hiring_manager_id is same as BU Head, reject (prevent self-approval)
-            if bu_head and request.hiring_manager_id == bu_head.UserID:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"BU Head cannot be their own Hiring Manager (separation of duties). Please assign a different hiring manager for this job."
-                )
-
-    # Determine job status based on the creator's role
-    if _can_auto_approve_job(user):
-        job_status = "active"
-        response_message = "Job published successfully"
-    else:
-        job_status = "pending_approval"
-        
-        # Check if we can assign approval to the Business Unit Head
-        if request.business_unit:
-            bu_head_role = db.query(RoleTemplate).filter(RoleTemplate.name == "BU Head").first()
-            if bu_head_role:
-                bu_head = db.query(Users).filter(
-                    Users.role_template_id == bu_head_role.id,
-                    Users.business_unit_id == request.business_unit
-                ).first()
-                if bu_head:
-                    approver_name = bu_head.UserName or bu_head.UserEmail
-                    response_message = f"Job submitted for approval. Awaiting approval from BU Head: {approver_name}"
-                else:
-                    response_message = "Job submitted for approval. A Super User must approve it before it goes live (No BU Head found for this unit)."
-            else:
-                response_message = "Job submitted for approval. A Super User or BU Head must approve it before it goes live."
-        else:
-            response_message = "Job submitted for approval. A Super User or BU Head must approve it before it goes live."
+    # JOB APPROVAL FLOW -- DISABLED (2026-10-05, product decision: approval
+    # needs an approver assignment + Approve UI that aren't built yet).
+    # Every new job is published immediately. To re-enable, uncomment the
+    # block below and delete the two lines after it. POST /approve_job and
+    # _can_auto_approve_job() are left in place for that.
+    # # VALIDATION: Prevent BU Head from being their own Hiring Manager (separation of duties)
+    # if request.hiring_manager_id and request.business_unit:
+    #     from app.models.bu_access import BUAccess
+    #
+    #     # Get BU Head for this business unit
+    #     bu_head_role = db.query(RoleTemplate).filter(RoleTemplate.name == "BU Head").first()
+    #     if bu_head_role:
+    #         bu_head = db.query(Users).filter(
+    #             Users.role_template_id == bu_head_role.id,
+    #             Users.business_unit_id == request.business_unit
+    #         ).first()
+    #
+    #         # If hiring_manager_id is same as BU Head, reject (prevent self-approval)
+    #         if bu_head and request.hiring_manager_id == bu_head.UserID:
+    #             raise HTTPException(
+    #                 status_code=400,
+    #                 detail=f"BU Head cannot be their own Hiring Manager (separation of duties). Please assign a different hiring manager for this job."
+    #             )
+    #
+    # # Determine job status based on the creator's role
+    # if _can_auto_approve_job(user):
+    #     job_status = "active"
+    #     response_message = "Job published successfully"
+    # else:
+    #     job_status = "pending_approval"
+    #
+    #     # Check if we can assign approval to the Business Unit Head
+    #     if request.business_unit:
+    #         bu_head_role = db.query(RoleTemplate).filter(RoleTemplate.name == "BU Head").first()
+    #         if bu_head_role:
+    #             bu_head = db.query(Users).filter(
+    #                 Users.role_template_id == bu_head_role.id,
+    #                 Users.business_unit_id == request.business_unit
+    #             ).first()
+    #             if bu_head:
+    #                 approver_name = bu_head.UserName or bu_head.UserEmail
+    #                 response_message = f"Job submitted for approval. Awaiting approval from BU Head: {approver_name}"
+    #             else:
+    #                 response_message = "Job submitted for approval. A Super User must approve it before it goes live (No BU Head found for this unit)."
+    #         else:
+    #             response_message = "Job submitted for approval. A Super User or BU Head must approve it before it goes live."
+    #     else:
+    #         response_message = "Job submitted for approval. A Super User or BU Head must approve it before it goes live."
+    job_status = "active"
+    response_message = "Job published successfully"
 
     # Generate unique job ID
     job_id = job_id_generator()
@@ -845,15 +852,15 @@ def update_job(job_id: str, request: JobUpdateRequest, db: Session = Depends(get
             detail=f"Job with ID {job_id} not found"
         )
 
-    # Status only moves through the approval flow (create decides
-    # active/pending_approval, POST /approve_job activates). Echoing the
-    # current status back is allowed so full-form saves keep working.
+    # Status is never edited directly: it is set at creation (approval flow
+    # is currently disabled, so new jobs are active) and by POST /approve_job.
+    # Echoing the current status back is allowed so full-form saves work.
     if request.job_status is not None and request.job_status != job.jobStatus:
         raise HTTPException(
             status_code=400,
             detail=(
                 f"Job status cannot be changed here (current: '{job.jobStatus}'). "
-                "Status changes go through the job approval flow."
+                "Job status is set by the system and cannot be edited."
             ),
         )
 
