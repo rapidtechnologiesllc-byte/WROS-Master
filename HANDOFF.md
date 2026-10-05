@@ -50,7 +50,6 @@ The `HRMS` user has **no usable sudo** (`sudo -l` lists NOPASSWD ALL, but every
 
 ### Seen, not fixed
 
-- `GET /documents/candidate/{id}` returns 403 for Admin (Documents tab on the profile).
 - History tab's filter list has no "Candidate Added" option (entries still show under "All").
 
 ### Server loose ends (need sudo or a decision)
@@ -71,6 +70,27 @@ The `HRMS` user has **no usable sudo** (`sudo -l` lists NOPASSWD ALL, but every
 - Thunder activity feed: tenant scoping fixed, `ConversationEvent.tenant_id` inherited from its conversation, read state per user, Thunder loop respects `thunder_enabled`.
 
 ## Open decisions / next work
+
+0. **All dashboards are broken — analyze and fix end to end (user request, 2026-10-05).**
+   Executive menu: CEO (`/ceo-fy-progress`), CFO (`/cfo-dashboard`), Partner
+   (`/troy-partner-dashboard`), Executive Signal, Admin Agent State, Admin Weekly
+   Recap, BU Head; plus Utilization, Executive Revenue, Risk, Thunder Analytics,
+   SLM, BI Explorer. For each: load it as Admin on prod, list failing API calls
+   (network tab), fix backend + frontend, verify with real data.
+   Related: `pyflakes app/api app/services` finds ~40 files with undefined names
+   (latent NameErrors) — a chip/task was filed for that.
+0b. **Menu items with no page (hidden from nav since `abb40807`, still grantable):**
+   interviews (no `/interviews` route at all — My Tasks still navigates there),
+   notifications, activity-feed, ask-flash, ai-coaching, agent-pyramid, goals,
+   admin-settings, permission-composition, onboarding, leave/performance management,
+   expenses, payroll, reports, analytics, kpi-dashboard, configuration, webhooks,
+   audit-logs, agents, newsletters, and others (see commit message). Building a
+   page = add the route in `frontend/src/routes/Approutes.jsx` AND the resource in
+   `RESOURCE_ROUTES` (`backend/app/seeds/init_resources.py`).
+0c. **`offers` and `system` permission resources don't exist** (offers.py,
+   complete_workflow.py, relation_building.py, system_diagnostics.py use them, some
+   with a nonexistent `manage` action) → 403 for every non-super user. Same bug as
+   documents (fixed in `3ce7fd7e` by gating on `candidates`).
 
 1. **Thunder engagement is not running and the current loop must not be turned on.**
    `run_thunder_autonomous_cycle` sends nothing, rolls back every cycle, and its
