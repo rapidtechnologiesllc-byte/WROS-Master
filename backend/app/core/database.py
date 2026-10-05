@@ -30,9 +30,12 @@ if not DATABASE_URL:
         "Format: postgresql://username:password@host:port/database_name"
     )
 
-# Log which database we're connecting to
+# Log which database we're connecting to (never the password: this lands
+# in journald and CI logs)
 import sys
-print(f"[STARTUP] DATABASE_URL={DATABASE_URL[:70]}...", file=sys.stderr)
+from sqlalchemy.engine import make_url
+SAFE_DATABASE_URL = make_url(DATABASE_URL).render_as_string(hide_password=True)
+print(f"[STARTUP] DATABASE_URL={SAFE_DATABASE_URL}", file=sys.stderr)
 print(f"[STARTUP] Connecting to database...", file=sys.stderr)
 
 # 🚨 HARD RULE: PostgreSQL ONLY - Never allow SQLite

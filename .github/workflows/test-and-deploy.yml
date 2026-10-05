@@ -162,6 +162,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # bundle only the commits the server lacks
 
       - name: Setup SSH
         uses: webfactory/ssh-agent@v0.9.0
@@ -173,48 +175,31 @@ jobs:
           mkdir -p ~/.ssh
           ssh-keyscan -p 22587 -H ${{ env.PROD_SERVER }} >> ~/.ssh/known_hosts 2>/dev/null
 
-      - name: Deploy monorepo
-        run: |
-          ssh -o StrictHostKeyChecking=no -p 22587 ${{ env.PROD_USER }}@${{ env.PROD_SERVER }} \
-            "bash -lc 'cd ${{ env.PROD_PATH }} && git fetch origin && git checkout main && git reset --hard origin/main'"
-
+      # The server has no GitHub credentials and no passwordless sudo: ship the
+      # code as a git bundle and let backend/scripts/deploy_backend.sh install,
+      # import-check, restart (systemd Restart=always), health-check and roll
+      # back on failure. The frontend is deployed only by deploy.yml.
       - name: Deploy backend
         if: needs.detect-changes.outputs.backend-changed == 'true'
         run: |
-          # Schema changes are applied by db_contract.initialize_database() at
-          # startup (no Alembic in this project). Restart the real systemd services.
-          ssh -o StrictHostKeyChecking=no -p 22587 ${{ env.PROD_USER }}@${{ env.PROD_SERVER }} \
-            "bash -lc 'cd ${{ env.PROD_PATH }}/backend && \
-             ${{ env.PROD_PATH }}/venv/bin/python -m pip install -r requirements.txt && \
-             sudo systemctl restart wros-backend && \
-             (sudo systemctl restart wros-queue-worker 2>/dev/null || true)'"
-
-      - name: Restart Nginx
-        run: |
-          ssh -o StrictHostKeyChecking=no -p 22587 ${{ env.PROD_USER }}@${{ env.PROD_SERVER }} \
-            "sudo systemctl restart nginx 2>/dev/null || echo 'Nginx restart skipped'"
-        continue-on-error: true
-
-      - name: Health check backend
-        if: needs.detect-changes.outputs.backend-changed == 'true'
-        run: |
-          sleep 3
-          for i in {1..10}; do
-            if ssh -o StrictHostKeyChecking=no -p 22587 ${{ env.PROD_USER }}@${{ env.PROD_SERVER }} \
-               "bash -lc 'curl -s http://localhost:8080/health | grep -q healthy'"; then
-              echo "Backend health check passed"
-              exit 0
+          SSH="ssh -o StrictHostKeyChecking=no -p 22587 ${{ env.PROD_USER }}@${{ env.PROD_SERVER }}"
+          SHA=$(git rev-parse HEAD)
+          SERVER_SHA=$($SSH "git -C ${{ env.PROD_PATH }} rev-parse HEAD")
+          if [ "$SERVER_SHA" = "$SHA" ]; then
+            BUNDLE=-
+          else
+            if git merge-base --is-ancestor "$SERVER_SHA" HEAD 2>/dev/null; then
+              git bundle create /tmp/deploy.bundle "$SERVER_SHA..HEAD"
+            else
+              git bundle create /tmp/deploy.bundle HEAD
             fi
-            sleep 2
-          done
-          echo "Backend did not become healthy. Recent service log:"
-          ssh -o StrictHostKeyChecking=no -p 22587 ${{ env.PROD_USER }}@${{ env.PROD_SERVER }} \
-            "sudo journalctl -u wros-backend -n 80 --no-pager" || true
-          exit 1
+            scp -o StrictHostKeyChecking=no -P 22587 /tmp/deploy.bundle               ${{ env.PROD_USER }}@${{ env.PROD_SERVER }}:/tmp/wros-deploy.bundle
+            BUNDLE=/tmp/wros-deploy.bundle
+          fi
+          $SSH "bash -s -- $BUNDLE $SHA" < backend/scripts/deploy_backend.sh
 
       - name: Deployment summary
         if: always()
         run: |
-          echo "✅ WROS Monorepo deployment complete"
-          echo "Backend: http://46.224.149.7:8080"
-          echo "Frontend: http://46.224.149.7:3000"
+          echo "Backend:  https://hrms.blitzenx.com/api/health"
+          echo "Frontend: https://hrms.blitzenx.com/ (deployed by deploy.yml)"

@@ -52,7 +52,8 @@ async def health():
 
 @app.on_event("startup")
 async def startup_event():
-    logger.info("[STARTUP] DATABASE_URL=%s...", settings.DATABASE_URL[:50] if settings.DATABASE_URL else "NOT SET")
+    from app.core.database import SAFE_DATABASE_URL
+    logger.info("[STARTUP] DATABASE_URL=%s", SAFE_DATABASE_URL)
     logger.info(f"[STARTUP] Connecting to database...")
 
     try:
