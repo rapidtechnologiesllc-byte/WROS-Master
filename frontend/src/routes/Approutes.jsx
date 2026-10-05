@@ -261,6 +261,7 @@ export const mapJobFromApi = (j, users = []) => {
     experienceLevel: j.job_experience || "",
     companyType: j.company_type || "",
     companyClient: j.company_name || "",
+    clientName: j.company_name || "",
     contactPerson: j.contact_person || "",
     startDate: j.start_date || "",
     endDate: j.end_date || "",
@@ -299,8 +300,10 @@ export default function AppRoutes() {
   // internal login gate below, same precedent as /careers-chat, since
   // a candidate arriving via a WhatsApp/Email link has no internal
   // account and must never see the internal login screen.
-  if (window.location.pathname.startsWith("/candidates/")) {
-    const portalToken = window.location.pathname.split("/candidates/")[1]?.split("/")[0];
+  // Portal links are /candidate/{token} (singular - candidate_portal_service.
+  // generate_portal_link_url); /candidates/* is the internal recruiter UI.
+  if (window.location.pathname.startsWith("/candidate/")) {
+    const portalToken = window.location.pathname.split("/candidate/")[1]?.split("/")[0];
     return <CandidatePortalScreen token={portalToken} />;
   }
 

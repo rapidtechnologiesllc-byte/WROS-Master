@@ -590,7 +590,7 @@ export default function JobCreate({
         job_description: internalJD?.trim(),
         job_skills: skillsString,
         job_experience: String(experienceLevel ?? "").trim(),
-        job_location: location?.trim(),
+        job_location: pickedLocationLabel() || location?.trim(),
         company_type: companyType?.trim(),
         company_name: companyClient?.trim(),
         contact_person: contactPerson || null,
@@ -600,6 +600,7 @@ export default function JobCreate({
         hiring_manager_id: hmUserId || null,
         reporting_manager_id: rmUserId || null,
         salary_range: payRangeString,
+        business_unit: selectedBusinessUnit ? Number(selectedBusinessUnit) : null,
         is_internal_role: isInternalRole, // true = internal (BU Head), false = external (Partner)
       };
       // Use existing draft job ID or create new one
@@ -660,6 +661,18 @@ export default function JobCreate({
     }
   };
 
+  // The Country/State/City picker writes locationValue; `location` only holds
+  // a loaded/generated value. The picker is the source of truth once used.
+  const pickedLocationLabel = () => {
+    if (isJobLocationRemote) {
+      const countryName = locationValue?.countryCode
+        ? (require("country-state-city").Country.getCountryByCode(locationValue.countryCode)?.name || locationValue.countryCode)
+        : "Global";
+      return `Remote - ${countryName}`;
+    }
+    return formatLocation(locationValue) || "";
+  };
+
   const handleNextWithGeneration = async () => {
     setIsGenerating(true);
     try {
@@ -676,48 +689,10 @@ export default function JobCreate({
         return;
       }
 
-      // Create draft job if it doesn't exist
-      if (!draftJobId) {
-        let locationLabel = "";
-        if (isJobLocationRemote) {
-          const countryName = locationValue?.countryCode ?
-            (require("country-state-city").Country.getCountryByCode(locationValue.countryCode)?.name || locationValue.countryCode)
-            : "Global";
-          locationLabel = `Remote - ${countryName}`;
-        } else {
-          locationLabel = formatLocation(locationValue) || "Location TBD";
-        }
-
-        const draftPayload = {
-          job_title: title?.trim() || "",
-          job_description: internalJD?.trim() || internalJdTemplate,
-          job_skills: "",
-          job_experience: "1",
-          job_location: locationLabel,
-          job_location_country: locationValue?.countryCode || "",
-          job_location_state: locationValue?.stateCode || "",
-          job_location_city: locationValue?.city || "",
-          is_remote: isJobLocationRemote,
-          company_type: companyType || "",
-          company_name: companyClient || "",
-          contact_person: contactPerson || null,
-          job_status: "draft",
-          no_of_positions: noOfPositions || 1,
-          start_date: startDate || new Date().toISOString().split('T')[0],
-          hiring_manager_id: hmUserId || null,
-          reporting_manager_id: rmUserId || null,
-          salary_range: payAmount ? `${payAmount} ${payRateType}` : null,
-          is_internal_role: isInternalRole,
-        };
-
-        try {
-          const draftResponse = await createJob(draftPayload);
-          setDraftJobId(draftResponse?.job_id);
-        } catch (draftErr) {
-          console.error("Error creating draft job:", draftErr);
-          setActionError("Could not create draft - progress may not be saved");
-        }
-      }
+      // No draft job is created here: the title field only exists on Step 2,
+      // and job creation is asynchronous (queued), so a Step 1 draft always
+      // failed validation and raced the final submit into duplicate jobs.
+      // The job is created once, on submit.
 
       // Get questions from Flash
       const { questions } = await generateJobWithAgent(oneLiner);
@@ -727,7 +702,7 @@ export default function JobCreate({
         job_title: title || "",
         position_type: positionType || "Full time",
         pay_range: payAmount ? `${payAmount} ${payRateType}` : "",
-        job_location: location || "Remote",
+        job_location: pickedLocationLabel() || location || "Remote",
         // Only include job_experience if it's been filled in (it's in Step 2)
         // Check for null/undefined, not falsy, to allow 0 as valid value
         ...(experienceLevel != null ? { job_experience: String(experienceLevel) } : {}),

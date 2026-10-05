@@ -84,19 +84,20 @@ class JobCreationFlashHandler:
                 if not db.query(Users).filter(Users.UserID == hiring_manager_id).first():
                     raise ValueError(f"hiring_manager_id '{hiring_manager_id}' not found in Users")
 
-            business_unit_id = payload.get('business_unit')
+            # create_job enqueues "business_unit_id"; older messages used "business_unit"
+            business_unit_id = payload.get('business_unit_id') or payload.get('business_unit')
             if business_unit_id:
                 # Verify business unit exists (FK constraint)
-                from app.models.user import BusinessUnit
+                from app.models.business_unit import BusinessUnit
                 if not db.query(BusinessUnit).filter(BusinessUnit.id == business_unit_id).first():
                     raise ValueError(f"business_unit '{business_unit_id}' not found")
 
+            # Jobs.salaryRange is free text ("140000 $/Year"), parsed back by the job edit form
             salary_range = payload.get('salary_range')
             if salary_range is not None:
-                try:
-                    float(salary_range)
-                except (ValueError, TypeError):
-                    raise ValueError(f"salary_range must be numeric or null")
+                salary_range = str(salary_range).strip() or None
+                if salary_range and len(salary_range) > 512:
+                    raise ValueError("salary_range must be at most 512 characters")
 
             # PHASE 2: DB WRITE (After validation)
             try:
@@ -117,8 +118,9 @@ class JobCreationFlashHandler:
                     startDate=payload.get('start_date'),
                     endDate=payload.get('end_date'),
                     hiringManagerID=hiring_manager_id,
-                    recuriterID=payload.get('recruiter_id'),
+                    recuriterID=payload.get('recuriter_id') or payload.get('recruiter_id'),
                     business_unit_id=business_unit_id,
+                    tenant_id=payload.get('tenant_id') or message.tenant_id or 1,
                     department_id=payload.get('department_id'),
                     salaryRange=salary_range
                 )
@@ -276,7 +278,7 @@ class JobCreationFlashHandler:
                     )
 
             if job.business_unit_id:
-                from app.models.user import BusinessUnit
+                from app.models.business_unit import BusinessUnit
                 bu = db.query(BusinessUnit).filter(BusinessUnit.id == job.business_unit_id).first()
                 if not bu:
                     raise ValueError(

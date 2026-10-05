@@ -31,6 +31,7 @@ export const mapJobFromApi = (j, users = []) => {
   experienceLevel: j.job_experience || "",
   companyType: j.company_type || "",
   companyClient: j.company_name || "",
+  clientName: j.company_name || "",
   contactPerson: j.contact_person || "",
   startDate: j.start_date || "",
   endDate: j.end_date || "",

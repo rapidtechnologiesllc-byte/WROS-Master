@@ -731,6 +731,18 @@ def _run_schema_migrations():
                         logger.warning(f"[Contract] Migration warning for {table_name}.{column_name}: {e}")
                     db.rollback()
 
+        # Migration 6: job_created_flash never set Jobs.tenant_id, so every
+        # queue-created job was invisible to the tenant-scoped job list.
+        # Single-tenant deployment: attribute orphaned jobs to tenant 1.
+        try:
+            result = db.execute(text("UPDATE app_schema.jobs SET tenant_id = 1 WHERE tenant_id IS NULL"))
+            db.commit()
+            if result.rowcount:
+                logger.info(f"[Contract] Migration: attributed {result.rowcount} tenant-less jobs to tenant 1")
+        except Exception as e:
+            logger.warning(f"[Contract] Migration warning for jobs.tenant_id backfill: {e}")
+            db.rollback()
+
     except Exception as e:
         logger.warning(f"[Contract] Schema migrations failed: {e}")
         # Don't fail startup if migrations can't be run

@@ -149,7 +149,7 @@ export default function LinkedInImportScreen() {
           {candidate.candidateMobile && <p><strong>Phone:</strong> {candidate.candidateMobile}</p>}
           {candidate.candidateSource && <p><strong>Source:</strong> LinkedIn</p>}
           <button
-            onClick={() => window.location.href = `/candidate/${candidate.candidateID}`}
+            onClick={() => window.location.href = `/candidates/${candidate.candidateID}`}
             style={{
               marginTop: '10px',
               padding: '8px 15px',

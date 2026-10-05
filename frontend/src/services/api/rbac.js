@@ -59,7 +59,8 @@ export const createPermission = async (payload) => {
 // Business units
 export const listBusinessUnits = async () => {
   const { data } = await apiRequest("/rbac/business-units", { method: "GET" });
-  return data;
+  // The endpoint wraps the list as { business_units: [...] }; callers expect the array.
+  return Array.isArray(data) ? data : data?.business_units || [];
 };
 
 export const createBusinessUnit = async (payload) => {

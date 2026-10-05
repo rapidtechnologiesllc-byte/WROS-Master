@@ -40,6 +40,7 @@ from app.schemas.candidate import (
 )
 from app.models.candidate import Candidate
 from app.models.user import Users
+from app.models.role_template import RoleTemplate
 
 from app.utils.uniq_id_generator import user_id_generator, job_id_generator
 
@@ -55,7 +56,7 @@ router = APIRouter(prefix="/jobs", tags=["jobs"])
 # ---------------------------------------------------------------------------
 
 # Roles that can publish jobs immediately - no approval workflow needed
-AUTO_APPROVE_ROLES = {"super user", "bu head", "hiring manager"}
+AUTO_APPROVE_ROLES = {"super user", "super admin", "bu head", "hiring manager"}
 
 def _can_auto_approve_job(user) -> bool:
     """
@@ -433,10 +434,8 @@ def get_my_jobs(
     
     # Check if user is a BU Head
     is_bu_head = False
-    if user.role_id:
-        role = db.query(Role).filter(Role.id == user.role_id).first()
-        if role and role.name == "BU Head":
-            is_bu_head = True
+    if user.role_template and user.role_template.name == "BU Head":
+        is_bu_head = True
 
     # Build the OR conditions
     filters = [
@@ -586,11 +585,11 @@ def create_job(request: JobCreateRequest, background_tasks: BackgroundTasks, db:
     if request.business_unit and not request.hiring_manager_id:
 
         # Get Hiring Manager role from this BU
-        hiring_manager_role = db.query(Role).filter(Role.name == "Hiring Manager").first()
+        hiring_manager_role = db.query(RoleTemplate).filter(RoleTemplate.name == "Hiring Manager").first()
         if hiring_manager_role:
             potential_hm = db.query(Users).filter(
                 Users.business_unit_id == request.business_unit,
-                Users.role_id == hiring_manager_role.id
+                Users.role_template_id == hiring_manager_role.id
             ).first()
 
             if potential_hm:
@@ -616,10 +615,10 @@ def create_job(request: JobCreateRequest, background_tasks: BackgroundTasks, db:
         from app.models.bu_access import BUAccess
 
         # Get BU Head for this business unit
-        bu_head_role = db.query(Role).filter(Role.name == "BU Head").first()
+        bu_head_role = db.query(RoleTemplate).filter(RoleTemplate.name == "BU Head").first()
         if bu_head_role:
             bu_head = db.query(Users).filter(
-                Users.role_id == bu_head_role.id,
+                Users.role_template_id == bu_head_role.id,
                 Users.business_unit_id == request.business_unit
             ).first()
 
@@ -639,10 +638,10 @@ def create_job(request: JobCreateRequest, background_tasks: BackgroundTasks, db:
         
         # Check if we can assign approval to the Business Unit Head
         if request.business_unit:
-            bu_head_role = db.query(Role).filter(Role.name == "BU Head").first()
+            bu_head_role = db.query(RoleTemplate).filter(RoleTemplate.name == "BU Head").first()
             if bu_head_role:
                 bu_head = db.query(Users).filter(
-                    Users.role_id == bu_head_role.id,
+                    Users.role_template_id == bu_head_role.id,
                     Users.business_unit_id == request.business_unit
                 ).first()
                 if bu_head:
@@ -681,8 +680,10 @@ def create_job(request: JobCreateRequest, background_tasks: BackgroundTasks, db:
             "department_id": request.department_id,
             "salary_range": request.salary_range,
             "job_status": job_status,
-            "created_by_user_id": user.UserID
-        }
+            "created_by_user_id": user.UserID,
+            "tenant_id": user.tenant_id,
+        },
+        tenant_id=user.tenant_id,
     )
 
     # Create job object for response (frontend UI needs immediate feedback)

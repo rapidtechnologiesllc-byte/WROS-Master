@@ -77,7 +77,7 @@ class JobUpdateFlashHandler:
 
             business_unit_id = payload.get('business_unit_id')
             if business_unit_id is not None:
-                from app.models.user import BusinessUnit
+                from app.models.business_unit import BusinessUnit
                 if not db.query(BusinessUnit).filter(BusinessUnit.id == business_unit_id).first():
                     raise ValueError(f"business_unit_id '{business_unit_id}' not found")
 
