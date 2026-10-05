@@ -12,7 +12,7 @@ import {
 } from "../services/api/jobs";
 import { Button, Card, Input, Select, TextArea, LocationCascadeSelect, formatLocation, parseLocation } from "../components/ui";
 import RateField from "../components/ui/RateField";
-import { searchUsers } from "../services/api/users";
+import { searchUsers, getHrMe } from "../services/api/users";
 import { listClients, getBusinessUnitAssignments } from "../services/api/clients";
 import ScreenErrorDisplay from "../components/ScreenErrorDisplay";
 import {
@@ -270,6 +270,20 @@ export default function JobCreate({
   // manual step, matching the agentic-first "fewer clicks" mandate.
   // Only auto-selects when the user hasn't already picked a BU
   // themselves, so it never silently overrides a manual choice.
+  // Default the Business Unit to the logged-in user's own BU on a new job.
+  useEffect(() => {
+    if (mode !== "create") return;
+    let cancelled = false;
+    getHrMe()
+      .then((me) => {
+        if (!cancelled && me?.business_unit_id) {
+          setSelectedBusinessUnit((current) => current || String(me.business_unit_id));
+        }
+      })
+      .catch((err) => console.error("[JobCreate] Failed to load current user's business unit:", err));
+    return () => { cancelled = true; };
+  }, [mode]);
+
   useEffect(() => {
     if (!companyClient) return;
     const matchedClient = clientList?.find(

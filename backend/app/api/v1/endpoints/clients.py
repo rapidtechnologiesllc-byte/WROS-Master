@@ -35,7 +35,7 @@ from app.schemas.client import (
 )
 from app.services.client_service import (
     ClientValidationError, DuplicateClientError, add_client_contact, assign_account_manager,
-    create_client, update_client_details,
+    create_client, update_client_details, set_client_business_unit,
 )
 
 router = APIRouter(prefix="/clients", tags=["clients"])
@@ -151,7 +151,17 @@ def create_client_endpoint(
             billing_currency=body.billing_currency,
             hiring_manager=body.hiring_manager.dict() if body.hiring_manager else None,
             timesheet_approver=body.timesheet_approver.dict() if body.timesheet_approver else None,
+            business_unit_id=body.business_unit_id,
         )
+        extra = {
+            k: v for k, v in {
+                "company_short_name": body.company_short_name,
+                "tier": body.tier,
+                "notes": body.notes,
+            }.items() if v not in (None, "")
+        }
+        if extra:
+            client = update_client_details(db, client, extra)
     except DuplicateClientError as exc:
         raise HTTPException(status_code=409, detail=str(exc))
     except ClientValidationError as exc:
@@ -248,7 +258,10 @@ def update_client_endpoint(
     # -- routed here separately rather than through the generic field-set
     # update_client_details() uses for everything else.
     account_manager_employee_id = updates.pop("account_manager_employee_id", None)
+    business_unit_id = updates.pop("business_unit_id", None)
     try:
+        if business_unit_id is not None:
+            client = set_client_business_unit(db, client, business_unit_id, current_user.tenant_id)
         if updates:
             client = update_client_details(db, client, updates)
         if account_manager_employee_id is not None:

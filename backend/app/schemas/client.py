@@ -58,6 +58,11 @@ class ClientCreateRequest(BaseModel):
     billing_currency: str = "USD"
     hiring_manager: Optional[ClientContactCreateRequest] = None
     timesheet_approver: Optional[ClientContactCreateRequest] = None
+    # Chosen from the Business Units dropdown (defaults to the creator's BU in the form)
+    business_unit_id: Optional[int] = None
+    company_short_name: Optional[str] = None
+    tier: Optional[str] = None
+    notes: Optional[str] = None
 
 class ClientCreateResponse(BaseModel):
     id: str
@@ -123,6 +128,8 @@ class ClientUpdateRequest(BaseModel):
     # audit-history + notification side effects), not through the generic
     # update_client_details() path -- see update_client_endpoint().
     account_manager_employee_id: Optional[str] = None
+    # Routed separately to client_service.set_client_business_unit()
+    business_unit_id: Optional[int] = None
     company_name: Optional[str] = None
     company_short_name: Optional[str] = None
     industry: Optional[str] = None

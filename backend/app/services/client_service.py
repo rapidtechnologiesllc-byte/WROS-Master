@@ -61,6 +61,7 @@ def create_client(
     billing_currency: str = "USD",
     hiring_manager: Optional[dict] = None,
     timesheet_approver: Optional[dict] = None,
+    business_unit_id: Optional[int] = None,
 ) -> Client:
     """The one sanctioned client-creation path (no create path existed
     anywhere in this codebase before this -- the GET-only /clients
@@ -112,10 +113,16 @@ def create_client(
                 f"({existing_by_website[0].company_name})."
             )
 
-    business_unit_id = created_by_user.business_unit_id
-    if business_unit_id is None:
-        corporate_bu = db.query(BusinessUnit).filter(BusinessUnit.name == "Corporate").first()
-        business_unit_id = corporate_bu.id if corporate_bu else None
+    # The business unit is chosen from the Business Units dropdown; the form
+    # defaults it to the creator's own BU. Callers that don't pass one keep
+    # the original attribution: creator's BU, else "Corporate".
+    if business_unit_id is not None:
+        business_unit_id = _validated_business_unit_id(db, business_unit_id, created_by_user.tenant_id)
+    else:
+        business_unit_id = created_by_user.business_unit_id
+        if business_unit_id is None:
+            corporate_bu = db.query(BusinessUnit).filter(BusinessUnit.name == "Corporate").first()
+            business_unit_id = corporate_bu.id if corporate_bu else None
 
     client = Client(
         company_name=company_name,
@@ -188,6 +195,23 @@ EDITABLE_CLIENT_FIELDS = {
     "tax_id_client", "contract_start_date", "contract_end_date",
     "contract_url", "nda_signed", "nda_url", "notes",
 }
+
+def _validated_business_unit_id(db: Session, business_unit_id: int, tenant_id: Optional[int]) -> int:
+    query = db.query(BusinessUnit).filter(BusinessUnit.id == business_unit_id)
+    if tenant_id is not None:
+        query = query.filter(BusinessUnit.tenant_id == tenant_id)
+    if query.first() is None:
+        raise ClientValidationError(f"Business unit {business_unit_id} not found.")
+    return business_unit_id
+
+
+def set_client_business_unit(db: Session, client: Client, business_unit_id: int, tenant_id: Optional[int]) -> Client:
+    """Change a client's BU - chosen from the Business Units dropdown in the client detail panel."""
+    client.business_unit_id = _validated_business_unit_id(db, business_unit_id, tenant_id)
+    db.commit()
+    db.refresh(client)
+    return client
+
 
 def update_client_details(db: Session, client: Client, updates: dict) -> Client:
     """General "edit client details" path (the gap Avinash flagged

@@ -24,6 +24,7 @@ import {
 } from "../services/api/clients";
 import { getClientInvestmentPosition } from "../services/api/expenses";
 import { listBusinessUnits } from "../services/api/rbac";
+import { getHrMe } from "../services/api/users";
 import { listEligibleOpportunityOwners, listClientOwners } from "../services/api/opportunities";
 
 const CONTACT_ROLE_TYPES = [
@@ -84,13 +85,21 @@ function ClientForm({ mode, initial, onCancel, onSaved, businessUnits = [] }) {
       });
   }, []);
 
+  // Default the Business Unit to the logged-in user's own BU. A user with no
+  // BU (e.g. a corporate admin) must pick one explicitly - never guess.
   useEffect(() => {
-    if (mode === "create" && !form.business_unit_id && businessUnits?.length) {
-      // Default to first BU or one marked as default
-      const defaultBU = businessUnits.find((bu) => bu.is_default) || businessUnits[0];
-      const buId = defaultBU?.business_unit_id || defaultBU?.id;
-      setForm((f) => ({ ...f, business_unit_id: String(buId) }));
-    }
+    if (mode !== "create" || !businessUnits?.length) return;
+    let cancelled = false;
+    getHrMe()
+      .then((me) => {
+        const myBu = me?.business_unit_id;
+        const exists = businessUnits.some((bu) => String(bu.business_unit_id || bu.id) === String(myBu));
+        if (!cancelled && myBu && exists) {
+          setForm((f) => (f.business_unit_id ? f : { ...f, business_unit_id: String(myBu) }));
+        }
+      })
+      .catch((err) => console.error("[ClientForm] Failed to load current user's business unit:", err));
+    return () => { cancelled = true; };
   }, [mode, businessUnits]);
 
   const userOptions = useMemo(() => [
@@ -135,7 +144,10 @@ function ClientForm({ mode, initial, onCancel, onSaved, businessUnits = [] }) {
           country: form.country || null,
           website: form.website,
           billing_currency: form.billing_currency,
-          business_unit_id: form.business_unit_id,
+          business_unit_id: Number(form.business_unit_id),
+          company_short_name: form.company_short_name || null,
+          tier: form.tier || null,
+          notes: form.notes || null,
         });
       }
       onSaved();
@@ -340,7 +352,7 @@ export default function ClientManagementScreen() {
   return (
     <div className="space-y-4 p-6">
       <Card
-        subtitle="Add and edit client accounts. Business Unit ownership is locked to whoever sources the client and is not editable here."
+        subtitle="Add and edit client accounts. The Business Unit defaults to your own and can be changed from the Business Units list."
         icon={<Building2 className="h-4 w-4" />}
         right={
           <Button
