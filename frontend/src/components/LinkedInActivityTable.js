@@ -14,7 +14,7 @@ const STATUS_COLORS = {
 
 const PENDING_ACTION_COLORS = {
   "Send LinkedIn Connection Request": "text-yellow-700",
-  "Collect Phone Number": "text-blue-700",
+  "Collect Phone Number and Email": "text-blue-700",
   "Import to Thunder": "text-purple-700",
   "Monitor Engagement": "text-green-700",
 };

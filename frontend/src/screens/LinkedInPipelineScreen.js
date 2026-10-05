@@ -6,11 +6,15 @@ const API_BASE = process.env.REACT_APP_API_URL || "http://localhost:8080";
 
 export default function LinkedInPipelineScreen() {
   const [linkedInUrl, setLinkedInUrl] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [email, setEmail] = useState("");
   const [pipelineItems, setPipelineItems] = useState([]);
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(false);
   const [expandedId, setExpandedId] = useState(null);
   const [phoneInput, setPhoneInput] = useState({});
+  const [emailInput, setEmailInput] = useState({});
   const [statusFilter, setStatusFilter] = useState("all");
   const [loadAttempted, setLoadAttempted] = useState(false);
 
@@ -76,15 +80,23 @@ export default function LinkedInPipelineScreen() {
     try {
       const response = await axios.post(
         `${API_BASE}/api/v1/linkedin-candidate-pipeline/linkedin-queue`,
-        { linkedin_url: linkedInUrl },
+        {
+          linkedin_url: linkedInUrl,
+          first_name: firstName.trim() || null,
+          last_name: lastName.trim() || null,
+          email: email.trim() || null,
+        },
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
       const result = response.data;
 
       if (result.status === "QUEUED") {
-        setActionSuccess("✅ Candidate added to pipeline!");
+        setActionSuccess("✅ Added to your pipeline. The candidate record is being created and a follow-up task is on My Tasks.");
         setLinkedInUrl("");
+        setFirstName("");
+        setLastName("");
+        setEmail("");
         loadPipeline();
       } else if (result.status === "ALREADY_EXISTS") {
         setActionError(`⚠️ Candidate already in system: ${result.candidate?.name}`);
@@ -104,23 +116,28 @@ export default function LinkedInPipelineScreen() {
     setActionError(null);
     setActionSuccess(null);
 
+    const item = pipelineItems.find((i) => i.id === pipelineId);
     const phone = phoneInput[pipelineId];
+    const importEmail = (emailInput[pipelineId] ?? item?.email ?? "").trim();
     if (!phone?.trim()) {
       setActionError("Please enter a phone number");
       return;
     }
-
-    const item = pipelineItems.find((i) => i.id === pipelineId);
+    if (!importEmail) {
+      setActionError("Please enter an email address");
+      return;
+    }
 
     try {
       const response = await axios.post(
         `${API_BASE}/api/v1/linkedin-candidate-pipeline/${pipelineId}/complete-import`,
-        { linkedin_url: item.linkedin_url, phone_number: phone },
+        { linkedin_url: item.linkedin_url, phone_number: phone, email: importEmail },
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
       setActionSuccess("✅ Candidate imported! Ready for Thunder autonomous loop.");
       setPhoneInput({ ...phoneInput, [pipelineId]: "" });
+      setEmailInput({ ...emailInput, [pipelineId]: "" });
       setExpandedId(null);
       loadPipeline();
     } catch (error) {
@@ -241,6 +258,31 @@ export default function LinkedInPipelineScreen() {
             onChange={(e) => setLinkedInUrl(e.target.value)}
             className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
+        </div>
+        <div className="mt-3 grid gap-2 md:grid-cols-3">
+          <input
+            type="text"
+            placeholder="First name (optional)"
+            value={firstName}
+            onChange={(e) => setFirstName(e.target.value)}
+            className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+          <input
+            type="text"
+            placeholder="Last name (optional)"
+            value={lastName}
+            onChange={(e) => setLastName(e.target.value)}
+            className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+          <input
+            type="email"
+            placeholder="Email (optional, if known)"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+        <div className="mt-3 flex justify-end">
           <button
             type="submit"
             disabled={loading}
@@ -301,11 +343,23 @@ export default function LinkedInPipelineScreen() {
               >
                 <div className="flex-1 flex items-center gap-4">
                   <div>
-                    <p className="font-medium text-gray-900">
-                      linkedin.com/in/{item.linkedin_profile_slug}
+                    <p className="font-semibold text-gray-900">
+                      {item.candidate_name || item.linkedin_profile_slug}
                     </p>
+                    <a
+                      href={item.linkedin_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={(e) => e.stopPropagation()}
+                      className="text-sm text-blue-600 hover:underline"
+                    >
+                      linkedin.com/in/{item.linkedin_profile_slug}
+                    </a>
                     <p className="text-sm text-gray-500">
-                      Added: {new Date(item.created_at).toLocaleDateString()}
+                      {item.email || "Email not collected"} · {item.phone_number || "Phone not collected"}
+                    </p>
+                    <p className="text-xs text-gray-400">
+                      Added {new Date(item.created_at).toLocaleDateString()} · {item.days_in_pipeline ?? 0}d in pipeline · Next: {item.pending_action}
                     </p>
                   </div>
                 </div>
@@ -323,19 +377,42 @@ export default function LinkedInPipelineScreen() {
                   {/* Current Info */}
                   <div className="grid grid-cols-2 gap-4 mb-4">
                     <div>
+                      <label className="text-sm font-medium text-gray-700">Name</label>
+                      <p className="text-gray-900 mt-1">
+                        {item.candidate_id ? (
+                          <a href={`/candidates/${item.candidate_id}`} className="text-blue-600 hover:underline">
+                            {item.candidate_name}
+                          </a>
+                        ) : (
+                          <span>
+                            {item.candidate_name || "—"}
+                            {item.candidate_pending && (
+                              <span className="ml-2 text-xs text-gray-500">(candidate record being created…)</span>
+                            )}
+                          </span>
+                        )}
+                      </p>
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium text-gray-700">Email</label>
+                      <p className="text-gray-900 mt-1">{item.email || "—"}</p>
+                    </div>
+                    <div>
                       <label className="text-sm font-medium text-gray-700">Phone Number</label>
                       <p className="text-gray-900 mt-1">{item.phone_number || "—"}</p>
                     </div>
                     <div>
                       <label className="text-sm font-medium text-gray-700">Status</label>
-                      <p className="text-gray-900 mt-1">{item.status}</p>
+                      <p className="text-gray-900 mt-1">{item.status?.replace(/_/g, " ")}</p>
                     </div>
-                    {item.candidate_id && (
-                      <div>
-                        <label className="text-sm font-medium text-gray-700">Candidate ID</label>
-                        <p className="text-gray-900 mt-1 font-mono text-xs">{item.candidate_id}</p>
-                      </div>
-                    )}
+                    <div>
+                      <label className="text-sm font-medium text-gray-700">Assigned To</label>
+                      <p className="text-gray-900 mt-1">{item.assigned_to || "—"}</p>
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium text-gray-700">Next Action</label>
+                      <p className="text-gray-900 mt-1">{item.pending_action}</p>
+                    </div>
                     {item.notes && (
                       <div>
                         <label className="text-sm font-medium text-gray-700">Notes</label>
@@ -362,12 +439,21 @@ export default function LinkedInPipelineScreen() {
                   )}
 
                   {/* Import Action */}
-                  {item.status === "PHONE_COLLECTED" && !item.candidate_id && (
+                  {item.status === "PHONE_COLLECTED" && (
                     <div className="p-3 bg-blue-50 border border-blue-200 rounded">
                       <label className="text-sm font-medium text-blue-900 block mb-2">
-                        Ready to import? Add phone number:
+                        Ready to import? Add phone number and email:
                       </label>
-                      <div className="flex gap-2">
+                      <div className="flex gap-2 flex-wrap">
+                        <input
+                          type="email"
+                          placeholder="Email address"
+                          value={emailInput[item.id] ?? item.email ?? ""}
+                          onChange={(e) =>
+                            setEmailInput({ ...emailInput, [item.id]: e.target.value })
+                          }
+                          className="flex-1 px-3 py-2 border border-blue-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
                         <input
                           type="tel"
                           placeholder="Phone number"
@@ -389,13 +475,13 @@ export default function LinkedInPipelineScreen() {
                   )}
 
                   {/* Success State */}
-                  {item.candidate_id && (
+                  {item.status === "IMPORTED_TO_THUNDER" && (
                     <div className="p-3 bg-green-50 border border-green-200 rounded flex items-center gap-2">
                       <CheckCircle className="w-5 h-5 text-green-600" />
                       <div>
                         <p className="font-medium text-green-900">Imported to Thunder</p>
                         <p className="text-sm text-green-700">
-                          Candidate {item.candidate_id} ready for autonomous outreach
+                          {item.candidate_name} is ready for Thunder autonomous outreach
                         </p>
                       </div>
                     </div>
@@ -427,7 +513,7 @@ export default function LinkedInPipelineScreen() {
             <span className="inline-block px-2 py-1 bg-purple-100 text-purple-800 rounded text-xs font-medium mr-2">
               PHONE_COLLECTED
             </span>
-            <span className="text-gray-700">Phone collected, ready to import</span>
+            <span className="text-gray-700">Phone and email collected, ready to import</span>
           </div>
           <div>
             <span className="inline-block px-2 py-1 bg-green-100 text-green-800 rounded text-xs font-medium mr-2">
