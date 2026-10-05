@@ -734,6 +734,35 @@ def _run_schema_migrations():
                         logger.warning(f"[Contract] Migration warning for {table_name}.{column_name}: {e}")
                     db.rollback()
 
+        # Migration 5b: linkedin_candidate_pipeline was first created with
+        # uuid columns for user/candidate ids, but ids in this system are
+        # strings ("admin@...", "USER-...", "CAN-..."), so every query by
+        # user failed with InvalidTextRepresentation. Convert to text only
+        # while still uuid (idempotent; uuid -> text never loses data).
+        pipeline_columns = {
+            "assigned_to_user_id": "VARCHAR(255)",
+            "created_by_user_id": "VARCHAR(255)",
+            "candidate_id": "VARCHAR(512)",
+        }
+        for column_name, column_type in pipeline_columns.items():
+            try:
+                current_type = db.execute(text("""
+                    SELECT data_type FROM information_schema.columns
+                    WHERE table_schema = 'app_schema'
+                      AND table_name = 'linkedin_candidate_pipeline'
+                      AND column_name = :col
+                """), {"col": column_name}).scalar()
+                if current_type == "uuid":
+                    db.execute(text(f"""
+                        ALTER TABLE app_schema.linkedin_candidate_pipeline
+                        ALTER COLUMN {column_name} TYPE {column_type} USING {column_name}::text;
+                    """))
+                    db.commit()
+                    logger.info(f"[Contract] Migration: linkedin_candidate_pipeline.{column_name} uuid -> {column_type}")
+            except Exception as e:
+                logger.warning(f"[Contract] Migration warning for linkedin_candidate_pipeline.{column_name}: {e}")
+                db.rollback()
+
         # Migration 6: job_created_flash never set Jobs.tenant_id, so every
         # queue-created job was invisible to the tenant-scoped job list.
         # Single-tenant deployment: attribute orphaned jobs to tenant 1.
