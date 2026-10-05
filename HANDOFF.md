@@ -21,6 +21,7 @@ login (needs a real password; do it in the browser yourself).
 | 5 | Frontend live since 09-12 called `http://localhost:8080`; `.env.production` pointed at `api.blitzenx.com` (doesn't resolve publicly) | `REACT_APP_API_URL=https://hrms.blitzenx.com/api` (nginx strips `/api`, backend serves `/api/v1/...`), built and deployed (`1690d5cf`). Previous build kept at `frontend/build-prev-1791230584` |
 | 6 | No `wros-queue-worker` unit exists on the server | Cron watchdog in `HRMS`'s crontab: `flock` single instance, restarts within 1 min, survives reboot. Log: `/home/HRMS/wros-queue-worker.log` |
 | 7 | Startup printed `DATABASE_URL` with the password (journald) — and the same password is in git history | Logs now mask it (`***`). **DB password rotated** (40 random chars, generated on the server, only in `backend/.env` there). Old password rejected by Postgres |
+| 9 | Clicking a LinkedIn task on My Tasks showed "No action configured"; LinkedIn steps never reached the candidate's history | Tasks with a candidate open `/candidates/:id` (notes, History, stage bar); LinkedIn tasks without one open `/linkedin-pipeline`. Each pipeline move/Import writes a History entry with the recruiter's notes; unified creation logs "Candidate Added" again (`f2818123`). Ankurjit Singh's history backfilled |
 | 8 | CI `npm ci` failed: lock written by npm 11, runners use npm 10; Node 18 too old | Lock regenerated with npm 10.9 (`b132a4c5`); `test-and-deploy.yml` on Node 22 |
 
 ## Deploying
@@ -46,6 +47,11 @@ The `HRMS` user has **no usable sudo** (`sudo -l` lists NOPASSWD ALL, but every
 - **GitHub Actions has not run a deploy yet:** today's jobs failed with "not
   acquired by Runner" (hosted-runner capacity / billing on the account). The new
   backend deploy path was exercised manually (3 deploys today), not from CI.
+
+### Seen, not fixed
+
+- `GET /documents/candidate/{id}` returns 403 for Admin (Documents tab on the profile).
+- History tab's filter list has no "Candidate Added" option (entries still show under "All").
 
 ### Server loose ends (need sudo or a decision)
 
