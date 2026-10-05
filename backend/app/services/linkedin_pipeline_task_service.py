@@ -22,6 +22,7 @@ from app.services.task_service import create_task
 # real one, a LinkedIn-sourced candidate carries this internal placeholder.
 PLACEHOLDER_EMAIL_DOMAIN = "linkedin-pending.blitzenx.com"
 CANDIDATE_SOURCE = "linkedin_pipeline"
+_BACKFILL_LOCK_KEY = 74210001  # pg advisory lock: one startup backfill at a time
 
 # Outreach follow-up per stage: who does what next. IMPORTED_TO_THUNDER has
 # no manual step -- Thunder takes over.
@@ -49,9 +50,9 @@ def is_placeholder_email(email: Optional[str]) -> bool:
 
 def name_from_slug(profile_slug: str):
     """Best guess from the slug, dropping LinkedIn's trailing id (jane-doe-1a2b3c)."""
-    parts = [p for p in profile_slug.split("-") if p and not any(ch.isdigit() for ch in p)]
-    parts = parts or [profile_slug]
-    first = parts[0].title()
+    parts = [p for p in (profile_slug or "").split("-") if p and not any(ch.isdigit() for ch in p)]
+    parts = parts or [profile_slug or ""]
+    first = parts[0].title() or "LinkedIn"  # candidate creation requires a first name
     last = " ".join(parts[1:]).title() or "(LinkedIn)"
     return first, last
 
@@ -174,36 +175,52 @@ def backfill_outreach_tasks(db: Session) -> int:
     queue time: open the missing follow-up task and queue the missing
     candidate. Idempotent (skips items that have a task, a candidate, or a
     pending creation) and skips items whose owner no longer exists."""
+    from sqlalchemy import text
     from app.models.user import Users
 
-    items = db.query(LinkedInCandidatePipeline).filter(
-        LinkedInCandidatePipeline.status != LinkedInPipelineStatus.IMPORTED_TO_THUNDER,
-        LinkedInCandidatePipeline.assigned_to_user_id.isnot(None),
-    ).all()
+    # Every uvicorn worker runs startup; only one may backfill, or each
+    # creates its own copy of the missing tasks. Session-level lock because
+    # items are committed one by one.
+    if not db.execute(text("SELECT pg_try_advisory_lock(:k)"), {"k": _BACKFILL_LOCK_KEY}).scalar():
+        logger.info("[LinkedInPipeline] Backfill already running in another process; skipping")
+        return 0
+    try:
+        items = db.query(LinkedInCandidatePipeline).filter(
+            LinkedInCandidatePipeline.status != LinkedInPipelineStatus.IMPORTED_TO_THUNDER,
+            LinkedInCandidatePipeline.assigned_to_user_id.isnot(None),
+        ).all()
 
-    tasks_created = 0
-    candidates_queued = 0
-    for item in items:
-        if item.task_id and item.candidate_id:
-            continue
-        owner = db.query(Users).filter(Users.UserID == item.assigned_to_user_id).first()
-        if owner is None:
-            logger.warning(
-                f"[LinkedInPipeline] Skipping backfill for {item.id}: "
-                f"owner {item.assigned_to_user_id!r} no longer exists"
+        tasks_created = 0
+        candidates_queued = 0
+        for item in items:
+            if item.task_id and item.candidate_id:
+                continue
+            item_id = item.id
+            try:
+                owner = db.query(Users).filter(Users.UserID == item.assigned_to_user_id).first()
+                if owner is None:
+                    logger.warning(
+                        f"[LinkedInPipeline] Skipping backfill for {item_id}: "
+                        f"owner {item.assigned_to_user_id!r} no longer exists"
+                    )
+                    continue
+                if not item.task_id:
+                    sync_outreach_task(db, item, owner.tenant_id)
+                    tasks_created += 1
+                db.commit()  # the worker must be able to see the item it links to
+                if not item.candidate_id and not creation_pending(db, item, owner.tenant_id):
+                    queue_pipeline_candidate(db, item, created_by_user_id=owner.UserID, tenant_id=owner.tenant_id)
+                    candidates_queued += 1
+            except Exception as exc:
+                # One bad legacy row must not stop the rest
+                db.rollback()
+                logger.error(f"[LinkedInPipeline] Backfill failed for item {item_id}: {exc}", exc_info=True)
+        if tasks_created or candidates_queued:
+            logger.info(
+                f"[LinkedInPipeline] Backfill: {tasks_created} task(s) opened, "
+                f"{candidates_queued} candidate(s) queued"
             )
-            continue
-        if not item.task_id:
-            sync_outreach_task(db, item, owner.tenant_id)
-            tasks_created += 1
-        if not item.candidate_id and not creation_pending(db, item, owner.tenant_id):
-            db.commit()  # the worker must be able to see the item it links to
-            queue_pipeline_candidate(db, item, created_by_user_id=owner.UserID, tenant_id=owner.tenant_id)
-            candidates_queued += 1
-    db.commit()
-    if tasks_created or candidates_queued:
-        logger.info(
-            f"[LinkedInPipeline] Backfill: {tasks_created} task(s) opened, "
-            f"{candidates_queued} candidate(s) queued"
-        )
-    return tasks_created + candidates_queued
+        return tasks_created + candidates_queued
+    finally:
+        db.execute(text("SELECT pg_advisory_unlock(:k)"), {"k": _BACKFILL_LOCK_KEY})
+        db.commit()

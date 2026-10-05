@@ -9,6 +9,10 @@ on:
       - '.github/workflows/deploy-backend.yml'
   workflow_dispatch:
 
+env:
+  # CI-only value; the backend refuses to import without JWT_SECRET
+  JWT_SECRET: ci-test-jwt-secret-not-for-production-use-only
+
 jobs:
   test:
     name: Backend Tests
@@ -82,17 +86,16 @@ jobs:
         with:
           python-version: '3.12'
 
+      - name: Install dependencies
+        working-directory: backend
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
       - name: Verify backend structure
         working-directory: backend
         run: |
           python -c "from app.main import app; print('✅ Backend imports successfully')"
-
-      - name: Check dependencies
-        working-directory: backend
-        run: |
-          pip install -r requirements.txt
-          python -m pip freeze > dependencies.txt
-          echo "Backend dependencies verified"
 
   startup-simulation:
     name: Simulate Production Startup
@@ -138,47 +141,26 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Start Celery worker (background)
-        working-directory: backend
-        env:
-          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/wros_dev
-          REDIS_URL: redis://localhost:6379/0
-        run: |
-          python -m celery -A app.celery_app worker --loglevel=info &
-          sleep 3
-          echo "✅ Celery worker started"
-
-      - name: Start Flower monitoring (background)
-        working-directory: backend
-        run: |
-          python -m celery -A app.celery_app flower --port=5555 &
-          sleep 3
-          echo "✅ Flower monitoring started"
-
       - name: Verify backend startup
         working-directory: backend
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/wros_dev
           REDIS_URL: redis://localhost:6379/0
         run: |
-          timeout 30 python -m uvicorn app.main:app --host 127.0.0.1 --port 8080 &
-          sleep 5
+          python -m uvicorn app.main:app --host 127.0.0.1 --port 8080 > /tmp/uvicorn.log 2>&1 &
+          # Startup runs initialize_database() on an empty DB; give it time
+          for i in $(seq 1 30); do
+            curl -sf http://localhost:8080/docs > /dev/null && break
+            sleep 2
+          done
 
-          # Test API endpoint
           response=$(curl -s http://localhost:8080/api/v1/config/queue-types)
           if echo "$response" | grep -q "queue_types"; then
             echo "✅ Backend API responding"
           else
             echo "❌ Backend API not responding"
+            tail -100 /tmp/uvicorn.log
             exit 1
-          fi
-
-          # Test Flower
-          flower_response=$(curl -s http://localhost:5555/ || echo "not-found")
-          if echo "$flower_response" | grep -q "Flower" || [ "$flower_response" != "not-found" ]; then
-            echo "✅ Flower dashboard accessible"
-          else
-            echo "⚠️  Flower still initializing (expected in CI)"
           fi
 
   deploy:
@@ -196,9 +178,8 @@ jobs:
           echo "Backend deployment ready"
           echo "Startup sequence:"
           echo "1. Redis (prerequisite, must be running)"
-          echo "2. Celery Worker"
-          echo "3. Flower Monitoring"
-          echo "4. FastAPI Backend"
+          echo "2. Queue worker (start_worker.py)"
+          echo "3. FastAPI Backend"
 
       - name: Deploy notification
         run: |
@@ -210,9 +191,3 @@ jobs:
           echo "1. Deploy to production server"
           echo "2. Run: ./scripts/startup-production.ps1"
           echo "3. Verify all services healthy"
-          echo "4. Monitor: http://production-server:5555 (Flower)"
-
-outputs:
-  backend_ready:
-    description: "Backend is ready for deployment"
-    value: ${{ needs.startup-simulation.result == 'success' }}

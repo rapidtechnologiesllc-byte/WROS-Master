@@ -19,7 +19,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_internal_user
+from app.core.dependencies import get_current_internal_user, require_resource_permission
 from app.core.logging import logger
 from app.models.candidate import Candidate
 from app.models.consent import ConsentRecord
@@ -124,6 +124,14 @@ def _ensure_candidate(db: Session, item: LinkedInCandidatePipeline, current_user
         )
     return None
 
+def _owned_item(db: Session, pipeline_id: str, current_user: Users) -> LinkedInCandidatePipeline:
+    """The pipeline item, only if it is assigned to the caller (same 404 for
+    missing and not-yours, so ids of other people's items aren't confirmed)."""
+    item = db.query(LinkedInCandidatePipeline).filter(LinkedInCandidatePipeline.id == pipeline_id).first()
+    if item is None or item.assigned_to_user_id != current_user.UserID:
+        raise HTTPException(status_code=404, detail="Pipeline item not found")
+    return item
+
 def _item_payload(db: Session, item: LinkedInCandidatePipeline, owner_names: dict) -> dict:
     status_value = item.status.value if hasattr(item.status, "value") else str(item.status)
     candidate = (
@@ -169,7 +177,7 @@ def _items_for_user(db: Session, current_user: Users, status_filter: Optional[st
     owner_names = {current_user.UserID: current_user.UserName or current_user.UserEmail}
     return [_item_payload(db, item, owner_names) for item in items]
 
-@router.post("/linkedin-queue")
+@router.post("/linkedin-queue", dependencies=[Depends(require_resource_permission("candidates", "create"))])
 def queue_linkedin_candidate(
     request: LinkedInQueueRequest,
     db: Session = Depends(get_db),
@@ -258,7 +266,7 @@ def queue_linkedin_candidate(
         "profile_slug": profile_slug,
     }
 
-@router.get("/list")
+@router.get("/list", dependencies=[Depends(require_resource_permission("candidates", "view"))])
 def list_pipeline_items(
     status_filter: Optional[str] = None,
     db: Session = Depends(get_db),
@@ -268,7 +276,7 @@ def list_pipeline_items(
     items = _items_for_user(db, current_user, status_filter)
     return {"count": len(items), "items": items}
 
-@router.get("/dashboard/activity")
+@router.get("/dashboard/activity", dependencies=[Depends(require_resource_permission("candidates", "view"))])
 def get_linkedin_activity_for_dashboard(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user)
@@ -277,7 +285,7 @@ def get_linkedin_activity_for_dashboard(
     items = _items_for_user(db, current_user)
     return {"count": len(items), "items": items}
 
-@router.put("/{pipeline_id}/status")
+@router.put("/{pipeline_id}/status", dependencies=[Depends(require_resource_permission("candidates", "edit"))])
 def update_pipeline_status(
     pipeline_id: str,
     request: LinkedInStatusUpdateRequest,
@@ -290,11 +298,7 @@ def update_pipeline_status(
     Imported to Thunder is set by /complete-import. Each move completes the
     current follow-up task and opens the next one, linked to the candidate.
     """
-    pipeline_item = db.query(LinkedInCandidatePipeline).filter(
-        LinkedInCandidatePipeline.id == pipeline_id
-    ).first()
-    if not pipeline_item:
-        raise HTTPException(status_code=404, detail="Pipeline item not found")
+    pipeline_item = _owned_item(db, pipeline_id, current_user)
 
     try:
         new_status = LinkedInPipelineStatus[request.status]
@@ -340,7 +344,7 @@ def update_pipeline_status(
         "updated_at": pipeline_item.updated_at.isoformat(),
     }
 
-@router.post("/{pipeline_id}/complete-import")
+@router.post("/{pipeline_id}/complete-import", dependencies=[Depends(require_resource_permission("candidates", "edit"))])
 def complete_linkedin_import(
     pipeline_id: str,
     request: LinkedInImportRequest,
@@ -351,11 +355,7 @@ def complete_linkedin_import(
     Finish outreach: save phone + email on the candidate, record WhatsApp
     consent, switch Thunder on and mark the item Imported to Thunder.
     """
-    pipeline_item = db.query(LinkedInCandidatePipeline).filter(
-        LinkedInCandidatePipeline.id == pipeline_id
-    ).first()
-    if not pipeline_item:
-        raise HTTPException(status_code=404, detail="Pipeline item not found")
+    pipeline_item = _owned_item(db, pipeline_id, current_user)
     if pipeline_item.status != LinkedInPipelineStatus.PHONE_COLLECTED:
         raise HTTPException(status_code=400, detail="Only items in Phone Collected can be imported.")
 

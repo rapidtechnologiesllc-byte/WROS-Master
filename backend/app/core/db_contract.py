@@ -97,9 +97,9 @@ def _initialize_linkedin_outreach_tasks():
     try:
         backfill_outreach_tasks(db)
     except Exception as e:
+        # Optional data backfill: never block backend startup over it
         db.rollback()
-        logger.error(f"[Contract] LinkedIn outreach task backfill failed: {e}", exc_info=True)
-        raise
+        logger.error(f"[Contract] LinkedIn outreach task backfill failed (startup continues): {e}", exc_info=True)
     finally:
         db.close()
 
@@ -772,6 +772,8 @@ def _run_schema_migrations():
                       AND column_name = :col
                 """), {"col": column_name}).scalar()
                 if current_type == "uuid":
+                    # ALTER TYPE takes an ACCESS EXCLUSIVE lock; never hang startup on it
+                    db.execute(text("SET LOCAL lock_timeout = '5s'"))
                     db.execute(text(f"""
                         ALTER TABLE app_schema.linkedin_candidate_pipeline
                         ALTER COLUMN {column_name} TYPE {column_type} USING {column_name}::text;
