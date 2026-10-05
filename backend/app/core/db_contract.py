@@ -856,11 +856,57 @@ def _run_schema_migrations():
             logger.warning(f"[Contract] Migration warning for jobs.tenant_id backfill: {e}")
             db.rollback()
 
+        # Migration 7: String columns were widened in the models (mostly to
+        # VARCHAR(512)) but create_all() never alters existing tables, so
+        # production kept the old lengths; e.g. tasks.candidate_id VARCHAR(36)
+        # rejected 40-char "CAN-<uuid>" ids and every candidate creation failed.
+        _widen_short_varchar_columns(db)
+
     except Exception as e:
         logger.warning(f"[Contract] Schema migrations failed: {e}")
         # Don't fail startup if migrations can't be run
     finally:
         db.close()
+
+
+def _widen_short_varchar_columns(db: Session):
+    """Widen live VARCHAR columns that are shorter than their model (idempotent).
+
+    Widen-only: never shrinks a column or changes a type family. Increasing a
+    varchar limit is a catalog-only change in PostgreSQL (no table rewrite).
+    """
+    from sqlalchemy import Enum, String, text
+
+    live = {}
+    rows = db.execute(text("""
+        SELECT table_schema, table_name, column_name, character_maximum_length
+        FROM information_schema.columns
+        WHERE data_type = 'character varying' AND character_maximum_length IS NOT NULL
+    """))
+    for schema, table, column, length in rows:
+        live[(schema, table, column)] = length
+
+    for table in Base.metadata.tables.values():
+        schema = table.schema or "app_schema"
+        widen = []
+        for col in table.columns:
+            if not isinstance(col.type, String) or isinstance(col.type, Enum):
+                continue
+            model_len = col.type.length
+            live_len = live.get((schema, table.name, col.name))
+            if model_len is None or live_len is None or live_len >= model_len:
+                continue
+            widen.append(f'ALTER COLUMN "{col.name}" TYPE VARCHAR({model_len})')
+        if not widen:
+            continue
+        try:
+            db.execute(text("SET LOCAL lock_timeout = '5s'"))
+            db.execute(text(f'ALTER TABLE "{schema}"."{table.name}" ' + ", ".join(widen)))
+            db.commit()
+            logger.info(f"[Contract] Migration: widened {len(widen)} varchar column(s) on {table.name}")
+        except Exception as e:
+            logger.warning(f"[Contract] Migration warning widening {table.name}: {e}")
+            db.rollback()
 
 
 if __name__ == "__main__":
