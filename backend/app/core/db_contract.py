@@ -890,13 +890,22 @@ def _widen_short_varchar_columns(db: Session):
         schema = table.schema or "app_schema"
         widen = []
         for col in table.columns:
-            if not isinstance(col.type, String) or isinstance(col.type, Enum):
+            if not isinstance(col.type, String):
                 continue
-            model_len = col.type.length
+            # Only columns that are VARCHAR in the live DB (native enums are not)
             live_len = live.get((schema, table.name, col.name))
-            if model_len is None or live_len is None or live_len >= model_len:
+            if live_len is None:
                 continue
-            widen.append(f'ALTER COLUMN "{col.name}" TYPE VARCHAR({model_len})')
+            if isinstance(col.type, Enum):
+                # Non-native enum: varchar sized to its longest value
+                model_len = col.type.length or max((len(v) for v in col.type.enums), default=0)
+            else:
+                model_len = col.type.length
+            if model_len is None:
+                # Unbounded in the model (Text / String()): TEXT never truncates
+                widen.append(f'ALTER COLUMN "{col.name}" TYPE TEXT')
+            elif live_len < model_len:
+                widen.append(f'ALTER COLUMN "{col.name}" TYPE VARCHAR({model_len})')
         if not widen:
             continue
         try:

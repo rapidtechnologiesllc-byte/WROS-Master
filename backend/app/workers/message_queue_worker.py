@@ -253,8 +253,12 @@ def process_message_queue(batch_size: int = 10, timeout_minutes: int = 30) -> Di
                     messages_processed += 1
 
                 except Exception as e:
-                    # Handle processing error - CRITICAL: set retry_at for automatic retry
+                    # Handle processing error - CRITICAL: set retry_at for automatic retry.
+                    # A failed flush leaves the session unusable; without this
+                    # rollback the FAILED update itself failed and the message
+                    # stayed PROCESSING forever (never retried).
                     try:
+                        db.rollback()
                         message.status = "FAILED"
                         message.error = str(e)
                         message.completed_at = datetime.utcnow()
