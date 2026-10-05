@@ -8,6 +8,12 @@ export const listClients = async ({ activeOnly = true } = {}) => {
   return data;
 };
 
+// Account manager choices: active users from Users & Access Control
+export const listAccountManagerOptions = async () => {
+  const { data } = await apiRequest("/clients/account-manager-options", { method: "GET" });
+  return data?.users || [];
+};
+
 export const getClient = async (clientId) => {
   const { data } = await apiRequest(`/clients/${clientId}`, { method: "GET" });
   return data;

@@ -714,6 +714,9 @@ def _run_schema_migrations():
                 ("org_node_id", "VARCHAR(512) NULL REFERENCES app_schema.org_nodes(id)"),
                 ("location_id", "VARCHAR(512) NULL REFERENCES app_schema.locations(id)"),
             ],
+            "clients": [
+                ("account_manager_user_id", 'VARCHAR(512) NULL REFERENCES app_schema.users("UserID") ON DELETE SET NULL'),
+            ],
         }
         for table_name, columns in drifted_tables.items():
             for column_name, column_def in columns:

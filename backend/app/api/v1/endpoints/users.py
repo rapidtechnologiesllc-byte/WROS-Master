@@ -16,6 +16,7 @@ from app.models import Users, Candidate, CandidateAssignment, Interview, Intervi
 get_current_user = get_current_internal_user
 from app.models.user import Jobs
 from app.models.offer_letter import OfferLetter
+from app.models.client import Client
 from app.models.document import CandidateDocument
 from app.models.role_template import RoleTemplate
 from app.models.newsletter import Newsletter
@@ -1203,6 +1204,14 @@ def delete_user(
         ).update({CandidateAssignment.reporting_manager_id: None}, synchronize_session=False)
     except Exception as update_error:
         logger.error(f"Failed to nullify CandidateAssignment.reporting_manager_id for {user_id}: {update_error}", exc_info=True)
+        raise
+
+    try:
+        db.query(Client).filter(Client.account_manager_user_id == user_id).update(
+            {Client.account_manager_user_id: None}, synchronize_session=False
+        )
+    except Exception as update_error:
+        logger.error(f"Failed to nullify Client.account_manager_user_id for {user_id}: {update_error}", exc_info=True)
         raise
 
     try:

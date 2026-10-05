@@ -35,7 +35,8 @@ from app.schemas.client import (
 )
 from app.services.client_service import (
     ClientValidationError, DuplicateClientError, add_client_contact, assign_account_manager,
-    create_client, update_client_details, set_client_business_unit,
+    assign_account_manager_user, create_client, resolve_account_manager_user,
+    set_client_business_unit, update_client_details,
 )
 
 router = APIRouter(prefix="/clients", tags=["clients"])
@@ -45,6 +46,12 @@ def _bu_name_map(db: Session, bu_ids) -> dict:
     if not ids:
         return {}
     return {b.id: b.name for b in db.query(BusinessUnit).filter(BusinessUnit.id.in_(ids)).all()}
+
+def _user_name_map(db: Session, user_ids) -> dict:
+    ids = {i for i in user_ids if i is not None}
+    if not ids:
+        return {}
+    return {u.UserID: (u.UserName or u.UserEmail) for u in db.query(Users).filter(Users.UserID.in_(ids)).all()}
 
 def _employee_name_map(db: Session, employee_ids) -> dict:
     ids = {i for i in employee_ids if i is not None}
@@ -74,6 +81,7 @@ def list_clients(
     # doesn't have to cross-reference raw IDs itself.
     bu_names = _bu_name_map(db, (c.business_unit_id for c in clients))
     am_names = _employee_name_map(db, (c.account_manager_employee_id for c in clients))
+    am_user_names = _user_name_map(db, (c.account_manager_user_id for c in clients))
     return ClientListResponse(
         clients=[
             ClientListItem(
@@ -81,13 +89,42 @@ def list_clients(
                 business_unit_id=c.business_unit_id,
                 business_unit_name=bu_names.get(c.business_unit_id),
                 account_manager_employee_id=c.account_manager_employee_id,
-                account_manager_name=am_names.get(c.account_manager_employee_id),
+                account_manager_user_id=c.account_manager_user_id,
+                # The user-based account manager wins; the employee one is legacy
+                account_manager_name=(
+                    am_user_names.get(c.account_manager_user_id)
+                    or am_names.get(c.account_manager_employee_id)
+                ),
                 line_type=c.line_type,
                 website=c.website,
             )
             for c in clients
         ]
     )
+
+@router.get(
+    "/account-manager-options",
+    dependencies=[Depends(require_resource_permission("clients", "view"))]
+)
+def list_account_manager_options(
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_internal_user),
+):
+    """Account manager choices: active users in the caller's tenant (the
+    Users & Access Control list). Gated on clients.view, not
+    users-access-control.view, so client editors can always load it."""
+    users = (
+        db.query(Users)
+        .filter(Users.tenant_id == current_user.tenant_id, Users.terminated_at.is_(None))
+        .order_by(Users.UserName)
+        .all()
+    )
+    return {
+        "users": [
+            {"user_id": u.UserID, "user_name": u.UserName, "user_email": u.UserEmail}
+            for u in users
+        ]
+    }
 
 @router.get(
     "/business-units/{business_unit_id}/assignments",
@@ -141,6 +178,11 @@ def create_client_endpoint(
     current_user=Depends(get_current_internal_user),
 ):
     try:
+        # Validate the pick before creating, so a bad id can't leave a half-made client
+        am_user = (
+            resolve_account_manager_user(db, body.account_manager_user_id, current_user.tenant_id)
+            if body.account_manager_user_id else None
+        )
         client = create_client(
             db,
             company_name=body.company_name,
@@ -162,6 +204,11 @@ def create_client_endpoint(
         }
         if extra:
             client = update_client_details(db, client, extra)
+        if am_user is not None:
+            client = assign_account_manager_user(
+                db, client, am_user, changed_by=current_user.UserID, tenant_id=current_user.tenant_id,
+            )
+            db.commit()
     except DuplicateClientError as exc:
         raise HTTPException(status_code=409, detail=str(exc))
     except ClientValidationError as exc:
@@ -174,7 +221,10 @@ def _to_detail_response(db: Session, client: Client) -> ClientDetailResponse:
         bu = db.query(BusinessUnit).filter(BusinessUnit.id == client.business_unit_id).first()
         bu_name = bu.name if bu else None
     am_name = None
-    if client.account_manager_employee_id is not None:
+    if client.account_manager_user_id is not None:
+        am_user = db.query(Users).filter(Users.UserID == client.account_manager_user_id).first()
+        am_name = (am_user.UserName or am_user.UserEmail) if am_user else None
+    if am_name is None and client.account_manager_employee_id is not None:
         am = db.query(Employee).filter(Employee.id == client.account_manager_employee_id).first()
         am_name = f"{am.first_name} {am.last_name}".strip() if am else None
     return ClientDetailResponse(
@@ -258,13 +308,24 @@ def update_client_endpoint(
     # -- routed here separately rather than through the generic field-set
     # update_client_details() uses for everything else.
     account_manager_employee_id = updates.pop("account_manager_employee_id", None)
+    has_am_user = "account_manager_user_id" in updates
+    account_manager_user_id = updates.pop("account_manager_user_id", None)
     business_unit_id = updates.pop("business_unit_id", None)
     try:
         if business_unit_id is not None:
             client = set_client_business_unit(db, client, business_unit_id, current_user.tenant_id)
         if updates:
             client = update_client_details(db, client, updates)
-        if account_manager_employee_id is not None:
+        if has_am_user:
+            # User pick (Users & Access Control) wins over the legacy employee field
+            am_user = (
+                resolve_account_manager_user(db, account_manager_user_id, current_user.tenant_id)
+                if account_manager_user_id else None
+            )
+            client = assign_account_manager_user(
+                db, client, am_user, changed_by=current_user.UserID, tenant_id=current_user.tenant_id,
+            )
+        elif account_manager_employee_id is not None:
             employee = db.query(Employee).filter(Employee.id == account_manager_employee_id).first()
             if not employee:
                 raise HTTPException(status_code=404, detail=f"Employee {account_manager_employee_id!r} not found.")

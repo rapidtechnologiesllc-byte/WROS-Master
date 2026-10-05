@@ -357,6 +357,8 @@ def assign_account_manager(
         changed_by=changed_by,
     )
     client.account_manager_employee_id = employee.id
+    # Keep the user column in step so a stale user value can't win on read
+    client.account_manager_user_id = employee.wros_user_id
     db.add(client)
     db.add(history)
 
@@ -370,29 +372,92 @@ def assign_account_manager(
                 f"client {client.id} -- no linked WROS user account."
             )
         else:
-            active_demands = db.query(Demand).filter(
-                Demand.client_id == client.id, Demand.status.in_(("OPEN", "IN_PROGRESS")),
-            ).count()
-            open_submissions = db.query(Submission).filter(
-                Submission.client_id == client.id,
-                Submission.status.in_(("SUBMITTED", "SHORTLISTED", "CLIENT_INTERVIEW_REQUESTED", "OFFER_EXTENDED")),
-            ).count()
-            try:
-                send_notification(
-                    db,
-                    calling_context_tenant_id=client.tenant_id,
-                    recipient=recipient,
-                    priority_tier="P1",
-                    channel_preference="EMAIL",
-                    message=(
-                        f"You have been assigned as account manager for "
-                        f"<strong>{client.company_name}</strong>.<br><br>"
-                        f"{active_demands} active demand(s), {open_submissions} open submission(s)."
-                    ),
-                )
-            except Exception as exc:
-                logger.error(f"Error: {str(exc)}", exc_info=True)
-                logger.warning(f"[ClientService] Could not send AM assignment notification: {exc}")
+            _notify_account_manager(db, client, recipient, client.tenant_id)
+
+    return client
+
+def _notify_account_manager(db: Session, client: Client, recipient: Users, tenant_id: Optional[int]) -> None:
+    """Best-effort assignment email (HRMS-0709 BR-01); a failure is logged, never raised."""
+    active_demands = db.query(Demand).filter(
+        Demand.client_id == client.id, Demand.status.in_(("OPEN", "IN_PROGRESS")),
+    ).count()
+    open_submissions = db.query(Submission).filter(
+        Submission.client_id == client.id,
+        Submission.status.in_(("SUBMITTED", "SHORTLISTED", "CLIENT_INTERVIEW_REQUESTED", "OFFER_EXTENDED")),
+    ).count()
+    try:
+        send_notification(
+            db,
+            # Clients created before tenant attribution have tenant_id NULL;
+            # fall back to the caller's tenant so the cross-tenant guard passes.
+            calling_context_tenant_id=client.tenant_id if client.tenant_id is not None else tenant_id,
+            recipient=recipient,
+            priority_tier="P1",
+            channel_preference="EMAIL",
+            message=(
+                f"You have been assigned as account manager for "
+                f"<strong>{client.company_name}</strong>.<br><br>"
+                f"{active_demands} active demand(s), {open_submissions} open submission(s)."
+            ),
+        )
+    except Exception as exc:
+        logger.error(f"[ClientService] Could not send AM assignment notification: {exc}", exc_info=True)
+
+def resolve_account_manager_user(db: Session, user_id: str, tenant_id: Optional[int]) -> Users:
+    """Validate an account-manager pick from the Users & Access Control user list."""
+    user = db.query(Users).filter(Users.UserID == user_id).first()
+    if user is None:
+        raise ClientValidationError(f"User {user_id!r} not found.")
+    if tenant_id is not None and user.tenant_id != tenant_id:
+        raise ClientValidationError(f"User {user_id!r} belongs to a different tenant.")
+    if user.terminated_at is not None:
+        raise ClientValidationError(f"User {user_id!r} is terminated and cannot be an account manager.")
+    return user
+
+def assign_account_manager_user(
+    db: Session,
+    client: Client,
+    user: Optional[Users],
+    *,
+    changed_by: Optional[str] = None,
+    tenant_id: Optional[int] = None,
+    notify: bool = True,
+) -> Client:
+    """
+    Set (or clear, with user=None) the client's account manager from the
+    Users list. Writes ClientHistory, mirrors account_manager_employee_id to
+    the user's linked Employee (or None), and notifies the new AM.
+    Does not commit -- the caller owns the transaction.
+    """
+    new_user_id = user.UserID if user is not None else None
+    if client.account_manager_user_id == new_user_id:
+        return client  # no-op
+
+    employee = (
+        db.query(Employee).filter(Employee.wros_user_id == new_user_id).first()
+        if new_user_id else None
+    )
+    new_employee_id = employee.id if employee else None
+
+    history = ClientHistory(
+        tenant_id=client.tenant_id, client_id=client.id, change_type="ACCOUNT_MANAGER",
+        old_value=json.dumps({
+            "account_manager_user_id": client.account_manager_user_id,
+            "account_manager_employee_id": client.account_manager_employee_id,
+        }),
+        new_value=json.dumps({
+            "account_manager_user_id": new_user_id,
+            "account_manager_employee_id": new_employee_id,
+        }),
+        changed_by=changed_by,
+    )
+    client.account_manager_user_id = new_user_id
+    client.account_manager_employee_id = new_employee_id
+    db.add(client)
+    db.add(history)
+
+    if notify and user is not None:
+        _notify_account_manager(db, client, user, tenant_id)
 
     return client
 

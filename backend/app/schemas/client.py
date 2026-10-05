@@ -22,6 +22,7 @@ class ClientListItem(BaseModel):
     # HRMS-0709) but was never surfaced in any screen. Same pattern as
     # Opportunity.owner_employee_id.
     account_manager_employee_id: Optional[str] = None
+    account_manager_user_id: Optional[str] = None
     account_manager_name: Optional[str] = None
     line_type: Optional[str] = None
     # Not shown/edited anywhere -- exposed only so the Create Job screen
@@ -63,6 +64,8 @@ class ClientCreateRequest(BaseModel):
     company_short_name: Optional[str] = None
     tier: Optional[str] = None
     notes: Optional[str] = None
+    # Picked from the Users & Access Control user list
+    account_manager_user_id: Optional[str] = None
 
 class ClientCreateResponse(BaseModel):
     id: str
@@ -108,6 +111,7 @@ class ClientDetailResponse(BaseModel):
     business_unit_id: Optional[int]
     business_unit_name: Optional[str] = None
     account_manager_employee_id: Optional[str] = None
+    account_manager_user_id: Optional[str] = None
     account_manager_name: Optional[str] = None
     billing_address: Optional[str]
     billing_currency: str
@@ -128,6 +132,8 @@ class ClientUpdateRequest(BaseModel):
     # audit-history + notification side effects), not through the generic
     # update_client_details() path -- see update_client_endpoint().
     account_manager_employee_id: Optional[str] = None
+    # Preferred over account_manager_employee_id; null clears the account manager
+    account_manager_user_id: Optional[str] = None
     # Routed separately to client_service.set_client_business_unit()
     business_unit_id: Optional[int] = None
     company_name: Optional[str] = None

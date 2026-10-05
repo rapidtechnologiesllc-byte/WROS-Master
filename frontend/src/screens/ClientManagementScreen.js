@@ -20,12 +20,11 @@ import { Building2, Plus, Pencil, TrendingUp, Users, X } from "lucide-react";
 import { Card, Button, Input, Select, Table } from "../components/ui";
 import {
   listClients, createClient, updateClient, getClient,
-  getClientContacts, addClientContact,
+  getClientContacts, addClientContact, listAccountManagerOptions,
 } from "../services/api/clients";
 import { getClientInvestmentPosition } from "../services/api/expenses";
 import { listBusinessUnits } from "../services/api/rbac";
 import { getHrMe } from "../services/api/users";
-import { listEligibleOpportunityOwners, listClientOwners } from "../services/api/opportunities";
 
 const CONTACT_ROLE_TYPES = [
   "HIRING_MANAGER", "TIMESHEET_APPROVER", "TECHNICAL_PANEL", "PROCUREMENT", "ACCOUNTS", "PRIMARY",
@@ -58,7 +57,7 @@ const emptyForm = {
   tier: "STANDARD",
   billing_currency: "USD",
   business_unit_id: "",
-  account_manager_id: "",
+  account_manager_user_id: "",
   client_owner_id: "",
   notes: "",
 };
@@ -71,12 +70,10 @@ function ClientForm({ mode, initial, onCancel, onSaved, businessUnits = [] }) {
   const [usersLoaded, setUsersLoaded] = useState(false);
 
   useEffect(() => {
-    // Load users for account manager and client owner dropdowns
-    listEligibleOpportunityOwners()
-      .then((res) => {
-        // API returns array directly OR {employees: Array}
-        const employeeList = Array.isArray(res) ? res : (res?.employees || []);
-        setUsers(employeeList);
+    // Account manager / client owner choices = users from Users & Access Control
+    listAccountManagerOptions()
+      .then((list) => {
+        setUsers(list);
         setUsersLoaded(true);
       })
       .catch((err) => {
@@ -105,16 +102,16 @@ function ClientForm({ mode, initial, onCancel, onSaved, businessUnits = [] }) {
   const userOptions = useMemo(() => [
     { label: "Select Account Manager", value: "", disabled: true },
     ...(Array.isArray(users) ? users : []).map(u => ({
-      label: `${u.first_name || ""} ${u.last_name || ""}`.trim(),
-      value: u.id || ""
+      label: u.user_name ? `${u.user_name} (${u.user_email})` : u.user_email,
+      value: String(u.user_id)
     }))
   ], [users]);
 
   const clientOwnerOptions = useMemo(() => [
     { label: "Select Client Owner", value: "", disabled: true },
     ...(Array.isArray(users) ? users : []).map(u => ({
-      label: `${u.first_name || ""} ${u.last_name || ""}`.trim(),
-      value: u.id || ""
+      label: u.user_name ? `${u.user_name} (${u.user_email})` : u.user_email,
+      value: String(u.user_id)
     }))
   ], [users]);
 
@@ -133,9 +130,9 @@ function ClientForm({ mode, initial, onCancel, onSaved, businessUnits = [] }) {
     setError("");
     try {
       if (mode === "edit") {
-        const { company_name, company_short_name, country, line_type, website, tier, billing_currency, business_unit_id, notes, account_manager_id, client_owner_id } = form;
+        const { company_name, company_short_name, country, line_type, website, tier, billing_currency, business_unit_id, notes, account_manager_user_id, client_owner_id } = form;
         await updateClient(form.id, {
-          company_name, company_short_name, country, line_type, website, tier, billing_currency, business_unit_id, notes, account_manager_id, client_owner_id,
+          company_name, company_short_name, country, line_type, website, tier, billing_currency, business_unit_id, notes, account_manager_user_id: account_manager_user_id || null, client_owner_id,
         });
       } else {
         await createClient({
@@ -148,6 +145,7 @@ function ClientForm({ mode, initial, onCancel, onSaved, businessUnits = [] }) {
           company_short_name: form.company_short_name || null,
           tier: form.tier || null,
           notes: form.notes || null,
+          account_manager_user_id: form.account_manager_user_id || null,
         });
       }
       onSaved();
@@ -179,7 +177,7 @@ function ClientForm({ mode, initial, onCancel, onSaved, businessUnits = [] }) {
         ]} />
         <Select label="Tier" value={form.tier} onChange={set("tier")} options={CLIENT_TIERS} />
         <Select label="Billing Currency" value={form.billing_currency} onChange={set("billing_currency")} options={BILLING_CURRENCIES} />
-        <Select label="Account Manager" value={form.account_manager_id || ""} onChange={set("account_manager_id")} options={userOptions} />
+        <Select label="Account Manager" value={form.account_manager_user_id || ""} onChange={set("account_manager_user_id")} options={userOptions} />
         <Select label="Client Owner" value={form.client_owner_id || ""} onChange={set("client_owner_id")} options={clientOwnerOptions} />
         {mode === "edit" && (
           <Select label="Status" value={form.status || "PROSPECT"} onChange={set("status")} options={CLIENT_STATUSES} />
@@ -267,7 +265,7 @@ export default function ClientManagementScreen() {
         tier: full.tier || "STANDARD",
         billing_currency: full.billing_currency || "USD",
         business_unit_id: full.business_unit_id ? String(full.business_unit_id) : "",
-        account_manager_id: full.account_manager_id || "",
+        account_manager_user_id: full.account_manager_user_id || "",
         client_owner_id: full.client_owner_id || "",
         notes: full.notes || "",
       });
@@ -503,7 +501,7 @@ function ClientDetailModal({
   contacts, contactsLoading, contactsError, onContactAdded, onClose, businessUnits = [],
 }) {
   const [selectedBU, setSelectedBU] = useState(String(client?.business_unit_id || ""));
-  const [selectedAccountManager, setSelectedAccountManager] = useState(String(client?.account_manager_id || ""));
+  const [selectedAccountManager, setSelectedAccountManager] = useState(String(client?.account_manager_user_id || ""));
   const [selectedClientOwner, setSelectedClientOwner] = useState(String(client?.client_owner_id || ""));
   const [buSaving, setBuSaving] = useState(false);
   const [amSaving, setAmSaving] = useState(false);
@@ -512,34 +510,40 @@ function ClientDetailModal({
 
   useEffect(() => {
     // Load users for account manager and client owner dropdowns
-    listEligibleOpportunityOwners()
-      .then((res) => {
-        // API returns array directly OR {employees: Array}
-        const employeeList = Array.isArray(res) ? res : (res?.employees || []);
-        setUsers(employeeList);
-      })
+    listAccountManagerOptions()
+      .then((list) => setUsers(list))
       .catch((err) => console.error("[ClientDetailModal] Failed to load users:", err));
   }, []);
 
   useEffect(() => {
     setSelectedBU(String(client?.business_unit_id || ""));
-    setSelectedAccountManager(String(client?.account_manager_id || ""));
+    setSelectedAccountManager(String(client?.account_manager_user_id || ""));
     setSelectedClientOwner(String(client?.client_owner_id || ""));
-  }, [client?.id]);
+    // The modal mounts with a list-row stub before the full record arrives,
+    // so re-sync when the saved values land, not only when the id changes.
+  }, [client?.id, client?.account_manager_user_id, client?.business_unit_id]);
 
-  const userOptions = useMemo(() => [
-    { label: "Select Account Manager", value: "", disabled: true },
-    ...(Array.isArray(users) ? users : []).map(u => ({
-      label: `${u.first_name || ""} ${u.last_name || ""}`.trim(),
-      value: u.id || ""
-    }))
-  ], [users]);
+  const userOptions = useMemo(() => {
+    const options = [
+      { label: "Select Account Manager", value: "", disabled: true },
+      ...(Array.isArray(users) ? users : []).map(u => ({
+        label: u.user_name ? `${u.user_name} (${u.user_email})` : u.user_email,
+        value: String(u.user_id)
+      })),
+    ];
+    // Keep a saved AM visible even if they are no longer an active user
+    const savedId = client?.account_manager_user_id;
+    if (savedId && !options.some((o) => o.value === String(savedId))) {
+      options.push({ label: client?.account_manager_name || savedId, value: String(savedId) });
+    }
+    return options;
+  }, [users, client?.account_manager_user_id, client?.account_manager_name]);
 
   const clientOwnerOptions = useMemo(() => [
     { label: "Select Client Owner", value: "", disabled: true },
     ...(Array.isArray(users) ? users : []).map(u => ({
-      label: `${u.first_name || ""} ${u.last_name || ""}`.trim(),
-      value: u.id || ""
+      label: u.user_name ? `${u.user_name} (${u.user_email})` : u.user_email,
+      value: String(u.user_id)
     }))
   ], [users]);
 
@@ -564,10 +568,10 @@ function ClientDetailModal({
 
     setAmSaving(true);
     try {
-      await updateClient(client.id, { account_manager_id: amId || null });
+      await updateClient(client.id, { account_manager_user_id: amId || null });
     } catch (err) {
       console.error("Failed to update account manager:", err);
-      setSelectedAccountManager(String(client.account_manager_id || ""));
+      setSelectedAccountManager(String(client.account_manager_user_id || ""));
     } finally {
       setAmSaving(false);
     }

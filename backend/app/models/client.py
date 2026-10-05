@@ -101,6 +101,10 @@ class Client(Base):
     status = Column(Enum(*CLIENT_STATUSES, name="client_status", native_enum=False, create_constraint=True), nullable=False, default="PROSPECT")
 
     account_manager_employee_id = Column(String(512), ForeignKey("employees.id"), nullable=True)
+    # Account manager picked from Users & Access Control users. Preferred over
+    # account_manager_employee_id (kept for backward compatibility and mirrored
+    # when the user has a linked Employee record).
+    account_manager_user_id = Column(String(512), ForeignKey("users.UserID", ondelete="SET NULL"), nullable=True, index=True)
 
     billing_address = Column(Text, nullable=True)
     billing_currency = Column(Enum(*BILLING_CURRENCIES, name="billing_currency", native_enum=False, create_constraint=True), nullable=False, default="USD")

@@ -63,7 +63,9 @@ def trigger_ar_follow_up(db: Session, invoice: Invoice) -> Task:
 
     client = db.query(Client).filter(Client.id == invoice.client_id).first()
     assigned_to_user_id = None
-    if client and client.account_manager_employee_id:
+    if client and client.account_manager_user_id:
+        assigned_to_user_id = client.account_manager_user_id
+    elif client and client.account_manager_employee_id:
         employee = db.query(Employee).filter(Employee.id == client.account_manager_employee_id).first()
         if employee:
             user = db.query(Users).filter(Users.UserEmail == employee.email).first()
