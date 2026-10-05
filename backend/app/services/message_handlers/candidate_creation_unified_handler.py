@@ -149,6 +149,16 @@ class CandidateCreationUnifiedHandler:
         # No commit here: queue_processor_service commits candidate + records together.
         if is_new:
             _add_education_and_experience(db, candidate_id, payload)
+            # First entry on the candidate's History tab (the replaced
+            # per-source handlers logged this; the unified one did not)
+            from app.services.candidate_activity_service import log_candidate_created
+            log_candidate_created(
+                db,
+                candidate_id,
+                created_by_user_id=payload.get('created_by_user_id'),
+                created_by_name=payload.get('created_by_name'),
+                recruitment_source=source,
+            )
             # LinkedIn pipeline: recruiter is still doing manual outreach, so
             # Thunder stays off until the pipeline Import step
             if payload.get('thunder_enabled') is False:

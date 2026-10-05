@@ -43,6 +43,8 @@ class TaskResponse(BaseModel):
     subcategory: Optional[str]
     completed_at: Optional[datetime]
     created_at: Optional[datetime]
+    # Lets My Tasks open the candidate a task is about (e.g. LinkedIn outreach)
+    candidate_id: Optional[str] = None
 
     class Config:
         from_attributes = True

@@ -609,6 +609,59 @@ def log_candidate_status_change(
         return None
 
 
+def log_linkedin_pipeline_step(
+    db: Session,
+    candidate_id: str,
+    step: str,
+    notes: Optional[str] = None,
+    performed_by_id: Optional[str] = None,
+    performed_by_name: Optional[str] = None,
+) -> CandidateHistory:
+    """
+    Log a LinkedIn outreach step (Connected, Phone Collected, Imported) on the
+    candidate's History tab, with the recruiter's notes for that step.
+
+    Caller commits (same transaction as the pipeline status change).
+    """
+    try:
+        candidate = db.query(Candidate).filter(Candidate.candidateID == candidate_id).first()
+        if not candidate:
+            logger.error(f"log_linkedin_pipeline_step: Candidate {candidate_id} not found")
+            return None
+
+        note = f"LinkedIn outreach: {step}"
+        if notes:
+            note += f" | {notes}"
+
+        history = CandidateHistory(
+            candidateID=candidate_id,
+            event_type="Custom",
+            note=note,
+            performed_by_id=performed_by_id,
+            performed_by_name=performed_by_name or "System",
+            event_at=datetime.utcnow(),
+        )
+        db.add(history)
+        logger.info(f"Logged: LinkedIn step '{step}' for candidate {candidate_id}")
+
+        _write_timeline(
+            db,
+            entity_type="Candidate",
+            entity_id=candidate_id,
+            action="linkedin_step",
+            actor_id=performed_by_id,
+            actor_type="USER" if performed_by_id else "SYSTEM",
+            description=f"LinkedIn outreach: {step}",
+            tenant_id=candidate.tenant_id,
+        )
+
+        return history
+
+    except Exception as e:
+        logger.error(f"log_linkedin_pipeline_step failed for {candidate_id}: {str(e)}", exc_info=True)
+        return None
+
+
 def log_thunder_operation(
     db: Session,
     candidate_id: str,

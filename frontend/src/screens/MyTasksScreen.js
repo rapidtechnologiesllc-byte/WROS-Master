@@ -35,7 +35,7 @@ function TaskRow({ task, now, onComplete, onConfirmUrgent, onNavigate }) {
       <td className="py-2 px-3 text-xs text-gray-500">#{task.id}</td>
       <td className="py-2 px-3">
         <button
-          onClick={() => onNavigate(task.title)}
+          onClick={() => onNavigate(task)}
           className="text-sm font-medium text-blue-600 hover:underline cursor-pointer text-left"
         >
           {task.title}
@@ -130,7 +130,8 @@ export default function MyTasksScreen() {
     }
   };
 
-  const handleNavigateTask = (title) => {
+  const handleNavigateTask = (task) => {
+    const title = task.title || "";
     if (title.includes("Submit feedback")) {
       navigate("/interviews");
     } else if (title.includes("Submit Offer")) {
@@ -141,6 +142,12 @@ export default function MyTasksScreen() {
       navigate("/my-timesheet");
     } else if (title.includes("Interview")) {
       navigate("/interviews");
+    } else if (task.candidate_id) {
+      // Profile has the notes, history trail and stage bar for this candidate
+      navigate(`/candidates/${task.candidate_id}`);
+    } else if (title.startsWith("LinkedIn:")) {
+      // Candidate record not created yet: work the item in the pipeline
+      navigate("/linkedin-pipeline");
     } else {
       setActionError("No action configured for this task type.");
     }

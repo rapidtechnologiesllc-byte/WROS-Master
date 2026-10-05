@@ -25,6 +25,7 @@ from app.models.candidate import Candidate
 from app.models.consent import ConsentRecord
 from app.models.linkedin_candidate_pipeline import LinkedInCandidatePipeline, LinkedInPipelineStatus
 from app.models.user import Users
+from app.services.candidate_activity_service import log_linkedin_pipeline_step
 from app.services.linkedin_pipeline_task_service import (
     creation_pending, is_placeholder_email, link_candidate_to_pipeline, name_from_slug,
     queue_pipeline_candidate, sync_outreach_task,
@@ -107,6 +108,22 @@ def _user_display_name(db: Session, user_id: Optional[str]) -> Optional[str]:
         return None
     user = db.query(Users).filter(Users.UserID == user_id).first()
     return (user.UserName or user.UserEmail) if user else user_id
+
+_STEP_LABELS = {
+    LinkedInPipelineStatus.PENDING_CONNECTION: "Pending Connection",
+    LinkedInPipelineStatus.CONNECTED: "Connected",
+    LinkedInPipelineStatus.PHONE_COLLECTED: "Phone Collected",
+    LinkedInPipelineStatus.IMPORTED_TO_THUNDER: "Imported to Thunder",
+}
+
+def _log_step(db: Session, item: LinkedInCandidatePipeline, current_user: Users, notes: Optional[str] = None):
+    """Record the item's current stage on its candidate's History tab."""
+    if item.candidate_id:
+        log_linkedin_pipeline_step(
+            db, item.candidate_id, _STEP_LABELS[item.status], notes=notes,
+            performed_by_id=current_user.UserID,
+            performed_by_name=current_user.UserName or current_user.UserEmail,
+        )
 
 def _ensure_candidate(db: Session, item: LinkedInCandidatePipeline, current_user: Users) -> Optional[Candidate]:
     """The item's candidate if it exists. Links one already created for this
@@ -326,6 +343,7 @@ def update_pipeline_status(
         if request.notes:
             pipeline_item.notes = request.notes
         pipeline_item.updated_at = datetime.utcnow()
+        _log_step(db, pipeline_item, current_user, notes=request.notes)
         sync_outreach_task(db, pipeline_item, current_user.tenant_id)
         db.commit()
         db.refresh(pipeline_item)
@@ -412,6 +430,7 @@ def complete_linkedin_import(
         pipeline_item.phone_number = phone
         pipeline_item.imported_at = datetime.utcnow()
         pipeline_item.updated_at = datetime.utcnow()
+        _log_step(db, pipeline_item, current_user, notes="Phone and email collected; Thunder enabled")
         # Closes the "import to Thunder" task; Thunder owns outreach from here
         sync_outreach_task(db, pipeline_item, current_user.tenant_id)
         db.commit()
