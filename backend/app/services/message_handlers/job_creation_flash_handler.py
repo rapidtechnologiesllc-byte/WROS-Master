@@ -113,7 +113,8 @@ class JobCreationFlashHandler:
                     companyType=payload.get('company_type'),
                     companyName=payload.get('company_name'),
                     contactPerson=payload.get('contact_person'),
-                    jobStatus=payload.get('job_status', 'pending_approval'),
+                    # Approval flow is disabled: a missing status means active
+                    jobStatus=payload.get('job_status') or 'active',
                     noOfPositions=payload.get('no_of_positions', 1),
                     startDate=payload.get('start_date'),
                     endDate=payload.get('end_date'),

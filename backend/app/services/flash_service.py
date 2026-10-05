@@ -878,6 +878,7 @@ def _create_job_from_details(db: Session, user: Users, details: Dict) -> Dict:
     try:
         from app.services.recruiter_assignment_service import assign_to_recruiter_roundrobin
         from app.utils.uniq_id_generator import job_id_generator
+        from app.models.user import Jobs
         from datetime import datetime
 
         # Extract job title from oneliner
@@ -902,7 +903,8 @@ def _create_job_from_details(db: Session, user: Users, details: Dict) -> Dict:
             companyType="Full time",  # Default, can be updated
             companyName=details.get("client", ""),
             hiringManagerID=user.UserID,
-            jobStatus="Draft",
+            # Job approval flow is disabled: every new job is published active
+            jobStatus="active",
             required_skills_canonical=structured_skills,
             job_skills_boolean_mode=boolean_mode,
             jobCreatedAt=datetime.utcnow(),
