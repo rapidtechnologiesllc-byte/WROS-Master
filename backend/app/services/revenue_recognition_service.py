@@ -569,6 +569,7 @@ def calculate_p_and_l_summary(
             "margin_pct": 0,
             "invoice_count": 0,
             "period": period_month or "all_time",
+            "avg_margin_pct_per_invoice": 0,
         }
 
     total_revenue = sum(r.revenue_usd_cents for r in revenues)

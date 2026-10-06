@@ -385,7 +385,6 @@ def get_referral_dashboard(
     dashboard = ReferralAccessControl.get_dashboard_view_for_role(
         db,
         current_user.UserID,
-        user_role,
         user_bu,
     )
 
@@ -450,7 +449,6 @@ def get_all_bonuses(
     bonuses = ReferralAccessControl.get_bonuses_for_user(
         db,
         current_user.UserID,
-        user_role,
         user_bu,
     )
 

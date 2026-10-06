@@ -210,7 +210,7 @@ def create_entries(
         Depends(require_resource_permission("revenue", "view")),
         Depends(get_current_internal_user),
     ],
-    response_model=dict,
+    response_model=RevenueByMonthResponse,
     summary="Get monthly revenue",
 )
 def get_revenue_monthly(
@@ -272,7 +272,7 @@ def get_revenue_module(
         Depends(require_resource_permission("revenue", "view")),
         Depends(get_current_internal_user),
     ],
-    response_model=dict,
+    response_model=RevenueByClientOwnerResponse,
     summary="Get revenue by client owner",
 )
 def get_revenue_client_owner(
@@ -332,7 +332,7 @@ def get_partner_shares(
         Depends(require_resource_permission("revenue", "view")),
         Depends(get_current_internal_user),
     ],
-    response_model=dict,
+    response_model=ForecastVsActualResponse,
     summary="Get forecast vs actual",
 )
 def get_forecast_actual(
@@ -366,7 +366,7 @@ def get_forecast_actual(
         Depends(require_resource_permission("revenue", "view")),
         Depends(get_current_internal_user),
     ],
-    response_model=dict,
+    response_model=NegativeMarginAlertsResponse,
     summary="Get negative margins",
 )
 def get_negative_margins(
@@ -397,7 +397,7 @@ def get_negative_margins(
         Depends(require_resource_permission("revenue", "view")),
         Depends(get_current_internal_user),
     ],
-    response_model=dict,
+    response_model=PandLSummaryResponse,
     summary="Get P&L summary",
 )
 def get_pnl_summary(

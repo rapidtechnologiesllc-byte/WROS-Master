@@ -19,6 +19,7 @@ Permission Model:
 
 Same pattern applied to all other resources (business_units, role_templates, etc.).
 """
+import uuid
 
 import logging
 from fastapi import APIRouter, Depends, HTTPException, status, Query
@@ -582,16 +583,16 @@ def delete_delivery_center(
 class OrgNodeCreateRequest(BaseModel):
     employee_name: str
     position_id: int
-    reports_to: Optional[int] = None
-    business_unit_id: Optional[int] = None
-    location: Optional[str] = None
+    reports_to: Optional[str] = None  # parent org node id
+    department_id: Optional[str] = None
+    specialization: Optional[str] = None
 
 class OrgNodeUpdateRequest(BaseModel):
     employee_name: Optional[str] = None
     position_id: Optional[int] = None
-    reports_to: Optional[int] = None
-    business_unit_id: Optional[int] = None
-    location: Optional[str] = None
+    reports_to: Optional[str] = None  # parent org node id
+    department_id: Optional[str] = None
+    specialization: Optional[str] = None
 
 @router.get(
     "/organizational-hierarchy",
@@ -616,12 +617,14 @@ def get_organizational_hierarchy(
         "organizational_hierarchy": [
             {
                 "id": n.id,
-                "employee_name": n.employee_name,
+                "employee_name": n.name,
                 "position_id": n.position_id,
-                "reports_to": n.reports_to,
-                "business_unit_id": n.business_unit_id,
-                "location": getattr(n, 'location', None),
-                "created_at": getattr(n, 'created_at', None),
+                "reports_to": n.parent_id,
+                "department_id": n.department_id,
+                "hierarchy_level": n.hierarchy_level,
+                "specialization": n.specialization,
+                "active": n.active,
+                "created_at": n.created_at,
             }
             for n in nodes
         ],
@@ -645,12 +648,13 @@ def create_org_node(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Employee name and position are required")
 
     new_node = OrgNode(
-        employee_name=req.employee_name,
+        id=str(uuid.uuid4()),
+        name=req.employee_name,
         position_id=req.position_id,
-        reports_to=req.reports_to,
-        business_unit_id=req.business_unit_id,
-        location=req.location,
-        tenant_id=current_user.tenant_id if hasattr(current_user, 'tenant_id') else 1
+        parent_id=req.reports_to,
+        department_id=req.department_id,
+        specialization=req.specialization or "General",
+        tenant_id=current_user.tenant_id,
     )
 
     db.add(new_node)
@@ -659,7 +663,7 @@ def create_org_node(
 
     return {
         "id": new_node.id,
-        "employee_name": new_node.employee_name,
+        "employee_name": new_node.name,
         "status": "created"
     }
 
@@ -680,22 +684,22 @@ def update_org_node(
 
     # Update fields
     if req.employee_name:
-        node.employee_name = req.employee_name
+        node.name = req.employee_name
     if req.position_id:
         node.position_id = req.position_id
     if req.reports_to is not None:
-        node.reports_to = req.reports_to
-    if req.business_unit_id:
-        node.business_unit_id = req.business_unit_id
-    if req.location:
-        node.location = req.location
+        node.parent_id = req.reports_to or None
+    if req.department_id is not None:
+        node.department_id = req.department_id or None
+    if req.specialization:
+        node.specialization = req.specialization
 
     db.commit()
     db.refresh(node)
 
     return {
         "id": node.id,
-        "employee_name": node.employee_name,
+        "employee_name": node.name,
         "status": "updated"
     }
 

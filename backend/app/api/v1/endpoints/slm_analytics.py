@@ -8,6 +8,7 @@ Provides visibility into Specialized Language Model decisions with:
 - 90-day validation outcomes
 - Decision trends over time
 """
+from sqlalchemy import Integer
 
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
@@ -82,7 +83,7 @@ def get_slm_metrics(time_range: str = Query("24h"), db: Session = Depends(get_db
         db.query(
             SLMDecision.message_type,
             func.count(SLMDecision.id).label("decisions"),
-            func.sum(func.cast(SLMDecision.was_escalated, db.Integer)).label("escalations")
+            func.sum(func.cast(SLMDecision.was_escalated, Integer)).label("escalations")
         )
         .filter(SLMDecision.created_at >= start_time)
         .group_by(SLMDecision.message_type)

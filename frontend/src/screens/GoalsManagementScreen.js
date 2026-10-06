@@ -236,7 +236,7 @@ export default function GoalsManagementScreen() {
         setLoading(true)
 
         // Fetch cascaded goals for current user's department
-        const response = await apiRequest("GET", "/goals/cascaded?year=2026")
+        const { data: response } = await apiRequest("/goals/cascaded?year=2026")
 
         if (response.cascaded_goals && response.cascaded_goals.length > 0) {
           // Map cascaded goals to frontend format

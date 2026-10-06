@@ -119,12 +119,12 @@ def get_messages(
             "messages": [
                 {
                     "id": str(m.id),
-                    "task_name": m.task_name,
+                    "task_name": m.type,
                     "status": m.status,
                     "created_at": m.created_at.isoformat() if m.created_at else None,
-                    "retries": m.retries,
+                    "retries": m.retry_count,
                     "error": m.error,
-                    "last_attempted": m.last_attempted.isoformat() if m.last_attempted else None,
+                    "last_attempted": m.last_attempted_at.isoformat() if m.last_attempted_at else None,
                 }
                 for m in messages
             ],
@@ -153,14 +153,13 @@ def get_message(
 
         return {
             "id": str(message.id),
-            "task_name": message.task_name,
+            "task_name": message.type,
             "status": message.status,
             "payload": message.payload,
             "created_at": message.created_at.isoformat() if message.created_at else None,
-            "retries": message.retries,
-            "max_retries": message.max_retries,
+            "retries": message.retry_count,
             "error": message.error,
-            "last_attempted": message.last_attempted.isoformat() if message.last_attempted else None,
+            "last_attempted": message.last_attempted_at.isoformat() if message.last_attempted_at else None,
         }
 
     except HTTPException:

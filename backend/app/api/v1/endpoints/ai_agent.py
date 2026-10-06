@@ -1085,6 +1085,15 @@ def deactivate_agent(
 # GET /ai-agent/inbox
 # ===========================================================================
 
+
+def _inbox_not_implemented():
+    """Service-mailbox reading has no implementation yet (read_all_inbox /
+    read_inbox_by_email are placeholders that return nothing)."""
+    raise HTTPException(
+        status_code=501,
+        detail="Reading the service mailbox is not implemented yet.",
+    )
+
 @router.get(
     "/inbox",
     response_model=InboxResponse,
@@ -1108,6 +1117,7 @@ def list_inbox(
     Lists all inbox messages from the service mailbox.
     Returns 403 with a permission hint if Mail.Read is not granted.
     """
+    _inbox_not_implemented()
     messages = read_all_inbox(top=top, skip=skip)
     return InboxResponse(
         mailbox=SERVICE_MAILBOX,
@@ -1140,6 +1150,7 @@ def list_inbox_by_email(
     Returns inbox messages filtered by sender email address.
     Returns 403 with a permission hint if Mail.Read is not granted.
     """
+    _inbox_not_implemented()
     messages = read_inbox_by_email(email=email, top=top)
     return InboxResponse(
         mailbox=SERVICE_MAILBOX,

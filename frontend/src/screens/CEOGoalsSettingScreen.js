@@ -149,7 +149,7 @@ export default function CEOGoalsSettingScreen() {
     const fetchGoals = async () => {
       try {
         setLoading(true)
-        const response = await apiRequest("GET", "/goals/strategic?year=2026")
+        const { data: response } = await apiRequest("/goals/strategic?year=2026")
         if (response.goals && response.goals.length > 0) {
           // Map backend goals to frontend format
           const mappedGoals = response.goals.map(goal => ({
@@ -190,13 +190,16 @@ export default function CEOGoalsSettingScreen() {
       setSaving(id)
 
       // Call backend to save CEO goal and cascade to all departments
-      const response = await apiRequest("PUT", `/goals/strategic/${id}`, {
-        new_target: editValue,
-        cascade_rules: {
-          workforce_ops: { formula: "direct_assignment", target: editValue },
-          partner: { formula: "divide_equal", count: 3 },
-          bu_head: { formula: "divide_equal", count: 9 }
-        }
+      await apiRequest(`/goals/strategic/${id}`, {
+        method: "PUT",
+        body: JSON.stringify({
+          new_target: editValue,
+          cascade_rules: {
+            workforce_ops: { formula: "direct_assignment", target: editValue },
+            partner: { formula: "divide_equal", count: 3 },
+            bu_head: { formula: "divide_equal", count: 9 }
+          }
+        }),
       })
 
       // Update local state
