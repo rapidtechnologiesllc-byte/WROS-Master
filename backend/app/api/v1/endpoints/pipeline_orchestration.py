@@ -216,7 +216,7 @@ async def peek_queue(
         logger.error(f"Error peeking queue {queue_name}: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.get(
+@router.post(
     "/run-demo",
     dependencies=[Depends(require_resource_permission("agents", "view"))]
 )

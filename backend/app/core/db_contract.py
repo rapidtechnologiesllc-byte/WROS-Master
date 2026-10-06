@@ -44,6 +44,9 @@ def initialize_database():
         logger.info("[Contract] Step 1: Creating database tables...")
         # Import models package - this triggers _auto_import_all_models()
         import app.models
+        # Models defined outside app.models must be imported to be created
+        import app.services.slm_job_metadata_service  # noqa: F401 -- SLMJobMetadata
+        import app.services.slm_feedback_engine  # noqa: F401 -- SLMFeedback, SLMModelVersion
         Base.metadata.create_all(bind=engine)
         logger.info("[OK] Database tables created")
 
@@ -873,6 +876,35 @@ def _run_schema_migrations():
         except Exception as e:
             logger.warning(f"[Contract] Migration warning for agent_configs.tenant_id: {e}")
             db.rollback()
+
+        # Migration 5d: SLM learning-metrics tables were created with uuid
+        # tenant/candidate/job ids, but tenants are integers and candidate
+        # ids are "CAN-..." strings, so nothing could be stored or read.
+        uuid_to_text = {
+            "slm_metrics": ["tenant_id"],
+            "thunder_learning_metrics": ["tenant_id", "candidate_id"],
+            "flash_learning_metrics": ["tenant_id", "job_id"],
+            "learning_weight_updates": ["tenant_id"],
+            "learning_recommendations": ["tenant_id", "target_entity_id", "approved_by_user_id"],
+        }
+        for table_name, columns in uuid_to_text.items():
+            for column_name in columns:
+                try:
+                    current_type = db.execute(text("""
+                        SELECT data_type FROM information_schema.columns
+                        WHERE table_schema = 'app_schema' AND table_name = :t AND column_name = :c
+                    """), {"t": table_name, "c": column_name}).scalar()
+                    if current_type == "uuid":
+                        db.execute(text("SET LOCAL lock_timeout = '5s'"))
+                        db.execute(text(
+                            f"ALTER TABLE app_schema.{table_name} ALTER COLUMN {column_name} "
+                            f"TYPE VARCHAR(512) USING {column_name}::text"
+                        ))
+                        db.commit()
+                        logger.info(f"[Contract] Migration: {table_name}.{column_name} uuid -> VARCHAR(512)")
+                except Exception as e:
+                    logger.warning(f"[Contract] Migration warning for {table_name}.{column_name}: {e}")
+                    db.rollback()
 
         # Migration 6: job_created_flash never set Jobs.tenant_id, so every
         # queue-created job was invisible to the tenant-scoped job list.

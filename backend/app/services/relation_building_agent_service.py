@@ -32,7 +32,7 @@ from app.core.logging import logger
 from app.models.candidate import Candidate
 from app.services.resume_parser_slm import ResumeSLM
 from app.services.candidate_memory_service import upsert_fact, get_memory
-from app.services.performance_store_service import write_performance_event
+from app.utils.agent_logger import log_agent_execution as record_agent_run
 from app.services.relation_building_interaction_tracker import InteractionTracker
 from app.services.personal_intelligence_service import (
     PersonalIntelligenceService,
@@ -169,11 +169,12 @@ class RelationBuildingAgent:
             )
 
             # 5. WRITE PERFORMANCE EVENT
-            write_performance_event(
+            record_agent_run(
                 db,
-                event_type="RELATION_BUILDING_PERSONA_EXTRACTED",
-                tenant_id=tenant_id,
-                event_data={
+                agent_name="Relation Building Agent",
+                action_taken="RELATION_BUILDING_PERSONA_EXTRACTED",
+                tenant_id=str(tenant_id),
+                action_data={
                     "candidate_id": candidate_id,
                     "career_level": persona["career_level"],
                     "engagement_readiness": persona["engagement_readiness"],

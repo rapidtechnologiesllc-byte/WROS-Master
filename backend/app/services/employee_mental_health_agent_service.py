@@ -359,7 +359,7 @@ def _compile_mental_health_actions(snapshot: Dict, burnout_risks: List) -> List[
     if len(burnout_risks) > 5:
         actions.append(f"HIGH PRIORITY: Initiate support conversations with {len(burnout_risks)} at-risk employees")
 
-    if snapshot["wellbeing_distribution"]["at_risk"] > len(snapshot["team_size"]) * 0.2:
+    if snapshot["wellbeing_distribution"]["at_risk"] > snapshot["team_size"] * 0.2:
         actions.append("Review and redistribute workloads across team")
 
     if "declining" in snapshot.get("wellbeing_trend", "").lower():

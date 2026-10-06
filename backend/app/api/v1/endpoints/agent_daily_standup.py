@@ -36,7 +36,7 @@ async def get_daily_standup(
     Returns: Agent reports + validation issues + CEO focus areas
     """
     try:
-        report = await AgentDailyStandup.generate_standup_report(
+        report = AgentDailyStandup.generate_standup_report(
             tenant_id=current_user.tenant_id,
             db=db
         )
@@ -67,7 +67,7 @@ async def get_scrum_of_scrums(
     # Permission check is enforced via decorator above (require_resource_permission("admin-settings", "view"))
     # No need for hardcoded role check here - removed for zero-hardcoding principle
     try:
-        scrum = await AgentDailyStandup.scrum_of_scrums(
+        scrum = AgentDailyStandup.scrum_of_scrums(
             tenant_id=current_user.tenant_id,
             db=db
         )

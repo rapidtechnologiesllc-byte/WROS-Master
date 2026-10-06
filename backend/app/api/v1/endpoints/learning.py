@@ -46,14 +46,14 @@ async def get_slm_health_score(
     Cascade risk flagged if score < 70%.
     """
     try:
-        if not current_user or not isinstance(current_user, dict):
+        if not current_user:
             raise HTTPException(status_code=401, detail="Invalid user context")
 
-        tenant_id = current_user.get("tenant_id")
+        tenant_id = str(current_user.tenant_id)
         if not tenant_id:
             raise HTTPException(status_code=400, detail="Tenant ID required")
 
-        result = SLMlearningFramework.compute_slm_health_score(db, UUID(tenant_id))
+        result = SLMlearningFramework.compute_slm_health_score(db, tenant_id)
         if not isinstance(result, dict) or "slm_health_score" not in result:
             raise HTTPException(status_code=500, detail="Failed to compute health score")
 
@@ -86,14 +86,14 @@ async def update_learning_weights(
     Returns summary of changes applied.
     """
     try:
-        if not current_user or not isinstance(current_user, dict):
+        if not current_user:
             raise HTTPException(status_code=401, detail="Invalid user context")
 
-        tenant_id = current_user.get("tenant_id")
+        tenant_id = str(current_user.tenant_id)
         if not tenant_id:
             raise HTTPException(status_code=400, detail="Tenant ID required")
 
-        result = SLMlearningFramework.update_learning_weights(db, UUID(tenant_id))
+        result = SLMlearningFramework.update_learning_weights(db, tenant_id)
         if not isinstance(result, dict):
             raise HTTPException(status_code=500, detail="Failed to update learning weights")
 
@@ -113,7 +113,7 @@ async def update_learning_weights(
     description="Get recommended outreach strategy for candidate based on learning",
 )
 async def get_thunder_recommendations(
-    candidate_id: UUID = Query(..., description="Candidate ID"),
+    candidate_id: str = Query(..., description="Candidate ID"),
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
@@ -129,16 +129,16 @@ async def get_thunder_recommendations(
     Based on learning from 50+ similar candidates.
     """
     try:
-        if not current_user or not isinstance(current_user, dict):
+        if not current_user:
             raise HTTPException(status_code=401, detail="Invalid user context")
 
-        tenant_id = current_user.get("tenant_id")
+        tenant_id = str(current_user.tenant_id)
         if not tenant_id:
             raise HTTPException(status_code=400, detail="Tenant ID required")
 
         result = ThunderLearningModule.get_recommended_outreach_strategy(
             db=db,
-            tenant_id=UUID(tenant_id),
+            tenant_id=tenant_id,
             candidate_id=candidate_id,
         )
         if not isinstance(result, dict) or "strategy" not in result:
@@ -169,16 +169,16 @@ async def get_channel_effectiveness(
     Returns ranked list of channels by success rate with confidence scores.
     """
     try:
-        if not current_user or not isinstance(current_user, dict):
+        if not current_user:
             raise HTTPException(status_code=401, detail="Invalid user context")
 
-        tenant_id = current_user.get("tenant_id")
+        tenant_id = str(current_user.tenant_id)
         if not tenant_id:
             raise HTTPException(status_code=400, detail="Tenant ID required")
 
         result = ThunderLearningModule.get_channel_effectiveness_report(
             db=db,
-            tenant_id=UUID(tenant_id),
+            tenant_id=tenant_id,
         )
         if not isinstance(result, dict):
             raise HTTPException(status_code=500, detail="Failed to get effectiveness report")
@@ -208,16 +208,16 @@ async def get_optimal_contact_window(
     Returns hour of day and day of week when candidates are most responsive.
     """
     try:
-        if not current_user or not isinstance(current_user, dict):
+        if not current_user:
             raise HTTPException(status_code=401, detail="Invalid user context")
 
-        tenant_id = current_user.get("tenant_id")
+        tenant_id = str(current_user.tenant_id)
         if not tenant_id:
             raise HTTPException(status_code=400, detail="Tenant ID required")
 
         result = ThunderLearningModule.detect_optimal_contact_window(
             db=db,
-            tenant_id=UUID(tenant_id),
+            tenant_id=tenant_id,
         )
         if not isinstance(result, dict):
             raise HTTPException(status_code=500, detail="Failed to detect contact window")
@@ -238,7 +238,7 @@ async def get_optimal_contact_window(
     description="Get Flash recommendations for job matching based on learning",
 )
 async def get_job_matching_strategy(
-    job_id: UUID = Query(..., description="Job ID"),
+    job_id: str = Query(..., description="Job ID"),
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
@@ -253,16 +253,16 @@ async def get_job_matching_strategy(
     - Recommended salary range and offer strategy
     """
     try:
-        if not current_user or not isinstance(current_user, dict):
+        if not current_user:
             raise HTTPException(status_code=401, detail="Invalid user context")
 
-        tenant_id = current_user.get("tenant_id")
+        tenant_id = str(current_user.tenant_id)
         if not tenant_id:
             raise HTTPException(status_code=400, detail="Tenant ID required")
 
         result = FlashLearningModule.get_job_matching_strategy(
             db=db,
-            tenant_id=UUID(tenant_id),
+            tenant_id=tenant_id,
             job_id=job_id,
         )
         if not isinstance(result, dict):
@@ -296,16 +296,16 @@ async def get_interview_insights(
     - Confidence score based on data size
     """
     try:
-        if not current_user or not isinstance(current_user, dict):
+        if not current_user:
             raise HTTPException(status_code=401, detail="Invalid user context")
 
-        tenant_id = current_user.get("tenant_id")
+        tenant_id = str(current_user.tenant_id)
         if not tenant_id:
             raise HTTPException(status_code=400, detail="Tenant ID required")
 
         result = FlashLearningModule.get_interview_scheduling_insights(
             db=db,
-            tenant_id=UUID(tenant_id),
+            tenant_id=tenant_id,
         )
         if not isinstance(result, dict):
             raise HTTPException(status_code=500, detail="Failed to get interview insights")
@@ -326,7 +326,7 @@ async def get_interview_insights(
     description="Learn what offer terms work best for a specific job",
 )
 async def get_offer_strategy(
-    job_id: UUID = Query(..., description="Job ID"),
+    job_id: str = Query(..., description="Job ID"),
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
@@ -340,16 +340,16 @@ async def get_offer_strategy(
     - Recommended offer strategy (aggressive, standard, conservative)
     """
     try:
-        if not current_user or not isinstance(current_user, dict):
+        if not current_user:
             raise HTTPException(status_code=401, detail="Invalid user context")
 
-        tenant_id = current_user.get("tenant_id")
+        tenant_id = str(current_user.tenant_id)
         if not tenant_id:
             raise HTTPException(status_code=400, detail="Tenant ID required")
 
         result = FlashLearningModule.get_offer_generation_strategy(
             db=db,
-            tenant_id=UUID(tenant_id),
+            tenant_id=tenant_id,
             job_id=job_id,
         )
         if not isinstance(result, dict):
@@ -371,7 +371,7 @@ async def get_offer_strategy(
     description="Record candidate engagement result after outreach attempt",
 )
 async def record_engagement(
-    candidate_id: UUID = Query(..., description="Candidate ID"),
+    candidate_id: str = Query(..., description="Candidate ID"),
     channel: str = Query(..., description="Outreach channel (email, sms, whatsapp, linkedin)"),
     engagement_type: str = Query(..., description="Type of engagement (opened, clicked, replied, engaged)"),
     response_time_hours: float = Query(None, description="Hours to response"),
@@ -383,16 +383,16 @@ async def record_engagement(
     Updates learning model to improve future recommendations.
     """
     try:
-        if not current_user or not isinstance(current_user, dict):
+        if not current_user:
             raise HTTPException(status_code=401, detail="Invalid user context")
 
-        tenant_id = current_user.get("tenant_id")
+        tenant_id = str(current_user.tenant_id)
         if not tenant_id:
             raise HTTPException(status_code=400, detail="Tenant ID required")
 
         result = ThunderLearningModule.record_engagement_result(
             db=db,
-            tenant_id=UUID(tenant_id),
+            tenant_id=tenant_id,
             candidate_id=candidate_id,
             channel=channel,
             engagement_type=engagement_type,
@@ -417,7 +417,7 @@ async def record_engagement(
     description="Record interview completion and result",
 )
 async def record_interview(
-    job_id: UUID = Query(..., description="Job ID"),
+    job_id: str = Query(..., description="Job ID"),
     success: bool = Query(..., description="Did interview happen successfully?"),
     attended: bool = Query(True, description="Did candidate attend?"),
     feedback_score: float = Query(None, description="Interviewer feedback (0-100)"),
@@ -428,16 +428,16 @@ async def record_interview(
     Record interview result. Updates Flash learning about optimal interview timing.
     """
     try:
-        if not current_user or not isinstance(current_user, dict):
+        if not current_user:
             raise HTTPException(status_code=401, detail="Invalid user context")
 
-        tenant_id = current_user.get("tenant_id")
+        tenant_id = str(current_user.tenant_id)
         if not tenant_id:
             raise HTTPException(status_code=400, detail="Tenant ID required")
 
         result = FlashLearningModule.record_interview_result(
             db=db,
-            tenant_id=UUID(tenant_id),
+            tenant_id=tenant_id,
             job_id=job_id,
             success=success,
             attended=attended,
@@ -462,7 +462,7 @@ async def record_interview(
     description="Record offer generation and acceptance",
 )
 async def record_offer(
-    job_id: UUID = Query(..., description="Job ID"),
+    job_id: str = Query(..., description="Job ID"),
     offer_extended: bool = Query(..., description="Was offer extended?"),
     offer_accepted: bool = Query(None, description="Was offer accepted?"),
     salary_offered: float = Query(None, description="Offered salary"),
@@ -475,16 +475,16 @@ async def record_offer(
     Record offer result. Updates Flash learning about what terms work best.
     """
     try:
-        if not current_user or not isinstance(current_user, dict):
+        if not current_user:
             raise HTTPException(status_code=401, detail="Invalid user context")
 
-        tenant_id = current_user.get("tenant_id")
+        tenant_id = str(current_user.tenant_id)
         if not tenant_id:
             raise HTTPException(status_code=400, detail="Tenant ID required")
 
         result = FlashLearningModule.record_offer_result(
             db=db,
-            tenant_id=UUID(tenant_id),
+            tenant_id=tenant_id,
             job_id=job_id,
             offer_extended=offer_extended,
             offer_accepted=offer_accepted,

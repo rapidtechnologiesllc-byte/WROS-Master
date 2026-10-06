@@ -16,7 +16,7 @@ from app.core.dependencies import require_role_template_permission
 from app.core.permission_registry import Permissions
 from app.models.queue_doctor import QueueDoctorState
 from app.services.queue_doctor_service import QueueDoctorService
-from app.services.performance_store_service import write_performance_event
+from app.utils.agent_logger import log_agent_execution as record_agent_run
 
 logger = logging.getLogger(__name__)
 
@@ -85,10 +85,12 @@ def get_queue_health_pulse(db: Session = Depends(get_db)) -> Dict[str, Any]:
 
         # Write to performance store for Flash tracking
         try:
-            write_performance_event(
+            record_agent_run(
+                db,
                 agent_name="MessageQueueWorker",
-                event_type="health_pulse",
-                metrics={
+                action_taken="health_pulse",
+                tenant_id="system",
+                action_data={
                     "queue_depth": pending,
                     "processing_rate": round(processing_rate_per_min, 2),
                     "stalled_count": len(stalled),

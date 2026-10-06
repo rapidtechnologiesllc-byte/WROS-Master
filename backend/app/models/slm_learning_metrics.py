@@ -18,7 +18,7 @@ class SLMMetrics(Base):
     __tablename__ = "slm_metrics"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    tenant_id = Column(UUID(as_uuid=True), nullable=False)
+    tenant_id = Column(String(512), nullable=False)
 
     # Time tracking
     timestamp = Column(DateTime, default=datetime.utcnow, nullable=False)
@@ -49,8 +49,8 @@ class ThunderLearningMetrics(Base):
     __tablename__ = "thunder_learning_metrics"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    tenant_id = Column(UUID(as_uuid=True), nullable=False)
-    candidate_id = Column(UUID(as_uuid=True), nullable=True)
+    tenant_id = Column(String(512), nullable=False)
+    candidate_id = Column(String(512), nullable=True)
 
     # Timestamp
     timestamp = Column(DateTime, default=datetime.utcnow, nullable=False)
@@ -85,8 +85,8 @@ class FlashLearningMetrics(Base):
     __tablename__ = "flash_learning_metrics"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    tenant_id = Column(UUID(as_uuid=True), nullable=False)
-    job_id = Column(UUID(as_uuid=True), nullable=True)
+    tenant_id = Column(String(512), nullable=False)
+    job_id = Column(String(512), nullable=True)
 
     # Timestamp
     timestamp = Column(DateTime, default=datetime.utcnow, nullable=False)
@@ -121,7 +121,7 @@ class LearningWeightUpdate(Base):
     __tablename__ = "learning_weight_updates"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    tenant_id = Column(UUID(as_uuid=True), nullable=False)
+    tenant_id = Column(String(512), nullable=False)
 
     # Timestamp
     timestamp = Column(DateTime, default=datetime.utcnow, nullable=False)
@@ -149,14 +149,14 @@ class LearningRecommendation(Base):
     __tablename__ = "learning_recommendations"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    tenant_id = Column(UUID(as_uuid=True), nullable=False)
+    tenant_id = Column(String(512), nullable=False)
 
     # Timestamp
     timestamp = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     # Target
     target_orchestrator = Column(String, nullable=False)  # "thunder" or "flash"
-    target_entity_id = Column(UUID(as_uuid=True), nullable=True)  # candidate_id or job_id
+    target_entity_id = Column(String(512), nullable=True)  # candidate_id or job_id
 
     # Recommendation
     recommendation_type = Column(String, nullable=False)  # "channel", "timing", "candidate", "job_match"
@@ -167,7 +167,7 @@ class LearningRecommendation(Base):
 
     # Approval status
     approved = Column(Boolean, default=False)
-    approved_by_user_id = Column(UUID(as_uuid=True), nullable=True)
+    approved_by_user_id = Column(String(512), nullable=True)
     approved_at = Column(DateTime, nullable=True)
 
     # Result

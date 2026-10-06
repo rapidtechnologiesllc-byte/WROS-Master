@@ -33,7 +33,7 @@ from app.models.candidate import Candidate
 from app.services.htd_pipeline_accountability_agent import HTDPipelineAccountabilityAgent
 from app.services.opportunity_tracker_agent_service import OpportunityTrackerAgent
 from app.services.relation_building_agent_service import RelationBuildingAgent
-from app.services.performance_store_service import write_performance_event
+from app.utils.agent_logger import log_agent_execution as record_agent_run
 from app.core.logging import logger
 
 logger = logging.getLogger(__name__)
@@ -251,11 +251,12 @@ class FlashOrchestrationEngine:
             )
 
             # Log this coordination round to performance store
-            write_performance_event(
+            record_agent_run(
                 db,
-                event_type="FLASH_DAILY_COORDINATION",
-                tenant_id=tenant_id,
-                event_data={
+                agent_name="Flash Orchestrator",
+                action_taken="FLASH_DAILY_COORDINATION",
+                tenant_id=str(tenant_id),
+                action_data={
                     "partners_analyzed": len(business_units),
                     "partners_with_directives": len(partner_directives),
                     "critical_alerts": critical_count,

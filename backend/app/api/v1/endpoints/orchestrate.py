@@ -56,10 +56,10 @@ async def orchestrate_job_created(
     Returns: Job ID, candidates found/selected/outreach queued
     """
     try:
-        if not current_user or not isinstance(current_user, dict):
+        if not current_user:
             raise HTTPException(status_code=401, detail="Invalid user context")
 
-        tenant_id = current_user.get("tenant_id")
+        tenant_id = str(current_user.tenant_id)
         if not tenant_id:
             raise HTTPException(status_code=400, detail="Tenant ID required")
 
@@ -116,10 +116,10 @@ async def orchestrate_outreach(
     Returns: Channel used, timing, confidence score
     """
     try:
-        if not current_user or not isinstance(current_user, dict):
+        if not current_user:
             raise HTTPException(status_code=401, detail="Invalid user context")
 
-        tenant_id = current_user.get("tenant_id")
+        tenant_id = str(current_user.tenant_id)
         if not tenant_id:
             raise HTTPException(status_code=400, detail="Tenant ID required")
 
@@ -173,10 +173,10 @@ async def orchestrate_interest_conversion(
     Returns: Conversion status, employee ID, interest score
     """
     try:
-        if not current_user or not isinstance(current_user, dict):
+        if not current_user:
             raise HTTPException(status_code=401, detail="Invalid user context")
 
-        tenant_id = current_user.get("tenant_id")
+        tenant_id = str(current_user.tenant_id)
         if not tenant_id:
             raise HTTPException(status_code=400, detail="Tenant ID required")
 
@@ -228,10 +228,10 @@ async def get_orchestration_status(
     - Overall progress
     """
     try:
-        if not current_user or not isinstance(current_user, dict):
+        if not current_user:
             raise HTTPException(status_code=401, detail="Invalid user context")
 
-        tenant_id = current_user.get("tenant_id")
+        tenant_id = str(current_user.tenant_id)
         if not tenant_id:
             raise HTTPException(status_code=400, detail="Tenant ID required")
 
@@ -352,10 +352,10 @@ async def get_orchestration_metrics(
     - Learning improvement over time
     """
     try:
-        if not current_user or not isinstance(current_user, dict):
+        if not current_user:
             raise HTTPException(status_code=401, detail="Invalid user context")
 
-        tenant_id = current_user.get("tenant_id")
+        tenant_id = str(current_user.tenant_id)
         if not tenant_id:
             raise HTTPException(status_code=400, detail="Tenant ID required")
 

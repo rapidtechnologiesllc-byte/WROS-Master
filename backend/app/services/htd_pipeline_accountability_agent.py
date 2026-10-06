@@ -25,7 +25,7 @@ from app.models.employee import Employee
 from app.models.htd_phase_gate import HTDPhaseGate, HTD_GATE_PHASES
 from app.models.business_unit import BusinessUnit
 from app.models.user import Users
-from app.services.performance_store_service import write_performance_event
+from app.utils.agent_logger import log_agent_execution as record_agent_run
 from app.core.logging import logger
 
 logger = logging.getLogger(__name__)
@@ -262,11 +262,12 @@ class HTDPipelineAccountabilityAgent:
             }
 
             # Log to performance store for Flash audit trail
-            write_performance_event(
+            record_agent_run(
                 db,
-                event_type="HTD_PIPELINE_TRACKING",
-                tenant_id=tenant_id,
-                event_data={
+                agent_name="HTD Pipeline Accountability Agent",
+                action_taken="HTD_PIPELINE_TRACKING",
+                tenant_id=str(tenant_id),
+                action_data={
                     "bu_name": bu.name,
                     "bu_id": bu_id,
                     "core_certified": len(core_certified),
@@ -352,11 +353,12 @@ class HTDPipelineAccountabilityAgent:
             }
 
             # Log to performance store for daily tracking
-            write_performance_event(
+            record_agent_run(
                 db,
-                event_type="HTD_PARTNERS_HEALTH_CHECK",
-                tenant_id=tenant_id,
-                event_data={
+                agent_name="HTD Pipeline Accountability Agent",
+                action_taken="HTD_PARTNERS_HEALTH_CHECK",
+                tenant_id=str(tenant_id),
+                action_data={
                     "total_bu": len(bu_health),
                     "critical_alerts": len(critical_bu),
                     "at_risk": len(at_risk_bu),

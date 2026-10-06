@@ -273,6 +273,7 @@ def get_slm_insights(db: Session) -> dict:
         }
     except Exception as e:
         logger.error(f"Failed to get SLM insights: {str(e)}", exc_info=True)
+        db.rollback()
         return {
             "status": "error",
             "message": f"Failed to fetch SLM insights: {str(e)}"

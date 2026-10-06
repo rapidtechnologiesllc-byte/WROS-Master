@@ -149,10 +149,9 @@ class FlashOrchestrator:
             "stage": "thunder_contact",  # First stage
             "data": {
                 "candidate_id": candidate_id,
-                "candidate_name": candidate.candidate_name,
-                "candidate_email": candidate.candidate_email,
-                "candidate_phone": candidate.candidate_phone,
-                "job_title": candidate.job_title,
+                "candidate_name": " ".join(p for p in [candidate.candidateFirstName, candidate.candidateLastName] if p),
+                "candidate_email": candidate.candidateEmail,
+                "candidate_phone": candidate.candidateMobile,
             }
         }
 
