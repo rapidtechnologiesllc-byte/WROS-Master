@@ -106,6 +106,11 @@ RESOURCE_ROUTES = {
     "slm-dashboard": "/admin/slm-dashboard",
 }
 
+# Resources whose page is a tab of another page (Users & Access Control):
+# they keep their route (deep links, permissions) but are not menu items.
+NAV_TAB_RESOURCES = {"role-templates", "business-units", "delivery-centers", "organizational-hierarchy"}
+
+
 def init_modules_and_resources(db: Session, tenant_id: int = 1):
     """Create all Module and Resource records."""
 

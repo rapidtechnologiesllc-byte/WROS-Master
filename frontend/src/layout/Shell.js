@@ -24,6 +24,12 @@ import {
   MessageSquareText,
   Receipt,
   Settings,
+  Building2,
+  MapPin,
+  Network,
+  Award,
+  Target,
+  KeyRound,
 } from "lucide-react";
 import cx from "../utils/cx";
 import TopBar from "./TopBar";
@@ -67,7 +73,31 @@ const ICON_MAP_BY_RESOURCE = {
   "my_timesheet": Clock,
   "my_expenses": BadgeDollarSign,
   "profile": UserPlus,
+  "users_access_control": Shield,
+  "certifications": Award,
+  "business_units": Building2,
+  "delivery_centers": MapPin,
+  "organizational_hierarchy": Network,
+  "goals": Target,
+  "api_keys": KeyRound,
+  "executive_revenue_dashboard": LineChart,
+  "revenue": TrendingUp,
+  "agents": Bot,
+  "projects": FolderKanban,
+  "clients": Globe2,
+  "opportunities": TrendingUp,
+  "offer_letters": FileTextIcon,
+  "submissions": Send,
+  "allocations": CalendarCheck2,
+  "expenses": BadgeDollarSign,
+  "notifications": MessageSquareText,
+  "error_logs": AlertOctagon,
+  "audit_logs": ShieldAlert,
+  "configuration": Settings,
 };
+
+// Nav item keys arrive as resource names ("role-templates"); the map uses underscores.
+const iconForResource = (key) => ICON_MAP_BY_RESOURCE[String(key || "").replace(/-/g, "_")] || Briefcase;
 
 // Map icon names (strings from backend) to icon components
 const ICON_COMPONENTS_BY_NAME = {
@@ -147,7 +177,7 @@ async function fetchNavigationFromBackend() {
         items: group.items.map(item => ({
           key: item.key,
           label: item.label,
-          icon: ICON_MAP_BY_RESOURCE[item.key] || Briefcase,
+          icon: iconForResource(item.key),
           path: item.route || RESOURCE_KEY_TO_PATH[item.key] || `/${item.key.replace(/_/g, "-")}`, // Admin path mapping, then fallback
         }))
       };
@@ -486,8 +516,8 @@ export default function Shell({
                                   : "text-white/70 hover:bg-white/10 hover:text-white",
                               )}
                             >
-                              <ItemIcon className="h-3.5 w-3.5" />
-                              {item.label}
+                              <ItemIcon className="h-3.5 w-3.5 flex-shrink-0" />
+                              <span className="flex-1 truncate text-left" title={item.label}>{item.label}</span>
                             </button>
                           );
                         })}
