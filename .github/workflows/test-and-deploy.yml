@@ -156,6 +156,11 @@ jobs:
     name: Deploy Changed Services
     needs: [detect-changes, test-backend, test-frontend, test-careers]
     runs-on: ubuntu-latest
+    # One production deploy at a time; deploy_backend.sh also refuses to
+    # move the server to an older commit when runs finish out of order
+    concurrency:
+      group: production-backend-deploy
+      cancel-in-progress: false
     # Test jobs for unchanged services are skipped; plain success() would then
     # skip the deploy too. Deploy unless a test job actually failed.
     if: ${{ !cancelled() && !contains(needs.*.result, 'failure') && (needs.detect-changes.outputs.backend-changed == 'true' || needs.detect-changes.outputs.frontend-changed == 'true') }}

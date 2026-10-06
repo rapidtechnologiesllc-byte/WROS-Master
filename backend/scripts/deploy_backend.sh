@@ -10,11 +10,14 @@
 #     Restart=always and brings it back on the new code
 #   - the queue worker is kept alive by a cron watchdog (flock = one instance)
 #
-# Usage: deploy_backend.sh <bundle-path|-> <commit-sha>
+# Usage: deploy_backend.sh <bundle-path|-> <commit-sha> [--allow-older]
+#   Refuses to move the server to a commit older than the one it runs
+#   (CI runs can finish out of order) unless --allow-older (a rollback).
 set -euo pipefail
 
 BUNDLE="$1"
 SHA="$2"
+ALLOW_OLDER="${3:-}"
 REPO=/home/HRMS/WROS-Master
 VENV="$REPO/venv"
 BACKEND_PATTERN="[/]home/HRMS/WROS-Master/venv/bin/uvicorn app.main:app"
@@ -43,6 +46,14 @@ if [ "$BUNDLE" != "-" ]; then
   git fetch -q "$BUNDLE" "+HEAD:refs/remotes/deploy/head"
 fi
 git cat-file -e "$SHA^{commit}"
+if [ "$SHA" = "$PREV" ] && [ "$ALLOW_OLDER" != "--allow-older" ]; then
+  echo "[deploy] $SHA is already deployed; nothing to do"
+  exit 0
+fi
+if [ "$SHA" != "$PREV" ] && [ "$ALLOW_OLDER" != "--allow-older" ] && git merge-base --is-ancestor "$SHA" "$PREV"; then
+  echo "[deploy] server already runs newer $PREV; not deploying older $SHA (pass --allow-older to roll back)"
+  exit 0
+fi
 git reset -q --hard "$SHA"
 echo "[deploy] $PREV -> $SHA"
 
