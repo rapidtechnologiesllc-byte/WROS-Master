@@ -18,6 +18,7 @@ from app.models.candidate_conversation import CandidateConversation
 from app.models.conversation_event import ConversationEvent
 from app.models.jobs import Jobs
 from app.services.skill_matching_service import SkillMatchingService
+from app.services.candidate_pipeline_stage import pipeline_stage_in
 
 logger = logging.getLogger(__name__)
 
@@ -384,7 +385,7 @@ class ThunderAutonomousProgression:
 
             # Quality score (profile completeness)
             qualified_candidates = db.query(Candidate).filter(
-                Candidate.candidate_status.in_(["QUALIFYING", "SCREENED", "INTERVIEW", "OFFER", "JOINED"])
+                pipeline_stage_in("QUALIFYING", "SCREENED", "INTERVIEW", "OFFER", "JOINED")
             ).all()
 
             if qualified_candidates:

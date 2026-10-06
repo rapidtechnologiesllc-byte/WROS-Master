@@ -8,6 +8,7 @@ import {
   updateCandidate,
 } from "../../services/api/candidates";
 import { getHrCandidateFullDetails } from "../../services/api/candidateSelfService";
+import { saveCandidateEducation, saveCandidateExperience } from "../../services/api/candidates";
 import { getCandidateDocuments, uploadResume } from "../../services/api/documents";
 import { getAllUsers } from "../../services/api/users";
 
@@ -137,8 +138,22 @@ export default function ProfileTabEditable({ candidateId, candidate = {}, onRefr
   // Initialize education, experience, and certifications from candidateFullDetails
   useEffect(() => {
     if (candidateFullDetails) {
-      setEducationList(candidateFullDetails.education || []);
-      setExperienceList(candidateFullDetails.experience || []);
+      // API rows use DB field names; the form works with its own names
+      setEducationList((candidateFullDetails.education || []).map((e) => ({
+        level: e.education_level || "",
+        school: e.education_institute || "",
+        university: e.education_institute || "",
+        start_date: e.starting_year || "",
+        end_date: e.year_of_passing || "",
+        degree: e.degree || "",
+      })));
+      setExperienceList((candidateFullDetails.experience || []).map((e) => ({
+        company: e.company_name || "",
+        job_title: e.job_title || "",
+        start_date: e.start_date || "",
+        end_date: e.end_date || "",
+        job_responsibilities: e.responsibilities || "",
+      })));
       setCertificationsList(candidateFullDetails.certifications || []);
     }
   }, [candidateFullDetails]);
@@ -815,7 +830,19 @@ export default function ProfileTabEditable({ candidateId, candidate = {}, onRefr
               )}
 
               <button
-                onClick={() => {
+                onClick={async () => {
+                  try {
+                    await saveCandidateEducation(candidateId, educationList.map((e) => ({
+                      level: e.level || null,
+                      institute: e.school || e.university || null,
+                      degree: e.degree || null,
+                      start: e.start_date || null,
+                      end: e.end_date || null,
+                    })));
+                  } catch (err) {
+                    setActionError(err?.message || "Failed to save education");
+                    return;
+                  }
                   setShowEducationModal(false);
                   setActionSuccess("Education details updated successfully");
                 }}
@@ -940,7 +967,19 @@ export default function ProfileTabEditable({ candidateId, candidate = {}, onRefr
               )}
 
               <button
-                onClick={() => {
+                onClick={async () => {
+                  try {
+                    await saveCandidateExperience(candidateId, experienceList.map((e) => ({
+                      company: e.company || null,
+                      job_title: e.job_title || null,
+                      start_date: e.start_date || null,
+                      end_date: e.end_date || null,
+                      responsibilities: e.job_responsibilities || null,
+                    })));
+                  } catch (err) {
+                    setActionError(err?.message || "Failed to save experience");
+                    return;
+                  }
                   setShowExperienceModal(false);
                   setActionSuccess("Experience details updated successfully");
                 }}

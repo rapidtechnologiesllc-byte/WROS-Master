@@ -26,6 +26,7 @@ from app.models.opportunity import Opportunity
 from app.models.candidate import Candidate
 from app.models.user import Users
 from app.core.logging import logger
+from app.services.candidate_pipeline_stage import pipeline_stage_in
 
 logger = logging.getLogger(__name__)
 
@@ -66,8 +67,8 @@ class RecruiterGoalAgent:
         # This month's hires (candidates they brought to "HIRED" status)
         monthly_hires = db.query(func.count(Candidate.candidateID)).filter(
             Candidate.tenant_id == tenant_id,
-            Candidate.recruiter_id == recruiter_id,
-            Candidate.status == "HIRED",
+            Candidate.assigned_recruiter_id == recruiter_id,
+            pipeline_stage_in("HIRED"),
             Candidate.updated_at >= month_start
         ).scalar() or 0
 
@@ -75,8 +76,8 @@ class RecruiterGoalAgent:
         week_start = today - timedelta(days=today.weekday())
         weekly_hires = db.query(func.count(Candidate.candidateID)).filter(
             Candidate.tenant_id == tenant_id,
-            Candidate.recruiter_id == recruiter_id,
-            Candidate.status == "HIRED",
+            Candidate.assigned_recruiter_id == recruiter_id,
+            pipeline_stage_in("HIRED"),
             Candidate.updated_at >= week_start
         ).scalar() or 0
 
@@ -88,8 +89,8 @@ class RecruiterGoalAgent:
         # Pipeline (candidates they're working on)
         pipeline = db.query(func.count(Candidate.candidateID)).filter(
             Candidate.tenant_id == tenant_id,
-            Candidate.recruiter_id == recruiter_id,
-            Candidate.status.in_(["QUALIFIED", "SCREENING", "SUBMITTED_TO_JOB", "INTERVIEW", "OFFER"])
+            Candidate.assigned_recruiter_id == recruiter_id,
+            pipeline_stage_in("QUALIFIED", "SCREENING", "SUBMITTED", "INTERVIEW", "OFFER")
         ).scalar() or 0
 
         # Status
@@ -213,8 +214,8 @@ class SalesPersonGoalAgent:
         weekly_revenue_cents = db.query(func.sum(Opportunity.deal_size_usd)).filter(
             Opportunity.tenant_id == tenant_id,
             Opportunity.owner_id == salesperson_id,
-            Opportunity.close_date >= week_start,
-            Opportunity.close_date < week_end,
+            Opportunity.expected_close_date >= week_start,
+            Opportunity.expected_close_date < week_end,
             Opportunity.status == "won"
         ).scalar() or 0
 
@@ -302,7 +303,7 @@ class PartnerGoalAgent:
         ytd_revenue_cents = db.query(func.sum(Opportunity.deal_size_usd)).filter(
             Opportunity.partner_owner_id == partner_id,
             Opportunity.tenant_id == tenant_id,
-            Opportunity.close_date >= ytd_start,
+            Opportunity.expected_close_date >= ytd_start,
             Opportunity.status == "won"
         ).scalar() or 0
 
@@ -374,12 +375,12 @@ class BUHeadGoalAgent:
 
         # Utilization
         total_emps = db.query(func.count(Employee.id)).filter(
-            Employee.business_unit_id == bu_id,
+            Employee.bu_id == bu_id,
             Employee.status == "ACTIVE"
         ).scalar() or 1
 
         allocated = db.query(func.count(Employee.id)).filter(
-            Employee.business_unit_id == bu_id,
+            Employee.bu_id == bu_id,
             Employee.status == "ACTIVE",
             Employee.current_project_id.isnot(None)
         ).scalar() or 0
@@ -388,15 +389,15 @@ class BUHeadGoalAgent:
 
         # CORE
         core = db.query(func.count(Employee.id)).filter(
-            Employee.business_unit_id == bu_id,
-            Employee.is_core_certified == True
+            Employee.bu_id == bu_id,
+            Employee.core_certified == True
         ).scalar() or 0
 
         core_pct = (core / total_emps * 100) if total_emps > 0 else 0
 
         # Growth
         start_month_headcount = total_emps - db.query(func.count(Employee.id)).filter(
-            Employee.business_unit_id == bu_id,
+            Employee.bu_id == bu_id,
             Employee.created_at >= month_start
         ).scalar() or 0
 

@@ -118,9 +118,11 @@ function UsersBUDetailsPanel({ candidate, onUpdate }) {
       try {
         setLoadingRecruiters(true);
         const allUsers = await getAllUsers();
-        const recruitersList = Array.isArray(allUsers)
-          ? allUsers.filter(u => u.user.job_title === 'Recruiter' || u.job_title === 'Recruiter')
-          : allUsers?.users?.filter(u => u.user.job_title === 'Recruiter' || u.job_title === 'Recruiter') || [];
+        const users = Array.isArray(allUsers) ? allUsers : allUsers?.users || [];
+        // Recruitment department (or a recruiter job title); everyone if none
+        const isRecruiter = (u) =>
+          /recruit/i.test(u.department_name || "") || /recruit/i.test(u.job_title || "");
+        const recruitersList = users.some(isRecruiter) ? users.filter(isRecruiter) : users;
         setRecruiters(recruitersList);
       } catch (error) {
         console.error("Failed to load recruiters:", error);

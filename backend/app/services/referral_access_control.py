@@ -22,6 +22,13 @@ from app.services.permission_helper import PermissionHelper
 
 logger = logging.getLogger(__name__)
 
+
+def _employee_id_for_user(db, user_id):
+    """Referrals/bonuses are keyed by Employee.id; map a login (Users.UserID)
+    to its employee record via Employee.wros_user_id."""
+    employee = db.query(Employee).filter(Employee.wros_user_id == user_id).first()
+    return employee.id if employee else None
+
 class ReferralAccessControl:
     """Database-driven access control for employee referrals via role_templates."""
 
@@ -46,7 +53,7 @@ class ReferralAccessControl:
 
         # Admin and Workforce Manager see everything
         user = db.query(Users).filter(Users.UserID == user_id).first()
-        tenant_id = getattr(user, 'TenantID', 1) if user else 1
+        tenant_id = (user.tenant_id or 1) if user else 1
         if PermissionHelper.has_any_permission(user_id, ["admin-settings", "edit", "revenue", "edit"], db, tenant_id):
             return True
 
@@ -66,7 +73,7 @@ class ReferralAccessControl:
         try:
             # Admin and Finance see ALL referrals
             user = db.query(Users).filter(Users.UserID == user_id).first()
-            tenant_id = getattr(user, 'TenantID', 1) if user else 1
+            tenant_id = (user.tenant_id or 1) if user else 1
             if PermissionHelper.has_any_permission(user_id, ["admin-settings", "edit", "revenue", "edit"], db, tenant_id):
                 referrals = db.query(EmployeeReferral).all()
             # BU Head/Partner and HR Manager see only their BU's referrals
@@ -74,13 +81,13 @@ class ReferralAccessControl:
                 referrals = (
                     db.query(EmployeeReferral)
                     .join(Employee, EmployeeReferral.referring_employee_id == Employee.id)
-                    .filter(Employee.business_unit == user_bu)
+                    .filter(Employee.bu_id == user_bu)
                     .all()
                 )
             else:
                 # Regular Employee sees only own referrals
                 referrals = db.query(EmployeeReferral).filter(
-                    EmployeeReferral.referring_employee_id == user_id
+                    EmployeeReferral.referring_employee_id == _employee_id_for_user(db, user_id)
                 ).all()
 
             return [
@@ -112,7 +119,7 @@ class ReferralAccessControl:
         try:
             # Admin and Finance see ALL bonuses for payment processing
             user = db.query(Users).filter(Users.UserID == user_id).first()
-            tenant_id = getattr(user, 'TenantID', 1) if user else 1
+            tenant_id = (user.tenant_id or 1) if user else 1
             if PermissionHelper.has_any_permission(user_id, ["admin-settings", "edit", "revenue", "edit"], db, tenant_id):
                 bonuses = db.query(ReferralBonus).all()
             # BU Head/Partner and HR Manager see only their BU's bonuses
@@ -120,13 +127,13 @@ class ReferralAccessControl:
                 bonuses = (
                     db.query(ReferralBonus)
                     .join(Employee, ReferralBonus.referring_employee_id == Employee.id)
-                    .filter(Employee.business_unit == user_bu)
+                    .filter(Employee.bu_id == user_bu)
                     .all()
                 )
             else:
                 # Regular Employee sees only own bonuses
                 bonuses = db.query(ReferralBonus).filter(
-                    ReferralBonus.referring_employee_id == user_id
+                    ReferralBonus.referring_employee_id == _employee_id_for_user(db, user_id)
                 ).all()
 
             return [
@@ -157,7 +164,7 @@ class ReferralAccessControl:
 
         # Only admin, finance, and manager-level and above can see job stats
         user = db.query(Users).filter(Users.UserID == user_id).first()
-        tenant_id = getattr(user, 'TenantID', 1) if user else 1
+        tenant_id = (user.tenant_id or 1) if user else 1
         can_view_stats = PermissionHelper.has_any_permission(
             user_id,
             ["admin-settings", "edit", "revenue", "edit", "business-units", "edit", "employees", "edit"],
@@ -273,7 +280,7 @@ class ReferralAccessControl:
         bu_referrals = (
             db.query(EmployeeReferral)
             .join(Employee, EmployeeReferral.referring_employee_id == Employee.id)
-            .filter(Employee.business_unit == bu)
+            .filter(Employee.bu_id == bu)
             .all()
         )
 
@@ -294,7 +301,7 @@ class ReferralAccessControl:
         bu_referrals = (
             db.query(EmployeeReferral)
             .join(Employee, EmployeeReferral.referring_employee_id == Employee.id)
-            .filter(Employee.business_unit == bu)
+            .filter(Employee.bu_id == bu)
             .all()
         )
 

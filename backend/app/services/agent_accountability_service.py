@@ -36,6 +36,7 @@ from app.models.candidate import Candidate
 from app.models.offer_letter import OfferLetter
 from app.models.employee import Employee
 from app.core.logging import logger
+from app.services.candidate_pipeline_stage import pipeline_stage_in
 
 logger = logging.getLogger(__name__)
 
@@ -69,7 +70,7 @@ class AgentAccountabilityService:
         # Metric: # of candidates who passed qualification screening
         recruitment_qualified = db.query(func.count(Candidate.candidateID)).filter(
             Candidate.tenant_id == tenant_id,
-            Candidate.status.in_(["QUALIFIED", "SCREENING", "SUBMITTED_TO_JOB", "INTERVIEW", "OFFER", "HIRED"])
+            pipeline_stage_in("QUALIFIED", "SCREENING", "SUBMITTED", "INTERVIEW", "OFFER", "HIRED")
         ).scalar() or 0
 
         # ===== STAGE 3: INTERVIEW SCHEDULER'S JOB =====
@@ -101,8 +102,8 @@ class AgentAccountabilityService:
         # Metric: # of offers accepted (joining_date confirmed)
         offers_accepted = db.query(func.count(Candidate.candidateID)).filter(
             Candidate.tenant_id == tenant_id,
-            Candidate.joining_date.isnot(None),
-            Candidate.status == "OFFER"
+            Candidate.candidateJoiningDate.isnot(None),
+            pipeline_stage_in("OFFER")
         ).scalar() or 0
 
         # ===== STAGE 7: HR/ONBOARDING'S JOB =====

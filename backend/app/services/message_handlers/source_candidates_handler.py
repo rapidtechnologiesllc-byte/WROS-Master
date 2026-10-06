@@ -17,6 +17,8 @@ from app.models.user import Jobs
 from app.services.skill_matching_service import SkillMatchingService
 from app.services.message_queue_service import MessageQueueService
 from app.services.message_handlers.base_message_handler import time_bound
+from sqlalchemy import or_
+from app.services.candidate_pipeline_stage import pipeline_stage_in
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +28,9 @@ PHALANX_HEALTH_CRITICAL = 40  # Escalate if below this
 
 class SourceCandidatesHandler:
     """Source candidates for job - rank by skill recency, report cascade status to Flash"""
+    # Enforced by queue_processor_service (its default for this task type)
+    TIMEOUT_SECONDS = 30
+
 
     @staticmethod
     @time_bound(timeout_seconds=15)
@@ -68,16 +73,21 @@ class SourceCandidatesHandler:
             logger.info(f"[SourceCandidates] Starting sourcing for {job_id} ({job.jobTitle})")
 
             # PHASE 3: GET CANDIDATE POOL (location-based, active status)
+            # Active pool = not rejected and not already hired. (A Python `or`
+            # between the two location conditions silently kept only the first.)
             candidates = db.query(Candidate).filter(
-                Candidate.status.in_(['active', 'offer_extended']),
-                Candidate.current_location == job.jobLocation or Candidate.current_location.ilike(f"%{job.jobLocation}%")
+                ~pipeline_stage_in("REJECTED", "HIRED"),
+                or_(
+                    Candidate.candidateCurrentLocation == job.jobLocation,
+                    Candidate.candidateCurrentLocation.ilike(f"%{job.jobLocation}%"),
+                ),
             ).all()
 
             if not candidates:
                 logger.warning(f"[SourceCandidates] No candidates found for {job_id}")
                 candidate_ids = []
             else:
-                candidate_ids = [c.candidate_id for c in candidates]
+                candidate_ids = [c.candidateID for c in candidates]
                 logger.info(f"[SourceCandidates] Found {len(candidate_ids)} candidates in location")
 
             # PHASE 4: RANK BY SKILL RECENCY (SkillMatchingService handles Spartan patterns)

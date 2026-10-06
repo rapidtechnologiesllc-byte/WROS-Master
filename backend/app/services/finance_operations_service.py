@@ -59,9 +59,13 @@ def get_ar_aging_breakdown(db: Session, as_of_date: Optional[str] = None) -> Dic
     """
     as_of = datetime.fromisoformat(as_of_date) if as_of_date else datetime.utcnow()
 
-    invoices = db.query(Invoice).filter(
-        Invoice.status.in_(("SENT", "PARTIAL")),
-        Invoice.due_date <= as_of.date()
+    # Unpaid = SENT (statuses are DRAFT/APPROVED/SENT/PAID). Invoices have no
+    # due date column: due = sent_at + the client's payment terms.
+    from app.models.client import Client
+
+    rows = db.query(Invoice, Client).outerjoin(Client, Client.id == Invoice.client_id).filter(
+        Invoice.status == "SENT",
+        Invoice.sent_at.isnot(None),
     ).all()
 
     buckets = {
@@ -71,9 +75,13 @@ def get_ar_aging_breakdown(db: Session, as_of_date: Optional[str] = None) -> Dic
         "90_plus_days": {"count": 0, "total_usd_cents": 0, "invoices": []},
     }
 
-    for inv in invoices:
-        days_overdue = (as_of.date() - inv.due_date).days
-        amount = inv.total_amount_usd_cents
+    for inv, client in rows:
+        terms_days = client.payment_terms_days if client and client.payment_terms_days is not None else 30
+        due_date = inv.sent_at.date() + timedelta(days=terms_days)
+        days_overdue = (as_of.date() - due_date).days
+        if days_overdue < 0:
+            continue  # not due yet
+        amount = inv.total_usd_cents or 0
 
         if days_overdue <= 30:
             bucket = "current"
@@ -88,10 +96,10 @@ def get_ar_aging_breakdown(db: Session, as_of_date: Optional[str] = None) -> Dic
         buckets[bucket]["total_usd_cents"] += amount
         buckets[bucket]["invoices"].append({
             "invoice_id": inv.id,
-            "client_name": inv.client.company_name if inv.client else "Unknown",
-            "invoice_number": inv.invoice_number,
+            "client_name": client.company_name if client else "Unknown",
+            "invoice_number": inv.id,
             "amount_usd_cents": amount,
-            "due_date": inv.due_date.isoformat(),
+            "due_date": due_date.isoformat(),
             "days_overdue": days_overdue,
         })
 

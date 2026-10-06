@@ -121,7 +121,6 @@ def create_candidate_lightweight(
                 # Pass through upload metadata as extra fields
                 upload_status=CandidateUploadState.CREATED.value,
                 expected_document_count=expected_document_count,
-                upload_locked=False,
                 upload_started_at=datetime.utcnow().isoformat(),
             )
 
@@ -248,17 +247,15 @@ def upload_document(
         filename = filename.strip()
 
         # Fetch candidate (with validation)
+        # Row lock (FOR UPDATE) serialises concurrent uploads for one
+        # candidate -- there is no upload_locked column
         candidate = db.query(Candidate).filter(
             Candidate.candidateID == candidate_id,
             Candidate.tenant_id == tenant_id,
-        ).first()
+        ).with_for_update().first()
 
         if not candidate:
             raise ValueError(f"Candidate not found: {candidate_id}")
-
-        # Check upload state
-        if candidate.upload_locked:
-            raise ValueError("Upload locked - another process is modifying this candidate")
 
         current_state = CandidateUploadState(candidate.upload_status)
         if current_state not in [CandidateUploadState.CREATED, CandidateUploadState.UPLOADING]:
@@ -275,8 +272,8 @@ def upload_document(
             )
 
         total_size = (
-            db.query(func.sum(CandidateDocument.file_size_bytes))
-            .filter(CandidateDocument.candidateID == candidate_id)
+            db.query(func.sum(CandidateDocument.file_size))
+            .filter(CandidateDocument.candidate_id == candidate_id)
             .scalar()
             or 0
         )
@@ -289,8 +286,8 @@ def upload_document(
 
         # Check duplicate (idempotent)
         existing = db.query(CandidateDocument).filter(
-            CandidateDocument.candidateID == candidate_id,
-            CandidateDocument.s3_key == s3_key,
+            CandidateDocument.candidate_id == candidate_id,
+            CandidateDocument.stored_filename == s3_key,
         ).first()
 
         if existing:
@@ -305,7 +302,7 @@ def upload_document(
         # Get next sequence using database-atomic operation
         max_sequence = (
             db.query(func.max(CandidateDocument.upload_sequence))
-            .filter(CandidateDocument.candidateID == candidate_id)
+            .filter(CandidateDocument.candidate_id == candidate_id)
             .scalar()
             or 0
         )
@@ -314,14 +311,16 @@ def upload_document(
 
         # Create document record
         document = CandidateDocument(
-            candidateID=candidate_id,
+            candidate_id=candidate_id,
             document_name=filename,
             document_type=file_type,
-            file_size_bytes=file_size_bytes,
-            s3_key=s3_key,
+            original_filename=filename,
+            stored_filename=s3_key,
+            file_size=file_size_bytes,
+            file_extension=(filename.rsplit(".", 1)[-1].lower() if "." in filename else "")[:10],
+            uploaded_by=candidate_id,
             uploaded_at=datetime.utcnow(),
             upload_sequence=sequence,
-            tenant_id=tenant_id,
         )
 
         db.add(document)

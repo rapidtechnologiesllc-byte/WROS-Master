@@ -54,7 +54,7 @@ from app.models.candidate_ownership import CandidateOwnership
 
 from app.core.dependencies import get_current_user, get_current_candidate, require_role_template_permission
 
-from app.schemas.candidate import (CandidateCreateRequest,
+from app.schemas.candidate import (CandidateCreateRequest, HrEducationItem, HrExperienceItem,
 CandidateCreateResponse, CandidateCompleteResponse,
 CandidateEducationResponse, CandidateExperienceResponse,
 CandidateInfoResponse, CandidatePanResponse,
@@ -148,7 +148,7 @@ def _build_candidate_response(
         # Recruiter & Business Unit Assignment
         assigned_recruiter_id=getattr(candidate, 'assigned_recruiter_id', None),
         assigned_recruiter_name=(
-            f"{candidate.assigned_recruiter.FirstName} {candidate.assigned_recruiter.LastName}"
+            (candidate.assigned_recruiter.UserName or candidate.assigned_recruiter.UserEmail)
             if getattr(candidate, 'assigned_recruiter', None) else None
         ),
         submission_bu_id=getattr(candidate, 'submission_bu_id', None),
@@ -179,6 +179,7 @@ def _build_candidate_response(
                 starting_year=edu.starting_year,
                 year_of_passing=edu.year_of_passing,
                 percentage=edu.percentage,
+                education_level=edu.education_level,
                 document_is_submitted=edu.document_is_submitted,
                 document_id=edu.document_id
             ) for edu in (education_records or [])
@@ -191,6 +192,7 @@ def _build_candidate_response(
                 start_date=exp.start_date,
                 end_date=exp.end_date,
                 year_of_experience=exp.year_of_experience,
+                responsibilities=exp.responsibilities,
                 document_is_submitted=exp.document_is_submitted,
                 document_id=exp.document_id
             ) for exp in (experience_records or [])
@@ -522,6 +524,7 @@ def get_candidates_by_my_bu(
                     starting_year=edu.starting_year,
                     year_of_passing=edu.year_of_passing,
                     percentage=edu.percentage,
+                education_level=edu.education_level,
                     document_is_submitted=edu.document_is_submitted,
                     document_id=edu.document_id,
                 ) for edu in education_records
@@ -534,6 +537,7 @@ def get_candidates_by_my_bu(
                     start_date=exp.start_date,
                     end_date=exp.end_date,
                     year_of_experience=exp.year_of_experience,
+                responsibilities=exp.responsibilities,
                     document_is_submitted=exp.document_is_submitted,
                     document_id=exp.document_id,
                 ) for exp in experience_records
@@ -564,6 +568,69 @@ def get_candidates_by_my_bu(
         total_candidates=len(candidates_data),
         candidates=candidates_data,
     )
+
+def _record_profile_edit(db: Session, candidate_id: str, user, note: str):
+    db.add(CandidateHistory(
+        candidateID=candidate_id,
+        event_type="Candidate Edited",
+        note=note,
+        performed_by_id=getattr(user, "UserID", None),
+        performed_by_name=getattr(user, "UserName", None) or getattr(user, "UserEmail", None),
+        event_at=datetime.utcnow(),
+    ))
+
+
+@router.put(
+    "/{candidate_id}/education",
+    dependencies=[Depends(require_role_template_permission("candidates", "can_edit"))],
+)
+def replace_candidate_education(
+    candidate_id: str, items: list[HrEducationItem], db: Session = Depends(get_db), user = Depends(get_current_user)
+):
+    """Replace the candidate's education list (HR profile Save & Close)."""
+    candidate = get_candidate_by_id_with_bu_scope(db, candidate_id, user)
+    if not candidate:
+        raise HTTPException(status_code=404, detail=f"Candidate with ID {candidate_id} not found")
+    db.query(CandidateEducationForm).filter(CandidateEducationForm.candidateID == candidate_id).delete()
+    for item in items:
+        db.add(CandidateEducationForm(
+            candidateID=candidate_id,
+            education_level=item.level,
+            education_institute=item.institute,
+            degree=item.degree,
+            starting_year=item.start,
+            year_of_passing=item.end,
+        ))
+    _record_profile_edit(db, candidate_id, user, f"Education updated ({len(items)} entries)")
+    db.commit()
+    return {"status": "success", "count": len(items)}
+
+
+@router.put(
+    "/{candidate_id}/experience",
+    dependencies=[Depends(require_role_template_permission("candidates", "can_edit"))],
+)
+def replace_candidate_experience(
+    candidate_id: str, items: list[HrExperienceItem], db: Session = Depends(get_db), user = Depends(get_current_user)
+):
+    """Replace the candidate's experience list (HR profile Save & Close)."""
+    candidate = get_candidate_by_id_with_bu_scope(db, candidate_id, user)
+    if not candidate:
+        raise HTTPException(status_code=404, detail=f"Candidate with ID {candidate_id} not found")
+    db.query(CandidateExperienceForm).filter(CandidateExperienceForm.candidateID == candidate_id).delete()
+    for item in items:
+        db.add(CandidateExperienceForm(
+            candidateID=candidate_id,
+            company_name=item.company,
+            job_title=item.job_title,
+            start_date=item.start_date,
+            end_date=item.end_date,
+            responsibilities=item.responsibilities,
+        ))
+    _record_profile_edit(db, candidate_id, user, f"Experience updated ({len(items)} entries)")
+    db.commit()
+    return {"status": "success", "count": len(items)}
+
 
 @router.put(
     "/hr/update_candidate/{candidate_id}",
@@ -713,6 +780,15 @@ def update_candidate(candidate_id: str, request: CandidateUpdateRequest, db: Ses
                 performed_by_name=getattr(user, "UserName", None) or getattr(user, "UserEmail", None),
                 event_at=datetime.utcnow(),
             ))
+
+    if request.assigned_recruiter_id is not None and request.assigned_recruiter_id != candidate.assigned_recruiter_id:
+        recruiter = db.query(Users).filter(Users.UserID == request.assigned_recruiter_id).first()
+        if not recruiter:
+            raise HTTPException(status_code=404, detail=f"User {request.assigned_recruiter_id} not found")
+        candidate.assigned_recruiter_id = recruiter.UserID
+        candidate.assigned_recruiter_changed_at = datetime.utcnow()
+        candidate.assigned_recruiter_changed_by = getattr(user, "UserID", None)
+        _record_profile_edit(db, candidate_id, user, f"Recruiter set to {recruiter.UserName or recruiter.UserEmail}")
 
     if request.candidate_employee_type is not None:
         old_val = candidate.candidateEmployeeType

@@ -107,7 +107,7 @@ class FlashOrchestrationEngine:
             # 1b. RELATION BUILDING AGENT - Extract personas for recent candidates
             recent_candidates = db.query(Candidate).filter(
                 Candidate.tenant_id == tenant_id,
-                Candidate.created_at >= datetime.now() - timedelta(days=1)
+                Candidate.candidateCreatedAt >= datetime.now() - timedelta(days=1)
             ).all()
 
             candidate_relationships = []

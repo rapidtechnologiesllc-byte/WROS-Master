@@ -26,6 +26,7 @@ from app.models.offer_letter import OfferLetter
 from app.models.employee import Employee
 from app.models.business_unit import BusinessUnit
 from app.core.logging import logger
+from app.services.candidate_pipeline_stage import pipeline_stage_in
 
 logger = logging.getLogger(__name__)
 
@@ -132,7 +133,7 @@ class RecruitmentFunnelDashboard:
         # Definition: Candidate status is QUALIFIED or beyond
         qualified_count = db.query(func.count(Candidate.candidateID)).filter(
             Candidate.tenant_id == tenant_id,
-            Candidate.status.in_(["QUALIFIED", "SCREENING", "SUBMITTED_TO_JOB", "INTERVIEW", "OFFER", "HIRED"])
+            pipeline_stage_in("QUALIFIED", "SCREENING", "SUBMITTED", "INTERVIEW", "OFFER", "HIRED")
         ).scalar() or 0
 
         # Stage 3: INTERVIEW SCHEDULED
@@ -183,7 +184,7 @@ class RecruitmentFunnelDashboard:
         # Stage 7: HIRED (Employee account created)
         hired_count = db.query(func.count(Candidate.candidateID)).filter(
             Candidate.tenant_id == tenant_id,
-            Candidate.status == "HIRED"
+            pipeline_stage_in("HIRED")
         ).scalar() or 0
 
         # Stage 8: ONBOARDED (Onboarding complete)
@@ -323,7 +324,7 @@ class RecruitmentFunnelDashboard:
         core_certified = db.query(func.count(Employee.id)).filter(
             Employee.tenant_id == tenant_id,
             Employee.status == "ACTIVE",
-            Employee.is_core_certified == True
+            Employee.core_certified == True
         ).scalar() or 0
 
         # In development (HTD pipeline)
@@ -355,15 +356,15 @@ class RecruitmentFunnelDashboard:
         for bu in business_units:
             bu_total = db.query(func.count(Employee.id)).filter(
                 Employee.tenant_id == tenant_id,
-                Employee.business_unit_id == bu.id,
+                Employee.bu_id == bu.id,
                 Employee.status == "ACTIVE"
             ).scalar() or 0
 
             bu_core = db.query(func.count(Employee.id)).filter(
                 Employee.tenant_id == tenant_id,
-                Employee.business_unit_id == bu.id,
+                Employee.bu_id == bu.id,
                 Employee.status == "ACTIVE",
-                Employee.is_core_certified == True
+                Employee.core_certified == True
             ).scalar() or 0
 
             bu_breakdown.append({
@@ -372,7 +373,7 @@ class RecruitmentFunnelDashboard:
                 "core_certified": bu_core,
                 "core_pct": (bu_core / bu_total * 100) if bu_total > 0 else 0,
                 "in_development": db.query(func.count(Employee.id)).filter(
-                    Employee.business_unit_id == bu.id,
+                    Employee.bu_id == bu.id,
                     Employee.status == "TRAINING"
                 ).scalar() or 0
             })

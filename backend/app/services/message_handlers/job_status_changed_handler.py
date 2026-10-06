@@ -12,6 +12,9 @@ logger = logging.getLogger(__name__)
 
 class JobStatusChangedHandler:
     """Handles job_status_changed messages with time-bound execution and validation."""
+    # Enforced by queue_processor_service (its default for this task type)
+    TIMEOUT_SECONDS = 30
+
 
     MAX_RETRIES = 3
     RETRY_DELAY_MINUTES = 15
@@ -37,7 +40,7 @@ class JobStatusChangedHandler:
                 raise ValueError("job_id and new_status are required in payload")
 
             # 1. Fetch job to verify it exists
-            job = db.query(Jobs).filter(Jobs.id == job_id).first()
+            job = db.query(Jobs).filter(Jobs.jobID == job_id).first()
             if not job:
                 raise ValueError(f"Job {job_id} not found in database")
 

@@ -188,7 +188,7 @@ def hiring_pipeline_status(
         total_candidates = db.query(func.count(Candidate.candidateID)).scalar() or 0
         open_jobs = db.query(func.count(Jobs.jobID)).filter(Jobs.jobStatus == "active").scalar() or 0
         pending_interviews = db.query(func.count(Interview.id)).filter(
-            Interview.interview_status == "scheduled"
+            Interview.status == "scheduled"
         ).scalar() or 0
         pending_offers = db.query(func.count(OfferLetter.id)).filter(
             OfferLetter.offer_status == "pending"

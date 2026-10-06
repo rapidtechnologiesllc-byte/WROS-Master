@@ -20,6 +20,7 @@ from app.models.revenue import Revenue
 from app.models.org_structure import BusinessUnit
 from app.models.timesheet import Timesheet
 from app.core.logging import logger
+from app.services.scope_helpers import invoice_in_bu, revenue_in_bu
 
 logger = logging.getLogger(__name__)
 
@@ -79,8 +80,8 @@ def validate_period_ready_for_close(
 
     # Validate invoices
     invoices = db.query(Invoice).filter(
-        Invoice.business_unit_id == business_unit_id,
-        func.strftime('%Y-%m', Invoice.billing_period_end) == month,
+        invoice_in_bu(business_unit_id),
+        func.to_char(Invoice.billing_period_end, 'YYYY-MM') == month,
     ).all()
 
     if not invoices:
@@ -103,8 +104,8 @@ def validate_period_ready_for_close(
 
     # Get revenue records for margin
     revenues = db.query(Revenue).filter(
-        Revenue.business_unit_id == business_unit_id,
-        func.strftime('%Y-%m', Revenue.recognized_at) == month,
+        revenue_in_bu(business_unit_id),
+        func.to_char(Revenue.recognized_at, 'YYYY-MM') == month,
     ).all()
 
     total_cost = sum(r.cost_usd_cents for r in revenues)
@@ -360,14 +361,14 @@ def get_period_reconciliation(
 
     # Get invoices for period
     invoices = db.query(Invoice).filter(
-        Invoice.business_unit_id == business_unit_id,
-        func.strftime('%Y-%m', Invoice.billing_period_end) == month,
+        invoice_in_bu(business_unit_id),
+        func.to_char(Invoice.billing_period_end, 'YYYY-MM') == month,
     ).all()
 
     # Get revenue for period
     revenues = db.query(Revenue).filter(
-        Revenue.business_unit_id == business_unit_id,
-        func.strftime('%Y-%m', Revenue.recognized_at) == month,
+        revenue_in_bu(business_unit_id),
+        func.to_char(Revenue.recognized_at, 'YYYY-MM') == month,
     ).all()
 
     # Calculate totals

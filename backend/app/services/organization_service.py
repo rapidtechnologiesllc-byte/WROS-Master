@@ -16,6 +16,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.models.employee import Employee
+from app.models.user import Users
 from app.models.org_structure import OrgNode
 from app.core.logging import logger
 
@@ -49,7 +50,7 @@ class OrganizationService:
         return db.query(Employee).filter(
             Employee.manager_id == employee_id,
             Employee.tenant_id == tenant_id
-        ).order_by(Employee.name).all()
+        ).order_by(Employee.first_name, Employee.last_name).all()
 
     @staticmethod
     def get_all_subordinates(employee_id: str, db: Session, tenant_id: int = 1) -> List[str]:
@@ -103,7 +104,7 @@ class OrganizationService:
 
         return {
             "employee_id": employee.id,
-            "name": employee.name,
+            "name": " ".join(filter(None, [employee.first_name, employee.last_name])),
             "manager_id": employee.manager_id,
             "bu_id": employee.business_unit_id,
             "location_id": getattr(employee, 'location_id', None),
@@ -116,17 +117,18 @@ class OrganizationService:
     def get_business_unit_employees(bu_id: str, db: Session, tenant_id: int = 1) -> List[Employee]:
         """Get all employees in business unit."""
         return db.query(Employee).filter(
-            Employee.business_unit_id == bu_id,
+            Employee.bu_id == bu_id,
             Employee.tenant_id == tenant_id
-        ).order_by(Employee.name).all()
+        ).order_by(Employee.first_name, Employee.last_name).all()
 
     @staticmethod
     def get_employees_in_locations(location_ids: List[str], db: Session, tenant_id: int = 1) -> List[Employee]:
         """Get all employees in specific locations."""
         if not location_ids:
             return []
-        return db.query(Employee).filter(
-            Employee.location_id.in_(location_ids),
+        # Employees have no location column; it is on their linked user account
+        return db.query(Employee).join(Users, Users.UserID == Employee.wros_user_id).filter(
+            Users.location_id.in_(location_ids),
             Employee.tenant_id == tenant_id
         ).all()
 
@@ -149,7 +151,8 @@ class OrganizationService:
             "Director"
         ]
 
-        return any(level.lower() in str(getattr(employee, 'level', '')).lower()
+        # Employee has no `level`; its job title carries the seniority
+        return any(level.lower() in (employee.current_title or '').lower()
                    for level in cross_location_levels)
 
     @staticmethod
@@ -166,14 +169,17 @@ class OrganizationService:
         # Check if employee can work across locations
         if OrganizationService.can_employee_work_across_locations(employee_id, db, tenant_id):
             # Get all locations
-            locations = db.query(func.distinct(Employee.location_id)).filter(
+            locations = db.query(func.distinct(Users.location_id)).join(
+                Employee, Employee.wros_user_id == Users.UserID
+            ).filter(
                 Employee.tenant_id == tenant_id,
-                Employee.location_id != None
+                Users.location_id.isnot(None)
             ).all()
             return [loc[0] for loc in locations if loc[0]]
         else:
-            # Only their location
-            return [employee.location_id] if employee.location_id else []
+            # Only their location (from their linked user account)
+            user = db.query(Users).filter(Users.UserID == employee.wros_user_id).first() if employee.wros_user_id else None
+            return [user.location_id] if user and user.location_id else []
 
     @staticmethod
     def get_user_accessible_business_units(employee_id: str, db: Session, tenant_id: int = 1) -> List[str]:
@@ -229,7 +235,7 @@ class OrganizationService:
 
             return {
                 "id": emp.id,
-                "name": emp.name,
+                "name": " ".join(filter(None, [emp.first_name, emp.last_name])),
                 "level": getattr(emp, 'level', None),
                 "bu_id": emp.business_unit_id,
                 "reports": [build_tree(report.id) for report in direct_reports]

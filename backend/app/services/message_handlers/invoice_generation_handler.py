@@ -19,6 +19,9 @@ logger = logging.getLogger(__name__)
 
 class InvoiceGenerationHandler:
     """Generate DRAFT invoices for project timesheets in billing period."""
+    # Enforced by queue_processor_service (its default for this task type)
+    TIMEOUT_SECONDS = 30
+
 
     MAX_RETRIES = 3
     RETRY_DELAY_MINUTES = 15
@@ -78,14 +81,26 @@ class InvoiceGenerationHandler:
 
             logger.info(f"[InvoiceGeneration] Project found: {project.name}")
 
-            # PHASE 2: Verify no open timesheet disputes in period
-            from app.models.timesheet import Timesheet, TimesheetStatus
+            # PHASE 2: Verify no open timesheet disputes in period.
+            # Timesheets reach a project through their allocation, and are
+            # keyed by week_starting_date (a week overlaps the period if it
+            # starts within six days before its start, or inside it).
+            from datetime import timedelta
+            from sqlalchemy import select
+            from app.models.employee_allocation import EmployeeAllocation
+            from app.models.timesheet import Timesheet
+
+            period_start = datetime.strptime(billing_period_start, '%Y-%m-%d').date()
+            period_end = datetime.strptime(billing_period_end, '%Y-%m-%d').date()
+            project_allocations = select(EmployeeAllocation.id).where(EmployeeAllocation.project_id == project_id)
+            in_period = (
+                Timesheet.allocation_id.in_(project_allocations),
+                Timesheet.week_starting_date >= period_start - timedelta(days=6),
+                Timesheet.week_starting_date <= period_end,
+            )
 
             disputed_timesheets = db.query(Timesheet).filter(
-                Timesheet.project_id == project_id,
-                Timesheet.status == TimesheetStatus.DISPUTED,
-                Timesheet.week_ending >= billing_period_start,
-                Timesheet.week_ending <= billing_period_end
+                *in_period, Timesheet.status == "DISPUTED"
             ).all()
 
             if disputed_timesheets:
@@ -96,10 +111,7 @@ class InvoiceGenerationHandler:
 
             # PHASE 3: Get all approved timesheets in period
             approved_timesheets = db.query(Timesheet).filter(
-                Timesheet.project_id == project_id,
-                Timesheet.status == TimesheetStatus.APPROVED,
-                Timesheet.week_ending >= billing_period_start,
-                Timesheet.week_ending <= billing_period_end
+                *in_period, Timesheet.status == "APPROVED"
             ).all()
 
             if not approved_timesheets:
@@ -118,12 +130,12 @@ class InvoiceGenerationHandler:
 
             invoice = Invoice(
                 project_id=project_id,
+                client_id=project.client_id,
                 status='DRAFT',
-                billing_period_start=datetime.strptime(billing_period_start, '%Y-%m-%d').date(),
-                billing_period_end=datetime.strptime(billing_period_end, '%Y-%m-%d').date(),
+                billing_period_start=period_start,
+                billing_period_end=period_end,
                 total_usd_cents=0,  # Will be calculated from line items
                 created_at=datetime.utcnow(),
-                created_by=payload.get('created_by', 'system'),
                 tenant_id=project.tenant_id
             )
 
@@ -133,35 +145,35 @@ class InvoiceGenerationHandler:
 
             logger.info(f"[InvoiceGeneration] Invoice record created: {invoice_id}")
 
-            # PHASE 5: Create line items from timesheets
+            # PHASE 5: Line items: billable hours x the allocation's bill rate
             from app.models.invoice import InvoiceLineItem
 
+            allocations = {
+                a.id: a for a in db.query(EmployeeAllocation).filter(
+                    EmployeeAllocation.id.in_({t.allocation_id for t in approved_timesheets})
+                ).all()
+            }
             total_usd_cents = 0
             line_item_count = 0
 
             for timesheet in approved_timesheets:
-                # Get hourly rate from timesheet (or project default)
-                hourly_rate_cents = int(
-                    timesheet.hourly_rate_usd * 100
-                    if hasattr(timesheet, 'hourly_rate_usd')
-                    else project.hourly_rate_usd * 100
-                )
+                allocation = allocations.get(timesheet.allocation_id)
+                rate_cents = (allocation.billing_rate_usd_cents if allocation else None) or 0
+                if not rate_cents:
+                    raise ValueError(
+                        f"Allocation {timesheet.allocation_id} has no billing rate; cannot invoice timesheet {timesheet.id}"
+                    )
+                hours_worked = float(timesheet.billable_hours or timesheet.total_hours or 0)
+                line_item_amount_cents = int(round(hours_worked * rate_cents))
 
-                # Calculate line item amount: hours * rate
-                hours_worked = timesheet.total_hours or 0
-                line_item_amount_cents = int(hours_worked * hourly_rate_cents / 100)
-
-                line_item = InvoiceLineItem(
+                db.add(InvoiceLineItem(
                     invoice_id=invoice_id,
-                    description=f"Timesheet {timesheet.week_ending}",
-                    hours=hours_worked,
-                    hourly_rate_usd_cents=hourly_rate_cents,
-                    total_usd_cents=line_item_amount_cents,
+                    employee_id=timesheet.employee_id,
                     timesheet_id=timesheet.id,
-                    created_at=datetime.utcnow()
-                )
-
-                db.add(line_item)
+                    hours=hours_worked,
+                    rate_usd_cents=rate_cents,
+                    amount_usd_cents=line_item_amount_cents,
+                ))
                 total_usd_cents += line_item_amount_cents
                 line_item_count += 1
 

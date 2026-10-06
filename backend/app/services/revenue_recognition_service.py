@@ -280,7 +280,7 @@ def get_revenue_by_month(
     ).group_by(func.date_trunc('month', Revenue.recognized_at))
 
     if business_unit_id:
-        query = query.filter(Revenue.bu_context_id == business_unit_id)
+        query = query.filter(revenue_in_bu(business_unit_id))
     if tenant_id:
         query = query.filter(Revenue.tenant_id == tenant_id)
 
@@ -310,7 +310,7 @@ def get_revenue_by_service(
     ).filter(Revenue.service.isnot(None)).group_by(Revenue.service)
 
     if business_unit_id:
-        query = query.filter(Revenue.bu_context_id == business_unit_id)
+        query = query.filter(revenue_in_bu(business_unit_id))
     if tenant_id:
         query = query.filter(Revenue.tenant_id == tenant_id)
 
@@ -340,7 +340,7 @@ def get_revenue_by_module(
     ).filter(Revenue.module.isnot(None)).group_by(Revenue.module)
 
     if business_unit_id:
-        query = query.filter(Revenue.bu_context_id == business_unit_id)
+        query = query.filter(revenue_in_bu(business_unit_id))
     if tenant_id:
         query = query.filter(Revenue.tenant_id == tenant_id)
 
@@ -370,7 +370,7 @@ def get_revenue_by_pricing_model(
     ).filter(Revenue.pricing_model.isnot(None)).group_by(Revenue.pricing_model)
 
     if business_unit_id:
-        query = query.filter(Revenue.bu_context_id == business_unit_id)
+        query = query.filter(revenue_in_bu(business_unit_id))
     if tenant_id:
         query = query.filter(Revenue.tenant_id == tenant_id)
 
@@ -400,7 +400,7 @@ def get_revenue_by_client_owner(
     ).filter(Revenue.client_owner_id.isnot(None)).group_by(Revenue.client_owner_id)
 
     if business_unit_id:
-        query = query.filter(Revenue.bu_context_id == business_unit_id)
+        query = query.filter(revenue_in_bu(business_unit_id))
     if tenant_id:
         query = query.filter(Revenue.tenant_id == tenant_id)
 
@@ -437,7 +437,7 @@ def get_partner_revenue_share_analysis(
     ).group_by(Revenue.partner_id)
 
     if business_unit_id:
-        query = query.filter(Revenue.bu_context_id == business_unit_id)
+        query = query.filter(revenue_in_bu(business_unit_id))
     if tenant_id:
         query = query.filter(Revenue.tenant_id == tenant_id)
 
@@ -465,18 +465,23 @@ def get_forecast_vs_actual(
 
     from sqlalchemy.orm import aliased
 
+    # Opportunities have no name of their own: label them by client
+    from app.models.client import Client
+
     query = db.query(
         Opportunity.id,
-        Opportunity.name,
+        Client.company_name,
         Opportunity.revenue_value_usd_cents.label('forecast'),
         func.sum(Revenue.revenue_usd_cents).label('actual'),
     ).outerjoin(
+        Client, Client.id == Opportunity.client_id,
+    ).outerjoin(
         Revenue,
         Revenue.opportunity_id == Opportunity.id,
-    ).group_by(Opportunity.id, Opportunity.name, Opportunity.revenue_value_usd_cents)
+    ).group_by(Opportunity.id, Client.company_name, Opportunity.revenue_value_usd_cents)
 
     if business_unit_id:
-        query = query.filter(Opportunity.business_unit_id == business_unit_id)
+        query = query.filter(opportunity_in_bu(business_unit_id))
     if tenant_id:
         query = query.filter(Opportunity.tenant_id == tenant_id)
 
@@ -507,7 +512,7 @@ def get_negative_margin_alerts(
     )
 
     if business_unit_id:
-        query = query.filter(Revenue.bu_context_id == business_unit_id)
+        query = query.filter(revenue_in_bu(business_unit_id))
     if tenant_id:
         query = query.filter(Revenue.tenant_id == tenant_id)
 
@@ -538,7 +543,7 @@ def calculate_p_and_l_summary(
     query = db.query(Revenue)
 
     if business_unit_id:
-        query = query.filter(Revenue.bu_context_id == business_unit_id)
+        query = query.filter(revenue_in_bu(business_unit_id))
     if tenant_id:
         query = query.filter(Revenue.tenant_id == tenant_id)
 
@@ -653,3 +658,4 @@ def _calculate_partner_share(
     }
 
 import uuid
+from app.services.scope_helpers import opportunity_in_bu, revenue_in_bu

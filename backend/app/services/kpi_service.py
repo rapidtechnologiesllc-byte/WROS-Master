@@ -5,6 +5,9 @@ from datetime import datetime, timedelta, date
 from sqlalchemy.orm import Session
 
 from app.core.logging import logger
+from app.models.candidate import Candidate
+from app.models.invoice import Invoice
+from app.services.candidate_pipeline_stage import pipeline_stage_in
 
 class KPIService:
     """Tracks KPIs for Spartan Phalanx formations"""
@@ -83,7 +86,7 @@ class KPIService:
 
             start_date = KPIService._get_period_start(period)
             candidates = db.query(Candidate).filter(
-                Candidate.created_at >= start_date
+                Candidate.candidateCreatedAt >= start_date
             ).count()
 
             target = KPIService.RECRUITMENT_KPIS["candidates_sourced"]["target"]
@@ -106,23 +109,24 @@ class KPIService:
     def _get_time_to_hire(db: Session, period: str) -> Dict[str, Any]:
         """Get recruitment KPI: average time-to-hire"""
         try:
-            from app.models.user import Jobs
+            # Hire = an employee created from a candidate who joined in the
+            # period; time-to-hire = candidate created -> joining date. (Jobs
+            # have no closed_at, so the old job-based version never worked.)
+            from app.models.employee import Employee
 
             start_date = KPIService._get_period_start(period)
-            jobs = db.query(Jobs).filter(
-                Jobs.closed_at >= start_date
+            hires = db.query(Employee.joining_date, Candidate.candidateCreatedAt).join(
+                Candidate, Candidate.candidateID == Employee.candidate_id
+            ).filter(
+                Employee.joining_date >= start_date,
+                Candidate.candidateCreatedAt.isnot(None),
             ).all()
 
-            if not jobs:
+            if not hires:
                 return {"kpi": "time_to_hire", "value": 0, "status": "unknown"}
 
-            total_days = 0
-            for job in jobs:
-                if hasattr(job, 'created_at') and hasattr(job, 'closed_at'):
-                    if job.created_at and job.closed_at:
-                        total_days += (job.closed_at - job.created_at).days
-
-            avg_time = total_days / len(jobs) if jobs else 0
+            total_days = sum((joined - created.date()).days for joined, created in hires)
+            avg_time = total_days / len(hires)
             target = KPIService.RECRUITMENT_KPIS["time_to_hire"]["target"]
             achievement = (1 - min(avg_time / target, 1)) * 100 if target > 0 else 0
 
@@ -147,13 +151,13 @@ class KPIService:
 
             start_date = KPIService._get_period_start(period)
             total_offers = db.query(Candidate).filter(
-                Candidate.status == "OFFER",
-                Candidate.created_at >= start_date
+                pipeline_stage_in("OFFER"),
+                Candidate.candidateCreatedAt >= start_date
             ).count()
 
             accepted_offers = db.query(Candidate).filter(
-                Candidate.status == "HIRED",
-                Candidate.created_at >= start_date
+                pipeline_stage_in("HIRED"),
+                Candidate.candidateCreatedAt >= start_date
             ).count()
 
             acceptance_rate = (accepted_offers / total_offers * 100) if total_offers > 0 else 0

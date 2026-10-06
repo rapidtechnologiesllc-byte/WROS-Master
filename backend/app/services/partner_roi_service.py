@@ -1,15 +1,16 @@
 """Partner ROI Agent — computes weekly Partner scorecard based on BlitzenX Operating Model KPIs."""
 from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
-from sqlalchemy import func, and_, text
+from sqlalchemy import func, and_, or_, text
 from app.models.client import Client
 from app.models.opportunity import Opportunity
-from app.models.invoice import Invoice
+from app.models.invoice import Invoice, InvoiceLineItem
 from app.models.user import Users
 from app.models.employee import Employee
 from app.models.employee_allocation import EmployeeAllocation
 from app.models.demand import Demand
 from app.services.pnl_service import get_bu_pnl
+from app.services.scope_helpers import allocation_in_bu, invoice_in_bu
 from app.services.client_revenue_dashboard_service import get_client_revenue_dashboard
 import logging
 from app.utils.agent_logger import log_agent_execution
@@ -57,8 +58,8 @@ def get_partner_kpis(db: Session, partner_id: str, year_month: str = None) -> di
         period_end = datetime(year, month + 1, 1)
 
     # 1. Revenue: total invoiced revenue for this BU this month
-    invoices = db.query(func.sum(Invoice.total_amount_usd_cents)).filter(
-        Invoice.business_unit_id == bu_id,
+    invoices = db.query(func.sum(Invoice.total_usd_cents)).filter(
+        invoice_in_bu(bu_id),
         Invoice.created_at >= period_start,
         Invoice.created_at < period_end,
         Invoice.status.in_(["APPROVED", "SENT", "PAID"])
@@ -68,7 +69,7 @@ def get_partner_kpis(db: Session, partner_id: str, year_month: str = None) -> di
     revenue_usd = revenue_usd_cents / 100 if revenue_usd_cents else 0
 
     # 2. Gross Margin: (Revenue - Fully Loaded Cost) / Revenue
-    pnl = get_bu_pnl(db, bu_id, year_month)
+    pnl = get_bu_pnl(db, business_unit_id=bu_id, year=year, month=month)
 
     # 3. Net New Logos: new clients added this month to this BU (status=ACTIVE, first invoice this month)
     new_clients = db.query(func.count(Client.id)).filter(
@@ -85,9 +86,10 @@ def get_partner_kpis(db: Session, partner_id: str, year_month: str = None) -> di
     # 5. Practice Utilization: billable hours / total available hours for allocated employees
     # Available hours = 40 hours/week, roughly 4.33 weeks/month = 173 hours
     allocated_employees = db.query(func.count(func.distinct(EmployeeAllocation.employee_id))).filter(
-        EmployeeAllocation.business_unit_id == bu_id,
+        allocation_in_bu(bu_id),
         EmployeeAllocation.start_date <= period_end,
-        and_(
+        # Open-ended or ending inside/after the period (was AND: never true)
+        or_(
             EmployeeAllocation.end_date.is_(None),
             EmployeeAllocation.end_date >= period_start
         )
@@ -96,11 +98,13 @@ def get_partner_kpis(db: Session, partner_id: str, year_month: str = None) -> di
     available_hours = allocated_employees * 173 if allocated_employees > 0 else 1
 
     # Billable hours from invoices (approximation: invoice line items have hours)
-    billable_hours = db.query(func.sum(Invoice.billable_hours)).filter(
-        Invoice.business_unit_id == bu_id,
+    billable_hours = float(db.query(func.sum(InvoiceLineItem.hours)).join(
+        Invoice, Invoice.id == InvoiceLineItem.invoice_id
+    ).filter(
+        invoice_in_bu(bu_id),
         Invoice.created_at >= period_start,
         Invoice.created_at < period_end
-    ).scalar() or 0
+    ).scalar() or 0)
 
     practice_utilization_pct = (billable_hours / available_hours * 100) if available_hours > 0 else 0
 
@@ -114,20 +118,21 @@ def get_partner_kpis(db: Session, partner_id: str, year_month: str = None) -> di
     else:
         prev_period_end = datetime(prev_year, prev_month + 1, 1)
 
-    prev_invoices = db.query(func.sum(Invoice.total_amount_usd_cents)).filter(
-        Invoice.business_unit_id == bu_id,
+    prev_invoices = db.query(func.sum(Invoice.total_usd_cents)).filter(
+        invoice_in_bu(bu_id),
         Invoice.created_at >= prev_period_start,
         Invoice.created_at < prev_period_end,
         Invoice.status.in_(["APPROVED", "SENT", "PAID"])
-    ).scalar() or 1  # Avoid divide by zero
+    ).scalar() or 0
 
+    # No prior-year revenue -> growth is undefined, not +infinity
     growth_pct = ((revenue_usd_cents - prev_invoices) / prev_invoices * 100) if prev_invoices else 0
 
     # 7. Thought Leadership: placeholder (would track articles/speaking/etc.)
     thought_leadership = None
 
     # 8. P&L (from pnl_service)
-    pnl_margin = pnl.get("margin_pct", 0) if pnl else 0
+    pnl_margin = (pnl.get("margin_pct") or 0) if pnl else 0
 
     result = {
         "partner_id": partner_id,
@@ -142,8 +147,8 @@ def get_partner_kpis(db: Session, partner_id: str, year_month: str = None) -> di
         "practice_utilization_pct": round(practice_utilization_pct, 1),
         "practice_growth_yoy_pct": round(growth_pct, 1),
         "thought_leadership_score": thought_leadership,
-        "pnl_usd": (pnl.get("net_position_usd_cents", 0) / 100) if pnl else 0,
-        "pnl_usd_cents": pnl.get("net_position_usd_cents", 0) if pnl else 0,
+        "pnl_usd": ((pnl.get("gross_margin_usd_cents") or 0) / 100) if pnl else 0,
+        "pnl_usd_cents": (pnl.get("gross_margin_usd_cents") or 0) if pnl else 0,
         "pnl_margin_pct": pnl_margin,
         "billable_hours": billable_hours,
         "allocated_headcount": allocated_employees

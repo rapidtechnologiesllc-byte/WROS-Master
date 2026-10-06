@@ -55,7 +55,7 @@ const CANDIDATE_UPDATE_FIELDS = [
   "candidate_source", "candidate_experience", "candidate_skills", "candidate_joining_date",
   "candidate_notice_period", "candidate_expected_salary", "candidate_current_salary",
   "candidate_current_location", "candidate_job_title", "candidate_employee_type",
-  "assigned_hr_manager_id", "assigned_report_manager_id",
+  "assigned_hr_manager_id", "assigned_report_manager_id", "assigned_recruiter_id",
 ];
 
 export const updateCandidate = async (candidateId, payload) => {
@@ -114,5 +114,22 @@ export const getCandidateContacts = async (candidateId) => {
     },
   );
 
+  return data;
+};
+
+// HR profile: education / experience lists are saved as a whole
+export const saveCandidateEducation = async (candidateId, items) => {
+  const { data } = await apiRequest(`/candidates/${candidateId}/education`, {
+    method: "PUT",
+    body: JSON.stringify(items),
+  });
+  return data;
+};
+
+export const saveCandidateExperience = async (candidateId, items) => {
+  const { data } = await apiRequest(`/candidates/${candidateId}/experience`, {
+    method: "PUT",
+    body: JSON.stringify(items),
+  });
   return data;
 };

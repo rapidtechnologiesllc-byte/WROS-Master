@@ -429,12 +429,12 @@ class BUWeeklyReportAgent:
 
         # 2. UTILIZATION
         total_employees = db.query(func.count(Employee.id)).filter(
-            Employee.business_unit_id == bu_id,
+            Employee.bu_id == bu_id,
             Employee.status == "ACTIVE"
         ).scalar() or 1
 
         allocated = db.query(func.count(Employee.id)).filter(
-            Employee.business_unit_id == bu_id,
+            Employee.bu_id == bu_id,
             Employee.status == "ACTIVE",
             Employee.current_project_id.isnot(None)
         ).scalar() or 0
@@ -443,12 +443,12 @@ class BUWeeklyReportAgent:
 
         # 3. NEW HIRES / DEPARTURES
         new_hires = db.query(func.count(Employee.id)).filter(
-            Employee.business_unit_id == bu_id,
+            Employee.bu_id == bu_id,
             Employee.created_at >= week_start
         ).scalar() or 0
 
         departures = db.query(func.count(Employee.id)).filter(
-            Employee.business_unit_id == bu_id,
+            Employee.bu_id == bu_id,
             Employee.status == "INACTIVE",
             Employee.updated_at >= week_start
         ).scalar() or 0
@@ -459,8 +459,8 @@ class BUWeeklyReportAgent:
             Opportunity.partner_id.in_(
                 db.query(Users.UserID).filter(Users.UserRoleID == bu_id)
             ),
-            Opportunity.close_date >= week_start,
-            Opportunity.close_date <= week_end,
+            Opportunity.expected_close_date >= week_start,
+            Opportunity.expected_close_date <= week_end,
             Opportunity.status == "won"
         ).scalar() or 0
 

@@ -111,7 +111,7 @@ def get_messages(
         if status:
             query = query.filter(ChannelQueueItem.status == status.upper())
         if task_name:
-            query = query.filter(ChannelQueueItem.task_name == task_name)
+            query = query.filter(ChannelQueueItem.type == task_name)
 
         messages = query.order_by(ChannelQueueItem.created_at.desc()).limit(limit).all()
 
@@ -249,7 +249,7 @@ def get_stats(
         ).scalar() or 0
 
         success_rate = (completed / total * 100) if total > 0 else 0
-        avg_retries = db.query(func.avg(ChannelQueueItem.retries)).scalar() or 0
+        avg_retries = db.query(func.avg(ChannelQueueItem.retry_count)).scalar() or 0
 
         return {
             "total_messages": total,

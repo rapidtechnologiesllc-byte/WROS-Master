@@ -22,6 +22,7 @@ from app.models.org_structure import PartnerBUAssignment
 from app.models.client import Client
 from app.models.employee import Employee
 from app.core.logging import logger
+from app.services.scope_helpers import revenue_in_bu
 
 logger = logging.getLogger(__name__)
 
@@ -178,7 +179,7 @@ def get_revenue_by_business_unit(db: Session, business_unit_id: int, business_ty
     Returns:
         List of revenue records for this BU
     """
-    query = db.query(Revenue).filter(Revenue.business_unit_id == business_unit_id)
+    query = db.query(Revenue).filter(revenue_in_bu(business_unit_id))
 
     if business_type:
         query = query.filter(Revenue.business_type == business_type)
@@ -262,7 +263,7 @@ def get_partner_revenue_share_analysis(db: Session, business_unit_id: int) -> Di
         }
     """
     revenues = db.query(Revenue).filter(
-        Revenue.business_unit_id == business_unit_id,
+        revenue_in_bu(business_unit_id),
         Revenue.business_type == "CORE"
     ).all()
 

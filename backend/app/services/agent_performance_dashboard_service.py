@@ -68,7 +68,7 @@ class AgentPerformanceDashboard:
             performance = (
                 db.query(AgentActualPerformance)
                 .filter(AgentActualPerformance.agent_name == agent_name)
-                .order_by(desc(AgentActualPerformance.recorded_at))
+                .order_by(desc(AgentActualPerformance.created_at))
                 .first()
             )
 

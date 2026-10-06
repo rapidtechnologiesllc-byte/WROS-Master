@@ -23,6 +23,9 @@ logger = logging.getLogger(__name__)
 
 class OfferGenerationHandler:
     """Handle offer generation and sending"""
+    # Enforced by queue_processor_service (its default for this task type)
+    TIMEOUT_SECONDS = 30
+
 
     @staticmethod
     @time_bound(timeout_seconds=25)
@@ -265,7 +268,7 @@ class OfferGenerationHandler:
         offer_id = result.get("offer_id")
 
         try:
-            offer = db.query(Offer).filter(Offer.offerID == offer_id).first()
+            offer = db.query(Offer).filter(Offer.id == offer_id).first()
             if not offer:
                 raise ValueError(f"Offer {offer_id} not found after generation")
 

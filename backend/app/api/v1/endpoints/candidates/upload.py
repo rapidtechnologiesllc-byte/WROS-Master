@@ -173,7 +173,7 @@ async def upload_document(
             # Get next sequence
             max_seq = (
                 db.query(CandidateDocument)
-                .filter(CandidateDocument.candidateID == candidate_id)
+                .filter(CandidateDocument.candidate_id == candidate_id)
                 .count()
             )
             sequence = max_seq + 1

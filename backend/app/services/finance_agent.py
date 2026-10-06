@@ -58,7 +58,7 @@ class FinanceAgent:
         revenue_cents = db.query(func.sum(Invoice.invoice_amount_usd)).filter(
             Invoice.tenant_id == tenant_id,
             Invoice.partner_id == partner_id,
-            Invoice.invoice_date >= month_start,
+            Invoice.created_at >= month_start,
             Invoice.status.in_(["PAID", "PENDING"])
         ).scalar() or 0
 
@@ -77,7 +77,7 @@ class FinanceAgent:
             Invoice.tenant_id == tenant_id,
             Invoice.partner_id == partner_id,
             Invoice.vendor_type == "CONTRACTOR",
-            Invoice.invoice_date >= month_start
+            Invoice.created_at >= month_start
         ).scalar() or 0
 
         contractor_spend = contractor_spend_cents / 100
@@ -250,7 +250,7 @@ class FinanceAgent:
         recent_revenue = db.query(func.sum(Invoice.invoice_amount_usd)).filter(
             Invoice.tenant_id == tenant_id,
             Invoice.partner_id == partner_id,
-            Invoice.invoice_date >= week_ago
+            Invoice.created_at >= week_ago
         ).scalar() or 0
 
         daily_revenue = recent_revenue / 100 / 7
@@ -260,7 +260,7 @@ class FinanceAgent:
             Invoice.tenant_id == tenant_id,
             Invoice.partner_id == partner_id,
             Invoice.vendor_type == "CONTRACTOR",
-            Invoice.invoice_date >= week_ago
+            Invoice.created_at >= week_ago
         ).scalar() or 0
 
         daily_cost = recent_costs / 100 / 7
@@ -309,8 +309,8 @@ class FinanceAgent:
         invoices = db.query(Invoice).filter(
             Invoice.tenant_id == tenant_id,
             Invoice.partner_id == partner_id,
-            Invoice.invoice_date >= week_start,
-            Invoice.invoice_date <= week_end
+            Invoice.created_at >= week_start,
+            Invoice.created_at <= week_end
         ).all()
 
         anomalies = []

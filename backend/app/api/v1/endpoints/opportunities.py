@@ -135,13 +135,16 @@ def list_eligible_owners(
     employee roster. Scoped to employees with a linked WROS user
     account whose role actually carries revenue.view -- the exact
     permission gating this whole Opportunity Pipeline screen."""
+    # Permissions live on role templates (the legacy Role/Permission tables
+    # this used were never imported -- the endpoint always crashed)
+    from app.models.role_template import Resource, RoleTemplatePermission
+
     rows = (
         db.query(Employee)
         .join(Users, Users.UserID == Employee.wros_user_id)
-        .join(Role, Role.id == Users.role_id)
-        .join(RolePermission, RolePermission.role_id == Role.id)
-        .join(Permission, Permission.id == RolePermission.permission_id)
-        .filter(Permission.name == "revenue.view")
+        .join(RoleTemplatePermission, RoleTemplatePermission.role_template_id == Users.role_template_id)
+        .join(Resource, Resource.id == RoleTemplatePermission.resource_id)
+        .filter(Resource.name == "revenue", RoleTemplatePermission.can_view.is_(True))
         .distinct()
         .all()
     )

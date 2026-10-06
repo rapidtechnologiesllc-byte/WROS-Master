@@ -773,6 +773,12 @@ def _run_schema_migrations():
             "candidate_conversations": [
                 ("next_touch_scheduled_at", "TIMESTAMP NULL"),
             ],
+            "candidate_education_forms": [
+                ("education_level", "VARCHAR(100) NULL"),
+            ],
+            "candidate_experience_forms": [
+                ("responsibilities", "TEXT NULL"),
+            ],
             "candidate_documents": [
                 ("document_name", "VARCHAR(512) NULL"),
                 ("upload_sequence", "INTEGER NULL"),

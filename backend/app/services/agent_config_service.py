@@ -201,7 +201,7 @@ class AgentConfigService:
                 # Check if permission already exists
                 existing_perm = db.query(RoleTemplatePermission).filter(
                     and_(
-                        RoleTemplatePermission.role_id == role.id,
+                        RoleTemplatePermission.role_template_id == role.id,
                         RoleTemplatePermission.resource_id == resource.id
                     )
                 ).first()

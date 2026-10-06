@@ -206,6 +206,8 @@ class CandidateEducationForm(Base):
     starting_year = Column(String(512), nullable=True)
     year_of_passing = Column(String(512), nullable=True)
     percentage = Column(String(10), nullable=True)
+    # Level (e.g. "Bachelor's", "Master's") entered on the HR profile
+    education_level = Column(String(100), nullable=True)
     submittedAt = Column(Date, nullable=True)
     document_is_submitted = Column(Boolean, nullable=True)
     # Optional link to the uploaded document in candidate_documents
@@ -223,6 +225,7 @@ class CandidateExperienceForm(Base):
     start_date = Column(Date, nullable=True)
     end_date = Column(Date, nullable=True)
     year_of_experience = Column(String(512), nullable=True)
+    responsibilities = Column(Text, nullable=True)
     document_is_submitted = Column(Boolean, nullable=True)
     submittedAt = Column(Date, nullable=True)
     # Optional link to the uploaded document in candidate_documents

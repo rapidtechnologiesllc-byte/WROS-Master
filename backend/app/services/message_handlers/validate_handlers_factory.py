@@ -21,6 +21,9 @@ logger = logging.getLogger(__name__)
 
 class ValidateHandlersFactory:
     """Factory for creating and executing validation methods."""
+    # Enforced by queue_processor_service (its default for this task type)
+    TIMEOUT_SECONDS = 30
+
 
     @staticmethod
     def validate_candidate_exists(result: Dict[str, Any], db: Session, handler_name: str) -> None:
@@ -105,7 +108,7 @@ class ValidateHandlersFactory:
         offer_id = result.get("offer_id")
 
         try:
-            offer = db.query(Offer).filter(Offer.offerID == offer_id).first()
+            offer = db.query(Offer).filter(Offer.id == offer_id).first()
             if not offer:
                 raise ValueError(f"Offer {offer_id} not found after {handler_name}")
 
@@ -272,7 +275,7 @@ class ValidateHandlersFactory:
         try:
             status = db.query(CandidateStatus).filter(
                 CandidateStatus.candidateID == candidate_id
-            ).order_by(CandidateStatus.created_at.desc()).first()
+            ).order_by(CandidateStatus.createdAt.desc()).first()
 
             if not status or status.piplineStatus != expected_status:
                 actual = status.piplineStatus if status else 'None'
@@ -298,7 +301,7 @@ class ValidateHandlersFactory:
         offer_id = result.get("offer_id")
 
         try:
-            offer = db.query(Offer).filter(Offer.offerID == offer_id).first()
+            offer = db.query(Offer).filter(Offer.id == offer_id).first()
             if not offer or offer.offerStatus != expected_status:
                 actual = offer.offerStatus if offer else 'None'
                 raise ValueError(f"Offer status is {actual}, expected {expected_status}")
@@ -437,7 +440,7 @@ class ValidateHandlersFactory:
         try:
             status = db.query(CandidateStatus).filter(
                 CandidateStatus.candidateID == candidate_id
-            ).order_by(CandidateStatus.created_at.desc()).first()
+            ).order_by(CandidateStatus.createdAt.desc()).first()
 
             if not status or status.piplineStatus != expected_status:
                 actual = status.piplineStatus if status else 'None'
@@ -464,9 +467,9 @@ class ValidateHandlersFactory:
 
         try:
             event = db.query(EventLog).filter(
-                EventLog.entity_id == candidate_id,
+                EventLog.candidate_id == candidate_id,
                 EventLog.event_type == "candidate_rejection"
-            ).order_by(EventLog.created_at.desc()).first()
+            ).order_by(EventLog.emitted_at.desc()).first()
 
             if not event:
                 raise ValueError(f"Rejection not recorded for candidate {candidate_id}")
@@ -575,7 +578,7 @@ class ValidateHandlersFactory:
         try:
             reminder = db.query(ChannelQueueItem).filter(
                 ChannelQueueItem.payload.contains(f'"interview_id": "{interview_id}"'),
-                ChannelQueueItem.task_name.ilike('%reminder%')
+                ChannelQueueItem.type.ilike('%reminder%')
             ).first()
 
             if not reminder:
@@ -601,7 +604,7 @@ class ValidateHandlersFactory:
         offer_id = result.get("offer_id")
 
         try:
-            offer = db.query(Offer).filter(Offer.offerID == offer_id).first()
+            offer = db.query(Offer).filter(Offer.id == offer_id).first()
             if not offer:
                 raise ValueError(f"Offer {offer_id} not found")
 
@@ -628,7 +631,7 @@ class ValidateHandlersFactory:
         offer_id = result.get("offer_id")
 
         try:
-            offer = db.query(Offer).filter(Offer.offerID == offer_id).first()
+            offer = db.query(Offer).filter(Offer.id == offer_id).first()
             if not offer:
                 raise ValueError(f"Offer {offer_id} not found")
 
@@ -656,7 +659,7 @@ class ValidateHandlersFactory:
 
         try:
             message = db.query(ChannelQueueItem).filter(
-                ChannelQueueItem.task_name == 'offer_sent',
+                ChannelQueueItem.type == 'offer_sent',
                 ChannelQueueItem.payload.contains(f'"offer_id": "{offer_id}"')
             ).first()
 
@@ -683,7 +686,7 @@ class ValidateHandlersFactory:
         offer_id = result.get("offer_id")
 
         try:
-            offer = db.query(Offer).filter(Offer.offerID == offer_id).first()
+            offer = db.query(Offer).filter(Offer.id == offer_id).first()
             if not offer:
                 raise ValueError(f"Offer {offer_id} not found")
 
@@ -713,7 +716,7 @@ class ValidateHandlersFactory:
         offer_id = result.get("offer_id")
 
         try:
-            offer = db.query(Offer).filter(Offer.offerID == offer_id).first()
+            offer = db.query(Offer).filter(Offer.id == offer_id).first()
             if not offer:
                 raise ValueError(f"Offer {offer_id} not found")
 
@@ -771,7 +774,7 @@ class ValidateHandlersFactory:
 
         try:
             message = db.query(ChannelQueueItem).filter(
-                ChannelQueueItem.task_name.ilike('%source%'),
+                ChannelQueueItem.type.ilike('%source%'),
                 ChannelQueueItem.payload.contains(f'"job_id": "{job_id}"')
             ).first()
 
@@ -799,7 +802,7 @@ class ValidateHandlersFactory:
 
         try:
             messages = db.query(ChannelQueueItem).filter(
-                ChannelQueueItem.task_name.ilike('%engage%'),
+                ChannelQueueItem.type.ilike('%engage%'),
                 ChannelQueueItem.payload.contains(f'"job_id": "{job_id}"')
             ).count()
 
@@ -879,7 +882,7 @@ class ValidateHandlersFactory:
 
         try:
             message = db.query(ChannelQueueItem).filter(
-                ChannelQueueItem.task_name.ilike('%alert%'),
+                ChannelQueueItem.type.ilike('%alert%'),
                 ChannelQueueItem.payload.contains(f'"alert_id": "{alert_id}"')
             ).first()
 

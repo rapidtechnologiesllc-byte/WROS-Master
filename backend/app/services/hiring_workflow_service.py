@@ -43,7 +43,7 @@ def suggest_panelists(db: Session, demand_id: str, level: str = "L1") -> List[Di
 
     # Score employees by current_skills overlap + past panel history
     candidates = []
-    all_employees = db.query(Employee).filter(Employee.is_active == True).all()
+    all_employees = db.query(Employee).filter(Employee.status.notin_(("PRE_JOINING", "EXITED"))).all()
 
     for emp in all_employees:
         current_skills = set(skill.strip().lower() for skill in (emp.current_skills or "").split(",") if skill.strip())

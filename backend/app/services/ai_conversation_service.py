@@ -82,7 +82,7 @@ class AIConversationService:
         """Process candidate reply and extract field values."""
         try:
             candidate = db.query(Candidate).filter(
-                Candidate.id == candidate_id
+                Candidate.candidateID == candidate_id
             ).first()
 
             if not candidate:

@@ -152,7 +152,7 @@ def get_least_loaded_recruiter(
         # Get least-loaded recruiter (first after sort)
         least_loaded_id, _, _, _ = workloads[0]
 
-        recruiter = db.query(Users).filter(Users.id == least_loaded_id).first()
+        recruiter = db.query(Users).filter(Users.UserID == least_loaded_id).first()
 
         if recruiter:
             logger.info(

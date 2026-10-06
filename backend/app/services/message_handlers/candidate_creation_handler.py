@@ -863,7 +863,7 @@ Recruiting Team
         """
         Prioritize Thunder candidate queue by match score (descending).
 
-        Fetches all pending candidates and sorts by ATSScore.match_score.
+        Fetches all pending candidates and sorts by ATSScore.overall_score.
         Higher scores = better fit = higher priority.
 
         Returns:
@@ -876,14 +876,14 @@ Recruiting Team
             # Fetch all candidates with their match scores
             candidates_with_scores = db.query(
                 Candidate.candidateID,
-                ATSScore.match_score
+                ATSScore.overall_score
             ).outerjoin(
                 ATSScore,
                 ATSScore.candidate_id == Candidate.candidateID
             ).filter(
                 Candidate.candidateCreatedAt >= datetime.utcnow() - timedelta(days=7)  # Last 7 days
             ).order_by(
-                ATSScore.match_score.desc()  # Highest scores first
+                ATSScore.overall_score.desc()  # Highest scores first
             ).all()
 
             prioritized_candidates = [row.candidateID for row in candidates_with_scores]

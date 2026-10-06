@@ -12,17 +12,18 @@ from app.models.offer_letter import OfferLetter
 from app.models.employee import Employee
 from app.models.invoice import Invoice
 from app.models.employee_allocation import EmployeeAllocation
+from app.services.candidate_pipeline_stage import pipeline_stage_in
 
 def get_recruitment_metrics(db: Session, days_back: int = 1, tenant_id: Optional[str] = None) -> Dict[str, Any]:
     """Get recruitment business metrics for standup."""
     try:
         query_base = db.query(Candidate)
         total_candidates = query_base.count()
-        qualified = query_base.filter(Candidate.status == "QUALIFIED").count()
-        screened = query_base.filter(Candidate.status == "SCREENED").count()
-        interviewed = query_base.filter(Candidate.status == "INTERVIEWED").count()
-        offer_stage = query_base.filter(Candidate.status == "OFFER").count()
-        hired = query_base.filter(Candidate.status == "HIRED").count()
+        qualified = query_base.filter(pipeline_stage_in("QUALIFIED")).count()
+        screened = query_base.filter(pipeline_stage_in("SCREENED")).count()
+        interviewed = query_base.filter(pipeline_stage_in("INTERVIEWED")).count()
+        offer_stage = query_base.filter(pipeline_stage_in("OFFER")).count()
+        hired = query_base.filter(pipeline_stage_in("HIRED")).count()
     except:
         return {"total_candidates": 0, "in_pipeline": {}, "total_in_pipeline": 0, "conversion_rate": 0}
 

@@ -9,10 +9,10 @@ from datetime import datetime
 from typing import Optional
 
 from app.core.database import get_db
-from app.core.dependencies import require_resource_permission
+from app.core.dependencies import get_current_internal_user, require_resource_permission
+from app.models.user import Users
 from app.services.employee_referral_service import EmployeeReferralService
 from app.services.referral_access_control import ReferralAccessControl
-# from app.core.dependencies import get_current_user_or_none  # TODO: Implement auth, require_resource_permission
 
 router = APIRouter(prefix="/referrals", tags=["referrals"])
 
@@ -64,7 +64,7 @@ def setup_job_referrals(
 
     **Response includes:**
     - List of emails ready to send with referral links
-    - Referral link format: `https://blitzenx.com/referral/add-candidate?job_id=XXX&ref_emp=YYY`
+    - Referral link format: `https://blitzenx.com/referral/add-candidate?job_id={job_id}&ref_emp={employee_id}`
 
     **Example:**
     ```json
@@ -111,6 +111,7 @@ def setup_job_referrals(
 def record_referral(
     request: RecordReferralRequest,
     db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     """
     Record an employee referral when they submit a candidate.
@@ -147,15 +148,16 @@ def record_referral(
     ```
     """
 
-    # TODO: Implement auth - get current_user from session
-    # if not current_user:
-    #     raise HTTPException(status_code=401, detail="Unauthorized")
+    # Referrals are attributed to the referrer's employee record
+    from app.models.employee import Employee
+    employee = db.query(Employee).filter(Employee.wros_user_id == current_user.UserID).first()
+    if not employee:
+        raise HTTPException(status_code=400, detail="Your user account is not linked to an employee record, so referrals cannot be attributed to you.")
 
-    # Record the referral
     result = EmployeeReferralService.record_referral(
         db,
         request.job_id,
-        "temp_employee_id",  # TODO: Use current_user.id when auth is implemented
+        employee.id,
         request.referred_candidate_email,
         request.referred_candidate_name,
     )
@@ -338,6 +340,7 @@ def get_job_referral_stats(
 @router.get("/dashboard/referrals", dependencies=[Depends(require_resource_permission("my-referrals", "view"))])
 def get_referral_dashboard(
     db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     """
     Get role-based referral dashboard for logged-in user.
@@ -374,18 +377,14 @@ def get_referral_dashboard(
     - Bonus payout timeline
     """
 
-    # TODO: Implement auth - get current_user from session
-    # if not current_user:
-    #     raise HTTPException(status_code=401, detail="Unauthorized")
-
     # Get user's role and BU from session/database
     # For now, assume role and bu_context are available on current_user
-    user_role = "EMPLOYEE"  # TODO: Get from current_user.role
-    user_bu = None  # TODO: Get from current_user.business_unit
+    user_role = current_user.UserRole
+    user_bu = current_user.business_unit_id
 
     dashboard = ReferralAccessControl.get_dashboard_view_for_role(
         db,
-        "temp_user_id",  # TODO: Use current_user.id when auth is implemented
+        current_user.UserID,
         user_role,
         user_bu,
     )
@@ -400,6 +399,7 @@ def get_referral_dashboard(
 @router.get("/referrals/all", dependencies=[Depends(require_resource_permission("my-referrals", "view"))])
 def get_all_referrals(
     db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     """
     Get all referrals visible to this user (role-based filtering).
@@ -413,15 +413,11 @@ def get_all_referrals(
     - Employee: Only their own referrals
     """
 
-    # TODO: Implement auth - get current_user from session
-    # if not current_user:
-    #     raise HTTPException(status_code=401, detail="Unauthorized")
-
-    user_bu = None  # TODO: Get from current_user.business_unit
+    user_bu = current_user.business_unit_id
 
     referrals = ReferralAccessControl.get_referrals_for_user(
         db,
-        "temp_user_id",  # TODO: Use current_user.id when auth is implemented
+        current_user.UserID,
         user_bu,
     )
 
@@ -434,6 +430,7 @@ def get_all_referrals(
 @router.get("/bonuses/all", dependencies=[Depends(require_resource_permission("my-referrals", "view"))])
 def get_all_bonuses(
     db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_internal_user),
 ):
     """
     Get all bonuses visible to this user (role-based filtering).
@@ -447,16 +444,12 @@ def get_all_bonuses(
     - Employee: Only their own bonuses
     """
 
-    # TODO: Implement auth - get current_user from session
-    # if not current_user:
-    #     raise HTTPException(status_code=401, detail="Unauthorized")
-
-    user_role = "EMPLOYEE"  # TODO: Get from current_user.role
-    user_bu = None  # TODO: Get from current_user.business_unit
+    user_role = current_user.UserRole
+    user_bu = current_user.business_unit_id
 
     bonuses = ReferralAccessControl.get_bonuses_for_user(
         db,
-        "temp_user_id",  # TODO: Use current_user.id when auth is implemented
+        current_user.UserID,
         user_role,
         user_bu,
     )

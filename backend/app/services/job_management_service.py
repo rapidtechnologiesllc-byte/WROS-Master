@@ -21,7 +21,7 @@ class JobManagementService:
     ) -> Dict[str, Any]:
         """Update job details (salary, title, team, description)"""
         try:
-            job = db.query(Jobs).filter(Jobs.id == job_id).first()
+            job = db.query(Jobs).filter(Jobs.jobID == job_id).first()
             if not job:
                 raise ValueError(f"Job not found: {job_id}")
 
@@ -62,7 +62,7 @@ class JobManagementService:
     ) -> Dict[str, Any]:
         """Close a job (FILLED, CANCELED, ON_HOLD)"""
         try:
-            job = db.query(Jobs).filter(Jobs.id == job_id).first()
+            job = db.query(Jobs).filter(Jobs.jobID == job_id).first()
             if not job:
                 raise ValueError(f"Job not found: {job_id}")
 
@@ -93,7 +93,7 @@ class JobManagementService:
     ) -> Dict[str, Any]:
         """Reopen a closed job"""
         try:
-            job = db.query(Jobs).filter(Jobs.id == job_id).first()
+            job = db.query(Jobs).filter(Jobs.jobID == job_id).first()
             if not job:
                 raise ValueError(f"Job not found: {job_id}")
 
@@ -126,7 +126,7 @@ class JobManagementService:
     ) -> Dict[str, Any]:
         """Get job performance metrics (time-to-hire, candidate funnel, etc.)"""
         try:
-            job = db.query(Jobs).filter(Jobs.id == job_id).first()
+            job = db.query(Jobs).filter(Jobs.jobID == job_id).first()
             if not job:
                 raise ValueError(f"Job not found: {job_id}")
 

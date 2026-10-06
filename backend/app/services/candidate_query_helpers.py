@@ -76,7 +76,12 @@ def get_candidates_for_user(
         base_query = base_query.filter(Candidate.job_id == job_id)
 
     if status:
-        base_query = base_query.filter(Candidate.status == status)
+        # Stage lives on CandidateStatus.piplineStatus (there is no Candidate.status)
+        from sqlalchemy import func, select
+        from app.models.candidate import CandidateStatus
+        base_query = base_query.filter(Candidate.candidateID.in_(
+            select(CandidateStatus.candidateID).where(func.lower(CandidateStatus.piplineStatus) == status.lower())
+        ))
 
     return base_query.all()
 

@@ -219,9 +219,9 @@ class TimesheetCompleteService:
         if not timesheet:
             return None
 
+        # Entries have no tenant column; the timesheet was tenant-checked above
         entries = db.query(TimesheetEntry).filter(
             TimesheetEntry.timesheet_id == timesheet_id,
-            TimesheetEntry.tenant_id == tenant_id
         ).all()
 
         return {

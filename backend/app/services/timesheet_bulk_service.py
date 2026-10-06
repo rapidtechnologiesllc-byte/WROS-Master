@@ -7,8 +7,21 @@ from uuid import uuid4
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, func
 
+from app.models.employee import Employee
 from app.models.timesheet import Timesheet
 from app.core.logging import logger
+
+
+def _reports_of(manager_id):
+    """Employee ids reporting to a manager (a timesheet's approver is the
+    employee's manager; Timesheet has no manager column)."""
+    from sqlalchemy import select
+    return select(Employee.id).where(Employee.manager_id == manager_id)
+
+
+def _manager_of(db, employee_id):
+    employee = db.query(Employee).filter(Employee.id == employee_id).first()
+    return employee.manager_id if employee else None
 
 class TimesheetBulkService:
     """Handles bulk timesheet operations and KPI tracking"""
@@ -25,7 +38,7 @@ class TimesheetBulkService:
             query = db.query(Timesheet).filter(Timesheet.status == status)
 
             if manager_id:
-                query = query.filter(Timesheet.manager_id == manager_id)
+                query = query.filter(Timesheet.employee_id.in_(_reports_of(manager_id)))
 
             timesheets = query.order_by(Timesheet.created_at.desc()).limit(limit).all()
 
@@ -33,11 +46,11 @@ class TimesheetBulkService:
                 {
                     "id": ts.id,
                     "employee_id": ts.employee_id,
-                    "week_start": ts.week_start.isoformat() if hasattr(ts, 'week_start') and ts.week_start else None,
-                    "hours_worked": ts.hours_worked,
+                    "week_start": ts.week_starting_date.isoformat() if ts.week_starting_date else None,
+                    "hours_worked": float(ts.total_hours or 0),
                     "status": ts.status,
                     "submitted_at": ts.created_at.isoformat() if ts.created_at else None,
-                    "manager_id": ts.manager_id
+                    "manager_id": _manager_of(db, ts.employee_id)
                 }
                 for ts in timesheets
             ]
@@ -74,7 +87,7 @@ class TimesheetBulkService:
                     timesheet.status = "APPROVED"
                     timesheet.approved_at = datetime.utcnow()
                     timesheet.approved_by = approved_by
-                    timesheet.approval_notes = notes
+                    # No notes column on Timesheet; approval notes are not stored
                     approved_count += 1
 
                 except Exception as e:
@@ -112,10 +125,12 @@ class TimesheetBulkService:
             for ts_id in timesheet_ids:
                 try:
                     timesheet = db.query(Timesheet).filter(Timesheet.id == ts_id).first()
-                    if timesheet and timesheet.status in ["SUBMITTED", "PENDING_APPROVAL"]:
+                    if timesheet and timesheet.status == "SUBMITTED":
                         timesheet.status = "REJECTED"
-                        timesheet.rejected_at = datetime.utcnow()
-                        timesheet.rejected_by = rejected_by
+                        # approved_by/approved_at record the reviewer and decision
+                        # time for either outcome (no rejected_* columns)
+                        timesheet.approved_at = datetime.utcnow()
+                        timesheet.approved_by = rejected_by
                         timesheet.rejection_reason = reason
                         rejected_count += 1
                 except Exception as e:
@@ -147,7 +162,7 @@ class TimesheetBulkService:
             query = db.query(Timesheet)
 
             if manager_id:
-                query = query.filter(Timesheet.manager_id == manager_id)
+                query = query.filter(Timesheet.employee_id.in_(_reports_of(manager_id)))
 
             if start_date:
                 query = query.filter(Timesheet.created_at >= start_date)
@@ -158,11 +173,11 @@ class TimesheetBulkService:
 
             total = len(timesheets)
             approved = sum(1 for ts in timesheets if ts.status == "APPROVED")
-            pending = sum(1 for ts in timesheets if ts.status in ["SUBMITTED", "PENDING_APPROVAL"])
+            pending = sum(1 for ts in timesheets if ts.status == "SUBMITTED")
             rejected = sum(1 for ts in timesheets if ts.status == "REJECTED")
 
             approval_rate = (approved / total * 100) if total > 0 else 0
-            avg_hours = sum(ts.hours_worked for ts in timesheets if ts.hours_worked) / total if total > 0 else 0
+            avg_hours = sum(float(ts.total_hours or 0) for ts in timesheets) / total if total > 0 else 0
 
             return {
                 "total_timesheets": total,

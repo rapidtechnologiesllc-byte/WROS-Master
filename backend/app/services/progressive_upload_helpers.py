@@ -41,28 +41,28 @@ def get_candidate(
 def get_document_count(db: Session, candidate_id: str) -> int:
     """Count documents for candidate."""
     return db.query(CandidateDocument).filter(
-        CandidateDocument.candidateID == candidate_id,
+        CandidateDocument.candidate_id == candidate_id,
     ).count()
 
 
 def get_total_document_size(db: Session, candidate_id: str) -> int:
     """Get total file size for candidate."""
-    return db.query(func.sum(CandidateDocument.file_size_bytes)).filter(
-        CandidateDocument.candidateID == candidate_id,
+    return db.query(func.sum(CandidateDocument.file_size)).filter(
+        CandidateDocument.candidate_id == candidate_id,
     ).scalar() or 0
 
 
 def get_last_document(db: Session, candidate_id: str) -> Optional[CandidateDocument]:
     """Get most recent document for candidate."""
     return db.query(CandidateDocument).filter(
-        CandidateDocument.candidateID == candidate_id,
+        CandidateDocument.candidate_id == candidate_id,
     ).order_by(CandidateDocument.uploaded_at.desc()).first()
 
 
 def get_next_upload_sequence(db: Session, candidate_id: str) -> int:
     """Get next upload sequence number."""
     max_seq = db.query(func.max(CandidateDocument.upload_sequence)).filter(
-        CandidateDocument.candidateID == candidate_id,
+        CandidateDocument.candidate_id == candidate_id,
     ).scalar() or 0
     return max_seq + 1
 
@@ -108,9 +108,6 @@ def validate_upload_state(candidate: Candidate) -> Tuple[bool, str]:
     """
     if not candidate:
         return False, "Candidate not found"
-
-    if candidate.upload_locked:
-        return False, "Upload locked. Another process is modifying this candidate."
 
     current_state = CandidateUploadState(candidate.upload_status)
     if current_state not in [CandidateUploadState.CREATED, CandidateUploadState.UPLOADING]:

@@ -24,12 +24,14 @@ from app.models.invoice import Invoice, InvoiceLineItem, INVOICE_STATUSES
 from app.models.timesheet import Timesheet, TimesheetEntry
 from app.models.opportunity import Opportunity
 from app.models.project import Project
+from app.models.revenue import Revenue
 from app.models.employee import Employee
 from app.models.client import Client
 from app.models.org_structure import BusinessUnit
 
 from app.services.revenue_recognition_service import recognize_revenue_from_paid_invoice
 from app.core.logging import logger
+from app.services.scope_helpers import invoice_for_opportunity, invoice_in_bu
 
 logger = logging.getLogger(__name__)
 
@@ -575,7 +577,7 @@ def get_invoices(
     if client_id:
         query = query.filter(Invoice.client_id == client_id)
     if business_unit_id:
-        query = query.filter(Invoice.business_unit_id == business_unit_id)
+        query = query.filter(invoice_in_bu(business_unit_id))
     if status:
         query = query.filter(Invoice.status == status)
     if date_from:
@@ -622,7 +624,7 @@ def get_invoice_totals_by_status(
         Invoice.status,
         func.sum(Invoice.total_usd_cents).label('total')
     ).filter(
-        Invoice.business_unit_id == business_unit_id
+        invoice_in_bu(business_unit_id)
     ).group_by(Invoice.status)
 
     result = {}
@@ -652,7 +654,7 @@ def get_outstanding_invoices(
     cutoff_date = datetime.utcnow().date() - timedelta(days=days_overdue)
 
     invoices = db.query(Invoice).filter(
-        Invoice.business_unit_id == business_unit_id,
+        invoice_in_bu(business_unit_id),
         Invoice.status == "SENT",
         Invoice.sent_at <= cutoff_date,
     ).order_by(Invoice.sent_at.asc()).all()
@@ -686,5 +688,5 @@ def get_invoices_by_opportunity(db: Session, opportunity_id: str) -> List[Invoic
         List of invoices for this opportunity
     """
     return db.query(Invoice).filter(
-        Invoice.opportunity_id == opportunity_id
+        invoice_for_opportunity(opportunity_id)
     ).order_by(Invoice.billing_period_end.desc()).all()

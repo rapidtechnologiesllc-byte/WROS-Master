@@ -18,6 +18,7 @@ from app.models.user import Jobs
 from app.models.candidate import Candidate
 from app.services.message_queue_service import MessageQueueService
 from app.services.slm_learning_framework import SLMlearningFramework
+from app.services.candidate_pipeline_stage import pipeline_stage_in
 
 logger = logging.getLogger(__name__)
 
@@ -154,7 +155,7 @@ class JobCreatedOrchestrator:
             query = db.query(Candidate).filter(
                 and_(
                     Candidate.tenant_id == tenant_id,
-                    Candidate.candidateStatus.in_(["OFFER", "INTERVIEWING", "OPEN"]),
+                    pipeline_stage_in("OFFER", "INTERVIEWING", "APPLIED"),
                 )
             )
 

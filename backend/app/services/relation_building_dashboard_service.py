@@ -143,8 +143,8 @@ class RelationBuildingDashboard:
         # Get candidate statistics
         candidates_processed = db.query(Candidate).filter(
             Candidate.tenant_id == tenant_id,
-            Candidate.created_at >= start_time,
-            Candidate.created_at < end_time,
+            Candidate.candidateCreatedAt >= start_time,
+            Candidate.candidateCreatedAt < end_time,
         ).count()
 
         # Get memory facts stored (as proxy for persona analysis depth)
@@ -225,7 +225,7 @@ class RelationBuildingDashboard:
         today_start = datetime.now().replace(hour=0, minute=0, second=0)
         candidates_needing_processing = db.query(Candidate).filter(
             Candidate.tenant_id == tenant_id,
-            Candidate.created_at >= today_start,
+            Candidate.candidateCreatedAt >= today_start,
         ).outerjoin(
             CandidateMemory,
             Candidate.candidateID == CandidateMemory.candidate_id
@@ -258,9 +258,17 @@ class RelationBuildingDashboard:
         - Memory storage issues
         """
         # Check for candidates with no resume text (can't extract persona)
+        # No resume text column exists: "no resume" = no live resume document
+        from sqlalchemy import exists, func as sa_func
+        from app.models.document import CandidateDocument
+        has_resume = exists().where(
+            CandidateDocument.candidate_id == Candidate.candidateID,
+            sa_func.lower(CandidateDocument.document_type).like("%resume%"),
+            CandidateDocument.is_deleted.is_(False),
+        )
         no_resume_count = db.query(Candidate).filter(
             Candidate.tenant_id == tenant_id,
-            (Candidate.resume_text == None) | (Candidate.resume_text == ""),
+            ~has_resume,
         ).count()
 
         # Check for memory extraction failures (would require audit logging)

@@ -31,6 +31,7 @@ from app.services.outreach_agent_service import (
 from app.services.thunder_pause_service import is_thunder_paused
 from app.core.database import SessionLocal
 from app.core.agent_logging import log_agent_execution
+from app.services.candidate_pipeline_stage import pipeline_stage_in
 
 logger = logging.getLogger(__name__)
 
@@ -245,7 +246,7 @@ def run_thunder_autonomous_cycle(db: Session) -> dict:
         try:
             # Find engaged candidates for progression
             engaged_candidates = db.query(Candidate).filter(
-                Candidate.candidate_status == "ENGAGED"
+                pipeline_stage_in("ENGAGED")
             ).limit(10).all()
 
             for candidate in engaged_candidates:

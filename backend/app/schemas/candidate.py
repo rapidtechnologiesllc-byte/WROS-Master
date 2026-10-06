@@ -70,6 +70,7 @@ class CandidateUpdateRequest(BaseModel):
     candidate_employee_type: Optional[str] = None
     assigned_hr_manager_id: Optional[str] = None
     assigned_report_manager_id: Optional[str] = None
+    assigned_recruiter_id: Optional[str] = None
 
 class CandidateCreateResponse(BaseModel):
     candidate_id: str
@@ -87,6 +88,7 @@ class CandidateEducationResponse(BaseModel):
     starting_year: str | None = None
     year_of_passing: str | None = None
     percentage: str | None = None
+    education_level: str | None = None
     document_is_submitted: bool | None = None
     document_id: int | None = None   # linked CandidateDocument.id
 
@@ -97,6 +99,7 @@ class CandidateExperienceResponse(BaseModel):
     start_date: date | None = None
     end_date: date | None = None
     year_of_experience: str | None = None
+    responsibilities: str | None = None
     document_is_submitted: bool | None = None
     document_id: int | None = None   # linked CandidateDocument.id
 
@@ -372,3 +375,20 @@ class StatusActionResponse(BaseModel):
 class ManagerApprovalRequest(BaseModel):
     action: str = Field(description="Action to take: 'Approve' or 'Reject'")
     comments: Optional[str] = None
+
+
+# HR profile: education / experience lists saved as a whole (Save & Close)
+class HrEducationItem(BaseModel):
+    level: Optional[str] = None
+    institute: Optional[str] = None
+    degree: Optional[str] = None
+    start: Optional[str] = None
+    end: Optional[str] = None
+
+
+class HrExperienceItem(BaseModel):
+    company: Optional[str] = None
+    job_title: Optional[str] = None
+    start_date: Optional[date] = None
+    end_date: Optional[date] = None
+    responsibilities: Optional[str] = None

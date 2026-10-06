@@ -21,6 +21,9 @@ logger = logging.getLogger(__name__)
 
 class InterviewScheduleFromQueueHandler:
     """Handle interview scheduling from queue messages"""
+    # Enforced by queue_processor_service (its default for this task type)
+    TIMEOUT_SECONDS = 30
+
 
     @staticmethod
     @time_bound(timeout_seconds=12)
@@ -278,7 +281,7 @@ Recruiting Team
         interview_id = result.get("interview_id")
 
         try:
-            interview = db.query(Interview).filter(Interview.interviewID == interview_id).first()
+            interview = db.query(Interview).filter(Interview.id == interview_id).first()
             if not interview:
                 raise ValueError(f"Interview {interview_id} not found after scheduling")
 

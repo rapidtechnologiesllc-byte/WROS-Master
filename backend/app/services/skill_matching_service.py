@@ -43,7 +43,7 @@ class SkillMatchingService:
         - formation_feedback: Message for Flash about phalanx integrity
         """
         try:
-            candidate = db.query(Candidate).filter(Candidate.candidate_id == candidate_id).first()
+            candidate = db.query(Candidate).filter(Candidate.candidateID == candidate_id).first()
             if not candidate:
                 logger.error(f"[SkillMatching] Candidate {candidate_id} not found")
                 return {

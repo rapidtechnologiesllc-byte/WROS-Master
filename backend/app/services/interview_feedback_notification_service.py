@@ -53,8 +53,8 @@ class InterviewFeedbackNotificationService:
 
             # Fetch candidate
             candidate = db.query(Candidate).filter(
-                Candidate.id == interview.submission_id
-            ).first() if interview.submission_id else None
+                Candidate.candidateID == interview.candidate_id
+            ).first()
 
             if not candidate:
                 logger.error(f"Candidate for interview {interview_id} not found")
