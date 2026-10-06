@@ -48,7 +48,7 @@ export default function TroyPartnerDashboard() {
     };
 
     fetchData();
-  }, [selectedBuId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [selectedBuId]);
 
   const picker = buChoices ? (
     <DashboardBUPicker businessUnits={buChoices} value={selectedBuId} onChange={setSelectedBuId} />

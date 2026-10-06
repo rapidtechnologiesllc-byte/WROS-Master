@@ -10,7 +10,6 @@ import IntelligenceTab from "./tabs/IntelligenceTab";
 import HistoryTab from "./tabs/HistoryTab";
 import MessagesTab from "./tabs/MessagesTab";
 import CandidateJourney from "../components/candidate/CandidateJourney";
-import CandidateEditModal from "./CandidateEditModal";
 import {
   getCandidateStatus,
   updateCandidateStatus,
@@ -288,7 +287,6 @@ export default function CandidateDetailsScreen({
   const currentRole = localStorage.getItem("hrms_role") || "user";
   const [activeTab, setActiveTab] = useState(defaultTab || "profile");
   const [statusData, setStatusData] = useState(null);
-  const [editModalOpen, setEditModalOpen] = useState(false);
   const [notice, setNotice] = useState("");
   const [noticeType, setNoticeType] = useState("success");
   const [showAssignModal, setShowAssignModal] = useState(false);
@@ -1531,19 +1529,6 @@ ${formattedJD}
                   >
                     <MessageCircle className="w-5 h-5 text-green-600" />
                   </button>
-                  <Button onClick={async () => {
-                    // Fetch complete candidate details before opening edit modal
-                    try {
-                      const fullCandidate = await getCandidateById(candidate?.id);
-                      // Update parent's candidate state with full data
-                      if (onUpdateCandidate) {
-                        onUpdateCandidate(fullCandidate);
-                      }
-                    } catch (err) {
-                      console.error("Failed to fetch full candidate details:", err);
-                    }
-                    setEditModalOpen(true);
-                  }}>Edit</Button>
                   <Button
                     disabled={isChecklistAssigned}
                     onClick={() => setShowAssignModal(true)}
@@ -1719,14 +1704,6 @@ ${formattedJD}
             </div>
           )}
         </div>
-        {editModalOpen && (
-          <CandidateEditModal
-            candidate={candidate}
-            onClose={() => setEditModalOpen(false)}
-            onUpdateCandidate={onUpdateCandidate}
-            onRefreshCandidates={onRefreshCandidates}
-          />
-        )}
         {showNoteModal && (
           <div className="fixed inset-0 z-50 bg-black/45 flex items-center justify-center px-4 py-6">
             <div className="bg-white w-full max-w-2xl rounded-3xl shadow-2xl border border-gray-200 overflow-hidden">

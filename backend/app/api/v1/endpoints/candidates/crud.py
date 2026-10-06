@@ -5,7 +5,7 @@ from typing import Optional, List
 import re
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import or_
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 import time
 
@@ -687,6 +687,32 @@ def update_candidate(candidate_id: str, request: CandidateUpdateRequest, db: Ses
         candidate.candidateJobTitle = request.candidate_job_title
         if old_val != request.candidate_job_title:
             corrections['candidate_job_title'] = (old_val, request.candidate_job_title)
+
+    # Email can be corrected (e.g. a LinkedIn lead's placeholder address once
+    # the real one is known); it is the dedup key, so it must stay unique
+    if request.candidate_email is not None:
+        new_email = str(request.candidate_email).strip().lower()
+        old_val = candidate.candidateEmail
+        if new_email != (old_val or "").lower():
+            taken = db.query(Candidate).filter(
+                func.lower(Candidate.candidateEmail) == new_email,
+                Candidate.candidateID != candidate_id,
+            ).first()
+            if taken:
+                raise HTTPException(
+                    status_code=409,
+                    detail=f"{new_email} already belongs to candidate {taken.candidateID}",
+                )
+            candidate.candidateEmail = new_email
+            corrections['candidate_email'] = (old_val, new_email)
+            db.add(CandidateHistory(
+                candidateID=candidate_id,
+                event_type="Candidate Edited",
+                note=f"Email changed from {old_val} to {new_email}",
+                performed_by_id=getattr(user, "UserID", None),
+                performed_by_name=getattr(user, "UserName", None) or getattr(user, "UserEmail", None),
+                event_at=datetime.utcnow(),
+            ))
 
     if request.candidate_employee_type is not None:
         old_val = candidate.candidateEmployeeType

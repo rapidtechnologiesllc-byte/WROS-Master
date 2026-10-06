@@ -196,6 +196,7 @@ export default function ProfileTabEditable({ candidateId, candidate = {}, onRefr
         updatePayload.candidate_first_name = editForm.first_name || null;
         updatePayload.candidate_middle_name = editForm.middle_name || null;
         updatePayload.candidate_last_name = editForm.last_name || null;
+        updatePayload.candidate_email = editForm.email?.trim() || null;
         updatePayload.candidate_mobile = editForm.mobile || null;
         updatePayload.candidate_job_title = editForm.job_title || null;
         updatePayload.candidate_gender = editForm.gender || null;
@@ -323,7 +324,6 @@ export default function ProfileTabEditable({ candidateId, candidate = {}, onRefr
               type="email"
               value={editForm.email || ""}
               onChange={(v) => setEditForm({...editForm, email: v})}
-              disabled
             />
             <Input
               label="Mobile"

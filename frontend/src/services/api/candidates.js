@@ -47,63 +47,30 @@ export const createCandidateAssignment = async ({
   return data;
 };
 
+// Fields PUT /candidates/hr/update_candidate/{id} accepts (CandidateUpdateRequest).
+// null/undefined are not sent, so a section save only changes its own fields.
+const CANDIDATE_UPDATE_FIELDS = [
+  "candidate_first_name", "candidate_middle_name", "candidate_last_name",
+  "candidate_email", "candidate_mobile", "candidate_gender", "candidate_date_of_birth",
+  "candidate_source", "candidate_experience", "candidate_skills", "candidate_joining_date",
+  "candidate_notice_period", "candidate_expected_salary", "candidate_current_salary",
+  "candidate_current_location", "candidate_job_title", "candidate_employee_type",
+  "assigned_hr_manager_id", "assigned_report_manager_id",
+];
+
 export const updateCandidate = async (candidateId, payload) => {
   if (!payload) {
     throw new Error("Update payload is required");
   }
   const body = {};
-  if (payload?.candidate_job_title != null)
-    body.candidate_job_title = payload.candidate_job_title;
-  if (payload?.candidate_first_name != null)
-    body.candidate_first_name = payload.candidate_first_name;
-  if (payload?.candidate_middle_name != null)
-    body.candidate_middle_name = payload.candidate_middle_name;
-  if (payload?.candidate_last_name != null)
-    body.candidate_last_name = payload.candidate_last_name;
-  if (payload?.candidate_mobile != null)
-    body.candidate_mobile = payload.candidate_mobile;
-  if (payload?.candidate_gender != null)
-    body.candidate_gender = payload.candidate_gender;
-  if (payload?.candidate_date_of_birth != null)
-    body.candidate_date_of_birth = payload.candidate_date_of_birth;
-  if (payload?.candidate_source != null)
-    body.candidate_source = payload.candidate_source;
-  if (payload?.candidate_experience != null)
-    body.candidate_experience = payload.candidate_experience;
-  if (payload?.candidate_skills != null)
-    body.candidate_skills = Array.isArray(payload.candidate_skills)
-      ? payload.candidate_skills.join(", ")
-      : payload.candidate_skills;
-  if (payload?.candidate_joining_date != null) {
-    // Only send if it's a valid date format (YYYY-MM-DD), not days text
-    const isValidDate = /^\d{4}-\d{2}-\d{2}$/.test(payload.candidate_joining_date);
-    if (isValidDate) {
-      body.candidate_joining_date = payload.candidate_joining_date;
-    }
-  }
-  if (payload?.candidate_expected_salary != null)
-    body.candidate_expected_salary = payload.candidate_expected_salary;
-  if (payload?.candidate_current_salary != null)
-    body.candidate_current_salary = payload.candidate_current_salary;
-  if (payload?.candidate_current_location != null)
-    body.candidate_current_location = payload.candidate_current_location;
-  if (payload?.assigned_hr_manager_id != null)
-    body.assigned_hr_manager_id = payload.assigned_hr_manager_id;
-  if (payload?.assigned_report_manager_id != null)
-    body.assigned_report_manager_id = payload.assigned_report_manager_id;
-  if (payload?.candidate_expected_salary_type != null)
-    body.candidate_expected_salary_type = payload.candidate_expected_salary_type;
-  if (payload?.candidate_current_salary_type != null)
-    body.candidate_current_salary_type = payload.candidate_current_salary_type;
-
-  console.log(`[updateCandidate] Calling PUT /candidate/${candidateId}`, body);
-  const { data } = await apiRequest(
-    `/candidate/${candidateId}`,
-    {
-      method: "PUT",
-      body: JSON.stringify(body),
-    },
-  );
+  CANDIDATE_UPDATE_FIELDS.forEach((field) => {
+    if (payload[field] != null && payload[field] !== "") body[field] = payload[field];
+  });
+  // PUT /candidate/{id} (used before) does not exist -- every save 404'd
+  const { data } = await apiRequest(`/candidates/hr/update_candidate/${candidateId}`, {
+    method: "PUT",
+    body: JSON.stringify(body),
+  });
   return data;
 };
 
