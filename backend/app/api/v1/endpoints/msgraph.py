@@ -81,8 +81,8 @@ def start_link(current_user: Users = Depends(get_current_internal_user)):
     WROS user to connect their Outlook. The frontend calls this with its
     normal auth header, then navigates the browser to auth_url."""
     settings = graph_oauth_settings()
-    if not (settings["client_id"] and settings["client_secret"] and REDIRECT_URI):
-        raise HTTPException(503, "Microsoft 365 is not configured on this server")
+    if not (settings["configured"] and REDIRECT_URI):
+        raise HTTPException(503, "Outlook connection is not available yet: the Microsoft 365 app (tenant id, client id, secret) is not configured on the server.")
     link_state = create_access_token(
         data={
             "sub": current_user.UserID,

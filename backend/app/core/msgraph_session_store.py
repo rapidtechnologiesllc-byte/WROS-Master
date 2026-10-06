@@ -27,15 +27,26 @@ logger = logging.getLogger(__name__)
 REFRESH_MARGIN = timedelta(minutes=5)
 
 
+def _real(value: Optional[str]) -> Optional[str]:
+    """Env value, or None when unset or still a template placeholder."""
+    if not value or "your_" in value.lower() or "{" in value:
+        return None
+    return value
+
+
 def graph_oauth_settings() -> dict:
     """OAuth app settings (env). TENANT_ID/CLIENT_ID/CLIENT_SECRET with the
-    AZURE_* names as fallback, so either naming works."""
-    tenant = os.getenv("TENANT_ID") or os.getenv("AZURE_TENANT_ID")
+    AZURE_* names as fallback; placeholder values count as unset."""
+    tenant = _real(os.getenv("TENANT_ID")) or _real(os.getenv("AZURE_TENANT_ID"))
+    client_id = _real(os.getenv("CLIENT_ID")) or _real(os.getenv("AZURE_CLIENT_ID"))
+    secret = _real(os.getenv("CLIENT_SECRET")) or _real(os.getenv("AZURE_CLIENT_SECRET"))
+    authority = _real(os.getenv("AUTHORITY")) or (f"https://login.microsoftonline.com/{tenant}" if tenant else None)
     return {
-        "client_id": os.getenv("CLIENT_ID") or os.getenv("AZURE_CLIENT_ID"),
-        "client_secret": os.getenv("CLIENT_SECRET") or os.getenv("AZURE_CLIENT_SECRET"),
-        "authority": os.getenv("AUTHORITY") or f"https://login.microsoftonline.com/{tenant}",
+        "client_id": client_id,
+        "client_secret": secret,
+        "authority": authority,
         "scopes": (os.getenv("SCOPES") or "https://graph.microsoft.com/.default").split(),
+        "configured": bool(tenant and client_id and secret),
     }
 
 
