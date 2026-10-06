@@ -1,5 +1,4 @@
 """
-import logging
 Unified Agent Execution Logging
 
 Provides decorators and context managers for all agents to log execution
@@ -15,6 +14,7 @@ Or with context manager:
       ...
 """
 
+import logging
 import time
 from contextlib import asynccontextmanager
 from functools import wraps
@@ -22,6 +22,8 @@ from typing import Optional, Dict, Any
 from sqlalchemy.orm import Session
 
 from app.models.agent_execution_log import AgentExecutionLog
+
+logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def agent_execution_log(

@@ -48,7 +48,7 @@ def get_offer_metrics(db: Session, days_back: int = 1, tenant_id: Optional[str] 
     try:
         query_base = db.query(OfferLetter)
         offers_total = query_base.count()
-        offers_accepted = query_base.filter(OfferLetter.status == "ACCEPTED").count()
+        offers_accepted = query_base.filter(OfferLetter.offer_status == "Accepted").count()
     except:
         offers_total = 0
         offers_accepted = 0

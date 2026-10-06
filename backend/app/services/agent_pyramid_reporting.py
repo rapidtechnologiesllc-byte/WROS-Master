@@ -78,11 +78,24 @@ from sqlalchemy import func
 from app.models.business_unit import BusinessUnit
 from app.models.employee import Employee
 from app.models.user import Users
-from app.models.opportunity import Opportunity
+from app.models.employee_allocation import EmployeeAllocation
+from app.models.opportunity import CLOSED_STAGES, Opportunity
 from app.models.project import Project
+from app.services.candidate_pipeline_stage import employee_active_allocation_ids
+from app.services.scope_helpers import opportunity_in_bu, project_in_bu
 from app.core.logging import logger
 
 logger = logging.getLogger(__name__)
+
+WON_STAGES = ("CONTRACT", "ACTIVE")
+
+
+def _active_project_id(db: Session, employee_id: str):
+    """Project of the employee's ACTIVE allocation (Employee has no project column)."""
+    allocation = db.query(EmployeeAllocation).filter(
+        EmployeeAllocation.employee_id == employee_id, EmployeeAllocation.status == "ACTIVE"
+    ).first()
+    return allocation.project_id if allocation else None
 
 class TechLeadWeeklyReportAgent:
     """
@@ -107,7 +120,7 @@ class TechLeadWeeklyReportAgent:
         """
 
         tech_lead = db.query(Employee).filter(
-            Employee.UserID == tech_lead_id,
+            Employee.wros_user_id == tech_lead_id,
             Employee.tenant_id == tenant_id
         ).first()
 
@@ -124,7 +137,7 @@ class TechLeadWeeklyReportAgent:
             "week": f"{week_start.date()} to {week_end.date()}",
             "tech_lead_id": tech_lead_id,
             "tech_lead_name": tech_lead.first_name + " " + tech_lead.last_name if tech_lead.first_name else "Unknown",
-            "project": tech_lead.current_project_id or "Unassigned",
+            "project": _active_project_id(db, tech_lead.id) or "Unassigned",
             "work_items": {
                 "commits": 32,  # Would fetch from Git/GitHub API
                 "pull_requests": {
@@ -184,7 +197,7 @@ class ManagerWeeklyReportAgent:
         """
 
         manager = db.query(Employee).filter(
-            Employee.UserID == manager_id,
+            Employee.wros_user_id == manager_id,
             Employee.tenant_id == tenant_id
         ).first()
 
@@ -289,7 +302,7 @@ class PrincipalArchitectWeeklyReportAgent:
         """
 
         architect = db.query(Employee).filter(
-            Employee.UserID == architect_id,
+            Employee.wros_user_id == architect_id,
             Employee.tenant_id == tenant_id
         ).first()
 
@@ -309,7 +322,7 @@ class PrincipalArchitectWeeklyReportAgent:
         manager_reports = []
         for manager in managers:
             report = ManagerWeeklyReportAgent.generate_manager_weekly_report(
-                db, tenant_id, manager.UserID, week_start
+                db, tenant_id, manager.wros_user_id, week_start
             )
             if report.get("status") != "error":
                 manager_reports.append(report)
@@ -419,7 +432,7 @@ class BUWeeklyReportAgent:
         # 1. DELIVERY CADENCE
         projects = db.query(Project).filter(
             Project.tenant_id == tenant_id,
-            Project.business_unit_id == bu_id,
+            project_in_bu(bu_id),
             Project.end_date >= week_start,
             Project.end_date <= week_end
         ).all()
@@ -436,7 +449,7 @@ class BUWeeklyReportAgent:
         allocated = db.query(func.count(Employee.id)).filter(
             Employee.bu_id == bu_id,
             Employee.status == "ACTIVE",
-            Employee.current_project_id.isnot(None)
+            Employee.id.in_(employee_active_allocation_ids())
         ).scalar() or 0
 
         utilization = (allocated / total_employees * 100) if total_employees > 0 else 0
@@ -449,40 +462,31 @@ class BUWeeklyReportAgent:
 
         departures = db.query(func.count(Employee.id)).filter(
             Employee.bu_id == bu_id,
-            Employee.status == "INACTIVE",
+            Employee.status == "EXITED",
             Employee.updated_at >= week_start
         ).scalar() or 0
 
         # 4. REVENUE GENERATED
-        revenue_cents = db.query(func.sum(Opportunity.deal_size_usd)).filter(
-            Opportunity.tenant_id == tenant_id,
-            Opportunity.partner_id.in_(
-                db.query(Users.UserID).filter(Users.UserRoleID == bu_id)
-            ),
-            Opportunity.expected_close_date >= week_start,
-            Opportunity.expected_close_date <= week_end,
-            Opportunity.status == "won"
+        revenue_cents = db.query(func.sum(Opportunity.revenue_value_usd_cents)).filter(
+            opportunity_in_bu(bu_id),
+            Opportunity.expected_close_date >= week_start.date(),
+            Opportunity.expected_close_date <= week_end.date(),
+            Opportunity.stage.in_(WON_STAGES)
         ).scalar() or 0
 
         revenue = revenue_cents / 100
 
         # 5. OPPORTUNITIES ADDED
         opportunities_added = db.query(func.count(Opportunity.id)).filter(
-            Opportunity.tenant_id == tenant_id,
-            Opportunity.partner_id.in_(
-                db.query(Users.UserID).filter(Users.UserRoleID == bu_id)
-            ),
+            opportunity_in_bu(bu_id),
             Opportunity.created_at >= week_start,
             Opportunity.created_at <= week_end
         ).scalar() or 0
 
         # 6. PIPELINE VALUE
-        pipeline_cents = db.query(func.sum(Opportunity.deal_size_usd)).filter(
-            Opportunity.tenant_id == tenant_id,
-            Opportunity.partner_id.in_(
-                db.query(Users.UserID).filter(Users.UserRoleID == bu_id)
-            ),
-            Opportunity.status.in_(["prospecting", "proposal", "negotiation"])
+        pipeline_cents = db.query(func.sum(Opportunity.revenue_value_usd_cents)).filter(
+            opportunity_in_bu(bu_id),
+            Opportunity.stage.notin_(CLOSED_STAGES)
         ).scalar() or 0
 
         pipeline = pipeline_cents / 100
@@ -527,8 +531,8 @@ class BUWeeklyReportAgent:
                     "added": opportunities_added,
                     "pipeline_value": f"${pipeline:,.0f}",
                     "pipeline_count": db.query(func.count(Opportunity.id)).filter(
-                        Opportunity.tenant_id == tenant_id,
-                        Opportunity.status.in_(["prospecting", "proposal", "negotiation"])
+                        opportunity_in_bu(bu_id),
+                        Opportunity.stage.notin_(CLOSED_STAGES)
                     ).scalar() or 0,
                     "status": "🟢" if opportunities_added > 3 else "🟡" if opportunities_added > 0 else "🔴"
                 }

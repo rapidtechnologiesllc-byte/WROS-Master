@@ -13,6 +13,7 @@ logger = logging.getLogger(__name__)
 class JobDeleteFlashHandler:
     """Handles job_deleted_flash queue messages with cascade cleanup."""
 
+    TIMEOUT_SECONDS = 45
     MAX_RETRIES = 3
     RETRY_DELAY_MINUTES = 15
 
@@ -89,15 +90,12 @@ class JobDeleteFlashHandler:
                     cascade_summary.append(f"CandidateJobApplication: {cja_count} rows")
                     logger.info(f"[JobDeleteFlash] Cleaned {cja_count} CandidateJobApplication rows for {job_id}")
 
-                # Cleanup 2: Interview
-                from app.models.user import Interview
-                interview_count = db.query(Interview).filter(
-                    Interview.job_id == job_id
-                ).count()
+                # Cleanup 2: Interviews -- linked to a job through their panel
+                from app.models.user import Interview, InterviewPanel
+                panel_ids = [p.id for p in db.query(InterviewPanel.id).filter(InterviewPanel.job_id == job_id).all()]
+                interview_count = db.query(Interview).filter(Interview.panel_id.in_(panel_ids)).count() if panel_ids else 0
                 if interview_count > 0:
-                    db.query(Interview).filter(
-                        Interview.job_id == job_id
-                    ).delete()
+                    db.query(Interview).filter(Interview.panel_id.in_(panel_ids)).delete(synchronize_session=False)
                     cascade_summary.append(f"Interview: {interview_count} rows")
                     logger.info(f"[JobDeleteFlash] Cleaned {interview_count} Interview rows for {job_id}")
 
@@ -116,20 +114,7 @@ class JobDeleteFlashHandler:
                 except Exception as e:
                     logger.warning(f"[JobDeleteFlash] Could not cleanup InterviewPanel (may not exist): {e}")
 
-                # Cleanup 4: CandidateAssignment (if job_id column exists)
-                try:
-                    from app.models.user import CandidateAssignment
-                    assign_count = db.query(CandidateAssignment).filter(
-                        CandidateAssignment.job_id == job_id
-                    ).count()
-                    if assign_count > 0:
-                        db.query(CandidateAssignment).filter(
-                            CandidateAssignment.job_id == job_id
-                        ).delete()
-                        cascade_summary.append(f"CandidateAssignment: {assign_count} rows")
-                        logger.info(f"[JobDeleteFlash] Cleaned {assign_count} CandidateAssignment rows for {job_id}")
-                except Exception as e:
-                    logger.warning(f"[JobDeleteFlash] Could not cleanup CandidateAssignment (may not exist): {e}")
+                # (CandidateAssignment rows are per candidate, not per job: nothing to clean)
 
             except IntegrityError as e:
                 db.rollback()

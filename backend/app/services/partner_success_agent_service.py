@@ -1,5 +1,4 @@
 """
-import logging
 Partner Success Agent Service
 
 NOT a tracker. A COACH.
@@ -18,14 +17,44 @@ import logging
 from typing import Dict, Any, List, Optional
 from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
-from sqlalchemy import func, and_
+from sqlalchemy import func, or_, select
 
 from app.core.agent_logging import log_agent_execution
-from app.models.opportunity import Opportunity
+from app.models.client import Client
+from app.models.opportunity import CLOSED_STAGES, Opportunity
+from app.services.finance_agent import partner_bu_ids
+from app.services.opportunity_service import calculate_weighted_forecast
+from app.services.opportunity_tracker_agent_service import OpportunityTrackerAgent
 from app.models.user import Users
 from app.core.logging import logger
 
 logger = logging.getLogger(__name__)
+
+WON_STAGES = ("CONTRACT", "ACTIVE")
+
+
+def _partner_opportunities(db: Session, partner_user_id: str, open_only: bool):
+    """Opportunities the partner owns directly or that sit in BUs they head.
+    Returns (opportunities, {client_id: company_name})."""
+    bu_ids = partner_bu_ids(db, partner_user_id)
+    owned = Opportunity.client_owner_id == partner_user_id
+    in_bus = Opportunity.client_id.in_(select(Client.id).where(Client.business_unit_id.in_(bu_ids)))
+    query = db.query(Opportunity).filter(or_(owned, in_bus) if bu_ids else owned)
+    if open_only:
+        query = query.filter(Opportunity.stage.notin_(CLOSED_STAGES))
+    opportunities = query.all()
+    names = dict(
+        db.query(Client.id, Client.company_name).filter(Client.id.in_({o.client_id for o in opportunities})).all()
+    ) if opportunities else {}
+    return opportunities, names
+
+
+def _partner_ytd_revenue_cents(db: Session, partner_user_id: str, year_start) -> int:
+    """Invoiced (approved/sent/paid) revenue this year in the partner's BUs."""
+    from app.services.finance_agent import _invoice_cents
+    bu_ids = partner_bu_ids(db, partner_user_id)
+    return _invoice_cents(db, bu_ids, datetime.combine(year_start, datetime.min.time())) if bu_ids else 0
+
 
 class PartnerSuccessAgent:
     """Proactive partner coaching toward revenue targets."""
@@ -85,17 +114,13 @@ class PartnerSuccessAgent:
             days_remaining_in_year = 365 - days_into_year
 
             daily_burn_rate = annual_target / 365  # Revenue per day needed
-            ytd_revenue_cents = 0  # Would query actual revenue
+            ytd_revenue_cents = _partner_ytd_revenue_cents(db, partner.UserID, year_start)
 
-            # Get partner's opportunities
-            opportunities = db.query(Opportunities).filter(
-                Opportunity.tenant_id == tenant_id,
-                Opportunity.partner_id == partner.UserID,
-                Opportunity.status == "open"
-            ).all()
+            # Get partner's open opportunities
+            opportunities, names = _partner_opportunities(db, partner.UserID, open_only=True)
 
             # Calculate pipeline
-            pipeline_value_cents = sum(opp.deal_size_usd_cents * opp.probability for opp in opportunities)
+            pipeline_value_cents = sum(calculate_weighted_forecast(opp) for opp in opportunities)
 
             # Deals by stage
             deals_by_stage = {}
@@ -104,8 +129,8 @@ class PartnerSuccessAgent:
                 if stage not in deals_by_stage:
                     deals_by_stage[stage] = []
                 deals_by_stage[stage].append({
-                    "client": opp.client_name,
-                    "size_usd": opp.deal_size_usd_cents / 100,
+                    "client": names.get(opp.client_id),
+                    "size_usd": opp.revenue_value_usd_cents / 100,
                     "expected_close": opp.expected_close_date.isoformat() if opp.expected_close_date else None,
                 })
 
@@ -123,10 +148,10 @@ class PartnerSuccessAgent:
                                 today <= opp.expected_close_date <= week_end]
 
             for opp in closing_this_week:
-                if opp.stage not in ["commitment", "closed_won"]:
+                if opp.stage not in ("CONTRACT", "ACTIVE"):
                     action_items.append({
                         "priority": "CRITICAL",
-                        "action": f"Move {opp.client_name} (${opp.deal_size_usd_cents/100:,.0f}) to {next_stage(opp.stage)} TODAY",
+                        "action": f"Move {names.get(opp.client_id)} (${opp.revenue_value_usd_cents/100:,.0f}) to {next_stage(opp.stage)} TODAY",
                         "reason": f"Closes {(opp.expected_close_date - today).days} days from now, currently in {opp.stage}",
                         "steps": [
                             f"Call client today (morning)",
@@ -140,7 +165,7 @@ class PartnerSuccessAgent:
             for opp in stalled:
                 action_items.append({
                     "priority": "HIGH",
-                    "action": f"Restart {opp.client_name} (${opp.deal_size_usd_cents/100:,.0f}) - stalled",
+                    "action": f"Restart {names.get(opp.client_id)} (${opp.revenue_value_usd_cents/100:,.0f}) - stalled",
                     "reason": f"No activity for {days_since_activity(opp)} days",
                     "steps": [
                         f"Call client today - ask for status",
@@ -150,7 +175,7 @@ class PartnerSuccessAgent:
                 })
 
             # Priority 3: Prospects needing qualification
-            prospects = [opp for opp in opportunities if opp.stage == "prospect"]
+            prospects = [opp for opp in opportunities if opp.stage == "QUALIFICATION"]
             if prospects:
                 action_items.append({
                     "priority": "MEDIUM",
@@ -159,7 +184,7 @@ class PartnerSuccessAgent:
                     "steps": [
                         f"Call each prospect (5-10 min each)",
                         f"Confirm: budget approved? decision maker identified? timeline?",
-                        f"Move qualified ones to 'qualified' stage",
+                        f"Move qualified ones to the PROSPECT stage",
                     ]
                 })
 
@@ -180,7 +205,7 @@ class PartnerSuccessAgent:
                 "ytd_pace_pct": round(ytd_pace_pct, 1),
 
                 # PIPELINE
-                "total_pipeline_usd": sum(opp.deal_size_usd_cents for opp in opportunities) / 100,
+                "total_pipeline_usd": sum(opp.revenue_value_usd_cents for opp in opportunities) / 100,
                 "probability_weighted_pipeline_usd": pipeline_value_cents / 100,
                 "deals_in_pipeline": len(opportunities),
                 "deals_by_stage": deals_by_stage,
@@ -235,22 +260,19 @@ class PartnerSuccessAgent:
                 raise ValueError(f"Partner {partner_key} not found")
 
             # This week's activity
-            opportunities = db.query(Opportunities).filter(
-                Opportunity.tenant_id == tenant_id,
-                Opportunity.partner_id == partner.UserID,
-            ).all()
+            opportunities, names = _partner_opportunities(db, partner.UserID, open_only=False)
 
             # Deals closed this week
             closed_this_week = [opp for opp in opportunities
-                               if opp.status == "closed_won" and
+                               if opp.stage in WON_STAGES and
                                opp.updated_at >= week_start]
 
-            closed_revenue_week = sum(opp.deal_size_usd_cents for opp in closed_this_week)
+            closed_revenue_week = sum(opp.revenue_value_usd_cents for opp in closed_this_week)
 
             # Deals advanced this week
             advanced_this_week = [opp for opp in opportunities
                                  if opp.updated_at >= week_ago and
-                                 opp.stage in ["qualified", "proposal", "negotiation", "commitment"]]
+                                 opp.stage in ["PROSPECT", "PROPOSAL", "NEGOTIATION", "CONTRACT"]]
 
             # What's winning
             winners = []
@@ -261,12 +283,12 @@ class PartnerSuccessAgent:
 
             # What needs work
             improvements = []
-            open_opportunities = [opp for opp in opportunities if opp.status == "open"]
+            open_opportunities = [opp for opp in opportunities if opp.stage not in CLOSED_STAGES]
             stalled_count = len([opp for opp in open_opportunities if should_flag_stalled(opp)])
             if stalled_count > 0:
                 improvements.append(f"{stalled_count} deal(s) stalled - need to restart these TODAY")
 
-            prospects = [opp for opp in open_opportunities if opp.stage == "prospect"]
+            prospects = [opp for opp in open_opportunities if opp.stage == "QUALIFICATION"]
             if len(prospects) > 5:
                 improvements.append(f"Too many unqualified prospects ({len(prospects)}). Qualify or drop.")
 
@@ -305,35 +327,25 @@ class PartnerSuccessAgent:
 
 def next_stage(current_stage: str) -> str:
     """Get next stage in sales cycle."""
-    stages = ["prospect", "qualified", "proposal", "negotiation", "commitment", "closed_won"]
-    try:
-        idx = stages.index(current_stage)
-        return stages[idx + 1] if idx < len(stages) - 1 else current_stage
-    except:
-        return "qualified"
+    stages = ["QUALIFICATION", "PROSPECT", "PROPOSAL", "NEGOTIATION", "CONTRACT", "ACTIVE"]
+    if current_stage not in stages:
+        return "PROSPECT"
+    idx = stages.index(current_stage)
+    return stages[idx + 1] if idx < len(stages) - 1 else current_stage
 
 def should_flag_stalled(opp: Opportunity) -> bool:
     """Check if deal is stalled."""
-    if not opp.last_activity_at:
+    threshold = OpportunityTrackerAgent.ACTIVITY_STALL_THRESHOLD.get(opp.stage)
+    if threshold is None:
         return False
-
-    thresholds = {
-        "prospect": 7,
-        "qualified": 5,
-        "proposal": 3,
-        "negotiation": 2,
-        "commitment": 1,
-    }
-
-    threshold = thresholds.get(opp.stage, 7)
-    days_without_activity = (datetime.utcnow() - opp.last_activity_at).days
-    return days_without_activity > threshold
+    return days_since_activity(opp) > threshold
 
 def days_since_activity(opp: Opportunity) -> int:
     """Days since last activity."""
-    if not opp.last_activity_at:
+    last_activity = opp.updated_at or opp.created_at
+    if not last_activity:
         return 999
-    return (datetime.utcnow() - opp.last_activity_at).days
+    return (datetime.utcnow() - last_activity).days
 
 def generate_coaching_message(partner_key: str, pace_pct: float, action_count: int) -> str:
     """Generate daily coaching message."""

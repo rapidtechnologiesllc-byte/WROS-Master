@@ -23,10 +23,11 @@ from sqlalchemy import func, and_, or_
 
 from app.models.candidate import Candidate
 from app.models.offer_letter import OfferLetter
+from app.models.user import Interview
 from app.models.employee import Employee
 from app.models.business_unit import BusinessUnit
 from app.core.logging import logger
-from app.services.candidate_pipeline_stage import pipeline_stage_in
+from app.services.candidate_pipeline_stage import OFFER_EXTENDED_STATUSES, employee_active_allocation_ids, has_thunder_conversation, interview_feedback_done_condition, interview_scheduled_condition, pipeline_stage_in
 
 logger = logging.getLogger(__name__)
 
@@ -126,7 +127,7 @@ class RecruitmentFunnelDashboard:
         # Definition: Candidate has engagement history (email/WhatsApp/call) OR in Thunder's queue
         contacted_count = db.query(func.count(Candidate.candidateID)).filter(
             Candidate.tenant_id == tenant_id,
-            Candidate.engagement_history.isnot(None),  # Has been contacted
+            has_thunder_conversation(),  # Has been contacted
         ).scalar() or 0
 
         # Stage 2: QUALIFIED (Recruitment Agent screened)
@@ -141,10 +142,7 @@ class RecruitmentFunnelDashboard:
         interview_scheduled = db.query(func.count(Candidate.candidateID)).filter(
             Candidate.tenant_id == tenant_id,
             Candidate.candidateID.in_(
-                db.query(Interview.candidate_id).filter(
-                    Interview.tenant_id == tenant_id,
-                    Interview.status.in_(["SCHEDULED", "COMPLETED", "FEEDBACK_GIVEN"])
-                )
+                db.query(Interview.candidate_id).filter(interview_scheduled_condition())
             )
         ).scalar() or 0
 
@@ -152,10 +150,7 @@ class RecruitmentFunnelDashboard:
         interviewed_count = db.query(func.count(Candidate.candidateID)).filter(
             Candidate.tenant_id == tenant_id,
             Candidate.candidateID.in_(
-                db.query(Interview.candidate_id).filter(
-                    Interview.tenant_id == tenant_id,
-                    Interview.status.in_(["FEEDBACK_GIVEN", "OFFER_EXTENDED"])
-                )
+                db.query(Interview.candidate_id).filter(interview_feedback_done_condition())
             )
         ).scalar() or 0
 
@@ -163,10 +158,7 @@ class RecruitmentFunnelDashboard:
         offer_extended = db.query(func.count(Candidate.candidateID)).filter(
             Candidate.tenant_id == tenant_id,
             Candidate.candidateID.in_(
-                db.query(OfferLetter.candidate_id).filter(
-                    OfferLetter.tenant_id == tenant_id,
-                    OfferLetter.status.in_(["SENT", "ACCEPTED", "STARTED"])
-                )
+                db.query(OfferLetter.candidate_id).filter(OfferLetter.offer_status.in_(OFFER_EXTENDED_STATUSES))
             )
         ).scalar() or 0
 
@@ -174,10 +166,7 @@ class RecruitmentFunnelDashboard:
         offer_accepted = db.query(func.count(Candidate.candidateID)).filter(
             Candidate.tenant_id == tenant_id,
             Candidate.candidateID.in_(
-                db.query(OfferLetter.candidate_id).filter(
-                    OfferLetter.tenant_id == tenant_id,
-                    OfferLetter.status.in_(["ACCEPTED", "STARTED"])
-                )
+                db.query(OfferLetter.candidate_id).filter(OfferLetter.offer_status == "Accepted")
             )
         ).scalar() or 0
 
@@ -190,7 +179,8 @@ class RecruitmentFunnelDashboard:
         # Stage 8: ONBOARDED (Onboarding complete)
         onboarded_count = db.query(func.count(Employee.id)).filter(
             Employee.tenant_id == tenant_id,
-            Employee.onboarding_completed_at.isnot(None)
+            # Onboarded = joined (no onboarding-completed column)
+            Employee.status.notin_(("PRE_JOINING", "EXITED"))
         ).scalar() or 0
 
         # Calculate conversions
@@ -337,7 +327,7 @@ class RecruitmentFunnelDashboard:
         on_bench = db.query(func.count(Employee.id)).filter(
             Employee.tenant_id == tenant_id,
             Employee.status == "ACTIVE",
-            Employee.current_project_id.is_(None)
+            Employee.id.notin_(employee_active_allocation_ids())
         ).scalar() or 0
 
         # Utilization calculation (employees on projects / total active)
@@ -421,7 +411,7 @@ class RecruitmentFunnelDashboard:
         onboarded_recently = db.query(func.count(Employee.id)).filter(
             Employee.tenant_id == tenant_id,
             Employee.created_at >= thirty_days_ago,
-            Employee.onboarding_completed_at.isnot(None)
+            Employee.status.notin_(("PRE_JOINING", "EXITED"))
         ).scalar() or 0
 
         # Note: Pulse survey, mental health indicators TBD (need integration with HR Agent)

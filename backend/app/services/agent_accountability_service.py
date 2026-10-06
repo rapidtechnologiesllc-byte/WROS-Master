@@ -34,9 +34,10 @@ from sqlalchemy import func, and_
 
 from app.models.candidate import Candidate
 from app.models.offer_letter import OfferLetter
+from app.models.user import Interview
 from app.models.employee import Employee
 from app.core.logging import logger
-from app.services.candidate_pipeline_stage import pipeline_stage_in
+from app.services.candidate_pipeline_stage import OFFER_EXTENDED_STATUSES, employee_active_allocation_ids, has_thunder_conversation, interview_feedback_done_condition, interview_scheduled_condition, pipeline_stage_in
 
 logger = logging.getLogger(__name__)
 
@@ -62,7 +63,7 @@ class AgentAccountabilityService:
         # Metric: # of candidates Thunder engaged with (has engagement_history)
         thunder_engaged = db.query(func.count(Candidate.candidateID)).filter(
             Candidate.tenant_id == tenant_id,
-            Candidate.engagement_history.isnot(None)
+            has_thunder_conversation()
         ).scalar() or 0
 
         # ===== STAGE 2: RECRUITMENT AGENT'S JOB =====
@@ -76,25 +77,23 @@ class AgentAccountabilityService:
         # ===== STAGE 3: INTERVIEW SCHEDULER'S JOB =====
         # "I schedule interviews for qualified candidates"
         # Metric: # of interviews scheduled
+        # Interviews have no tenant column (single tenant)
         interview_scheduled = db.query(func.count(Interview.id)).filter(
-            Interview.tenant_id == tenant_id,
-            Interview.status != "CANCELLED"
+            interview_scheduled_condition()
         ).scalar() or 0
 
         # ===== STAGE 4: HIRING PANEL'S JOB =====
         # "I interview them and give feedback"
         # Metric: # of interviews with feedback (candidate moved toward offer)
         panel_feedback_given = db.query(func.count(Interview.id)).filter(
-            Interview.tenant_id == tenant_id,
-            Interview.status.in_(["FEEDBACK_GIVEN", "OFFER_EXTENDED"])
+            interview_feedback_done_condition()
         ).scalar() or 0
 
         # ===== STAGE 5: OFFER GENERATOR'S JOB =====
         # "I create compelling offers that candidates accept"
         # Metric: # of offers sent to candidates
         offers_sent = db.query(func.count(OfferLetter.id)).filter(
-            OfferLetter.tenant_id == tenant_id,
-            OfferLetter.status != "CANCELLED"
+            OfferLetter.offer_status.in_(OFFER_EXTENDED_STATUSES)
         ).scalar() or 0
 
         # ===== STAGE 6: OFFER ACCEPTANCE =====
@@ -119,7 +118,8 @@ class AgentAccountabilityService:
         # Metric: # of employees who completed onboarding
         onboarded = db.query(func.count(Employee.id)).filter(
             Employee.tenant_id == tenant_id,
-            Employee.onboarding_completed_at.isnot(None),
+            # Onboarded = joined (no onboarding-completed column)
+            Employee.status.notin_(("PRE_JOINING", "EXITED")),
             Employee.created_at >= (datetime.utcnow() - timedelta(days=90))
         ).scalar() or 0
 
@@ -128,7 +128,7 @@ class AgentAccountabilityService:
         # Metric: # of employees allocated to projects
         deployed = db.query(func.count(Employee.id)).filter(
             Employee.tenant_id == tenant_id,
-            Employee.current_project_id.isnot(None),
+            Employee.id.in_(employee_active_allocation_ids()),
             Employee.created_at >= (datetime.utcnow() - timedelta(days=90))
         ).scalar() or 0
 

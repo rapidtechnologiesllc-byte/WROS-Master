@@ -1,256 +1,210 @@
 """
-import logging
 Opportunity Tracker Agent Service
 
 When a partner or sales person identifies a target client, this agent:
-1. Logs the opportunity with deal stage, size, timeline
-2. Tracks progress daily/weekly
-3. Flags stalls (no activity → escalate)
-4. Calculates probability-weighted pipeline
-5. Validates we're on path to $100M annual revenue target
+1. Logs the opportunity against the real client with stage, value, timeline
+2. Tracks pipeline health daily (Flash orchestration calls it)
+3. Flags stalls (no update past the stage's threshold -> escalate)
+4. Calculates the probability-weighted pipeline
+5. Validates we're on path to the annual revenue target
 
-Core question: "Are we tracking to close this deal on schedule?"
-If not, Flash intervenes immediately.
+Built on the real Opportunity model and opportunity_service (stages
+QUALIFICATION..ACTIVE/LOST, revenue_value_usd_cents, probability_pct).
+There is no per-opportunity activity table, so "last activity" is
+Opportunity.updated_at; logging an activity touches it.
 """
 
 import logging
-from typing import Dict, Any, List, Optional
-from datetime import datetime, timedelta
+from datetime import date, datetime
+from typing import Any, Dict, Optional
+
+from sqlalchemy import func
 from sqlalchemy.orm import Session
-from sqlalchemy import func, and_
 
 from app.core.agent_logging import log_agent_execution
-from app.models.opportunity import Opportunity
-from app.core.logging import logger
+from app.models.client import Client
+from app.models.employee import Employee
+from app.models.opportunity import CLOSED_STAGES, Opportunity
+from app.services.opportunity_service import (
+    calculate_weighted_forecast,
+    create_opportunity,
+    transition_stage,
+)
 
 logger = logging.getLogger(__name__)
 
-class OpportunityTrackerAgent:
-    """Tracks sales opportunities and pipeline health toward $100M target."""
 
-    # Revenue targets
+def _as_date(value) -> Optional[date]:
+    if value is None:
+        return None
+    return value.date() if isinstance(value, datetime) else value
+
+
+class OpportunityTrackerAgent:
+    """Tracks sales opportunities and pipeline health toward the revenue target."""
+
     ANNUAL_REVENUE_TARGET_USD_CENTS = 100_000_000_00  # $100M
 
-    # Deal stage progression (standard sales cycle)
-    DEAL_STAGES = [
-        "prospect",       # Initial identification
-        "qualified",      # Need confirmed, budget allocated
-        "proposal",       # Formal proposal submitted
-        "negotiation",    # Actively negotiating
-        "commitment",     # Verbal commitment / LOI signed
-        "closed_won",     # Contract signed, revenue recognized
-        "closed_lost",    # Opportunity lost
-    ]
-
-    # Stage to probability mapping
-    STAGE_PROBABILITY = {
-        "prospect": 0.10,
-        "qualified": 0.25,
-        "proposal": 0.40,
-        "negotiation": 0.65,
-        "commitment": 0.85,
-        "closed_won": 1.00,
-        "closed_lost": 0.00,
-    }
-
-    # Days between expected activity by stage
+    # Days without an update before an open opportunity counts as stalled
     ACTIVITY_STALL_THRESHOLD = {
-        "prospect": 7,         # Expect contact within 7 days
-        "qualified": 5,        # Tighter once qualified
-        "proposal": 3,         # Active negotiation = daily contact
-        "negotiation": 2,
-        "commitment": 1,       # Close is imminent
+        "QUALIFICATION": 7,
+        "PROSPECT": 5,
+        "PROPOSAL": 3,
+        "NEGOTIATION": 2,
     }
+    # Stages that are not yet committed; closing within a week at one of these is a risk
+    AT_RISK_STAGES = ("QUALIFICATION", "PROSPECT", "PROPOSAL", "NEGOTIATION")
+
+    @staticmethod
+    def _client_name(db: Session, client_id: str) -> Optional[str]:
+        client = db.query(Client).filter(Client.id == client_id).first()
+        return client.company_name if client else None
 
     @staticmethod
     @log_agent_execution("Opportunity Tracker Agent", "log_new_opportunity")
     async def log_new_opportunity(
-        tenant_id: str,
+        tenant_id,
         partner_id: str,
         client_name: str,
         deal_size_usd_cents: int,
-        expected_close_date: datetime,
+        expected_close_date,
         db: Session,
         **kwargs
     ) -> Dict[str, Any]:
+        """Log an opportunity for an existing client (matched by company name).
+
+        partner_id is the logging user's UserID; their employee record, if
+        any, becomes the opportunity owner.
         """
-        Partner/sales person identifies target client.
-        System logs opportunity and tracks to closure.
+        client = db.query(Client).filter(func.lower(Client.company_name) == client_name.strip().lower()).first()
+        if client is None:
+            raise ValueError(f"No client named {client_name!r}; create the client first")
 
-        Args:
-            tenant_id: Organization
-            partner_id: Partner/sales person who identified opportunity
-            client_name: Target client name
-            deal_size_usd_cents: Deal size in USD cents
-            expected_close_date: Expected close date
-            db: Database session
-
-        Returns:
-            Opportunity object with tracking initialized
-        """
-        try:
-            # Check if opportunity already exists for this client/partner
-            existing = db.query(Opportunities).filter(
-                Opportunity.tenant_id == tenant_id,
-                Opportunity.client_name == client_name,
-                Opportunity.partner_id == partner_id,
-                Opportunity.stage.in_(["prospect", "qualified", "proposal", "negotiation", "commitment"])
-            ).first()
-
-            if existing:
-                return {
-                    "status": "duplicate",
-                    "opportunity_id": existing.id,
-                    "message": f"Opportunity for {client_name} already tracked",
-                    "stage": existing.stage,
-                    "deal_size_usd": existing.deal_size_usd_cents / 100,
-                }
-
-            # Create new opportunity
-            opportunity = Opportunities(
-                tenant_id=tenant_id,
-                partner_id=partner_id,
-                client_name=client_name,
-                deal_size_usd_cents=deal_size_usd_cents,
-                stage="prospect",  # Always start at prospect
-                probability=OpportunityTrackerAgent.STAGE_PROBABILITY["prospect"],
-                expected_close_date=expected_close_date,
-                created_at=datetime.utcnow(),
-                last_activity_at=datetime.utcnow(),
-                days_in_stage=0,
-                status="open"
-            )
-            db.add(opportunity)
-            db.commit()
-
+        existing = db.query(Opportunity).filter(
+            Opportunity.client_id == client.id,
+            Opportunity.stage.notin_(CLOSED_STAGES),
+        ).first()
+        if existing:
             return {
-                "status": "success",
-                "opportunity_id": opportunity.id,
-                "client_name": client_name,
-                "deal_size_usd": deal_size_usd_cents / 100,
-                "stage": "prospect",
-                "probability": 0.10,
-                "weighted_revenue_usd": (deal_size_usd_cents * 0.10) / 100,
-                "expected_close_date": expected_close_date.isoformat(),
-                "message": f"Opportunity logged for {client_name}. Tracking to closure.",
+                "status": "duplicate",
+                "opportunity_id": existing.id,
+                "message": f"Open opportunity for {client.company_name} already tracked",
+                "stage": existing.stage,
+                "deal_size_usd": existing.revenue_value_usd_cents / 100,
             }
 
-        except Exception as e:
-            logger.error(f"Error: {str(e)}", exc_info=True)
-            raise
+        owner = db.query(Employee).filter(Employee.wros_user_id == partner_id).first()
+        opportunity = create_opportunity(
+            db,
+            tenant_id=tenant_id,
+            client_id=client.id,
+            revenue_value_usd_cents=deal_size_usd_cents,
+            owner_employee_id=owner.id if owner else None,
+            expected_close_date=_as_date(expected_close_date),
+        )
+        db.commit()
+        weighted = calculate_weighted_forecast(opportunity)
+        return {
+            "status": "success",
+            "opportunity_id": opportunity.id,
+            "client_name": client.company_name,
+            "deal_size_usd": deal_size_usd_cents / 100,
+            "stage": opportunity.stage,
+            "probability_pct": opportunity.probability_pct,
+            "weighted_revenue_usd": weighted / 100,
+            "expected_close_date": opportunity.expected_close_date.isoformat() if opportunity.expected_close_date else None,
+            "message": f"Opportunity logged for {client.company_name}. Tracking to closure.",
+        }
 
     @staticmethod
     @log_agent_execution("Opportunity Tracker Agent", "track_pipeline_health")
     async def track_pipeline_health(
-        tenant_id: str,
+        tenant_id,
         db: Session,
         **kwargs
     ) -> Dict[str, Any]:
-        """
-        Daily pipeline health check toward $100M annual target.
+        """Daily pipeline health check toward the annual target: weighted
+        pipeline, per-stage breakdown, stalled and at-risk opportunities."""
+        target = OpportunityTrackerAgent.ANNUAL_REVENUE_TARGET_USD_CENTS
+        opportunities = db.query(Opportunity).filter(Opportunity.stage.notin_(CLOSED_STAGES)).all()
 
-        Returns:
-        - Total pipeline value (probability-weighted)
-        - Pipeline by stage
-        - Stalled opportunities (no activity > threshold)
-        - Forecast vs target
-        - Escalations needed
-        """
-        try:
-            # Get all open opportunities
-            opportunities = db.query(Opportunities).filter(
-                Opportunity.tenant_id == tenant_id,
-                Opportunity.status == "open"
-            ).all()
-
-            if not opportunities:
-                return {
-                    "status": "no_opportunities",
-                    "total_opportunities": 0,
-                    "pipeline_value_usd": 0,
-                    "target_usd": OpportunityTrackerAgent.ANNUAL_REVENUE_TARGET_USD_CENTS / 100,
-                    "forecast_completion_pct": 0,
-                    "message": "No open opportunities. CRITICAL: Pipeline is empty."
-                }
-
-            # Calculate pipeline metrics
-            pipeline_by_stage = {}
-            stalled_opportunities = []
-            escalations_needed = []
-            total_pipeline_usd_cents = 0
-            total_probability_weighted_usd_cents = 0
-
-            for opp in opportunities:
-                stage = opp.stage
-                deal_size = opp.deal_size_usd_cents
-                probability = OpportunityTrackerAgent.STAGE_PROBABILITY.get(stage, 0)
-                weighted_value = deal_size * probability
-
-                total_pipeline_usd_cents += deal_size
-                total_probability_weighted_usd_cents += weighted_value
-
-                # Track by stage
-                if stage not in pipeline_by_stage:
-                    pipeline_by_stage[stage] = {
-                        "count": 0,
-                        "total_usd": 0,
-                        "weighted_usd": 0,
-                    }
-                pipeline_by_stage[stage]["count"] += 1
-                pipeline_by_stage[stage]["total_usd"] += deal_size / 100
-                pipeline_by_stage[stage]["weighted_usd"] += weighted_value / 100
-
-                # Check for stalls
-                if opp.last_activity_at:
-                    days_since_activity = (datetime.utcnow() - opp.last_activity_at).days
-                    threshold = OpportunityTrackerAgent.ACTIVITY_STALL_THRESHOLD.get(stage, 7)
-
-                    if days_since_activity > threshold:
-                        stalled_opportunities.append({
-                            "opportunity_id": opp.id,
-                            "client_name": opp.client_name,
-                            "partner_id": opp.partner_id,
-                            "stage": stage,
-                            "deal_size_usd": deal_size / 100,
-                            "days_without_activity": days_since_activity,
-                            "expected_close": opp.expected_close_date.isoformat() if opp.expected_close_date else None,
-                            "severity": "critical" if days_since_activity > (threshold * 2) else "warning"
-                        })
-
-                # Check if deal is at risk
-                if opp.expected_close_date and (opp.expected_close_date - datetime.utcnow()).days < 7:
-                    if stage not in ["commitment", "closed_won"]:
-                        escalations_needed.append({
-                            "opportunity_id": opp.id,
-                            "client_name": opp.client_name,
-                            "reason": f"Deal closes in {(opp.expected_close_date - datetime.utcnow()).days} days but only at {stage} stage",
-                            "action": "Escalate to Flash for immediate intervention"
-                        })
-
-            # Calculate forecast
-            forecast_pct = (total_probability_weighted_usd_cents / OpportunityTrackerAgent.ANNUAL_REVENUE_TARGET_USD_CENTS) * 100
-
+        if not opportunities:
             return {
-                "status": "success",
-                "date": datetime.utcnow().isoformat(),
-                "total_opportunities": len(opportunities),
-                "pipeline_metrics": {
-                    "total_pipeline_usd": total_pipeline_usd_cents / 100,
-                    "probability_weighted_usd": total_probability_weighted_usd_cents / 100,
-                    "target_usd": OpportunityTrackerAgent.ANNUAL_REVENUE_TARGET_USD_CENTS / 100,
-                    "forecast_completion_pct": round(forecast_pct, 1),
-                    "gap_to_target_usd": (OpportunityTrackerAgent.ANNUAL_REVENUE_TARGET_USD_CENTS - total_probability_weighted_usd_cents) / 100,
-                },
-                "pipeline_by_stage": pipeline_by_stage,
-                "stalled_opportunities": stalled_opportunities,
-                "escalations_needed": escalations_needed,
-                "health_status": "on_track" if forecast_pct >= 100 else "at_risk" if forecast_pct >= 75 else "critical",
-                "flash_action_required": len(escalations_needed) > 0 or len(stalled_opportunities) > 0,
+                "status": "no_opportunities",
+                "total_opportunities": 0,
+                "pipeline_value_usd": 0,
+                "target_usd": target / 100,
+                "forecast_completion_pct": 0,
+                "flash_action_required": True,
+                "message": "No open opportunities. CRITICAL: Pipeline is empty.",
             }
 
-        except Exception as e:
-            logger.error(f"Error: {str(e)}", exc_info=True)
-            raise
+        clients = {
+            c.id: c for c in db.query(Client).filter(Client.id.in_({o.client_id for o in opportunities})).all()
+        }
+        names = {cid: c.company_name for cid, c in clients.items()}
+        today = date.today()
+        now = datetime.utcnow()
+        pipeline_by_stage: Dict[str, Dict[str, Any]] = {}
+        stalled, escalations = [], []
+        total_cents = weighted_cents = 0
+
+        for opp in opportunities:
+            value = opp.revenue_value_usd_cents or 0
+            weighted = calculate_weighted_forecast(opp)
+            total_cents += value
+            weighted_cents += weighted
+
+            bucket = pipeline_by_stage.setdefault(opp.stage, {"count": 0, "total_usd": 0, "weighted_usd": 0})
+            bucket["count"] += 1
+            bucket["total_usd"] += value / 100
+            bucket["weighted_usd"] += weighted / 100
+
+            last_activity = opp.updated_at or opp.created_at
+            threshold = OpportunityTrackerAgent.ACTIVITY_STALL_THRESHOLD.get(opp.stage)
+            if last_activity and threshold is not None:
+                idle_days = (now - last_activity).days
+                if idle_days > threshold:
+                    stalled.append({
+                        "opportunity_id": opp.id,
+                        "client_name": names.get(opp.client_id),
+                        "owner_employee_id": opp.owner_employee_id,
+                        "business_unit_id": getattr(clients.get(opp.client_id), "business_unit_id", None),
+                        "stage": opp.stage,
+                        "deal_size_usd": value / 100,
+                        "days_without_activity": idle_days,
+                        "expected_close": opp.expected_close_date.isoformat() if opp.expected_close_date else None,
+                        "severity": "critical" if idle_days > threshold * 2 else "warning",
+                    })
+
+            if opp.expected_close_date and opp.stage in OpportunityTrackerAgent.AT_RISK_STAGES:
+                days_left = (opp.expected_close_date - today).days
+                if days_left < 7:
+                    escalations.append({
+                        "opportunity_id": opp.id,
+                        "client_name": names.get(opp.client_id),
+                        "reason": f"Deal closes in {days_left} days but only at {opp.stage} stage",
+                        "action": "Escalate to Flash for immediate intervention",
+                    })
+
+        forecast_pct = weighted_cents / target * 100
+        return {
+            "status": "success",
+            "date": now.isoformat(),
+            "total_opportunities": len(opportunities),
+            "pipeline_metrics": {
+                "total_pipeline_usd": total_cents / 100,
+                "probability_weighted_usd": weighted_cents / 100,
+                "target_usd": target / 100,
+                "forecast_completion_pct": round(forecast_pct, 1),
+                "gap_to_target_usd": (target - weighted_cents) / 100,
+            },
+            "pipeline_by_stage": pipeline_by_stage,
+            "stalled_opportunities": stalled,
+            "escalations_needed": escalations,
+            "health_status": "on_track" if forecast_pct >= 100 else "at_risk" if forecast_pct >= 75 else "critical",
+            "flash_action_required": bool(escalations or stalled),
+        }
 
     @staticmethod
     @log_agent_execution("Opportunity Tracker Agent", "update_opportunity_stage")
@@ -261,104 +215,54 @@ class OpportunityTrackerAgent:
         db: Session,
         **kwargs
     ) -> Dict[str, Any]:
-        """
-        Update opportunity to next stage when deal progresses.
-        Auto-logs activity timestamp.
+        """Move an opportunity to new_stage (opportunity_service rules apply)."""
+        opp = db.query(Opportunity).filter(Opportunity.id == opportunity_id).first()
+        if not opp:
+            raise ValueError(f"Opportunity {opportunity_id} not found")
 
-        Returns validation of stage progression.
-        """
+        old_stage = opp.stage
         try:
-            opp = db.query(Opportunities).filter(
-                Opportunity.id == opportunity_id
-            ).first()
-
-            if not opp:
-                raise ValueError(f"Opportunity {opportunity_id} not found")
-
-            if new_stage not in OpportunityTrackerAgent.DEAL_STAGES:
-                raise ValueError(f"Invalid stage: {new_stage}")
-
-            # Validate progression (no backwards movement)
-            current_stage_index = OpportunityTrackerAgent.DEAL_STAGES.index(opp.stage)
-            new_stage_index = OpportunityTrackerAgent.DEAL_STAGES.index(new_stage)
-
-            if new_stage_index < current_stage_index and new_stage != "closed_lost":
-                raise ValueError(f"Cannot move backward from {opp.stage} to {new_stage}")
-
-            # Update opportunity
-            old_stage = opp.stage
-            opp.stage = new_stage
-            opp.probability = OpportunityTrackerAgent.STAGE_PROBABILITY.get(new_stage, 0)
-            opp.last_activity_at = datetime.utcnow()
-            opp.days_in_stage = 0
-
-            # Add activity log
-            opp.activity_history = opp.activity_history or []
-            opp.activity_history.append({
-                "timestamp": datetime.utcnow().isoformat(),
-                "action": f"Stage updated: {old_stage} → {new_stage}",
-                "note": activity_note,
-            })
-
-            db.commit()
-
-            return {
-                "status": "success",
-                "opportunity_id": opportunity_id,
-                "client_name": opp.client_name,
-                "old_stage": old_stage,
-                "new_stage": new_stage,
-                "probability": opp.probability,
-                "weighted_revenue_usd": (opp.deal_size_usd_cents * opp.probability) / 100,
-                "expected_close": opp.expected_close_date.isoformat() if opp.expected_close_date else None,
-            }
-
-        except Exception as e:
-            logger.error(f"Error: {str(e)}", exc_info=True)
-            raise
+            transition_stage(db, opp, new_stage.upper())
+        except Exception as exc:
+            raise ValueError(str(exc)) from exc
+        db.commit()
+        logger.info(f"[OpportunityTracker] {opportunity_id}: {old_stage} -> {opp.stage} ({activity_note})")
+        return {
+            "status": "success",
+            "opportunity_id": opportunity_id,
+            "client_name": OpportunityTrackerAgent._client_name(db, opp.client_id),
+            "old_stage": old_stage,
+            "new_stage": opp.stage,
+            "probability_pct": opp.probability_pct,
+            "weighted_revenue_usd": calculate_weighted_forecast(opp) / 100,
+            "expected_close": opp.expected_close_date.isoformat() if opp.expected_close_date else None,
+        }
 
     @staticmethod
     @log_agent_execution("Opportunity Tracker Agent", "log_opportunity_activity")
     async def log_opportunity_activity(
         opportunity_id: str,
-        activity: str,  # "call", "email", "meeting", "proposal_sent", etc.
-        outcome: str,   # "positive", "neutral", "negative"
+        activity: str,
+        outcome: str,
         next_step: Optional[str],
         db: Session,
         **kwargs
     ) -> Dict[str, Any]:
-        """
-        Log activity on opportunity (call, email, meeting, etc.)
-        Updates last_activity_at timestamp.
-        System uses this to detect stalls.
-        """
-        try:
-            opp = db.query(Opportunities).filter(
-                Opportunity.id == opportunity_id
-            ).first()
+        """Record activity on an opportunity: resets its stall clock (updated_at)."""
+        opp = db.query(Opportunity).filter(Opportunity.id == opportunity_id).first()
+        if not opp:
+            raise ValueError(f"Opportunity {opportunity_id} not found")
 
-            if not opp:
-                raise ValueError(f"Opportunity {opportunity_id} not found")
-
-            opp.last_activity_at = datetime.utcnow()
-            opp.activity_history = opp.activity_history or []
-            opp.activity_history.append({
-                "timestamp": datetime.utcnow().isoformat(),
-                "activity": activity,
-                "outcome": outcome,
-                "next_step": next_step,
-            })
-
-            db.commit()
-
-            return {
-                "status": "success",
-                "opportunity_id": opportunity_id,
-                "activity": activity,
-                "outcome": outcome,
-                "activity_logged": True,
-            }
-
-        except Exception as e:
-            logger.error(f"Error: {str(e)}", exc_info=True)
-            raise
+        opp.updated_at = datetime.utcnow()
+        db.commit()
+        logger.info(f"[OpportunityTracker] {opportunity_id} activity={activity} outcome={outcome} next={next_step}")
+        return {
+            "status": "success",
+            "opportunity_id": opportunity_id,
+            "client_name": OpportunityTrackerAgent._client_name(db, opp.client_id),
+            "stage": opp.stage,
+            "activity": activity,
+            "outcome": outcome,
+            "next_step": next_step,
+            "logged_at": opp.updated_at.isoformat(),
+        }

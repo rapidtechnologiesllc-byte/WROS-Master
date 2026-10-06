@@ -188,24 +188,24 @@ class FlashOrchestrationEngine:
 
                 # BOTTLENECK 3: Stalled opportunities (can't staff them)
                 stalled_by_bu = [
-                    opp for opp in opportunity_health.get("stalled_deals", [])
-                    if opp.get("partner_bu_id") == bu.id
+                    opp for opp in opportunity_health.get("stalled_opportunities", [])
+                    if opp.get("business_unit_id") == bu.id
                 ]
 
                 if stalled_by_bu:
                     for opp in stalled_by_bu:
                         # Is it stalled because of CORE talent shortage?
-                        if opp.get("stage") in ["proposal", "negotiation", "commitment"]:
+                        if opp.get("stage") in ["PROPOSAL", "NEGOTIATION"]:
                             # Late-stage deal stalled → likely staffing issue
                             alerts.append({
                                 "severity": "HIGH",
                                 "type": "STALLED_DEAL_LIKELY_STAFFING",
-                                "message": f"{bu.name}: ${opp.get('deal_size_usd', 0):,} deal ({opp.get('client_name')}) stalled {opp.get('days_stalled', 0)} days. CORE staffing constraint likely.",
+                                "message": f"{bu.name}: ${opp.get('deal_size_usd', 0):,} deal ({opp.get('client_name')}) stalled {opp.get('days_without_activity', 0)} days. CORE staffing constraint likely.",
                                 "action": f"{bu.name} owns solution: (A) Reallocate CORE from lower priority {bu.name} work, OR (B) {bu.name} HTD external hire to close deal",
                             })
 
                 # BOTTLENECK 4: Agent performance issues
-                # TODO: Check agent state/fear levels - if recruitment or resource management agents underperforming,
+                # Not yet checked: agent state/fear levels - if recruitment or resource management agents underperforming,
                 # that's why this BU can't hire/develop fast enough
 
                 # BUILD THE DIRECTIVE FOR THIS PARTNER

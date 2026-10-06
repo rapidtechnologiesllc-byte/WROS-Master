@@ -1,5 +1,4 @@
 """
-import logging
 Finance Monitoring Endpoints - Real-time P&L Tracking
 
 Provides real-time profitability monitoring with:
@@ -16,6 +15,8 @@ Access Control:
 - Finance role: sees all
 """
 
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List, Dict, Any
@@ -24,32 +25,33 @@ from datetime import datetime
 from app.core.dependencies import get_db, get_current_user, require_resource_permission
 from app.models.user import Users
 from app.models.business_unit import BusinessUnit
-from app.services.finance_agent import FinanceAgent
+from app.services.finance_agent import FinanceAgent, partner_bu_ids
 from app.core.database import get_db
 
 router = APIRouter(prefix="/finance", tags=["finance"])
+logger = logging.getLogger(__name__)
+COMPANY_WIDE_ROLES = ("CEO", "Admin", "Super Admin")
 
-def get_user_business_units(user_id: str, tenant_id: int, db: Session) -> List[str]:
+def get_user_business_units(user_id: str, tenant_id: int, db: Session) -> List[int]:
     """Get all BUs user has access to"""
-    from app.models.bu_access import BUAccess
-
     # Check if user is CEO - they see all BUs
     user = db.query(Users).filter(Users.UserID == user_id).first()
-    if user and user.UserRole == "CEO":
+    if user and user.UserRole in COMPANY_WIDE_ROLES:
         bus = db.query(BusinessUnit).filter(BusinessUnit.tenant_id == tenant_id).all()
         return [bu.id for bu in bus]
 
-    # Otherwise get assigned BUs from user_roles or primary BU
-    if user and user.business_unit_id:
-        return [user.business_unit_id]
-    return []
+    # BUs the user heads (partners) plus their own BU
+    bu_ids = partner_bu_ids(db, user_id)
+    if user and user.business_unit_id and user.business_unit_id not in bu_ids:
+        bu_ids.append(user.business_unit_id)
+    return bu_ids
 
-def check_bu_access(user_id: str, bu_id: str, tenant_id: int, db: Session) -> bool:
+def check_bu_access(user_id: str, bu_id: int, tenant_id: int, db: Session) -> bool:
     """Verify user has access to this BU"""
     user = db.query(Users).filter(Users.UserID == user_id).first()
 
-    # CEO can access all
-    if user and user.UserRole == "CEO":
+    # CEO / admins can access all
+    if user and user.UserRole in COMPANY_WIDE_ROLES:
         return True
 
     # User must have this BU assigned
@@ -75,7 +77,7 @@ async def get_finance_dashboard(
     """
 
     try:
-        if current_user.UserRole == "CEO":
+        if current_user.UserRole in COMPANY_WIDE_ROLES:
             # CEO sees all partners' P&Ls
             partners = db.query(Users).filter(
                 Users.UserRole == "Partner",
@@ -83,7 +85,7 @@ async def get_finance_dashboard(
             ).all()
 
             return {
-                "role": "CEO",
+                "role": current_user.UserRole,
                 "view": "company_wide",
                 "partners": [
                     {
@@ -123,7 +125,7 @@ async def get_finance_dashboard(
                 "role": "BU_HEAD",
                 "bu_id": bu_id,
                 "view": "single_bu",
-                "pl": FinanceAgent.calculate_real_time_partner_pl(
+                "pl": FinanceAgent.calculate_bu_pl(
                     db, current_user.tenant_id, bu_id, annual_goal_usd=500000  # Per-BU target
                 ),
                 "timestamp": datetime.utcnow().isoformat()
@@ -132,6 +134,8 @@ async def get_finance_dashboard(
         else:
             raise HTTPException(status_code=403, detail="No finance dashboard access for your role")
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Finance calculation error: {str(e)}")
@@ -156,7 +160,7 @@ async def get_partner_consolidated_pl(
     """
 
     # Access control: partner viewing self OR CEO viewing any
-    if current_user.UserRole != "CEO" and current_user.UserID != partner_id:
+    if current_user.UserRole not in COMPANY_WIDE_ROLES and current_user.UserID != partner_id:
         raise HTTPException(status_code=403, detail="Can only view your own P&L")
 
     return FinanceAgent.calculate_real_time_partner_pl(
@@ -168,7 +172,7 @@ async def get_partner_consolidated_pl(
     dependencies=[Depends(require_resource_permission("forecasts", "view"))]
 )
 async def get_bu_pl(
-    bu_id: str,
+    bu_id: int,
     current_user: Users = Depends(get_current_user),
     db: Session = Depends(get_db)
 ) -> Dict[str, Any]:
@@ -188,7 +192,7 @@ async def get_bu_pl(
     if not check_bu_access(current_user.UserID, bu_id, current_user.tenant_id, db):
         raise HTTPException(status_code=403, detail="Access denied to this BU")
 
-    return FinanceAgent.calculate_real_time_partner_pl(
+    return FinanceAgent.calculate_bu_pl(
         db, current_user.tenant_id, bu_id, annual_goal_usd=500000
     )
 
@@ -209,7 +213,7 @@ async def forecast_partner_margin(
     """
 
     # Access control
-    if current_user.UserRole != "CEO" and current_user.UserID != partner_id:
+    if current_user.UserRole not in COMPANY_WIDE_ROLES and current_user.UserID != partner_id:
         raise HTTPException(status_code=403, detail="Access denied")
 
     return FinanceAgent.forecast_margin_risk(
@@ -235,7 +239,7 @@ async def detect_cost_anomalies(
     """
 
     # Access control
-    if current_user.UserRole != "CEO" and current_user.UserID != partner_id:
+    if current_user.UserRole not in COMPANY_WIDE_ROLES and current_user.UserID != partner_id:
         raise HTTPException(status_code=403, detail="Access denied")
 
     anomalies = FinanceAgent.detect_cost_anomalies(

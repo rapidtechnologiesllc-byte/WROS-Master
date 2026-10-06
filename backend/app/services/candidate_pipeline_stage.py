@@ -50,3 +50,32 @@ def pipeline_stage_in(*stages: str):
     return Candidate.candidateID.in_(
         select(CandidateStatus.candidateID).where(pipeline_stage_condition(*stages))
     )
+
+
+# ---- Shared real-data definitions for funnel/accountability reporting ----
+
+def has_thunder_conversation():
+    """Filter on Candidate: Thunder has a conversation with them (contacted)."""
+    from app.models.candidate_ai import CandidateConversation
+    return Candidate.candidateID.in_(select(CandidateConversation.candidate_id))
+
+
+def interview_scheduled_condition():
+    """Interview (app.models.user.Interview) not cancelled. Statuses are
+    free text: Scheduled / Completed / Cancelled."""
+    from app.models.user import Interview
+    return func.lower(Interview.status) != "cancelled"
+
+
+def interview_feedback_done_condition():
+    from app.models.user import Interview
+    return func.lower(Interview.feedback_status) == "completed"
+
+
+OFFER_EXTENDED_STATUSES = ("Released", "Accepted")
+
+
+def employee_active_allocation_ids():
+    """Employee ids with an ACTIVE allocation (Employee has no project column)."""
+    from app.models.employee_allocation import EmployeeAllocation
+    return select(EmployeeAllocation.employee_id).where(EmployeeAllocation.status == "ACTIVE")
