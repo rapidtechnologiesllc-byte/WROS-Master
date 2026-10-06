@@ -1,3 +1,4 @@
+import { apiFetch } from "../../services/api/client";
 import React, { useState, useEffect } from 'react'
 import styles from './EmailTemplatesScreen.module.css'
 
@@ -36,7 +37,7 @@ export default function EmailTemplatesScreen() {
 
   const fetchTemplates = async () => {
     try {
-      const response = await fetch('/api/v1/email-templates', {
+      const response = await apiFetch('/api/v1/email-templates', {
         headers: { 'Authorization': `Bearer ${localStorage.getItem('hrms_token')}` }
       })
       const data = await response.json()
@@ -52,7 +53,7 @@ export default function EmailTemplatesScreen() {
 
   const fetchCandidates = async () => {
     try {
-      const response = await fetch('/api/v1/candidates', {
+      const response = await apiFetch('/api/v1/candidates', {
         headers: { 'Authorization': `Bearer ${localStorage.getItem('hrms_token')}` }
       })
       const data = await response.json()
@@ -68,7 +69,7 @@ export default function EmailTemplatesScreen() {
   const handleSave = async () => {
     setLoading(true)
     try {
-      const response = await fetch(`/api/v1/email-templates/${selectedStage}`, {
+      const response = await apiFetch(`/api/v1/email-templates/${selectedStage}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -106,8 +107,7 @@ export default function EmailTemplatesScreen() {
       const candidateName = encodeURIComponent(candidate.candidate_name || 'Candidate')
       const jobTitle = encodeURIComponent(candidate.candidate_job_title || 'Position')
 
-      const response = await fetch(
-        `/api/v1/email-templates/${selectedStage}/preview?candidate_name=${candidateName}&job_title=${jobTitle}`,
+      const response = await apiFetch(`/api/v1/email-templates/${selectedStage}/preview?candidate_name=${candidateName}&job_title=${jobTitle}`,
         {
           headers: { 'Authorization': `Bearer ${localStorage.getItem('hrms_token')}` }
         }

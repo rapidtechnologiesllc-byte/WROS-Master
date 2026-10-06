@@ -87,7 +87,9 @@ def get_ticket_detail(task_id: int, current_user: Users = Depends(get_current_in
         raise HTTPException(status_code=404, detail=f"No ticket detail for task #{task_id}.")
     return detail
 
-@router.post("/admin/routing", response_model=list[TicketCategoryResponse], dependencies=[Depends(require_resource_permission("ticket-routing", "edit"))])
+# A read: was registered as POST on the same path as create, so creating a
+# rule returned the list instead of saving
+@router.get("/admin/routing", response_model=list[TicketCategoryResponse], dependencies=[Depends(require_resource_permission("ticket-routing", "view"))])
 def list_routing_rules(db: Session = Depends(get_db)):
     return db.query(TicketCategoryRoute).order_by(TicketCategoryRoute.category).all()
 

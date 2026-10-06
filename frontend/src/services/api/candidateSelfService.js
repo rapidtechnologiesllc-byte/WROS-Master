@@ -94,7 +94,7 @@ export const addCandidateEducation = async (payload) => {
 
 export const updateCandidateEducation = async (educationId, payload) => {
   // Update education record by ID.
-  const { data } = await apiRequest(`/candidate/education/${educationId}`, {
+  const { data } = await apiRequest(`/candidates/education/${educationId}`, {
     method: "PUT",
     body: JSON.stringify(payload),
   });
@@ -103,7 +103,7 @@ export const updateCandidateEducation = async (educationId, payload) => {
 
 export const deleteCandidateEducation = async (educationId) => {
   // Delete education record by ID.
-  const { data } = await apiRequest(`/candidate/education/${educationId}`, {
+  const { data } = await apiRequest(`/candidates/education/${educationId}`, {
     method: "DELETE",
   });
   return data;
@@ -139,7 +139,7 @@ export const addCandidateExperience = async (payload) => {
 
 export const updateCandidateExperience = async (experienceId, payload) => {
   // Update experience record by ID.
-  const { data } = await apiRequest(`/candidate/experience/${experienceId}`, {
+  const { data } = await apiRequest(`/candidates/experience/${experienceId}`, {
     method: "PUT",
     body: JSON.stringify(payload),
   });
@@ -148,7 +148,7 @@ export const updateCandidateExperience = async (experienceId, payload) => {
 
 export const deleteCandidateExperience = async (experienceId) => {
   // Delete experience record by ID.
-  const { data } = await apiRequest(`/candidate/experience/${experienceId}`, {
+  const { data } = await apiRequest(`/candidates/experience/${experienceId}`, {
     method: "DELETE",
   });
   return data;

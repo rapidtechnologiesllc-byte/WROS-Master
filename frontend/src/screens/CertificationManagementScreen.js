@@ -1,3 +1,4 @@
+import { apiFetch } from "../services/api/client";
 // Admin screen for managing certifications and employee KPI targets
 import { useEffect, useState } from "react";
 import { Plus, Trash2, CheckCircle2, Clock, AlertCircle, X } from "lucide-react";
@@ -48,7 +49,7 @@ export default function CertificationManagementScreen() {
   const loadCertifications = async () => {
     setLoading(true);
     try {
-      const response = await fetch("/admin/certifications/list", {
+      const response = await apiFetch("/admin/certifications/list", {
         headers: { Authorization: `Bearer ${localStorage.getItem("hrms_token")}` },
       });
       if (!response.ok) throw new Error("Failed to load certifications");
@@ -91,7 +92,7 @@ export default function CertificationManagementScreen() {
     }
 
     try {
-      const response = await fetch("/admin/certifications/create", {
+      const response = await apiFetch("/admin/certifications/create", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -125,7 +126,7 @@ export default function CertificationManagementScreen() {
     }
 
     try {
-      const response = await fetch("/admin/certifications/assign-target", {
+      const response = await apiFetch("/admin/certifications/assign-target", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

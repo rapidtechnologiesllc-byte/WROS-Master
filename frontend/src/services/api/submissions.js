@@ -29,7 +29,7 @@ export const getSubmissionViolations = async () => {
 
 export const recordClientResponse = async (submissionId, newStatus, clientFeedback) => {
   const { data } = await apiRequest(`/submissions/${submissionId}/client-response`, {
-    method: "PATCH",
+    method: "POST",
     body: JSON.stringify({ new_status: newStatus, client_feedback: clientFeedback || undefined }),
   });
   return data;

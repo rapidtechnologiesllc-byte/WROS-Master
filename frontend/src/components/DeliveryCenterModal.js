@@ -99,8 +99,8 @@ const DeliveryCenterModal = ({ isOpen, onClose, onSuccess, mode = 'create', dc =
       };
 
       const endpoint = mode === 'create'
-        ? '/api/admin/users-access-control/delivery-centers'
-        : `/api/admin/users-access-control/delivery-centers/${dc.id}`;
+        ? '/api/v1/api/admin/users-access-control/delivery-centers'
+        : `/api/v1/api/admin/users-access-control/delivery-centers/${dc.id}`;
 
       await apiRequest(endpoint, {
         method: mode === 'create' ? 'POST' : 'PUT',

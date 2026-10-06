@@ -38,8 +38,10 @@ const MessageQueueMonitorEnhanced = () => {
       }
       if (statsData?.data) {
         setStats(statsData.data);
-        setIsPaused(statsData.data.queue_paused || false);
       }
+      // Global pause flag (Pause/Resume buttons) lives on /thunder/status
+      const pauseStatus = await apiRequest('/api/v1/thunder/status', { method: 'GET' });
+      setIsPaused(Boolean(pauseStatus?.data?.paused));
       setError(null);
     } catch (err) {
       setError(err.message);

@@ -1,3 +1,4 @@
+import { apiFetch } from "./api/client";
 /**
  * CSRF Token Management Module
  * Handles fetching, storing, and retrieving CSRF tokens for state-changing requests.
@@ -14,7 +15,7 @@ const CSRF_TOKEN_EXPIRY_MS = 3600000; // 1 hour
 export const fetchCSRFToken = async () => {
   let response;
   try {
-    response = await fetch("/api/v1/csrf/token", {
+    response = await apiFetch("/api/v1/csrf/token", {
       method: "GET",
       credentials: "omit",
     });

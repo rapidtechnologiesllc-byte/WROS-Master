@@ -76,7 +76,7 @@ export const updateCandidate = async (candidateId, payload) => {
 
 export const deleteCandidate = async (candidateId) => {
   const { data } = await apiRequest(
-    `/candidate/${candidateId}`,
+    `/candidates/${candidateId}`,
     {
       method: "DELETE",
     },
@@ -108,7 +108,7 @@ export const getAssignedCandidates = async () => {
 };
 export const getCandidateContacts = async (candidateId) => {
   const { data } = await apiRequest(
-    `/candidate/${candidateId}/contacts`,
+    `/candidates/hr/candidate/${candidateId}/contacts`,
     {
       method: "GET",
     },

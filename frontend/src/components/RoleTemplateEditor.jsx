@@ -156,11 +156,11 @@ const RoleTemplateEditor = ({ mode = 'create', templateId = null, onClose, onSuc
       if (mode === 'create') {
         // Check if template name already exists (preventing duplicates)
         try {
-          await apiRequest(`/api/admin/users-access-control/role-templates?search=${encodeURIComponent(formData.name)}`, {
+          await apiRequest(`/api/v1/api/admin/users-access-control/role-templates?search=${encodeURIComponent(formData.name)}`, {
             method: 'GET'
           });
           // If we got here, check if name already exists
-          const checkResponse = await apiRequest(`/api/admin/users-access-control/role-templates`, {
+          const checkResponse = await apiRequest(`/api/v1/api/admin/users-access-control/role-templates`, {
             method: 'GET'
           });
 

@@ -1,3 +1,4 @@
+import { apiFetch } from "../services/api/client";
 import React, { useState, useEffect } from 'react';
 import { AlertCircle, TrendingUp, Zap, Database, RefreshCw, CheckCircle } from 'lucide-react';
 
@@ -20,20 +21,20 @@ export default function SLMDashboard() {
       setLoading(true);
 
       // Load stats
-      const statsResp = await fetch('/api/v1/slm/feedback/stats?days=7');
+      const statsResp = await apiFetch('/api/v1/slm/feedback/stats?days=7');
       if (statsResp.ok) {
         setStats(await statsResp.json());
       }
 
       // Load report
-      const reportResp = await fetch('/api/v1/slm/feedback/report');
+      const reportResp = await apiFetch('/api/v1/slm/feedback/report');
       if (reportResp.ok) {
         const reportData = await reportResp.json();
         setReport(reportData.report_structured);
       }
 
       // Load trajectory
-      const trajResp = await fetch('/api/v1/slm/feedback/trajectory');
+      const trajResp = await apiFetch('/api/v1/slm/feedback/trajectory');
       if (trajResp.ok) {
         setTrajectory(await trajResp.json());
       }

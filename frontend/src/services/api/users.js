@@ -144,8 +144,9 @@ export const updateWhatsAppNumber = async (whatsapp_number) => {
 export const changePassword = async ({
   new_password,
 }) => {
-  const { data } = await apiRequest("/auth/change-password", {
-    method: "PUT",
+  // First-login reset for the signed-in user (clears password_reset_required)
+  const { data } = await apiRequest("/auth/reset-password", {
+    method: "POST",
     body: JSON.stringify({
       new_password,
     }),

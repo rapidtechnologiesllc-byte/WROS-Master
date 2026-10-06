@@ -2,19 +2,18 @@
 import { apiRequest } from "./client";
 
 export const listTemplates = async ({ channel, templateKey } = {}) => {
-  const params = new URLSearchParams();
-  if (channel) params.set("channel", channel);
-  if (templateKey) params.set("template_key", templateKey);
-  const qs = params.toString();
-  const { data } = await apiRequest(`/templates${qs ? `?${qs}` : ""}`, { method: "GET" });
-  return data;
+  // GET /message-templates takes no filters; filter here
+  const { data } = await apiRequest("/message-templates", { method: "GET" });
+  const rows = Array.isArray(data) ? data : [];
+  return {
+    templates: rows.filter((t) => (!channel || t.channel === channel) && (!templateKey || t.template_key === templateKey)),
+  };
 };
 
 export const createTemplate = async ({ templateKey, templateName, channel, body, subject }) => {
-  const { data } = await apiRequest("/templates", {
+  const { data } = await apiRequest(`/message-templates/${encodeURIComponent(templateKey)}`, {
     method: "POST",
     body: JSON.stringify({
-      template_key: templateKey,
       template_name: templateName,
       channel,
       body,
@@ -25,13 +24,13 @@ export const createTemplate = async ({ templateKey, templateName, channel, body,
 };
 
 export const activateTemplate = async (templateId) => {
-  const { data } = await apiRequest(`/templates/${templateId}/activate`, { method: "POST" });
+  const { data } = await apiRequest(`/message-templates/${templateId}/activate`, { method: "POST" });
   return data;
 };
 
 export const previewTemplate = async (templateId, candidateId) => {
   const { data } = await apiRequest(
-    `/templates/${templateId}/preview?candidate_id=${encodeURIComponent(candidateId)}`,
+    `/message-templates/${templateId}/preview?candidate_id=${encodeURIComponent(candidateId)}`,
     { method: "GET" },
   );
   return data;

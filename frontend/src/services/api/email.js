@@ -110,9 +110,9 @@ export const sendEventNotification = async ({
 
 export const deleteInterviewMail = async (interviewId, reason) => {
   const { data } = await apiRequest(
-    `/email/interview/cancel/${interviewId}?${reason}`,
+    `/email/interview/cancel/${interviewId}?reason=${encodeURIComponent(reason || "")}`,
     {
-      method: "DELETE",
+      method: "POST",
     },
   );
 

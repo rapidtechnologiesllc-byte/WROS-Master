@@ -1,3 +1,4 @@
+import { apiFetch } from "../services/api/client";
 /**
  * PermissionLoadingError Component
  *
@@ -83,7 +84,7 @@ const PermissionLoadingError = ({ onRetry, isRetrying = false }) => {
       const token = localStorage.getItem('hrms_token');
       addArchitectStep('📤 Creating escalation ticket...');
 
-      const response = await fetch('/api/v1/orchestrate/escalate-to-architect', {
+      const response = await apiFetch('/api/v1/orchestrate/escalate-to-architect', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -138,7 +139,7 @@ const PermissionLoadingError = ({ onRetry, isRetrying = false }) => {
     e.preventDefault();
     try {
       const token = localStorage.getItem('hrms_token');
-      const response = await fetch('/api/v1/orchestrate/create-ops-ticket', {
+      const response = await apiFetch('/api/v1/orchestrate/create-ops-ticket', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,

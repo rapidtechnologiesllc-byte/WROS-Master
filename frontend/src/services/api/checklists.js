@@ -100,7 +100,7 @@ export const getMyChecklists = async () => {
 
 export const candidateCompleteChecklistItem = async (itemId) => {
   const { data } = await apiRequest(`/checklist/candidate/item/${itemId}/complete`, {
-    method: "PUT"
+    method: "PATCH"
   });
   return data;
 };

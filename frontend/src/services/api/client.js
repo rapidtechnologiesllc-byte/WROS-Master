@@ -135,6 +135,20 @@ const refreshAccessToken = async () => {
   }
 };
 
+// Drop-in for fetch() on backend paths: same Response object (callers keep
+// their .ok / .json() handling), but the URL is built from API_BASE_URL
+// with the /api/v1 prefix and the auth/BU headers are attached. A bare
+// fetch("/api/v1/...") is relative to the page and misses the backend in
+// production (nginx serves the API under /api).
+export const apiFetch = (path, init = {}) => {
+  const normalizedPath = path.startsWith("/api") ? path : `/api/v1${path}`;
+  return fetch(`${API_BASE_URL}${normalizedPath}`, {
+    credentials: "omit",
+    ...init,
+    headers: withAuthHeaders(init.headers || {}),
+  });
+};
+
 export const apiRequest = async (path, options = {}) => {
   const {
     headers,

@@ -1,3 +1,4 @@
+import { apiFetch } from "../services/api/client";
 // Employee KPI Dashboard showing certification targets and progress
 import { useEffect, useState } from "react";
 import { CheckCircle2, Clock, AlertCircle, TrendingUp, X } from "lucide-react";
@@ -17,7 +18,7 @@ export default function EmployeeKPIDashboard({ employeeId, onClose }) {
     setLoading(true);
     try {
       // Load KPI score
-      const scoreResponse = await fetch(`/admin/certifications/employee/${employeeId}/score`, {
+      const scoreResponse = await apiFetch(`/admin/certifications/employee/${employeeId}/score`, {
         headers: { Authorization: `Bearer ${localStorage.getItem("hrms_token")}` },
       });
       if (scoreResponse.ok) {
@@ -26,7 +27,7 @@ export default function EmployeeKPIDashboard({ employeeId, onClose }) {
       }
 
       // Load targets
-      const targetsResponse = await fetch(`/admin/certifications/employee/${employeeId}/targets`, {
+      const targetsResponse = await apiFetch(`/admin/certifications/employee/${employeeId}/targets`, {
         headers: { Authorization: `Bearer ${localStorage.getItem("hrms_token")}` },
       });
       if (targetsResponse.ok) {
@@ -42,7 +43,7 @@ export default function EmployeeKPIDashboard({ employeeId, onClose }) {
 
   const handleMarkAchieved = async (targetId) => {
     try {
-      const response = await fetch(`/admin/certifications/mark-achieved/${targetId}`, {
+      const response = await apiFetch(`/admin/certifications/mark-achieved/${targetId}`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${localStorage.getItem("hrms_token")}`,

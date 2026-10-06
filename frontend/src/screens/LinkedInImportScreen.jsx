@@ -6,7 +6,7 @@ import { apiRequest } from '../services/api';
  *
  * WHY IT'S NOT WORKING:
  * 1. Apollo MCP OAuth not configured - requires setup at claude.ai/settings/connectors
- * 2. Missing /candidate/import/linkedin endpoint - not wired in backend
+ * 2. Missing /candidates/import/linkedin endpoint - not wired in backend
  * 3. No LinkedIn auth flow - OAuth redirect not implemented
  * 4. No WhatsApp consent capture - LinkedIn profiles don't imply consent
  * 5. Missing candidate list integration - results not linked to workflow
@@ -25,7 +25,7 @@ export default function LinkedInImportScreen() {
     setLoading(true);
 
     try {
-      const response = await apiRequest('/candidate/import/linkedin', {
+      const response = await apiRequest('/candidates/import/linkedin', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ linkedin_url: linkedinUrl }),
@@ -62,7 +62,7 @@ export default function LinkedInImportScreen() {
         <ol>
           <li>Visit claude.ai/settings/connectors</li>
           <li>Set up Apollo.io MCP connection</li>
-          <li>Deploy backend /candidate/import/linkedin endpoint</li>
+          <li>Deploy backend /candidates/import/linkedin endpoint</li>
           <li>Implement WhatsApp consent flow</li>
         </ol>
       </div>

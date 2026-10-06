@@ -1,3 +1,4 @@
+import { apiFetch } from "../services/api/client";
 import React, { useState, useEffect } from 'react';
 import { Database, Download, Upload, RefreshCw, AlertCircle, CheckCircle, Zap } from 'lucide-react';
 
@@ -13,7 +14,7 @@ export default function SLMTrainingData() {
   const loadTrainingBatch = async () => {
     try {
       setLoading(true);
-      const resp = await fetch('/api/v1/slm/feedback/training-batch?min_examples=20');
+      const resp = await apiFetch('/api/v1/slm/feedback/training-batch?min_examples=20');
       if (resp.ok) {
         setTrainingBatch(await resp.json());
       }

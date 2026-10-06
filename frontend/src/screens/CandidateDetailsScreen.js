@@ -1,3 +1,4 @@
+import { apiFetch } from "../services/api/client";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Card, Button } from "../components/ui";
 import { hasPermission } from "../utils/permissionsRoleTemplate";
@@ -894,7 +895,7 @@ ${jobDescription}
       // has always tried to send - it creates the Employee AND the Users
       // login account with role_ids, which is what business_unit_id/
       // role_ids here are actually for.
-      const response = await fetch("/api/v1/employees/convert-candidate", {
+      const response = await apiFetch("/api/v1/employees/convert-candidate", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

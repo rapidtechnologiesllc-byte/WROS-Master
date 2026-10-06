@@ -1,3 +1,4 @@
+import { apiFetch } from "../services/api/client";
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Plus, ChevronDown, Eye, CheckCircle2, Send, CreditCard, AlertCircle } from 'lucide-react';
 import './InvoiceManagementScreen.css';
@@ -71,7 +72,7 @@ const InvoiceManagementScreen = () => {
   const fetchInvoices = useCallback(async () => {
     setLoading(true);
     try {
-      const response = await fetch('/api/v1/invoices', {
+      const response = await apiFetch('/api/v1/invoices', {
         headers: { 'Authorization': `Bearer ${localStorage.getItem('hrms_token')}` }
       });
 
@@ -101,7 +102,7 @@ const InvoiceManagementScreen = () => {
       // exactly what this form already collects. GenerateInvoiceRequest
       // (app/schemas/invoice.py) only takes project_id/period_start/
       // period_end - no opportunity_id/currency field exists there.
-      const response = await fetch('/api/v1/invoices/generate', {
+      const response = await apiFetch('/api/v1/invoices/generate', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('hrms_token')}`,

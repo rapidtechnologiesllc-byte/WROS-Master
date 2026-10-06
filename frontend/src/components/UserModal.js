@@ -44,7 +44,7 @@ const UserModal = ({ isOpen, onClose, onSuccess, mode = 'create', user = null })
   const loadData = async () => {
     try {
       // Load business units
-      const buRes = await apiRequest('/api/admin/users-access-control/business-units');
+      const buRes = await apiRequest('/api/v1/api/admin/users-access-control/business-units');
       const buData = buRes.data || [];
       setBusinessUnits(Array.isArray(buData) ? buData : (buData.business_units || []));
 

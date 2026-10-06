@@ -387,7 +387,7 @@ function OrganizationSection() {
           location: newOrgNodeLocation || null
         };
 
-        const { data } = await apiRequest("/org/nodes", "POST", payload);
+        const { data } = await apiRequest("/org/nodes", { method: "POST", body: JSON.stringify(payload) });
 
         if (data && data.id) {
           setOrgNodes([...orgNodes, data]);

@@ -75,7 +75,8 @@ export const createBusinessUnit = async (payload) => {
 };
 // Departments
 export const listDepartments = async () => {
-  const { data } = await apiRequest("/rbac/departments", { method: "GET" });
+  // Departments live in the org structure API (/rbac/* does not exist)
+  const { data } = await apiRequest("/org/departments", { method: "GET" });
   return data;
 };
 
@@ -92,7 +93,7 @@ export const createDepartment = async (payload) => {
 };
 
 export const departmentList = async () => {
-  const { data } = await apiRequest("/rbac/departments", { method: "GET" });
+  const { data } = await apiRequest("/org/departments", { method: "GET" });
   return data;
 };
 

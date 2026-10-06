@@ -252,7 +252,7 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
     setActionError(null);
     setBusy(true);
     try {
-      await apiRequest(`/admin/users/${selectedUserId}/reset-password`, {
+      await apiRequest(`/hr/admin/users/${selectedUserId}/reset-password`, {
         method: "PUT",
         body: JSON.stringify({ new_password: resetForm.new_password })
       });

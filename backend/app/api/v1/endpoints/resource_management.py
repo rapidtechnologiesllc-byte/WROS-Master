@@ -150,7 +150,7 @@ def get_queue(
     recs = get_recommendation_queue(db, tenant_id=current_user.tenant_id)
     return RecommendationQueueResponse(recommendations=[_to_item(db, r) for r in recs])
 
-@router.get(
+@router.post(
     "/recommendations/{recommendation_id}/pursue",
     dependencies=[
         Depends(require_resource_permission("resources", "create")),
@@ -176,7 +176,7 @@ def pursue_recommendation(
         message="Now pursuing this recommendation.", recommendation=_to_item(db, rec),
     )
 
-@router.get(
+@router.post(
     "/recommendations/{recommendation_id}/approve",
     dependencies=[
         Depends(require_resource_permission("resources", "create")),
@@ -205,7 +205,7 @@ def approve_recommendation(
         allocation_id=allocation.id,
     )
 
-@router.get(
+@router.post(
     "/recommendations/{recommendation_id}/reject",
     dependencies=[
         Depends(require_resource_permission("resources", "create")),

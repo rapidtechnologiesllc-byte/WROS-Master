@@ -58,13 +58,38 @@ class ThunderPausedError(Exception):
     Callers catch this the same way they already catch ConsentNotGiven /
     DuplicateMessageSuppressed and skip the candidate."""
 
+GLOBAL_PAUSE_KEY = "thunder_queue_paused"
+
+
+def _global_pause_row(db: Session):
+    from app.models.system_config import SystemConfig
+    return db.query(SystemConfig).filter(
+        SystemConfig.config_key == GLOBAL_PAUSE_KEY,
+        SystemConfig.business_unit_id.is_(None),
+    ).first()
+
+
 def is_thunder_paused(db: Session) -> bool:
-    """Check if Thunder autonomous loop is paused.
-    Single organization - no tenant checks needed."""
-    # Check if there's an explicit global pause flag
-    # For now, always allow autonomous loop to run
-    # Kill switch can be implemented later if needed
-    return False
+    """Global kill switch for queue processing (Message Queue screen's
+    Pause/Resume). Stored in system_config; absent = running."""
+    row = _global_pause_row(db)
+    return bool(row is not None and row.config_value is True)
+
+
+def set_thunder_paused(db: Session, paused: bool, *, changed_by: Optional[str] = None, tenant_id: int = 1) -> bool:
+    """Turn the global pause on/off (upsert; caller-independent commit)."""
+    from app.models.system_config import SystemConfig
+    row = _global_pause_row(db)
+    if row is None:
+        row = SystemConfig(tenant_id=tenant_id, business_unit_id=None, config_category="CHANNELS",
+                           config_key=GLOBAL_PAUSE_KEY, config_value=paused, updated_by=changed_by)
+        db.add(row)
+    else:
+        row.config_value = paused
+        row.updated_by = changed_by
+    db.commit()
+    logger.warning(f"[Thunder] Global queue processing {'PAUSED' if paused else 'RESUMED'} by {changed_by}")
+    return paused
 
 def is_thunder_paused_for_conversation(db: Session, conversation: CandidateConversation) -> bool:
     """BR-03: global tenant pause takes precedence over -- i.e. is

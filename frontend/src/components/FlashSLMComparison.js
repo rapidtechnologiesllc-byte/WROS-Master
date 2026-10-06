@@ -1,3 +1,4 @@
+import { apiFetch } from "../services/api/client";
 /**Phase 3: Flash vs SLM Comparison Component
  *
  * Displays Flash interview assessment vs SLM candidate metrics side-by-side.
@@ -196,7 +197,7 @@ const FlashSLMComparison = ({ candidateId, interviewId }) => {
 
     setEscalating(true);
     try {
-      const response = await fetch(`/api/v1/candidates/${candidateId}/escalate`, {
+      const response = await apiFetch(`/api/v1/candidates/${candidateId}/escalate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

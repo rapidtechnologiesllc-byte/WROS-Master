@@ -147,6 +147,45 @@ def activate_template(
     return {"status": "success", "message": "Template activated"}
 
 
+@router.get("/{template_id}/preview")
+def preview_template(
+    template_id: int,
+    candidate_id: str,
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_internal_user),
+):
+    """Render one template version with a real candidate's details."""
+    from app.models.candidate import Candidate
+
+    template = db.query(MessageTemplate).filter(MessageTemplate.id == template_id).first()
+    if not template:
+        raise HTTPException(status_code=404, detail=f"Template {template_id} not found")
+    candidate = db.query(Candidate).filter(Candidate.candidateID == candidate_id).first()
+    if not candidate:
+        raise HTTPException(status_code=404, detail=f"Candidate {candidate_id} not found")
+
+    context = {
+        "first_name": candidate.candidateFirstName or "",
+        "last_name": candidate.candidateLastName or "",
+        "candidate_name": " ".join(filter(None, [candidate.candidateFirstName, candidate.candidateLastName])),
+        "email": candidate.candidateEmail or "",
+        "job_title": candidate.candidateJobTitle or "",
+        "location": candidate.candidateCurrentLocation or "",
+    }
+
+    def render(text):
+        for key, value in context.items():
+            text = text.replace("{{" + key + "}}", value)
+        return text
+
+    return {
+        "template_id": template.id,
+        "subject": render(template.subject or ""),
+        "body": render(template.body or ""),
+        "context": context,
+    }
+
+
 @router.get("")
 def list_templates(
     db: Session = Depends(get_db),

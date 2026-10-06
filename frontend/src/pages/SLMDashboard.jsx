@@ -1,3 +1,4 @@
+import { apiFetch } from "../services/api/client";
 import React, { useState, useEffect } from 'react';
 import { TrendingUp, AlertTriangle, CheckCircle, Clock } from 'lucide-react';
 
@@ -13,14 +14,14 @@ const SLMDashboard = () => {
       setLoading(true);
 
       // Fetch SLM metrics
-      const metricsRes = await fetch(`/api/v1/slm/metrics?time_range=${timeRange}`);
+      const metricsRes = await apiFetch(`/api/v1/slm/metrics?time_range=${timeRange}`);
       if (metricsRes.ok) {
         const metricsData = await metricsRes.json();
         setMetrics(metricsData);
       }
 
       // Fetch recent SLM decisions
-      const decisionsRes = await fetch(`/api/v1/slm/decisions?limit=50&time_range=${timeRange}`);
+      const decisionsRes = await apiFetch(`/api/v1/slm/decisions?limit=50&time_range=${timeRange}`);
       if (decisionsRes.ok) {
         const decisionsData = await decisionsRes.json();
         setDecisions(decisionsData.decisions || []);
