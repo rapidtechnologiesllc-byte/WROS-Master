@@ -196,6 +196,11 @@ def run_bulk_engagement_worker(db: Session, job_id: str, *, sleep_fn=None, batch
 
     candidate_ids = job.candidate_ids or []
     for batch_start in range(0, len(candidate_ids), batch_size):
+        # Cancel (Bulk Launch screen) takes effect between batches
+        db.refresh(job)
+        if job.status == "CANCELLED":
+            _notify_recruiter(db, job.recruiter_id, job.tenant_id, f"Bulk engagement cancelled after {job.success_count} candidates.")
+            return {"outcome": "cancelled", "success_count": job.success_count}
         batch = candidate_ids[batch_start:batch_start + batch_size]
         for candidate_id in batch:
             try:
@@ -229,6 +234,26 @@ def run_bulk_engagement_worker(db: Session, job_id: str, *, sleep_fn=None, batch
     _notify_recruiter(db, job.recruiter_id, job.tenant_id, f"Bulk engagement complete: {job.success_count} success, {job.failed_count} failed, {job.skipped_count} already engaged.")
 
     return {"outcome": "completed", "success_count": job.success_count, "failed_count": job.failed_count, "skipped_count": job.skipped_count}
+
+def list_bulk_jobs(db: Session, *, active_only: bool = False, limit: int = 50) -> List[Dict]:
+    """Recent bulk jobs (newest first), optionally only QUEUED/PROCESSING."""
+    query = db.query(BulkEngagementJob)
+    if active_only:
+        query = query.filter(BulkEngagementJob.status.in_(("QUEUED", "PROCESSING")))
+    return [get_bulk_job_status(db, job.id) for job in query.order_by(BulkEngagementJob.created_at.desc()).limit(limit).all()]
+
+
+def cancel_bulk_job(db: Session, job_id: str) -> Optional[Dict]:
+    """Stop a QUEUED/PROCESSING job; the worker exits before its next batch."""
+    job = db.query(BulkEngagementJob).filter(BulkEngagementJob.id == job_id).first()
+    if job is None:
+        return None
+    if job.status in ("QUEUED", "PROCESSING"):
+        job.status = "CANCELLED"
+        job.completed_at = datetime.utcnow()
+        db.commit()
+    return get_bulk_job_status(db, job_id)
+
 
 def get_bulk_job_status(db: Session, job_id: str) -> Optional[Dict]:
     job = db.query(BulkEngagementJob).filter(BulkEngagementJob.id == job_id).first()

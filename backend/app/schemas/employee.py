@@ -80,6 +80,8 @@ class EmployeeItem(BaseModel):
     billing_rate_usd_cents: Optional[int] = None
     is_on_bench: bool = False
     bench_days: Optional[int] = None
+    guidewire_certification_current: Optional[str] = None
+    guidewire_certification_expected: Optional[str] = None
 
 class EmployeeListResponse(BaseModel):
     employees: List[EmployeeItem]

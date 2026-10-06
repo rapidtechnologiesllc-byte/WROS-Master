@@ -53,7 +53,7 @@ export default function EmailTemplatesScreen() {
 
   const fetchCandidates = async () => {
     try {
-      const response = await apiFetch('/api/v1/candidates', {
+      const response = await apiFetch('/api/v1/candidates/all', {
         headers: { 'Authorization': `Bearer ${localStorage.getItem('hrms_token')}` }
       })
       const data = await response.json()

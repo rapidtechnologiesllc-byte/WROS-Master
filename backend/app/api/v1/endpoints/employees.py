@@ -29,9 +29,13 @@ so "bench-pool"/"bench-aging-alerts" never get swallowed as an id):
   GET    /employees/{employee_id}/bench-history
 """
 import io
+import os
 import json
 from datetime import date, datetime
 
+from typing import Optional
+
+from pydantic import BaseModel
 from fastapi import APIRouter, Depends, HTTPException, UploadFile
 from openpyxl import load_workbook
 from sqlalchemy.orm import Session
@@ -124,6 +128,8 @@ def _to_item(db: Session, employee: Employee) -> EmployeeItem:
         billing_rate_usd_cents=employee.billing_rate_usd_cents,
         is_on_bench=bench_entry is not None,
         bench_days=get_bench_duration_days(bench_entry) if bench_entry else None,
+        guidewire_certification_current=employee.guidewire_certification_current,
+        guidewire_certification_expected=employee.guidewire_certification_expected,
     )
 
 def _get_employee_or_404(db: Session, employee_id: str) -> Employee:
@@ -297,7 +303,8 @@ def convert_candidate(
         from app.services.template_service import TemplateService
 
         # Get portal URL and login credentials
-        portal_url = "https://wros.blitzenx.com"  # TODO: Configure from environment
+        # PORTAL_URL env overrides; default is the live HRMS address
+        portal_url = os.getenv("PORTAL_URL", "https://hrms.blitzenx.com")
         employee_name = f"{candidate.candidateFirstName or ''} {candidate.candidateLastName or ''}".strip()
 
         # Render email template with dynamic fields
@@ -469,6 +476,40 @@ def list_employees(
         .all()
     )
     return EmployeeListResponse(employees=[_to_item(db, e) for e in employees])
+
+class GuidewireCertificationUpdate(BaseModel):
+    guidewire_certification_current: Optional[str] = None
+    guidewire_certification_expected: Optional[str] = None
+
+
+GUIDEWIRE_CERT_LEVELS = ("None", "ACE", "Associate", "Specialist")
+
+
+@router.put("/{employee_id}/certifications", dependencies=[Depends(require_resource_permission("employees", "edit"))])
+def update_guidewire_certifications(
+    employee_id: str,
+    body: GuidewireCertificationUpdate,
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_internal_user),
+):
+    """Employees screen: Guidewire certification level now and target."""
+    employee = db.query(Employee).filter(Employee.id == employee_id, Employee.tenant_id == current_user.tenant_id).first()
+    if not employee:
+        raise HTTPException(status_code=404, detail=f"Employee {employee_id} not found")
+    for field in ("guidewire_certification_current", "guidewire_certification_expected"):
+        value = getattr(body, field)
+        if value is None:
+            continue
+        if value not in GUIDEWIRE_CERT_LEVELS:
+            raise HTTPException(status_code=400, detail=f"{field} must be one of {GUIDEWIRE_CERT_LEVELS}")
+        setattr(employee, field, None if value == "None" else value)
+    db.commit()
+    return {
+        "employee_id": employee.id,
+        "guidewire_certification_current": employee.guidewire_certification_current,
+        "guidewire_certification_expected": employee.guidewire_certification_expected,
+    }
+
 
 @router.get(
     "/bench-pool", response_model=EmployeeListResponse,

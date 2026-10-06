@@ -153,6 +153,10 @@ class Employee(Base):
     core_eligible_from = Column(Date, nullable=True)
     core_certified = Column(Boolean, nullable=False, default=False)
     core_certified_date = Column(Date, nullable=True)
+    # Guidewire certification level now / target (Employees screen):
+    # None | ACE | Associate | Specialist
+    guidewire_certification_current = Column(String(50), nullable=True)
+    guidewire_certification_expected = Column(String(50), nullable=True)
     buddy_program_status = Column(Enum(*BUDDY_PROGRAM_STATUSES, name="buddy_program_status", native_enum=False, create_constraint=True), nullable=False, default="NOT_STARTED")
     buddy_program_start_date = Column(Date, nullable=True)
     buddy_program_graduation_date = Column(Date, nullable=True)

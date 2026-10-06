@@ -153,6 +153,10 @@ from app.api.v1.endpoints.bi_explorer import router as bi_explorer_router
 from app.api.v1.endpoints.bu_head_dashboard import router as bu_head_dashboard_router
 from app.api.v1.endpoints.training_dashboards import router as training_dashboards_router
 from app.api.v1.endpoints.admin_weekly_recap import router as admin_weekly_recap_router
+from app.api.v1.endpoints.intervention_queue import router as intervention_queue_router
+from app.api.v1.endpoints.agent_config import router as agent_config_router
+from app.api.v1.endpoints.tenant_ai_config import router as tenant_ai_config_router
+from app.api.v1.endpoints.email_templates import router as email_templates_router
 
 try:
     router = fastapi.APIRouter(prefix="/api/v1")
@@ -316,3 +320,7 @@ router.include_router(router=bi_explorer_router)
 router.include_router(router=bu_head_dashboard_router)
 router.include_router(router=training_dashboards_router)
 router.include_router(router=admin_weekly_recap_router)
+router.include_router(router=intervention_queue_router)
+router.include_router(router=agent_config_router)
+router.include_router(router=tenant_ai_config_router)
+router.include_router(router=email_templates_router)

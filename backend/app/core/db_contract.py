@@ -773,6 +773,10 @@ def _run_schema_migrations():
             "candidate_conversations": [
                 ("next_touch_scheduled_at", "TIMESTAMP NULL"),
             ],
+            "employees": [
+                ("guidewire_certification_current", "VARCHAR(50) NULL"),
+                ("guidewire_certification_expected", "VARCHAR(50) NULL"),
+            ],
             "candidate_education_forms": [
                 ("education_level", "VARCHAR(100) NULL"),
             ],

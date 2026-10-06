@@ -26,7 +26,7 @@ from app.models.base import Base
 def _new_uuid() -> str:
     return str(uuid.uuid4())
 
-BULK_JOB_STATUSES = ("QUEUED", "PROCESSING", "COMPLETED")
+BULK_JOB_STATUSES = ("QUEUED", "PROCESSING", "COMPLETED", "CANCELLED")
 
 logger = logging.getLogger(__name__)
 

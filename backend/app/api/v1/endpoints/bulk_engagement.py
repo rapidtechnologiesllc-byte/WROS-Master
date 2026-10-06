@@ -23,7 +23,7 @@ from app.schemas.bulk_engagement import BulkEngageRequest, BulkEngageResponse, B
 from app.services.ai_conversation_service import resolve_default_tenant_id
 from app.core.database import get_db
 from app.services.bulk_engagement_service import (
-    BulkTooLarge, CsvMissingRequiredColumn, CsvTooLarge, get_bulk_job_status,
+    BulkTooLarge, CsvMissingRequiredColumn, CsvTooLarge, cancel_bulk_job, get_bulk_job_status, list_bulk_jobs,
     import_candidates_from_csv, launch_bulk_engagement, run_bulk_engagement_worker,
 )
 
@@ -69,4 +69,23 @@ def bulk_job_status(job_id: str, db: Session = Depends(get_db)):
     status = get_bulk_job_status(db, job_id)
     if status is None:
         raise HTTPException(status_code=404, detail=f"Bulk job {job_id!r} not found.")
+    return status
+
+
+# Bulk Launch screen: active jobs, history, cancel
+@router.get("/candidates/bulk-import/jobs/active", dependencies=[Depends(require_resource_permission("candidates", "view"))])
+def active_bulk_jobs(db: Session = Depends(get_db)):
+    return list_bulk_jobs(db, active_only=True)
+
+
+@router.get("/candidates/bulk-import/list", dependencies=[Depends(require_resource_permission("candidates", "view"))])
+def bulk_job_history(db: Session = Depends(get_db)):
+    return list_bulk_jobs(db)
+
+
+@router.delete("/candidates/bulk-import/{job_id}/cancel", dependencies=[Depends(require_resource_permission("candidates", "edit"))])
+def cancel_bulk_import(job_id: str, db: Session = Depends(get_db)):
+    status = cancel_bulk_job(db, job_id)
+    if status is None:
+        raise HTTPException(status_code=404, detail=f"Bulk job {job_id} not found")
     return status
