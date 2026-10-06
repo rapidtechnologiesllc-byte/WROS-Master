@@ -31,7 +31,7 @@ class OnboardingWorkflow(Base):
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
 
-    tenant_id = Column(String(512), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=False, index=True)
+    tenant_id = Column(String(512), nullable=False, index=True)  # tenant key, not a user (was wrongly FK users.UserID)
     employee_id = Column(String(512), ForeignKey("employees.id", ondelete="CASCADE"), nullable=False, index=True, unique=True)
     candidate_id = Column(String(512), ForeignKey("candidates.candidateID", ondelete="CASCADE"), nullable=True)
 
@@ -63,7 +63,6 @@ class OnboardingWorkflow(Base):
     completed_at = Column(DateTime(timezone=False), nullable=True)
 
     # Relationships
-    tenant = relationship("Users", foreign_keys=[tenant_id], lazy="select")
     employee = relationship("Employee", foreign_keys=[employee_id], lazy="select")
     candidate = relationship("Candidate", foreign_keys=[candidate_id], lazy="select")
     assigned_by_user = relationship("Users", foreign_keys=[assigned_by_user_id], lazy="select")
@@ -83,7 +82,7 @@ class OnboardingBuddy(Base):
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
 
-    tenant_id = Column(String(512), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=False, index=True)
+    tenant_id = Column(String(512), nullable=False, index=True)  # tenant key, not a user (was wrongly FK users.UserID)
     workflow_id = Column(Integer, ForeignKey("onboarding_workflows.id", ondelete="CASCADE"), nullable=False, unique=True, index=True)
 
     buddy_user_id = Column(String(512), ForeignKey("users.UserID", ondelete="CASCADE"), nullable=False, index=True)
@@ -113,7 +112,6 @@ class OnboardingBuddy(Base):
     updated_at = Column(DateTime(timezone=False), server_default=func.now(), onupdate=func.now())
 
     # Relationships
-    tenant = relationship("Users", foreign_keys=[tenant_id], lazy="select")
     workflow = relationship("OnboardingWorkflow", back_populates="buddy", foreign_keys=[workflow_id])
     buddy_user = relationship("Users", foreign_keys=[buddy_user_id], lazy="select")
     employee = relationship("Employee", foreign_keys=[employee_id], lazy="select")
@@ -124,7 +122,7 @@ class WelcomeKit(Base):
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
 
-    tenant_id = Column(String(512), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=False, index=True)
+    tenant_id = Column(String(512), nullable=False, index=True)  # tenant key, not a user (was wrongly FK users.UserID)
     workflow_id = Column(Integer, ForeignKey("onboarding_workflows.id", ondelete="CASCADE"), nullable=False, index=True)
 
     kit_type = Column(
@@ -157,7 +155,6 @@ class WelcomeKit(Base):
     updated_at = Column(DateTime(timezone=False), server_default=func.now(), onupdate=func.now())
 
     # Relationships
-    tenant = relationship("Users", foreign_keys=[tenant_id], lazy="select")
     workflow = relationship("OnboardingWorkflow", back_populates="welcome_kits", foreign_keys=[workflow_id])
     sent_by_user = relationship("Users", foreign_keys=[sent_by_user_id], lazy="select")
 
@@ -167,7 +164,7 @@ class TrainingSession(Base):
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
 
-    tenant_id = Column(String(512), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=False, index=True)
+    tenant_id = Column(String(512), nullable=False, index=True)  # tenant key, not a user (was wrongly FK users.UserID)
     workflow_id = Column(Integer, ForeignKey("onboarding_workflows.id", ondelete="CASCADE"), nullable=False, index=True)
 
     # Training details
@@ -219,7 +216,6 @@ class TrainingSession(Base):
     updated_at = Column(DateTime(timezone=False), server_default=func.now(), onupdate=func.now())
 
     # Relationships
-    tenant = relationship("Users", foreign_keys=[tenant_id], lazy="select")
     workflow = relationship("OnboardingWorkflow", back_populates="training_sessions", foreign_keys=[workflow_id])
     trainer_user = relationship("Users", foreign_keys=[trainer_user_id], lazy="select")
 
@@ -229,7 +225,7 @@ class OnboardingTask(Base):
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
 
-    tenant_id = Column(String(512), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=False, index=True)
+    tenant_id = Column(String(512), nullable=False, index=True)  # tenant key, not a user (was wrongly FK users.UserID)
     workflow_id = Column(Integer, ForeignKey("onboarding_workflows.id", ondelete="CASCADE"), nullable=False, index=True)
 
     # Task details
@@ -277,7 +273,6 @@ class OnboardingTask(Base):
     updated_at = Column(DateTime(timezone=False), server_default=func.now(), onupdate=func.now())
 
     # Relationships
-    tenant = relationship("Users", foreign_keys=[tenant_id], lazy="select")
     workflow = relationship("OnboardingWorkflow", back_populates="tasks", foreign_keys=[workflow_id])
     assigned_to_user = relationship("Users", foreign_keys=[assigned_to_user_id], lazy="select")
     assigned_by_user = relationship("Users", foreign_keys=[assigned_by_user_id], lazy="select")

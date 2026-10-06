@@ -6,6 +6,7 @@ from app.models.invoice import Invoice
 from app.models.revenue_leakage import RevenueLeakageFlag
 from app.models.timesheet_dispute import TimesheetDispute
 from app.models.user import Users
+from app.models.business_unit import BusinessUnit
 from app.services.pnl_service import get_org_pnl_summary, get_bu_pnl
 from app.services.ar_followup_service import scan_overdue_invoices
 from app.services.reserve_fund_service import get_reserve_fund_status
@@ -37,20 +38,31 @@ def get_org_financial_snapshot(db: Session, year_month: str = None, tenant_id: s
         period_end = datetime(year, month + 1, 1)
 
     # 1. Total Revenue (all invoices, all BUs, this month)
-    total_revenue = db.query(func.sum(Invoice.total_amount_usd_cents)).filter(
+    total_revenue = db.query(func.sum(Invoice.total_usd_cents)).filter(
         Invoice.created_at >= period_start,
         Invoice.created_at < period_end,
         Invoice.status.in_(["APPROVED", "SENT", "PAID"])
     ).scalar() or 0
 
     # 2. Org-wide P&L (all BUs combined)
-    pnl = get_org_pnl_summary(db, year_month)
+    pnl = get_org_pnl_summary(db, year=year, month=month)
 
-    # 3. AR Aging (unpaid invoices by age bucket)
-    ar_aging = scan_overdue_invoices(db, year_month)
+    # 3. AR Aging: bucket the real overdue list (SENT, past grace, unpaid)
+    overdue = scan_overdue_invoices(db)
+    ar_aging = {
+        "overdue_count": len(overdue),
+        "overdue_total_usd_cents": sum(r["total_usd_cents"] or 0 for r in overdue),
+        "overdue_30_plus_days": sum(r["total_usd_cents"] or 0 for r in overdue if r["days_overdue"] >= 30),
+        "overdue_60_plus_days": sum(r["total_usd_cents"] or 0 for r in overdue if r["days_overdue"] >= 60),
+        "overdue_90_plus_days": sum(r["total_usd_cents"] or 0 for r in overdue if r["days_overdue"] >= 90),
+    }
 
-    # 4. Reserve Fund Status
-    reserve = get_reserve_fund_status(db)
+    # 4. Reserve Fund: tracked per BU, summed org-wide
+    reserve = {"target_usd_cents": 0, "current_balance_usd_cents": 0}
+    for (bu_id,) in db.query(BusinessUnit.id).all():
+        bu_reserve = get_reserve_fund_status(db, business_unit_id=bu_id, as_of_year=year, as_of_month=month)
+        reserve["target_usd_cents"] += bu_reserve.get("target_usd_cents") or 0
+        reserve["current_balance_usd_cents"] += bu_reserve.get("balance_usd_cents") or 0
 
     # 5. Revenue Leakage (gap between invoiced and earned hours)
     leakage = db.query(func.sum(RevenueLeakageFlag.unbilled_hours)).filter(
@@ -65,7 +77,7 @@ def get_org_financial_snapshot(db: Session, year_month: str = None, tenant_id: s
     ).scalar() or 0
 
     # 7. Cash Position (invoices PAID, minus expenses)
-    cash_paid = db.query(func.sum(Invoice.total_amount_usd_cents)).filter(
+    cash_paid = db.query(func.sum(Invoice.total_usd_cents)).filter(
         Invoice.status == "PAID",
         Invoice.created_at >= period_start,
         Invoice.created_at < period_end
@@ -75,15 +87,18 @@ def get_org_financial_snapshot(db: Session, year_month: str = None, tenant_id: s
         "period": year_month,
         "total_revenue_usd": total_revenue / 100 if total_revenue else 0,
         "total_revenue_usd_cents": total_revenue,
-        "gross_margin_pct": pnl.get("margin_pct", 0) if pnl else 0,
-        "net_position_usd": (pnl.get("net_position_usd_cents", 0) / 100) if pnl else 0,
-        "net_position_usd_cents": pnl.get("net_position_usd_cents", 0) if pnl else 0,
-        "cost_of_delivery_usd": (pnl.get("total_cost_usd_cents", 0) / 100) if pnl else 0,
-        "cost_of_delivery_usd_cents": pnl.get("total_cost_usd_cents", 0) if pnl else 0,
+        # pnl values are None when a BU has no cost-rate config (cost unknown)
+        "gross_margin_pct": (pnl.get("margin_pct") or 0) if pnl else 0,
+        "net_position_usd": ((pnl.get("total_gross_margin_usd_cents") or 0) / 100) if pnl else 0,
+        "net_position_usd_cents": (pnl.get("total_gross_margin_usd_cents") or 0) if pnl else 0,
+        "cost_of_delivery_usd": ((pnl.get("total_cost_usd_cents") or 0) / 100) if pnl else 0,
+        "cost_of_delivery_usd_cents": (pnl.get("total_cost_usd_cents") or 0) if pnl else 0,
+        "cost_data_complete": bool(pnl.get("org_cost_data_complete")) if pnl else False,
         "cash_position_usd": cash_paid / 100 if cash_paid else 0,
         "cash_position_usd_cents": cash_paid,
         "ar_aging_summary": ar_aging,
         "reserve_fund_target_usd": (reserve.get("target_usd_cents", 0) / 100) if reserve else 0,
+        "reserve_fund_target_usd_cents": reserve.get("target_usd_cents", 0) if reserve else 0,
         "reserve_fund_current_usd": (reserve.get("current_balance_usd_cents", 0) / 100) if reserve else 0,
         "revenue_leakage_hours": leakage,
         "open_disputes_count": disputes
@@ -165,28 +180,21 @@ def get_bu_financial_comparison(db: Session, year_month: str = None) -> list:
         today = datetime.utcnow()
         year_month = today.strftime("%Y-%m")
 
-    # Get all users with business_unit_id assigned (replaces hardcoded Partner role check)
-    # Partner role is identified via role template permissions, not UserRole string
-    # This query gets all users managing a BU, regardless of role name
-    partners = db.query(Users).filter(
-        Users.business_unit_id.isnot(None)
-    ).all()
-
-    # Filter to only those with Partner-level permissions (business unit management)
+    # One row per business unit (the P&L is computed per BU, not per user)
+    y, m = (int(x) for x in year_month.split("-"))
     comparison = []
-    for partner in partners:
-        try:
-            pnl = get_bu_pnl(db, partner.business_unit_id, year_month)
-            comparison.append({
-                "partner_name": partner.UserName,
-                "bu_id": partner.business_unit_id,
-                "revenue_usd": (pnl.get("total_revenue_usd_cents", 0) / 100) if pnl else 0,
-                "cost_usd": (pnl.get("total_cost_usd_cents", 0) / 100) if pnl else 0,
-                "net_position_usd": (pnl.get("net_position_usd_cents", 0) / 100) if pnl else 0,
-                "margin_pct": pnl.get("margin_pct", 0) if pnl else 0
-            })
-        except Exception:
-            pass
+    for bu in db.query(BusinessUnit).all():
+        pnl = get_bu_pnl(db, business_unit_id=bu.id, year=y, month=m)
+        comparison.append({
+            "partner_name": bu.name,
+            "bu_id": bu.id,
+            "bu_name": bu.name,
+            "revenue_usd": (pnl.get("revenue_usd_cents") or 0) / 100,
+            "cost_usd": (pnl.get("cost_usd_cents") or 0) / 100,
+            "net_position_usd": (pnl.get("gross_margin_usd_cents") or 0) / 100,
+            "margin_pct": pnl.get("margin_pct") or 0,
+            "cost_data_complete": pnl.get("cost_data_complete", False),
+        })
 
     return sorted(comparison, key=lambda x: x["revenue_usd"], reverse=True)
 
@@ -198,11 +206,12 @@ def get_expense_breakdown(db: Session, year_month: str = None) -> dict:
 
     # This would ideally come from detailed expense tracking
     # For now, derive from P&L
-    pnl = get_org_pnl_summary(db, year_month)
+    y, m = (int(x) for x in year_month.split("-"))
+    pnl = get_org_pnl_summary(db, year=y, month=m)
 
     return {
         "period": year_month,
-        "total_cost_usd": (pnl.get("total_cost_usd_cents", 0) / 100) if pnl else 0,
+        "total_cost_usd": ((pnl.get("total_cost_usd_cents") or 0) / 100) if pnl else 0,
         "salary_cost_pct": 70,  # Estimated
         "overhead_cost_pct": 20,  # Estimated
         "other_cost_pct": 10,  # Estimated

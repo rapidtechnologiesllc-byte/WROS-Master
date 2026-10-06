@@ -58,6 +58,8 @@ class SLMDailyImprovement:
             "improvements": [],
             "fields_improved": [],
             "ready_to_deploy": False,
+            "retrain_reason": "No feedback collected yet",
+            "next_action": "Continue collecting feedback",
         }
 
         # Step 1: Collect feedback

@@ -278,46 +278,15 @@ def check_retirement_eligibility(db: Session, agent_name: str) -> dict:
     }
 
 def initialize_default_agents(db: Session) -> None:
-    """Initialize database with default agents if none exist."""
-    existing_count = db.query(AgentMaturityLevel).count()
-    if existing_count > 0:
-        return  # Already initialized
+    """Bring agent maturity and fear state up to date from recorded runs.
 
-    # Create default agents
-    agent_configs = [
-        {"name": "Thunder", "tier": 1, "success_rate": 92, "quality": 88},
-        {"name": "Recruitment Agent", "tier": 1, "success_rate": 88, "quality": 85},
-        {"name": "Resource Manager", "tier": 2, "success_rate": 85, "quality": 82},
-        {"name": "CFO Agent", "tier": 2, "success_rate": 96, "quality": 94},
-        {"name": "KPI Agent", "tier": 2, "success_rate": 79, "quality": 75},
-        {"name": "HR Agent", "tier": 2, "success_rate": 81, "quality": 78},
-        {"name": "Mental Health Agent", "tier": 2, "success_rate": 87, "quality": 90},
-        {"name": "Help Desk Agent", "tier": 3, "success_rate": 78, "quality": 80},
-        {"name": "Flash Orchestrator", "tier": 1, "success_rate": 91, "quality": 89},
-    ]
+    Previously seeded nine agents with invented success/quality numbers that
+    were never recalculated. Now: maturity comes from agent_execution_log
+    (this week's metrics refreshed on each call) and every agent with a
+    maturity record gets its fear state recomputed from it.
+    """
+    from app.services.agent_maturity_service import refresh_from_execution_logs
 
-    for config in agent_configs:
-        maturity = AgentMaturityLevel(
-            agent_name=config["name"],
-            tenant_id="system",
-            maturity_level=75 + (config["success_rate"] - 80),
-            success_rate=config["success_rate"],
-            quality_score=config["quality"],
-            is_active=True,
-            is_retired=False,
-            trend_direction="stable"
-        )
-        db.add(maturity)
-
-        fear_state = AgentFearState(
-            agent_name=config["name"],
-            tenant_id="system",
-            fear_level=max(20, 100 - config["success_rate"]),
-            threat_level="none" if config["success_rate"] > 85 else "warning",
-            is_under_threat=config["success_rate"] < 85,
-            motivation_state="motivated" if config["success_rate"] > 90 else "neutral",
-            weeks_until_retirement=None
-        )
-        db.add(fear_state)
-
-    db.commit()
+    refresh_from_execution_logs(db)
+    for (agent_name,) in db.query(AgentMaturityLevel.agent_name).filter(AgentMaturityLevel.is_retired.is_(False)).all():
+        update_agent_fear_state(db, agent_name)

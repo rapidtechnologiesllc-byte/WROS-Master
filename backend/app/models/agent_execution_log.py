@@ -32,7 +32,7 @@ class AgentExecutionLog(Base):
     __tablename__ = "agent_execution_log"
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
-    tenant_id = Column(String(512), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=False, index=True)
+    tenant_id = Column(String(512), nullable=False, index=True)  # tenant key, not a user (was wrongly FK users.UserID)
     candidate_id = Column(String(512), ForeignKey("candidates.candidateID", ondelete="CASCADE"), nullable=True, index=True)
     agent_name = Column(String(512), nullable=False)
     action_taken = Column(String(512), nullable=False)
@@ -42,5 +42,4 @@ class AgentExecutionLog(Base):
     success = Column(Boolean, nullable=False, server_default="1")
     error_message = Column(Text, nullable=True)
 
-    tenant = relationship("Users", foreign_keys=[tenant_id], lazy="select")
     candidate = relationship("Candidate", foreign_keys=[candidate_id], lazy="select")

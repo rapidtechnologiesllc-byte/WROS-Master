@@ -27,12 +27,11 @@ class ActivityFeedReadState(Base):
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
 
-    tenant_id = Column(String(512), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=False, index=True)
+    tenant_id = Column(String(512), nullable=False, index=True)  # tenant key, not a user (was wrongly FK users.UserID)
     conversation_event_id = Column(Integer, ForeignKey("conversation_events.id", ondelete="CASCADE"), nullable=False, unique=True, index=True)
 
     read_at = Column(DateTime(timezone=False), server_default=func.now(), nullable=False)
 
-    tenant = relationship("Users", foreign_keys=[tenant_id], lazy="select")
 
     __table_args__ = (
         UniqueConstraint("conversation_event_id", name="uq_activity_feed_read_state_event"),

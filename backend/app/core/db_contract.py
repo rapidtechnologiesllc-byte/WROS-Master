@@ -862,11 +862,44 @@ def _run_schema_migrations():
         # rejected 40-char "CAN-<uuid>" ids and every candidate creation failed.
         _widen_short_varchar_columns(db)
 
+        # Migration 8: 33 tables were created with tenant_id as a foreign key
+        # to users."UserID" (a tenant is not a user), so every write with a
+        # real tenant value failed -- e.g. agent seeding/logging with
+        # tenant_id="system" crashed the Agent State dashboard. Drop those
+        # constraints (removes an invalid rule only; no data changes).
+        _drop_tenant_id_user_foreign_keys(db)
+
     except Exception as e:
         logger.warning(f"[Contract] Schema migrations failed: {e}")
         # Don't fail startup if migrations can't be run
     finally:
         db.close()
+
+
+def _drop_tenant_id_user_foreign_keys(db: Session):
+    """Drop FK constraints from any tenant_id column to users (idempotent)."""
+    from sqlalchemy import text
+
+    rows = db.execute(text("""
+        SELECT tc.table_schema, tc.table_name, tc.constraint_name
+        FROM information_schema.table_constraints tc
+        JOIN information_schema.key_column_usage kcu
+          ON kcu.constraint_name = tc.constraint_name AND kcu.table_schema = tc.table_schema
+        JOIN information_schema.constraint_column_usage ccu
+          ON ccu.constraint_name = tc.constraint_name AND ccu.table_schema = tc.table_schema
+        WHERE tc.constraint_type = 'FOREIGN KEY'
+          AND kcu.column_name = 'tenant_id'
+          AND ccu.table_name = 'users'
+    """)).fetchall()
+    for schema, table, constraint in rows:
+        try:
+            db.execute(text("SET LOCAL lock_timeout = '5s'"))
+            db.execute(text(f'ALTER TABLE "{schema}"."{table}" DROP CONSTRAINT IF EXISTS "{constraint}"'))
+            db.commit()
+            logger.info(f"[Contract] Migration: dropped {table}.{constraint} (tenant_id -> users)")
+        except Exception as e:
+            logger.warning(f"[Contract] Migration warning dropping {table}.{constraint}: {e}")
+            db.rollback()
 
 
 def _widen_short_varchar_columns(db: Session):

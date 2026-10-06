@@ -1,173 +1,127 @@
+// Admin Weekly Recap -- agent health, alerts and pipeline for one week, all
+// from GET /admin/weekly-recap (recorded agent runs, org-health alert counts,
+// opportunities opened/won/lost). Replaces hardcoded sample data.
+import React, { useEffect, useState } from "react";
+import { Alert, Card, Col, Empty, Row, Select, Spin, Statistic, Table, Tabs, Tag } from "antd";
+import { CheckCircleOutlined, WarningOutlined } from "@ant-design/icons";
+import { getWeeklyRecap } from "../services/api/adminWeeklyRecap";
 
-import React, { useState, useEffect } from 'react';
-import { Card, Row, Col, Statistic, Table, Tag, Button, Tabs, Spin, Alert, Empty, Badge } from 'antd';
-import { ArrowUpOutlined, ArrowDownOutlined, TeamOutlined, DollarOutlined, CheckCircleOutlined, WarningOutlined, ThunderboltOutlined } from '@ant-design/icons';
+const usd = (cents) => `$${((cents || 0) / 100).toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
+
+const agentColumns = [
+  { title: "Agent", dataIndex: "name", key: "name" },
+  {
+    title: "Status", dataIndex: "status", key: "status",
+    render: (status) => <Tag color={status === "operational" ? "green" : "orange"}>{status.toUpperCase()}</Tag>,
+  },
+  { title: "Runs", dataIndex: "runs", key: "runs" },
+  { title: "Failures", dataIndex: "failures", key: "failures" },
+  { title: "Success Rate", dataIndex: "success_rate", key: "success_rate", render: (v) => (v == null ? "--" : `${v}%`) },
+  { title: "Maturity", dataIndex: "maturity", key: "maturity", render: (v) => (v == null ? "--" : `${Math.round(v)}%`) },
+  { title: "Last Run", dataIndex: "last_run", key: "last_run", render: (v) => (v ? new Date(v).toLocaleString() : "--") },
+];
+
+const pipelineColumns = [
+  { title: "Owner", dataIndex: "owner", key: "owner" },
+  { title: "Opened", dataIndex: "opened", key: "opened" },
+  { title: "Opened Value", dataIndex: "opened_value_usd_cents", key: "opened_value", render: usd },
+  { title: "Won", dataIndex: "won", key: "won" },
+  { title: "Won Value", dataIndex: "won_value_usd_cents", key: "won_value", render: usd },
+  { title: "Lost", dataIndex: "lost", key: "lost" },
+];
 
 export default function AdminWeeklyRecapDashboard() {
-  const [loading, setLoading] = useState(false);
-  const [weekData, setWeekData] = useState({
-    week: 'Aug 4-10, 2026',
-    agents_reporting: 25,
-    agents_operational: 23,
-    agents_degraded: 2,
-    critical_alerts: 1,
-    high_alerts: 3,
-    partners_on_track: 2,
-    partners_behind: 1,
-  });
+  const [weeksBack, setWeeksBack] = useState(0);
+  const [recap, setRecap] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  const agentHealthColumns = [
-    { title: 'Agent', dataIndex: 'name', key: 'name' },
-    { title: 'Status', dataIndex: 'status', key: 'status', render: (status) => {
-      const color = status === 'operational' ? 'green' : status === 'degraded' ? 'orange' : 'red';
-      return <Tag color={color}>{status.toUpperCase()}</Tag>;
-    }},
-    { title: 'Maturity', dataIndex: 'maturity', key: 'maturity', render: (v) => `${v}%` },
-    { title: 'Success Rate', dataIndex: 'success_rate', key: 'success_rate', render: (v) => `${v}%` },
-  ];
+  useEffect(() => {
+    setLoading(true);
+    setError(null);
+    getWeeklyRecap(weeksBack)
+      .then(setRecap)
+      .catch((err) => setError(`Failed to load weekly recap: ${err.message}`))
+      .finally(() => setLoading(false));
+  }, [weeksBack]);
 
-  const agentHealthData = [
-    { key: '1', name: 'Recruitment Agent', status: 'operational', maturity: 92, success_rate: 98 },
-    { key: '2', name: 'Resource Manager', status: 'operational', maturity: 87, success_rate: 95 },
-    { key: '3', name: 'Finance Agent', status: 'operational', maturity: 85, success_rate: 93 },
-    { key: '4', name: 'HR Agent', status: 'operational', maturity: 89, success_rate: 96 },
-    { key: '5', name: 'KPI Agent', status: 'degraded', maturity: 72, success_rate: 88 },
-  ];
+  if (loading) return <div style={{ padding: 24, textAlign: "center" }}><Spin /></div>;
+  if (error) return <div style={{ padding: 24 }}><Alert type="error" message={error} showIcon /></div>;
 
-  const opportunityColumns = [
-    { title: 'Partner', dataIndex: 'partner', key: 'partner' },
-    { title: 'Week Start', dataIndex: 'week_start', key: 'week_start', render: (v) => `$${v}K` },
-    { title: 'Week Closed', dataIndex: 'week_closed', key: 'week_closed', render: (v) => `$${v}K` },
-    { title: 'Status', dataIndex: 'status', key: 'status', render: (status) => (
-      <Tag color={status === 'on-track' ? 'green' : 'orange'}>{status.toUpperCase()}</Tag>
-    )},
-  ];
-
-  const opportunityData = [
-    { key: '1', partner: 'Partner A', week_start: 120, week_closed: 45, status: 'on-track' },
-    { key: '2', partner: 'Partner B', week_start: 85, week_closed: 20, status: 'at-risk' },
-  ];
+  const alerts = recap.alerts || {};
+  const won = recap.pipeline.reduce((sum, r) => sum + r.won_value_usd_cents, 0);
+  const opened = recap.pipeline.reduce((sum, r) => sum + r.opened, 0);
 
   const tabItems = [
     {
-      key: '1',
-      label: 'Weekly Summary',
+      key: "agents",
+      label: "Agent Health",
       children: (
         <div>
-          <Row gutter={16} style={{ marginBottom: '24px' }}>
-            <Col xs={24} sm={12} md={6}>
-              <Card>
-                <Statistic
-                  title="Agents Reporting"
-                  value={weekData.agents_reporting}
-                  suffix="/ 25"
-                  valueStyle={{ color: '#1890ff' }}
-                />
-              </Card>
-            </Col>
-            <Col xs={24} sm={12} md={6}>
-              <Card>
-                <Statistic
-                  title="Operational"
-                  value={weekData.agents_operational}
-                  suffix="agents"
-                  valueStyle={{ color: '#52c41a' }}
-                />
-              </Card>
-            </Col>
-            <Col xs={24} sm={12} md={6}>
-              <Card>
-                <Statistic
-                  title="Degraded"
-                  value={weekData.agents_degraded}
-                  suffix="agents"
-                  valueStyle={{ color: '#faad14' }}
-                />
-              </Card>
-            </Col>
-            <Col xs={24} sm={12} md={6}>
-              <Card>
-                <Statistic
-                  title="Critical Alerts"
-                  value={weekData.critical_alerts}
-                  valueStyle={{ color: '#f5222d' }}
-                />
-              </Card>
-            </Col>
+          <Row gutter={16} style={{ marginBottom: 24 }}>
+            <Col xs={24} sm={8}><Card><Statistic title="Agents Reporting" value={recap.agents_reporting} /></Card></Col>
+            <Col xs={24} sm={8}><Card><Statistic title="Operational" value={recap.agents_operational} valueStyle={{ color: "#52c41a" }} prefix={<CheckCircleOutlined />} /></Card></Col>
+            <Col xs={24} sm={8}><Card><Statistic title="Degraded" value={recap.agents_degraded} valueStyle={{ color: "#faad14" }} prefix={<WarningOutlined />} /></Card></Col>
           </Row>
-
-          <Card title="Agent Health Status" style={{ marginBottom: '24px' }}>
-            <Table columns={agentHealthColumns} dataSource={agentHealthData} pagination={false} />
+          <Card title="Agent runs this week">
+            {recap.agents.length ? (
+              <Table rowKey="name" columns={agentColumns} dataSource={recap.agents} pagination={false} />
+            ) : (
+              <Empty description="No agent runs recorded this week" />
+            )}
           </Card>
         </div>
       ),
     },
     {
-      key: '2',
-      label: 'Pipeline Status',
+      key: "alerts",
+      label: "Alerts",
       children: (
-        <div>
-          <Row gutter={16} style={{ marginBottom: '24px' }}>
-            <Col xs={24} sm={12}>
-              <Card>
-                <Statistic
-                  title="Partners On Track"
-                  value={weekData.partners_on_track}
-                  prefix={<CheckCircleOutlined />}
-                  valueStyle={{ color: '#52c41a' }}
-                />
-              </Card>
-            </Col>
-            <Col xs={24} sm={12}>
-              <Card>
-                <Statistic
-                  title="Partners Behind"
-                  value={weekData.partners_behind}
-                  prefix={<WarningOutlined />}
-                  valueStyle={{ color: '#faad14' }}
-                />
-              </Card>
-            </Col>
-          </Row>
-
-          <Card title="Weekly Opportunity Pipeline">
-            <Table columns={opportunityColumns} dataSource={opportunityData} pagination={false} />
-          </Card>
-        </div>
+        <Row gutter={16}>
+          <Col xs={24} sm={12} md={8}><Card><Statistic title="Critical interventions" value={alerts.intervention_critical} valueStyle={{ color: "#f5222d" }} /></Card></Col>
+          <Col xs={24} sm={12} md={8}><Card><Statistic title="High interventions" value={alerts.intervention_high} valueStyle={{ color: "#faad14" }} /></Card></Col>
+          <Col xs={24} sm={12} md={8}><Card><Statistic title="Active SLA breaches" value={alerts.active_sla_breaches} /></Card></Col>
+          <Col xs={24} sm={12} md={8} style={{ marginTop: 16 }}><Card><Statistic title="Escalated overdue tasks" value={alerts.escalated_overdue_tasks} /></Card></Col>
+          <Col xs={24} sm={12} md={8} style={{ marginTop: 16 }}><Card><Statistic title="Open capacity alerts" value={alerts.open_capacity_alerts} /></Card></Col>
+        </Row>
       ),
     },
     {
-      key: '3',
-      label: 'Performance',
+      key: "pipeline",
+      label: "Pipeline",
       children: (
-        <Card>
-          <Alert
-            message="Weekly Performance Summary"
-            description="All agents performing above baseline. 3 high-priority alerts identified for week of Aug 11-17."
-            type="info"
-            showIcon
-            style={{ marginBottom: '24px' }}
-          />
-          <Empty description="Performance data loading..." />
-        </Card>
+        <div>
+          <Row gutter={16} style={{ marginBottom: 24 }}>
+            <Col xs={24} sm={12}><Card><Statistic title="Opportunities opened" value={opened} /></Card></Col>
+            <Col xs={24} sm={12}><Card><Statistic title="Won this week" value={usd(won)} valueStyle={{ color: "#52c41a" }} /></Card></Col>
+          </Row>
+          <Card title="By owner">
+            {recap.pipeline.length ? (
+              <Table rowKey="owner" columns={pipelineColumns} dataSource={recap.pipeline} pagination={false} />
+            ) : (
+              <Empty description="No opportunities opened, won or lost this week" />
+            )}
+          </Card>
+        </div>
       ),
     },
   ];
 
   return (
-    <div style={{ padding: '24px' }}>
-      <Row gutter={16} style={{ marginBottom: '24px' }}>
-        <Col xs={24} sm={12} md={8}>
-          <Card>
-            <Statistic
-              title="Week"
-              value={weekData.week}
-              valueStyle={{ fontSize: '14px' }}
-            />
-          </Card>
+    <div style={{ padding: 24 }}>
+      <Row gutter={16} align="middle" style={{ marginBottom: 24 }}>
+        <Col>
+          <Statistic title="Week" value={`${recap.week_start} to ${recap.week_end}`} valueStyle={{ fontSize: 16 }} />
+        </Col>
+        <Col>
+          <Select
+            value={weeksBack}
+            onChange={setWeeksBack}
+            style={{ width: 160 }}
+            options={[0, 1, 2, 3, 4].map((n) => ({ value: n, label: n === 0 ? "This week" : n === 1 ? "Last week" : `${n} weeks ago` }))}
+          />
         </Col>
       </Row>
-
       <Tabs items={tabItems} />
     </div>
   );

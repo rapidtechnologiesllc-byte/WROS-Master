@@ -26,7 +26,7 @@ class CandidateJobScore(Base):
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
 
-    tenant_id = Column(String(512), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=False, index=True)
+    tenant_id = Column(String(512), nullable=False, index=True)  # tenant key, not a user (was wrongly FK users.UserID)
     candidate_id = Column(String(512), ForeignKey("candidates.candidateID", ondelete="CASCADE"), nullable=False, index=True)
     job_id = Column(String(512), ForeignKey("jobs.jobID", ondelete="CASCADE"), nullable=False, index=True)
 
@@ -38,7 +38,6 @@ class CandidateJobScore(Base):
 
     calculated_at = Column(DateTime(timezone=False), server_default=func.now(), onupdate=func.now())
 
-    tenant = relationship("Users", foreign_keys=[tenant_id], lazy="select")
     candidate = relationship("Candidate", foreign_keys=[candidate_id], lazy="select")
     job = relationship("Jobs", foreign_keys=[job_id], lazy="select")
 

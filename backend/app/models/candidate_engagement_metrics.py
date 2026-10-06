@@ -20,7 +20,7 @@ class CandidateEngagementMetrics(Base):
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
 
-    tenant_id = Column(String(512), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=False, index=True)
+    tenant_id = Column(String(512), nullable=False, index=True)  # tenant key, not a user (was wrongly FK users.UserID)
     candidate_id = Column(String(512), ForeignKey("candidates.candidateID", ondelete="CASCADE"), nullable=False, unique=True, index=True)
 
     response_rate = Column(Numeric(5, 2), nullable=False, default = False)
@@ -32,7 +32,6 @@ class CandidateEngagementMetrics(Base):
 
     metrics_calculated_at = Column(DateTime(timezone=False), server_default=func.now(), nullable=False)
 
-    tenant = relationship("Users", foreign_keys=[tenant_id], lazy="select")
     candidate = relationship("Candidate", foreign_keys=[candidate_id], lazy="select")
 
     __table_args__ = (

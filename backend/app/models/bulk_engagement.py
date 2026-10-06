@@ -34,7 +34,7 @@ class BulkEngagementJob(Base):
     __tablename__ = "bulk_engagement_jobs"
 
     id = Column(String(512), primary_key=True, default=_new_uuid)
-    tenant_id = Column(String(512), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=False, index=True)
+    tenant_id = Column(String(512), nullable=False, index=True)  # tenant key, not a user (was wrongly FK users.UserID)
     recruiter_id = Column(String(512), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=False, index=True)
 
     candidate_ids = Column(JSON, nullable=False)  # full target list, in order
@@ -48,7 +48,6 @@ class BulkEngagementJob(Base):
     created_at = Column(DateTime(timezone=False), server_default=func.now())
     completed_at = Column(DateTime(timezone=False), nullable=True)
 
-    tenant = relationship("Users", foreign_keys=[tenant_id], lazy="select")
     recruiter = relationship("Users", foreign_keys=[recruiter_id], lazy="select")
 
 class BulkEngagementError(Base):

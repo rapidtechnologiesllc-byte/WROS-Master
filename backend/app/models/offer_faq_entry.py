@@ -38,13 +38,12 @@ class OfferFAQEntry(Base):
     __tablename__ = "offer_faq_entries"
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
-    tenant_id = Column(String(512), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=False, index=True)
+    tenant_id = Column(String(512), nullable=False, index=True)  # tenant key, not a user (was wrongly FK users.UserID)
     topic = Column(String(512), nullable=False)
     answer_text = Column(Text, nullable=False)
 
     updated_at = Column(DateTime(timezone=False), server_default=func.now(), onupdate=func.now())
 
-    tenant = relationship("Users", foreign_keys=[tenant_id], lazy="select")
 
     __table_args__ = (
         UniqueConstraint("tenant_id", "topic", name="uq_offer_faq_entry"),

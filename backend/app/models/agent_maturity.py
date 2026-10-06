@@ -29,7 +29,7 @@ class AgentMaturityLevel(Base):
     __tablename__ = "agent_maturity_levels"
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
-    tenant_id = Column(String(512), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=False, index=True)
+    tenant_id = Column(String(512), nullable=False, index=True)  # tenant key, not a user (was wrongly FK users.UserID)
 
     agent_name = Column(String(512), nullable=False, index=True)  # e.g., "Recruitment", "Resource Manager", etc.
     maturity_level = Column(Float, nullable=False, default=0.0)  # 0-100 scale
@@ -54,7 +54,6 @@ class AgentMaturityLevel(Base):
     last_updated = Column(DateTime, server_default=func.now(), onupdate=func.now(), index=True)
     last_calculated_at = Column(DateTime, nullable=True)  # When metrics were last recalculated
 
-    tenant = relationship("Users", foreign_keys=[tenant_id], lazy="select")
 
 class AgentPerformanceMetric(Base):
     """
@@ -64,7 +63,7 @@ class AgentPerformanceMetric(Base):
     __tablename__ = "agent_performance_metrics"
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
-    tenant_id = Column(String(512), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=False, index=True)
+    tenant_id = Column(String(512), nullable=False, index=True)  # tenant key, not a user (was wrongly FK users.UserID)
 
     agent_name = Column(String(512), nullable=False, index=True)
     week_starting = Column(DateTime, nullable=False, index=True)  # Monday of the week
@@ -94,4 +93,3 @@ class AgentPerformanceMetric(Base):
     created_at = Column(DateTime, server_default=func.now())
     calculated_at = Column(DateTime, nullable=False, server_default=func.now())
 
-    tenant = relationship("Users", foreign_keys=[tenant_id], lazy="select")

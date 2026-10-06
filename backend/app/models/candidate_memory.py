@@ -39,7 +39,7 @@ class CandidateMemory(Base):
     __tablename__ = "candidate_memory"
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
-    tenant_id = Column(String(512), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=False, index=True)
+    tenant_id = Column(String(512), nullable=False, index=True)  # tenant key, not a user (was wrongly FK users.UserID)
     candidate_id = Column(String(512), ForeignKey("candidates.candidateID", ondelete="CASCADE"), nullable=False, unique=True, index=True)
 
     summary = Column(Text, nullable=True)
@@ -48,14 +48,13 @@ class CandidateMemory(Base):
 
     created_at = Column(DateTime(timezone=False), server_default=func.now())
 
-    tenant = relationship("Users", foreign_keys=[tenant_id], lazy="select")
     candidate = relationship("Candidate", foreign_keys=[candidate_id], lazy="select")
 
 class CandidateMemoryFact(Base):
     __tablename__ = "candidate_memory_facts"
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
-    tenant_id = Column(String(512), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=False, index=True)
+    tenant_id = Column(String(512), nullable=False, index=True)  # tenant key, not a user (was wrongly FK users.UserID)
     candidate_id = Column(String(512), ForeignKey("candidates.candidateID", ondelete="CASCADE"), nullable=False, index=True)
 
     fact_category = Column(String(512), nullable=False)
@@ -67,7 +66,6 @@ class CandidateMemoryFact(Base):
     extracted_at = Column(DateTime(timezone=False), server_default=func.now())
     is_active = Column(Boolean, nullable=False, server_default="1")  # BR-02
 
-    tenant = relationship("Users", foreign_keys=[tenant_id], lazy="select")
     candidate = relationship("Candidate", foreign_keys=[candidate_id], lazy="select")
 
     __table_args__ = (

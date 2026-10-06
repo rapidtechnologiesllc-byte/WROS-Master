@@ -2,26 +2,37 @@ import { useEffect, useState } from "react";
 import { Users, TrendingUp, DollarSign, AlertCircle, Briefcase } from "lucide-react";
 import { Card } from "../components/ui";
 import { apiRequest } from "../services/api/client";
+import DashboardBUPicker from "../components/DashboardBUPicker";
 
 export default function BUHeadDashboardScreen() {
   const [dashboard, setDashboard] = useState(null);
   const [team, setTeam] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  // Users without a BU of their own (e.g. Admin) choose which BU to view
+  const [buChoices, setBuChoices] = useState(null);
+  const [selectedBuId, setSelectedBuId] = useState(null);
 
   useEffect(() => {
-    fetchDashboardData();
-  }, []);
+    fetchDashboardData(selectedBuId);
+  }, [selectedBuId]);
 
-  const fetchDashboardData = async () => {
+  const fetchDashboardData = async (buId) => {
     setLoading(true);
     setError("");
     try {
+      const qs = buId ? `?business_unit_id=${buId}` : "";
       const [dashRes, teamRes] = await Promise.all([
-        apiRequest("/dashboards/bu-head/summary", { method: "GET" }),
-        apiRequest("/dashboards/bu-head/team", { method: "GET" })
+        apiRequest(`/dashboards/bu-head/summary${qs}`, { method: "GET" }),
+        apiRequest(`/dashboards/bu-head/team${qs}`, { method: "GET" })
       ]);
 
+      if (dashRes.data?.status === "needs_business_unit") {
+        setBuChoices(dashRes.data.business_units || []);
+        setDashboard(null);
+        setTeam([]);
+        return;
+      }
       setDashboard(dashRes.data?.data);
       setTeam(teamRes.data?.data?.team_members || []);
     } catch (err) {
@@ -32,9 +43,13 @@ export default function BUHeadDashboardScreen() {
     }
   };
 
+  const picker = buChoices ? (
+    <DashboardBUPicker businessUnits={buChoices} value={selectedBuId} onChange={setSelectedBuId} />
+  ) : null;
+
   if (loading) return <div className="p-6 text-center text-gray-500">Loading BU dashboard...</div>;
-  if (error) return <div className="p-6 text-center text-red-600">Error: {error}</div>;
-  if (!dashboard) return <div className="p-6 text-center text-gray-500">No data available</div>;
+  if (error) return <div className="p-6 space-y-4">{picker}<div className="text-center text-red-600">Error: {error}</div></div>;
+  if (!dashboard) return <div className="p-6 space-y-4 max-w-7xl mx-auto">{picker || <div className="text-center text-gray-500">No data available</div>}</div>;
 
   const { team_size, revenue, delivery } = dashboard;
   const formatCurrency = (value) => `$${(value / 1000).toFixed(1)}k`;
@@ -45,6 +60,7 @@ export default function BUHeadDashboardScreen() {
         <h1 className="text-3xl font-bold text-gray-900">{dashboard.bu_name} - Business Unit Dashboard</h1>
         <p className="text-gray-600 mt-1">Complete visibility of delivery, team, and revenue</p>
       </div>
+      {picker}
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">

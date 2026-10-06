@@ -7,7 +7,7 @@ from app.models.employee import Employee
 from app.models.candidate import Candidate
 from app.models.client import Client
 from app.models.opportunity import Opportunity
-from app.models.invoice import Invoice
+from app.models.invoice import Invoice, InvoiceLineItem
 from app.services.pnl_service import get_org_pnl_summary
 from app.utils.agent_logger import log_agent_execution
 import logging
@@ -46,16 +46,16 @@ def get_fy_progress(db: Session, fy_year: int = 2026) -> dict:
     days_elapsed = max(1, (today - fy_start).days)
     fy_progress_pct = min(100, (days_elapsed / total_fy_days) * 100)
 
-    # 1. Headcount: active employees (ACTIVE status, not archived)
-    total_headcount = db.query(func.count(Employee.EmployeeID)).filter(
-        Employee.EmployeeStatus == "ACTIVE"
+    # 1. Headcount: employees who have joined and not exited
+    total_headcount = db.query(func.count(Employee.id)).filter(
+        Employee.status.notin_(("PRE_JOINING", "EXITED"))
     ).scalar() or 0
 
     headcount_target = targets["headcount_target"]
     headcount_pct = (total_headcount / headcount_target * 100) if headcount_target > 0 else 0
 
     # 2. Revenue: total invoiced YTD
-    ytd_revenue = db.query(func.sum(Invoice.total_amount_usd_cents)).filter(
+    ytd_revenue = db.query(func.sum(Invoice.total_usd_cents)).filter(
         Invoice.created_at >= fy_start,
         Invoice.created_at <= today,
         Invoice.status.in_(["APPROVED", "SENT", "PAID"])
@@ -94,10 +94,13 @@ def get_fy_progress(db: Session, fy_year: int = 2026) -> dict:
     retention_pct = 100
 
     # 6. Utilization: billable hours / available hours
-    billable_hours_ytd = db.query(func.sum(Invoice.billable_hours)).filter(
+    # Hours live on invoice line items, not the invoice
+    billable_hours_ytd = float(db.query(func.sum(InvoiceLineItem.hours)).join(
+        Invoice, Invoice.id == InvoiceLineItem.invoice_id
+    ).filter(
         Invoice.created_at >= fy_start,
         Invoice.created_at <= today
-    ).scalar() or 0
+    ).scalar() or 0)
 
     available_hours = total_headcount * 2080 if total_headcount > 0 else 1  # 40h/week * 52 weeks
     utilization_pct = (billable_hours_ytd / available_hours * 100) if available_hours > 0 else 0
@@ -105,9 +108,9 @@ def get_fy_progress(db: Session, fy_year: int = 2026) -> dict:
     utilization_progress_pct = (utilization_pct / utilization_target * 100) if utilization_target > 0 else 0
 
     # 7. Margin: org-wide this FY
-    current_month = today.strftime("%Y-%m")
-    pnl = get_org_pnl_summary(db, current_month)
-    margin_pct = pnl.get("margin_pct", 0) if pnl else 0
+    pnl = get_org_pnl_summary(db, year=today.year, month=today.month)
+    # None when cost data is incomplete (no cost-rate config) -- show 0, not crash
+    margin_pct = (pnl.get("margin_pct") or 0) if pnl else 0
     margin_target = targets["margin_target_pct"]
     margin_progress_pct = (margin_pct / margin_target * 100) if margin_target > 0 else 0
 

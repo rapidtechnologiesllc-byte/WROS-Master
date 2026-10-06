@@ -181,18 +181,36 @@ def update_maturity_levels(db: Session, agent_name: str = None):
             db.add(maturity_level)
         else:
             # Update existing
-            maturity_level.previous_week_maturity = maturity_level.maturity_level
+            # Totals are re-summed from every weekly row, so refreshing the
+            # current week more than once never double-counts
+            totals = db.query(
+                func.sum(AgentPerformanceMetric.executions_count), func.sum(AgentPerformanceMetric.success_count)
+            ).filter(AgentPerformanceMetric.agent_name == ag).one()
+            maturity_level.previous_week_maturity = previous.maturity_level if previous else None
             maturity_level.maturity_level = latest.maturity_level
             maturity_level.success_rate = latest.success_rate
             maturity_level.avg_execution_time_ms = latest.avg_execution_time_ms
-            maturity_level.total_executions += latest.executions_count
-            maturity_level.total_successes += latest.success_count
+            maturity_level.total_executions = int(totals[0] or 0)
+            maturity_level.total_successes = int(totals[1] or 0)
             maturity_level.quality_score = latest.quality_score
             maturity_level.trend_direction = trend
             maturity_level.improvement_percentage = improvement_pct
             maturity_level.last_calculated_at = datetime.utcnow()
 
         db.commit()
+
+
+def refresh_from_execution_logs(db: Session):
+    """Recompute this week's metrics from agent_execution_log and roll them
+    into maturity levels (idempotent: this week's rows are replaced, not
+    appended). The maturity/fear dashboards call this, so they always show
+    recorded agent runs -- nothing else schedules the weekly job."""
+    today = datetime.utcnow().date()
+    week_start = datetime.combine(today - timedelta(days=today.weekday()), datetime.min.time())
+    db.query(AgentPerformanceMetric).filter(AgentPerformanceMetric.week_starting == week_start).delete()
+    db.commit()
+    calculate_weekly_metrics(db, week_start)
+    update_maturity_levels(db)
 
 
 def check_agent_health(db: Session, agent_name: str) -> dict:

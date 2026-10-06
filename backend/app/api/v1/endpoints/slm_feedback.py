@@ -28,7 +28,6 @@ from app.core.dependencies import get_current_internal_user, require_resource_pe
 from app.core.logging import logger
 from app.services.slm_feedback_engine import SLMFeedbackEngine, SLMFeedback
 from app.services.slm_daily_improvement import SLMDailyImprovement
-from app.services.audit_log_service import log_audit_event
 
 router = APIRouter(prefix="/slm", tags=["slm-feedback"])
 
@@ -110,17 +109,16 @@ def record_correction(
         )
 
         # Audit log: SLM access
-        log_audit_event(
-            db=db,
-            event_type="SLM_CORRECTION_RECORDED",
-            user_id=current_user.UserID,
-            action="POST_CORRECTION",
-            resource_type="slm_feedback",
-            details={
+        # Generic audit trail: log_audit_event is the candidate-conversation
+        # audit (requires candidate_id) and raised TypeError here
+        logger.info(
+            "[AUDIT] SLM_CORRECTION_RECORDED user=%s details=%s",
+            current_user.UserID,
+            {
                 "field_name": request.field_name,
                 "confidence_score": request.confidence_score,
                 "session_id": request.feedback_session_id
-            }
+            },
         )
 
         return {
@@ -177,17 +175,16 @@ def record_validation(
         )
 
         # Audit log: SLM access
-        log_audit_event(
-            db=db,
-            event_type="SLM_VALIDATION_RECORDED",
-            user_id=current_user.UserID,
-            action="POST_VALIDATION",
-            resource_type="slm_feedback",
-            details={
+        # Generic audit trail: log_audit_event is the candidate-conversation
+        # audit (requires candidate_id) and raised TypeError here
+        logger.info(
+            "[AUDIT] SLM_VALIDATION_RECORDED user=%s details=%s",
+            current_user.UserID,
+            {
                 "field_name": request.field_name,
                 "confidence_score": request.confidence_score,
                 "session_id": request.feedback_session_id
-            }
+            },
         )
 
         return {
@@ -252,17 +249,16 @@ def get_feedback_stats(
     stats = SLMFeedbackEngine.get_feedback_stats(db, days=days)
 
     # Audit log: SLM stats access
-    log_audit_event(
-        db=db,
-        event_type="SLM_STATS_ACCESSED",
-        user_id=current_user.UserID,
-        action="GET_STATS",
-        resource_type="slm_feedback",
-        details={
+    # Generic audit trail: log_audit_event is the candidate-conversation
+    # audit (requires candidate_id) and raised TypeError here
+    logger.info(
+        "[AUDIT] SLM_STATS_ACCESSED user=%s details=%s",
+        current_user.UserID,
+        {
             "days": days,
             "total_feedback": stats.get("total_feedback"),
             "ready_to_retrain": stats.get("ready_to_retrain")
-        }
+        },
     )
 
     return stats

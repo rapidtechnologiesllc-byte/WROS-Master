@@ -47,7 +47,7 @@ class AgentFearState(Base):
     __tablename__ = "agent_fear_states"
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
-    tenant_id = Column(String(512), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=False, index=True)
+    tenant_id = Column(String(512), nullable=False, index=True)  # tenant key, not a user (was wrongly FK users.UserID)
     agent_name = Column(String(512), nullable=False, index=True)
 
     # Fear metrics (0-100 scale)
@@ -86,14 +86,13 @@ class AgentFearState(Base):
     last_fear_escalation = Column(DateTime, nullable=True)
     threat_activated_at = Column(DateTime, nullable=True)
 
-    tenant = relationship("Users", foreign_keys=[tenant_id], lazy="select")
 
 class AgentStressTesting(Base):
     """Stress tests designed to deliberately challenge agents."""
     __tablename__ = "agent_stress_tests"
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
-    tenant_id = Column(String(512), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=False, index=True)
+    tenant_id = Column(String(512), nullable=False, index=True)  # tenant key, not a user (was wrongly FK users.UserID)
     agent_name = Column(String(512), nullable=False, index=True)
 
     # Test details
@@ -115,14 +114,13 @@ class AgentStressTesting(Base):
     last_run = Column(DateTime, nullable=True)
     created_at = Column(DateTime, server_default=func.now())
 
-    tenant = relationship("Users", foreign_keys=[tenant_id], lazy="select")
 
 class AgentPerformanceCommitment(Base):
     """What each agent commits to achieving (targets they must meet)."""
     __tablename__ = "agent_performance_commitments"
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
-    tenant_id = Column(String(512), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=False, index=True)
+    tenant_id = Column(String(512), nullable=False, index=True)  # tenant key, not a user (was wrongly FK users.UserID)
     agent_name = Column(String(512), nullable=False, index=True)
 
     # Commitment targets (what agent must achieve)
@@ -149,4 +147,3 @@ class AgentPerformanceCommitment(Base):
     created_at = Column(DateTime, server_default=func.now())
     last_updated = Column(DateTime, server_default=func.now(), onupdate=func.now())
 
-    tenant = relationship("Users", foreign_keys=[tenant_id], lazy="select")

@@ -148,6 +148,11 @@ from app.api.v1.endpoints.orchestrate import router as orchestrate_router
 from app.api.v1.endpoints.api_keys import router as api_keys_router
 from app.api.v1.endpoints.architect import router as architect_router
 from app.api.v1.endpoints.role_templates import rbac_router
+# Dashboard APIs deleted in 985681ca while their screens were still live
+from app.api.v1.endpoints.bi_explorer import router as bi_explorer_router
+from app.api.v1.endpoints.bu_head_dashboard import router as bu_head_dashboard_router
+from app.api.v1.endpoints.training_dashboards import router as training_dashboards_router
+from app.api.v1.endpoints.admin_weekly_recap import router as admin_weekly_recap_router
 
 try:
     router = fastapi.APIRouter(prefix="/api/v1")
@@ -307,3 +312,7 @@ router.include_router(router=spartan_forecasting_router)
 router.include_router(router=spartan_integration_router)
 router.include_router(router=strategic_consul_router)
 router.include_router(router=system_health_router)
+router.include_router(router=bi_explorer_router)
+router.include_router(router=bu_head_dashboard_router)
+router.include_router(router=training_dashboards_router)
+router.include_router(router=admin_weekly_recap_router)

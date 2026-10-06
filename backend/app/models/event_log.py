@@ -30,12 +30,11 @@ class EventLog(Base):
     __tablename__ = "event_log"
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
-    tenant_id = Column(String(512), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=False, index=True)
+    tenant_id = Column(String(512), nullable=False, index=True)  # tenant key, not a user (was wrongly FK users.UserID)
     candidate_id = Column(String(512), ForeignKey("candidates.candidateID", ondelete="CASCADE"), nullable=True, index=True)
     event_type = Column(String(512), nullable=False, index=True)
     event_version = Column(String(10), nullable=False, server_default="v1")
     payload = Column(JSON, nullable=True)
     emitted_at = Column(DateTime(timezone=False), server_default=func.now(), index=True)
 
-    tenant = relationship("Users", foreign_keys=[tenant_id], lazy="select")
     candidate = relationship("Candidate", foreign_keys=[candidate_id], lazy="select")

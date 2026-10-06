@@ -39,8 +39,12 @@ class BUHeadDashboardService:
             Employee.status == "ACTIVE"
         ).scalar() or 0
 
-        # Utilization: distinct employees with active allocations
-        utilized = db.query(func.count(func.distinct(EmployeeAllocation.employee_id))).filter(
+        # Utilization: this BU's active employees with an active allocation
+        utilized = db.query(func.count(func.distinct(EmployeeAllocation.employee_id))).join(
+            Employee, Employee.id == EmployeeAllocation.employee_id
+        ).filter(
+            Employee.bu_id == bu_id,
+            Employee.status == "ACTIVE",
             EmployeeAllocation.status == "ACTIVE"
         ).scalar() or 0
 
@@ -52,10 +56,14 @@ class BUHeadDashboardService:
         from sqlalchemy import text
         mtd_start = datetime.utcnow().replace(day=1).date()
 
+        # Invoices belong to a BU through their client
+        from app.models.client import Client
         revenue_mtd = db.query(func.sum(InvoiceLineItem.amount_usd_cents)).join(
             Invoice, Invoice.id == InvoiceLineItem.invoice_id
+        ).join(
+            Client, Client.id == Invoice.client_id
         ).filter(
-            Invoice.business_unit_id == bu_id,
+            Client.business_unit_id == bu_id,
             Invoice.billing_period_start >= mtd_start
         ).scalar() or 0
 
@@ -63,11 +71,10 @@ class BUHeadDashboardService:
         revenue_arn = revenue_mtd * 12
 
         # Active projects in this BU (join with Client to get business_unit_id)
-        from app.models.client import Client
         active_projects = db.query(func.count(Project.id)).join(
             Client, Project.client_id == Client.id
         ).filter(
-            Client.bu_context_id == bu_id,
+            Client.business_unit_id == bu_id,
             Project.status.in_(["ACTIVE", "IN_PROGRESS"])
         ).scalar() or 0
 
@@ -88,7 +95,7 @@ class BUHeadDashboardService:
         ).join(
             Client, Project.client_id == Client.id
         ).filter(
-            Client.bu_context_id == bu_id,
+            Client.business_unit_id == bu_id,
             EmployeeAllocation.status == "ACTIVE"
         ).group_by(Project.id, Project.name).all()
 

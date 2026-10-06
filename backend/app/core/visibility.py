@@ -75,3 +75,30 @@ def get_user_bu_id(user: Users) -> int | None:
         return None
 
     return user.business_unit_id
+
+
+def resolve_dashboard_bu(user: Users, requested_bu_id: int | None) -> int | None:
+    """
+    Which business unit a BU-scoped dashboard (BU Head, Partner) shows.
+
+    BU-scoped users always see their own BU. Org-level users, and users with
+    no BU assigned (e.g. Admin), may choose one via ?business_unit_id=; with
+    none chosen this returns None and the endpoint asks for a choice.
+    """
+    from fastapi import HTTPException
+
+    own_bu = user.business_unit_id
+    can_choose = own_bu is None or should_bypass_bu_filter(user)
+    if requested_bu_id is not None:
+        if not can_choose and requested_bu_id != own_bu:
+            raise HTTPException(status_code=403, detail="You can only view your own business unit")
+        return requested_bu_id
+    return own_bu
+
+
+def business_unit_choices(db) -> list:
+    """Active business units, for a dashboard's BU picker."""
+    from app.models.business_unit import BusinessUnit
+
+    rows = db.query(BusinessUnit).filter(BusinessUnit.active == True).order_by(BusinessUnit.name).all()  # noqa: E712
+    return [{"id": bu.id, "name": bu.display_name or bu.name} for bu in rows]

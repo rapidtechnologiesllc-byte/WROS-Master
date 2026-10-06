@@ -24,7 +24,7 @@ class CandidateNoResponseLog(Base):
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
 
-    tenant_id = Column(String(512), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=False, index=True)
+    tenant_id = Column(String(512), nullable=False, index=True)  # tenant key, not a user (was wrongly FK users.UserID)
     candidate_id = Column(String(512), ForeignKey("candidates.candidateID", ondelete="CASCADE"), nullable=False, index=True)
     conversation_id = Column(Integer, ForeignKey("candidate_conversations.id", ondelete="CASCADE"), nullable=False, index=True)
     last_outbound_message_id = Column(Integer, ForeignKey("conversation_events.id", ondelete="SET NULL"), nullable=True)
@@ -33,6 +33,5 @@ class CandidateNoResponseLog(Base):
     detected_at = Column(DateTime(timezone=False), server_default=func.now())
     follow_up_scheduled_at = Column(DateTime(timezone=False), nullable=True)
 
-    tenant = relationship("Users", foreign_keys=[tenant_id], lazy="select")
     candidate = relationship("Candidate", foreign_keys=[candidate_id], lazy="select")
     conversation = relationship("CandidateConversation", foreign_keys=[conversation_id], lazy="select")

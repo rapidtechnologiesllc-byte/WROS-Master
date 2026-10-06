@@ -32,14 +32,13 @@ class MotivationContentLibrary(Base):
     __tablename__ = "motivation_content_library"
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
-    tenant_id = Column(String(512), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=False, index=True)
+    tenant_id = Column(String(512), nullable=False, index=True)  # tenant key, not a user (was wrongly FK users.UserID)
     desire_category = Column(String(30), nullable=False)
     content_items = Column(JSON, nullable=False)  # list[str], BA-approved facts only
 
     updated_at = Column(DateTime(timezone=False), server_default=func.now(), onupdate=func.now())
     updated_by = Column(String(512), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=True)
 
-    tenant = relationship("Users", foreign_keys=[tenant_id], lazy="select")
 
     __table_args__ = (
         UniqueConstraint("tenant_id", "desire_category", name="uq_motivation_content_per_tenant_category"),
@@ -49,7 +48,7 @@ class MotivationOutcome(Base):
     __tablename__ = "motivation_outcomes"
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
-    tenant_id = Column(String(512), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=False, index=True)
+    tenant_id = Column(String(512), nullable=False, index=True)  # tenant key, not a user (was wrongly FK users.UserID)
     candidate_id = Column(String(512), ForeignKey("candidates.candidateID", ondelete="CASCADE"), nullable=False, index=True)
 
     trigger_type = Column(String(30), nullable=False)  # see TRIGGER_TYPES
@@ -62,5 +61,4 @@ class MotivationOutcome(Base):
     engagement_after = Column(String(10), nullable=True)  # filled by a later check
     offer_accepted = Column(Boolean, nullable=True)  # filled once/if the offer is later decided
 
-    tenant = relationship("Users", foreign_keys=[tenant_id], lazy="select")
     candidate = relationship("Candidate", foreign_keys=[candidate_id], lazy="select")

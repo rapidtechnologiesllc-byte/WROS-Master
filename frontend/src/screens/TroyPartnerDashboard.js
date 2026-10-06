@@ -4,12 +4,16 @@ import { Card, Button } from "../components/ui";
 import { apiRequest } from "../services/api/client";
 import { listBusinessUnits } from "../services/api/rbac";
 import { getHrMe } from "../services/api/users";
+import DashboardBUPicker from "../components/DashboardBUPicker";
 
 export default function TroyPartnerDashboard() {
   const [loading, setLoading] = useState(true);
   const [dashboard, setDashboard] = useState(null);
   const [actionError, setActionError] = useState(null);
   const [buName, setBuName] = useState("");
+  // Users without a BU of their own (e.g. Admin) choose which BU to view
+  const [buChoices, setBuChoices] = useState(null);
+  const [selectedBuId, setSelectedBuId] = useState(null);
 
   // BU label = the logged-in user's business unit (Users & Access Control > Business Units)
   useEffect(() => {
@@ -25,20 +29,40 @@ export default function TroyPartnerDashboard() {
     const fetchData = async () => {
       try {
         setLoading(true);
-        const { data } = await apiRequest("/dashboards/troy-partner", { method: "GET" });
+        const qs = selectedBuId ? `?business_unit_id=${selectedBuId}` : "";
+        const { data } = await apiRequest(`/dashboards/troy-partner${qs}`, { method: "GET" });
+        if (data?.status === "needs_business_unit") {
+          setBuChoices(data.business_units || []);
+          setDashboard(null);
+          return;
+        }
         setDashboard(data?.data);
+        if (buChoices && data?.business_unit_id) {
+          setBuName(buChoices.find((b) => b.id === data.business_unit_id)?.name || "");
+        }
       } catch (err) {
-        setActionError("Failed to load Troy's dashboard");
+        setActionError(`Failed to load Troy's dashboard: ${err.message}`);
       } finally {
         setLoading(false);
       }
     };
 
     fetchData();
-  }, []);
+  }, [selectedBuId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const picker = buChoices ? (
+    <DashboardBUPicker businessUnits={buChoices} value={selectedBuId} onChange={setSelectedBuId} />
+  ) : null;
 
   if (loading) return <div className="p-6 text-center text-gray-500">Loading dashboard...</div>;
-  if (!dashboard) return <div className="p-6 text-center text-gray-500">No data available</div>;
+  if (!dashboard) {
+    return (
+      <div className="p-6 space-y-4 max-w-6xl mx-auto">
+        {actionError && <div className="text-red-700 text-sm">{actionError}</div>}
+        {picker || <div className="text-center text-gray-500">No data available</div>}
+      </div>
+    );
+  }
 
   const {
     current_demand,
@@ -72,6 +96,7 @@ export default function TroyPartnerDashboard() {
         <h1 className="text-3xl font-bold text-gray-900">Troy's Partner Dashboard</h1>
         <div className="text-sm text-gray-600">{buName || "No business unit assigned"}</div>
       </div>
+      {picker}
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
