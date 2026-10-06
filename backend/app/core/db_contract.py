@@ -854,6 +854,22 @@ def _run_schema_migrations():
                 logger.warning(f"[Contract] Migration warning for linkedin_candidate_pipeline.{column_name}: {e}")
                 db.rollback()
 
+        # Migration 5c: agent_configs.tenant_id was created as uuid but
+        # tenants are integer ids -> every Agent Config query failed.
+        try:
+            current_type = db.execute(text("""
+                SELECT data_type FROM information_schema.columns
+                WHERE table_schema = 'app_schema' AND table_name = 'agent_configs' AND column_name = 'tenant_id'
+            """)).scalar()
+            if current_type == "uuid":
+                db.execute(text("SET LOCAL lock_timeout = '5s'"))
+                db.execute(text("ALTER TABLE app_schema.agent_configs ALTER COLUMN tenant_id TYPE VARCHAR(512) USING tenant_id::text"))
+                db.commit()
+                logger.info("[Contract] Migration: agent_configs.tenant_id uuid -> VARCHAR(512)")
+        except Exception as e:
+            logger.warning(f"[Contract] Migration warning for agent_configs.tenant_id: {e}")
+            db.rollback()
+
         # Migration 6: job_created_flash never set Jobs.tenant_id, so every
         # queue-created job was invisible to the tenant-scoped job list.
         # Single-tenant deployment: attribute orphaned jobs to tenant 1.

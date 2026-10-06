@@ -27,7 +27,7 @@ class AgentConfigService:
         try:
             agents = db.query(AgentConfig).filter(
                 and_(
-                    AgentConfig.tenant_id == tenant_id,
+                    AgentConfig.tenant_id == str(tenant_id),
                     AgentConfig.enabled == True
                 )
             ).order_by(AgentConfig.order).all()
@@ -53,7 +53,7 @@ class AgentConfigService:
             # Find next order if not specified
             if order is None:
                 max_order = db.query(AgentConfig).filter(
-                    AgentConfig.tenant_id == tenant_id
+                    AgentConfig.tenant_id == str(tenant_id)
                 ).order_by(AgentConfig.order.desc()).first()
                 order = (max_order.order + 1) if max_order else 1
 
@@ -64,7 +64,7 @@ class AgentConfigService:
                 description=description,
                 queue_name=queue_name,
                 next_queue_name=next_queue_name,
-                tenant_id=tenant_id,
+                tenant_id=str(tenant_id),
                 enabled=True,
                 order=order
             )
@@ -141,7 +141,7 @@ class AgentConfigService:
         try:
             agents = db.query(AgentConfig).filter(
                 and_(
-                    AgentConfig.tenant_id == tenant_id,
+                    AgentConfig.tenant_id == str(tenant_id),
                     AgentConfig.enabled == True
                 )
             ).order_by(AgentConfig.order).all()
