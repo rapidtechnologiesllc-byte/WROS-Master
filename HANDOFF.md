@@ -44,9 +44,22 @@ The `HRMS` user has **no usable sudo** (`sudo -l` lists NOPASSWD ALL, but every
 - **Frontend:** `deploy.yml` (build in CI, scp to `frontend/build-new`, swap). nginx
   root is `/home/HRMS/WROS-Master/frontend/build/build`. Manual: `npm run build`
   locally, upload to `frontend/build-new/build`, `mv build build-prev-<ts>; mv build-new build`.
-- **GitHub Actions has not run a deploy yet:** today's jobs failed with "not
+- **CI deploys now run** (runners came back) and can finish out of order — one
+  reverted prod for ~4.5h. Both deploy paths now refuse older commits
+  (`deploy_backend.sh` ancestry check; frontend `DEPLOYED_COMMIT_TIME`) and run
+  one at a time. Pipe the script from git (`git show HEAD:backend/scripts/deploy_backend.sh |
+  ssh ... bash -s -- ...`) — the Windows working copy has CRLF.
+- **Old note:** today's jobs failed with "not
   acquired by Runner" (hosted-runner capacity / billing on the account). The new
   backend deploy path was exercised manually (3 deploys today), not from CI.
+
+### Candidate profile (`db07713e`)
+
+- Every section save 404'd (`PUT /candidate/{id}` doesn't exist) — now
+  `PUT /candidates/hr/update_candidate/{id}`. Email editable (unique, 409 on
+  duplicate, logged to History). Header Edit button/modal removed (opened empty).
+- Not yet saved by the backend: Identity section (govt ID) and salary *types* —
+  `CandidateUpdateRequest` has no such fields.
 
 ### Seen, not fixed
 
@@ -71,14 +84,20 @@ The `HRMS` user has **no usable sudo** (`sudo -l` lists NOPASSWD ALL, but every
 
 ## Open decisions / next work
 
-0. **All dashboards are broken — analyze and fix end to end (user request, 2026-10-05).**
-   Executive menu: CEO (`/ceo-fy-progress`), CFO (`/cfo-dashboard`), Partner
-   (`/troy-partner-dashboard`), Executive Signal, Admin Agent State, Admin Weekly
-   Recap, BU Head; plus Utilization, Executive Revenue, Risk, Thunder Analytics,
-   SLM, BI Explorer. For each: load it as Admin on prod, list failing API calls
-   (network tab), fix backend + frontend, verify with real data.
-   Related: `pyflakes app/api app/services` finds ~40 files with undefined names
-   (latent NameErrors) — a chip/task was filed for that.
+0. **Dashboards — fixed end to end (`665720d8`, `db07713e`).** All 25 load-time
+   calls of the Executive/Admin dashboards return 200 on prod as Admin (was 9/26):
+   CEO, CFO, Partner (Troy), Executive Signal, Admin Agent State, Admin Weekly
+   Recap (new `GET /admin/weekly-recap`, was hardcoded sample data), BU Head,
+   Utilization, Executive Revenue, Risk, Thunder Analytics, SLM, BI Explorer.
+   Placeholder/invented figures removed; agent maturity now from
+   `agent_execution_log` (33 tables had `tenant_id` FK → `users`, so all agent
+   logging failed — Migration 8 drops them). BU Head / Partner: users without a
+   BU pick one. Prod has no employees/invoices/BUs yet, so most show zeros.
+   Still open: ~246 references to nonexistent model columns in other services
+   (`attrscan`: e.g. finance_agent, agent_pyramid_reporting, kpi_service,
+   recruitment_funnel_dashboard_service, partner_roi_service) — not on these
+   dashboards' paths, but they will 500 when used. Partner ROI screen
+   (`/partner-roi`, not in the menu) uses partner_roi_service.
 0b. **Menu items with no page (hidden from nav since `abb40807`, still grantable):**
    interviews (no `/interviews` route at all — My Tasks still navigates there),
    notifications, activity-feed, ask-flash, ai-coaching, agent-pyramid, goals,
