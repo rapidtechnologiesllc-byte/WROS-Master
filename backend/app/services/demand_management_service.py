@@ -1,4 +1,5 @@
 """Demand Management Service - Manage resource demand and fulfillment"""
+from app.models.resource_demand import ResourceDemand
 import logging
 from typing import Any, Dict, Optional
 from datetime import datetime, date

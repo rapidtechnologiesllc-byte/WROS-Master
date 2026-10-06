@@ -2,6 +2,7 @@
 Hiring Manager Validation API Endpoints
 HM approval checkpoint before interview scheduling
 """
+from app.models.user import Jobs
 
 from fastapi import APIRouter, HTTPException, Query
 from datetime import datetime, timedelta
@@ -14,7 +15,9 @@ from app.models.candidate import Candidate
 from app.models.demand import Demand
 from app.services.hiring_manager_validation_service import HiringManagerValidationService
 from app.core.database import get_db
-from app.core.dependencies import require_resource_permission
+from app.core.dependencies import get_current_internal_user, require_resource_permission
+from app.models.user import Users
+from sqlalchemy.orm import Session
 from fastapi import Depends
 from app.schemas.hm_validation_schemas import (
     HMValidationListResponse,
@@ -39,7 +42,7 @@ hm_service = HiringManagerValidationService()
 async def create_validation_questions_endpoint(
     job_id: str,
     req: CreateValidationQuestionsRequest,
-    db=None
+    db: Session = Depends(get_db), current_user: Users = Depends(get_current_internal_user)
 ):
     """
     Create validation questions for a job.
@@ -53,12 +56,11 @@ async def create_validation_questions_endpoint(
         Dict with status, job_id, question_count, created_at
     """
     try:
-        db = db or next(get_db())
 
         result = hm_service.create_validation_questions(
             db=db,
             job_id=job_id,
-            tenant_id=1,  # TODO: Get from current user context
+            tenant_id=current_user.tenant_id,
             questions=[q.dict() for q in req.questions],
             timeout_hours=req.timeout_hours,
             auto_schedule=req.auto_schedule_after_approval
@@ -80,7 +82,7 @@ async def create_validation_questions_endpoint(
 )
 async def send_to_hiring_manager(
     req: SendValidationToHMRequest,
-    db=None
+    db: Session = Depends(get_db), current_user: Users = Depends(get_current_internal_user)
 ):
     """
     Send validation form to hiring manager.
@@ -93,14 +95,13 @@ async def send_to_hiring_manager(
         SendValidationToHMResponse with validation_id, sent_to, expires_in_hours
     """
     try:
-        db = db or next(get_db())
 
         result = hm_service.send_to_hm(
             db=db,
             job_id=req.job_id,
             candidate_id=req.candidate_id,
             hiring_manager_id=req.hiring_manager_id,
-            tenant_id=1  # TODO: Get from current user context
+            tenant_id=current_user.tenant_id
         )
 
         return SendValidationToHMResponse(**result)
@@ -120,7 +121,7 @@ async def send_to_hiring_manager(
 async def record_hm_response_endpoint(
     validation_id: str,
     req: HMValidationResponseSubmit,
-    db=None
+    db: Session = Depends(get_db), current_user: Users = Depends(get_current_internal_user)
 ):
     """
     Record hiring manager's validation response.
@@ -134,12 +135,11 @@ async def record_hm_response_endpoint(
         Dict with validation_id, decision status, next_step
     """
     try:
-        db = db or next(get_db())
 
         result = hm_service.record_hm_response(
             db=db,
             validation_id=validation_id,
-            tenant_id=1,  # TODO: Get from current user context
+            tenant_id=current_user.tenant_id,
             responses=req.responses,
             decision_comment=req.decision_comment,
             decision_score=req.decision_score
@@ -164,7 +164,7 @@ async def list_validations(
     hiring_manager_id: Optional[str] = Query(None),
     limit: int = Query(10, ge=1, le=100),
     offset: int = Query(0, ge=0),
-    db=None
+    db: Session = Depends(get_db), current_user: Users = Depends(get_current_internal_user)
 ):
     """
     List pending HM validations for dashboard.
@@ -172,7 +172,6 @@ async def list_validations(
     and hiring manager ID.
     """
     try:
-        db = db or next(get_db())
         query = db.query(HiringManagerValidation)
 
         # Status filter
@@ -208,13 +207,12 @@ async def list_validations(
     response_model=HMValidationDetailResponse,
     dependencies=[Depends(require_resource_permission("jobs", "view"))]
 )
-async def get_validation(validation_id: str, db=None):
+async def get_validation(validation_id: str, db: Session = Depends(get_db), current_user: Users = Depends(get_current_internal_user)):
     """
     Get HM validation with questions and candidate details.
     Used by HM to make decision.
     """
     try:
-        db = db or next(get_db())
         validation = db.query(HiringManagerValidation).filter(
             HiringManagerValidation.id == validation_id
         ).first()
@@ -263,14 +261,13 @@ async def get_validation(validation_id: str, db=None):
 async def submit_validation_response(
     validation_id: str,
     req: HMValidationResponseSubmit,
-    db=None
+    db: Session = Depends(get_db), current_user: Users = Depends(get_current_internal_user)
 ):
     """
     Submit HM validation responses.
     Determines decision (APPROVED/REJECTED/MAYBE) and triggers downstream actions.
     """
     try:
-        db = db or next(get_db())
         validation = db.query(HiringManagerValidation).filter(
             HiringManagerValidation.id == validation_id
         ).first()
@@ -360,13 +357,12 @@ async def submit_validation_response(
     "/{validation_id}/remind",
     dependencies=[Depends(require_resource_permission("jobs", "edit"))]
 )
-async def send_reminder(validation_id: str, db=None):
+async def send_reminder(validation_id: str, db: Session = Depends(get_db), current_user: Users = Depends(get_current_internal_user)):
     """
     Send reminder email to HM for pending validations.
     Extends due date by 24 hours.
     """
     try:
-        db = db or next(get_db())
         validation = db.query(HiringManagerValidation).filter(
             HiringManagerValidation.id == validation_id
         ).first()
@@ -407,12 +403,11 @@ async def send_reminder(validation_id: str, db=None):
     "/{validation_id}/audit-trail",
     dependencies=[Depends(require_resource_permission("jobs", "view"))]
 )
-async def get_audit_trail(validation_id: str, db=None):
+async def get_audit_trail(validation_id: str, db: Session = Depends(get_db), current_user: Users = Depends(get_current_internal_user)):
     """
     Get full audit trail of HM validation (all Q&A responses with timestamps).
     """
     try:
-        db = db or next(get_db())
         responses = db.query(HMValidationResponse).filter(
             HMValidationResponse.validation_id == validation_id
         ).order_by(HMValidationResponse.response_at).all()
@@ -435,19 +430,18 @@ async def get_audit_trail(validation_id: str, db=None):
 async def create_validation_template(
     job_id: str,
     template_req: "CreateValidationQuestionsRequest",
-    db=None
+    db: Session = Depends(get_db), current_user: Users = Depends(get_current_internal_user)
 ):
     """
     Create HM validation question template for a job.
     """
     try:
-        db = db or next(get_db())
 
         # Convert request to dict for service
         result = hm_service.create_validation_questions(
             db=db,
             job_id=job_id,
-            tenant_id=1,  # TODO: Get from current user context
+            tenant_id=current_user.tenant_id,
             questions=[q.dict() for q in template_req.questions],
             timeout_hours=template_req.timeout_hours,
             auto_schedule=template_req.auto_schedule_after_approval
@@ -469,12 +463,11 @@ async def create_validation_template(
     response_model=dict,
     dependencies=[Depends(require_resource_permission("jobs", "view"))]
 )
-async def get_validation_template(job_id: str, db=None):
+async def get_validation_template(job_id: str, db: Session = Depends(get_db), current_user: Users = Depends(get_current_internal_user)):
     """
     Get HM validation question template for a job.
     """
     try:
-        db = db or next(get_db())
         from app.models import Demand
 
         job = db.query(Demand).filter(Demand.id == job_id).first()

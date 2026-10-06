@@ -1,5 +1,4 @@
 """
-import logging
 Onboarding Orchestrator - Coordinates complete hiring pipeline workflows.
 
 This module orchestrates multi-step processes across all microservices:
@@ -15,6 +14,7 @@ Orchestration pattern:
 3. Trigger workflows via queue messages
 4. Return aggregated results to clients
 """
+from app.models.user import Jobs
 
 from datetime import datetime
 from typing import Optional

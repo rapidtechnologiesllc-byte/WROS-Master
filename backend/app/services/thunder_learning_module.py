@@ -324,7 +324,7 @@ class ThunderLearningModule:
                 "optimal_day": optimal_day,
                 "optimal_day_name": day_names[optimal_day],
                 "confidence": min(len(metrics) / 50.0, 1.0),
-                "recommendation": f"Best time to reach candidates: {optimal_day_name} at {optimal_hour}:00-{optimal_hour+1}:00 UTC",
+                "recommendation": f"Best time to reach candidates: {day_names[optimal_day]} at {optimal_hour}:00-{optimal_hour+1}:00 UTC",
                 "metrics_used": len(metrics),
             }
 

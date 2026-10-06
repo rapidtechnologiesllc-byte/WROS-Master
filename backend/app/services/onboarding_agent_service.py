@@ -1,5 +1,4 @@
 """
-import logging
 S-067/HRMS-0467 -- Onboarding Agent.
 
 Real architecture adaptation: built standalone (per Avinash's explicit
@@ -27,6 +26,7 @@ scheduled only at completion-detection time, not upfront, and why its
 presence is this module's own idempotency guard for BR-03 (never
 notifies HR / emits onboarding.complete twice).
 """
+from datetime import datetime, timedelta
 from datetime import time as dt_time
 from typing import Dict, List, Optional
 

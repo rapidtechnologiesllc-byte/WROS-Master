@@ -1,6 +1,6 @@
 import logging
 from app.core.logging import logger
-﻿"""Candidate Isolation Service - Enforces BU-based candidate visibility and locking.
+"""Candidate Isolation Service - Enforces BU-based candidate visibility and locking.
 
 ZERO-HARDCODING: All visibility rules determined by database-driven role_templates
 and BU assignments. No hardcoded visibility rules.

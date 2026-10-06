@@ -5,6 +5,7 @@ Spartan Pattern: This service reports health metrics to Flash (Alpha Wolf).
 - Cascade detection: If match quality < 60%, escalate to Flash immediately
 - Formation role: Position 3 (Interview/Offer) - depends on Thunder candidate quality + Flash job clarity
 """
+from datetime import date
 import logging
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Tuple

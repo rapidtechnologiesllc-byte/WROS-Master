@@ -31,6 +31,9 @@ Routes:
   GET    /invoices                  List (optional project_id/client_id/status filter).
   GET    /invoices/{id}             One invoice with line items.
 """
+import logging
+from datetime import datetime
+logger = logging.getLogger(__name__)
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException

@@ -10,8 +10,32 @@ from app.models.role_template import Module, Resource, RoleTemplate, RoleTemplat
 from app.models.business_unit import BusinessUnit
 from pydantic import BaseModel
 from typing import List, Optional
+import json
+
+from app.core.audit import write_audit_log
+from app.models.audit_log import AuditLog
 
 router = APIRouter(prefix="/admin/role-templates", tags=["Role Templates"])
+
+
+def _audit_rows(db: Session, tenant_id, *, entity_type=None, entity_id=None, action=None, limit=100):
+    """Audit-log rows for the tenant, newest first, as plain dicts."""
+    query = db.query(AuditLog).filter(AuditLog.tenant_id == tenant_id)
+    if entity_type:
+        query = query.filter(AuditLog.entity_type == entity_type)
+    if entity_id:
+        query = query.filter(AuditLog.entity_id == entity_id)
+    if action:
+        query = query.filter(AuditLog.action == action)
+    return [
+        {
+            "id": row.id, "entity_type": row.entity_type, "entity_id": row.entity_id,
+            "action": row.action, "user_id": row.user_id, "old_value": row.old_value,
+            "new_value": row.new_value, "ip_address": row.ip_address,
+            "timestamp": row.timestamp.isoformat() if row.timestamp else None,
+        }
+        for row in query.order_by(AuditLog.timestamp.desc()).limit(limit).all()
+    ]
 rbac_router = APIRouter(prefix="/rbac", tags=["RBAC"])
 
 logger = logging.getLogger(__name__)
@@ -191,24 +215,19 @@ def create_role_template(
         )
         db.add(perm)
 
-    db.commit()
-    db.refresh(template)
-
-    # Audit log
-    RBACauditService.log_role_template_created(
-        db=db,
-        template_id=template.id,
-        template_name=template.name,
-        template_data={
+    write_audit_log(
+        db, entity_type="role_template", entity_id=str(template.id), action="create",
+        tenant_id=current_user.tenant_id, user_id=current_user.UserID,
+        new_value=json.dumps({
             "name": template.name,
             "display_name": template.display_name,
             "description": template.description,
-            "permissions_count": len(data.permissions)
-        },
-        user_id=current_user.UserID,
-        tenant_id=current_user.tenant_id,
-        ip_address=request.client.host if request.client else None
+            "permissions_count": len(data.permissions),
+        }),
+        ip_address=request.client.host if request.client else None,
     )
+    db.commit()
+    db.refresh(template)
 
     return {
         "id": template.id,
@@ -656,11 +675,8 @@ def get_template_audit_trail(
     if not template:
         raise HTTPException(status_code=404, detail="Role template not found")
 
-    audit_logs = RBACauditService.get_audit_trail_for_template(
-        db=db,
-        template_id=template_id,
-        tenant_id=current_user.tenant_id
-    )
+    audit_logs = _audit_rows(db, current_user.tenant_id, entity_type="role_template",
+                             entity_id=str(template_id), limit=500)
 
     return {
         "template_id": template_id,
@@ -707,7 +723,7 @@ def get_users_for_role_template(
                 "name": u.UserName,
                 "role": template.name,
                 "business_unit": u.business_unit_name if hasattr(u, 'business_unit_name') else None,
-                "active": u.is_active
+                "active": u.is_active()
             }
             for u in users
         ]
@@ -725,13 +741,8 @@ def get_rbac_audit_logs(
     current_user: Users = Depends(get_current_internal_user)
 ):
     """Get RBAC audit logs for the current tenant."""
-    logs = RBACauditService.get_audit_logs(
-        db=db,
-        entity_type=entity_type,
-        action=action,
-        tenant_id=current_user.tenant_id,
-        limit=min(limit, 500)
-    )
+    logs = _audit_rows(db, current_user.tenant_id, entity_type=entity_type, action=action,
+                       limit=min(limit, 500))
 
     return {
         "total": len(logs),

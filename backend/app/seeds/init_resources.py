@@ -1,5 +1,4 @@
 """
-import logging
 Initialize all Modules, Resources, and grant Super User role full permissions.
 
 STRICT CONTRACT ENFORCEMENT: This file imports module/resource definitions from api_contract.py
@@ -12,6 +11,8 @@ This script creates:
 
 Run with: python -m app.seeds.init_resources
 """
+import logging
+logger = logging.getLogger(__name__)
 
 from sqlalchemy.orm import Session
 from app.core.database import SessionLocal

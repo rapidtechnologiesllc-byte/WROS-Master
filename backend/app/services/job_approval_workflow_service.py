@@ -1,70 +1,71 @@
 """
 Job Approval Workflow Service
 ==============================
-import logging
 Handles job approval routing and recruiter assignment after approval.
 
-Approval Hierarchy:
-- CEO/SuperUser creates job â†’ No approval needed (auto-active)
-- BU Head creates job â†’ Routing Manager approval required
-- Others create job â†’ BU Head approval required
+Approval routing (data-driven, no role names):
+- Super users need no approval.
+- Otherwise the job's BU manager (BusinessUnit.manager_id) approves, unless
+  they created the job themselves.
+- Fallback: any super user in the tenant.
+
+The approval flow itself is currently disabled in create_job (every job is
+published immediately); POST /approve_job still uses handle_job_approval().
 """
 
-from datetime import datetime
+import logging
+import os
 from typing import Optional, Tuple
+
 from sqlalchemy.orm import Session
 
-from app.core.logging import logger
-from app.models.user import Jobs, Users
 from app.models.business_unit import BusinessUnit
+from app.models.user import Jobs, Users
 from app.services.recruiter_assignment_service import assign_to_recruiter_roundrobin
-from app.services.email_service import EmailService
+from app.services.role_template_permission_service import RoleTemplatePermissionService
 
-def get_approval_routing(db: Session, job: Jobs, creator: Users) -> Tuple[Optional[Users], str]:
-    """
-    Determine who should approve this job based on creator permissions and hierarchy.
+logger = logging.getLogger(__name__)
 
-    Zero-hardcoding: Uses permission checks instead of hardcoded role names.
 
-    Returns: (approver_user, routing_reason)
-    """
-    # CEO/SuperUser - no approval needed
-    # Check via admin.manage permission, not hardcoded role name
-    # BU Head creates job - route to their reporting manager
-    # Check via 'business_unit.manage' permission (BU Head level)
-            # Find manager with admin or finance permissions
-for mgr in managers:
-                pass
-        # Fallback: route to Admin user
-        admins = db.query(Users).all()
-        for admin in admins:
-            pass
-    # All others - route to their BU Head
-    if job.business_unit_id:
-        bu_users = db.query(Users).filter(
-            Users.business_unit_id == job.business_unit_id
-        ).all()
+def _first_super_user(db: Session, tenant_id: int, exclude_user_id: Optional[str] = None) -> Optional[Users]:
+    users = db.query(Users).filter(Users.tenant_id == tenant_id, Users.terminated_at.is_(None)).all()
+    for user in users:
+        if user.UserID != exclude_user_id and RoleTemplatePermissionService.is_super_user(db, user.UserID, tenant_id):
+            return user
+    return None
 
-        # Find BU Head (user with business_unit.manage permission in this BU)
-        for user in bu_users:
-            pass
-    # Fallback: Admin user
-    all_users = db.query(Users).all()
-    for admin in all_users:
-        pass
+
+def get_approval_routing(db: Session, job: Jobs, creator: Optional[Users]) -> Tuple[Optional[Users], str]:
+    """Return (approver_user, routing_reason); approver None means no approval needed or none found."""
+    tenant_id = (creator.tenant_id if creator else None) or 1
+    creator_id = creator.UserID if creator else None
+
+    if creator and RoleTemplatePermissionService.is_super_user(db, creator.UserID, tenant_id):
+        return None, "Creator is a super user - no approval needed"
+
+    bu_id = job.business_unit_id or (creator.business_unit_id if creator else None)
+    if bu_id:
+        bu = db.query(BusinessUnit).filter(BusinessUnit.id == bu_id).first()
+        if bu and bu.manager_id and bu.manager_id != creator_id:
+            manager = db.query(Users).filter(Users.UserID == bu.manager_id, Users.terminated_at.is_(None)).first()
+            if manager:
+                return manager, f"Route to BU manager {manager.UserName or manager.UserEmail}"
+
+    admin = _first_super_user(db, tenant_id, exclude_user_id=creator_id)
+    if admin:
+        return admin, "Route to super user (no BU manager available)"
     return None, "No approver found"
 
+
 def send_approval_notification_email(db: Session, job: Jobs, approver: Users, reason: str) -> bool:
-    """Send email to approver notifying them of job pending approval."""
-    try:
-        email_service = EmailService()
+    """Email the approver that a job is pending approval. Returns whether it was sent."""
+    from app.services.email_service import EmailService
 
-        subject = f"Job Approval Required: {job.jobTitle}"
-        body = f"""
+    portal_url = os.getenv("PORTAL_URL", "").rstrip("/")
+    link = f'<p><a href="{portal_url}/jobs/{job.jobID}">Open the job to approve or reject it</a></p>' if portal_url else ""
+    body = f"""
 <h2>Job Approval Required</h2>
-
 <p>A new job posting requires your approval:</p>
-
 <table>
   <tr><td><b>Job Title:</b></td><td>{job.jobTitle}</td></tr>
   <tr><td><b>Job ID:</b></td><td>{job.jobID}</td></tr>
@@ -72,91 +73,56 @@ def send_approval_notification_email(db: Session, job: Jobs, approver: Users, re
   <tr><td><b>Positions:</b></td><td>{job.noOfPositions}</td></tr>
   <tr><td><b>Reason:</b></td><td>{reason}</td></tr>
 </table>
-
-<p><a href="[WROS_URL]/jobs/{job.jobID}">Click here to approve or reject this job</a></p>
-
-<p>Best regards,<br/>WROS System</p>
+{link}
+<p>Best regards,<br/>WROS</p>
 """
-
-        email_service.send_email(
+    try:
+        EmailService.send_email(
             to_email=approver.UserEmail,
-            subject=subject,
-            body=body,
-            is_html=True
+            subject=f"Job Approval Required: {job.jobTitle}",
+            body_content=body,
+            is_html=True,
         )
-
-        logger.info(f"[JobApproval] Sent approval notification to {approver.UserEmail} for job {job.jobID}")
-        return True
-
     except Exception as e:
-        logger.error(f"Error: {str(e)}", exc_info=True)
-        logger.error(f"[JobApproval] Failed to send approval email: {e}")
+        logger.error(f"[JobApproval] Failed to send approval email for job {job.jobID}: {e}", exc_info=True)
         return False
+    logger.info(f"[JobApproval] Sent approval notification to {approver.UserEmail} for job {job.jobID}")
+    return True
+
 
 def assign_recruiter_on_approval(db: Session, job: Jobs) -> Optional[Users]:
-    """Assign recruiter to job on approval using round-robin."""
-    try:
-        recruiter = assign_to_recruiter_roundrobin(db)
+    """Assign the least-loaded recruiter to the job (keeps an existing assignment)."""
+    if job.recuriterID:
+        return db.query(Users).filter(Users.UserID == job.recuriterID).first()
 
-        if recruiter:
-            job.recuriterID = recruiter.UserID
-            db.commit()
-            logger.info(f"[JobApproval] Assigned recruiter {recruiter.UserName} to job {job.jobID}")
-            return recruiter
-        else:
-            logger.warning(f"[JobApproval] No available recruiters to assign to job {job.jobID}")
-            return None
+    recruiter = assign_to_recruiter_roundrobin(db)
+    if not recruiter:
+        logger.warning(f"[JobApproval] No available recruiters to assign to job {job.jobID}")
+        return None
+    job.recuriterID = recruiter.UserID
+    db.commit()
+    logger.info(f"[JobApproval] Assigned recruiter {recruiter.UserName} to job {job.jobID}")
+    return recruiter
 
-    except Exception as e:
-        logger.error(f"Error: {str(e)}", exc_info=True)
-        logger.error(f"[JobApproval] Failed to assign recruiter: {e}")
-        db.rollback()
-        raise ValueError("Operation failed")
-
-def parse_skills_from_job_description(job_description: str) -> str:
-    """
-    Extract skills from job description and format as: Skill:Years:Mandatory
-
-    Example: "We're looking for a senior Java developer with 5 years experience
-    in Spring Boot. Knowledge of Docker and AWS is nice to have."
-
-    Returns: "Java:5:yes, Spring Boot:5:yes, Docker:2:no, AWS:2:no"
-
-    Note: This is a simplified version. In production, use LLM-based extraction.
-    """
-    # For now, return empty string - LLM-based extraction would go here
-    # This would call Claude or another LLM to intelligently extract skills
-    # with years and mandatory/optional flags
-    return ""
 
 def handle_job_creation_approval_flow(
     db: Session,
     job: Jobs,
-    creator: Users,
+    creator: Optional[Users],
     send_emails: bool = True
 ) -> dict:
-    """
-    Complete job creation approval flow:
-    1. Determine who should approve
-    2. Send notification email
-    3. Return approval details
-    """
-    # Get approval routing
+    """Route a new job for approval and notify the approver."""
     approver, routing_reason = get_approval_routing(db, job, creator)
-
-    # Send email if approver exists
-    email_sent = False
-    if approver and send_emails:
-        email_sent = send_approval_notification_email(db, job, approver, routing_reason)
-
+    email_sent = bool(approver and send_emails and send_approval_notification_email(db, job, approver, routing_reason))
     return {
         "job_id": job.jobID,
         "status": "pending_approval",
         "approver_id": approver.UserID if approver else None,
-        "approver_name": approver.UserName if approver else "Not found",
+        "approver_name": (approver.UserName or approver.UserEmail) if approver else None,
         "routing_reason": routing_reason,
-        "email_sent": email_sent
+        "email_sent": email_sent,
     }
+
 
 def handle_job_approval(
     db: Session,
@@ -164,32 +130,18 @@ def handle_job_approval(
     approver: Users,
     send_emails: bool = True
 ) -> dict:
-    """
-    Complete job approval flow:
-    1. Change status to active
-    2. Assign recruiter
-    3. Send notifications
-    """
+    """After a job is approved: assign a recruiter."""
     try:
-        # Assign recruiter
         recruiter = assign_recruiter_on_approval(db, job)
-
-        # In real implementation, would send emails to:
-        # - Hiring Manager (job approved)
-        # - Assigned Recruiter (new job assigned)
-
-        logger.info(f"[JobApproval] Job {job.jobID} approved. Assigned recruiter: {recruiter.UserName if recruiter else 'None'}")
-
-        return {
-            "job_id": job.jobID,
-            "status": "active",
-            "approved_by": approver.UserName,
-            "recruiter_id": recruiter.UserID if recruiter else None,
-            "recruiter_name": recruiter.UserName if recruiter else None
-        }
-
     except Exception as e:
-        logger.error(f"Error: {str(e)}", exc_info=True)
-        logger.error(f"[JobApproval] Error in job approval flow: {e}")
+        logger.error(f"[JobApproval] Recruiter assignment failed for job {job.jobID}: {e}", exc_info=True)
         db.rollback()
         raise
+
+    return {
+        "job_id": job.jobID,
+        "status": "active",
+        "approved_by": approver.UserName or approver.UserEmail,
+        "recruiter_id": recruiter.UserID if recruiter else None,
+        "recruiter_name": (recruiter.UserName or recruiter.UserEmail) if recruiter else None,
+    }

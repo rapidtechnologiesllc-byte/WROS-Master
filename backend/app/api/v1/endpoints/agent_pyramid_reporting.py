@@ -1,5 +1,4 @@
 """
-import logging
 Agent Pyramid Reporting Endpoints - 6-Level Hierarchical Accountability with Flash Coaching
 
 CRITICAL FLOW:
@@ -20,6 +19,7 @@ Weekly reporting cascade (FRIDAY):
 
 Notification: Thursday 3PM - Remind all parties of Friday deadlines
 """
+from app.models.strategic_goal import PyramidReport
 
 import logging
 from fastapi import APIRouter, Depends, HTTPException
@@ -334,9 +334,6 @@ async def get_ceo_dashboard(
 
     # Enrich with Flash's validation metadata
     ceo_dashboard["validation_status"] = "all_reports_pre_screened"
-    ceo_dashboard["flash_recommendation"] = FlashOrchestrator.get_ceo_recommendations(
-        db, current_user.tenant_id
-    )
     ceo_dashboard["decision_framework"] = {
         "critical_decisions": [
             item for item in ceo_dashboard.get("action_items", [])

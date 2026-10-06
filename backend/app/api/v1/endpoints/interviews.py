@@ -1,3 +1,4 @@
+from app.core.database import SessionLocal
 from datetime import datetime, timedelta, timezone
 import logging
 from typing import Optional, List

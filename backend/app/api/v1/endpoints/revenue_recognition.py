@@ -1,5 +1,4 @@
 """
-import logging
 REST API Endpoints for Revenue Recognition (HRMS-0316)
 
 Implements complete revenue recognition workflow:
@@ -16,6 +15,8 @@ Implements complete revenue recognition workflow:
 - GET /revenue/negative-margins - Loss-making projects
 - GET /revenue/pnl-summary - Profit & loss summary
 """
+import logging
+logger = logging.getLogger(__name__)
 
 from datetime import date, datetime
 from typing import Optional

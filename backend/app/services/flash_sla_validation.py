@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import and_
 
 from app.models.candidate_ai import ConversationEvent
-from app.models.agent_logging import AgentExecutionLog
+from app.models.agent_execution_log import AgentExecutionLog
 from app.core.logging import logger
 
 SLA_TARGET_SECONDS = 5.0

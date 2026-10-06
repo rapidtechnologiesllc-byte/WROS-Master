@@ -258,6 +258,8 @@ def authenticate_candidate(db: Session, email: str, password: str):
     Returns:
         Candidate object if authentication successful, False otherwise
     """
+    from app.core.security import verify_password
+
     candidate = get_candidate(db, email)
     if not candidate:
         return False
@@ -277,5 +279,6 @@ def get_candidate_details_by_id(db: Session, candidate_id: str):
         Candidate object if found, None otherwise
     """
     # Import here to avoid circular import
+    from app.models.candidate import Candidate
     return db.query(Candidate).filter(Candidate.candidateID == candidate_id).first()
     

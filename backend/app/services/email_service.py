@@ -509,8 +509,7 @@ class EmailService:
                     is_html=True,
                 )
             except Exception as exc:
-                logger.error(f"Error: {str(exc)}", exc_info=True)
-            logger.warning(f"[EmailService] HR notification to {hr_email} failed: {exc}")
+                logger.error(f"[EmailService] HR notification to {hr_email} failed: {exc}", exc_info=True)
 
     @classmethod
     def send_interview_invite(

@@ -1,5 +1,4 @@
 """
-import logging
 S-434 -- Org-wide Task Dashboard, core service.
 
 Real product decisions from Avinash, captured 2026-08-04 session:
@@ -21,6 +20,7 @@ Real product decisions from Avinash, captured 2026-08-04 session:
     2. Ordering within that list: Priority, highest first.
   get_daily_task_list() implements exactly this.
 """
+import logging
 from datetime import datetime, timedelta
 from typing import List, Optional
 

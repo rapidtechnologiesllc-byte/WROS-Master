@@ -184,18 +184,19 @@ async def convert_linkedin_to_candidate_auto(
 
         metadata = {
             'status': 'SUCCESS',
-            'candidate_id': candidate.candidateID,
+            'candidate_id': None,  # created asynchronously by the queue handler
+            'queue_message_id': message_id,
             'email': email,
             'phone': phone,
             'path': 'fast',
-            'message': 'Candidate auto-created and queued to Thunder',
+            'message': 'Candidate creation queued; Thunder engages once it is created',
             'slm_trace_id': trace_id,
         }
 
         logger.info(
-            f"[LinkedIn Fast Path] {trace_id}: Complete - {candidate.candidateID} → Thunder"
+            f"[LinkedIn Fast Path] {trace_id}: Complete - creation queued as {message_id}"
         )
-        return candidate, metadata
+        return None, metadata
 
     except LinkedInConversionError:
         raise
@@ -447,7 +448,7 @@ async def import_pipeline_candidate_to_thunder(
         # Step 9: Queue to Thunder
         _queue_to_thunder(
             db,
-            candidate_id=candidate.candidateID,
+            candidate_id=None,  # Will be populated by handler after candidate creation
             email=final_email,
             phone=final_phone,
             import_path="slow",
@@ -458,19 +459,19 @@ async def import_pipeline_candidate_to_thunder(
 
         metadata = {
             'status': 'SUCCESS',
-            'candidate_id': candidate.candidateID,
+            'candidate_id': None,  # created asynchronously by the queue handler
+            'queue_message_id': message_id,
             'email': final_email,
             'phone': final_phone,
             'path': 'slow',
-            'message': 'Candidate imported from recruiter review and queued to Thunder',
+            'message': 'Candidate creation queued from recruiter review; Thunder engages once it is created',
             'slm_trace_id': trace_id,
         }
 
         logger.info(
-            f"[LinkedIn Import] {trace_id}: Complete - "
-            f"{candidate.candidateID} → Thunder"
+            f"[LinkedIn Import] {trace_id}: Complete - creation queued as {message_id}"
         )
-        return candidate, metadata
+        return None, metadata
 
     except LinkedInConversionError:
         db.rollback()

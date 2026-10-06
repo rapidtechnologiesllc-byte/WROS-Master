@@ -1,5 +1,4 @@
 """
-import logging
 HR Agent Service - Complete Implementation
 
 Centralized HR operations and employee tracking. Manages:
@@ -14,6 +13,7 @@ Centralized HR operations and employee tracking. Manages:
 The HR Agent runs daily to track employee health metrics
 and escalate issues requiring HR attention.
 """
+from app.models.employee_allocation import EmployeeAllocation
 
 from typing import Dict, Any, List, Optional
 from datetime import datetime, timedelta

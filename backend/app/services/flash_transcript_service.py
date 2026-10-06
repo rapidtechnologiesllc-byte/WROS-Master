@@ -27,7 +27,7 @@ logger = logging.getLogger(__name__)
 class FlashTranscriptService:
     """Reads and analyzes interview transcripts using Claude LLM."""
 
-    CLAUDE_MODEL = "claude-3-5-sonnet-20241022"
+    CLAUDE_MODEL = "claude-sonnet-5-5"
 
     @staticmethod
     def get_transcript_from_office365(interview_id: str, meeting_id: str) -> Optional[str]:
@@ -163,7 +163,7 @@ Respond ONLY with valid JSON (no markdown, no extra text):
 }}"""
 
             response = client.messages.create(
-                model=self.CLAUDE_MODEL,
+                model=FlashTranscriptService.CLAUDE_MODEL,
                 max_tokens=1024,
                 messages=[
                     {"role": "user", "content": prompt}

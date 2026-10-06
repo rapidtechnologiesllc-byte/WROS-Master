@@ -1,5 +1,4 @@
 """
-import logging
 S-065/HRMS-0465 -- Thunder Daily Digest / Morning Report.
 
 Real architecture adaptations:
@@ -39,6 +38,7 @@ Real architecture adaptations:
   constant `candidate_portal_service.py` already uses), pointing at
   `/candidates/{id}?tab=messages`.
 """
+from zoneinfo import ZoneInfo
 from datetime import date, datetime, time, timedelta
 from typing import Dict, List, Optional
 

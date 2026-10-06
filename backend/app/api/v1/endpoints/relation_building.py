@@ -1,9 +1,10 @@
 """
-import logging
 Relation Building Agent API Endpoints
 
 Exposes relation building persona extraction for downstream systems.
 """
+from app.services.candidate_memory_service import get_memory
+from app.services.ai_conversation_service import resolve_default_tenant_id
 
 from typing import Optional, Dict, Any, List
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -450,7 +451,7 @@ async def get_personalization_strategy(
     try:
         from app.services.candidate_memory_service import get_memory
 
-        memory = get_memory(db, candidate_id, current_user.UserID)
+        memory = get_memory(db, candidate_id, resolve_default_tenant_id())
 
         if not memory.get("facts"):
             return {
@@ -498,7 +499,7 @@ async def customize_offer(
     """
     try:
 
-        memory = get_memory(db, candidate_id, current_user.UserID)
+        memory = get_memory(db, candidate_id, resolve_default_tenant_id())
 
         if not memory.get("facts"):
             return {

@@ -15,6 +15,7 @@ Advisory-only throughout, per the redesigned CEO-agent decision
 - Feedback cycle summarization surfaces flagged responses for Avinash
   to act on (via a real Task), it doesn't act on any of them itself.
 """
+from app.services.task_service import create_task
 import re
 from datetime import date, datetime
 from typing import Dict, List, Optional

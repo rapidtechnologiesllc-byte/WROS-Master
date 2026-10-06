@@ -61,6 +61,7 @@ Routes:
   GET    /ai-agent/candidates/{candidate_id}/thunder-explanation-log
       Full, immutable history of every explained Thunder decision (S-064).
 """
+from datetime import datetime as _datetime
 
 from typing import List, Optional
 import logging

@@ -1,60 +1,46 @@
 """
 Recruiter Assignment Service - Round-robin assignment of jobs to recruiters
 """
-from sqlalchemy.orm import Session
-from app.models.user import Users
-from app.models.job import Job
 import logging
-from app.core.logging import logger
+from typing import Optional
 
-def assign_to_recruiter_roundrobin(db: Session) -> Users:
-    """
-    Assign a job to the next available recruiter using round-robin.
-    Returns the recruiter user or None if no recruiters available.
-    """
-    try:
-        # Get all active recruiters (HR Manager role)
-        recruiters = db.query(Users).filter(
-            Users.UserRole.in_(["HR Manager", "Recruiter"]),
-            Users.is_active == True
-        ).all()
+from sqlalchemy import func
+from sqlalchemy.orm import Session
 
-        if not recruiters:
-            logger.warning("[Recruiter Assignment] No active recruiters found")
-            return None
+from app.models.user import Jobs, Users
 
-        # Get the recruiter with the least recent assignment
-        # This implements simple round-robin by picking the one with oldest last_assignment_date
-        from sqlalchemy import func
+logger = logging.getLogger(__name__)
 
-        recruiter_loads = db.query(
-            Users.UserID,
-            func.count(Job.job_id).label("job_count")
-        ).outerjoin(
-            Job, Users.UserID == Job.assigned_recruiter_id
-        ).filter(
-            Users.UserRole.in_(["HR Manager", "Recruiter"]),
-            Users.is_active == True
-        ).group_by(Users.UserID).all()
+CLOSED_JOB_STATUSES = ("closed", "filled", "cancelled", "inactive", "deleted")
 
-        if not recruiter_loads:
-            # Fallback to first recruiter
-            return recruiters[0]
 
-        # Find recruiter with minimum jobs assigned
-        min_load_recruiter_id = min(recruiter_loads, key=lambda x: x.job_count)[0]
-        recruiter = db.query(Users).filter(Users.UserID == min_load_recruiter_id).first()
+def _recruiter_filter():
+    """Recruiters: active users whose role is a recruiter or HR manager."""
+    role = func.lower(Users.UserRole)
+    return (Users.terminated_at.is_(None)) & (role.like("%recruit%") | (role == "hr manager"))
 
-        if recruiter:
-            logger.info(f"[Recruiter Assignment] Assigned to recruiter: {recruiter.UserName}")
-            return recruiter
 
-        return recruiters[0]
-
-    except Exception as e:
-        logger.error(f"Error: {str(e)}", exc_info=True)
-        logger.error(f"[Recruiter Assignment] Error during round-robin assignment: {e}")
-        raise ValueError("Operation failed")
+def assign_to_recruiter_roundrobin(db: Session) -> Optional[Users]:
+    """Return the recruiter with the fewest open jobs (None if there are no recruiters)."""
+    open_jobs = (
+        db.query(Jobs.recuriterID.label("recruiter_id"), func.count(Jobs.jobID).label("job_count"))
+        .filter(func.lower(func.coalesce(Jobs.jobStatus, "")).notin_(CLOSED_JOB_STATUSES))
+        .group_by(Jobs.recuriterID)
+        .subquery()
+    )
+    row = (
+        db.query(Users, func.coalesce(open_jobs.c.job_count, 0).label("load"))
+        .outerjoin(open_jobs, open_jobs.c.recruiter_id == Users.UserID)
+        .filter(_recruiter_filter())
+        .order_by("load", Users.CreatedAt)
+        .first()
+    )
+    if row is None:
+        logger.warning("[Recruiter Assignment] No active recruiters found")
+        return None
+    recruiter, load = row
+    logger.info(f"[Recruiter Assignment] Picked {recruiter.UserName or recruiter.UserEmail} ({load} open jobs)")
+    return recruiter
 
 
 class RecruiterAssignmentServiceForCandidates:

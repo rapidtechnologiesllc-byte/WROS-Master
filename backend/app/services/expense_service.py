@@ -16,6 +16,7 @@ PRIORITY-3 (2026-08-12): Expense Approval Chain
 - Manager approval step before Finance review
 - Flow: Employee logs (receipt required) â†’ Manager approves (via Task) â†’ Finance reviews â†’ marks paid
 """
+from app.services.task_service import create_task
 from datetime import date, datetime
 from typing import List, Optional
 

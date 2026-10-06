@@ -16,6 +16,8 @@ Routes:
   GET    /invoices/{id}              Get invoice details with line items
   GET    /invoices                   List invoices (filter by status, client)
 """
+import logging
+logger = logging.getLogger(__name__)
 
 from datetime import date, datetime
 from typing import Optional

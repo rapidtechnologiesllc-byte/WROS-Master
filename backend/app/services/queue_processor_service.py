@@ -13,6 +13,7 @@ Architecture: Works WITH SLMService to create feedback loop
 - Message queued → Processed by handler → SLM analyzes outcome → SLM trained
 """
 import json
+import uuid
 import logging
 import time
 import random
@@ -751,7 +752,7 @@ class QueueProcessorService:
                             logger.warning(f"[QueueProcessor] ⚠️ RETRYABLE validation error, scheduling retry: {rt_err}")
                             db.rollback()
 
-                            if should_retry:
+                            if EmailRetryStrategy.should_retry(message.type, message.retry_count):
                                 message.retry_count += 1
                                 message.error = f"Validation retry: {str(rt_err)[:500]}"
                                 message.next_retry_at = datetime.utcnow() + timedelta(seconds=60)
@@ -778,7 +779,7 @@ class QueueProcessorService:
                 except Exception as validation_err:
                     logger.error(f"[QueueProcessor] Unexpected error calling on_success(): {validation_err}", exc_info=True)
                     # Treat as retryable if possible
-                    if should_retry:
+                    if EmailRetryStrategy.should_retry(message.type, message.retry_count):
                         message.retry_count += 1
                         message.error = f"Handler validation error: {str(validation_err)[:500]}"
                         message.next_retry_at = datetime.utcnow() + timedelta(seconds=60)
@@ -865,7 +866,7 @@ class QueueProcessorService:
                     retry_delay_seconds = EmailRetryStrategy.calculate_next_retry_delay(
                         handler_name=message.type,
                         retry_count=message.retry_count,
-                        # TODO: Extract Retry-After header from handler response if available
+                        retry_after_seconds=getattr(handler_err, "retry_after", None),  # set by handlers that hit rate limits
                     )
 
                     if retry_delay_seconds is not None:

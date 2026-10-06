@@ -45,7 +45,7 @@ class LinkedInConvertAutoRequest(BaseModel):
 class LinkedInConvertAutoResponse(BaseModel):
     """Response from fast path conversion"""
     status: str = Field("SUCCESS", description="Status: SUCCESS, SKIPPED_GATE, or error")
-    candidate_id: str = Field(..., description="UUID of created candidate")
+    candidate_id: Optional[str] = Field(None, description="Candidate id when it already existed; None while creation is queued")
     email: Optional[str] = Field(None, description="Email address")
     phone: Optional[str] = Field(None, description="Phone number")
     path: str = Field("fast", description="Import path")
@@ -78,7 +78,7 @@ class LinkedInImportRequest(BaseModel):
 class LinkedInImportResponse(BaseModel):
     """Response from pipeline import"""
     status: str = Field("SUCCESS", description="Import status")
-    candidate_id: str = Field(..., description="UUID of created candidate")
+    candidate_id: Optional[str] = Field(None, description="Candidate id when it already existed; None while creation is queued")
     email: Optional[str] = Field(None, description="Email address")
     phone: Optional[str] = Field(None, description="Phone number")
     path: str = Field("slow", description="Import path")

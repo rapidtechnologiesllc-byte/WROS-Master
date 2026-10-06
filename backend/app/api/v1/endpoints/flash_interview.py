@@ -66,14 +66,11 @@ def get_flash_panel_comparison(
 
     Permissions: candidate.view
     """
-    try:
-        comparison = compare_panel_vs_flash(db, interview_id)
-        if "error" in comparison:
-            raise HTTPException(status_code=404, detail=comparison["error"])
-        return {"status": "success", "data": comparison}
-    except Exception as e:
-        logger.error(f"Error: {str(e)}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+    # No panel-vs-Flash comparison logic exists yet; say so explicitly.
+    raise HTTPException(
+        status_code=501,
+        detail="Panel vs Flash comparison is not implemented; use GET /{interview_id}/analysis for Flash's analysis.",
+    )
 
 @router.post("/{interview_id}/coaching-email", response_model=dict, dependencies=[Depends(require_resource_permission("candidates", "edit"))])
 def send_coaching_email_to_panel_member(

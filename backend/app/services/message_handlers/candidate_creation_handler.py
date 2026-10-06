@@ -5,6 +5,8 @@ Implements idempotent candidate creation through message queue.
 - Logs all events via history API
 - 5 retry attempts with 30-minute intervals
 """
+from app.services.slm_service import SLMService
+from app.services.candidate_service import create_candidate as create_candidate_safe
 import logging
 from datetime import datetime, timedelta
 from typing import Any, Dict
@@ -130,7 +132,7 @@ class CandidateCreationHandler:
                 last_name = candidate.candidateLastName or "Candidate"
                 record_message_signal(
                     db, tenant_id, candidate_id, "CANDIDATE_CREATED",
-                    f"Candidate {first_name} {last_name} created from {source}"
+                    f"Candidate {first_name} {last_name} created from {payload.get("candidate_source") or "DIRECT"}"
                 )
                 logger.info(f"[Handler] ✅ CANDIDATE_CREATED signal recorded for {candidate_id}")
             except Exception as signal_err:
@@ -328,9 +330,9 @@ class CandidateCreationHandler:
                     logger.warning(f"[Handler] Cannot send welcome messages - delivery not configured: {e}")
                     delivery = None
 
-                candidate_name = getattr(db_candidate, 'candidateFirstName', 'Candidate')
-                candidate_phone = getattr(db_candidate, 'candidateMobile', None)
-                candidate_email_addr = db_candidate.candidateEmail
+                candidate_name = getattr(candidate, 'candidateFirstName', 'Candidate')
+                candidate_phone = getattr(candidate, 'candidateMobile', None)
+                candidate_email_addr = candidate.candidateEmail
 
                 # Send WhatsApp welcome message (primary) - only if delivery is configured
                 if delivery and candidate_phone:

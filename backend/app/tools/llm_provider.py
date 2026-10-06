@@ -66,7 +66,7 @@ class RoundRobinLLMProvider:
                     return None
                 self.llm_instances["claude"] = ChatAnthropic(
                     api_key=api_key,
-                    model="claude-3-5-sonnet-20241022",
+                    model="claude-sonnet-5-5",
                     max_tokens=2048
                 )
             except Exception as e:

@@ -274,7 +274,7 @@ class AutonomousForecastingService:
                     "validation_status": "POLICY_VIOLATION",
                     "severity": max(v["severity"] for v in violations),
                     "violations": violations,
-                    "recommendation": self._generate_violation_response(decision_maker_id, violations),
+                    "recommendation": AutonomousForecastingService._generate_violation_response(decision_maker_id, violations),
                     "allow_override": True,
                     "requires_override_justification": True
                 }

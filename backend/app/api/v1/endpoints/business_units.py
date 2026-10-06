@@ -1,4 +1,5 @@
 """Business Unit management endpoints - BU → Client → Job workflow"""
+from sqlalchemy import text
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from app.core.database import get_db

@@ -14,6 +14,8 @@ Architecture:
 """
 
 import logging
+from dataclasses import dataclass
+from enum import Enum
 from typing import Dict, Any, List, Optional
 from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
@@ -24,6 +26,32 @@ from app.models.agent_execution_log import AgentExecutionLog
 from app.core.logging import logger
 
 logger = logging.getLogger(__name__)
+
+class AgentTierLabel(str, Enum):
+    CONFIGURED = "configured"  # has a row in agent_configs
+    OBSERVED = "observed"      # only seen in agent_execution_log
+
+
+AGENT_TIERS = list(AgentTierLabel)
+
+
+@dataclass(frozen=True)
+class _Agent:
+    name: str
+    tier: AgentTierLabel
+
+
+def _known_agents(db: Session) -> List[_Agent]:
+    """Agents to report on: configured agents plus any agent that has logged executions."""
+    from app.models.agent_config import AgentConfig
+
+    configured = {row[0] for row in db.query(AgentConfig.name).all()}
+    logged = {row[0] for row in db.query(AgentExecutionLog.agent_name).distinct().all() if row[0]}
+    return [
+        _Agent(name, AgentTierLabel.CONFIGURED if name in configured else AgentTierLabel.OBSERVED)
+        for name in sorted(configured | logged)
+    ]
+
 
 class AgentStandupsCoordinator:
     """Coordinates daily standups and scrum of scrums for all agents."""
@@ -59,12 +87,13 @@ class AgentStandupsCoordinator:
             tomorrow = yesterday + timedelta(days=1)
 
             # Get agents to report on
+            known = _known_agents(db)
             if agent_name:
-                agents_to_report = [AgentRegistry.get_agent(agent_name)]
-                if not agents_to_report[0]:
+                agents_to_report = [a for a in known if a.name == agent_name]
+                if not agents_to_report:
                     return {"status": "not_found", "message": f"Agent '{agent_name}' not found"}
             else:
-                agents_to_report = AgentRegistry.ALL_AGENTS
+                agents_to_report = known
 
             standup_entries = []
 
@@ -107,7 +136,7 @@ class AgentStandupsCoordinator:
 
             # Aggregate by tier
             tier_summary = {}
-            for tier in AgentTier:
+            for tier in AGENT_TIERS:
                 tier_agents = [e for e in standup_entries if e["tier"] == tier.value]
                 if tier_agents:
                     tier_summary[tier.value] = {
@@ -242,7 +271,7 @@ class AgentStandupsCoordinator:
 
             feedback_entries = []
 
-            for agent in AgentRegistry.ALL_AGENTS:
+            for agent in _known_agents(db):
                 # Get this week's logs
                 logs = db.query(AgentExecutionLog).filter(
                     AgentExecutionLog.agent_name == agent.name,
