@@ -8,7 +8,7 @@ import {
   updateCandidate,
 } from "../../services/api/candidates";
 import { getHrCandidateFullDetails } from "../../services/api/candidateSelfService";
-import { saveCandidateEducation, saveCandidateExperience } from "../../services/api/candidates";
+import { saveCandidateCertifications, saveCandidateEducation, saveCandidateExperience, saveCandidateSkills } from "../../services/api/candidates";
 import { getCandidateDocuments, uploadResume } from "../../services/api/documents";
 import { getAllUsers } from "../../services/api/users";
 
@@ -154,7 +154,19 @@ export default function ProfileTabEditable({ candidateId, candidate = {}, onRefr
         end_date: e.end_date || "",
         job_responsibilities: e.responsibilities || "",
       })));
-      setCertificationsList(candidateFullDetails.certifications || []);
+      setCertificationsList((candidateFullDetails.certifications || []).map((c) => ({
+        name: c.name || "",
+        organization: c.organization || "",
+        issue_date: c.issue_date || "",
+        expiry_date: c.expiry_date || "",
+        credential_id: c.credential_id || "",
+      })));
+      setSkills((candidateFullDetails.profile_skills || []).map((sk) => ({
+        name: sk.name || "",
+        yearsOfExperience: sk.years_of_experience || "",
+        lastUsedDate: sk.last_used_date || "",
+        isPrimary: Boolean(sk.is_primary),
+      })));
     }
   }, [candidateFullDetails]);
 
@@ -693,7 +705,7 @@ export default function ProfileTabEditable({ candidateId, candidate = {}, onRefr
                 Close
               </button>
               <button
-                onClick={() => {
+                onClick={async () => {
                   if (skills.length === 0) {
                     setActionError("Please add at least one skill");
                     return;
@@ -704,6 +716,17 @@ export default function ProfileTabEditable({ candidateId, candidate = {}, onRefr
                     return;
                   }
                   clearError();
+                  try {
+                    await saveCandidateSkills(candidateId, skills.map((sk) => ({
+                      name: sk.name,
+                      years_of_experience: sk.yearsOfExperience ? String(sk.yearsOfExperience) : null,
+                      last_used_date: sk.lastUsedDate || null,
+                      is_primary: Boolean(sk.isPrimary),
+                    })));
+                  } catch (err) {
+                    setActionError(err?.message || "Failed to save skills");
+                    return;
+                  }
                   setShowSkillsModal(false);
                   setActionSuccess("Skills updated successfully");
                 }}
@@ -1106,7 +1129,21 @@ export default function ProfileTabEditable({ candidateId, candidate = {}, onRefr
               )}
 
               <button
-                onClick={() => {
+                onClick={async () => {
+                  try {
+                    await saveCandidateCertifications(candidateId, certificationsList
+                      .filter((c) => (c.name || c.title || "").trim())
+                      .map((c) => ({
+                        name: (c.name || c.title).trim(),
+                        organization: c.organization || c.issuer || null,
+                        issue_date: c.issue_date || null,
+                        expiry_date: c.expiry_date || null,
+                        credential_id: c.credential_id || null,
+                      })));
+                  } catch (err) {
+                    setActionError(err?.message || "Failed to save certifications");
+                    return;
+                  }
                   setShowCertificationsModal(false);
                   setActionSuccess("Certifications updated successfully");
                 }}

@@ -133,3 +133,19 @@ export const saveCandidateExperience = async (candidateId, items) => {
   });
   return data;
 };
+
+export const saveCandidateSkills = async (candidateId, items) => {
+  const { data } = await apiRequest(`/candidates/${candidateId}/skills`, {
+    method: "PUT",
+    body: JSON.stringify(items),
+  });
+  return data;
+};
+
+export const saveCandidateCertifications = async (candidateId, items) => {
+  const { data } = await apiRequest(`/candidates/${candidateId}/certifications`, {
+    method: "PUT",
+    body: JSON.stringify(items),
+  });
+  return data;
+};

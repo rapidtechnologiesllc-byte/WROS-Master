@@ -57,6 +57,8 @@ class CreateCandidateRequest(BaseModel):
     # undeclared, so Pydantic silently discarded them.
     candidate_role: Optional[str] = None  # accepted but ignored - the role is always "Candidate"
     candidate_middle_name: Optional[str] = None
+    # Add Candidate form's Thunder toggle (None = default: enabled)
+    thunder_enabled: Optional[bool] = None
     candidate_job_title: Optional[str] = None
     candidate_experience: Optional[str] = None
     candidate_skills: Optional[Union[str, List[str]]] = None
@@ -189,6 +191,7 @@ async def create_candidate(
             "experience": request.experience,
             "certifications": request.certifications,
             "candidate_middle_name": request.candidate_middle_name,
+            "thunder_enabled": request.thunder_enabled,
             "candidate_job_title": request.candidate_job_title,
             "candidate_experience": request.candidate_experience,
             "candidate_skills": request.candidate_skills,

@@ -45,6 +45,7 @@ from app.models.user import Users, Jobs, Interview, CandidateAssignment, Intervi
 from app.models.document import CandidateDocument
 from app.models.checklist import CandidateChecklist, CandidateChecklistItem
 from app.models.candidate_history import CandidateHistory
+from app.models.candidate_profile_extras import CandidateCertification, CandidateProfileSkill
 from app.models.candidate_ai import CandidateConversation, CandidateAIAssignment, ConversationEvent
 from app.models.offer_letter import OfferLetter
 from app.models.internal_note import InternalNote
@@ -54,7 +55,7 @@ from app.models.candidate_ownership import CandidateOwnership
 
 from app.core.dependencies import get_current_user, get_current_candidate, require_role_template_permission
 
-from app.schemas.candidate import (CandidateCreateRequest, HrEducationItem, HrExperienceItem,
+from app.schemas.candidate import (CandidateCreateRequest, HrEducationItem, HrExperienceItem, HrSkillItem, HrCertificationItem,
 CandidateCreateResponse, CandidateCompleteResponse,
 CandidateEducationResponse, CandidateExperienceResponse,
 CandidateInfoResponse, CandidatePanResponse,
@@ -356,7 +357,7 @@ def get_candidate_by_id(
     # TIER 2 FIX: Use helper function to eliminate code duplication
     is_guidewire = is_guidewire_candidate(db, candidate)
 
-    return _build_candidate_response(
+    response = _build_candidate_response(
         candidate,
         candidate_status=candidate_status,
         personal_info=personal_info,
@@ -367,6 +368,20 @@ def get_candidate_by_id(
         is_guidewire=is_guidewire,
         serialize_skills=True
     )
+    response.profile_skills = [
+        {"name": s.name, "years_of_experience": s.years_of_experience,
+         "last_used_date": s.last_used_date.isoformat() if s.last_used_date else None, "is_primary": s.is_primary}
+        for s in db.query(CandidateProfileSkill).filter(CandidateProfileSkill.candidate_id == candidate_id)
+        .order_by(CandidateProfileSkill.id).all()
+    ]
+    response.certifications = [
+        {"name": c.name, "organization": c.organization,
+         "issue_date": c.issue_date.isoformat() if c.issue_date else None,
+         "expiry_date": c.expiry_date.isoformat() if c.expiry_date else None, "credential_id": c.credential_id}
+        for c in db.query(CandidateCertification).filter(CandidateCertification.candidate_id == candidate_id)
+        .order_by(CandidateCertification.id).all()
+    ]
+    return response
 
 @router.get(
     "/hr/my-bu/candidates",
@@ -628,6 +643,52 @@ def replace_candidate_experience(
             responsibilities=item.responsibilities,
         ))
     _record_profile_edit(db, candidate_id, user, f"Experience updated ({len(items)} entries)")
+    db.commit()
+    return {"status": "success", "count": len(items)}
+
+
+@router.put(
+    "/{candidate_id}/skills",
+    dependencies=[Depends(require_role_template_permission("candidates", "can_edit"))],
+)
+def replace_candidate_skills(
+    candidate_id: str, items: list[HrSkillItem], db: Session = Depends(get_db), user = Depends(get_current_user)
+):
+    """Replace the candidate's skills (profile Skills modal). Also keeps the
+    comma-separated candidateSkills in sync for matching and list views."""
+    candidate = get_candidate_by_id_with_bu_scope(db, candidate_id, user)
+    if not candidate:
+        raise HTTPException(status_code=404, detail=f"Candidate with ID {candidate_id} not found")
+    if items and sum(1 for i in items if i.is_primary) != 1:
+        raise HTTPException(status_code=400, detail="Mark exactly one primary skill")
+    db.query(CandidateProfileSkill).filter(CandidateProfileSkill.candidate_id == candidate_id).delete()
+    for item in items:
+        db.add(CandidateProfileSkill(candidate_id=candidate_id, name=item.name.strip(),
+                                     years_of_experience=item.years_of_experience,
+                                     last_used_date=item.last_used_date, is_primary=item.is_primary))
+    candidate.candidateSkills = ", ".join(i.name.strip() for i in items) or None
+    _record_profile_edit(db, candidate_id, user, f"Skills updated ({len(items)} skills)")
+    db.commit()
+    return {"status": "success", "count": len(items)}
+
+
+@router.put(
+    "/{candidate_id}/certifications",
+    dependencies=[Depends(require_role_template_permission("candidates", "can_edit"))],
+)
+def replace_candidate_certifications(
+    candidate_id: str, items: list[HrCertificationItem], db: Session = Depends(get_db), user = Depends(get_current_user)
+):
+    """Replace the candidate's certifications (profile Certifications modal)."""
+    candidate = get_candidate_by_id_with_bu_scope(db, candidate_id, user)
+    if not candidate:
+        raise HTTPException(status_code=404, detail=f"Candidate with ID {candidate_id} not found")
+    db.query(CandidateCertification).filter(CandidateCertification.candidate_id == candidate_id).delete()
+    for item in items:
+        db.add(CandidateCertification(candidate_id=candidate_id, name=item.name.strip(),
+                                      organization=item.organization, issue_date=item.issue_date,
+                                      expiry_date=item.expiry_date, credential_id=item.credential_id))
+    _record_profile_edit(db, candidate_id, user, f"Certifications updated ({len(items)} entries)")
     db.commit()
     return {"status": "success", "count": len(items)}
 

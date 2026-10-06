@@ -384,25 +384,12 @@ const PreonboardingModal = ({
   };
 
   const sendEmailHandler = async () => {
-    setActionSuccess("Email will be sent to HR Manager for Approval");
-    // try {
-    //   setIsSaving(true);
-
-    //     offer_id: offerIdData,
-    //     candidate_id: candidate?.id,
-    //     job_id: selectedJob?.id,
-    //   };
-
-
-    //     setActionSuccess("Email sent successfully to HR Head");
-    //     onSuccess?.();
-    //     onClose?.();
-    //   }
-    // } catch (error) {
-    //   setActionError(error?.message || "Failed to send email");
-    // } finally {
-    //   setIsSaving(false);
-    // }
+    // Generating the letter (step 1, /offer-letter/generate) already set it
+    // to AwaitingApproval and emailed the hiring manager; the offer is now
+    // in their Pending Approval list. Nothing else to send here.
+    setActionSuccess("Offer is with the hiring manager for approval (they were emailed when the letter was generated)");
+    onSuccess?.();
+    onClose?.();
   };
 
   const sendEmailOffer = async (signaturePng) => {

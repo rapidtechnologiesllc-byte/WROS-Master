@@ -184,6 +184,9 @@ class CandidateCompleteResponse(BaseModel):
     personal_info: CandidateInfoResponse | None = None
     education: list[CandidateEducationResponse] = []
     experience: list[CandidateExperienceResponse] = []
+    # HR profile Skills / Certifications modals (structured rows)
+    profile_skills: list[dict] = []
+    certifications: list[dict] = []
     aadhar: CandidateAadharResponse | None = None
     pan: CandidatePanResponse | None = None
     status: str | None = None
@@ -392,3 +395,18 @@ class HrExperienceItem(BaseModel):
     start_date: Optional[date] = None
     end_date: Optional[date] = None
     responsibilities: Optional[str] = None
+
+
+class HrSkillItem(BaseModel):
+    name: str
+    years_of_experience: Optional[str] = None
+    last_used_date: Optional[date] = None
+    is_primary: bool = False
+
+
+class HrCertificationItem(BaseModel):
+    name: str
+    organization: Optional[str] = None
+    issue_date: Optional[date] = None
+    expiry_date: Optional[date] = None
+    credential_id: Optional[str] = None

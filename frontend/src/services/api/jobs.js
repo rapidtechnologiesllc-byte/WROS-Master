@@ -167,35 +167,38 @@ export const candidateAppendedJob = async (id) => {
 };
 
 export const assignJob = async (jobId, candidateId, payload) => {
-  const { data, response } = await apiRequest(
+  const { response } = await apiRequest(
     `/api/v1/jobs/${jobId}/applications/${candidateId}`,
     {
       method: "POST",
       body: JSON.stringify(payload),
     },
   );
-  return (data, response);
+  // Callers check response.status (the comma expression returned only response)
+  return response;
 };
 
 export const removeCandidateApi = async (job_id, candidateId) => {
-  const { data, response } = await apiRequest(
+  const { response } = await apiRequest(
     `/api/v1/jobs/${job_id}/applications/${candidateId}`,
     {
       method: "DELETE",
     },
   );
-  return (data, response);
+  // Callers check response.status (the comma expression returned only response)
+  return response;
 };
 
 export const assignMultipleJobs = async (job_id, candidate_id, payload) => {
-  const { data, response } = await apiRequest(
+  const { response } = await apiRequest(
     `/api/v1/jobs/${job_id}/applications/${candidate_id}`,
     {
       method: "POST",
       body: JSON.stringify(payload),
     },
   );
-  return (data, response);
+  // Callers check response.status (the comma expression returned only response)
+  return response;
 };
 
 export const submitCandidateToJob = async (candidate_id, job_id) => {
