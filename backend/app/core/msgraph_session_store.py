@@ -1,164 +1,143 @@
 """
-M365 account-link state (DATABASE-BACKED for persistence across server restarts).
+M365 account-link state, persisted in msgraph_sessions (one row per
+WROS user who connected Outlook).
 
 Shared between:
-- app.api.v1.endpoints.msgraph (OAuth callback stores tokens)
+- app.api.v1.endpoints.msgraph (OAuth callback stores tokens; mail send /
+  calendar calls read them)
 - app.services.msgraph_mail_sync_service (reads tokens for mail sync)
 
-CRITICAL FIX (2026-09-17): Changed from in-memory to DB-backed storage.
-In-memory was cleared on server restart, breaking M365 email sync pipeline.
-Now persists to msgraph_session table in database.
+get_access_token() returns a usable token, refreshing it with the stored
+refresh token when it is within REFRESH_MARGIN of expiry -- delegated
+Graph access tokens only live about an hour, so without this every
+mailbox would stop syncing an hour after it was connected.
 """
-
 import logging
 import os
+from datetime import datetime, timedelta
+from typing import List, Optional
+
+from sqlalchemy.orm import Session
+
 from app.core.database import SessionLocal
 from app.models.msgraph_session import MsgraphSession
 
 logger = logging.getLogger(__name__)
 
-# Lazy-loaded cache (refreshed on each access)
-_user_tokens_cache = {}
-_account_id_cache = {}
-_env_tokens_loaded = False
+REFRESH_MARGIN = timedelta(minutes=5)
 
 
-def _load_env_fallback():
-    """Load M365 tokens from .env file (fallback for testing/simple setup)."""
-    global _user_tokens_cache, _account_id_cache, _env_tokens_loaded
-
-    if _env_tokens_loaded:
-        return
-
-    access_token = os.getenv("MSGRAPH_ACCESS_TOKEN")
-    refresh_token = os.getenv("MSGRAPH_REFRESH_TOKEN")
-    account_id = os.getenv("MSGRAPH_ACCOUNT_ID")
-    user_id = os.getenv("MSGRAPH_USER_ID", "msgraph_test_user")
-
-    if access_token and account_id:
-        _user_tokens_cache[account_id] = {
-            "access_token": access_token,
-            "refresh_token": refresh_token or "",
-            "expires_at": None,
-        }
-        _account_id_cache[user_id] = account_id
-        logger.info(f"[MsgraphSessionStore] Loaded M365 tokens from .env fallback (account_id={account_id})")
-        _env_tokens_loaded = True
+def graph_oauth_settings() -> dict:
+    """OAuth app settings (env). TENANT_ID/CLIENT_ID/CLIENT_SECRET with the
+    AZURE_* names as fallback, so either naming works."""
+    tenant = os.getenv("TENANT_ID") or os.getenv("AZURE_TENANT_ID")
+    return {
+        "client_id": os.getenv("CLIENT_ID") or os.getenv("AZURE_CLIENT_ID"),
+        "client_secret": os.getenv("CLIENT_SECRET") or os.getenv("AZURE_CLIENT_SECRET"),
+        "authority": os.getenv("AUTHORITY") or f"https://login.microsoftonline.com/{tenant}",
+        "scopes": (os.getenv("SCOPES") or "https://graph.microsoft.com/.default").split(),
+    }
 
 
-def _refresh_cache():
-    """Load tokens from database into memory cache, with .env fallback."""
-    global _user_tokens_cache, _account_id_cache
+def _msal_client():
+    import msal
+
+    settings = graph_oauth_settings()
+    return msal.ConfidentialClientApplication(
+        settings["client_id"], authority=settings["authority"], client_credential=settings["client_secret"],
+    )
+
+
+def _expiry(token_result: dict) -> Optional[datetime]:
+    seconds = token_result.get("expires_in")
+    return datetime.utcnow() + timedelta(seconds=int(seconds)) if seconds else None
+
+
+def store_session(user_id: str, account_id: str, token_result: dict, account_email: Optional[str] = None) -> None:
+    """Create or replace this user's linked session from an MSAL token result."""
+    db = SessionLocal()
     try:
-        db = SessionLocal()
-        sessions = db.query(MsgraphSession).filter(MsgraphSession.is_active == True).all()
-        _user_tokens_cache = {
-            s.account_id: {
-                "access_token": s.access_token,
-                "refresh_token": s.refresh_token,
-                "expires_at": s.expires_at,
-            }
-            for s in sessions
-        }
-        _account_id_cache = {s.user_id: s.account_id for s in sessions}
-        if sessions:
-            logger.info(f"[MsgraphSessionStore] Loaded {len(sessions)} active M365 sessions from database")
-        db.close()
-
-        # If no tokens in DB, fall back to .env
-        if not _user_tokens_cache:
-            logger.info("[MsgraphSessionStore] No tokens in database, trying .env fallback")
-            _load_env_fallback()
-
-    except Exception as e:
-        logger.warning(f"[MsgraphSessionStore] Failed to load from database: {e}, trying .env fallback")
-        _load_env_fallback()
-        try:
-            db.close()
-        except:
-            pass
-
-
-# Property-like access that auto-refreshes
-class UserTokensDict(dict):
-    """Dict wrapper that refreshes from DB on each access."""
-    def __getitem__(self, key):
-        _refresh_cache()
-        return _user_tokens_cache.get(key)
-
-    def get(self, key, default=None):
-        _refresh_cache()
-        return _user_tokens_cache.get(key, default)
-
-    def items(self):
-        _refresh_cache()
-        return _user_tokens_cache.items()
-
-
-class AccountIdDict(dict):
-    """Dict wrapper that refreshes from DB on each access."""
-    def __getitem__(self, key):
-        _refresh_cache()
-        return _account_id_cache.get(key)
-
-    def get(self, key, default=None):
-        _refresh_cache()
-        return _account_id_cache.get(key, default)
-
-    def items(self):
-        _refresh_cache()
-        return _account_id_cache.items()
-
-
-# Public interface (auto-refreshing from DB)
-user_tokens = UserTokensDict()
-account_id_by_user_id = AccountIdDict()
-
-
-def store_session(user_id: str, account_id: str, access_token: str, refresh_token: str, expires_at: str):
-    """Store M365 session to database (persists across server restarts)."""
-    try:
-        db = SessionLocal()
-        # Deactivate any existing session for this user
-        db.query(MsgraphSession).filter(MsgraphSession.user_id == user_id).update(
-            {"is_active": False}
-        )
-        # Create new session
-        session = MsgraphSession(
-            user_id=user_id,
-            account_id=account_id,
-            access_token=access_token,
-            refresh_token=refresh_token,
-            expires_at=expires_at,
-            is_active=True,
-        )
-        db.add(session)
+        row = db.query(MsgraphSession).filter(MsgraphSession.user_id == user_id).first()
+        if row is None:
+            row = MsgraphSession(user_id=user_id)
+            db.add(row)
+        row.account_id = account_id
+        row.account_email = account_email
+        row.access_token = token_result["access_token"]
+        row.refresh_token = token_result.get("refresh_token") or row.refresh_token
+        row.expires_at = _expiry(token_result)
+        row.is_active = True
+        row.mail_access = None
+        row.last_error = None
         db.commit()
         logger.info(f"[MsgraphSessionStore] Stored session for user {user_id}")
-        _refresh_cache()
-        db.close()
-    except Exception as e:
-        logger.error(f"[MsgraphSessionStore] Failed to store session: {e}", exc_info=True)
+    finally:
         db.close()
 
 
-def get_session(account_id: str) -> dict:
-    """Get token data for account (auto-loads from DB)."""
-    _refresh_cache()
-    return _user_tokens_cache.get(account_id, {})
-
-
-def clear_session(user_id: str):
-    """Deactivate session (logout)."""
+def clear_session(user_id: str) -> None:
+    """Disconnect: deactivate and drop the tokens."""
+    db = SessionLocal()
     try:
-        db = SessionLocal()
-        db.query(MsgraphSession).filter(MsgraphSession.user_id == user_id).update(
-            {"is_active": False}
-        )
+        row = db.query(MsgraphSession).filter(MsgraphSession.user_id == user_id).first()
+        if row:
+            row.is_active = False
+            row.access_token = ""
+            row.refresh_token = None
+            row.last_error = None
+            db.commit()
+            logger.info(f"[MsgraphSessionStore] Cleared session for user {user_id}")
+    finally:
+        db.close()
+
+
+def get_session_row(db: Session, user_id: str) -> Optional[MsgraphSession]:
+    return db.query(MsgraphSession).filter(
+        MsgraphSession.user_id == user_id, MsgraphSession.is_active.is_(True)
+    ).first()
+
+
+def active_user_ids(db: Session) -> List[str]:
+    return [r[0] for r in db.query(MsgraphSession.user_id).filter(MsgraphSession.is_active.is_(True)).all()]
+
+
+def record_mail_access(db: Session, user_id: str, ok: bool, error: Optional[str] = None) -> None:
+    row = get_session_row(db, user_id)
+    if row:
+        row.mail_access = ok
+        row.last_error = error
         db.commit()
-        logger.info(f"[MsgraphSessionStore] Cleared session for user {user_id}")
-        _refresh_cache()
-        db.close()
-    except Exception as e:
-        logger.error(f"[MsgraphSessionStore] Failed to clear session: {e}", exc_info=True)
-        db.close()
+
+
+def get_access_token(user_id: str, db: Optional[Session] = None) -> Optional[str]:
+    """A usable access token for this user, refreshed if needed; None when
+    the user has no active link or the refresh failed (the session is then
+    deactivated and last_error says why, so they can reconnect)."""
+    own_session = db is None
+    db = db or SessionLocal()
+    try:
+        row = get_session_row(db, user_id)
+        if row is None:
+            return None
+        if row.expires_at is None or row.expires_at - REFRESH_MARGIN > datetime.utcnow():
+            return row.access_token
+        if not row.refresh_token:
+            row.is_active = False
+            row.last_error = "Session expired and no refresh token was issued; reconnect Outlook."
+            db.commit()
+            return None
+        result = _msal_client().acquire_token_by_refresh_token(row.refresh_token, scopes=graph_oauth_settings()["scopes"])
+        if "access_token" not in result:
+            row.is_active = False
+            row.last_error = f"Token refresh failed: {result.get('error_description') or result.get('error')}"
+            db.commit()
+            logger.warning(f"[MsgraphSessionStore] Refresh failed for user {user_id}: {row.last_error}")
+            return None
+        row.access_token = result["access_token"]
+        row.refresh_token = result.get("refresh_token") or row.refresh_token
+        row.expires_at = _expiry(result)
+        db.commit()
+        return row.access_token
+    finally:
+        if own_session:
+            db.close()

@@ -17,7 +17,7 @@ Table: cascaded_goals
 
 import logging
 from datetime import datetime
-from sqlalchemy import Column, String, Integer, Float, DateTime, ForeignKey, Text, func, Index
+from sqlalchemy import Column, String, Integer, Float, DateTime, ForeignKey, Text, func, Index, UniqueConstraint
 from sqlalchemy.orm import relationship
 from app.models.base import Base
 
@@ -142,4 +142,30 @@ class PyramidReport(Base):
         Index('idx_pyramid_reports_user', 'user_id'),
         Index('idx_pyramid_reports_week', 'reporting_year', 'reporting_week'),
         Index('idx_pyramid_reports_level', 'reporting_level'),
+    )
+
+
+GOAL_LEVELS = ("ORG", "LOCATION", "PARTNER", "BU")
+
+
+class GoalTarget(Base):
+    """One FY target for one metric at one level of the goal tree:
+    ORG (entity_id "org") -> LOCATION (Location.id, e.g. BXUS/BXIN) ->
+    PARTNER (OrgNode.id) -> BU (BusinessUnit.id). Set on the Goals
+    screen; the CEO Dashboard reads the ORG row."""
+    __tablename__ = "goal_targets"
+
+    id = Column(Integer, primary_key=True, autoincrement=True, index=True)
+    tenant_id = Column(Integer, nullable=False, index=True)
+    year = Column(Integer, nullable=False, index=True)
+    level = Column(String(16), nullable=False)
+    entity_id = Column(String(512), nullable=False)
+    metric = Column(String(64), nullable=False)
+    target = Column(Float, nullable=False)
+    updated_by = Column(String(512), nullable=True)
+    updated_at = Column(DateTime(timezone=False), server_default=func.now(), onupdate=func.now())
+
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "year", "level", "entity_id", "metric", name="uq_goal_target"),
+        Index("ix_goal_targets_lookup", "tenant_id", "year", "level"),
     )

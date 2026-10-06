@@ -28,6 +28,8 @@ class BusinessUnit(Base):
 
     # Leadership
     manager_id = Column(String(512), ForeignKey("users.UserID"), nullable=True)
+    # Legal entity / location (Delivery Centers, e.g. BXUS, BXIN) -- top of the goal tree
+    location_id = Column(String(512), ForeignKey("locations.id", ondelete="SET NULL"), nullable=True, index=True)
 
     # Status
     active = Column(Boolean, nullable=False, default=True)

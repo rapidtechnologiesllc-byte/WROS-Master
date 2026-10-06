@@ -182,6 +182,96 @@ class UpdateStrategicGoalRequest(BaseModel):
     new_target: float
     cascade_rules: Optional[Dict[str, Any]] = None
 
+
+# ---------------------------------------------------------------------------
+# FY goal tree: Org -> Location (BXUS/BXIN...) -> Partner -> BU.
+# One store (goal_targets, via goal_tree_service); the CEO Dashboard reads
+# the ORG level.
+# ---------------------------------------------------------------------------
+
+
+class GoalTargetRequest(BaseModel):
+    level: str
+    entity_id: str
+    metric: str
+    target: Optional[float] = None  # null clears the target
+    year: Optional[int] = None
+
+
+class FYTargetRequest(BaseModel):
+    target: float
+
+
+@router.get(
+    "/tree",
+    dependencies=[Depends(require_resource_permission("goals", "view"))]
+)
+def get_goal_tree_endpoint(
+    year: Optional[int] = None,
+    current_user: Users = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
+    """Every level of the FY goal tree with target, actual and allocated-to-children."""
+    from app.services.goal_tree_service import get_goal_tree
+    return get_goal_tree(db, current_user.tenant_id, year)
+
+
+@router.put(
+    "/targets",
+    dependencies=[Depends(require_resource_permission("goals", "edit"))]
+)
+def set_goal_target_endpoint(
+    body: GoalTargetRequest,
+    current_user: Users = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
+    from app.services.goal_tree_service import set_goal_target
+    try:
+        row = set_goal_target(db, current_user, level=body.level, entity_id=body.entity_id,
+                              metric=body.metric, target=body.target, year=body.year)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+    return {"status": "success", "level": body.level, "entity_id": body.entity_id, "metric": body.metric,
+            "target": row.target if row else None, "year": row.year if row else body.year}
+
+
+@router.get(
+    "/fy-targets",
+    dependencies=[Depends(require_resource_permission("goals", "view"))]
+)
+def get_fy_target_settings(
+    year: Optional[int] = None,
+    current_user: Users = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
+    """Organization-level FY metrics with current value and target (null = not set)."""
+    from app.services.ceo_fy_progress_service import get_fy_progress
+
+    year = year or datetime.utcnow().year
+    progress = get_fy_progress(db, year, tenant_id=current_user.tenant_id)
+    return {"year": year, "fy_progress_pct": progress["fy_progress_pct"], "metrics": progress["metrics"]}
+
+
+@router.put(
+    "/fy-targets/{metric}",
+    dependencies=[Depends(require_resource_permission("goals", "edit"))]
+)
+def set_fy_target(
+    metric: str,
+    body: FYTargetRequest,
+    year: Optional[int] = None,
+    current_user: Users = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
+    """Organization-level target for one metric (used by the CEO Dashboard cards)."""
+    from app.services.goal_tree_service import ORG_ENTITY, set_goal_target
+    try:
+        row = set_goal_target(db, current_user, level="ORG", entity_id=ORG_ENTITY,
+                              metric=metric, target=body.target, year=year)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+    return {"status": "success", "metric": metric, "year": row.year, "target": row.target}
+
 @router.post(
     "/strategic",
     dependencies=[Depends(require_resource_permission("goals", "create"))]

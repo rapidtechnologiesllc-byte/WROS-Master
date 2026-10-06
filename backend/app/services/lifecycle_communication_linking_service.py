@@ -29,6 +29,7 @@ acceptance criterion.
 from datetime import datetime
 from typing import Optional
 
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.core.logging import logger
@@ -46,12 +47,12 @@ def _resolve_entity(db: Session, email: str):
         return None
     normalized = email.strip().lower()
 
-    employee = db.query(Employee).filter(Employee.email == normalized).first()
+    employee = db.query(Employee).filter(func.lower(Employee.email) == normalized).first()
     if employee:
         name = " ".join(p for p in [employee.first_name, employee.last_name] if p).strip() or employee.email
         return "employee", employee.id, name
 
-    candidate = db.query(Candidate).filter(Candidate.candidateEmail == normalized).first()
+    candidate = db.query(Candidate).filter(func.lower(Candidate.candidateEmail) == normalized).first()
     if candidate:
         name_parts = [candidate.candidateFirstName or "", candidate.candidateLastName or ""]
         name = " ".join(p for p in name_parts if p).strip() or candidate.candidateEmail
@@ -106,6 +107,25 @@ def link_email_to_lifecycle_record(
             actor_type="SYSTEM",
             description=description,
         )
+        if entity_type == "candidate":
+            # Also on the candidate's History tab, next to task updates
+            from app.models.candidate_history import CandidateHistory
+            from app.models.user import Users
+            owner = db.query(Users).filter(Users.UserID == actor_id).first() if actor_id else None
+            owner_name = (owner.UserName or owner.UserEmail) if owner else None
+            mailbox_verb = "Sent by" if direction == "SENT" else "Received by"
+            lines = [f"Subject: {subject or '(no subject)'}", f"{mailbox_verb} {owner_name or 'a connected mailbox'}"]
+            if web_link:
+                lines.append(f"Open in Outlook: {web_link}")
+            note = "\n".join(lines)
+            db.add(CandidateHistory(
+                candidateID=entity_id,
+                event_type="Email Sent" if direction == "SENT" else "Email Received",
+                note=note,
+                performed_by_id=actor_id,
+                performed_by_name=owner_name,
+                event_at=timestamp,
+            ))
         db.commit()
 
         # S-347/HRMS-P117: Trigger email analysis for received emails linked to candidates

@@ -2,10 +2,11 @@
 import os
 from datetime import timedelta
 import logging
+from typing import Optional
 from urllib.parse import urlencode
 
 from dotenv import load_dotenv
-from fastapi import APIRouter, Depends, FastAPI, HTTPException, Request, Response
+from fastapi import APIRouter, BackgroundTasks, Depends, FastAPI, HTTPException, Request, Response
 from fastapi.responses import RedirectResponse, JSONResponse
 import msal
 import requests
@@ -14,220 +15,179 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.dependencies import get_current_internal_user, require_resource_permission
 from app.core.security import create_access_token, decode_access_token
-from app.models import Users,Role
+from app.models import Users
 from app.core.logging import logger
 from app.core.msgraph_session_store import (
-    account_id_by_user_id as _account_id_by_user_id,
-    user_tokens,
+    clear_session, get_access_token, get_session_row, graph_oauth_settings, store_session,
 )
 
 load_dotenv()
-TENANT_ID = os.getenv("TENANT_ID")
-CLIENT_ID = os.getenv("CLIENT_ID")
-CLIENT_SECRET = os.getenv("CLIENT_SECRET")
-AUTHORITY = os.getenv("AUTHORITY") or f"https://login.microsoftonline.com/{TENANT_ID}"
 REDIRECT_URI = os.getenv("REDIRECT_URI")
-SCOPES = (os.getenv("SCOPES") or "https://graph.microsoft.com/.default").split()
-
-redirect_url = os.getenv("REDIRECT_RESPONSE")
+FRONTEND_URL = (os.getenv("REDIRECT_RESPONSE") or "/").rstrip("/") + "/"
+# Where the browser lands after connecting Outlook
+LINK_DONE_PATH = "my-tasks"
 
 router= APIRouter(prefix="/msgraph", tags=["msgraph"])
 
-# user_tokens / _account_id_by_user_id now live in
-# app.core.msgraph_session_store (EPIC-14/S-435 needs the mail-sync
-# service to read the same live state without importing from this
-# endpoints module) -- imported above, not redefined here.
 
 def _msal_client():
+    settings = graph_oauth_settings()
     return msal.ConfidentialClientApplication(
-        CLIENT_ID,
-        authority=AUTHORITY,
-        client_credential=CLIENT_SECRET,
+        settings["client_id"],
+        authority=settings["authority"],
+        client_credential=settings["client_secret"],
     )
 
-def _auth_url(state: str = "xyz"):
+
+def _auth_url(state: str):
+    settings = graph_oauth_settings()
     params = {
-        "client_id": CLIENT_ID,
+        "client_id": settings["client_id"],
         "response_type": "code",
         "redirect_uri": REDIRECT_URI,
         "response_mode": "query",
-        "scope": " ".join(SCOPES),
+        # offline_access => a refresh token, so the mailbox keeps syncing after the first hour
+        "scope": " ".join(settings["scopes"] + ["offline_access", "openid", "profile"]),
         "state": state,
-        # optionally include PKCE values here if you implement code_verifier/challenge
+        "prompt": "select_account",
     }
-    return f"{AUTHORITY}/oauth2/v2.0/authorize?{urlencode(params)}"
+    return f"{settings['authority']}/oauth2/v2.0/authorize?{urlencode(params)}"
 
-@router.get(
-    "/auth/signin",
-    dependencies=[Depends(require_resource_permission("configuration", "view"))]
-)
+
+@router.get("/auth/signin")
 def signin():
-    return RedirectResponse(_auth_url())
+    """Public: the "Sign in with Microsoft" login button. Microsoft SSO
+    login is not wired to a WROS session yet (the callback says so); a
+    logged-in user connects Outlook through /link/start instead."""
+    return RedirectResponse(_auth_url(state="login"))
 
 # ============================================
-# EPIC-14/S-379 (HRMS-1401) -- M365 Launchpad account linking
+# Outlook account linking (EPIC-14/S-379 + S-435 mail capture)
 # ============================================
-# 2026-08-05: the flow above (/auth/signin -> /auth/callback) was built
-# for one purpose only -- get a Graph token to send mail/schedule a
-# meeting on behalf of whoever completes it, minting a *fresh* WROS
-# session in the process. The Launchpad needs a second, different use
-# case: a user who is ALREADY logged into WROS wants to link their
-# Microsoft account so the Launchpad can show their real mail/calendar/
-# chat -- linking must NOT silently swap out their current WROS
-# session token as a side effect. OAuth's own `state` param is the only
-# channel that survives the round-trip to Microsoft and back, so a
-# short-lived, narrowly-scoped "link intent" token (same
-# Depends()-checked-claim pattern as MFA's mfa_pending token, see
-# app.core.dependencies.get_current_mfa_pending_user) rides through it.
-# /auth/callback below checks for this claim FIRST and, if present,
-# takes the link-only path -- every other `state` value (including the
-# old hardcoded "xyz" default) falls through to the ORIGINAL,
-# byte-for-byte-unchanged login behavior.
+# A user who is already logged into WROS connects their own Microsoft
+# mailbox. OAuth's `state` param is the only channel that survives the
+# round-trip to Microsoft, so a short-lived, narrowly-scoped "link
+# intent" token rides through it and identifies the WROS user on the
+# way back -- the callback itself is public (Microsoft's redirect has
+# no Authorization header).
 LINK_STATE_TTL_MINUTES = 10
 
 @router.get(
     "/link/start",
-    dependencies=[Depends(require_resource_permission("configuration", "view"))]
+    dependencies=[Depends(require_resource_permission("my-tasks", "view"))]
 )
 def start_link(current_user: Users = Depends(get_current_internal_user)):
     """Returns the Microsoft sign-in URL for the CURRENTLY authenticated
-    WROS user to link their M365 account. The frontend must call this
-    via an authenticated fetch (not a plain <a href>, since a real
-    browser navigation carries no Authorization header) and then
-    navigate the browser to the returned auth_url itself."""
+    WROS user to connect their Outlook. The frontend calls this with its
+    normal auth header, then navigates the browser to auth_url."""
+    settings = graph_oauth_settings()
+    if not (settings["client_id"] and settings["client_secret"] and REDIRECT_URI):
+        raise HTTPException(503, "Microsoft 365 is not configured on this server")
     link_state = create_access_token(
-        data={"sub": current_user.UserEmail, "msgraph_link": True},
+        data={
+            "sub": current_user.UserID,
+            "email": current_user.UserEmail,
+            "tenant_id": current_user.tenant_id,
+            "role_template_id": current_user.role_template_id,
+            "msgraph_link": True,
+        },
         expires_delta=timedelta(minutes=LINK_STATE_TTL_MINUTES),
     )
     return {"auth_url": _auth_url(state=link_state)}
 
 @router.get(
     "/link-status",
-    dependencies=[Depends(require_resource_permission("configuration", "view"))]
+    dependencies=[Depends(require_resource_permission("my-tasks", "view"))]
 )
-def link_status(current_user: Users = Depends(get_current_internal_user)):
-    account_id = _account_id_by_user_id.get(current_user.UserID)
-    linked = bool(account_id and account_id in user_tokens)
-    return {"linked": linked}
+def link_status(current_user: Users = Depends(get_current_internal_user), db: Session = Depends(get_db)):
+    row = get_session_row(db, current_user.UserID)
+    if row is None:
+        from app.models.msgraph_session import MsgraphSession
+        old = db.query(MsgraphSession).filter(MsgraphSession.user_id == current_user.UserID).first()
+        return {"linked": False, "last_error": old.last_error if old else None}
+    synced = current_user.msgraph_mail_last_synced_at
+    return {
+        "linked": True,
+        "account_email": row.account_email,
+        "mail_access": row.mail_access,
+        "last_error": row.last_error,
+        "last_synced_at": synced.isoformat() if synced else None,
+    }
 
 @router.post(
     "/unlink",
-    dependencies=[Depends(require_resource_permission("configuration", "create"))]
+    dependencies=[Depends(require_resource_permission("my-tasks", "view"))]
 )
 def unlink(current_user: Users = Depends(get_current_internal_user)):
-    account_id = _account_id_by_user_id.pop(current_user.UserID, None)
-    if account_id:
-        user_tokens.pop(account_id, None)
+    clear_session(current_user.UserID)
     return {"linked": False}
 
-def _decode_link_state(state: str):
-    """Returns the Users row this state token names, or None if `state`
-    isn't a valid, unexpired link-intent token -- i.e. every non-link
-    caller of /auth/callback (the original login flow, or garbage/
-    missing state) gets None here and falls through unaffected."""
-    if not state:
+def _decode_link_state(state: str) -> Optional[str]:
+    """The WROS UserID a link-intent state token names, or None for any
+    other state (the login button, garbage, expired)."""
+    if not state or state == "login":
         return None
     try:
         payload = decode_access_token(state)
     except HTTPException:
-        raise ValueError("Operation failed")
+        return None
     if not payload.get("msgraph_link"):
-        raise ValueError("Operation failed")
+        return None
     return payload.get("sub")
 
-@router.post(
-    "/auth/callback",
-    dependencies=[Depends(require_resource_permission("configuration", "view"))]
-)
-def callback(request: Request, db: Session = Depends(get_db)):
+def _link_redirect(status: str, reason: str = "") -> RedirectResponse:
+    params = {"outlook": status}
+    if reason:
+        params["reason"] = reason[:200]
+    return RedirectResponse(url=f"{FRONTEND_URL}{LINK_DONE_PATH}?{urlencode(params)}")
+
+def oauth_callback(request: Request, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
+    """Microsoft redirects here (GET) after sign-in. Public by necessity;
+    the state token identifies the WROS user. Served both at
+    /api/v1/msgraph/auth/callback and at the registered redirect URI
+    path /msgraph/auth/callback (see app.main)."""
+    if request.query_params.get("error"):
+        return _link_redirect("error", request.query_params.get("error_description") or request.query_params.get("error"))
     code = request.query_params.get("code")
     if not code:
         raise HTTPException(400, "Missing auth code")
 
-    app_msal = _msal_client()
-    token_result = app_msal.acquire_token_by_authorization_code(
-        code,
-        scopes=SCOPES,
-        redirect_uri=REDIRECT_URI,
+    user_id = _decode_link_state(request.query_params.get("state"))
+    if not user_id:
+        # Login button: Microsoft SSO into WROS is not implemented.
+        return RedirectResponse(url=f"{FRONTEND_URL}?{urlencode({'sso': 'unavailable'})}")
+    user = db.query(Users).filter(Users.UserID == user_id).first()
+    if not user:
+        return _link_redirect("error", "WROS user not found; sign in again and retry")
+
+    settings = graph_oauth_settings()
+    token_result = _msal_client().acquire_token_by_authorization_code(
+        code, scopes=settings["scopes"], redirect_uri=REDIRECT_URI,
     )
     if "access_token" not in token_result:
-        raise HTTPException(401, f"Token error: {token_result.get('error_description')}")
+        logger.warning(f"[msgraph] Token exchange failed for {user.UserEmail}: {token_result.get('error_description')}")
+        return _link_redirect("error", token_result.get("error_description") or "Microsoft sign-in failed")
 
-    # Persist token in-memory (used by Graph API endpoints like /mail/send)
-    account_id = token_result.get("id_token_claims", {}).get("oid")
+    claims = token_result.get("id_token_claims") or {}
+    account_id = claims.get("oid")
     if not account_id:
-        raise HTTPException(401, "Could not determine user identity (missing oid claim)")
-    user_tokens[account_id] = token_result
+        return _link_redirect("error", "Microsoft did not return an account id")
+    store_session(user.UserID, account_id, token_result,
+                  account_email=claims.get("preferred_username") or claims.get("email"))
 
-    # ---- Account-linking path (S-379): an already-logged-in WROS user
-    # asked to link their M365 account -- link it to THEIR real row and
-    # bounce back to the Launchpad without touching their WROS session.
-    link_target_email = _decode_link_state(request.query_params.get("state"))
-    if link_target_email:
-        linked_user = db.query(Users).filter(Users.UserEmail == link_target_email).first()
-        if linked_user:
-            _account_id_by_user_id[linked_user.UserID] = account_id
-            return RedirectResponse(url=f"{redirect_url}m365?linked=true")
-        # Falls through to the original flow below if the linking
-        # user's row somehow no longer exists -- fail open to "just
-        # log this Microsoft identity in normally" rather than a dead end.
+    # First sync right away (last 24h), so the user sees results without waiting for the timer
+    from app.services.msgraph_mail_sync_service import sync_user_by_id
+    background_tasks.add_task(sync_user_by_id, user.UserID)
+    return _link_redirect("connected")
 
-    # ---- Original flow (unchanged): mint a fresh WROS session for
-    # whoever just signed into Microsoft, creating a Users row if this
-    # is their first time.
-    graph_resp = requests.get(
-        "https://graph.microsoft.com/v1.0/me",
-        headers={"Authorization": f"Bearer {token_result['access_token']}"},
-        timeout=10,
-    )
-    graph_resp.raise_for_status()
-    graph_user = graph_resp.json()
+router.add_api_route("/auth/callback", oauth_callback, methods=["GET"], include_in_schema=False)
 
-    email = graph_user.get("mail") or graph_user.get("userPrincipalName")
-    display_name = graph_user.get("displayName", "")
-    ms_user_id = graph_user.get("id")
-
-    # Look up or auto-create user in DB
-    user = db.query(Users).filter(Users.UserEmail == email).first()
-    if not user:
-        user = Users(
-            UserID=ms_user_id,
-            UserName=display_name,
-            UserEmail=email,
-            UserRole="employee",
-            UserPassword="",
-        )
-        db.add(user)
-        db.commit()
-        db.refresh(user)
-
-    # 2026-08-05 real bug fix -- see _require_account()'s own docstring.
-    _account_id_by_user_id[user.UserID] = account_id
-
-    role = db.query(Role).filter(Role.id == user.role_id).first() if user.role_id else None
-
-    # Create JWT â€” this is all the client needs going forward
-    jwt_token = create_access_token(
-        data={
-            "sub": user.UserEmail,
-            "type": user.UserRole,
-            "name": user.UserName,
-        }
-    )
-
-    # Redirect to frontend with the JWT as a query param
-    # The frontend should store this token and send it as `Authorization: Bearer <token>`
-    params = urlencode({"token": jwt_token})
-    return RedirectResponse(url=f"{redirect_url}?{params}")
-
-def _graph_client_for(account_id: str) -> dict:
-    """
-    Return the access token for making Graph API calls.
-    We'll use requests library for simplicity instead of the complex SDK setup.
-    """
-    if account_id not in user_tokens:
-        raise HTTPException(401, "No token found for user")
-    return user_tokens[account_id]
+def _graph_client_for(user_id: str) -> dict:
+    """Access token for Graph calls on behalf of this WROS user."""
+    token = get_access_token(user_id)
+    if not token:
+        raise HTTPException(401, "Outlook is not connected or the session expired. Connect Outlook from My Tasks.")
+    return {"access_token": token}
 
 def _make_graph_request(method: str, endpoint: str, access_token: str, json_data=None):
     """
@@ -267,54 +227,28 @@ def _make_graph_request(method: str, endpoint: str, access_token: str, json_data
 
 @router.get(
     "/me",
-    dependencies=[Depends(require_resource_permission("configuration", "view"))]
+    dependencies=[Depends(require_resource_permission("my-tasks", "view"))]
 )
 def me(db: Session = Depends(get_db), user: Users = Depends(get_current_internal_user)):
-    """
-    Return the current authenticated user's profile from the database.
-    Requires a valid JWT Bearer token (obtained from /auth/callback redirect).
-
-    Returns:
-        User details
-    """
-    role = db.query(Role).filter(Role.id == user.role_id).first() if user.role_id else None
-
+    """The current WROS user plus whether their Outlook is connected."""
+    row = get_session_row(db, user.UserID)
     return JSONResponse({
         "user": {
             "id": user.UserID,
             "name": user.UserName,
             "email": user.UserEmail,
             "type": user.UserRole,
-            "permission_role": role.name if role else None,
+            "outlook_connected": row is not None,
         }
     })
 
 def _require_account(current_user: Users = Depends(get_current_internal_user)) -> str:
-    """
-    Identify the calling user's linked Microsoft account from their real
-    authenticated session (the same JWT every other endpoint in this
-    app uses), never a client-suppliable value.
-
-    Real bug fix, 2026-08-05: this used to read `request.cookies.get(
-    "account_id")` -- a cookie /auth/callback never actually sets
-    anywhere (confirmed by grep: no set_cookie call exists in this
-    file), so every call through this path always 401'd in real usage,
-    silently breaking "Schedule Interview"'s Microsoft Teams meeting
-    creation. Worse than just broken: even if a future edit started
-    setting that cookie, trusting a raw, unsigned cookie value as a
-    direct key into `user_tokens` (which holds real Graph access
-    tokens -- mail send, calendar read/write) with no cross-check
-    against the actual authenticated caller would be a real IDOR --
-    anyone who learned/guessed another user's MS `oid` could set it
-    client-side and use that user's Graph token. Fixed the same way
-    every other "resolve MY OWN data" endpoint in this codebase
-    already does: derive identity from Depends(get_current_internal_user)
-    (the real JWT), never a request-supplied identifier.
-    """
-    account_id = _account_id_by_user_id.get(current_user.UserID)
-    if not account_id or account_id not in user_tokens:
-        raise HTTPException(401, "Microsoft account not linked or session expired. Please sign in again at /msgraph/auth/signin")
-    return account_id
+    """The calling user's own id (from their JWT, never a client value),
+    after checking their Outlook is connected. Callers pass it to
+    _graph_client_for()."""
+    if get_access_token(current_user.UserID) is None:
+        raise HTTPException(401, "Outlook is not connected or the session expired. Connect Outlook from My Tasks.")
+    return current_user.UserID
 
 # ---------- SEND MAIL ----------
 @router.post(

@@ -11,6 +11,9 @@ export const HISTORY_EVENT_TYPES = Object.freeze({
   PRE_ONBOARDING: "Pre-Onboarding",
   ONBOARDED: "Onboarded",
   REJECTED: "Rejected",
+  ACTIVITY_LOGGED: "Activity Logged",
+  EMAIL_SENT: "Email Sent",
+  EMAIL_RECEIVED: "Email Received",
   CUSTOM: "Custom",
 });
 

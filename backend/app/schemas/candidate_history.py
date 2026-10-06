@@ -41,6 +41,9 @@ VALID_EVENT_TYPES = {
     "Pre-Onboarding",
     "Onboarded",
     "Rejected",
+    "Activity Logged",
+    "Email Sent",
+    "Email Received",
     "Custom",
 }
 

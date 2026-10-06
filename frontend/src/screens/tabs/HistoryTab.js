@@ -6,7 +6,9 @@ import {
   Clock,
   FileText,
   History,
+  ListChecks,
   Loader2,
+  Mail,
   RefreshCw,
   Search,
   User,
@@ -39,6 +41,13 @@ const getEventIcon = (eventType) => {
 
     case HISTORY_EVENT_TYPES.REJECTED:
       return XCircle;
+
+    case "Activity Logged":
+      return ListChecks;
+
+    case "Email Sent":
+    case "Email Received":
+      return Mail;
 
     default:
       return History;
@@ -87,6 +96,13 @@ const getEventBadgeClass = (eventType) => {
 
     case HISTORY_EVENT_TYPES.PRE_ONBOARDING:
       return "bg-teal-50 text-teal-700 border-teal-100";
+
+    case "Activity Logged":
+      return "bg-orange-50 text-orange-700 border-orange-100";
+
+    case "Email Sent":
+    case "Email Received":
+      return "bg-sky-50 text-sky-700 border-sky-100";
 
     default:
       return "bg-gray-50 text-gray-700 border-gray-100";
@@ -285,7 +301,7 @@ export default function HistoryTab({ candidateId }) {
             </p>
           )}
           {latestEvent.note && (
-            <p className="mt-1 text-sm text-gray-700">{latestEvent.note}</p>
+            <p className="mt-1 whitespace-pre-line text-sm text-gray-700">{latestEvent.note}</p>
           )}
         </div>
       )}

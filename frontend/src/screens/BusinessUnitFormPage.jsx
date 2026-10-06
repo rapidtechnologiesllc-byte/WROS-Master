@@ -8,6 +8,9 @@ import { apiRequest } from '../services/api/client';
 import { toast } from 'react-toastify';
 import { hasPermission } from '../utils/permissionsRoleTemplate';
 
+// users_access_control router is mounted under /api/admin/users-access-control
+const DELIVERY_CENTERS_PATH = '/api/v1/api/admin/users-access-control/delivery-centers';
+
 export default function BusinessUnitFormPage() {
   // Permission Gate: Only users with business-units.edit can create/edit business units
   if (!hasPermission('business-units', 'edit')) {
@@ -34,9 +37,12 @@ export default function BusinessUnitFormPage() {
   const [formData, setFormData] = useState({
     name: '',
     description: '',
-    region: '',
-    continent: ''
+    location_id: '',
+    partner_node_id: ''
   });
+  // Goal tree: Location (Delivery Centers, e.g. BXUS/BXIN) -> Partner -> BU
+  const [locations, setLocations] = useState([]);
+  const [partners, setPartners] = useState([]);
   const [loading, setLoading] = useState(mode === 'edit');
   const [saving, setSaving] = useState(false);
   const [actionError, setActionError] = useState(null);
@@ -47,6 +53,21 @@ export default function BusinessUnitFormPage() {
     }
   }, [buId, mode]);
 
+  useEffect(() => {
+    Promise.all([
+      apiRequest(DELIVERY_CENTERS_PATH),
+      apiRequest('/org/nodes'),
+      apiRequest('/org/hierarchy-reference'),
+    ])
+      .then(([locRes, nodesRes, refRes]) => {
+        setLocations(locRes.data?.delivery_centers || []);
+        const partnerLevel = (refRes.data?.levels || []).find((l) => /^partner/i.test(l.name))?.level;
+        const nodes = Array.isArray(nodesRes.data) ? nodesRes.data : [];
+        setPartners(partnerLevel ? nodes.filter((n) => n.hierarchy_level === partnerLevel) : []);
+      })
+      .catch((err) => setActionError(`Could not load locations/partners: ${err.message}`));
+  }, []);
+
   const loadBusinessUnit = async () => {
     try {
       setLoading(true);
@@ -55,8 +76,8 @@ export default function BusinessUnitFormPage() {
         setFormData({
           name: data.name || '',
           description: data.description || '',
-          region: data.region || '',
-          continent: data.continent || ''
+          location_id: data.location_id || '',
+          partner_node_id: data.partner_node_id || ''
         });
       }
     } catch (err) {
@@ -87,8 +108,9 @@ export default function BusinessUnitFormPage() {
       const payload = {
         name: formData.name.trim(),
         description: formData.description.trim() || null,
-        ...(formData.region && { region: formData.region.trim() }),
-        ...(formData.continent && { continent: formData.continent.trim() })
+        // "" clears the link on the backend
+        location_id: formData.location_id,
+        partner_node_id: formData.partner_node_id
       };
 
       if (mode === 'create') {
@@ -186,28 +208,38 @@ export default function BusinessUnitFormPage() {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Region
+              Location (legal entity)
             </label>
-            <Input
-              type="text"
-              value={formData.region}
-              onChange={setField('region')}
-              placeholder="e.g., Asia, Europe, North America"
+            <select
+              value={formData.location_id}
+              onChange={(e) => setField('location_id')(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-bx-orange"
               disabled={saving}
-            />
+            >
+              <option value="">Not assigned</option>
+              {locations.map((l) => (
+                <option key={l.id} value={l.id}>{l.name}{l.country ? ` (${l.country})` : ''}</option>
+              ))}
+            </select>
+            <p className="mt-1 text-xs text-gray-500">Locations are managed under Delivery Centers (e.g. BXUS, BXIN).</p>
           </div>
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Continent
+              Partner
             </label>
-            <Input
-              type="text"
-              value={formData.continent}
-              onChange={setField('continent')}
-              placeholder="e.g., Asia, Europe, North America"
+            <select
+              value={formData.partner_node_id}
+              onChange={(e) => setField('partner_node_id')(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-bx-orange"
               disabled={saving}
-            />
+            >
+              <option value="">Not assigned</option>
+              {partners.map((p) => (
+                <option key={p.id} value={p.id}>{p.name}</option>
+              ))}
+            </select>
+            <p className="mt-1 text-xs text-gray-500">Partners are org-chart members at the Partner level (Organizational Hierarchy).</p>
           </div>
 
           <div className="flex gap-2 justify-end pt-4 border-t">

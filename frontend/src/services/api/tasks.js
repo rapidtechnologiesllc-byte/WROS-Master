@@ -25,3 +25,23 @@ export const completeTask = async (taskId) => {
   const { data } = await apiRequest(`/tasks/${taskId}/complete`, { method: "POST" });
   return data;
 };
+
+export const getScheduledTasks = async () => {
+  const { data } = await apiRequest("/tasks/my-day/scheduled", { method: "GET" });
+  return data;
+};
+
+export const getTaskUpdateOptions = async () => {
+  const { data } = await apiRequest("/tasks/update-options", { method: "GET" });
+  return data;
+};
+
+export const getTaskUpdates = async (taskId) => {
+  const { data } = await apiRequest(`/tasks/${taskId}/updates`, { method: "GET" });
+  return data?.updates || [];
+};
+
+export const logTaskUpdate = async (taskId, payload) => {
+  const { data } = await apiRequest(`/tasks/${taskId}/updates`, { method: "POST", body: JSON.stringify(payload) });
+  return data;
+};

@@ -547,8 +547,54 @@ class BusinessUnitCreateRequest(BaseModel):
     description: Optional[str] = None
     region: Optional[str] = None
     continent: Optional[str] = None
+    # Goal tree: Location (Delivery Center, e.g. BXUS/BXIN) -> Partner -> BU
+    location_id: Optional[str] = None
+    partner_node_id: Optional[str] = None
 
-@rbac_router.get("/business-units/{bu_id}")
+
+def _bu_tenant(user: Users) -> int:
+    return user.tenant_id if getattr(user, "tenant_id", None) else 1
+
+
+def _set_bu_location_and_partner(db: Session, bu: BusinessUnit, tenant_id: int, req: BusinessUnitCreateRequest) -> None:
+    """Validate and apply the BU's location and partner (an org-chart node at
+    the Partner level). Empty string clears; None leaves unchanged."""
+    from app.models.location import Location
+    from app.models.org_structure import OrgNode, PartnerBUAssignment
+    from app.services.goal_tree_service import partner_hierarchy_level
+
+    if req.location_id is not None:
+        if req.location_id and not db.query(Location).filter(
+            Location.id == req.location_id, Location.tenant_id == tenant_id
+        ).first():
+            raise HTTPException(status_code=422, detail="Unknown location")
+        bu.location_id = req.location_id or None
+
+    if req.partner_node_id is not None:
+        if req.partner_node_id and not db.query(OrgNode).filter(
+            OrgNode.id == req.partner_node_id, OrgNode.tenant_id == tenant_id,
+            OrgNode.hierarchy_level == partner_hierarchy_level(),
+        ).first():
+            raise HTTPException(status_code=422, detail="Partner must be an org-chart node at the Partner level")
+        db.flush()
+        db.query(PartnerBUAssignment).filter(
+            PartnerBUAssignment.business_unit_id == bu.id, PartnerBUAssignment.active.is_(True)
+        ).update({"active": False}, synchronize_session=False)
+        if req.partner_node_id:
+            db.add(PartnerBUAssignment(
+                tenant_id=tenant_id, partner_org_node_id=req.partner_node_id,
+                business_unit_id=bu.id, active=True,
+            ))
+
+
+def _bu_partner_node_id(db: Session, bu_id: int) -> Optional[str]:
+    from app.models.org_structure import PartnerBUAssignment
+    row = db.query(PartnerBUAssignment).filter(
+        PartnerBUAssignment.business_unit_id == bu_id, PartnerBUAssignment.active.is_(True)
+    ).order_by(PartnerBUAssignment.id.desc()).first()
+    return row.partner_org_node_id if row else None
+
+@rbac_router.get("/business-units/{bu_id}", dependencies=[Depends(require_resource_permission("business-units", "view"))])
 def get_business_unit_rbac(
     bu_id: int,
     db: Session = Depends(get_db),
@@ -567,9 +613,11 @@ def get_business_unit_rbac(
         "name": bu.name,
         "display_name": bu.display_name,
         "description": bu.description,
+        "location_id": bu.location_id,
+        "partner_node_id": _bu_partner_node_id(db, bu.id),
     }
 
-@rbac_router.post("/business-units")
+@rbac_router.post("/business-units", dependencies=[Depends(require_resource_permission("business-units", "create"))])
 def create_business_unit_rbac(
     req: BusinessUnitCreateRequest,
     db: Session = Depends(get_db),
@@ -596,6 +644,8 @@ def create_business_unit_rbac(
     )
 
     db.add(new_bu)
+    db.flush()
+    _set_bu_location_and_partner(db, new_bu, tenant_id, req)
     db.commit()
     db.refresh(new_bu)
 
@@ -606,7 +656,7 @@ def create_business_unit_rbac(
         "status": "created"
     }
 
-@rbac_router.put("/business-units/{bu_id}")
+@rbac_router.put("/business-units/{bu_id}", dependencies=[Depends(require_resource_permission("business-units", "edit"))])
 def update_business_unit_rbac(
     bu_id: int,
     req: BusinessUnitCreateRequest,
@@ -627,6 +677,7 @@ def update_business_unit_rbac(
         bu.display_name = req.display_name
     if req.description is not None:
         bu.description = req.description
+    _set_bu_location_and_partner(db, bu, bu.tenant_id, req)
 
     db.commit()
     db.refresh(bu)
@@ -638,7 +689,7 @@ def update_business_unit_rbac(
         "status": "updated"
     }
 
-@rbac_router.delete("/business-units/{bu_id}")
+@rbac_router.delete("/business-units/{bu_id}", dependencies=[Depends(require_resource_permission("business-units", "delete"))])
 def delete_business_unit_rbac(
     bu_id: int,
     db: Session = Depends(get_db),

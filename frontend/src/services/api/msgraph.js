@@ -1,8 +1,26 @@
 // Microsoft Graph API wrappers used by scheduling/email/SharePoint features.
-import { getApiBaseUrl, maybeRedirectOnUnauthorized } from "./client";
+import { apiRequest, getApiBaseUrl, maybeRedirectOnUnauthorized } from "./client";
 
 export const getMicrosoftSigninUrl = () =>
   `${getApiBaseUrl()}/msgraph/auth/signin`;
+
+// Connect the logged-in user's Outlook (mail capture + calendar). Microsoft
+// returns the browser to My Tasks with ?outlook=connected|error.
+export const connectOutlook = async () => {
+  const { data } = await apiRequest("/msgraph/link/start", { method: "GET" });
+  if (!data?.auth_url) throw new Error("Could not start the Microsoft sign-in.");
+  window.location.href = data.auth_url;
+};
+
+export const getOutlookStatus = async () => {
+  const { data } = await apiRequest("/msgraph/link-status", { method: "GET" });
+  return data;
+};
+
+export const disconnectOutlook = async () => {
+  const { data } = await apiRequest("/msgraph/unlink", { method: "POST" });
+  return data;
+};
 
 const getAuthHeaders = () => {
   const token = localStorage.getItem("hrms_token");
@@ -11,7 +29,7 @@ const getAuthHeaders = () => {
 
 export const getGraphMe = async () => {
   // Checks if a Microsoft account is connected (Bearer JWT only; avoid credentials:include + wildcard CORS).
-  const response = await fetch(`${getApiBaseUrl()}/msgraph/me`, {
+  const response = await fetch(`${getApiBaseUrl()}/api/v1/msgraph/me`, {
     method: "GET",
     headers: getAuthHeaders(),
   });
@@ -71,7 +89,7 @@ export const scheduleUserMeeting = async ({
   });
 
   const response = await fetch(
-    `${getApiBaseUrl()}/msgraph/calendar/schedule?${params.toString()}`,
+    `${getApiBaseUrl()}/api/v1/msgraph/calendar/schedule?${params.toString()}`,
     {
       method: "POST",
       headers: getAuthHeaders(),
@@ -133,7 +151,7 @@ export const scheduleTeamsMeeting = async ({
   });
 
   const response = await fetch(
-    `${getApiBaseUrl()}/msgraph/service/calendar/schedule?${params.toString()}`,
+    `${getApiBaseUrl()}/api/v1/msgraph/service/calendar/schedule?${params.toString()}`,
     {
       method: "POST",
       headers: getAuthHeaders(),
@@ -162,7 +180,7 @@ export const scheduleTeamsMeeting = async ({
 export const getMyMeetings = async ({ top = 10, skip = 0 } = {}) => {
   // Lists meetings for the signed-in Microsoft account.
   const response = await fetch(
-    `${getApiBaseUrl()}/msgraph/calendar/meetings?top=${top}&skip=${skip}`,
+    `${getApiBaseUrl()}/api/v1/msgraph/calendar/meetings?top=${top}&skip=${skip}`,
     { method: "GET", headers: getAuthHeaders() },
   );
 
@@ -198,7 +216,7 @@ export const getServiceCalendarEvents = async ({
   if (startTime) params.set("start_time", startTime);
   if (endTime) params.set("end_time", endTime);
   const response = await fetch(
-    `${getApiBaseUrl()}/msgraph/service/calendar/events/${encodeURIComponent(
+    `${getApiBaseUrl()}/api/v1/msgraph/service/calendar/events/${encodeURIComponent(
       userEmail,
     )}?${params.toString()}`,
     { method: "GET", headers: getAuthHeaders() },
@@ -240,7 +258,7 @@ export const sendGraphMail = async ({ to, subject, bodyText }) => {
   params.set("subject", subject);
   params.set("body_text", bodyText);
   const response = await fetch(
-    `${getApiBaseUrl()}/msgraph/mail/send?${params.toString()}`,
+    `${getApiBaseUrl()}/api/v1/msgraph/mail/send?${params.toString()}`,
     {
       method: "POST",
       headers: getAuthHeaders(),
@@ -268,7 +286,7 @@ export const sendGraphMail = async ({ to, subject, bodyText }) => {
 export const testSharepointConnection = async () => {
   // Verifies SharePoint service account configuration.
   const response = await fetch(
-    `${getApiBaseUrl()}/msgraph/sharepoint/test-connection`,
+    `${getApiBaseUrl()}/api/v1/msgraph/sharepoint/test-connection`,
     {
       method: "GET",
       headers: getAuthHeaders(),
@@ -297,7 +315,7 @@ export const testSharepointConnection = async () => {
 export const listSharepointDrives = async () => {
   // Lists SharePoint drives to help choose a drive ID.
   const response = await fetch(
-    `${getApiBaseUrl()}/msgraph/sharepoint/list-drives`,
+    `${getApiBaseUrl()}/api/v1/msgraph/sharepoint/list-drives`,
     {
       method: "GET",
       headers: getAuthHeaders(),

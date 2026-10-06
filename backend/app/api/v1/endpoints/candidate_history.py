@@ -124,12 +124,8 @@ def create_candidate_history(
         )
 
     # Resolve performer — fall back to the calling user if not supplied
-    performed_by_id = request.performed_by_id or getattr(user, "userID", None)
-    performed_by_name = request.performed_by_name or (
-        f"{getattr(user, 'userFirstName', '') or ''} "
-        f"{getattr(user, 'userLastName', '') or ''}".strip()
-        or getattr(user, "userEmail", None)
-    )
+    performed_by_id = request.performed_by_id or user.UserID
+    performed_by_name = request.performed_by_name or user.UserName or user.UserEmail
 
     event_at = request.event_at or datetime.utcnow()
 

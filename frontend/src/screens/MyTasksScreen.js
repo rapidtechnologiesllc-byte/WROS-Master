@@ -5,12 +5,14 @@
 // task); Priority only orders within that guaranteed set. Upcoming
 // Urgent tasks (not due today) show separately, never mixed in.
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { AlertCircle, CheckCircle, X } from "lucide-react";
 import { Card, Button, Input, Select } from "../components/ui";
 import {
-  completeTask, confirmUrgentTask, createTask, getMyDayTasks, getUpcomingUrgentTasks,
+  completeTask, confirmUrgentTask, createTask, getMyDayTasks, getScheduledTasks, getUpcomingUrgentTasks,
 } from "../services/api/tasks";
+import TaskUpdateModal from "../components/TaskUpdateModal";
+import { connectOutlook, disconnectOutlook, getOutlookStatus } from "../services/api/msgraph";
 import { createTicket, getTicketCategories } from "../services/api/tickets";
 
 const TICKET_IMPACTS = ["INDIVIDUAL", "DEPARTMENT", "MULTIPLE_DEPARTMENTS", "ORG_WIDE"];
@@ -28,7 +30,7 @@ function isOverdue(task, now) {
   return task.due_date && new Date(task.due_date) < now && task.status !== "COMPLETED";
 }
 
-function TaskRow({ task, now, onComplete, onConfirmUrgent, onNavigate }) {
+function TaskRow({ task, now, onComplete, onConfirmUrgent, onNavigate, onLogUpdate }) {
   const overdue = isOverdue(task, now);
   return (
     <tr className="border-b border-bx-border last:border-0">
@@ -63,24 +65,91 @@ function TaskRow({ task, now, onComplete, onConfirmUrgent, onNavigate }) {
       </td>
       <td className="py-2 px-3 text-xs text-gray-500">{task.department_id ?? "--"}</td>
       <td className="py-2 px-3 text-xs text-gray-500">{task.is_external ? "Yes" : "No"}</td>
-      <td className="py-2 px-3">
+      <td className="py-2 px-3 whitespace-nowrap">
         {task.status !== "COMPLETED" && (
-          <button
-            className="text-xs font-semibold text-emerald-700 hover:underline"
-            onClick={() => onComplete(task.id)}
-          >
-            Mark complete
-          </button>
+          <div className="flex flex-col items-start gap-1">
+            <button
+              className="text-xs font-semibold text-bx-orange hover:underline"
+              onClick={() => onLogUpdate(task)}
+            >
+              Log update
+            </button>
+            <button
+              className="text-xs font-semibold text-emerald-700 hover:underline"
+              onClick={() => onComplete(task.id)}
+            >
+              Mark complete
+            </button>
+          </div>
         )}
       </td>
     </tr>
   );
 }
 
+// Outlook mail capture: emails with known candidates/employees are logged
+// to their History (subject, direction, time, link -- never the body).
+function OutlookConnection({ onError }) {
+  const [status, setStatus] = useState(null);
+  const [busy, setBusy] = useState(false);
+
+  const refresh = () => getOutlookStatus().then(setStatus).catch(() => setStatus({ linked: false }));
+  useEffect(() => {
+    refresh();
+  }, []);
+
+  const connect = async () => {
+    setBusy(true);
+    try {
+      await connectOutlook();
+    } catch (err) {
+      onError(err.message || "Could not start the Microsoft sign-in.");
+      setBusy(false);
+    }
+  };
+
+  const disconnect = async () => {
+    setBusy(true);
+    try {
+      await disconnectOutlook();
+      await refresh();
+    } catch (err) {
+      onError(err.message || "Could not disconnect Outlook.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (!status) return null;
+  if (!status.linked) {
+    return (
+      <div className="flex items-center gap-2 text-xs text-gray-600">
+        {status.last_error && <span className="text-amber-700">{status.last_error}</span>}
+        <Button variant="secondary" onClick={connect} disabled={busy}>Connect Outlook</Button>
+      </div>
+    );
+  }
+  return (
+    <div className="flex flex-col items-end text-xs text-gray-600">
+      <span>
+        Outlook: <span className="font-semibold text-gray-800">{status.account_email || "connected"}</span>
+        {status.last_synced_at && ` · last sync ${new Date(status.last_synced_at).toLocaleString()}`}
+        <button className="ml-2 underline hover:text-gray-900" onClick={disconnect} disabled={busy}>Disconnect</button>
+      </span>
+      {status.mail_access === false && status.last_error && (
+        <span className="mt-1 text-amber-700">{status.last_error}</span>
+      )}
+    </div>
+  );
+}
+
 export default function MyTasksScreen() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [tasks, setTasks] = useState([]);
   const [upcoming, setUpcoming] = useState([]);
+  const [scheduled, setScheduled] = useState([]);
+  const [updatingTask, setUpdatingTask] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
   const [mode, setMode] = useState("TASK"); // TASK | TICKET
@@ -95,15 +164,28 @@ export default function MyTasksScreen() {
 
   const load = async () => {
     try {
-      const [daily, urgentUpcoming] = await Promise.all([getMyDayTasks(), getUpcomingUrgentTasks()]);
+      const [daily, urgentUpcoming, followUps] = await Promise.all([
+        getMyDayTasks(), getUpcomingUrgentTasks(), getScheduledTasks(),
+      ]);
       setTasks(daily || []);
       setUpcoming(urgentUpcoming || []);
+      setScheduled(followUps || []);
     } catch (err) {
       console.error("Could not load your tasks:", err);
     } finally {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    const outlook = searchParams.get("outlook");
+    if (outlook === "connected") {
+      setActionSuccess("Outlook connected. Emails with candidates and employees will appear on their History within 15 minutes.");
+    } else if (outlook === "error") {
+      setActionError(`Outlook was not connected: ${searchParams.get("reason") || "Microsoft sign-in failed"}`);
+    }
+    if (outlook) setSearchParams({}, { replace: true });
+  }, []);
 
   useEffect(() => {
     load();
@@ -128,6 +210,16 @@ export default function MyTasksScreen() {
     } catch {
       setActionError("Could not confirm.");
     }
+  };
+
+  const handleUpdateSaved = (saved) => {
+    setUpdatingTask(null);
+    setActionSuccess(
+      saved?.follow_up_task_id
+        ? `Update saved. Next action added as task #${saved.follow_up_task_id}.`
+        : "Update saved."
+    );
+    load();
   };
 
   const handleNavigateTask = (task) => {
@@ -237,7 +329,10 @@ export default function MyTasksScreen() {
         <div>
           <p className="text-sm text-gray-500">Due today or overdue -- guaranteed on this list regardless of priority.</p>
         </div>
-        <Button onClick={() => setShowCreate((s) => !s)}>+ New Task</Button>
+        <div className="flex items-center gap-4">
+          <OutlookConnection onError={setActionError} />
+          <Button onClick={() => setShowCreate((s) => !s)}>+ New Task</Button>
+        </div>
       </div>
 
       {showCreate && (
@@ -327,12 +422,27 @@ export default function MyTasksScreen() {
                   <tr><td colSpan={7} className="py-6 text-center text-sm text-gray-400">Nothing due today. Nice.</td></tr>
                 ) : (
                   tasks.map((t) => (
-                    <TaskRow key={t.id} task={t} now={now} onComplete={handleComplete} onConfirmUrgent={handleConfirmUrgent} onNavigate={handleNavigateTask} />
+                    <TaskRow key={t.id} task={t} now={now} onComplete={handleComplete} onConfirmUrgent={handleConfirmUrgent} onNavigate={handleNavigateTask} onLogUpdate={setUpdatingTask} />
                   ))
                 )}
               </tbody>
             </table>
           </div>
+
+          {scheduled.length > 0 && (
+            <div className="mb-6">
+              <h2 className="text-sm font-semibold text-gray-700 mb-2">Scheduled follow-ups (next 30 days)</h2>
+              <div className="border border-bx-border rounded-bx-lg overflow-hidden bg-white shadow-sm">
+                <table className="w-full text-left">
+                  <tbody>
+                    {scheduled.map((t) => (
+                      <TaskRow key={t.id} task={t} now={now} onComplete={handleComplete} onConfirmUrgent={handleConfirmUrgent} onNavigate={handleNavigateTask} onLogUpdate={setUpdatingTask} />
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
 
           {upcoming.length > 0 && (
             <div>
@@ -341,7 +451,7 @@ export default function MyTasksScreen() {
                 <table className="w-full text-left">
                   <tbody>
                     {upcoming.map((t) => (
-                      <TaskRow key={t.id} task={t} now={now} onComplete={handleComplete} onConfirmUrgent={handleConfirmUrgent} onNavigate={handleNavigateTask} />
+                      <TaskRow key={t.id} task={t} now={now} onComplete={handleComplete} onConfirmUrgent={handleConfirmUrgent} onNavigate={handleNavigateTask} onLogUpdate={setUpdatingTask} />
                     ))}
                   </tbody>
                 </table>
@@ -349,6 +459,10 @@ export default function MyTasksScreen() {
             </div>
           )}
         </>
+      )}
+
+      {updatingTask && (
+        <TaskUpdateModal task={updatingTask} onClose={() => setUpdatingTask(null)} onSaved={handleUpdateSaved} />
       )}
     </div>
   );

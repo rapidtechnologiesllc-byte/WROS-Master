@@ -57,7 +57,7 @@ export const getCFOForecast = async (monthsAhead = 3) => {
 
 // CEO FY Progress
 
-export const getCEOFYProgress = async (fyYear = 2026) => {
+export const getCEOFYProgress = async (fyYear = new Date().getFullYear()) => {
   const { data } = await apiRequest(`/agents/ceo/fy-progress?fy_year=${fyYear}`, {
     method: "GET",
   });
@@ -67,4 +67,13 @@ export const getCEOFYProgress = async (fyYear = 2026) => {
 export const getCEOFYSummary = async () => {
   const { data } = await apiRequest("/agents/ceo/fy-summary", { method: "GET" });
   return data.data;
+};
+
+// CEO FY targets (one per dashboard metric); null target = not set
+export const setFYTarget = async (metric, target, fyYear) => {
+  const { data } = await apiRequest(`/goals/fy-targets/${metric}?year=${fyYear}`, {
+    method: "PUT",
+    body: JSON.stringify({ target }),
+  });
+  return data;
 };

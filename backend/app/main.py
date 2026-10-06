@@ -41,6 +41,14 @@ setup_cors(app)  # Add CORS LAST so it runs FIRST
 # Register complete API router (all production endpoints)
 app.include_router(api_router)
 
+# Microsoft OAuth redirect URI registered in Azure is
+# https://hrms-backend.blitzenx.com/msgraph/auth/callback -- that host proxies
+# to this app without the /api/v1 prefix, so serve the callback (and the
+# sign-in redirect the login page links to) at the bare paths too.
+from app.api.v1.endpoints.msgraph import oauth_callback as _msgraph_oauth_callback, signin as _msgraph_signin
+app.add_api_route("/msgraph/auth/callback", _msgraph_oauth_callback, methods=["GET"], include_in_schema=False)
+app.add_api_route("/msgraph/auth/signin", _msgraph_signin, methods=["GET"], include_in_schema=False)
+
 logger.info(f"[STARTUP] Endpoint registration complete - {len(app.routes)} top-level routes registered")
 
 @app.get("/health")

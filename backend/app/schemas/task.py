@@ -54,3 +54,14 @@ class ReassignmentApproveRequest(BaseModel):
 
 class MarkUnavailableRequest(BaseModel):
     user_id: str
+
+
+class TaskUpdateRequest(BaseModel):
+    """Log what was done on a task and, optionally, the next action."""
+    activity_type: str
+    notes: str
+    outcome: Optional[str] = None
+    next_action_type: Optional[str] = None
+    next_action_due: Optional[datetime] = None
+    next_action_note: Optional[str] = None
+    complete_task: bool = False

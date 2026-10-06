@@ -17,7 +17,7 @@ import {
 } from "../services/api/interviews";
 import { getAllUsers } from "../services/api/users";
 import {
-  getMicrosoftSigninUrl,
+  connectOutlook,
   getMyMeetings,
   getServiceCalendarEvents,
   listSharepointDrives,
@@ -666,7 +666,7 @@ export default function InterviewStatus({
         <div className="flex flex-wrap items-center gap-2">
           <Button
             variant="secondary"
-            onClick={() => window.open(getMicrosoftSigninUrl(), "_blank")}
+            onClick={() => connectOutlook()}
           >
             Connect Microsoft
           </Button>

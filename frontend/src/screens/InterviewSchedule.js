@@ -9,7 +9,7 @@ import {
 } from "../services/api/interviews";
 import {
   getGraphMe,
-  getMicrosoftSigninUrl,
+  connectOutlook,
   scheduleTeamsMeeting,
   scheduleUserMeeting,
 } from "../services/api/msgraph";
@@ -342,7 +342,7 @@ export default function InterviewSchedule({
               <Button
                 type="button"
                 variant="secondary"
-                onClick={() => window.open(getMicrosoftSigninUrl(), "_blank")}
+                onClick={() => connectOutlook()}
                 disabled={useServiceAccount}
               >
                 {msConnected ? "Re-connect Microsoft" : "Connect Microsoft"}
@@ -454,7 +454,7 @@ export default function InterviewSchedule({
                 setStatusNotice(
                   "Microsoft sign-in required. Please connect first.",
                 );
-                window.open(getMicrosoftSigninUrl(), "_blank");
+                connectOutlook();
                 return;
               }
               setIsScheduling(true);
@@ -542,7 +542,7 @@ export default function InterviewSchedule({
                 }
                 const message = err.message || "Failed to schedule interview.";
                 if (message.toLowerCase().includes("sign in first")) {
-                  window.open(getMicrosoftSigninUrl(), "_blank");
+                  connectOutlook();
                 }
                 setStatusNotice(message);
               } finally {

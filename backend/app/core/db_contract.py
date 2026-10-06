@@ -736,6 +736,10 @@ def _run_schema_migrations():
                 # the model still defaults new users to True.
                 ("password_reset_required", "BOOLEAN NOT NULL DEFAULT false"),
             ],
+            # Goal tree Org -> Location (legal entity, e.g. BXUS/BXIN) -> Partner -> BU
+            "business_units": [
+                ("location_id", "VARCHAR(512) NULL REFERENCES app_schema.locations(id) ON DELETE SET NULL"),
+            ],
             "clients": [
                 ("account_manager_user_id", 'VARCHAR(512) NULL REFERENCES app_schema.users("UserID") ON DELETE SET NULL'),
             ],

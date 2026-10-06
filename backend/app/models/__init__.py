@@ -175,7 +175,8 @@ from app.models.bulk_engagement import BulkEngagementJob, BulkEngagementError
 from app.models.event_log import EventLog
 from app.models.agent_execution_log import AgentExecutionLog
 from app.models.preboarding_touchpoint import PreboardingTouchpoint
-from app.models.task import Task, TaskReassignmentRequest, TaskCapacityAlert
+from app.models.task import Task, TaskActivity, TaskReassignmentRequest, TaskCapacityAlert
+from app.models.msgraph_session import MsgraphSession
 from app.models.ticket import TicketCategoryRoute, TicketSLAPolicy, TicketDetail
 from app.models.candidate_opportunity_watch import CandidateOpportunityWatch
 from app.models.executive_signal import (
@@ -190,7 +191,7 @@ from app.models.interview_rehire_review import InterviewRehireReview
 from app.models.candidate_desire_signal import CandidateDesireSignal
 from app.models.candidate_desire_profile import CandidateDesireProfile
 from app.models.motivation import MotivationContentLibrary, MotivationOutcome
-from app.models.strategic_goal import StrategicGoal, CascadedGoal, PyramidReport
+from app.models.strategic_goal import StrategicGoal, CascadedGoal, GoalTarget, PyramidReport
 from app.models.linkedin_candidate_pipeline import LinkedInCandidatePipeline, LinkedInPipelineStatus
 
 __all__ = [
@@ -361,6 +362,8 @@ __all__ = [
     "PreboardingTouchpoint",
     # Task Dashboard (S-434, 2026-08-04)
     "Task",
+    "TaskActivity",
+    "MsgraphSession",
     "TaskReassignmentRequest",
     "TaskCapacityAlert",
     # Help Desk/IT-HR Ticketing (2026-08-04)

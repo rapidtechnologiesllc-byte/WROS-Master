@@ -164,6 +164,49 @@ class Task(Base):
         ),
     )
 
+# Task updates: what was done on a task, and what happens next.
+TASK_ACTIVITY_TYPES = ("CALL", "EMAIL", "LINKEDIN_MESSAGE", "WHATSAPP", "MEETING", "INTERVIEW", "NOTE")
+TASK_ACTIVITY_OUTCOMES = ("CONNECTED", "NO_RESPONSE", "LEFT_MESSAGE", "INTERESTED", "NOT_INTERESTED", "FOLLOW_UP_NEEDED", "DONE")
+TASK_NEXT_ACTION_TYPES = ("CALL", "EMAIL", "LINKEDIN_MESSAGE", "WHATSAPP", "MEETING", "SCHEDULE_INTERVIEW", "SUBMIT_TO_JOB", "SEND_OFFER", "FOLLOW_UP")
+
+class TaskActivity(Base):
+    """One logged update on a task: what was done (type, outcome, notes)
+    and, optionally, the next action -- which is created as its own
+    follow-up Task (follow_up_task_id) so it lands in the assignee's
+    My Tasks on its due date. Updates on a candidate's task are also
+    written to that candidate's history."""
+    __tablename__ = "task_activities"
+
+    id = Column(Integer, primary_key=True, autoincrement=True, index=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
+    task_id = Column(Integer, ForeignKey("tasks.id"), nullable=False, index=True)
+    candidate_id = Column(String(512), ForeignKey("candidates.candidateID"), nullable=True, index=True)
+
+    activity_type = Column(
+        Enum(*TASK_ACTIVITY_TYPES, name="task_activity_type", native_enum=False, create_constraint=True),
+        nullable=False,
+    )
+    outcome = Column(
+        Enum(*TASK_ACTIVITY_OUTCOMES, name="task_activity_outcome", native_enum=False, create_constraint=True),
+        nullable=True,
+    )
+    notes = Column(Text, nullable=False)
+
+    next_action_type = Column(
+        Enum(*TASK_NEXT_ACTION_TYPES, name="task_next_action_type", native_enum=False, create_constraint=True),
+        nullable=True,
+    )
+    next_action_due = Column(DateTime, nullable=True)
+    next_action_note = Column(Text, nullable=True)
+    follow_up_task_id = Column(Integer, ForeignKey("tasks.id"), nullable=True, index=True)
+
+    created_by_user_id = Column(String(512), ForeignKey("users.UserID"), nullable=True, index=True)
+    created_at = Column(DateTime, server_default=func.now(), nullable=False)
+
+    task = relationship("Task", foreign_keys=[task_id])
+    follow_up_task = relationship("Task", foreign_keys=[follow_up_task_id])
+    created_by = relationship("Users", foreign_keys=[created_by_user_id])
+
 class TaskReassignmentRequest(Base):
     """A manager-approval-gated reassignment, raised when an assignee is
     unavailable (e.g. taking time off) and has tasks due today. Never
