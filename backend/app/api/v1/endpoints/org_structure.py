@@ -9,6 +9,7 @@ Endpoints for:
 - Retrieving approval chains for employees
 """
 import uuid
+from app.services.org_hierarchy_validator import LEVEL_POSITION_CODES
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
@@ -107,7 +108,9 @@ def list_valid_supervisors(
 )
 def get_hierarchy_reference(current_user = Depends(get_current_internal_user)):
     return {
-        "levels": [{"level": level, "name": name} for level, name in sorted(HIERARCHY_LEVELS.items(), reverse=True)],
+        # position_code: the org position (job title) a seat at this level holds
+        "levels": [{"level": level, "name": name, "position_code": LEVEL_POSITION_CODES.get(level)}
+                   for level, name in sorted(HIERARCHY_LEVELS.items(), reverse=True)],
         "specializations": SPECIALIZATIONS,
     }
 

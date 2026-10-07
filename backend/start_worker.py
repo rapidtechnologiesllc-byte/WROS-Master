@@ -7,6 +7,7 @@ import sys
 import time
 import signal
 import logging
+import app.core.config  # noqa: F401  -- load backend/.env before any module reads settings
 from app.workers.message_queue_worker import process_message_queue
 
 # Setup logging

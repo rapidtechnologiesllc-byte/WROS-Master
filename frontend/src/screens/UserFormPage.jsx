@@ -43,6 +43,8 @@ export default function UserFormPage() {
   const [roleTemplates, setRoleTemplates] = useState([]);
   const [businessUnits, setBusinessUnits] = useState([]);
   const [positions, setPositions] = useState([]);
+  // Org levels (1-17, each with the position/job title it holds) and specializations
+  const [reference, setReference] = useState({ levels: [], specializations: [] });
   const [validSupervisors, setValidSupervisors] = useState([]);
   const [departments, setDepartments] = useState([]);
   const [deliveryCenters, setDeliveryCenters] = useState([]);
@@ -63,12 +65,14 @@ export default function UserFormPage() {
 
   const loadInitialData = async () => {
     try {
-      const [rolesRes, busRes, posRes, dcRes] = await Promise.all([
+      const [rolesRes, busRes, posRes, dcRes, refRes] = await Promise.all([
         apiRequest('/admin/role-templates'),
         apiRequest('/business-units'),
         apiRequest('/org/positions'),
-        apiRequest('/api/v1/api/admin/users-access-control/delivery-centers')
+        apiRequest('/api/v1/api/admin/users-access-control/delivery-centers'),
+        apiRequest('/org/hierarchy-reference')
       ]);
+      setReference(refRes.data || { levels: [], specializations: [] });
       // Filter to only enabled templates - disabled templates shouldn't be selectable
       const enabledTemplates = rolesRes.data?.role_templates?.filter(t => t.enabled !== false) || [];
       setRoleTemplates(enabledTemplates);
@@ -179,13 +183,12 @@ export default function UserFormPage() {
         const response = await apiRequest(`/admin/role-templates/${templateId}`);
         const permissions = response.data?.permissions || [];
         setSelectedTemplatePermissions(permissions);
-        // The role template already encodes the org hierarchy level and
-        // specialization for this role - inherit them rather than asking
-        // the admin to pick from scratch.
+        // The role template suggests a specialization (and a level when the
+        // job title doesn't imply one); both stay editable on the form.
         setFormData(prev => ({
           ...prev,
-          hierarchy_level: response.data?.hierarchy_level ?? '',
-          specialization: response.data?.specialization ?? '',
+          hierarchy_level: prev.hierarchy_level || (response.data?.hierarchy_level ?? ''),
+          specialization: response.data?.specialization ?? prev.specialization,
           parent_node_id: '' // reset - valid supervisors depend on hierarchy_level/specialization
         }));
       } catch (error) {
@@ -194,7 +197,7 @@ export default function UserFormPage() {
       }
     } else {
       setSelectedTemplatePermissions([]);
-      setFormData(prev => ({ ...prev, hierarchy_level: '', specialization: '', parent_node_id: '' }));
+      setFormData(prev => ({ ...prev, parent_node_id: '' }));
     }
   };
 
@@ -225,12 +228,18 @@ export default function UserFormPage() {
       });
   }, [formData.hierarchy_level, formData.specialization, formData.business_unit_id]);
 
-  // The org-chart seat: a CEO is the top of the organization (level 17,
-  // reports to no one) whatever role template grants their permissions;
-  // everyone else takes the level/specialization of their role template.
-  const isCeo = formData.job_title === 'CEO';
-  const seatLevel = isCeo ? 17 : formData.hierarchy_level;
-  const seatSpecialization = isCeo ? 'General' : formData.specialization;
+  // The org-chart seat. Level 17 is the CEO: top of the organization,
+  // reports to no one. The job title suggests the level; the admin can change it.
+  const isCeo = Number(formData.hierarchy_level) === 17;
+  const seatLevel = formData.hierarchy_level;
+  const seatSpecialization = formData.specialization || (isCeo ? 'General' : '');
+
+  // Highest level whose position matches the picked job title (CEO -> 17, Partner -> 16, ...)
+  const levelForJobTitle = (title) => {
+    const position = positions.find((p) => (p.name || p.PositionName || p.position_name) === title);
+    const code = position?.rbac_role_name;
+    return reference.levels.find((l) => code && l.position_code === code)?.level || '';
+  };
 
   const handleSave = async (e) => {
     e.preventDefault();
@@ -409,7 +418,17 @@ export default function UserFormPage() {
             </label>
             <select
               value={formData.job_title}
-              onChange={(e) => setFormData(prev => ({ ...prev, job_title: e.target.value }))}
+              onChange={(e) => {
+                const title = e.target.value;
+                const level = levelForJobTitle(title);
+                setFormData(prev => ({
+                  ...prev,
+                  job_title: title,
+                  hierarchy_level: level || prev.hierarchy_level,
+                  specialization: level === 17 ? 'General' : prev.specialization,
+                  parent_node_id: '',
+                }));
+              }}
               disabled={saving}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-bx-orange disabled:bg-gray-100"
             >
@@ -526,20 +545,39 @@ export default function UserFormPage() {
             </select>
           </div>
 
-          {/* Hierarchy level / specialization - inherited from the selected role template */}
-          {mode === 'create' && formData.role_template_id && (
+          {/* Org-chart seat: level suggested by the job title, specialization by the role template */}
+          {mode === 'create' && (
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Hierarchy Level
                 </label>
-                <Input type="text" value={seatLevel ? `Level ${seatLevel}${isCeo ? ' (CEO - top of the organization)' : ''}` : ''} disabled />
+                <select
+                  value={formData.hierarchy_level || ''}
+                  onChange={(e) => setFormData(prev => ({ ...prev, hierarchy_level: e.target.value ? Number(e.target.value) : '', parent_node_id: '' }))}
+                  disabled={saving}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-bx-orange disabled:bg-gray-100"
+                >
+                  <option value="">Select level</option>
+                  {reference.levels.map((l) => (
+                    <option key={l.level} value={l.level}>L{l.level} · {l.name}</option>
+                  ))}
+                </select>
+                {isCeo && <p className="mt-1 text-xs text-gray-500">Top of the organization - reports to no one.</p>}
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Specialization
                 </label>
-                <Input type="text" value={seatSpecialization || ''} disabled />
+                <select
+                  value={formData.specialization || ''}
+                  onChange={(e) => setFormData(prev => ({ ...prev, specialization: e.target.value, parent_node_id: '' }))}
+                  disabled={saving}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-bx-orange disabled:bg-gray-100"
+                >
+                  <option value="">Select specialization</option>
+                  {reference.specializations.map((s) => <option key={s} value={s}>{s}</option>)}
+                </select>
               </div>
             </div>
           )}

@@ -802,11 +802,11 @@ def create_user_with_roles(
         logger.error(f"Failed to check role template: {role_error}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to validate role template")
 
-    # The role template is the source of truth for org level/specialization,
-    # except the CEO seat: the top of the organization (level 17, reports to
-    # no one) whatever template grants their permissions. One per tenant.
-    is_ceo_seat = (request.job_title or "").strip().upper() == "CEO" and request.hierarchy_level == 17
-    if is_ceo_seat:
+    # The role template grants permissions; the org-chart seat (level,
+    # specialization, reporting line) is chosen on the form and checked by
+    # the reporting rules below. Level 17 is the CEO: one per organization,
+    # reports to no one.
+    if request.hierarchy_level == 17:
         from app.models.org_structure import OrgNode
         existing_ceo = db.query(OrgNode).filter(
             OrgNode.tenant_id == current_user.tenant_id, OrgNode.hierarchy_level == 17, OrgNode.active.is_(True),
@@ -818,15 +818,6 @@ def create_user_with_roles(
             )
         if request.parent_node_id:
             raise HTTPException(status_code=400, detail="The CEO reports to no one")
-    elif (request.hierarchy_level, request.specialization) != (role_template.hierarchy_level, role_template.specialization):
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                f"hierarchy_level/specialization must match role template '{role_template.name}' "
-                f"(level {role_template.hierarchy_level}, {role_template.specialization})"
-            ),
-        )
-
     if request.department_id:
         department = db.query(Department).filter(
             Department.id == request.department_id,

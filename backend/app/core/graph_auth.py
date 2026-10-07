@@ -2,7 +2,6 @@
 Microsoft Graph Service Account Authentication
 Provides application-only authentication for SharePoint uploads.
 This allows candidates without Microsoft accounts to upload documents.
-import logging
 """
 
 import logging
@@ -12,10 +11,15 @@ from datetime import datetime, timedelta
 from typing import Optional
 from app.core.logging import logger
 
-# Service Account Configuration
-TENANT_ID = os.getenv("AZURE_TENANT_ID", "")
-CLIENT_ID = os.getenv("AZURE_CLIENT_ID", "")
-CLIENT_SECRET = os.getenv("AZURE_CLIENT_SECRET", "")
+def _credentials():
+    """(tenant, client_id, secret), read when needed -- not at import, which in
+    the queue worker ran before .env was loaded and left email "not configured".
+    Same placeholder-aware lookup as the delegated (Outlook) flow."""
+    import app.core.config  # noqa: F401  (loads backend/.env)
+    from app.core.msgraph_session_store import graph_oauth_settings
+    s = graph_oauth_settings()
+    tenant = s["authority"].rstrip("/").rsplit("/", 1)[-1] if s["authority"] else None
+    return tenant, s["client_id"], s["client_secret"]
 
 # Token cache
 _token_cache = {
@@ -55,11 +59,12 @@ class GraphServiceAuth:
         # Get new token
         logger.info("Acquiring new Microsoft Graph access token")
         
-        token_url = f"https://login.microsoftonline.com/{TENANT_ID}/oauth2/v2.0/token"
-        
+        tenant_id, client_id, client_secret = _credentials()
+        token_url = f"https://login.microsoftonline.com/{tenant_id}/oauth2/v2.0/token"
+
         data = {
-            "client_id": CLIENT_ID,
-            "client_secret": CLIENT_SECRET,
+            "client_id": client_id,
+            "client_secret": client_secret,
             "scope": "https://graph.microsoft.com/.default",
             "grant_type": "client_credentials"
         }
@@ -96,7 +101,7 @@ class GraphServiceAuth:
     @staticmethod
     def is_configured() -> bool:
         """Check if service account is properly configured"""
-        return bool(TENANT_ID and CLIENT_ID and CLIENT_SECRET)
+        return all(_credentials())
 
 
 def get_graph_token(force_refresh: bool = False) -> str:

@@ -103,6 +103,10 @@ def handle_create_user_with_roles(message: Any, db: Session) -> Dict[str, Any]:
         logger.error(f"[CreateUserWithRoles] Welcome email to {user_email} failed: {email_error}", exc_info=True)
         welcome_email = f"failed: {email_error}"
 
+    # The queue row keeps its payload: don't leave the password in it
+    if isinstance(getattr(message, "payload", None), dict) and "user_password" in message.payload:
+        message.payload = {k: v for k, v in message.payload.items() if k != "user_password"}
+
     return {
         "status": "user_created",
         "user_id": user.UserID,
