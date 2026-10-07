@@ -12,12 +12,15 @@ class ClientListItem(BaseModel):
     company_name: str
     status: str
     business_unit_id: Optional[int] = None
+    # Contracting company (BX-US / BX-IN): which of our companies invoices this client
+    contracting_company_id: Optional[str] = None
     # 2026-08-12, Avinash: BU wasn't visible anywhere in Client Management
     # UI despite business_unit_id already being the real P&L-mapping
     # mechanism (every Opportunity/Demand/revenue figure under a client
     # inherits BU by joining through here -- see revenue_visibility_scope.py).
     # Resolved name so the UI doesn't have to show/cross-reference a raw ID.
     business_unit_name: Optional[str] = None
+    contracting_company_name: Optional[str] = None
     # "Client Owner" -- the field already exists (account_manager_employee_id,
     # HRMS-0709) but was never surfaced in any screen. Same pattern as
     # Opportunity.owner_employee_id.
@@ -61,6 +64,8 @@ class ClientCreateRequest(BaseModel):
     timesheet_approver: Optional[ClientContactCreateRequest] = None
     # Chosen from the Business Units dropdown (defaults to the creator's BU in the form)
     business_unit_id: Optional[int] = None
+    # Contracting company (BX-US / BX-IN): which of our companies invoices this client
+    contracting_company_id: Optional[str] = None
     company_short_name: Optional[str] = None
     tier: Optional[str] = None
     notes: Optional[str] = None
@@ -71,6 +76,8 @@ class ClientCreateResponse(BaseModel):
     id: str
     company_name: str
     business_unit_id: Optional[int]
+    # Contracting company (BX-US / BX-IN): which of our companies invoices this client
+    contracting_company_id: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -109,7 +116,10 @@ class ClientDetailResponse(BaseModel):
     tier: str
     status: str
     business_unit_id: Optional[int]
+    # Contracting company (BX-US / BX-IN): which of our companies invoices this client
+    contracting_company_id: Optional[str] = None
     business_unit_name: Optional[str] = None
+    contracting_company_name: Optional[str] = None
     account_manager_employee_id: Optional[str] = None
     account_manager_user_id: Optional[str] = None
     account_manager_name: Optional[str] = None
@@ -136,6 +146,8 @@ class ClientUpdateRequest(BaseModel):
     account_manager_user_id: Optional[str] = None
     # Routed separately to client_service.set_client_business_unit()
     business_unit_id: Optional[int] = None
+    # Contracting company (BX-US / BX-IN): which of our companies invoices this client
+    contracting_company_id: Optional[str] = None
     company_name: Optional[str] = None
     company_short_name: Optional[str] = None
     industry: Optional[str] = None

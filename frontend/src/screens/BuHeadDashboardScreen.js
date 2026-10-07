@@ -9,9 +9,10 @@ export default function BUHeadDashboardScreen() {
   const [team, setTeam] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  // Users without a BU of their own (e.g. Admin) choose which BU to view
+  // A BU Head sees the BU they run; a partner / admin can switch between BUs
   const [buChoices, setBuChoices] = useState(null);
   const [selectedBuId, setSelectedBuId] = useState(null);
+  const [targets, setTargets] = useState([]);
 
   useEffect(() => {
     fetchDashboardData(selectedBuId);
@@ -34,10 +35,14 @@ export default function BUHeadDashboardScreen() {
         return;
       }
       setDashboard(dashRes.data?.data);
+      setTargets(dashRes.data?.targets_by_company || []);
+      const allowed = dashRes.data?.business_units || [];
+      setBuChoices(allowed.length > 1 ? allowed : null);
+      if (!buId && dashRes.data?.business_unit_id) setSelectedBuId(dashRes.data.business_unit_id);
       setTeam(teamRes.data?.data?.team_members || []);
     } catch (err) {
       setError(err.message || "Failed to load dashboard");
-      console.error("Dashboard error:", err);
+      console.error("[BUHeadDashboard] Failed to load:", err);
     } finally {
       setLoading(false);
     }
@@ -61,6 +66,43 @@ export default function BUHeadDashboardScreen() {
         <p className="text-gray-600 mt-1">Complete visibility of delivery, team, and revenue</p>
       </div>
       {picker}
+
+      {targets.length > 0 && (
+        <Card title="FY targets vs actuals by company">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b text-left text-xs uppercase text-gray-500">
+                  <th className="py-2 px-3">Company</th>
+                  <th className="py-2 px-3">Revenue</th>
+                  <th className="py-2 px-3">Billable headcount</th>
+                  <th className="py-2 px-3">New logos</th>
+                </tr>
+              </thead>
+              <tbody>
+                {targets.map((t) => (
+                  <tr key={t.company_id} className="border-b">
+                    <td className="py-2 px-3 font-semibold">{t.company}</td>
+                    {[["revenue", true], ["headcount", false], ["new_logos", false]].map(([key, usd]) => {
+                      const cell = t.metrics[key] || {};
+                      const show = (v) => (usd ? `$${Number(v || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}` : Number(v || 0).toLocaleString());
+                      return (
+                        <td key={key} className="py-2 px-3">
+                          {show(cell.actual)}{" "}
+                          <span className="text-xs text-gray-500">/ {cell.target ? show(cell.target) : "no target"}</span>
+                          {cell.progress_pct !== undefined && cell.progress_pct !== null && (
+                            <span className="ml-1 text-xs text-gray-600">({cell.progress_pct}%)</span>
+                          )}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      )}
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">

@@ -37,12 +37,13 @@ export default function BusinessUnitFormPage() {
   const [formData, setFormData] = useState({
     name: '',
     description: '',
-    location_id: '',
-    partner_node_id: ''
+    company_ids: [],
+    partner_user_id: '',
+    head_user_id: ''
   });
-  // Goal tree: Location (Delivery Centers, e.g. BXUS/BXIN) -> Partner -> BU
-  const [locations, setLocations] = useState([]);
-  const [partners, setPartners] = useState([]);
+  // Org -> Company (BX-US, BX-IN) -> Partner -> BU. A BU can run in several companies.
+  const [companies, setCompanies] = useState([]);
+  const [leaders, setLeaders] = useState({ partners: [], heads: [], partner_roles: [], head_roles: [] });
   const [loading, setLoading] = useState(mode === 'edit');
   const [saving, setSaving] = useState(false);
   const [actionError, setActionError] = useState(null);
@@ -56,16 +57,13 @@ export default function BusinessUnitFormPage() {
   useEffect(() => {
     Promise.all([
       apiRequest(DELIVERY_CENTERS_PATH),
-      apiRequest('/org/nodes'),
-      apiRequest('/org/hierarchy-reference'),
+      apiRequest('/rbac/business-units/leader-options'),
     ])
-      .then(([locRes, nodesRes, refRes]) => {
-        setLocations(locRes.data?.delivery_centers || []);
-        const partnerLevel = (refRes.data?.levels || []).find((l) => /^partner/i.test(l.name))?.level;
-        const nodes = Array.isArray(nodesRes.data) ? nodesRes.data : [];
-        setPartners(partnerLevel ? nodes.filter((n) => n.hierarchy_level === partnerLevel) : []);
+      .then(([companyRes, leaderRes]) => {
+        setCompanies(companyRes.data?.delivery_centers || []);
+        setLeaders(leaderRes.data || {});
       })
-      .catch((err) => setActionError(`Could not load locations/partners: ${err.message}`));
+      .catch((err) => setActionError(`Could not load companies/people: ${err.message}`));
   }, []);
 
   const loadBusinessUnit = async () => {
@@ -76,14 +74,14 @@ export default function BusinessUnitFormPage() {
         setFormData({
           name: data.name || '',
           description: data.description || '',
-          location_id: data.location_id || '',
-          partner_node_id: data.partner_node_id || ''
+          company_ids: (data.companies || []).map((c) => c.id),
+          partner_user_id: data.partner?.user_id || '',
+          head_user_id: data.head?.user_id || ''
         });
       }
     } catch (err) {
-      console.error('Failed to load business unit:', err);
-      setActionError('Failed to load business unit');
-      navigate('/admin/users-access-control/business-units');
+      console.error('[BusinessUnitFormPage] Failed to load business unit:', err);
+      setActionError(`Failed to load business unit: ${err.message}`);
     } finally {
       setLoading(false);
     }
@@ -108,9 +106,10 @@ export default function BusinessUnitFormPage() {
       const payload = {
         name: formData.name.trim(),
         description: formData.description.trim() || null,
+        company_ids: formData.company_ids,
         // "" clears the link on the backend
-        location_id: formData.location_id,
-        partner_node_id: formData.partner_node_id
+        partner_user_id: formData.partner_user_id,
+        head_user_id: formData.head_user_id
       };
 
       if (mode === 'create') {
@@ -207,39 +206,48 @@ export default function BusinessUnitFormPage() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Location (legal entity)
-            </label>
-            <select
-              value={formData.location_id}
-              onChange={(e) => setField('location_id')(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-bx-orange"
-              disabled={saving}
-            >
-              <option value="">Not assigned</option>
-              {locations.map((l) => (
-                <option key={l.id} value={l.id}>{l.name}{l.country ? ` (${l.country})` : ''}</option>
-              ))}
-            </select>
-            <p className="mt-1 text-xs text-gray-500">Locations are managed under Delivery Centers (e.g. BXUS, BXIN).</p>
+            <div className="block text-sm font-medium text-gray-700 mb-1">Companies</div>
+            {companies.length === 0 ? (
+              <p className="text-xs text-gray-500">No companies yet. Add BX-US / BX-IN under the Companies tab first.</p>
+            ) : (
+              <div className="flex flex-wrap gap-4">
+                {companies.map((c) => (
+                  <label key={c.id} className="flex items-center gap-2 text-sm text-gray-800">
+                    <input
+                      type="checkbox"
+                      checked={formData.company_ids.includes(c.id)}
+                      disabled={saving}
+                      onChange={(e) => setField('company_ids')(
+                        e.target.checked
+                          ? [...formData.company_ids, c.id]
+                          : formData.company_ids.filter((id) => id !== c.id)
+                      )}
+                    />
+                    {c.name}
+                  </label>
+                ))}
+              </div>
+            )}
+            <p className="mt-1 text-xs text-gray-500">Every company this BU operates in. Each company gets its own revenue and headcount target for the BU.</p>
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Partner
-            </label>
-            <select
-              value={formData.partner_node_id}
-              onChange={(e) => setField('partner_node_id')(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-bx-orange"
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <LeaderSelect
+              label="Partner (owner)"
+              value={formData.partner_user_id}
+              options={leaders.partners || []}
+              roles={leaders.partner_roles || []}
               disabled={saving}
-            >
-              <option value="">Not assigned</option>
-              {partners.map((p) => (
-                <option key={p.id} value={p.id}>{p.name}</option>
-              ))}
-            </select>
-            <p className="mt-1 text-xs text-gray-500">Partners are org-chart members at the Partner level (Organizational Hierarchy).</p>
+              onChange={setField('partner_user_id')}
+            />
+            <LeaderSelect
+              label="BU Head"
+              value={formData.head_user_id}
+              options={leaders.heads || []}
+              roles={leaders.head_roles || []}
+              disabled={saving}
+              onChange={setField('head_user_id')}
+            />
           </div>
 
           <div className="flex gap-2 justify-end pt-4 border-t">
@@ -261,6 +269,30 @@ export default function BusinessUnitFormPage() {
           </div>
         </form>
       </Card>
+    </div>
+  );
+}
+
+function LeaderSelect({ label, value, options, roles, disabled, onChange }) {
+  return (
+    <div>
+      <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-bx-orange"
+        disabled={disabled}
+      >
+        <option value="">Not assigned</option>
+        {options.map((u) => (
+          <option key={u.user_id} value={u.user_id}>{u.name}</option>
+        ))}
+      </select>
+      <p className="mt-1 text-xs text-gray-500">
+        {options.length === 0
+          ? `No users with the ${roles.join(' or ')} role yet. Give someone that role on the Users tab.`
+          : `Users with the ${roles.join(' or ')} role.`}
+      </p>
     </div>
   );
 }

@@ -130,6 +130,8 @@ def _to_item(db: Session, employee: Employee) -> EmployeeItem:
         bench_days=get_bench_duration_days(bench_entry) if bench_entry else None,
         guidewire_certification_current=employee.guidewire_certification_current,
         guidewire_certification_expected=employee.guidewire_certification_expected,
+        bu_id=employee.bu_id,
+        company_id=employee.company_id,
     )
 
 def _get_employee_or_404(db: Session, employee_id: str) -> Employee:
@@ -168,6 +170,8 @@ def create_employee(
         fields["org_node_id"] = body.org_node_id
     if body.business_unit_id is not None:
         fields["bu_id"] = body.business_unit_id
+    if body.company_id:
+        fields["company_id"] = _company_or_400(db, body.company_id, current_user.tenant_id)
     if body.reporting_manager_id is not None:
         fields["reporting_manager_user_id"] = body.reporting_manager_id
 
@@ -483,6 +487,45 @@ class GuidewireCertificationUpdate(BaseModel):
 
 
 GUIDEWIRE_CERT_LEVELS = ("None", "ACE", "Associate", "Specialist")
+
+
+def _company_or_400(db: Session, company_id: str, tenant_id: int) -> str:
+    from app.models.location import Location
+    if not db.query(Location).filter(Location.id == company_id, Location.tenant_id == tenant_id).first():
+        raise HTTPException(status_code=400, detail="Unknown company")
+    return company_id
+
+
+class EmployeeOrgUpdate(BaseModel):
+    # "" clears; omitted fields are left unchanged
+    company_id: Optional[str] = None
+    business_unit_id: Optional[int] = None
+
+
+@router.put("/{employee_id}/organization", dependencies=[Depends(require_resource_permission("employees", "edit"))])
+def update_employee_organization(
+    employee_id: str,
+    body: EmployeeOrgUpdate,
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_internal_user),
+):
+    """Employer company (BX-US / BX-IN) and business unit: headcount is counted by both."""
+    from app.models.business_unit import BusinessUnit
+    employee = db.query(Employee).filter(Employee.id == employee_id, Employee.tenant_id == current_user.tenant_id).first()
+    if not employee:
+        raise HTTPException(status_code=404, detail=f"Employee {employee_id} not found")
+    updates = body.dict(exclude_unset=True)
+    if "company_id" in updates:
+        employee.company_id = _company_or_400(db, updates["company_id"], current_user.tenant_id) if updates["company_id"] else None
+    if "business_unit_id" in updates:
+        bu_id = updates["business_unit_id"]
+        if bu_id is not None and not db.query(BusinessUnit).filter(
+            BusinessUnit.id == bu_id, BusinessUnit.tenant_id == current_user.tenant_id
+        ).first():
+            raise HTTPException(status_code=400, detail="Unknown business unit")
+        employee.bu_id = bu_id
+    db.commit()
+    return {"employee_id": employee.id, "company_id": employee.company_id, "business_unit_id": employee.bu_id}
 
 
 @router.put("/{employee_id}/certifications", dependencies=[Depends(require_resource_permission("employees", "edit"))])

@@ -28,6 +28,7 @@ class EmployeeCreateRequest(BaseModel):
     nationality: Optional[str] = None
     org_node_id: Optional[str] = None
     business_unit_id: Optional[int] = Field(None, description="Maps to Employee.bu_id")
+    company_id: Optional[str] = Field(None, description="Employer of record (Companies tab: BX-US, BX-IN)")
     reporting_manager_id: Optional[str] = Field(None, description="Users.UserID this employee reports to - maps to Employee.reporting_manager_user_id")
     role_template_id: Optional[int] = Field(
         None,
@@ -82,6 +83,8 @@ class EmployeeItem(BaseModel):
     bench_days: Optional[int] = None
     guidewire_certification_current: Optional[str] = None
     guidewire_certification_expected: Optional[str] = None
+    bu_id: Optional[int] = None
+    company_id: Optional[str] = None
 
 class EmployeeListResponse(BaseModel):
     employees: List[EmployeeItem]

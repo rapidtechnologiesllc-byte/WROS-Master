@@ -118,6 +118,8 @@ class Employee(Base):
     status = Column(Enum(*EMPLOYEE_STATUSES, name="employee_status", native_enum=False, create_constraint=True), nullable=False, default="PRE_JOINING")
 
     bu_id = Column(Integer, ForeignKey("business_units.id"), nullable=True, index=True)
+    # Employer of record (BX-US, BX-IN): headcount is counted per company
+    company_id = Column(String(512), ForeignKey("locations.id", ondelete="SET NULL"), nullable=True, index=True)
     manager_id = Column(String(512), ForeignKey("employees.id"), nullable=True, index=True)
 
     # Organizational hierarchy position (links to org_nodes for approval chains, role-based access)

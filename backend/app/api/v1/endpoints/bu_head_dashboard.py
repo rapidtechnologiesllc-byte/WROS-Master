@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from app.core.database import SessionLocal
 from app.core.dependencies import get_current_user, require_resource_permission
-from app.core.visibility import business_unit_choices, resolve_dashboard_bu
+from app.core.visibility import resolve_dashboard_head_bu
 from app.services.bu_head_dashboard_service import BUHeadDashboardService
 from app.models.user import Users
 
@@ -20,6 +20,19 @@ def get_db():
         yield db
     finally:
         db.close()
+
+def _bu_targets_by_company(db: Session, user: Users, bu_id: int) -> list:
+    """This BU's FY revenue / headcount / new-logo targets vs actuals in each company it operates in."""
+    from app.services.fiscal_year_service import current_fy
+    from app.services.goal_tree_service import build_company_tree
+
+    tenant_id = user.tenant_id or 1
+    companies, _ = build_company_tree(db, tenant_id, current_fy(db, tenant_id), bu_ids={bu_id})
+    return [
+        {"company_id": c["entity_id"], "company": c["name"], "metrics": bu["metrics"]}
+        for c in companies for p in c["children"] for bu in p["children"]
+    ]
+
 
 @router.get(
     "/summary",
@@ -39,9 +52,9 @@ async def get_bu_dashboard_summary(
 
     Scoped to user's business_unit_id
     """
-    bu_id = resolve_dashboard_bu(current_user, business_unit_id)
+    bu_id, allowed = resolve_dashboard_head_bu(db, current_user, business_unit_id)
     if bu_id is None:
-        return {"status": "needs_business_unit", "data": None, "business_units": business_unit_choices(db)}
+        return {"status": "needs_business_unit", "data": None, "business_units": allowed}
 
     data = BUHeadDashboardService.get_bu_dashboard_data(db, bu_id)
     if not data:
@@ -49,6 +62,10 @@ async def get_bu_dashboard_summary(
 
     return {
         "status": "success",
+        "business_unit_id": bu_id,
+        # The BUs this viewer may switch between (more than one for a partner or admin)
+        "business_units": allowed,
+        "targets_by_company": _bu_targets_by_company(db, current_user, bu_id),
         "data": data
     }
 
@@ -64,9 +81,9 @@ async def get_team_details(
     """
     Get detailed team member list with current allocations
     """
-    bu_id = resolve_dashboard_bu(current_user, business_unit_id)
+    bu_id, allowed = resolve_dashboard_head_bu(db, current_user, business_unit_id)
     if bu_id is None:
-        return {"status": "needs_business_unit", "data": None, "business_units": business_unit_choices(db)}
+        return {"status": "needs_business_unit", "data": None, "business_units": allowed}
 
     team = BUHeadDashboardService.get_team_details(db, bu_id)
 

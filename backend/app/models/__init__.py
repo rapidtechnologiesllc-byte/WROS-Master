@@ -87,7 +87,7 @@ class RolePermission:
     """Deprecated RBAC RolePermission stub"""
     pass
 
-from app.models.business_unit import BusinessUnit
+from app.models.business_unit import BusinessUnit, BusinessUnitCompany
 from app.models.business_unit_context import BusinessUnitContext
 from app.models.role_template import Module as RoleTemplateModule, Resource, RoleTemplate, RoleTemplatePermission
 from app.models.module import Module, ModulePermission
@@ -235,6 +235,7 @@ __all__ = [
     "Permission",
     "RolePermission",
     "BusinessUnit",
+    "BusinessUnitCompany",
     "BusinessUnitContext",
     # Role Templates (ZERO-HARDCODING)
     "RoleTemplateModule",

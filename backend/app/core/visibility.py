@@ -77,23 +77,81 @@ def get_user_bu_id(user: Users) -> int | None:
     return user.business_unit_id
 
 
-def resolve_dashboard_bu(user: Users, requested_bu_id: int | None) -> int | None:
+def get_user_bu_ids(db, user: Users) -> set[int] | None:
     """
-    Which business unit a BU-scoped dashboard (BU Head, Partner) shows.
+    Every BU a BU-scoped user may see: their own BU, the BUs they own as
+    Partner, and the BUs they run as BU Head. None = org-level (no filter).
+    """
+    from app.models.business_unit import BusinessUnit
 
-    BU-scoped users always see their own BU. Org-level users, and users with
-    no BU assigned (e.g. Admin), may choose one via ?business_unit_id=; with
-    none chosen this returns None and the endpoint asks for a choice.
+    if should_bypass_bu_filter(user):
+        return None
+    ids = {
+        bu_id for (bu_id,) in db.query(BusinessUnit.id).filter(
+            (BusinessUnit.partner_user_id == user.UserID) | (BusinessUnit.manager_id == user.UserID)
+        )
+    }
+    if user.business_unit_id is not None:
+        ids.add(user.business_unit_id)
+    return ids
+
+
+def resolve_dashboard_partner(db, user: Users, requested_partner_id: str | None) -> str | None:
+    """
+    Whose Partner dashboard to show. A partner (owner of at least one BU)
+    always sees their own; org-level users may choose any partner via
+    ?partner_user_id=; with none chosen this returns None and the endpoint
+    asks for a choice. Anyone else gets 403.
     """
     from fastapi import HTTPException
+    from app.models.business_unit import BusinessUnit
 
-    own_bu = user.business_unit_id
-    can_choose = own_bu is None or should_bypass_bu_filter(user)
+    owns = db.query(BusinessUnit.id).filter(BusinessUnit.partner_user_id == user.UserID).first() is not None
+    if should_bypass_bu_filter(user):
+        return requested_partner_id or (user.UserID if owns else None)
+    if owns:
+        if requested_partner_id and requested_partner_id != user.UserID:
+            raise HTTPException(status_code=403, detail="You can only view your own partner dashboard")
+        return user.UserID
+    raise HTTPException(status_code=403, detail="You are not the partner of any business unit. "
+                                                "An admin sets the Partner on each business unit.")
+
+
+def partner_choices(db) -> list:
+    """Users who own at least one BU, for the Partner dashboard picker."""
+    from app.models.business_unit import BusinessUnit
+
+    rows = (db.query(Users).join(BusinessUnit, BusinessUnit.partner_user_id == Users.UserID)
+            .distinct().order_by(Users.UserName).all())
+    return [{"id": u.UserID, "name": u.UserName or u.UserEmail} for u in rows]
+
+
+def resolve_dashboard_head_bu(db, user: Users, requested_bu_id: int | None) -> tuple[int | None, list]:
+    """
+    Which BU the BU Head dashboard shows, and the BUs the viewer may pick
+    from. A BU head sees the BU(s) they run; a partner the BUs they own;
+    org-level users any BU. Others fall back to their own BU.
+    """
+    from fastapi import HTTPException
+    from app.models.business_unit import BusinessUnit
+
+    if should_bypass_bu_filter(user):
+        allowed = business_unit_choices(db)
+    else:
+        rows = db.query(BusinessUnit).filter(
+            BusinessUnit.active == True,  # noqa: E712
+            (BusinessUnit.manager_id == user.UserID) | (BusinessUnit.partner_user_id == user.UserID)
+            | (BusinessUnit.id == user.business_unit_id),
+        ).order_by(BusinessUnit.name).all()
+        allowed = [{"id": bu.id, "name": bu.display_name or bu.name} for bu in rows]
+    allowed_ids = {b["id"] for b in allowed}
     if requested_bu_id is not None:
-        if not can_choose and requested_bu_id != own_bu:
-            raise HTTPException(status_code=403, detail="You can only view your own business unit")
-        return requested_bu_id
-    return own_bu
+        if requested_bu_id not in allowed_ids:
+            raise HTTPException(status_code=403, detail="You can only view business units you head or own")
+        return requested_bu_id, allowed
+    if len(allowed) == 1 or (allowed and not should_bypass_bu_filter(user)):
+        return allowed[0]["id"], allowed
+    return None, allowed
 
 
 def business_unit_choices(db) -> list:

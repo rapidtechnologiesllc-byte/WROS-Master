@@ -13,6 +13,8 @@ class RecordIntercompanySettlementRequest(BaseModel):
     amount_usd_cents: int
     settlement_date: date
     reason: str
+    # BU the billed work belongs to (counts toward that BU / partner in the receiving company)
+    business_unit_id: Optional[int] = None
 
 class IntercompanySettlementResponse(BaseModel):
     id: int
@@ -21,6 +23,7 @@ class IntercompanySettlementResponse(BaseModel):
     amount_usd_cents: int
     settlement_date: date
     reason: str
+    business_unit_id: Optional[int] = None
     created_by: Optional[str]
     created_at: Optional[datetime]
 

@@ -47,6 +47,23 @@ def _bu_name_map(db: Session, bu_ids) -> dict:
         return {}
     return {b.id: b.name for b in db.query(BusinessUnit).filter(BusinessUnit.id.in_(ids)).all()}
 
+def _contracting_company_name_map(db: Session, company_ids) -> dict:
+    from app.models.location import Location
+    ids = {i for i in company_ids if i}
+    if not ids:
+        return {}
+    return {l.id: l.name for l in db.query(Location).filter(Location.id.in_(ids)).all()}
+
+
+def _set_contracting_company(db: Session, client: Client, company_id: str, tenant_id: int) -> None:
+    """company_id "" clears; an unknown company is a 400."""
+    from app.models.location import Location
+    if company_id and not db.query(Location).filter(Location.id == company_id, Location.tenant_id == tenant_id).first():
+        raise HTTPException(status_code=400, detail="Unknown company")
+    client.contracting_company_id = company_id or None
+    db.commit()
+
+
 def _user_name_map(db: Session, user_ids) -> dict:
     ids = {i for i in user_ids if i is not None}
     if not ids:
@@ -82,12 +99,15 @@ def list_clients(
     bu_names = _bu_name_map(db, (c.business_unit_id for c in clients))
     am_names = _employee_name_map(db, (c.account_manager_employee_id for c in clients))
     am_user_names = _user_name_map(db, (c.account_manager_user_id for c in clients))
+    company_names = _contracting_company_name_map(db, (c.contracting_company_id for c in clients))
     return ClientListResponse(
         clients=[
             ClientListItem(
                 id=c.id, company_name=c.company_name, status=c.status,
                 business_unit_id=c.business_unit_id,
                 business_unit_name=bu_names.get(c.business_unit_id),
+                contracting_company_id=c.contracting_company_id,
+                contracting_company_name=company_names.get(c.contracting_company_id),
                 account_manager_employee_id=c.account_manager_employee_id,
                 account_manager_user_id=c.account_manager_user_id,
                 # The user-based account manager wins; the employee one is legacy
@@ -204,6 +224,8 @@ def create_client_endpoint(
         }
         if extra:
             client = update_client_details(db, client, extra)
+        if body.contracting_company_id:
+            _set_contracting_company(db, client, body.contracting_company_id, current_user.tenant_id)
         if am_user is not None:
             client = assign_account_manager_user(
                 db, client, am_user, changed_by=current_user.UserID, tenant_id=current_user.tenant_id,
@@ -230,6 +252,7 @@ def _to_detail_response(db: Session, client: Client) -> ClientDetailResponse:
     return ClientDetailResponse(
         **{c: getattr(client, c) for c in ClientDetailResponse.__fields__ if hasattr(client, c)},
         business_unit_name=bu_name, account_manager_name=am_name,
+        contracting_company_name=_contracting_company_name_map(db, [client.contracting_company_id]).get(client.contracting_company_id),
     )
 
 @router.get(
@@ -311,7 +334,11 @@ def update_client_endpoint(
     has_am_user = "account_manager_user_id" in updates
     account_manager_user_id = updates.pop("account_manager_user_id", None)
     business_unit_id = updates.pop("business_unit_id", None)
+    has_company = "contracting_company_id" in updates
+    company_id = updates.pop("contracting_company_id", None)
     try:
+        if has_company:
+            _set_contracting_company(db, client, company_id or "", current_user.tenant_id)
         if business_unit_id is not None:
             client = set_client_business_unit(db, client, business_unit_id, current_user.tenant_id)
         if updates:

@@ -79,6 +79,8 @@ class Client(Base):
     # to everyone until claimed, same "Org Pool" posture
     # CandidateOwnership already established for candidates.
     business_unit_id = Column(Integer, ForeignKey("business_units.id"), nullable=True, index=True)
+    # Which of our companies (BX-US, BX-IN) contracts with and invoices this client
+    contracting_company_id = Column(String(512), ForeignKey("locations.id", ondelete="SET NULL"), nullable=True, index=True)
 
     company_name = Column(String(300), nullable=False)
     company_short_name = Column(String(512), nullable=True)

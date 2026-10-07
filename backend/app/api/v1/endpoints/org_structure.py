@@ -182,9 +182,11 @@ def list_org_nodes(
     tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
 
     result = []
+    company_names = _company_names(db, tenant_id)
     for node in nodes:
         node_dict = OrgNodeResponse.from_orm(node).dict()
         node_dict['tenant_name'] = tenant.name if tenant else f"Tenant {tenant_id}"
+        node_dict['company_name'] = company_names.get(node.company_id)
         result.append(OrgNodeResponse(**node_dict))
 
     return result
@@ -272,7 +274,7 @@ def list_departments(
     for dept in departments:
         dept_dict = DepartmentResponse.from_orm(dept).dict()
         dept_dict['tenant_name'] = tenant_name
-        dept_dict['business_unit_name'] = dept.business_unit.name if dept.business_unit else f"BU {dept.business_unit_id}"
+        dept_dict['business_unit_name'] = dept.business_unit.name if dept.business_unit else None
         result.append(DepartmentResponse(**dept_dict))
 
     return result
@@ -305,6 +307,17 @@ class CreateOrgNodeRequest(BaseModel):
     specialization: str
     parent_id: Optional[str] = None
     department_id: Optional[str] = None
+    company_id: Optional[str] = None
+
+
+class UpdateOrgNodeRequest(BaseModel):
+    name: Optional[str] = None
+    company_id: Optional[str] = None  # "" clears
+
+
+def _company_names(db: Session, tenant_id: int) -> dict:
+    from app.models.location import Location
+    return {l.id: l.name for l in db.query(Location).filter(Location.tenant_id == tenant_id)}
 
 @router.post(
     "/nodes",
@@ -331,10 +344,13 @@ def create_org_node_endpoint(
             specialization=request.specialization,
             parent_id=request.parent_id,
             department_id=request.department_id,
+            company_id=request.company_id,
         )
         db.commit()
         db.refresh(node)
-        return OrgNodeResponse.from_orm(node)
+        data = OrgNodeResponse.from_orm(node).dict()
+        data["company_name"] = _company_names(db, tenant_id).get(node.company_id)
+        return OrgNodeResponse(**data)
     except ValueError as e:
         db.rollback()
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
@@ -342,6 +358,35 @@ def create_org_node_endpoint(
         db.rollback()
         logger.error(f"[OrgNode] Tenant {tenant_id}: Failed to create node: {e}", exc_info=True)
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to create org node")
+
+@router.patch(
+    "/nodes/{org_node_id}",
+    response_model=OrgNodeResponse,
+    summary="Rename an org node or change its company",
+    dependencies=[Depends(require_resource_permission("admin-settings", "edit"))],
+)
+def update_org_node_endpoint(
+    org_node_id: str,
+    request: UpdateOrgNodeRequest,
+    current_user = Depends(get_current_internal_user),
+    db: Session = Depends(get_db),
+) -> OrgNodeResponse:
+    from app.services.org_structure_service import update_org_node
+
+    tenant_id = current_user.tenant_id
+    try:
+        node = update_org_node(db, tenant_id, org_node_id, name=request.name, company_id=request.company_id)
+    except LookupError as e:
+        db.rollback()
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except ValueError as e:
+        db.rollback()
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    db.commit()
+    db.refresh(node)
+    data = OrgNodeResponse.from_orm(node).dict()
+    data["company_name"] = _company_names(db, tenant_id).get(node.company_id)
+    return OrgNodeResponse(**data)
 
 @router.delete(
     "/nodes/{org_node_id}",
@@ -376,7 +421,8 @@ def delete_org_node_endpoint(
 
 class DepartmentRequest(BaseModel):
     name: str
-    business_unit_id: int
+    # Departments are org-wide routing groups; a BU only for a BU-specific team
+    business_unit_id: Optional[int] = None
     description: Optional[str] = None
     cost_center_code: Optional[str] = None
 
@@ -396,7 +442,7 @@ def _tenant_business_unit(db: Session, business_unit_id: int, tenant_id: int) ->
 @router.post(
     "/departments",
     response_model=DepartmentResponse,
-    summary="Create a department within a business unit",
+    summary="Create a department (org-wide, or within one business unit)",
     dependencies=[Depends(require_resource_permission("admin-settings", "create"))],
 )
 def create_department_endpoint(
@@ -407,7 +453,8 @@ def create_department_endpoint(
     tenant_id = current_user.tenant_id
     if not request.name.strip():
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Department name is required")
-    _tenant_business_unit(db, request.business_unit_id, tenant_id)
+    if request.business_unit_id is not None:
+        _tenant_business_unit(db, request.business_unit_id, tenant_id)
 
     duplicate = db.query(Department).filter(
         Department.tenant_id == tenant_id,
@@ -415,7 +462,7 @@ def create_department_endpoint(
         Department.name == request.name.strip(),
     ).first()
     if duplicate:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="A department with this name already exists in that business unit")
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="A department with this name already exists")
 
     dept = Department(
         id=str(uuid.uuid4()),
@@ -458,7 +505,8 @@ def update_department_endpoint(
         )
         if in_use:
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Department has people or org nodes - it can't be moved to another business unit")
-        _tenant_business_unit(db, request.business_unit_id, tenant_id)
+        if request.business_unit_id is not None:
+            _tenant_business_unit(db, request.business_unit_id, tenant_id)
         dept.business_unit_id = request.business_unit_id
 
     dept.name = request.name.strip()

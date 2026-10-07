@@ -15,7 +15,7 @@ class IntercompanySettlementError(Exception):
 
 def record_intercompany_settlement(
     db: Session, *, from_entity: str, to_entity: str, amount_usd_cents: int, settlement_date, reason: str,
-    created_by: str, tenant_id: Optional[int] = None,
+    created_by: str, tenant_id: Optional[int] = None, business_unit_id: Optional[int] = None,
 ) -> IntercompanySettlement:
     if amount_usd_cents <= 0:
         raise IntercompanySettlementError("amount_usd_cents must be positive.")
@@ -24,6 +24,7 @@ def record_intercompany_settlement(
     settlement = IntercompanySettlement(
         tenant_id=tenant_id, from_entity=from_entity, to_entity=to_entity,
         amount_usd_cents=amount_usd_cents, settlement_date=settlement_date, reason=reason, created_by=created_by,
+        business_unit_id=business_unit_id,
     )
     db.add(settlement)
     db.commit()

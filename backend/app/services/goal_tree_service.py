@@ -1,36 +1,44 @@
-"""FY goal tree: Org -> Location (legal entity, e.g. BXUS/BXIN) -> Partner -> BU.
+"""FY goal tree: Org -> Company (legal entity, e.g. BX-US / BX-IN) -> Partner -> BU.
 
 Structure comes from real records:
-- Location: Delivery Centers (app.models.location.Location); a BU's
-  location is BusinessUnit.location_id.
-- Partner: an org-chart node at the "Partner" hierarchy level; a BU's
-  partner is its active PartnerBUAssignment.
-- BU: BusinessUnit.
+- Company: app.models.location.Location (the Companies tab).
+- BU: BusinessUnit; the companies it operates in are BusinessUnitCompany
+  rows, so one BU (e.g. AxION) appears under every company it runs in,
+  with its own target in each.
+- Partner: BusinessUnit.partner_user_id, a user with the Partner role. One
+  partner owns many BUs, in any company.
 
-Targets live in goal_targets (one row per level/entity/metric/year). The
-ORG level carries every FY metric (the CEO Dashboard reads it); lower
-levels carry the metrics that add up across the tree (revenue,
-headcount, new logos). A PARTNER target is per partner *within a
-location* (entity_id "<location_id>:<partner_node_id>"), since a partner
-can own BUs in more than one entity.
+Targets live in goal_targets (one row per level/entity/metric/year):
+- ORG      entity "org"                    every FY metric (CEO Dashboard)
+- LOCATION entity "<company_id>"           (the stored level name for Company)
+- PARTNER  entity "<company_id>:<user_id>" a partner within one company
+- BU       entity "<company_id>:<bu_id>"   a BU within one company
 
-Actuals are computed per BU and summed upward, so every node shows
-target, actual, and how much of its target is allocated to its children.
+Actuals are computed per (company, BU) and summed upward:
+- revenue: approved/sent/paid invoices, attributed to the client's
+  contracting company and BU, plus intercompany billing received (the
+  Intercompany Ledger, e.g. BX-IN billing BX-US) for the receiving company.
+  The org total counts external client revenue only, so intercompany
+  billing shows on the company but is not added again at org level.
+- headcount: billable working employees, by employer company and BU.
+- new_logos: clients added this FY, by contracting company and BU.
+Rows without a company or partner land in "unassigned" buckets so nothing
+silently disappears from the totals.
 """
 import logging
+import re
 from collections import defaultdict
-from datetime import datetime
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from app.models.business_unit import BusinessUnit
+from app.models.business_unit import BusinessUnit, BusinessUnitCompany
 from app.models.client import Client
 from app.models.employee import Employee
+from app.models.intercompany_ledger import IntercompanySettlement
 from app.models.invoice import Invoice
 from app.models.location import Location
-from app.models.org_structure import OrgNode, PartnerBUAssignment
 from app.models.strategic_goal import GOAL_LEVELS, GoalTarget
 from app.models.user import Users
 from app.services.ceo_fy_progress_service import FY_METRICS, WORKING_STATUSES_EXCLUDED, billable_employee_ids, get_fy_progress
@@ -38,19 +46,17 @@ from app.services.ceo_fy_progress_service import FY_METRICS, WORKING_STATUSES_EX
 logger = logging.getLogger(__name__)
 
 ORG_ENTITY = "org"
-NO_LOCATION = "unassigned"
-NO_PARTNER = "unassigned"
+UNASSIGNED = "unassigned"
 # Metrics that add up across the tree (rates like margin % don't)
 TREE_METRICS = ("revenue", "headcount", "new_logos")
+REVENUE_STATUSES = ("APPROVED", "SENT", "PAID")
+
+CellKey = Tuple[str, Optional[int]]  # (company_id or UNASSIGNED, bu_id)
 
 
-def partner_hierarchy_level() -> int:
-    """The org-chart level that holds partners (named in the validator's level table)."""
-    from app.services.org_hierarchy_validator import HIERARCHY_LEVELS
-    for level, name in HIERARCHY_LEVELS.items():
-        if name.lower().startswith("partner"):
-            return level
-    raise RuntimeError("No Partner level in HIERARCHY_LEVELS")
+def _code(name: str) -> str:
+    """'BX-IN', 'bxin', 'BX IN' -> 'BXIN' (Intercompany Ledger entities are free text)."""
+    return re.sub(r"[^A-Z0-9]", "", (name or "").upper())
 
 
 def _targets(db: Session, tenant_id: int, year: int) -> Dict[tuple, float]:
@@ -58,36 +64,51 @@ def _targets(db: Session, tenant_id: int, year: int) -> Dict[tuple, float]:
     return {(r.level, r.entity_id, r.metric): r.target for r in rows}
 
 
-def _bu_actuals(db: Session, tenant_id: int, year: int) -> Dict[int, Dict[str, float]]:
+def company_bu_actuals(db: Session, tenant_id: int, year: int) -> Tuple[Dict[CellKey, Dict[str, float]], float]:
+    """Actuals per (company, BU) for the FY, and the intercompany revenue included in them."""
     from app.services.fiscal_year_service import fy_window
     start, end = fy_window(db, year, tenant_id)
-    actuals: Dict[int, Dict[str, float]] = defaultdict(lambda: {m: 0 for m in TREE_METRICS})
+    companies = {l.id: l for l in db.query(Location).filter(Location.tenant_id == tenant_id).all()}
+    company_by_code = {_code(c.name): cid for cid, c in companies.items()}
+    actuals: Dict[CellKey, Dict[str, float]] = defaultdict(lambda: {m: 0 for m in TREE_METRICS})
 
-    for bu_id, cents in (
-        db.query(Client.business_unit_id, func.sum(Invoice.total_usd_cents))
+    def key(company_id, bu_id) -> CellKey:
+        return (company_id if company_id in companies else UNASSIGNED, bu_id)
+
+    for company_id, bu_id, cents in (
+        db.query(Client.contracting_company_id, Client.business_unit_id, func.sum(Invoice.total_usd_cents))
         .join(Client, Client.id == Invoice.client_id)
-        .filter(Client.business_unit_id.isnot(None), Invoice.status.in_(("APPROVED", "SENT", "PAID")),
-                Invoice.created_at >= start, Invoice.created_at < end)
-        .group_by(Client.business_unit_id).all()
+        .filter(Invoice.status.in_(REVENUE_STATUSES), Invoice.created_at >= start, Invoice.created_at < end)
+        .group_by(Client.contracting_company_id, Client.business_unit_id).all()
     ):
-        actuals[bu_id]["revenue"] = (cents or 0) / 100
+        actuals[key(company_id, bu_id)]["revenue"] += (cents or 0) / 100
 
-    for bu_id, count in (
-        db.query(Employee.bu_id, func.count(Employee.id))
-        .filter(Employee.bu_id.isnot(None), Employee.status.notin_(WORKING_STATUSES_EXCLUDED),
-                Employee.id.in_(billable_employee_ids()))
-        .group_by(Employee.bu_id).all()
+    intercompany = 0.0
+    for to_entity, bu_id, cents in (
+        db.query(IntercompanySettlement.to_entity, IntercompanySettlement.business_unit_id,
+                 func.sum(IntercompanySettlement.amount_usd_cents))
+        .filter((IntercompanySettlement.tenant_id == tenant_id) | IntercompanySettlement.tenant_id.is_(None),
+                IntercompanySettlement.settlement_date >= start.date(), IntercompanySettlement.settlement_date < end.date())
+        .group_by(IntercompanySettlement.to_entity, IntercompanySettlement.business_unit_id).all()
     ):
-        actuals[bu_id]["headcount"] = count
+        amount = (cents or 0) / 100
+        actuals[key(company_by_code.get(_code(to_entity)), bu_id)]["revenue"] += amount
+        intercompany += amount
 
-    for bu_id, count in (
-        db.query(Client.business_unit_id, func.count(Client.id))
-        .filter(Client.business_unit_id.isnot(None), Client.status == "ACTIVE",
-                Client.created_at >= start, Client.created_at < end)
-        .group_by(Client.business_unit_id).all()
+    for company_id, bu_id, count in (
+        db.query(Employee.company_id, Employee.bu_id, func.count(Employee.id))
+        .filter(Employee.status.notin_(WORKING_STATUSES_EXCLUDED), Employee.id.in_(billable_employee_ids()))
+        .group_by(Employee.company_id, Employee.bu_id).all()
     ):
-        actuals[bu_id]["new_logos"] = count
-    return actuals
+        actuals[key(company_id, bu_id)]["headcount"] += count
+
+    for company_id, bu_id, count in (
+        db.query(Client.contracting_company_id, Client.business_unit_id, func.count(Client.id))
+        .filter(Client.status == "ACTIVE", Client.created_at >= start, Client.created_at < end)
+        .group_by(Client.contracting_company_id, Client.business_unit_id).all()
+    ):
+        actuals[key(company_id, bu_id)]["new_logos"] += count
+    return actuals, intercompany
 
 
 def _metric_cells(level: str, entity_id: str, metrics, targets, actuals, children: Optional[List[dict]] = None) -> dict:
@@ -108,72 +129,96 @@ def _sum(children: List[dict]) -> Dict[str, float]:
     return {m: sum(c["metrics"][m]["actual"] for c in children) for m in TREE_METRICS}
 
 
+def build_company_tree(db: Session, tenant_id: int, year: int, partner_user_id: Optional[str] = None,
+                       bu_ids: Optional[set] = None) -> Tuple[List[dict], dict]:
+    """Company -> Partner -> BU nodes. partner_user_id / bu_ids narrow the
+    tree to one partner's or some BUs' slice (Partner / BU Head dashboards)."""
+    targets = _targets(db, tenant_id, year)
+    actuals, intercompany = company_bu_actuals(db, tenant_id, year)
+    companies = {l.id: l for l in db.query(Location).filter(Location.tenant_id == tenant_id).order_by(Location.name).all()}
+    bus = {b.id: b for b in db.query(BusinessUnit).filter(BusinessUnit.tenant_id == tenant_id).all()}
+
+    # (company, bu) cells to show: every BU in every company it operates in,
+    # plus any cell that has actuals (e.g. a client/employee with no company)
+    cells = {(c.company_id, c.business_unit_id) for c in db.query(BusinessUnitCompany).filter(
+        BusinessUnitCompany.tenant_id == tenant_id) if c.company_id in companies and c.business_unit_id in bus}
+    cells |= {(cid, bu_id) for (cid, bu_id), vals in actuals.items() if bu_id in bus and any(vals.values())}
+    cells |= {(UNASSIGNED, bu_id) for bu_id, b in bus.items()
+              if b.active and not any(bid == bu_id for _, bid in cells)}
+
+    def keep(bu_id):
+        bu = bus[bu_id]
+        if partner_user_id is not None and bu.partner_user_id != partner_user_id:
+            return False
+        return bu_ids is None or bu_id in bu_ids
+    cells = {c for c in cells if keep(c[1])}
+
+    grouped: Dict[str, Dict[str, List[int]]] = defaultdict(lambda: defaultdict(list))
+    for company_id, bu_id in cells:
+        grouped[company_id][bus[bu_id].partner_user_id or UNASSIGNED].append(bu_id)
+    partner_users = {u.UserID: u for u in db.query(Users).filter(
+        Users.UserID.in_({b.partner_user_id for b in bus.values() if b.partner_user_id})).all()}
+
+    company_nodes = []
+    for company_id in list(companies) + ([UNASSIGNED] if UNASSIGNED in grouped else []):
+        if company_id not in grouped and (partner_user_id is not None or bu_ids is not None):
+            continue
+        partner_list = []
+        for pid, partner_bus in sorted(
+            grouped.get(company_id, {}).items(),
+            key=lambda kv: (kv[0] == UNASSIGNED, (partner_users[kv[0]].UserName or "") if kv[0] in partner_users else ""),
+        ):
+            bu_list = []
+            for bu_id in sorted(partner_bus, key=lambda i: bus[i].name):
+                entity = f"{company_id}:{bu_id}"
+                bu_list.append({
+                    "level": "BU", "entity_id": entity, "bu_id": bu_id, "company_id": company_id,
+                    "name": bus[bu_id].display_name or bus[bu_id].name,
+                    "head": (bus[bu_id].manager.UserName or bus[bu_id].manager.UserEmail) if bus[bu_id].manager else None,
+                    "editable": company_id != UNASSIGNED,
+                    "metrics": _metric_cells("BU", entity, TREE_METRICS, targets, actuals.get((company_id, bu_id), {})),
+                })
+            entity = f"{company_id}:{pid}"
+            partner = partner_users.get(pid)
+            partner_list.append({
+                "level": "PARTNER", "entity_id": entity, "partner_user_id": None if pid == UNASSIGNED else pid,
+                "name": (partner.UserName or partner.UserEmail) if partner else "No partner assigned",
+                "editable": company_id != UNASSIGNED and partner is not None,
+                "metrics": _metric_cells("PARTNER", entity, TREE_METRICS, targets, _sum(bu_list), bu_list),
+                "children": bu_list,
+            })
+        company = companies.get(company_id)
+        company_nodes.append({
+            "level": "LOCATION", "entity_id": company_id,
+            "name": company.name if company else "No company assigned",
+            "editable": company is not None,
+            "metrics": _metric_cells("LOCATION", company_id, TREE_METRICS, targets, _sum(partner_list), partner_list),
+            "children": partner_list,
+        })
+
+    setup = {
+        "companies": len(companies),
+        "business_units": sum(1 for b in bus.values() if b.active),
+        "partners": len(partner_users),
+        "bus_without_company": sum(1 for c, _ in cells if c == UNASSIGNED),
+        "bus_without_partner": sum(1 for b in bus.values() if b.active and not b.partner_user_id),
+        "intercompany_revenue": intercompany,
+    }
+    return company_nodes, setup
+
+
 def get_goal_tree(db: Session, tenant_id: int, year: Optional[int] = None) -> dict:
     from app.services.fiscal_year_service import current_fy, fy_info
     year = year or current_fy(db, tenant_id)
     targets = _targets(db, tenant_id, year)
-    bu_actuals = _bu_actuals(db, tenant_id, year)
-
-    locations = {l.id: l for l in db.query(Location).filter(Location.tenant_id == tenant_id).all()}
-    bus = db.query(BusinessUnit).filter(BusinessUnit.tenant_id == tenant_id, BusinessUnit.active.is_(True)).all()
-    partner_of = {
-        a.business_unit_id: a.partner_org_node_id
-        for a in db.query(PartnerBUAssignment).filter(
-            PartnerBUAssignment.tenant_id == tenant_id, PartnerBUAssignment.active.is_(True)
-        ).order_by(PartnerBUAssignment.id).all()
-    }
-    partner_nodes = {
-        n.id: n for n in db.query(OrgNode).filter(
-            OrgNode.tenant_id == tenant_id, OrgNode.hierarchy_level == partner_hierarchy_level()
-        ).all()
-    }
-
-    # location -> partner -> [bu]
-    grouped: Dict[str, Dict[str, List[BusinessUnit]]] = defaultdict(lambda: defaultdict(list))
-    for bu in bus:
-        loc = bu.location_id if bu.location_id in locations else NO_LOCATION
-        partner = partner_of.get(bu.id) if partner_of.get(bu.id) in partner_nodes else NO_PARTNER
-        grouped[loc][partner].append(bu)
-
-    location_nodes = []
-    for loc_id in list(locations) + ([NO_LOCATION] if NO_LOCATION in grouped else []):
-        partner_list = []
-        for partner_id, partner_bus in sorted(
-            grouped.get(loc_id, {}).items(),
-            key=lambda kv: (kv[0] == NO_PARTNER, partner_nodes[kv[0]].name if kv[0] in partner_nodes else ""),
-        ):
-            bu_list = [
-                {
-                    "level": "BU", "entity_id": str(bu.id), "name": bu.display_name or bu.name,
-                    "editable": True,
-                    "metrics": _metric_cells("BU", str(bu.id), TREE_METRICS, targets, bu_actuals[bu.id]),
-                }
-                for bu in sorted(partner_bus, key=lambda b: b.name)
-            ]
-            entity = f"{loc_id}:{partner_id}"
-            editable = loc_id != NO_LOCATION and partner_id != NO_PARTNER
-            partner_list.append({
-                "level": "PARTNER", "entity_id": entity,
-                "name": partner_nodes[partner_id].name if partner_id in partner_nodes else "No partner assigned",
-                "editable": editable,
-                "metrics": _metric_cells("PARTNER", entity, TREE_METRICS, targets, _sum(bu_list), bu_list),
-                "children": bu_list,
-            })
-        location = locations.get(loc_id)
-        location_nodes.append({
-            "level": "LOCATION", "entity_id": loc_id,
-            "name": location.name if location else "No location assigned",
-            "editable": location is not None,
-            "metrics": _metric_cells("LOCATION", loc_id, TREE_METRICS, targets, _sum(partner_list), partner_list),
-            "children": partner_list,
-        })
+    company_nodes, setup = build_company_tree(db, tenant_id, year)
 
     progress = get_fy_progress(db, year, tenant_id=tenant_id)
     org_actuals = {m["key"]: m["current"] for m in progress["metrics"]}
     org = {
         "level": "ORG", "entity_id": ORG_ENTITY, "name": "Organization", "editable": True,
-        "metrics": _metric_cells("ORG", ORG_ENTITY, list(FY_METRICS), targets, org_actuals, location_nodes),
-        "children": location_nodes,
+        "metrics": _metric_cells("ORG", ORG_ENTITY, list(FY_METRICS), targets, org_actuals, company_nodes),
+        "children": company_nodes,
     }
     for key, m in ((m["key"], m) for m in progress["metrics"]):
         org["metrics"][key]["status"] = m["status"]
@@ -190,14 +235,15 @@ def get_goal_tree(db: Session, tenant_id: int, year: Optional[int] = None) -> di
         "metrics": [{"key": k, "label": v[0], "unit": v[1], "detail": v[2], "rolls_up": k in TREE_METRICS}
                     for k, v in FY_METRICS.items()],
         "tree": org,
-        "setup": {
-            "locations": len(locations),
-            "business_units": len(bus),
-            "partners": len(partner_nodes),
-            "bus_without_location": sum(1 for b in bus if b.location_id not in locations),
-            "bus_without_partner": sum(1 for b in bus if partner_of.get(b.id) not in partner_nodes),
-        },
+        "setup": setup,
     }
+
+
+def _company(db: Session, tenant_id: int, company_id: str) -> Location:
+    company = db.query(Location).filter(Location.id == company_id, Location.tenant_id == tenant_id).first()
+    if not company:
+        raise ValueError("Unknown company")
+    return company
 
 
 def _validate_entity(db: Session, tenant_id: int, level: str, entity_id: str) -> None:
@@ -205,18 +251,18 @@ def _validate_entity(db: Session, tenant_id: int, level: str, entity_id: str) ->
         if entity_id != ORG_ENTITY:
             raise ValueError("ORG targets use entity_id 'org'")
     elif level == "LOCATION":
-        if not db.query(Location).filter(Location.id == entity_id, Location.tenant_id == tenant_id).first():
-            raise ValueError("Unknown location")
+        _company(db, tenant_id, entity_id)
     elif level == "PARTNER":
-        loc_id, _, partner_id = entity_id.partition(":")
-        if not db.query(Location).filter(Location.id == loc_id, Location.tenant_id == tenant_id).first():
-            raise ValueError("Unknown location for this partner target")
-        if not db.query(OrgNode).filter(OrgNode.id == partner_id, OrgNode.tenant_id == tenant_id,
-                                        OrgNode.hierarchy_level == partner_hierarchy_level()).first():
-            raise ValueError("Unknown partner")
+        company_id, _, user_id = entity_id.partition(":")
+        _company(db, tenant_id, company_id)
+        if not db.query(BusinessUnit).filter(BusinessUnit.tenant_id == tenant_id,
+                                             BusinessUnit.partner_user_id == user_id).first():
+            raise ValueError("Not a partner of any business unit")
     elif level == "BU":
-        if not entity_id.isdigit() or not db.query(BusinessUnit).filter(
-            BusinessUnit.id == int(entity_id), BusinessUnit.tenant_id == tenant_id
+        company_id, _, bu_id = entity_id.partition(":")
+        _company(db, tenant_id, company_id)
+        if not bu_id.isdigit() or not db.query(BusinessUnit).filter(
+            BusinessUnit.id == int(bu_id), BusinessUnit.tenant_id == tenant_id
         ).first():
             raise ValueError("Unknown business unit")
 
@@ -243,24 +289,33 @@ def set_goal_target(db: Session, user: Users, *, level: str, entity_id: str, met
     if target is None:
         if row:
             db.delete(row)
-            db.commit()
-        return None
-    if row is None:
-        row = GoalTarget(tenant_id=tenant_id, year=year, level=level, entity_id=entity_id, metric=metric)
-        db.add(row)
-    row.target = target
-    row.updated_by = user.UserID
+    else:
+        if row is None:
+            row = GoalTarget(tenant_id=tenant_id, year=year, level=level, entity_id=entity_id, metric=metric)
+            db.add(row)
+        row.target = target
+        row.updated_by = user.UserID
+    db.flush()
 
     if level == "BU" and metric == "revenue":
         # Keep the BU revenue-target history (revenue target vs actual
-        # endpoints) in step: append-only, latest row wins.
+        # endpoints) in step with the BU's total across companies:
+        # append-only, latest row wins.
         from app.models.revenue_target import BURevenueTarget
+        bu_id = int(entity_id.partition(":")[2])
+        total = sum(
+            r.target for r in db.query(GoalTarget).filter(
+                GoalTarget.tenant_id == tenant_id, GoalTarget.year == year, GoalTarget.level == "BU",
+                GoalTarget.metric == "revenue", GoalTarget.entity_id.like(f"%:{bu_id}"),
+            )
+        )
         db.add(BURevenueTarget(
-            tenant_id=tenant_id, business_unit_id=int(entity_id), target_period="ANNUAL", fiscal_year=year,
-            target_amount_usd_cents=int(round(target * 100)), created_by=user.UserID,
-            notes="Set on the Goals screen",
+            tenant_id=tenant_id, business_unit_id=bu_id, target_period="ANNUAL", fiscal_year=year,
+            target_amount_usd_cents=int(round(total * 100)), created_by=user.UserID,
+            notes="Set on the Goals screen (sum across companies)",
         ))
     db.commit()
-    db.refresh(row)
+    if row is not None and target is not None:
+        db.refresh(row)
     logger.info(f"[GoalTree] {user.UserID} set {level}/{entity_id}/{metric}/{year} = {target}")
-    return row
+    return row if target is not None else None

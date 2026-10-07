@@ -8,7 +8,13 @@ import { useEffect, useState } from "react";
 import { Users, Briefcase, Grid3x3, UserPlus, ArrowRightLeft, RefreshCw, AlertCircle, CheckCircle2, Search } from "lucide-react";
 import { Card, Button, Input, Select, TextArea, StatusBadge } from "../components/ui";
 import cx from "../utils/cx";
-import { getAllEmployees, createEmployee, convertCandidateToEmployee, markEmployeeOnBench, removeEmployeeFromBench, updateEmployeeCertifications } from "../services/api/employees";
+import { getAllEmployees, createEmployee, convertCandidateToEmployee, markEmployeeOnBench, removeEmployeeFromBench, updateEmployeeCertifications, updateEmployeeOrganization } from "../services/api/employees";
+import { apiRequest } from "../services/api/client";
+
+// Our companies (Users & Access Control > Companies) and business units
+const COMPANIES_PATH = "/api/v1/api/admin/users-access-control/delivery-centers";
+const loadOrgOptions = () => Promise.all([apiRequest(COMPANIES_PATH), apiRequest("/rbac/business-units")])
+  .then(([c, b]) => ({ companies: c.data?.delivery_centers || [], businessUnits: b.data?.business_units || [] }));
 import { createAllocation, getAllocations, endAllocation, getAllocationDropdowns } from "../services/api/allocations";
 
 const EMPLOYMENT_TYPES = [
@@ -32,6 +38,13 @@ function EmployeeListTab() {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedEmployee, setSelectedEmployee] = useState(null);
   const [error, setError] = useState("");
+  const [orgOptions, setOrgOptions] = useState({ companies: [], businessUnits: [] });
+
+  useEffect(() => {
+    loadOrgOptions()
+      .then(setOrgOptions)
+      .catch((err) => setError(`Could not load companies/business units: ${err.message}`));
+  }, []);
 
   useEffect(() => {
     loadEmployees();
@@ -87,6 +100,8 @@ function EmployeeListTab() {
               <th className="px-4 py-2 text-left font-semibold">Name</th>
               <th className="px-4 py-2 text-left font-semibold">Email</th>
               <th className="px-4 py-2 text-left font-semibold">Job Title</th>
+              <th className="px-4 py-2 text-left font-semibold">Company</th>
+              <th className="px-4 py-2 text-left font-semibold">Business Unit</th>
               <th className="px-4 py-2 text-left font-semibold">Status</th>
               <th className="px-4 py-2 text-left font-semibold">Utilization</th>
               <th className="px-4 py-2 text-left font-semibold">Action</th>
@@ -98,6 +113,8 @@ function EmployeeListTab() {
                 <td className="px-4 py-2">{emp.first_name} {emp.last_name}</td>
                 <td className="px-4 py-2 text-gray-600">{emp.email}</td>
                 <td className="px-4 py-2">{emp.job_title || emp.current_title || "—"}</td>
+                <td className="px-4 py-2">{orgOptions.companies.find((c) => c.id === emp.company_id)?.name || <span className="text-amber-700">Not set</span>}</td>
+                <td className="px-4 py-2">{orgOptions.businessUnits.find((b) => b.id === emp.bu_id)?.name || "—"}</td>
                 <td className="px-4 py-2">
                   <StatusBadge status={emp.hire_status === "ACTIVE" ? "active" : "inactive"}>
                     {emp.hire_status || "Active"}
@@ -118,6 +135,7 @@ function EmployeeListTab() {
       {selectedEmployee && (
         <EmployeeDetailModal
           employee={selectedEmployee}
+          orgOptions={orgOptions}
           onClose={() => setSelectedEmployee(null)}
           onRefresh={loadEmployees}
         />
@@ -126,14 +144,32 @@ function EmployeeListTab() {
   );
 }
 
-function EmployeeDetailModal({ employee, onClose, onRefresh }) {
+function EmployeeDetailModal({ employee, orgOptions, onClose, onRefresh }) {
   const [allocations, setAllocations] = useState([]);
   const [loadingAllocs, setLoadingAllocs] = useState(true);
   const [currentCert, setCurrentCert] = useState(employee.guidewire_certification_current || "None");
   const [expectedCert, setExpectedCert] = useState(employee.guidewire_certification_expected || "None");
   const [saving, setSaving] = useState(false);
+  const [companyId, setCompanyId] = useState(employee.company_id || "");
+  const [buId, setBuId] = useState(employee.bu_id ? String(employee.bu_id) : "");
+  const [orgMessage, setOrgMessage] = useState("");
 
   const CERT_LEVELS = ["None", "ACE", "Associate", "Specialist"];
+
+  const saveOrganization = async () => {
+    setSaving(true);
+    setOrgMessage("");
+    try {
+      await updateEmployeeOrganization(employee.id, { company_id: companyId, business_unit_id: buId ? Number(buId) : null });
+      setOrgMessage("Saved");
+      onRefresh();
+    } catch (err) {
+      console.error("[EmployeeDetailModal] Failed to save company/BU:", err);
+      setOrgMessage(`Failed to save: ${err.message}`);
+    } finally {
+      setSaving(false);
+    }
+  };
 
   useEffect(() => {
     loadAllocations();
@@ -190,13 +226,40 @@ function EmployeeDetailModal({ employee, onClose, onRefresh }) {
             </div>
             <div>
               <div className="font-semibold text-gray-700">Status</div>
-              <Badge variant={employee.hire_status === "ACTIVE" ? "success" : "default"}>
+              <StatusBadge status={employee.hire_status === "ACTIVE" ? "active" : "inactive"}>
                 {employee.hire_status || "Active"}
-              </Badge>
+              </StatusBadge>
             </div>
             <div>
               <div className="font-semibold text-gray-700">Utilization</div>
               <div>{employee.utilization_pct || 0}%</div>
+            </div>
+          </div>
+
+          <div className="border-t pt-4">
+            <h3 className="font-semibold mb-1">Company &amp; Business Unit</h3>
+            <p className="text-xs text-gray-500 mb-3">Headcount is counted by employer company (BX-US / BX-IN) and business unit.</p>
+            <div className="grid grid-cols-2 gap-4 mb-3">
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Company (employer)</label>
+                <select value={companyId} onChange={(e) => setCompanyId(e.target.value)} className="w-full px-3 py-2 border rounded-lg text-sm">
+                  <option value="">Not set</option>
+                  {orgOptions.companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Business Unit</label>
+                <select value={buId} onChange={(e) => setBuId(e.target.value)} className="w-full px-3 py-2 border rounded-lg text-sm">
+                  <option value="">Not set</option>
+                  {orgOptions.businessUnits.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+                </select>
+              </div>
+            </div>
+            <div className="flex items-center gap-3 mb-2">
+              <Button variant="primary" size="sm" onClick={saveOrganization} disabled={saving}>
+                {saving ? "Saving..." : "Save Company & BU"}
+              </Button>
+              {orgMessage && <span className="text-xs text-gray-600">{orgMessage}</span>}
             </div>
           </div>
 

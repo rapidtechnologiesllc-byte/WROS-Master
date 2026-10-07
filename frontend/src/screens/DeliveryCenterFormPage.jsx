@@ -20,7 +20,7 @@ export default function DeliveryCenterFormPage() {
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
         <div className="bg-white rounded-lg p-6 max-w-md">
           <h2 className="text-lg font-semibold text-gray-900 mb-2">Access Denied</h2>
-          <p className="text-gray-600 mb-4">You do not have permission to manage delivery centers.</p>
+          <p className="text-gray-600 mb-4">You do not have permission to manage companies.</p>
           <button
             onClick={() => window.history.back()}
             className="w-full px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
@@ -67,11 +67,11 @@ export default function DeliveryCenterFormPage() {
           headcount: dc.headcount || 0
         });
       } else {
-        setActionError('Delivery Center not found');
+        setActionError('Company not found');
       }
     } catch (err) {
       console.error('Failed to load delivery center:', err);
-      setActionError('Failed to load delivery center');
+      setActionError(`Failed to load company: ${err.message}`);
     } finally {
       setLoading(false);
     }
@@ -91,7 +91,7 @@ export default function DeliveryCenterFormPage() {
   const handleSave = async (e) => {
     e.preventDefault();
     if (!formData.name.trim()) {
-      setActionError('Delivery Center name is required');
+      setActionError('Company name is required');
       return;
     }
 
@@ -111,7 +111,7 @@ export default function DeliveryCenterFormPage() {
       setActionError(null);
       navigate('/admin/users-access-control/delivery-centers');
     } catch (err) {
-      setActionError(err?.data?.detail || err?.message || 'Failed to save delivery center');
+      setActionError(err?.data?.detail || err?.message || 'Failed to save company');
     } finally {
       setSaving(false);
     }
@@ -142,7 +142,7 @@ export default function DeliveryCenterFormPage() {
         </button>
         <div>
           <h1 className="text-2xl font-bold text-gray-900">
-            {mode === 'create' ? 'Add Delivery Center' : 'Edit Delivery Center'}
+            {mode === 'create' ? 'Add Company' : 'Edit Company'}
           </h1>
         </div>
       </div>
@@ -160,13 +160,13 @@ export default function DeliveryCenterFormPage() {
         <form onSubmit={handleSave} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Delivery Center Name *
+              Company Name *
             </label>
             <Input
               type="text"
               value={formData.name}
               onChange={setField('name')}
-              placeholder="e.g., Mumbai, India"
+              placeholder="e.g., BX-US or BX-IN"
               disabled={saving}
               required
             />
@@ -183,8 +183,8 @@ export default function DeliveryCenterFormPage() {
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-bx-orange"
               disabled={saving}
             >
-              <option value="Delivery">Delivery Center</option>
-              <option value="HQ">Headquarters</option>
+              <option value="HQ">Parent company</option>
+              <option value="Delivery">Subsidiary / subcontracting company</option>
             </select>
           </div>
 
@@ -215,18 +215,9 @@ export default function DeliveryCenterFormPage() {
             </div>
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Headcount
-            </label>
-            <Input
-              type="number"
-              value={formData.headcount}
-              onChange={setField('headcount')}
-              placeholder="Number of employees"
-              disabled={saving}
-            />
-          </div>
+          <p className="text-xs text-gray-500">
+            Each company has its own revenue and headcount targets. Headcount is counted from the employees whose employer is this company.
+          </p>
 
           <div className="flex gap-2 justify-end pt-4 border-t">
             <Button
@@ -242,7 +233,7 @@ export default function DeliveryCenterFormPage() {
               disabled={saving || !formData.name.trim()}
               className="bg-bx-orange hover:bg-bx-orange-hover text-white"
             >
-              {saving ? (mode === 'create' ? 'Adding...' : 'Updating...') : (mode === 'create' ? 'Add Delivery Center' : 'Update Delivery Center')}
+              {saving ? (mode === 'create' ? 'Adding...' : 'Updating...') : (mode === 'create' ? 'Add Company' : 'Update Company')}
             </Button>
           </div>
         </form>

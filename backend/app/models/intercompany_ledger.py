@@ -23,6 +23,9 @@ class IntercompanySettlement(Base):
 
     from_entity = Column(String(512), nullable=False)  # e.g. "BXIN", "BXUS" -- free text, no fixed enum yet
     to_entity = Column(String(512), nullable=False)
+    # The BU the billed work belongs to, so the receiving company's revenue
+    # rolls up to that BU and its partner in the goal tree
+    business_unit_id = Column(Integer, ForeignKey("business_units.id", ondelete="SET NULL"), nullable=True, index=True)
     amount_usd_cents = Column(Integer, nullable=False)
     settlement_date = Column(Date, nullable=False)
     reason = Column(Text, nullable=False)

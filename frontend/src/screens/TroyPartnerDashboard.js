@@ -1,45 +1,64 @@
-import { useEffect, useState } from "react";
-import { Briefcase, Users, Award, TrendingUp, AlertCircle, X, AlertTriangle } from "lucide-react";
+import { Fragment, useEffect, useState } from "react";
+import { Briefcase, Users, Award, TrendingUp, X, AlertTriangle } from "lucide-react";
 import { Card, Button } from "../components/ui";
 import { apiRequest } from "../services/api/client";
-import { listBusinessUnits } from "../services/api/rbac";
-import { getHrMe } from "../services/api/users";
-import DashboardBUPicker from "../components/DashboardBUPicker";
+
+// Partner dashboard: the business units a partner owns, across every company
+// they run in (BX-US, BX-IN, ...). A partner sees their own; Admin/CEO pick one.
+const METRICS = [
+  { key: "revenue", label: "Revenue", usd: true },
+  { key: "headcount", label: "Billable headcount" },
+  { key: "new_logos", label: "New logos" },
+];
+
+const fmt = (value, usd) => {
+  if (value === null || value === undefined) return "--";
+  const n = Number(value);
+  if (!usd) return n.toLocaleString();
+  return Math.abs(n) >= 1e6 ? `$${(n / 1e6).toFixed(2)}M` : `$${n.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
+};
+
+function MetricCell({ cell, usd }) {
+  if (!cell) return <span className="text-gray-400">--</span>;
+  const pct = cell.progress_pct;
+  return (
+    <div>
+      <div className="font-semibold text-gray-900">
+        {fmt(cell.actual, usd)} <span className="text-xs font-normal text-gray-500">/ {cell.target ? fmt(cell.target, usd) : "no target"}</span>
+      </div>
+      {pct !== null && pct !== undefined && (
+        <div className="mt-1 h-1.5 w-full rounded bg-gray-100">
+          <div className={`h-1.5 rounded ${pct >= 100 ? "bg-green-500" : pct >= 60 ? "bg-blue-500" : "bg-amber-500"}`}
+               style={{ width: `${Math.min(pct, 100)}%` }} />
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function TroyPartnerDashboard() {
   const [loading, setLoading] = useState(true);
-  const [dashboard, setDashboard] = useState(null);
+  const [result, setResult] = useState(null);
   const [actionError, setActionError] = useState(null);
-  const [buName, setBuName] = useState("");
-  // Users without a BU of their own (e.g. Admin) choose which BU to view
-  const [buChoices, setBuChoices] = useState(null);
-  const [selectedBuId, setSelectedBuId] = useState(null);
-
-  // BU label = the logged-in user's business unit (Users & Access Control > Business Units)
-  useEffect(() => {
-    Promise.all([getHrMe(), listBusinessUnits()])
-      .then(([me, bus]) => {
-        const bu = bus.find((b) => String(b.id) === String(me?.business_unit_id));
-        setBuName(bu?.name || "");
-      })
-      .catch((err) => setActionError(`Failed to load business unit: ${err.message}`));
-  }, []);
+  const [partnerChoices, setPartnerChoices] = useState(null);
+  const [partnerId, setPartnerId] = useState("");
+  const [buId, setBuId] = useState("");
 
   useEffect(() => {
     const fetchData = async () => {
       try {
         setLoading(true);
-        const qs = selectedBuId ? `?business_unit_id=${selectedBuId}` : "";
-        const { data } = await apiRequest(`/dashboards/troy-partner${qs}`, { method: "GET" });
-        if (data?.status === "needs_business_unit") {
-          setBuChoices(data.business_units || []);
-          setDashboard(null);
+        const qs = new URLSearchParams();
+        if (partnerId) qs.set("partner_user_id", partnerId);
+        if (buId) qs.set("business_unit_id", buId);
+        const { data } = await apiRequest(`/dashboards/troy-partner${qs.toString() ? `?${qs}` : ""}`, { method: "GET" });
+        if (data?.status === "needs_partner") {
+          setPartnerChoices(data.partners || []);
+          setResult(null);
           return;
         }
-        setDashboard(data?.data);
-        if (buChoices && data?.business_unit_id) {
-          setBuName(buChoices.find((b) => b.id === data.business_unit_id)?.name || "");
-        }
+        if (data?.partners) setPartnerChoices(data.partners);
+        setResult(data);
       } catch (err) {
         setActionError(`Failed to load the partner dashboard: ${err.message}`);
       } finally {
@@ -48,22 +67,38 @@ export default function TroyPartnerDashboard() {
     };
 
     fetchData();
-  }, [selectedBuId]);
+  }, [partnerId, buId]);
 
-  const picker = buChoices ? (
-    <DashboardBUPicker businessUnits={buChoices} value={selectedBuId} onChange={setSelectedBuId} />
+  const picker = partnerChoices ? (
+    <div className="flex items-center gap-3">
+      <label className="text-sm font-medium text-gray-700" htmlFor="partner-picker">Partner</label>
+      <select
+        id="partner-picker"
+        value={partnerId || result?.partner?.user_id || ""}
+        onChange={(e) => { setPartnerId(e.target.value); setBuId(""); }}
+        className="rounded-lg border border-gray-300 px-3 py-2 text-sm"
+      >
+        <option value="">Select a partner</option>
+        {partnerChoices.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+      </select>
+      {partnerChoices.length === 0 && (
+        <span className="text-sm text-amber-700">No partners yet: give a user the Partner role and set them as Partner on a business unit.</span>
+      )}
+    </div>
   ) : null;
 
-  if (loading) return <div className="p-6 text-center text-gray-500">Loading dashboard...</div>;
-  if (!dashboard) {
+  if (loading && !result) return <div className="p-6 text-center text-gray-500">Loading dashboard...</div>;
+  if (!result) {
     return (
       <div className="p-6 space-y-4 max-w-6xl mx-auto">
+        <h1 className="text-3xl font-bold text-gray-900">Partner Dashboard</h1>
         {actionError && <div className="text-red-700 text-sm">{actionError}</div>}
         {picker || <div className="text-center text-gray-500">No data available</div>}
       </div>
     );
   }
 
+  const dashboard = result.data || {};
   const {
     current_demand,
     pre_onboarding_pipeline,
@@ -92,12 +127,78 @@ export default function TroyPartnerDashboard() {
         </div>
       )}
 
-      <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold text-gray-900">Partner Dashboard</h1>
-        <div className="text-sm text-gray-600">{buName || "No business unit assigned"}</div>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">Partner Dashboard</h1>
+          <div className="text-sm text-gray-600">
+            {result.partner?.name} · {result.business_units.length} business unit(s) · {result.fy_label}
+          </div>
+        </div>
+        {picker}
       </div>
-      {picker}
 
+      {result.business_units.length === 0 ? (
+        <Card>
+          <div className="text-sm text-gray-600">
+            {result.partner?.name} is not the partner of any business unit yet. Set the Partner on each business unit in
+            Users &amp; Access Control → Business Units.
+          </div>
+        </Card>
+      ) : (
+        <Card title="FY targets vs actuals">
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[640px] text-sm">
+              <thead>
+                <tr className="border-b text-left text-xs uppercase text-gray-500">
+                  <th className="py-2 px-3">Company / Business unit</th>
+                  {METRICS.map((m) => <th key={m.key} className="py-2 px-3">{m.label}</th>)}
+                </tr>
+              </thead>
+              <tbody>
+                <tr className="border-b bg-gray-50">
+                  <td className="py-2 px-3 font-bold">All companies</td>
+                  {METRICS.map((m) => <td key={m.key} className="py-2 px-3"><MetricCell cell={result.totals[m.key]} usd={m.usd} /></td>)}
+                </tr>
+                {result.by_company.map((c) => (
+                  <Fragment key={c.company_id}>
+                    <tr className="border-b">
+                      <td className="py-2 px-3 font-semibold">{c.company}</td>
+                      {METRICS.map((m) => <td key={m.key} className="py-2 px-3"><MetricCell cell={c.metrics[m.key]} usd={m.usd} /></td>)}
+                    </tr>
+                    {c.business_units.map((bu) => (
+                      <tr key={`${c.company_id}:${bu.bu_id}`} className="border-b">
+                        <td className="py-2 px-3 pl-8 text-gray-700">
+                          {bu.name}
+                          {bu.head && <span className="ml-2 text-xs text-gray-500">Head: {bu.head}</span>}
+                        </td>
+                        {METRICS.map((m) => <td key={m.key} className="py-2 px-3"><MetricCell cell={bu.metrics[m.key]} usd={m.usd} /></td>)}
+                      </tr>
+                    ))}
+                  </Fragment>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p className="mt-2 text-xs text-gray-500">Targets are set on Executive → Goals &amp; Revenue.</p>
+        </Card>
+      )}
+
+      {result.business_units.length > 0 && (
+        <div className="flex items-center gap-3">
+          <label className="text-sm font-medium text-gray-700" htmlFor="bu-filter">Operations for</label>
+          <select
+            id="bu-filter"
+            value={buId}
+            onChange={(e) => setBuId(e.target.value)}
+            className="rounded-lg border border-gray-300 px-3 py-2 text-sm"
+          >
+            <option value="">All my business units</option>
+            {result.business_units.map((bu) => <option key={bu.id} value={bu.id}>{bu.name}</option>)}
+          </select>
+        </div>
+      )}
+
+      {result.data && (<>
       {/* KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
         <Card>
@@ -160,7 +261,7 @@ export default function TroyPartnerDashboard() {
               <span className="text-2xl font-bold text-blue-600">{current_demand?.open_positions || 0}</span>
             </div>
             <div className="text-sm text-gray-600">
-              Positions available for recruitment in your business unit
+              Positions open for recruitment in {buId ? "this business unit" : "your business units"}
             </div>
             <Button className="w-full">View Open Positions</Button>
           </div>
@@ -260,6 +361,7 @@ export default function TroyPartnerDashboard() {
           <div className="text-center text-gray-600 py-4">No core certified employees yet</div>
         )}
       </Card>
+      </>)}
     </div>
   );
 }

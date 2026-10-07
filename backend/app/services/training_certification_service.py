@@ -19,6 +19,13 @@ _WORKING_STATUSES_EXCLUDED = ("PRE_JOINING", "EXITED")
 _OPEN_JOB_STATUSES = ("active", "open", "public")
 
 
+def _in_bus(column, business_unit_id):
+    """business_unit_id is one BU id or a collection (a partner's BUs)."""
+    if isinstance(business_unit_id, (list, tuple, set, frozenset)):
+        return column.in_(list(business_unit_id))
+    return column == business_unit_id
+
+
 def _employee_name(employee: Employee) -> str:
     return " ".join(filter(None, [employee.first_name, employee.last_name]))
 
@@ -26,7 +33,7 @@ def _employee_name(employee: Employee) -> str:
 def _bu_employees(db: Session, business_unit_id: int = None):
     query = db.query(Employee)
     if business_unit_id:
-        query = query.filter(Employee.bu_id == business_unit_id)
+        query = query.filter(_in_bus(Employee.bu_id, business_unit_id))
     return query
 
 
@@ -60,7 +67,7 @@ def get_buddy_program_overview(db: Session, business_unit_id: int = None) -> dic
 def _bu_certifications(db: Session, business_unit_id: int = None):
     query = db.query(EmployeeCertification).join(Employee, Employee.id == EmployeeCertification.employee_id)
     if business_unit_id:
-        query = query.filter(Employee.bu_id == business_unit_id)
+        query = query.filter(_in_bus(Employee.bu_id, business_unit_id))
     return query
 
 
@@ -108,7 +115,7 @@ def get_employee_training_status(db: Session, employee_id: str = None, business_
     if employee_id:
         query = query.filter(Employee.id == employee_id)
     if business_unit_id:
-        query = query.filter(Employee.bu_id == business_unit_id)
+        query = query.filter(_in_bus(Employee.bu_id, business_unit_id))
 
     return [
         {
@@ -141,7 +148,7 @@ def get_open_positions(db: Session, business_unit_id: int = None) -> int:
 
     query = db.query(func.count(Jobs.jobID)).filter(func.lower(Jobs.jobStatus).in_(_OPEN_JOB_STATUSES))
     if business_unit_id:
-        query = query.filter(Jobs.business_unit_id == business_unit_id)
+        query = query.filter(_in_bus(Jobs.business_unit_id, business_unit_id))
     return query.scalar() or 0
 
 

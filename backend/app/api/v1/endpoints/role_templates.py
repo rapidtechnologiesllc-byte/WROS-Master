@@ -524,22 +524,13 @@ def list_business_units(
     current_user: Users = Depends(get_current_internal_user)
 ):
     """
-    Get all active business units for the current tenant.
-    Used by user creation/edit forms to populate BU dropdown.
+    All business units for the current tenant with their companies, partner
+    and BU head. Used by the BU list and every BU dropdown.
     """
     bus = db.query(BusinessUnit).filter(
-        BusinessUnit.tenant_id == current_user.tenant_id
-    ).all()
-
-    result = []
-    for bu in bus:
-        result.append({
-            "id": bu.id,
-            "name": bu.name,
-            "display_name": bu.display_name,
-        })
-
-    return {"business_units": result}
+        BusinessUnit.tenant_id == _bu_tenant(current_user)
+    ).order_by(BusinessUnit.name).all()
+    return {"business_units": [_bu_dict(db, bu) for bu in bus]}
 
 class BusinessUnitCreateRequest(BaseModel):
     name: str
@@ -547,52 +538,97 @@ class BusinessUnitCreateRequest(BaseModel):
     description: Optional[str] = None
     region: Optional[str] = None
     continent: Optional[str] = None
-    # Goal tree: Location (Delivery Center, e.g. BXUS/BXIN) -> Partner -> BU
-    location_id: Optional[str] = None
-    partner_node_id: Optional[str] = None
+    # Companies (legal entities, e.g. BX-US, BX-IN) the BU operates in.
+    # None leaves unchanged; [] clears.
+    company_ids: Optional[List[str]] = None
+    # Users; "" clears, None leaves unchanged
+    partner_user_id: Optional[str] = None
+    head_user_id: Optional[str] = None
+
+
+# Who may be named on a BU (role template names)
+PARTNER_ROLES = ("Partner",)
+BU_HEAD_ROLES = ("BU Head", "Partner")
 
 
 def _bu_tenant(user: Users) -> int:
     return user.tenant_id if getattr(user, "tenant_id", None) else 1
 
 
-def _set_bu_location_and_partner(db: Session, bu: BusinessUnit, tenant_id: int, req: BusinessUnitCreateRequest) -> None:
-    """Validate and apply the BU's location and partner (an org-chart node at
-    the Partner level). Empty string clears; None leaves unchanged."""
+def _leader(db: Session, tenant_id: int, user_id: str, roles: tuple, label: str) -> Users:
+    from app.models.role_template import RoleTemplate
+    user = db.query(Users).filter(Users.UserID == user_id, Users.tenant_id == tenant_id).first()
+    if not user:
+        raise HTTPException(status_code=422, detail=f"Unknown {label}")
+    role = db.query(RoleTemplate).filter(RoleTemplate.id == user.role_template_id).first()
+    if not role or role.name not in roles:
+        raise HTTPException(
+            status_code=422,
+            detail=f"{label} must have the {' or '.join(roles)} role (Users tab); {user.UserName or user.UserEmail} is {role.name if role else 'unassigned'}",
+        )
+    return user
+
+
+def _set_bu_structure(db: Session, bu: BusinessUnit, tenant_id: int, req: BusinessUnitCreateRequest) -> None:
+    """Validate and apply companies, partner and BU head."""
+    from app.models.business_unit import BusinessUnitCompany
     from app.models.location import Location
-    from app.models.org_structure import OrgNode, PartnerBUAssignment
-    from app.services.goal_tree_service import partner_hierarchy_level
 
-    if req.location_id is not None:
-        if req.location_id and not db.query(Location).filter(
-            Location.id == req.location_id, Location.tenant_id == tenant_id
-        ).first():
-            raise HTTPException(status_code=422, detail="Unknown location")
-        bu.location_id = req.location_id or None
-
-    if req.partner_node_id is not None:
-        if req.partner_node_id and not db.query(OrgNode).filter(
-            OrgNode.id == req.partner_node_id, OrgNode.tenant_id == tenant_id,
-            OrgNode.hierarchy_level == partner_hierarchy_level(),
-        ).first():
-            raise HTTPException(status_code=422, detail="Partner must be an org-chart node at the Partner level")
+    if req.company_ids is not None:
+        wanted = set(req.company_ids)
+        known = {l.id for l in db.query(Location).filter(Location.tenant_id == tenant_id, Location.id.in_(wanted))}
+        if wanted - known:
+            raise HTTPException(status_code=422, detail="Unknown company")
         db.flush()
-        db.query(PartnerBUAssignment).filter(
-            PartnerBUAssignment.business_unit_id == bu.id, PartnerBUAssignment.active.is_(True)
-        ).update({"active": False}, synchronize_session=False)
-        if req.partner_node_id:
-            db.add(PartnerBUAssignment(
-                tenant_id=tenant_id, partner_org_node_id=req.partner_node_id,
-                business_unit_id=bu.id, active=True,
-            ))
+        current = {c.company_id: c for c in db.query(BusinessUnitCompany).filter(BusinessUnitCompany.business_unit_id == bu.id)}
+        for company_id, row in current.items():
+            if company_id not in wanted:
+                db.delete(row)
+        for company_id in wanted - set(current):
+            db.add(BusinessUnitCompany(tenant_id=tenant_id, business_unit_id=bu.id, company_id=company_id))
+
+    if req.partner_user_id is not None:
+        bu.partner_user_id = _leader(db, tenant_id, req.partner_user_id, PARTNER_ROLES, "Partner").UserID if req.partner_user_id else None
+    if req.head_user_id is not None:
+        bu.manager_id = _leader(db, tenant_id, req.head_user_id, BU_HEAD_ROLES, "BU Head").UserID if req.head_user_id else None
 
 
-def _bu_partner_node_id(db: Session, bu_id: int) -> Optional[str]:
-    from app.models.org_structure import PartnerBUAssignment
-    row = db.query(PartnerBUAssignment).filter(
-        PartnerBUAssignment.business_unit_id == bu_id, PartnerBUAssignment.active.is_(True)
-    ).order_by(PartnerBUAssignment.id.desc()).first()
-    return row.partner_org_node_id if row else None
+def _bu_dict(db: Session, bu: BusinessUnit) -> dict:
+    from app.models.business_unit import BusinessUnitCompany
+    from app.models.location import Location
+
+    companies = (
+        db.query(Location).join(BusinessUnitCompany, BusinessUnitCompany.company_id == Location.id)
+        .filter(BusinessUnitCompany.business_unit_id == bu.id).order_by(Location.name).all()
+    )
+    person = lambda u: {"user_id": u.UserID, "name": u.UserName or u.UserEmail} if u else None
+    return {
+        "id": bu.id,
+        "name": bu.name,
+        "display_name": bu.display_name,
+        "description": bu.description,
+        "active": bu.active,
+        "companies": [{"id": c.id, "name": c.name} for c in companies],
+        "partner": person(bu.partner),
+        "head": person(bu.manager),
+    }
+
+@rbac_router.get("/business-units/leader-options", dependencies=[Depends(require_resource_permission("business-units", "view"))])
+def business_unit_leader_options(
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_internal_user)
+):
+    """Users who can be named Partner / BU Head on a business unit (by role)."""
+    from app.models.role_template import RoleTemplate
+
+    def users_with(roles):
+        rows = (db.query(Users).join(RoleTemplate, RoleTemplate.id == Users.role_template_id)
+                .filter(Users.tenant_id == _bu_tenant(current_user), RoleTemplate.name.in_(roles))
+                .order_by(Users.UserName).all())
+        return [{"user_id": u.UserID, "name": u.UserName or u.UserEmail} for u in rows]
+
+    return {"partners": users_with(PARTNER_ROLES), "heads": users_with(BU_HEAD_ROLES),
+            "partner_roles": list(PARTNER_ROLES), "head_roles": list(BU_HEAD_ROLES)}
 
 @rbac_router.get("/business-units/{bu_id}", dependencies=[Depends(require_resource_permission("business-units", "view"))])
 def get_business_unit_rbac(
@@ -603,19 +639,11 @@ def get_business_unit_rbac(
     """Get a single business unit by id. Used by the edit form to prefill fields."""
     bu = db.query(BusinessUnit).filter(
         BusinessUnit.id == bu_id,
-        BusinessUnit.tenant_id == (current_user.tenant_id if hasattr(current_user, 'tenant_id') and current_user.tenant_id else 1),
+        BusinessUnit.tenant_id == _bu_tenant(current_user),
     ).first()
     if not bu:
         raise HTTPException(status_code=404, detail="Business unit not found")
-
-    return {
-        "id": bu.id,
-        "name": bu.name,
-        "display_name": bu.display_name,
-        "description": bu.description,
-        "location_id": bu.location_id,
-        "partner_node_id": _bu_partner_node_id(db, bu.id),
-    }
+    return _bu_dict(db, bu)
 
 @rbac_router.post("/business-units", dependencies=[Depends(require_resource_permission("business-units", "create"))])
 def create_business_unit_rbac(
@@ -645,7 +673,7 @@ def create_business_unit_rbac(
 
     db.add(new_bu)
     db.flush()
-    _set_bu_location_and_partner(db, new_bu, tenant_id, req)
+    _set_bu_structure(db, new_bu, tenant_id, req)
     db.commit()
     db.refresh(new_bu)
 
@@ -677,7 +705,7 @@ def update_business_unit_rbac(
         bu.display_name = req.display_name
     if req.description is not None:
         bu.description = req.description
-    _set_bu_location_and_partner(db, bu, bu.tenant_id, req)
+    _set_bu_structure(db, bu, bu.tenant_id, req)
 
     db.commit()
     db.refresh(bu)

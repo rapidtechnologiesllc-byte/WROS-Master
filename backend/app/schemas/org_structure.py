@@ -31,6 +31,8 @@ class OrgNodeResponse(BaseModel):
     name: str = Field(..., description="Descriptive name for this specific node")
     parent_id: Optional[str] = None
     department_id: Optional[str] = None
+    company_id: Optional[str] = None
+    company_name: Optional[str] = None
     hierarchy_level: int
     specialization: str
     active: bool = True
@@ -48,11 +50,11 @@ class OrgNodeResponse(BaseModel):
         from_attributes = True
 
 class DepartmentResponse(BaseModel):
-    """A department/team within a business unit"""
+    """A functional group (HR, Recruitment, ...) tasks/approvals route to; BU optional"""
     id: str
     tenant_id: int
     tenant_name: Optional[str] = None
-    business_unit_id: int
+    business_unit_id: Optional[int] = None
     business_unit_name: Optional[str] = None
     name: str
     description: Optional[str] = None

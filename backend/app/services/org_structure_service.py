@@ -260,6 +260,7 @@ def create_org_node(
     specialization: str,
     parent_id: Optional[str] = None,
     department_id: Optional[str] = None,
+    company_id: Optional[str] = None,
 ) -> OrgNode:
     """
     Validate and add (without committing) an org node. position_id is derived
@@ -270,6 +271,7 @@ def create_org_node(
 
     if not name or not name.strip():
         raise ValueError("Name is required")
+    _validate_company(db, tenant_id, company_id)
 
     business_unit_id = None
     if department_id:
@@ -293,6 +295,7 @@ def create_org_node(
         name=name.strip(),
         parent_id=parent_id or None,
         department_id=department_id or None,
+        company_id=company_id or None,
         hierarchy_level=hierarchy_level,
         specialization=specialization,
         active=True,
@@ -300,6 +303,30 @@ def create_org_node(
     db.add(node)
     db.flush()
     return node
+
+def _validate_company(db: Session, tenant_id: int, company_id: Optional[str]) -> None:
+    from app.models.location import Location
+    if company_id and not db.query(Location).filter(Location.id == company_id, Location.tenant_id == tenant_id).first():
+        raise ValueError("Company not found")
+
+
+def update_org_node(db: Session, tenant_id: int, node_id: str, *, name: Optional[str] = None,
+                    company_id: Optional[str] = None) -> OrgNode:
+    """Rename a seat or change its company ("" clears). Level, reporting line
+    and department go through the validator, so they are not editable here."""
+    node = db.query(OrgNode).filter(OrgNode.id == node_id, OrgNode.tenant_id == tenant_id).first()
+    if node is None:
+        raise LookupError("Org node not found")
+    if name is not None:
+        if not name.strip():
+            raise ValueError("Name is required")
+        node.name = name.strip()
+    if company_id is not None:
+        _validate_company(db, tenant_id, company_id)
+        node.company_id = company_id or None
+    db.flush()
+    return node
+
 
 def assign_partner_to_bu(
     db: Session,

@@ -1,8 +1,8 @@
-// FY goal tree on one screen: Organization -> Location (BXUS/BXIN...) ->
+// FY goal tree on one screen: Organization -> Company (BX-US, BX-IN) ->
 // Partner -> Business Unit. Every node shows actual vs target; targets are
 // edited in place. The Organization row is what the CEO Dashboard tracks.
-// Structure comes from Delivery Centers (locations), the org chart
-// (partners) and each BU's Location/Partner fields.
+// Structure comes from the Companies tab and each BU's Companies / Partner
+// fields; a BU that runs in two companies appears under both.
 import { Fragment, useCallback, useEffect, useState } from "react";
 import { ChevronDown, ChevronRight, Pencil, Target } from "lucide-react";
 import { Button, Input, Select } from "./ui";
@@ -95,7 +95,7 @@ function TreeRows({ node, depth, metrics, onSave, expanded, toggle }) {
   const hasChildren = (node.children || []).length > 0;
   const key = `${node.level}:${node.entity_id}`;
   const open = expanded[key] !== false;
-  const LEVEL_LABEL = { LOCATION: "Location", PARTNER: "Partner", BU: "Business unit" };
+  const LEVEL_LABEL = { LOCATION: "Company", PARTNER: "Partner", BU: "Business unit" };
   return (
     <Fragment>
       <tr className="border-b border-bx-border align-top">
@@ -171,7 +171,7 @@ export default function GoalTree() {
       <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
         <div>
           <div className="flex items-center gap-2 text-sm font-semibold text-gray-900">
-            <Target className="h-4 w-4" /> FY Goals -- Organization, Location, Partner, Business Unit
+            <Target className="h-4 w-4" /> FY Goals -- Organization, Company, Partner, Business Unit
           </div>
           <p className="text-xs text-gray-500">
             Actual / target for each level. Click the pencil to set a target. The Organization row feeds the CEO Dashboard.
@@ -193,14 +193,20 @@ export default function GoalTree() {
 
       {error && <div className="mb-3 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</div>}
 
-      {setup && (setup.locations === 0 || setup.business_units === 0 || setup.partners === 0 || setup.bus_without_location > 0 || setup.bus_without_partner > 0) && (
+      {setup && (setup.companies === 0 || setup.business_units === 0 || setup.partners === 0 || setup.bus_without_company > 0 || setup.bus_without_partner > 0) && (
         <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 space-y-0.5">
           <div className="font-semibold">To build the full tree:</div>
-          {setup.locations === 0 && <div>• Add locations (e.g. BXUS, BXIN) in Users &amp; Access Control → Delivery Centers.</div>}
-          {setup.partners === 0 && <div>• Add partners to the org chart (Partner level) in Users &amp; Access Control → Organizational Hierarchy.</div>}
+          {setup.companies === 0 && <div>• Add your companies (BX-US, BX-IN) in Users &amp; Access Control → Companies.</div>}
           {setup.business_units === 0 && <div>• Create business units in Users &amp; Access Control → Business Units.</div>}
-          {setup.bus_without_location > 0 && <div>• {setup.bus_without_location} business unit(s) have no location -- set it on the BU's edit form.</div>}
+          {setup.partners === 0 && <div>• Give partners the Partner role (Users tab), then set each business unit's Partner.</div>}
+          {setup.bus_without_company > 0 && <div>• {setup.bus_without_company} business unit(s) have no company -- tick its companies on the BU's edit form.</div>}
           {setup.bus_without_partner > 0 && <div>• {setup.bus_without_partner} business unit(s) have no partner -- set it on the BU's edit form.</div>}
+        </div>
+      )}
+      {setup?.intercompany_revenue > 0 && (
+        <div className="mb-3 text-xs text-gray-600">
+          Company revenue includes {formatValue(setup.intercompany_revenue, "USD")} of intercompany billing (e.g. BX-IN to BX-US).
+          The Organization total counts external client revenue only, so it is not added twice.
         </div>
       )}
 
@@ -224,7 +230,7 @@ export default function GoalTree() {
 
           {orgOnlyMetrics.length > 0 && (
             <div className="mt-4">
-              <div className="mb-2 text-xs font-semibold uppercase text-gray-500">Organization rates (not split by location/partner/BU)</div>
+              <div className="mb-2 text-xs font-semibold uppercase text-gray-500">Organization rates (not split by company/partner/BU)</div>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
                 {orgOnlyMetrics.map((m) => (
                   <div key={m.key} className="rounded-xl border bg-white p-3">

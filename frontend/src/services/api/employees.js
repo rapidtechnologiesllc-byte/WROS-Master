@@ -93,6 +93,15 @@ export const bulkImportEmployees = async (file) => {
 };
 
 // S-DEFECT-1: Update employee certifications (Guidewire certification levels)
+// Employer company (BX-US / BX-IN) and business unit; "" / null clears
+export const updateEmployeeOrganization = async (employeeId, organization) => {
+  const { data } = await apiRequest(`/employees/${employeeId}/organization`, {
+    method: "PUT",
+    body: JSON.stringify(organization),
+  });
+  return data;
+};
+
 export const updateEmployeeCertifications = async (employeeId, certifications) => {
   const { data } = await apiRequest(`/employees/${employeeId}/certifications`, {
     method: "PUT",

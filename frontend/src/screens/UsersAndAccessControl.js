@@ -930,7 +930,7 @@ export default function UsersAndAccessControl() {
   const sectionMap = {
     "users": "users",
     "business-units": "business-units",
-    "delivery-centers": "locations",  // Maps to LocationsSection (Delivery Centers)
+    "delivery-centers": "locations",  // Maps to LocationsSection (Companies: BX-US, BX-IN)
     "organizational-hierarchy": "hierarchy",  // Maps to OrganizationalHierarchySection
     "role-templates": "templates"
   };
@@ -1028,11 +1028,8 @@ function BusinessUnitsSection() {
 
   const loadBusinessUnits = async () => {
     try {
-      const response = await apiRequest("/api/v1/business-units", {
-        method: "GET"
-      });
-      const busData = Array.isArray(response) ? response : response?.data || [];
-      setBusinessUnits(busData);
+      const response = await apiRequest("/rbac/business-units");
+      setBusinessUnits(response.data?.business_units || []);
     } catch (err) {
       console.error("[BusinessUnitsSection] Failed to load business units:", err);
       setActionError(`Could not load business units: ${err.message}`);
@@ -1109,9 +1106,10 @@ function BusinessUnitsSection() {
             <div className="flex-1">
               <h4 className="font-semibold text-gray-900">{bu.name}</h4>
               {bu.description && <p className="text-sm text-gray-600 mt-1">{bu.description}</p>}
-              <div className="grid grid-cols-2 gap-4 mt-2 text-sm text-gray-600">
-                <div><span className="font-medium">Region:</span> {bu.region || "-"}</div>
-                <div><span className="font-medium">Continent:</span> {bu.continent || "-"}</div>
+              <div className="grid grid-cols-3 gap-4 mt-2 text-sm text-gray-600">
+                <div><span className="font-medium">Companies:</span> {bu.companies.map(c => c.name).join(", ") || <span className="text-amber-700">none</span>}</div>
+                <div><span className="font-medium">Partner:</span> {bu.partner?.name || <span className="text-amber-700">not assigned</span>}</div>
+                <div><span className="font-medium">BU Head:</span> {bu.head?.name || <span className="text-amber-700">not assigned</span>}</div>
               </div>
             </div>
             <div className="flex gap-2">
@@ -1138,11 +1136,12 @@ function BusinessUnitsSection() {
 // ORGANIZATIONAL HIERARCHY SECTION
 
 function OrganizationalHierarchySection() {
-  const EMPTY_NODE_FORM = { name: "", hierarchy_level: "", specialization: "", parent_id: "", department_id: "" };
+  const EMPTY_NODE_FORM = { name: "", hierarchy_level: "", specialization: "", parent_id: "", department_id: "", company_id: "" };
 
   const [orgNodes, setOrgNodes] = useState([]);
   const [departments, setDepartments] = useState([]);
   const [businessUnits, setBusinessUnits] = useState([]);
+  const [companies, setCompanies] = useState([]);
   const [reference, setReference] = useState({ levels: [], specializations: [] });
   const [loading, setLoading] = useState(true);
   const [actionError, setActionError] = useState(null);
@@ -1160,12 +1159,14 @@ function OrganizationalHierarchySection() {
   const loadAll = async () => {
     setLoading(true);
     try {
-      const [nodesRes, deptRes, buRes, refRes] = await Promise.all([
+      const [nodesRes, deptRes, buRes, refRes, companyRes] = await Promise.all([
         apiRequest("/org/nodes"),
         apiRequest("/org/departments"),
         apiRequest("/api/v1/business-units"),
         apiRequest("/org/hierarchy-reference"),
+        apiRequest(DELIVERY_CENTERS_PATH),
       ]);
+      setCompanies(companyRes.data?.delivery_centers || []);
       setOrgNodes(Array.isArray(nodesRes.data) ? nodesRes.data : []);
       setDepartments(Array.isArray(deptRes.data) ? deptRes.data : []);
       setBusinessUnits(Array.isArray(buRes.data) ? buRes.data : []);
@@ -1182,6 +1183,7 @@ function OrganizationalHierarchySection() {
   }, []);
 
   const levelName = (level) => reference.levels.find(l => l.level === level)?.name || `Level ${level}`;
+  const deptLabel = (d) => (d.business_unit_name ? `${d.name} · ${d.business_unit_name}` : d.name);
   const departmentById = (id) => departments.find(d => d.id === id);
 
   // Eligible parents depend on level, specialization and the BU implied by the chosen department
@@ -1193,7 +1195,7 @@ function OrganizationalHierarchySection() {
     }
     const params = new URLSearchParams({ hierarchy_level: String(level), specialization: nodeForm.specialization });
     const dept = departmentById(nodeForm.department_id);
-    if (dept) params.set("business_unit_id", String(dept.business_unit_id));
+    if (dept?.business_unit_id) params.set("business_unit_id", String(dept.business_unit_id));
     apiRequest(`/org/valid-supervisors?${params.toString()}`)
       .then(res => setEligibleParents(Array.isArray(res.data) ? res.data : []))
       .catch(() => setEligibleParents([]));
@@ -1217,6 +1219,7 @@ function OrganizationalHierarchySection() {
           specialization: nodeForm.specialization,
           parent_id: nodeForm.parent_id || null,
           department_id: nodeForm.department_id || null,
+          company_id: nodeForm.company_id,
         }),
       });
       setActionSuccess(`Added ${nodeForm.name.trim()} to the org chart`);
@@ -1226,6 +1229,20 @@ function OrganizationalHierarchySection() {
       setActionError(err?.message || "Failed to create org node");
     } finally {
       setSubmittingNode(false);
+    }
+  };
+
+  const handleNodeCompany = async (node, companyId) => {
+    setActionError(null);
+    try {
+      await apiRequest(`/org/nodes/${node.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ company_id: companyId }),
+      });
+      setActionSuccess(`${node.name} is now tagged to ${companies.find(c => c.id === companyId)?.name || "no company"}`);
+      loadAll();
+    } catch (err) {
+      setActionError(err?.message || "Failed to change company");
     }
   };
 
@@ -1248,7 +1265,8 @@ function OrganizationalHierarchySection() {
     try {
       await apiRequest(editingDept ? `/org/departments/${editingDept.id}` : "/org/departments", {
         method: editingDept ? "PUT" : "POST",
-        body: JSON.stringify({ name: form.name.trim(), business_unit_id: Number(form.business_unit_id) }),
+        // No business unit = an org-wide department (HR, Recruitment, Finance ...)
+        body: JSON.stringify({ name: form.name.trim(), business_unit_id: form.business_unit_id ? Number(form.business_unit_id) : null }),
       });
       setActionSuccess(editingDept ? "Department updated" : "Department added");
       setEditingDept(null);
@@ -1298,9 +1316,18 @@ function OrganizationalHierarchySection() {
             <span className="px-2 py-1 bg-gray-100 text-gray-700 text-xs font-medium rounded">{node.specialization}</span>
             {dept && (
               <span className="px-2 py-1 bg-blue-100 text-blue-800 text-xs font-medium rounded">
-                {dept.name} · {dept.business_unit_name}
+                {deptLabel(dept)}
               </span>
             )}
+            <select
+              value={node.company_id || ""}
+              onChange={(e) => handleNodeCompany(node, e.target.value)}
+              className={`px-2 py-1 text-xs font-medium rounded border ${node.company_id ? "bg-emerald-50 border-emerald-200 text-emerald-800" : "bg-amber-50 border-amber-300 text-amber-800"}`}
+              aria-label={`Company for ${node.name}`}
+            >
+              <option value="">No company</option>
+              {companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
           </div>
           <button
             onClick={() => handleDeleteNode(node)}
@@ -1317,7 +1344,8 @@ function OrganizationalHierarchySection() {
 
   const nodeLevel = Number(nodeForm.hierarchy_level);
   const canSubmitNode =
-    nodeForm.name.trim() && nodeLevel && nodeForm.specialization && (nodeLevel >= 17 || nodeForm.parent_id);
+    nodeForm.name.trim() && nodeLevel && nodeForm.specialization && nodeForm.company_id && (nodeLevel >= 17 || nodeForm.parent_id);
+  const untagged = orgNodes.filter(n => !n.company_id).length;
 
   return (
     <div className="space-y-4">
@@ -1355,17 +1383,24 @@ function OrganizationalHierarchySection() {
         <div className="rounded-lg border border-gray-200 p-4">
           <h4 className="text-sm font-semibold text-gray-900 mb-2">Departments ({departments.length})</h4>
           {departments.length === 0 ? (
-            <p className="text-sm text-gray-500">No departments yet. Use "Manage Departments" to add one to a business unit.</p>
+            <p className="text-sm text-gray-500">No departments yet. Departments are the groups tasks and approvals are routed to (HR, Recruitment, Finance ...). Use "Manage Departments" to add them.</p>
           ) : (
             <div className="flex flex-wrap gap-2">
               {departments.map(dept => (
                 <span key={dept.id} className="px-3 py-1 bg-blue-50 border border-blue-200 text-blue-800 text-xs font-medium rounded-full">
-                  {dept.name} · {dept.business_unit_name} · {orgNodes.filter(n => n.department_id === dept.id).length} nodes
+                  {deptLabel(dept)} · {orgNodes.filter(n => n.department_id === dept.id).length} people
                 </span>
               ))}
             </div>
           )}
         </div>
+      )}
+
+      {!loading && companies.length === 0 && (
+        <p className="text-sm text-amber-700">Add your companies (BX-US, BX-IN) on the Companies tab first: every seat in the org chart belongs to one.</p>
+      )}
+      {!loading && untagged > 0 && (
+        <p className="text-sm text-amber-700">{untagged} seat(s) have no company yet. Pick one from the dropdown on each.</p>
       )}
 
       {loading ? (
@@ -1421,19 +1456,35 @@ function OrganizationalHierarchySection() {
                 </select>
               </div>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Department</label>
-              <select
-                value={nodeForm.department_id}
-                onChange={(e) => setNodeForm(f => ({ ...f, department_id: e.target.value, parent_id: "" }))}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-bx-orange"
-              >
-                <option value="">No department (not tied to a business unit)</option>
-                {departments.map(d => (
-                  <option key={d.id} value={d.id}>{d.name} · {d.business_unit_name}</option>
-                ))}
-              </select>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Company *</label>
+                <select
+                  value={nodeForm.company_id}
+                  onChange={(e) => setNodeForm(f => ({ ...f, company_id: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-bx-orange"
+                >
+                  <option value="">Select company</option>
+                  {companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Department</label>
+                <select
+                  value={nodeForm.department_id}
+                  onChange={(e) => setNodeForm(f => ({ ...f, department_id: e.target.value, parent_id: "" }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-bx-orange"
+                >
+                  <option value="">No department</option>
+                  {departments.map(d => (
+                    <option key={d.id} value={d.id}>{deptLabel(d)}</option>
+                  ))}
+                </select>
+              </div>
             </div>
+            <p className="text-xs text-gray-500">
+              Specialization is what the person does (it decides who they can report to). Department is the team tasks and approvals are routed to.
+            </p>
             {nodeLevel > 0 && nodeLevel < 17 && (
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Reports To *</label>
@@ -1481,11 +1532,11 @@ function OrganizationalHierarchySection() {
                 <div key={dept.id} className="flex items-center justify-between bg-gray-50 p-3 rounded border border-gray-200">
                   <div>
                     <span className="text-sm font-medium text-gray-900">{dept.name}</span>
-                    <span className="ml-2 text-xs text-gray-500">{dept.business_unit_name}</span>
+                    <span className="ml-2 text-xs text-gray-500">{dept.business_unit_name || "Org-wide"}</span>
                   </div>
                   <div className="flex gap-2">
                     <button
-                      onClick={() => setEditingDept({ id: dept.id, name: dept.name, business_unit_id: String(dept.business_unit_id) })}
+                      onClick={() => setEditingDept({ id: dept.id, name: dept.name, business_unit_id: dept.business_unit_id ? String(dept.business_unit_id) : "" })}
                       className="p-1 text-blue-600 hover:bg-blue-50 rounded"
                       aria-label={`Edit ${dept.name}`}
                     >
@@ -1522,7 +1573,7 @@ function OrganizationalHierarchySection() {
                 : setDeptForm(d => ({ ...d, business_unit_id: e.target.value }))}
               className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:border-bx-orange"
             >
-              <option value="">Select business unit</option>
+              <option value="">Org-wide (all business units)</option>
               {businessUnits.map(bu => (
                 <option key={bu.id} value={bu.id}>{bu.display_name || bu.name}</option>
               ))}
@@ -1536,7 +1587,7 @@ function OrganizationalHierarchySection() {
               <button
                 type="submit"
                 className="px-3 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-60"
-                disabled={!(editingDept || deptForm).name.trim() || !(editingDept || deptForm).business_unit_id}
+                disabled={!(editingDept || deptForm).name.trim()}
               >
                 {editingDept ? "Save" : "Add Department"}
               </button>
@@ -1574,8 +1625,8 @@ function LocationsSection() {
       setDeliveryCenters(res.data?.delivery_centers || []);
       setLoadError(null);
     } catch (err) {
-      console.error("Failed to load delivery centers:", err);
-      setLoadError("Failed to load delivery centers");
+      console.error("[LocationsSection] Failed to load companies:", err);
+      setLoadError(`Failed to load companies: ${err.message}`);
     } finally {
       setLoading(false);
     }
@@ -1586,14 +1637,14 @@ function LocationsSection() {
   };
 
   const handleDelete = async (dcId) => {
-    if (!window.confirm("Are you sure you want to delete this delivery center?")) return;
+    if (!window.confirm("Are you sure you want to delete this company?")) return;
     try {
       await apiRequest(`${DELIVERY_CENTERS_PATH}/${dcId}`, { method: "DELETE" });
-      setActionSuccess("Delivery Center deleted");
+      setActionSuccess("Company deleted");
       loadDeliveryCenters();
     } catch (err) {
-      console.error("Failed to delete delivery center:", err);
-      setLoadError("Failed to delete delivery center");
+      console.error("[LocationsSection] Failed to delete company:", err);
+      setLoadError(`Failed to delete company: ${err.message}`);
     }
   };
 
@@ -1631,13 +1682,13 @@ function LocationsSection() {
           onClick={() => navigate('/admin/users-access-control/delivery-centers/create')}
           className="flex items-center gap-2 px-4 py-2 bg-bx-orange text-white rounded-lg hover:bg-bx-orange-hover text-sm font-medium"
         >
-          <Plus className="h-4 w-4" /> Add Delivery Center
+          <Plus className="h-4 w-4" /> Add Company
         </button>
       )}
       {loading ? (
         <p className="text-sm text-gray-500">Loading...</p>
       ) : deliveryCenters.length === 0 ? (
-        <p className="text-sm text-gray-500">No delivery centers yet. Create one to get started.</p>
+        <p className="text-sm text-gray-500">No companies yet. Add BX-US and BX-IN: business units, the org chart, clients and employees are all tagged to a company.</p>
       ) : (
         <div className="space-y-3">
           {deliveryCenters.map((dc) => (
@@ -1650,12 +1701,13 @@ function LocationsSection() {
                       ? "bg-purple-100 text-purple-800"
                       : "bg-blue-100 text-blue-800"
                   }`}>
-                    {dc.center_type}
+                    {dc.center_type === "HQ" ? "Parent company" : "Subsidiary"}
                   </span>
                 </div>
-                <div className="grid grid-cols-2 gap-4 mt-2 text-sm text-gray-600">
-                  <div><span className="font-medium">Location:</span> {dc.city}, {dc.country}</div>
-                  <div><span className="font-medium">Headcount:</span> {dc.headcount}</div>
+                <div className="grid grid-cols-3 gap-4 mt-2 text-sm text-gray-600">
+                  <div><span className="font-medium">Country:</span> {[dc.city, dc.country].filter(Boolean).join(", ") || "-"}</div>
+                  <div><span className="font-medium">Business units:</span> {dc.business_unit_count}</div>
+                  <div><span className="font-medium">Employees:</span> {dc.headcount}</div>
                 </div>
               </div>
               <div className="flex gap-2">
@@ -1688,7 +1740,7 @@ function LocationsSection() {
   const navItems = [
     { id: "users", label: "Users", icon: Users, href: "/admin/users-access-control/users" },
     { id: "business-units", label: "Business Units", icon: Building2, href: "/admin/users-access-control/business-units" },
-    { id: "delivery-centers", label: "Delivery Centers", icon: MapPin, href: "/admin/users-access-control/delivery-centers" },
+    { id: "delivery-centers", label: "Companies", icon: MapPin, href: "/admin/users-access-control/delivery-centers" },
     { id: "organizational-hierarchy", label: "Organizational Hierarchy", icon: Globe, href: "/admin/users-access-control/organizational-hierarchy" },
     { id: "role-templates", label: "Role Templates", icon: null, label2: "📋", href: "/admin/users-access-control/role-templates" }
   ];

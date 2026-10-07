@@ -194,6 +194,7 @@ def create_intercompany_settlement(
             db, from_entity=body.from_entity, to_entity=body.to_entity, amount_usd_cents=body.amount_usd_cents,
             settlement_date=body.settlement_date, reason=body.reason,
             created_by=current_user.UserID, tenant_id=current_user.tenant_id,
+            business_unit_id=body.business_unit_id,
         )
     except IntercompanySettlementError as exc:
         raise HTTPException(status_code=400, detail=str(exc))

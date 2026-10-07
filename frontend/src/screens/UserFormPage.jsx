@@ -155,16 +155,17 @@ export default function UserFormPage() {
     setFormData(prev => ({ ...prev, business_unit_id: e.target.value, department_id: '', parent_node_id: '' }));
   };
 
+  // Org-wide departments (HR, Recruitment, Finance ...) plus any team that
+  // belongs to the chosen business unit
   useEffect(() => {
-    if (!formData.business_unit_id) {
-      setDepartments([]);
-      return;
-    }
-    apiRequest(`/org/departments?business_unit_id=${encodeURIComponent(formData.business_unit_id)}`)
-      .then(res => setDepartments(Array.isArray(res.data) ? res.data : []))
+    apiRequest('/org/departments')
+      .then(res => {
+        const all = Array.isArray(res.data) ? res.data : [];
+        setDepartments(all.filter(d => !d.business_unit_id || String(d.business_unit_id) === String(formData.business_unit_id)));
+      })
       .catch(err => {
-        console.error('Failed to load departments:', err);
-        setDepartments([]);
+        console.error('[UserFormPage] Failed to load departments:', err);
+        setActionError(`Could not load departments: ${err.message}`);
       });
   }, [formData.business_unit_id]);
 
@@ -466,27 +467,27 @@ export default function UserFormPage() {
                 <select
                   value={formData.department_id || ''}
                   onChange={(e) => setFormData(prev => ({ ...prev, department_id: e.target.value }))}
-                  disabled={saving || !formData.business_unit_id}
+                  disabled={saving}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-bx-orange disabled:bg-gray-100"
                 >
-                  <option value="">{formData.business_unit_id ? 'No department' : 'Select a business unit first'}</option>
+                  <option value="">No department</option>
                   {departments.map(dept => (
-                    <option key={dept.id} value={dept.id}>{dept.name}</option>
+                    <option key={dept.id} value={dept.id}>{dept.business_unit_name ? `${dept.name} · ${dept.business_unit_name}` : dept.name}</option>
                   ))}
                 </select>
-                {formData.business_unit_id && departments.length === 0 && (
-                  <p className="text-xs text-gray-500 mt-1">This business unit has no departments yet - add them under Organizational Hierarchy.</p>
+                {departments.length === 0 && (
+                  <p className="text-xs text-gray-500 mt-1">No departments yet - add them under Organizational Hierarchy → Manage Departments.</p>
                 )}
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Delivery Center</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Company</label>
                 <select
                   value={formData.location_id || ''}
                   onChange={(e) => setFormData(prev => ({ ...prev, location_id: e.target.value }))}
                   disabled={saving}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-bx-orange disabled:bg-gray-100"
                 >
-                  <option value="">No delivery center</option>
+                  <option value="">Select company (BX-US / BX-IN)</option>
                   {deliveryCenters.map(dc => (
                     <option key={dc.id} value={dc.id}>{dc.name}</option>
                   ))}

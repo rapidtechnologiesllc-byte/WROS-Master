@@ -24,17 +24,17 @@ logger = logging.getLogger(__name__)
 
 class Department(Base):
     """
-    A department/team within a business unit.
-    Example: "Guidewire Staffing", "Salesforce Development", "Microsoft Operations"
+    A functional group (HR, Recruitment, Finance, ...) that tasks and
+    approvals are routed to. Org-wide by default; business_unit_id is set
+    only for a team that belongs to one BU.
 
-    Hierarchy: Tenant (Corporate) → BusinessUnit → Department → OrgNode
     Every department has a hiring manager (an OrgNode at Manager level or above).
     """
     __tablename__ = "departments"
 
     id = Column(String(512), primary_key=True, index=True)  # UUID
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False, index=True)
-    business_unit_id = Column(Integer, ForeignKey("business_units.id"), nullable=False, index=True)
+    business_unit_id = Column(Integer, ForeignKey("business_units.id"), nullable=True, index=True)
 
     # Department name (e.g., "Staffing", "Billing", "Operations")
     name = Column(String(512), nullable=False)
@@ -126,6 +126,9 @@ class OrgNode(Base):
 
     # Department this node belongs to (null for corporate-level: CEO, Partner)
     department_id = Column(String(512), ForeignKey("departments.id"), nullable=True, index=True)
+
+    # Company (legal entity) the seat belongs to: BX-US, BX-IN
+    company_id = Column(String(512), ForeignKey("locations.id", ondelete="SET NULL"), nullable=True, index=True)
 
     # MANDATORY: Hierarchy level (1-17) for enforcement of reporting structure
     hierarchy_level = Column(Integer, nullable=False, default=5, comment="1-17: Intern→CEO, defines authority")

@@ -27,6 +27,7 @@ import {
   createIncentiveRule,
 } from "../services/api/partnerIncentives";
 import { listAllExpenses, approveExpense } from "../services/api/expenses";
+import { apiRequest } from "../services/api/client";
 
 const INCENTIVE_TYPES = [
   { label: "Revenue Share", value: "REVENUE_SHARE" },
@@ -61,8 +62,11 @@ export default function FinanceOperationsScreen() {
   const [affordability, setAffordability] = useState(null);
 
   const [settlements, setSettlements] = useState([]);
-  const [fromEntity, setFromEntity] = useState("BXUS");
-  const [toEntity, setToEntity] = useState("BXIN");
+  // Entities are our companies (Users & Access Control > Companies), by name
+  const [companies, setCompanies] = useState([]);
+  const [fromEntity, setFromEntity] = useState("");
+  const [toEntity, setToEntity] = useState("");
+  const [settlementBuId, setSettlementBuId] = useState("");
   const [settlementAmount, setSettlementAmount] = useState("");
   const [settlementReason, setSettlementReason] = useState("");
 
@@ -81,7 +85,7 @@ export default function FinanceOperationsScreen() {
   const [costLookupError, setCostLookupError] = useState("");
   const [costLookupLoading, setCostLookupLoading] = useState(false);
 
-  const [netPositionEntity, setNetPositionEntity] = useState("BXUS");
+  const [netPositionEntity, setNetPositionEntity] = useState("");
   const [netPositionResult, setNetPositionResult] = useState(null);
   const [netPositionError, setNetPositionError] = useState("");
   const [netPositionLoading, setNetPositionLoading] = useState(false);
@@ -108,6 +112,9 @@ export default function FinanceOperationsScreen() {
     listBusinessUnits()
       .then((list) => setBusinessUnits(list || []))
       .catch((err) => console.error("Failed to load business units:", err));
+    apiRequest("/api/v1/api/admin/users-access-control/delivery-centers")
+      .then((res) => setCompanies(res.data?.delivery_centers || []))
+      .catch((err) => setError(`Could not load companies: ${err.message}`));
     listIntercompanySettlements()
       .then((list) => setSettlements(list || []))
       .catch((err) => console.error("Failed to load intercompany settlements:", err));
@@ -288,6 +295,11 @@ export default function FinanceOperationsScreen() {
     }
   };
 
+  const companyOptions = [
+    { label: companies.length ? "Select company" : "No companies yet (Users & Access Control > Companies)", value: "" },
+    ...companies.map((c) => ({ label: c.name, value: c.name })),
+  ];
+
   const handleRecordSettlement = async () => {
     try {
       await recordIntercompanySettlement({
@@ -295,6 +307,7 @@ export default function FinanceOperationsScreen() {
         amount_usd_cents: Math.round(parseFloat(settlementAmount || "0") * 100),
         settlement_date: new Date().toISOString().slice(0, 10),
         reason: settlementReason,
+        business_unit_id: settlementBuId ? Number(settlementBuId) : null,
       });
       setSettlementAmount("");
       setSettlementReason("");
@@ -439,8 +452,14 @@ export default function FinanceOperationsScreen() {
                   <Building2 className="mr-1 inline h-4 w-4" /> Intercompany Settlement
                 </div>
                 <div className="grid grid-cols-2 gap-3">
-                  <Input label="From Entity" value={fromEntity} onChange={setFromEntity} placeholder="BXUS" />
-                  <Input label="To Entity" value={toEntity} onChange={setToEntity} placeholder="BXIN" />
+                  <Select label="From (billed company)" value={fromEntity} onChange={setFromEntity} options={companyOptions} />
+                  <Select label="To (company that did the work)" value={toEntity} onChange={setToEntity} options={companyOptions} />
+                  <Select
+                    label="Business Unit (counts toward its target in the 'To' company)"
+                    value={settlementBuId}
+                    onChange={setSettlementBuId}
+                    options={[{ label: "Not tied to a business unit", value: "" }, ...businessUnits.map((bu) => ({ label: bu.name, value: String(bu.id) }))]}
+                  />
                   <Input label="Amount (USD)" value={settlementAmount} onChange={setSettlementAmount} placeholder="5000" />
                   <Input label="Reason" value={settlementReason} onChange={setSettlementReason} placeholder="Offshore delivery reimbursement" />
                 </div>
@@ -461,7 +480,7 @@ export default function FinanceOperationsScreen() {
                   <Building2 className="mr-1 inline h-4 w-4" /> Intercompany Net Position
                 </div>
                 <div className="flex gap-2">
-                  <Input label="Entity" value={netPositionEntity} onChange={setNetPositionEntity} placeholder="BXUS" />
+                  <Select label="Company" value={netPositionEntity} onChange={setNetPositionEntity} options={companyOptions} />
                   <Button className="mt-5" onClick={handleLookupNetPosition} disabled={netPositionLoading || !netPositionEntity.trim()}>
                     {netPositionLoading ? "Looking up…" : "Look Up"}
                   </Button>

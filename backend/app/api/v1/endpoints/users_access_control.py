@@ -461,14 +461,30 @@ def list_delivery_centers(
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=500)
 ):
-    """List all delivery centers (locations)."""
+    """List the companies (legal entities, e.g. BX-US, BX-IN). Headcount is
+    counted from employees whose employer is the company, not typed in."""
+    from sqlalchemy import func
+    from app.models.business_unit import BusinessUnitCompany
+    from app.models.employee import Employee
+    from app.services.ceo_fy_progress_service import WORKING_STATUSES_EXCLUDED
+
     query = db.query(Location)
 
     if hasattr(current_user, 'tenant_id'):
         query = query.filter(Location.tenant_id == current_user.tenant_id)
 
     total = query.count()
-    locations = query.offset(skip).limit(limit).all()
+    locations = query.order_by(Location.name).offset(skip).limit(limit).all()
+    ids = [l.id for l in locations]
+    headcount = dict(
+        db.query(Employee.company_id, func.count(Employee.id))
+        .filter(Employee.company_id.in_(ids), Employee.status.notin_(WORKING_STATUSES_EXCLUDED))
+        .group_by(Employee.company_id).all()
+    ) if ids else {}
+    bu_count = dict(
+        db.query(BusinessUnitCompany.company_id, func.count(BusinessUnitCompany.id))
+        .filter(BusinessUnitCompany.company_id.in_(ids)).group_by(BusinessUnitCompany.company_id).all()
+    ) if ids else {}
 
     return {
         "delivery_centers": [
@@ -478,7 +494,8 @@ def list_delivery_centers(
                 "city": getattr(l, 'city', None),
                 "country": getattr(l, 'country', None),
                 "center_type": getattr(l, 'location_type', 'Delivery'),
-                "headcount": getattr(l, 'headcount', 0),
+                "headcount": headcount.get(l.id, 0),
+                "business_unit_count": bu_count.get(l.id, 0),
                 "created_at": getattr(l, 'created_at', None),
             }
             for l in locations

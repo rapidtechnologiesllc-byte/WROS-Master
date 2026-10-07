@@ -63,6 +63,7 @@ def initialize_database():
         # Step 3: Initialize RBAC structure
         logger.info("[Contract] Step 3: Initializing RBAC...")
         _initialize_rbac()
+        _initialize_leadership_roles()
         logger.info("[OK] RBAC initialized")
 
         # Step 4: Initialize admin user
@@ -269,6 +270,79 @@ def _initialize_rbac():
 
     finally:
         db.close()
+
+# Partner / BU Head role templates. Not system templates (those are seeded
+# with every permission); created once with this starting set, after which
+# the Role Templates editor owns them. "v" = view, "vce" = view/create/edit.
+LEADERSHIP_ROLES = {
+    "Partner": {
+        "display_name": "Partner",
+        "description": "Owns one or more business units across companies; revenue and headcount targets",
+        "hierarchy_level": 16,
+        "org_level_access": False,
+        "permissions": {
+            "vce": ["dashboard", "my-tasks", "my-timesheet", "my-expenses", "my-referrals", "notifications",
+                    "activity-feed", "ask-flash", "candidates", "jobs", "submissions", "interviews", "clients",
+                    "opportunities", "proposals", "pipeline-management", "demand-confirmation", "goals"],
+            "v": ["offer-letters", "employees", "allocations", "utilization-dashboard", "resource-forecast",
+                  "employee-in-bench", "projects", "resources", "invoices", "forecasts", "revenue",
+                  "executive-revenue-dashboard", "kpi-dashboard", "analytics", "partner-dashboard",
+                  "partner-dashboard-view", "bu-head-dashboard", "bu-head-dashboard-view", "business-units",
+                  "delivery-centers", "organizational-hierarchy", "ask-thunder"],
+        },
+    },
+    "BU Head": {
+        "display_name": "BU Head",
+        "description": "Runs one business unit: hiring, delivery, utilization and BU targets",
+        "hierarchy_level": 14,
+        "org_level_access": False,
+        "permissions": {
+            "vce": ["dashboard", "my-tasks", "my-timesheet", "my-expenses", "my-referrals", "notifications",
+                    "activity-feed", "ask-flash", "candidates", "jobs", "submissions", "interviews",
+                    "allocations", "timesheets", "projects", "resources", "opportunities", "demand-confirmation"],
+            "v": ["offer-letters", "employees", "onboarding", "utilization-dashboard", "resource-forecast",
+                  "employee-in-bench", "clients", "invoices", "forecasts", "revenue", "goals", "kpi-dashboard",
+                  "bu-head-dashboard", "bu-head-dashboard-view", "business-units", "delivery-centers",
+                  "organizational-hierarchy", "ask-thunder"],
+        },
+    },
+}
+
+
+def _initialize_leadership_roles():
+    """Create the Partner and BU Head role templates if missing (idempotent)."""
+    db = SessionLocal()
+    try:
+        resources = {r.name: r for r in db.query(Resource).all()}
+        for name, spec in LEADERSHIP_ROLES.items():
+            if db.query(RoleTemplate).filter(RoleTemplate.name == name).first():
+                continue
+            role = RoleTemplate(
+                name=name, display_name=spec["display_name"], description=spec["description"],
+                hierarchy_level=spec["hierarchy_level"], org_level_access=spec["org_level_access"],
+                is_system=False, tenant_id=1,
+            )
+            db.add(role)
+            db.flush()
+            granted = 0
+            for mode, names in spec["permissions"].items():
+                for resource_name in names:
+                    resource = resources.get(resource_name)
+                    if resource is None:
+                        raise RuntimeError(f"Leadership role {name}: unknown resource {resource_name!r}")
+                    db.add(RoleTemplatePermission(
+                        role_template_id=role.id, resource_id=resource.id, tenant_id=1,
+                        can_view=True, can_create=mode == "vce", can_edit=mode == "vce", can_delete=False,
+                    ))
+                    granted += 1
+            db.commit()
+            logger.info(f"[Contract] Created role template {name} with {granted} permissions")
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.close()
+
 
 def _initialize_admin_user():
     """Ensure admin@blitzenx.com and superuser@blitzenx.com users exist with proper configuration and permissions."""
@@ -742,9 +816,15 @@ def _run_schema_migrations():
             # Goal tree Org -> Location (legal entity, e.g. BXUS/BXIN) -> Partner -> BU
             "business_units": [
                 ("location_id", "VARCHAR(512) NULL REFERENCES app_schema.locations(id) ON DELETE SET NULL"),
+                ("partner_user_id", 'VARCHAR(512) NULL REFERENCES app_schema.users("UserID") ON DELETE SET NULL'),
             ],
             "clients": [
                 ("account_manager_user_id", 'VARCHAR(512) NULL REFERENCES app_schema.users("UserID") ON DELETE SET NULL'),
+                # Contracting company (BX-US / BX-IN): revenue splits by company
+                ("contracting_company_id", "VARCHAR(512) NULL REFERENCES app_schema.locations(id) ON DELETE SET NULL"),
+            ],
+            "intercompany_settlements": [
+                ("business_unit_id", "INTEGER NULL REFERENCES app_schema.business_units(id) ON DELETE SET NULL"),
             ],
             # Production startup crashed on role_templates.hierarchy_level
             # (2026-10-05); the rest were found by the same full scan.
@@ -755,6 +835,7 @@ def _run_schema_migrations():
                 ("org_level_access", "BOOLEAN NOT NULL DEFAULT false"),
             ],
             "org_nodes": [
+                ("company_id", "VARCHAR(512) NULL REFERENCES app_schema.locations(id) ON DELETE SET NULL"),
                 ("hierarchy_level", "INTEGER NOT NULL DEFAULT 5"),
                 ("specialization", "VARCHAR(512) NOT NULL DEFAULT 'General'"),
             ],
@@ -783,6 +864,8 @@ def _run_schema_migrations():
                 ("next_touch_scheduled_at", "TIMESTAMP NULL"),
             ],
             "employees": [
+                # Employer of record (BX-US / BX-IN): headcount splits by company
+                ("company_id", "VARCHAR(512) NULL REFERENCES app_schema.locations(id) ON DELETE SET NULL"),
                 ("guidewire_certification_current", "VARCHAR(50) NULL"),
                 ("guidewire_certification_expected", "VARCHAR(50) NULL"),
             ],
@@ -933,11 +1016,50 @@ def _run_schema_migrations():
         # constraints (removes an invalid rule only; no data changes).
         _drop_tenant_id_user_foreign_keys(db)
 
+        # Migration 9: Org -> Company -> Partner -> BU. Departments are
+        # org-wide routing groups (BU optional); a BU operates in several
+        # companies; its partner is a user. Carry over the old single
+        # location and the org-chart partner (when that seat has a user).
+        _migrate_company_partner_structure(db)
+
     except Exception as e:
         logger.warning(f"[Contract] Schema migrations failed: {e}")
         # Don't fail startup if migrations can't be run
     finally:
         db.close()
+
+
+def _migrate_company_partner_structure(db: Session):
+    """Idempotent; each step commits or rolls back on its own."""
+    from sqlalchemy import text
+
+    steps = [
+        ("departments.business_unit_id nullable",
+         "ALTER TABLE app_schema.departments ALTER COLUMN business_unit_id DROP NOT NULL"),
+        ("business_unit_companies from business_units.location_id", """
+            INSERT INTO app_schema.business_unit_companies (tenant_id, business_unit_id, company_id, created_at)
+            SELECT bu.tenant_id, bu.id, bu.location_id, now()
+            FROM app_schema.business_units bu
+            WHERE bu.location_id IS NOT NULL
+              AND NOT EXISTS (SELECT 1 FROM app_schema.business_unit_companies c
+                              WHERE c.business_unit_id = bu.id AND c.company_id = bu.location_id)
+        """),
+        ("business_units.partner_user_id from partner_bu_assignments", """
+            UPDATE app_schema.business_units bu SET partner_user_id = u."UserID"
+            FROM app_schema.partner_bu_assignments a
+            JOIN app_schema.users u ON u.org_node_id = a.partner_org_node_id
+            WHERE a.business_unit_id = bu.id AND a.active AND bu.partner_user_id IS NULL
+        """),
+    ]
+    for label, sql in steps:
+        try:
+            result = db.execute(text(sql))
+            db.commit()
+            if result.rowcount and result.rowcount > 0:
+                logger.info(f"[Contract] Migration: {label} ({result.rowcount} rows)")
+        except Exception as e:
+            logger.warning(f"[Contract] Migration warning for {label}: {e}")
+            db.rollback()
 
 
 def _drop_tenant_id_user_foreign_keys(db: Session):

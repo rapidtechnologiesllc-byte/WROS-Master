@@ -35,7 +35,7 @@ from sqlalchemy.orm import Query, Session
 from app.models.candidate import Candidate
 from app.models.candidate_ownership import CandidateOwnership, POOL_ORG
 from app.models.user import Users
-from app.core.visibility import should_bypass_bu_filter, get_user_bu_id
+from app.core.visibility import should_bypass_bu_filter, get_user_bu_ids
 
 logger = logging.getLogger(__name__)
 
@@ -53,7 +53,7 @@ def is_bu_restricted(db: Session, user: Users) -> bool:
         return False
 
     # If user has a BU assigned, they ARE restricted to that BU
-    return get_user_bu_id(user) is not None
+    return bool(get_user_bu_ids(db, user))
 
 def apply_bu_scope_to_candidate_query(db: Session, query: Query, current_user: Users) -> Query:
     """
@@ -78,7 +78,7 @@ def apply_bu_scope_to_candidate_query(db: Session, query: Query, current_user: U
         return query
 
     # BU-scoped user: apply filtering
-    user_bu_id = get_user_bu_id(current_user)
+    user_bu_ids = get_user_bu_ids(db, current_user)
 
     # Join with CandidateOwnership to determine BU ownership
     query = query.outerjoin(CandidateOwnership, CandidateOwnership.candidateID == Candidate.candidateID)
@@ -89,14 +89,14 @@ def apply_bu_scope_to_candidate_query(db: Session, query: Query, current_user: U
         CandidateOwnership.pool_status == POOL_ORG,
     )
 
-    if user_bu_id is None:
+    if not user_bu_ids:
         # Fail closed: a BU-scoped user with no BU assigned sees only the org-wide pool
         logger.debug(f"BU-scoped user {current_user.UserEmail} has no BU assigned, filtering to org pool only")
         return query.filter(org_pool_visible)
 
     # BU-scoped user with assigned BU: see org pool + their own BU's candidates
-    logger.debug(f"Applying BU scope for user {current_user.UserEmail} to BU {user_bu_id}")
-    return query.filter(or_(org_pool_visible, CandidateOwnership.owned_by_bu_id == user_bu_id))
+    logger.debug(f"Applying BU scope for user {current_user.UserEmail} to BUs {sorted(user_bu_ids)}")
+    return query.filter(or_(org_pool_visible, CandidateOwnership.owned_by_bu_id.in_(user_bu_ids)))
 
 def get_bu_scoped_candidate_ids(db: Session, current_user: Users) -> Optional[Set[str]]:
     """Returns the set of candidate IDs visible to current_user under

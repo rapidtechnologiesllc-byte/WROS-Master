@@ -25,6 +25,10 @@ import {
 import { getClientInvestmentPosition } from "../services/api/expenses";
 import { listBusinessUnits } from "../services/api/rbac";
 import { getHrMe } from "../services/api/users";
+import { apiRequest } from "../services/api/client";
+
+// Our companies (Users & Access Control > Companies): BX-US, BX-IN
+const COMPANIES_PATH = "/api/v1/api/admin/users-access-control/delivery-centers";
 
 const CONTACT_ROLE_TYPES = [
   "HIRING_MANAGER", "TIMESHEET_APPROVER", "TECHNICAL_PANEL", "PROCUREMENT", "ACCOUNTS", "PRIMARY",
@@ -57,11 +61,12 @@ const emptyForm = {
   tier: "STANDARD",
   billing_currency: "USD",
   business_unit_id: "",
+  contracting_company_id: "",
   account_manager_user_id: "",
   notes: "",
 };
 
-function ClientForm({ mode, initial, onCancel, onSaved, businessUnits = [] }) {
+function ClientForm({ mode, initial, onCancel, onSaved, businessUnits = [], companies = [] }) {
   const [form, setForm] = useState(initial || emptyForm);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -121,9 +126,10 @@ function ClientForm({ mode, initial, onCancel, onSaved, businessUnits = [] }) {
     setError("");
     try {
       if (mode === "edit") {
-        const { company_name, company_short_name, country, line_type, website, tier, billing_currency, business_unit_id, notes, account_manager_user_id } = form;
+        const { company_name, company_short_name, country, line_type, website, tier, billing_currency, business_unit_id, notes, account_manager_user_id, contracting_company_id } = form;
         await updateClient(form.id, {
           company_name, company_short_name, country, line_type, website, tier, billing_currency, business_unit_id, notes, account_manager_user_id: account_manager_user_id || null,
+          contracting_company_id: contracting_company_id || "",
         });
       } else {
         await createClient({
@@ -137,6 +143,7 @@ function ClientForm({ mode, initial, onCancel, onSaved, businessUnits = [] }) {
           tier: form.tier || null,
           notes: form.notes || null,
           account_manager_user_id: form.account_manager_user_id || null,
+          contracting_company_id: form.contracting_company_id || null,
         });
       }
       onSaved();
@@ -165,6 +172,10 @@ function ClientForm({ mode, initial, onCancel, onSaved, businessUnits = [] }) {
             label: bu.name,
             value: String(bu.business_unit_id || bu.id)
           }))
+        ]} />
+        <Select label="Contracting Company" value={form.contracting_company_id || ""} onChange={set("contracting_company_id")} options={[
+          { label: companies.length ? "Select company (BX-US / BX-IN)" : "No companies yet (Users & Access Control > Companies)", value: "" },
+          ...companies.map(c => ({ label: c.name, value: c.id })),
         ]} />
         <Select label="Tier" value={form.tier} onChange={set("tier")} options={CLIENT_TIERS} />
         <Select label="Billing Currency" value={form.billing_currency} onChange={set("billing_currency")} options={BILLING_CURRENCIES} />
@@ -207,6 +218,7 @@ export default function ClientManagementScreen() {
   const [contactsLoading, setContactsLoading] = useState(false);
   const [contactsError, setContactsError] = useState("");
   const [businessUnits, setBusinessUnits] = useState([]);
+  const [companies, setCompanies] = useState([]);
 
   const load = async () => {
     setLoading(true);
@@ -228,6 +240,9 @@ export default function ClientManagementScreen() {
         setBusinessUnits(res.business_units || res || []);
       })
       .catch((err) => console.error("Failed to load business units:", err));
+    apiRequest(COMPANIES_PATH)
+      .then((res) => setCompanies(res.data?.delivery_centers || []))
+      .catch((err) => console.error("[ClientManagement] Failed to load companies:", err));
   }, []);
 
   const handleSaved = () => {
@@ -255,6 +270,7 @@ export default function ClientManagementScreen() {
         tier: full.tier || "STANDARD",
         billing_currency: full.billing_currency || "USD",
         business_unit_id: full.business_unit_id ? String(full.business_unit_id) : "",
+        contracting_company_id: full.contracting_company_id || "",
         account_manager_user_id: full.account_manager_user_id || "",
         notes: full.notes || "",
       });
@@ -324,6 +340,7 @@ export default function ClientManagementScreen() {
       </button>
     ),
     business_unit: c.business_unit_name || "—",
+    contracting_company: c.contracting_company_name || "—",
     status: (
       <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-700">
         {c.status}
@@ -353,7 +370,7 @@ export default function ClientManagementScreen() {
         }
       >
         {showAdd ? (
-          <ClientForm mode="create" onCancel={() => setShowAdd(false)} onSaved={handleSaved} businessUnits={businessUnits} />
+          <ClientForm mode="create" onCancel={() => setShowAdd(false)} onSaved={handleSaved} businessUnits={businessUnits} companies={companies} />
         ) : null}
         {editingClient ? (
           <ClientForm
@@ -362,6 +379,7 @@ export default function ClientManagementScreen() {
             onCancel={() => setEditingClient(null)}
             onSaved={handleSaved}
             businessUnits={businessUnits}
+            companies={companies}
           />
         ) : null}
 
@@ -372,6 +390,7 @@ export default function ClientManagementScreen() {
             columns={[
               { key: "company_name", header: "Company" },
               { key: "business_unit", header: "Business Unit" },
+              { key: "contracting_company", header: "Contracting company" },
               { key: "status", header: "Status" },
               { key: "actions", header: "" },
             ]}
