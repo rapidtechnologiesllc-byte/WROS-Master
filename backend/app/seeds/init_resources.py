@@ -66,9 +66,7 @@ RESOURCE_ROUTES = {
     # Finance
     "invoices": "/invoices",
     "forecasts": "/forecast",
-    "invoice-management": "/invoice-management",
     "finance-operations": "/finance-operations",
-    "executive-revenue-dashboard": "/executive-revenue-dashboard",
     "revenue": "/revenue",
     # Reporting
     "bi-explorer": "/bi-explorer",
@@ -83,6 +81,8 @@ RESOURCE_ROUTES = {
     "locale-currency": "/settings/locale",
     # Executive
     "ceo-dashboard": "/ceo-fy-progress",
+    # FY goal tree (Org > Location > Partner > BU) + executive revenue; listed once, under Executive
+    "goals": "/executive-revenue-dashboard",
     "cfo-dashboard": "/cfo-dashboard",
     "partner-dashboard": "/troy-partner-dashboard",
     "executive-signal": "/executive-signal",
@@ -104,6 +104,21 @@ RESOURCE_ROUTES = {
     # AI & Automation
     "ask-thunder": "/thunder",
     "slm-dashboard": "/admin/slm-dashboard",
+}
+
+# Menu labels where title-casing the resource name reads wrong
+NAV_LABELS = {
+    "goals": "Goals & Revenue",
+    "ceo-dashboard": "CEO Dashboard",
+    "cfo-dashboard": "CFO Dashboard",
+    "bu-head-dashboard": "BU Head Dashboard",
+    "ai-config": "AI Config",
+    "api-keys": "API Keys",
+    "slm-dashboard": "SLM Dashboard",
+    "bi-explorer": "BI Explorer",
+    "kpi-dashboard": "KPI Dashboard",
+    "htd-intake": "HTD Intake",
+    "my-tasks": "My Tasks",
 }
 
 # Resources whose page is a tab of another page (Users & Access Control):

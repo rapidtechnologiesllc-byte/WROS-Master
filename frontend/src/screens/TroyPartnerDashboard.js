@@ -41,7 +41,7 @@ export default function TroyPartnerDashboard() {
           setBuName(buChoices.find((b) => b.id === data.business_unit_id)?.name || "");
         }
       } catch (err) {
-        setActionError(`Failed to load Troy's dashboard: ${err.message}`);
+        setActionError(`Failed to load the partner dashboard: ${err.message}`);
       } finally {
         setLoading(false);
       }
@@ -93,7 +93,7 @@ export default function TroyPartnerDashboard() {
       )}
 
       <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold text-gray-900">Troy's Partner Dashboard</h1>
+        <h1 className="text-3xl font-bold text-gray-900">Partner Dashboard</h1>
         <div className="text-sm text-gray-600">{buName || "No business unit assigned"}</div>
       </div>
       {picker}

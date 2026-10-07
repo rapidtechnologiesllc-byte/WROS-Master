@@ -26,7 +26,6 @@ export const ROUTES = {
   FORECAST_VS_ACTUAL: "/forecast-vs-actual",
   REVENUE_LEAKAGE: "/revenue-leakage",
   INVOICES: "/invoices",
-  INVOICE_MANAGEMENT: "/invoice-management",
   REVENUE: "/revenue",
   TENANT_LOCALE: "/settings/locale",
   MESSAGE_TEMPLATES: "/settings/templates",

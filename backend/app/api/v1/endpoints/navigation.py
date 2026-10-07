@@ -94,7 +94,7 @@ def get_user_navigation(db: Session = Depends(get_db), current_user = Depends(ge
         sys.stderr.flush()
 
         # Load module/resource structure from init_resources.py
-        from app.seeds.init_resources import MODULES_AND_RESOURCES, NAV_TAB_RESOURCES, RESOURCE_ROUTES
+        from app.seeds.init_resources import MODULES_AND_RESOURCES, NAV_LABELS, NAV_TAB_RESOURCES, RESOURCE_ROUTES
         print(f"[NAV-LOADED] MODULES_AND_RESOURCES has {len(MODULES_AND_RESOURCES)} modules", file=sys.stderr)
         sys.stderr.flush()
 
@@ -148,7 +148,7 @@ def get_user_navigation(db: Session = Depends(get_db), current_user = Depends(ge
                     seen_routes.add(route)
                     navigation_modules[module_name]["items"].append({
                         "key": resource_name,
-                        "label": resource_name.replace('-', ' ').title(),
+                        "label": NAV_LABELS.get(resource_name) or resource_name.replace('-', ' ').title(),
                         "icon": get_icon_for_resource(resource_name),
                         "route": route
                     })
