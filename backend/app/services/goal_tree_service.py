@@ -33,7 +33,7 @@ from app.models.location import Location
 from app.models.org_structure import OrgNode, PartnerBUAssignment
 from app.models.strategic_goal import GOAL_LEVELS, GoalTarget
 from app.models.user import Users
-from app.services.ceo_fy_progress_service import FY_METRICS, WORKING_STATUSES_EXCLUDED, get_fy_progress
+from app.services.ceo_fy_progress_service import FY_METRICS, WORKING_STATUSES_EXCLUDED, billable_employee_ids, get_fy_progress
 
 logger = logging.getLogger(__name__)
 
@@ -73,7 +73,8 @@ def _bu_actuals(db: Session, tenant_id: int, year: int) -> Dict[int, Dict[str, f
 
     for bu_id, count in (
         db.query(Employee.bu_id, func.count(Employee.id))
-        .filter(Employee.bu_id.isnot(None), Employee.status.notin_(WORKING_STATUSES_EXCLUDED))
+        .filter(Employee.bu_id.isnot(None), Employee.status.notin_(WORKING_STATUSES_EXCLUDED),
+                Employee.id.in_(billable_employee_ids()))
         .group_by(Employee.bu_id).all()
     ):
         actuals[bu_id]["headcount"] = count

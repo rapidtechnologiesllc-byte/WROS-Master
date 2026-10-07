@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 
 # The FY metrics the CEO sets targets for: key -> (label, unit, description)
 FY_METRICS = {
-    "headcount": ("Headcount", "people", "Employees who have joined and not exited"),
+    "headcount": ("Billable headcount", "people", "Working employees with an active client allocation"),
     "revenue": ("Revenue", "USD", "Approved/sent/paid invoices this FY"),
     "new_logos": ("New logos", "clients", "Clients added this FY that are active"),
     "engagement": ("Pipeline engagement", "score", "Open opportunities per active client x 100"),
@@ -31,6 +31,13 @@ FY_METRICS = {
     "margin": ("Margin", "%", "Org-wide margin this month"),
 }
 WORKING_STATUSES_EXCLUDED = ("PRE_JOINING", "EXITED")
+
+
+def billable_employee_ids():
+    """Employees billed to a client: an ACTIVE allocation."""
+    from sqlalchemy import select
+    from app.models.employee_allocation import EmployeeAllocation
+    return select(EmployeeAllocation.employee_id).where(EmployeeAllocation.status == "ACTIVE")
 
 
 def get_fy_targets(db: Session, fy_year: Optional[int] = None, tenant_id: Optional[int] = None) -> dict:
@@ -75,8 +82,14 @@ def get_fy_progress(db: Session, fy_year: Optional[int] = None, tenant_id: Optio
     days_elapsed = max(1, (today - fy_start).days)
     fy_progress_pct = min(100, days_elapsed / total_fy_days * 100)
 
+    # All working employees (retention / utilization base) vs billable
+    # headcount (the FY headcount metric): working AND on an active allocation
     headcount = db.query(func.count(Employee.id)).filter(
         Employee.status.notin_(WORKING_STATUSES_EXCLUDED)
+    ).scalar() or 0
+    billable_headcount = db.query(func.count(Employee.id)).filter(
+        Employee.status.notin_(WORKING_STATUSES_EXCLUDED),
+        Employee.id.in_(billable_employee_ids()),
     ).scalar() or 0
 
     revenue_cents = db.query(func.sum(Invoice.total_usd_cents)).filter(
@@ -112,7 +125,7 @@ def get_fy_progress(db: Session, fy_year: Optional[int] = None, tenant_id: Optio
 
     t = {k: v["target"] for k, v in targets.items()}
     metrics = [
-        _metric("headcount", headcount, t["headcount"], fy_progress_pct),
+        _metric("headcount", billable_headcount, t["headcount"], fy_progress_pct),
         _metric("revenue", round(revenue_usd, 2), t["revenue"], fy_progress_pct),
         _metric("new_logos", new_logos, t["new_logos"], fy_progress_pct),
         _metric("engagement", round(engagement, 1), t["engagement"], fy_progress_pct, higher_is_better_absolute=True),
