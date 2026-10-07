@@ -179,6 +179,8 @@ def create_draft(
     except InvalidTimesheetEntry as exc:
         raise HTTPException(status_code=422, detail=str(exc))
 
+    # Persist the change first; the queued event refers to saved rows
+    db.commit()
     try:
         MessageQueueService.enqueue(
             task_name="timesheet_created",
@@ -217,6 +219,8 @@ def upsert_timesheet_entries(
     except InvalidTimesheetEntry as exc:
         raise HTTPException(status_code=422, detail=str(exc))
 
+    # Persist the change first; the queued event refers to saved rows
+    db.commit()
     try:
         MessageQueueService.enqueue(
             task_name="timesheet_entries_updated",
@@ -255,6 +259,8 @@ def submit(
     except StaleTimesheetSubmission as exc:
         raise HTTPException(status_code=409, detail=str(exc))
 
+    # Persist the change first; the queued event refers to saved rows
+    db.commit()
     try:
         # Queue timesheet_submitted for manager dashboard & commission recalculation
         MessageQueueService.enqueue(
@@ -262,8 +268,8 @@ def submit(
             data={
                 "timesheet_id": timesheet_id,
                 "employee_id": timesheet.employee_id,
-                "week_of": str(timesheet.week_of),
-                "total_hours": sum(e.hours_logged or 0 for e in timesheet.entries) if timesheet.entries else 0,
+                "week_of": str(timesheet.week_starting_date),
+                "total_hours": float(timesheet.total_hours or 0),
                 "submitted_by": current_user.UserID,
             },
         )
@@ -291,6 +297,8 @@ def approve(
     except InvalidTimesheetTransition as exc:
         raise HTTPException(status_code=409, detail=str(exc))
 
+    # Persist the change first; the queued event refers to saved rows
+    db.commit()
     try:
         MessageQueueService.enqueue(
             task_name="timesheet_approved",
@@ -327,6 +335,8 @@ def reject(
     except InvalidTimesheetEntry as exc:
         raise HTTPException(status_code=422, detail=str(exc))
 
+    # Persist the change first; the queued event refers to saved rows
+    db.commit()
     try:
         MessageQueueService.enqueue(
             task_name="timesheet_rejected",
@@ -361,6 +371,8 @@ def reopen(
     except InvalidTimesheetTransition as exc:
         raise HTTPException(status_code=409, detail=str(exc))
 
+    # Persist the change first; the queued event refers to saved rows
+    db.commit()
     try:
         MessageQueueService.enqueue(
             task_name="timesheet_reopened",
@@ -436,6 +448,8 @@ def scan_anomalies(
     timesheet = _get_timesheet_or_404(db, timesheet_id)
     flags = scan_timesheet_anomalies(db, timesheet)
 
+    # Persist the change first; the queued event refers to saved rows
+    db.commit()
     try:
         MessageQueueService.enqueue(
             task_name="timesheet_anomalies_scanned",
@@ -503,6 +517,8 @@ def create_dispute(
     except DisputeValidationError as exc:
         raise HTTPException(status_code=422, detail=str(exc))
 
+    # Persist the change first; the queued event refers to saved rows
+    db.commit()
     try:
         MessageQueueService.enqueue(
             task_name="dispute_raised",
@@ -568,6 +584,8 @@ def resolve_dispute_endpoint(
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc))
 
+    # Persist the change first; the queued event refers to saved rows
+    db.commit()
     try:
         MessageQueueService.enqueue(
             task_name="dispute_resolved",

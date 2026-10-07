@@ -25,6 +25,8 @@ class CreateAllocationRequest(BaseModel):
     utilization_pct: Optional[float] = None
     role: Optional[str] = None
     allow_concurrent: bool = False
+    # Defaults to the job's client bill rate
+    billing_rate_usd_cents: Optional[int] = None
 
 class AllocationItem(BaseModel):
     id: str

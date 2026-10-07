@@ -38,7 +38,8 @@ class Revenue(Base):
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
 
     invoice_id = Column(String(512), ForeignKey("invoices.id"), nullable=False, index=True)
-    opportunity_id = Column(String(512), ForeignKey("opportunities.id"), nullable=False, index=True)
+    # Optional: project work invoiced without a tracked opportunity is still revenue
+    opportunity_id = Column(String(512), ForeignKey("opportunities.id"), nullable=True, index=True)
     project_id = Column(String(512), ForeignKey("projects.id"), nullable=True, index=True)
     client_id = Column(String(512), ForeignKey("clients.id"), nullable=False, index=True)
     bu_context_id = Column(Integer, ForeignKey("business_unit_context.id"), nullable=True, index=True)

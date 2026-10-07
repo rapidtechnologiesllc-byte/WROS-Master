@@ -23,7 +23,7 @@ class CandidateEngagementMetrics(Base):
     tenant_id = Column(String(512), nullable=False, index=True)  # tenant key, not a user (was wrongly FK users.UserID)
     candidate_id = Column(String(512), ForeignKey("candidates.candidateID", ondelete="CASCADE"), nullable=False, unique=True, index=True)
 
-    response_rate = Column(Numeric(5, 2), nullable=False, default = False)
+    response_rate = Column(Numeric(5, 2), nullable=False, default=0)
     avg_response_time_minutes = Column(Integer, nullable=True)
     total_messages_exchanged = Column(Integer, nullable=False, default = 0)
     days_to_qualification = Column(Integer, nullable=True)

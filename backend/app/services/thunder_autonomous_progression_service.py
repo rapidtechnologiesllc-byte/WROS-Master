@@ -16,7 +16,7 @@ from app.models.offer import OfferLetter
 from app.models.employee import Employee
 from app.models.candidate_conversation import CandidateConversation
 from app.models.conversation_event import ConversationEvent
-from app.models.jobs import Jobs
+from app.models.user import Jobs
 from app.services.skill_matching_service import SkillMatchingService
 from app.services.candidate_pipeline_stage import pipeline_stage_in
 

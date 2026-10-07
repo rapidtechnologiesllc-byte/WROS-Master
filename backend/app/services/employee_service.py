@@ -85,6 +85,32 @@ def transition_employee_status(
     db.add(history)
     return employee
 
+def activate_joined_employees(db: Session, *, today: Optional[date] = None, employee_ids=None) -> int:
+    """PRE_JOINING employees whose joining date has arrived become ACTIVE,
+    and ALLOCATED straight away when they already hold an ACTIVE allocation
+    (placed before joining). Commits; returns how many moved. Run by the
+    queue worker every cycle and at conversion."""
+    from app.models.employee_allocation import EmployeeAllocation
+
+    today = today or date.today()
+    q = db.query(Employee).filter(Employee.status == "PRE_JOINING", Employee.joining_date <= today)
+    if employee_ids is not None:
+        q = q.filter(Employee.id.in_(list(employee_ids)))
+    moved = 0
+    for employee in q.all():
+        transition_employee_status(db, employee, "ACTIVE", reason="Joining date reached", changed_by="system")
+        allocated = db.query(EmployeeAllocation).filter(
+            EmployeeAllocation.employee_id == employee.id, EmployeeAllocation.status == "ACTIVE",
+        ).first()
+        if allocated:
+            transition_employee_status(db, employee, "ALLOCATED", reason=f"Joined onto allocation {allocated.id}",
+                                       changed_by="system")
+        moved += 1
+    if moved:
+        db.commit()
+        logger.info(f"[EmployeeLifecycle] {moved} employee(s) joined")
+    return moved
+
 # ---------------------------------------------------------------------------
 # S-351 / HRMS-0512 -- Delivery Engine Assignment: Speciality vs Core.
 #

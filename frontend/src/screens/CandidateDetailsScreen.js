@@ -889,12 +889,9 @@ ${jobDescription}
       return;
     }
     try {
-      // employees.py also has a simpler /convert-candidate/{candidate_id}
-      // route, but it creates no login account at all. This one
-      // (employee_conversion.py) is the real match for what this screen
-      // has always tried to send - it creates the Employee AND the Users
-      // login account with role_ids, which is what business_unit_id/
-      // role_ids here are actually for.
+      // Creates the Employee and their login. The backend carries the BU,
+      // employer company and (for a client job) the project allocation
+      // forward from the job the candidate was hired for.
       const response = await apiFetch("/api/v1/employees/convert-candidate", {
         method: "POST",
         headers: {
@@ -906,16 +903,22 @@ ${jobDescription}
           employee_email: candidate.email || candidate.candidate_email || "",
           joining_date: candidate.candidateJoiningDate,
           business_unit_id: buId,
-          role_ids: [3],
           first_name: candidate.candidateFirstName || (candidate.name || candidate.candidate_name || "").split(" ")[0] || null,
           last_name: candidate.candidateLastName || (candidate.name || candidate.candidate_name || "").split(" ").slice(1).join(" ") || null,
           job_title: candidate.jobTitle || null,
         }),
       });
       if (!response.ok) {
-        throw new Error("Failed to convert candidate to employee");
+        const detail = await response.json().catch(() => ({}));
+        throw new Error(detail?.detail || "Failed to convert candidate to employee");
       }
-      showNotice("Candidate converted to employee successfully", "success");
+      const result = await response.json();
+      showNotice(
+        result.allocation_id
+          ? "Converted to employee and allocated to the job's client"
+          : "Candidate converted to employee",
+        "success",
+      );
       await onRefreshCandidates?.();
       onBack?.();
     } catch (error) {

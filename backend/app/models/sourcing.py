@@ -58,7 +58,7 @@ class DemandGapScore(Base):
 
     id = Column(String(512), primary_key=True, default=_new_uuid)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
-    demand_id = Column(String(512), ForeignKey("demands.id"), nullable=False, index=True)
+    demand_id = Column(String(512), ForeignKey("jobs.jobID"), nullable=False, index=True)
 
     bench_match_count = Column(Integer, nullable=False)
     bench_first_check_passed = Column(Boolean, nullable=False)
@@ -76,7 +76,7 @@ class SourcingAlert(Base):
 
     id = Column(String(512), primary_key=True, default=_new_uuid)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
-    demand_id = Column(String(512), ForeignKey("demands.id"), nullable=False, index=True)
+    demand_id = Column(String(512), ForeignKey("jobs.jobID"), nullable=False, index=True)
     gap_score_id = Column(String(512), ForeignKey("demand_gap_scores.id"), nullable=True)
 
     severity = Column(String(20), nullable=False)  # ALERT | CRITICAL -- WATCH/NONE never create a row
@@ -94,7 +94,7 @@ class SourcingAlert(Base):
     # failures pages the RM (AC-6). Reset to 0 on any successful search.
     consecutive_search_failures = Column(Integer, nullable=False, default = 0)
 
-    demand = relationship("Demand", foreign_keys=[demand_id], lazy="select")
+    demand = relationship("Jobs", foreign_keys=[demand_id], lazy="select")
 
 class SourcingSearchRun(Base):
     """HRMS-1103 -- one row per attempt to source against a

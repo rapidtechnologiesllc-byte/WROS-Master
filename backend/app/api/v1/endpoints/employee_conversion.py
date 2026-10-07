@@ -40,15 +40,21 @@ def convert_candidate(request: EmployeeConversionRequest, db: Session = Depends(
             last_name=request.last_name,
             employment_type=request.employment_type,
             job_title=request.job_title,
+            company_id=request.company_id,
             changed_by=current_user.UserID if current_user else None
         )
+        allocation = employee.conversion_allocation
         db.commit()
         return EmployeeConversionResponse(
             status="success",
             employee_id=employee.id,
             employee_email=user.UserEmail,
             user_id=user.UserID,
-            roles_assigned=len(request.role_ids or [])
+            roles_assigned=len(request.role_ids or []),
+            business_unit_id=employee.bu_id,
+            company_id=employee.company_id,
+            allocation_id=allocation.id if allocation else None,
+            client_id=allocation.client_id if allocation else None,
         )
     except InvalidCandidateState as e:
         raise HTTPException(status_code=400, detail=str(e))

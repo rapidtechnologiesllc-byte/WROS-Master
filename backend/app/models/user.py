@@ -1,6 +1,7 @@
 from datetime import datetime
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text, Date, func, Boolean, JSON, Enum
-from sqlalchemy.orm import relationship
+from uuid import uuid4
+from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text, Date, func, Boolean, JSON, Enum, Numeric, event
+from sqlalchemy.orm import relationship, synonym
 import logging
 from app.models.base import Base
 
@@ -8,6 +9,7 @@ from app.models.base import Base
 # native_enum=False/create_constraint=True convention Candidate.employment_type
 # and app.models.client's enums already use).
 JOB_URGENCY_LEVELS = ("IMMEDIATE", "HIGH", "NORMAL", "FLEXIBLE")
+JOB_WORK_LOCATIONS = ("REMOTE", "ONSITE", "HYBRID")
 logger = logging.getLogger(__name__)
 
 class Users(Base):
@@ -109,8 +111,14 @@ class Users(Base):
         return self.terminated_at is None
 
 class Jobs(Base):
+    """The one requisition record: a recruiting job and a client demand are
+    the same thing. Recruiting fields use the original camelCase columns;
+    the delivery/billing side (client, project, opportunity, fulfilment
+    status, SOW confirmation, billing) uses the former Demand columns, and
+    the Demand attribute names (id, job_title, headcount, status, ...) are
+    synonyms, so `Demand` (app.models.demand) is this class."""
     __tablename__ = "jobs"
-    jobID = Column(String(512), primary_key=True, index=True)
+    jobID = Column(String(512), primary_key=True, index=True, default=lambda: str(uuid4()))
     jobTitle = Column(String(512), nullable=False)
     jobDescription = Column(Text, nullable=False)
     jobSkills = Column(Text, nullable=False)
@@ -138,7 +146,7 @@ class Jobs(Base):
     required_skills_canonical = Column(JSON, nullable=True, default=list)
     # job_skills_boolean_mode: "AND" requires all mandatory skills, "OR" allows any skill
     job_skills_boolean_mode = Column(String(10), nullable=False, server_default="AND", default="AND")
-    min_experience_years = Column(Integer, nullable=True)
+    min_experience_years = Column(Numeric(4, 1), nullable=True)
     domain = Column(String(512), nullable=True)
     certifications_preferred = Column(JSON, nullable=True)
     # S-038/HRMS-0438 -- same lazy-parse posture as the S-037 columns
@@ -164,12 +172,132 @@ class Jobs(Base):
     deleted_at = Column(DateTime, nullable=True, index=True)
     is_deleted = Column(Boolean, default=False, nullable=False, index=True)
 
+    # ---- Client / delivery side (formerly the separate `demands` table) ----
+    # Client the role is for; empty for an internal (BlitzenX) hire.
+    client_id = Column(String(512), ForeignKey("clients.id"), nullable=True, index=True)
+    project_id = Column(String(512), ForeignKey("projects.id"), nullable=True, index=True)
+    opportunity_id = Column(String(512), ForeignKey("opportunities.id"), nullable=True, index=True)
+    required_skills = Column(Text, nullable=True)        # JSON array, kept in step with jobSkills
+    nice_to_have_skills = Column(Text, nullable=True)    # JSON array
+    max_experience_years = Column(Numeric(4, 1), nullable=True)
+    work_location = Column(Enum(*JOB_WORK_LOCATIONS, name="job_work_location", native_enum=False, create_constraint=True),
+                           nullable=False, default="REMOTE", server_default="REMOTE")
+    employment_type = Column(String(50), nullable=False, default="W2_FULLTIME", server_default="W2_FULLTIME")
+    interview_type_required = Column(String(20), nullable=False, default="L1_AND_L2", server_default="L1_AND_L2")
+    positions_filled = Column(Integer, nullable=False, default=0, server_default="0")
+    billing_rate_usd_cents = Column(Integer, nullable=True)
+    budget_min_usd_cents = Column(Integer, nullable=True)
+    budget_max_usd_cents = Column(Integer, nullable=True)
+    # Fulfilment state (DRAFT/OPEN/IN_PROGRESS/FILLED/CANCELLED/ON_HOLD). jobStatus
+    # is the publish/approval state; the two are kept in step on save.
+    demand_status = Column(String(20), nullable=False, default="DRAFT", server_default="DRAFT", index=True)
+    sourcing_enabled = Column(Boolean, nullable=False, default=False, server_default="false")
+    bench_first_checked = Column(Boolean, nullable=False, default=False, server_default="false")
+    assigned_recruiter_employee_id = Column(String(512), ForeignKey("employees.id"), nullable=True, index=True)
+    delivery_engine = Column(String(20), nullable=False, default="SPECIALITY", server_default="SPECIALITY")
+    confirmation_status = Column(String(20), nullable=False, default="POTENTIAL", server_default="POTENTIAL")
+    sow_reference = Column(String(512), nullable=True)
+    sow_received_date = Column(Date, nullable=True)
+    source_type = Column(String(20), nullable=False, default="DIRECT", server_default="DIRECT")
+    duration_hours = Column(Integer, nullable=True)
+    revenue_potential_usd_cents = Column(Integer, nullable=True)
+    created_by = Column(String(512), nullable=True)
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+    closed_at = Column(DateTime, nullable=True)
+
+    # Demand attribute names, so code written against Demand reads/writes this record
+    id = synonym("jobID")
+    job_title = synonym("jobTitle")
+    job_description = synonym("jobDescription")
+    job_location = synonym("jobLocation")
+    headcount = synonym("noOfPositions")
+    assigned_bu_id = synonym("business_unit_id")
+    required_start_date = synonym("startDate")
+    created_at = synonym("jobCreatedAt")
+    status = synonym("demand_status")
+
     business_unit = relationship("BusinessUnit", foreign_keys=[business_unit_id], lazy="select")
     department = relationship("Department", foreign_keys=[department_id], lazy="select")
     hiring_manager = relationship("Users", foreign_keys=[hiringManagerID], lazy="select")
     recuriter = relationship("Users", foreign_keys=[recuriterID], lazy="select")
     contact_person_user = relationship("Users", foreign_keys=[contactPerson], lazy="select")
     candidates = relationship("Candidate", foreign_keys="Candidate.job_id", lazy="select", back_populates="job")
+    client = relationship("Client", foreign_keys=[client_id], lazy="select")
+
+
+# ---- Keep the recruiting and delivery views of a Jobs row consistent ----
+_JOB_TO_DEMAND = {"active": "OPEN", "draft": "DRAFT", "pending_approval": "DRAFT", "closed": "CANCELLED"}
+_DEMAND_TO_JOB = {"OPEN": "active", "IN_PROGRESS": "active", "FILLED": "closed", "CANCELLED": "closed"}
+
+
+def _skills_list(job):
+    import json
+    if job.required_skills:
+        try:
+            return [str(s) for s in json.loads(job.required_skills) if s]
+        except (ValueError, TypeError):
+            return [s.strip() for s in str(job.required_skills).split(",") if s.strip()]
+    return [s.strip() for s in (job.jobSkills or "").split(",") if s.strip()]
+
+
+def _sync_job_fields(job, *, inserting):
+    """Fill whichever side is missing, and keep jobStatus/demand_status in step.
+
+    A row created as a client demand gets readable recruiting fields
+    (description, skills text, experience, location); a row created on
+    the Create Job screen gets the structured demand fields. When one
+    status changes, the other follows.
+    """
+    import json
+    import re
+    from sqlalchemy import inspect as sa_inspect
+
+    if not job.jobDescription:
+        job.jobDescription = job.jobTitle or ""
+    skills = _skills_list(job)
+    if not job.jobSkills:
+        job.jobSkills = ", ".join(skills)
+    if not job.required_skills:
+        job.required_skills = json.dumps(skills)
+    if job.min_experience_years is None and job.jobExperience:
+        m = re.search(r"(\d+(?:\.\d+)?)", job.jobExperience)
+        if m:
+            job.min_experience_years = float(m.group(1))
+    if not job.jobExperience:
+        lo, hi = job.min_experience_years, job.max_experience_years
+        job.jobExperience = (f"{lo:g}-{hi:g} years" if lo is not None and hi is not None
+                             else f"{lo:g}+ years" if lo is not None else "")
+    if not job.jobLocation:
+        job.jobLocation = (job.work_location or "").title()
+
+    state = sa_inspect(job)
+    job_changed = inserting or state.attrs.jobStatus.history.has_changes()
+    demand_changed = state.attrs.demand_status.history.has_changes()
+    if demand_changed and not (inserting and job.jobStatus):
+        mapped = _DEMAND_TO_JOB.get(job.demand_status)
+        if mapped:
+            job.jobStatus = mapped
+    elif job_changed and job.jobStatus:
+        mapped = _JOB_TO_DEMAND.get(str(job.jobStatus).lower())
+        current = job.demand_status or "DRAFT"
+        if mapped == "OPEN" and current in ("DRAFT", "CANCELLED"):
+            job.demand_status = "OPEN"
+        elif mapped == "CANCELLED" and current not in ("FILLED", "CANCELLED"):
+            job.demand_status = "CANCELLED"
+        elif mapped == "DRAFT" and current == "OPEN":
+            job.demand_status = "DRAFT"
+    if job.demand_status in ("FILLED", "CANCELLED") and job.closed_at is None:
+        job.closed_at = datetime.utcnow()
+
+
+@event.listens_for(Jobs, "before_insert")
+def _jobs_before_insert(mapper, connection, job):
+    _sync_job_fields(job, inserting=True)
+
+
+@event.listens_for(Jobs, "before_update")
+def _jobs_before_update(mapper, connection, job):
+    _sync_job_fields(job, inserting=False)
 
 class CandidateAssignment(Base):
     __tablename__ = "candidate_assignments"

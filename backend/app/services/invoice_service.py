@@ -33,6 +33,12 @@ class OpenDisputeBlocksInvoice(Exception):
 class InvalidInvoiceTransition(Exception):
     pass
 
+class MissingBillRate(Exception):
+    """Billable hours on an allocation with no bill rate: the invoice would be wrong, so it isn't created."""
+
+class NothingToInvoice(Exception):
+    """No timesheets for the project in the period: an empty invoice is never created."""
+
 def _timesheets_in_period(db: Session, project: Project, period_start, period_end) -> List[Timesheet]:
     return db.query(Timesheet).join(
         EmployeeAllocation, Timesheet.allocation_id == EmployeeAllocation.id
@@ -52,6 +58,11 @@ def generate_invoice(
     discipline as submission_service.create_submission().
     """
     timesheets = _timesheets_in_period(db, project, period_start, period_end)
+    if not timesheets:
+        raise NothingToInvoice(
+            "Cannot generate invoice -- no timesheets for this project in this period. Employees are billed through "
+            "their allocation to the project's job; check that the people working on it are allocated and have submitted time."
+        )
 
     unapproved = [ts.id for ts in timesheets if ts.status != "APPROVED"]
     if unapproved:
@@ -65,6 +76,21 @@ def generate_invoice(
             f"Cannot generate invoice -- {len(disputed)} timesheet(s) in this period have an open dispute: {disputed}"
         )
 
+    allocations = {
+        a.id: a for a in db.query(EmployeeAllocation).filter(
+            EmployeeAllocation.id.in_({ts.allocation_id for ts in timesheets if ts.allocation_id})
+        )
+    }
+    unpriced = sorted({
+        ts.employee_id for ts in timesheets
+        if float(ts.billable_hours or 0) > 0 and not (allocations.get(ts.allocation_id) and allocations[ts.allocation_id].billing_rate_usd_cents)
+    })
+    if unpriced:
+        raise MissingBillRate(
+            f"Cannot generate invoice -- {len(unpriced)} employee(s) have billable hours but no bill rate on their allocation "
+            f"({unpriced}). Set the client bill rate on the job (or the allocation) first."
+        )
+
     invoice = Invoice(
         tenant_id=tenant_id or project.tenant_id, project_id=project.id, client_id=project.client_id,
         billing_period_start=period_start, billing_period_end=period_end, currency=project.currency,
@@ -74,7 +100,7 @@ def generate_invoice(
 
     total = 0
     for ts in timesheets:
-        allocation = db.query(EmployeeAllocation).filter(EmployeeAllocation.id == ts.allocation_id).first()
+        allocation = allocations.get(ts.allocation_id)
         rate = (allocation.billing_rate_usd_cents or 0) if allocation else 0
         hours = float(ts.billable_hours)
         amount = round(rate * hours)

@@ -57,7 +57,7 @@ class PipelineLeakageFlag(Base):
     business_unit_id = Column(Integer, ForeignKey("business_units.id"), nullable=True, index=True)
 
     opportunity_id = Column(String(512), ForeignKey("opportunities.id"), nullable=True, index=True)
-    demand_id = Column(String(512), ForeignKey("demands.id"), nullable=True, index=True)
+    demand_id = Column(String(512), ForeignKey("jobs.jobID"), nullable=True, index=True)
     revenue_leakage_flag_id = Column(String(512), ForeignKey("revenue_leakage_time_layer.id"), nullable=True, index=True)
     sub_vendor_request_id = Column(String(512), ForeignKey("sub_vendor_requests.id"), nullable=True, index=True)
 

@@ -56,6 +56,8 @@ class Candidate(Base):
     # resume parsing (S-028/HRMS-0428, app.services.resume_parsing_service);
     # NULL means "not yet verified" and is treated as ineligible, per the
     # spec's own rule, not as an exemption from the check.
+    # Derived from candidateExperience on every save (see the before_insert/
+    # before_update listener below): the submission gate reads it.
     total_experience_months = Column(Integer, nullable=True)
     # S-030/HRMS-0430 -- denormalized copy of
     # candidate_resume_parsed.resume_completeness_score for fast reads.
@@ -307,3 +309,20 @@ class CandidateJobApplication(Base):
     # Relationships for easy ORM access
     candidate = relationship("Candidate", foreign_keys=[candidate_id], lazy="select")
     job = relationship("Jobs", foreign_keys=[job_id], lazy="select")
+
+
+# Keep total_experience_months in step with the experience the recruiter entered
+def _sync_experience_months(mapper, connection, candidate):
+    from sqlalchemy import inspect as sa_inspect
+    from app.services.candidate_service import parse_experience_to_months
+
+    state = sa_inspect(candidate)
+    if state.attrs.candidateExperience.history.has_changes() or candidate.total_experience_months is None:
+        months = parse_experience_to_months(candidate.candidateExperience)
+        if months is not None:
+            candidate.total_experience_months = months
+
+
+from sqlalchemy import event as _event  # noqa: E402
+_event.listen(Candidate, "before_insert", _sync_experience_months)
+_event.listen(Candidate, "before_update", _sync_experience_months)

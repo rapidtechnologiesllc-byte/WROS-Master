@@ -26,6 +26,18 @@ def _handle_shutdown_signal(signum, frame):
     logger.info(f"[WORKER] Received signal {signum}, will stop after current cycle...")
     _shutdown_requested = True
 
+def _activate_joined_employees():
+    """New hires leave PRE_JOINING on their joining date (see employee_service)."""
+    from app.core.database import SessionLocal
+    from app.services.employee_service import activate_joined_employees
+
+    db = SessionLocal()
+    try:
+        activate_joined_employees(db)
+    finally:
+        db.close()
+
+
 def main():
     """Start the background worker process."""
     signal.signal(signal.SIGTERM, _handle_shutdown_signal)
@@ -51,6 +63,11 @@ def main():
 
             except Exception as e:
                 logger.error(f"[WORKER] Cycle {cycle_count}: Error processing queue: {e}", exc_info=True)
+
+            try:
+                _activate_joined_employees()
+            except Exception as e:
+                logger.error(f"[WORKER] Cycle {cycle_count}: Error activating joined employees: {e}", exc_info=True)
 
             # Wait up to 30 seconds before the next cycle, but wake immediately on shutdown
             for _ in range(30):

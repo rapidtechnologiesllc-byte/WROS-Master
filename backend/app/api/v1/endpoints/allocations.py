@@ -127,6 +127,7 @@ def create_allocation(
             start_date=body.start_date, end_date=body.end_date,
             utilization_pct=body.utilization_pct, role=body.role, project=project,
             allow_concurrent=body.allow_concurrent, changed_by=current_user.UserID,
+            billing_rate_usd_cents=body.billing_rate_usd_cents,
         )
     except EmployeeAlreadyAllocated as exc:
         raise HTTPException(status_code=409, detail=str(exc))

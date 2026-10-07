@@ -43,7 +43,7 @@ class WorkOrder(Base):
     sow_reference = Column(String(512), nullable=True)  # Optional SOW/statement of work URL or ID
 
     # Linkages
-    demand_id = Column(String(512), ForeignKey("demands.id"), nullable=False, index=True)  # DIRECT or Opportunity-sourced
+    demand_id = Column(String(512), ForeignKey("jobs.jobID"), nullable=False, index=True)  # DIRECT or Opportunity-sourced
     client_id = Column(String(512), ForeignKey("clients.id"), nullable=False, index=True)  # Bill-to client
     employee_id = Column(String(512), ForeignKey("employees.id"), nullable=True, index=True)  # Named resource on PO (nullable until hire)
     project_id = Column(String(512), ForeignKey("projects.id"), nullable=True, index=True)  # Auto-created when employee hired

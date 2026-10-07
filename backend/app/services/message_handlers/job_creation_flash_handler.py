@@ -14,6 +14,9 @@ logger = logging.getLogger(__name__)
 class JobCreationFlashHandler:
     """Handles job_created_flash queue messages with atomic validation."""
 
+    # Job creation SLA (gate rule: every queue handler declares its timeout)
+    TIMEOUT_SECONDS = 45
+
     MAX_RETRIES = 3
     RETRY_DELAY_MINUTES = 15
 
@@ -123,7 +126,10 @@ class JobCreationFlashHandler:
                     business_unit_id=business_unit_id,
                     tenant_id=payload.get('tenant_id') or message.tenant_id or 1,
                     department_id=payload.get('department_id'),
-                    salaryRange=salary_range
+                    salaryRange=salary_range,
+                    client_id=payload.get('client_id'),
+                    project_id=payload.get('project_id'),
+                    billing_rate_usd_cents=payload.get('billing_rate_usd_cents'),
                 )
 
                 db.add(job)

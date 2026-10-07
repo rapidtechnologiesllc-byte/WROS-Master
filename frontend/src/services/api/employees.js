@@ -45,14 +45,6 @@ export const removeEmployeeFromBench = async (employeeId) => {
 
 
 
-// HRMS-0708 minimal slice -- the MVP bridge from candidate to employee.
-export const convertCandidateToEmployee = async (candidateId, payload) => {
-  const { data } = await apiRequest(`/employees/convert-candidate/${candidateId}`, {
-    method: "POST",
-    body: JSON.stringify(payload),
-  });
-  return data;
-};
 
 
 

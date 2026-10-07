@@ -32,7 +32,7 @@ class HiringManagerValidation(Base):
 
     id = Column(String(512), primary_key=True, index=True)  # UUID
     candidate_id = Column(String(512), ForeignKey("candidates.candidateID"), nullable=False, index=True)
-    job_id = Column(String(512), ForeignKey("demands.id"), nullable=False, index=True)  # References Demand (job)
+    job_id = Column(String(512), ForeignKey("jobs.jobID"), nullable=False, index=True)  # References Demand (job)
     hiring_manager_id = Column(String(512), ForeignKey("users.UserID"), nullable=False, index=True)
 
     # Validation state machine
@@ -85,7 +85,7 @@ class HiringManagerValidation(Base):
 
     # Relationships
     candidate = relationship("Candidate", backref="hm_validations", lazy="joined")
-    demand = relationship("Demand", backref="hm_validations", lazy="joined")  # Job reference
+    demand = relationship("Jobs", backref="hm_validations", lazy="joined")  # Job reference
     hiring_manager = relationship("Users", foreign_keys=[hiring_manager_id], backref="validations_assigned", lazy="joined")
     escalated_to_user = relationship("Users", foreign_keys=[escalated_to_user_id], backref="validations_escalated_to", lazy="joined")
     interview = relationship("Interview", backref="hm_validation", lazy="joined", uselist=False)

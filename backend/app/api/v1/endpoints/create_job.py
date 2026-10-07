@@ -284,6 +284,9 @@ def get_all_jobs(
             hiring_manager_id=j.hiringManagerID,
             recuriter_id=j.recuriterID,
             business_unit=j.business_unit_id,
+        client_id=j.client_id,
+        project_id=j.project_id,
+        billing_rate_usd_cents=j.billing_rate_usd_cents,
             department_id=j.department_id,
             salary_range=j.salaryRange
         ))
@@ -334,6 +337,9 @@ def get_active_jobs(
             hiring_manager_id=j.hiringManagerID,
             recuriter_id=j.recuriterID,
             business_unit=j.business_unit_id,
+        client_id=j.client_id,
+        project_id=j.project_id,
+        billing_rate_usd_cents=j.billing_rate_usd_cents,
             department_id=j.department_id,
             salary_range=j.salaryRange
         )
@@ -413,6 +419,9 @@ def filter_jobs(
             hiring_manager_id=j.hiringManagerID,
             recuriter_id=j.recuriterID,
             business_unit=j.business_unit_id,
+        client_id=j.client_id,
+        project_id=j.project_id,
+        billing_rate_usd_cents=j.billing_rate_usd_cents,
             department_id=j.department_id,
             salary_range=j.salaryRange
         )
@@ -484,6 +493,9 @@ def get_my_jobs(
             hiring_manager_id=j.hiringManagerID,
             recuriter_id=j.recuriterID,
             business_unit=j.business_unit_id,
+        client_id=j.client_id,
+        project_id=j.project_id,
+        billing_rate_usd_cents=j.billing_rate_usd_cents,
             department_id=j.department_id,
             salary_range=j.salaryRange,
         )
@@ -556,11 +568,44 @@ def get_job_by_id(
         hiring_manager_name=hiring_manager_name,
         recuriter_id=job.recuriterID,
         business_unit=job.business_unit_id,
+        client_id=job.client_id,
+        project_id=job.project_id,
+        billing_rate_usd_cents=job.billing_rate_usd_cents,
         department_id=job.department_id,
         salary_range=job.salaryRange,
         required_skills_canonical=job.required_skills_canonical,
         job_skills_boolean_mode=job.job_skills_boolean_mode
     )
+
+def resolve_job_client(db: Session, tenant_id, client_id, company_name):
+    """The Client a job is for. client_id wins; otherwise the company name is
+    matched (case-insensitively) against Client Management. None = internal hire."""
+    from sqlalchemy import func as sa_func
+    from app.models.client import Client
+
+    if client_id:
+        client = db.query(Client).filter(Client.id == client_id).first()
+        if client is None or client.tenant_id not in (None, tenant_id):
+            raise HTTPException(status_code=400, detail="Unknown client")
+        return client
+    if company_name and company_name.strip():
+        return db.query(Client).filter(
+            sa_func.lower(sa_func.trim(Client.company_name)) == company_name.strip().lower(),
+            (Client.tenant_id == tenant_id) | Client.tenant_id.is_(None),
+        ).first()
+    return None
+
+
+def validate_job_project(db: Session, project_id, client):
+    """A job's project must exist and belong to the job's client."""
+    from app.models.project import Project
+
+    project = db.query(Project).filter(Project.id == project_id).first()
+    if project is None:
+        raise HTTPException(status_code=400, detail="Unknown project")
+    if client is None or project.client_id != client.id:
+        raise HTTPException(status_code=400, detail="The project must belong to the job's client")
+
 
 @router.post(
     "/create_job",
@@ -675,6 +720,13 @@ def create_job(request: JobCreateRequest, background_tasks: BackgroundTasks, db:
     # Generate unique job ID
     job_id = job_id_generator()
 
+    # One requisition record: link the client (and its BU) instead of only its name
+    client = resolve_job_client(db, user.tenant_id, request.client_id, request.company_name)
+    business_unit_id = request.business_unit or (client.business_unit_id if client else None)
+    company_name = request.company_name or (client.company_name if client else None)
+    if request.project_id:
+        validate_job_project(db, request.project_id, client)
+
     # QUEUE-DRIVEN: Send job creation to FLASH queue instead of direct DB write
     # The message handler will create the job and assign AI recruiter
     MessageQueueService.enqueue(
@@ -688,13 +740,16 @@ def create_job(request: JobCreateRequest, background_tasks: BackgroundTasks, db:
             "job_skills": request.job_skills,
             "job_experience": request.job_experience,
             "company_type": request.company_type,
-            "company_name": request.company_name,
+            "company_name": company_name,
             "contact_person": request.contact_person,
             "no_of_positions": request.no_of_positions,
             "start_date": request.start_date.isoformat() if request.start_date else None,
             "hiring_manager_id": request.hiring_manager_id,
             "recuriter_id": request.recuriter_id,
-            "business_unit_id": request.business_unit,
+            "business_unit_id": business_unit_id,
+            "client_id": client.id if client else None,
+            "project_id": request.project_id,
+            "billing_rate_usd_cents": request.billing_rate_usd_cents,
             "department_id": request.department_id,
             "salary_range": request.salary_range,
             "job_status": job_status,
@@ -714,14 +769,17 @@ def create_job(request: JobCreateRequest, background_tasks: BackgroundTasks, db:
         jobLocation=request.job_location,
         jobCreatedAt=datetime.now(),
         companyType=request.company_type,
-        companyName=request.company_name,
+        companyName=company_name,
         contactPerson=request.contact_person,
         jobStatus=job_status,
         noOfPositions=request.no_of_positions,
         startDate=request.start_date,
         hiringManagerID=request.hiring_manager_id,
         recuriterID=request.recuriter_id,
-        business_unit_id=request.business_unit,
+        business_unit_id=business_unit_id,
+        client_id=client.id if client else None,
+        project_id=request.project_id,
+        billing_rate_usd_cents=request.billing_rate_usd_cents,
         department_id=request.department_id,
         salaryRange=request.salary_range
     )
@@ -890,6 +948,23 @@ def update_job(job_id: str, request: JobUpdateRequest, db: Session = Depends(get
         job.companyType = request.company_type
     if request.company_name is not None:
         job.companyName = request.company_name
+    if request.client_id is None and request.company_name is not None:
+        # Renamed without an explicit client pick: re-match the name
+        matched = resolve_job_client(db, user.tenant_id, None, request.company_name)
+        job.client_id = matched.id if matched else None
+    if request.client_id is not None:
+        client = resolve_job_client(db, user.tenant_id, request.client_id, None) if request.client_id else None
+        job.client_id = client.id if client else None
+        if client:
+            job.companyName = client.company_name
+            if job.business_unit_id is None:
+                job.business_unit_id = client.business_unit_id
+    if request.billing_rate_usd_cents is not None:
+        job.billing_rate_usd_cents = request.billing_rate_usd_cents or None
+    if request.project_id is not None:
+        if request.project_id:
+            validate_job_project(db, request.project_id, job.client)
+        job.project_id = request.project_id or None
     if request.contact_person is not None:
         job.contactPerson = request.contact_person
     if request.no_of_positions is not None:
@@ -945,6 +1020,9 @@ def update_job(job_id: str, request: JobUpdateRequest, db: Session = Depends(get
         hiring_manager_id=job.hiringManagerID,
         recuriter_id=job.recuriterID,
         business_unit=job.business_unit_id,
+        client_id=job.client_id,
+        project_id=job.project_id,
+        billing_rate_usd_cents=job.billing_rate_usd_cents,
         department_id=job.department_id,
         salary_range=job.salaryRange
     )
@@ -1059,6 +1137,9 @@ def post_job_on_linkedin(
         hiring_manager_id=job.hiringManagerID,
         recuriter_id=job.recuriterID,
         business_unit=job.business_unit_id,
+        client_id=job.client_id,
+        project_id=job.project_id,
+        billing_rate_usd_cents=job.billing_rate_usd_cents,
         salary_range=job.salaryRange
     )
     

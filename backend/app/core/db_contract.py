@@ -796,6 +796,34 @@ def _run_schema_migrations():
             "jobs": [
                 ("is_deleted", "BOOLEAN NOT NULL DEFAULT false"),
                 ("deleted_at", "TIMESTAMP NULL"),
+                # Demand merged into Jobs: the client/delivery side of a requisition
+                ("client_id", "VARCHAR(512) NULL REFERENCES app_schema.clients(id)"),
+                ("project_id", "VARCHAR(512) NULL REFERENCES app_schema.projects(id)"),
+                ("opportunity_id", "VARCHAR(512) NULL REFERENCES app_schema.opportunities(id)"),
+                ("required_skills", "TEXT NULL"),
+                ("nice_to_have_skills", "TEXT NULL"),
+                ("max_experience_years", "NUMERIC(4,1) NULL"),
+                ("work_location", "VARCHAR(20) NOT NULL DEFAULT 'REMOTE'"),
+                ("employment_type", "VARCHAR(50) NOT NULL DEFAULT 'W2_FULLTIME'"),
+                ("interview_type_required", "VARCHAR(20) NOT NULL DEFAULT 'L1_AND_L2'"),
+                ("positions_filled", "INTEGER NOT NULL DEFAULT 0"),
+                ("billing_rate_usd_cents", "INTEGER NULL"),
+                ("budget_min_usd_cents", "INTEGER NULL"),
+                ("budget_max_usd_cents", "INTEGER NULL"),
+                ("demand_status", "VARCHAR(20) NOT NULL DEFAULT 'DRAFT'"),
+                ("sourcing_enabled", "BOOLEAN NOT NULL DEFAULT false"),
+                ("bench_first_checked", "BOOLEAN NOT NULL DEFAULT false"),
+                ("assigned_recruiter_employee_id", "VARCHAR(512) NULL REFERENCES app_schema.employees(id)"),
+                ("delivery_engine", "VARCHAR(20) NOT NULL DEFAULT 'SPECIALITY'"),
+                ("confirmation_status", "VARCHAR(20) NOT NULL DEFAULT 'POTENTIAL'"),
+                ("sow_reference", "VARCHAR(512) NULL"),
+                ("sow_received_date", "DATE NULL"),
+                ("source_type", "VARCHAR(20) NOT NULL DEFAULT 'DIRECT'"),
+                ("duration_hours", "INTEGER NULL"),
+                ("revenue_potential_usd_cents", "INTEGER NULL"),
+                ("created_by", "VARCHAR(512) NULL"),
+                ("updated_at", "TIMESTAMP NULL DEFAULT now()"),
+                ("closed_at", "TIMESTAMP NULL"),
             ],
             "conversation_events": [
                 ("tenant_id", "VARCHAR(50) NOT NULL DEFAULT '1'"),
@@ -1022,6 +1050,9 @@ def _run_schema_migrations():
         # location and the org-chart partner (when that seat has a user).
         _migrate_company_partner_structure(db)
 
+        # Migration 10: Demand merged into Jobs -- one requisition record.
+        _merge_demands_into_jobs(db)
+
     except Exception as e:
         logger.warning(f"[Contract] Schema migrations failed: {e}")
         # Don't fail startup if migrations can't be run
@@ -1059,6 +1090,117 @@ def _migrate_company_partner_structure(db: Session):
                 logger.info(f"[Contract] Migration: {label} ({result.rowcount} rows)")
         except Exception as e:
             logger.warning(f"[Contract] Migration warning for {label}: {e}")
+            db.rollback()
+
+
+def _merge_demands_into_jobs(db: Session):
+    """Idempotent. Copies each demand into jobs under the same id, backfills
+    the delivery fields of existing jobs, and repoints every foreign key that
+    referenced demands(id) to jobs("jobID"). The demands table is left in
+    place (no data dropped) but nothing references it afterwards."""
+    from sqlalchemy import text
+
+    demands_exist = db.execute(text("""
+        SELECT 1 FROM information_schema.tables WHERE table_schema = 'app_schema' AND table_name = 'demands'
+    """)).scalar() is not None
+    steps = [
+        ("revenue.opportunity_id optional",
+         "ALTER TABLE app_schema.revenues ALTER COLUMN opportunity_id DROP NOT NULL"),
+        ("candidates.total_experience_months from candidateExperience", """
+            UPDATE app_schema.candidates
+            SET total_experience_months = round(substring("candidateExperience" from '([0-9]+(?:[.][0-9]+)?)')::numeric * 12)
+            WHERE total_experience_months IS NULL
+              AND substring("candidateExperience" from '([0-9]+(?:[.][0-9]+)?)') IS NOT NULL
+        """),
+        ("jobs.min_experience_years numeric",
+         "ALTER TABLE app_schema.jobs ALTER COLUMN min_experience_years TYPE NUMERIC(4,1)"),
+    ]
+    if demands_exist:
+        steps.append(("copy demands into jobs", """
+            INSERT INTO app_schema.jobs (
+                "jobID", "jobTitle", "jobDescription", "jobSkills", "jobExperience", "jobLocation",
+                "jobCreatedAt", "jobStatus", "noOfPositions", "startDate", "companyName",
+                business_unit_id, tenant_id, client_id, project_id, opportunity_id,
+                required_skills, nice_to_have_skills, min_experience_years, max_experience_years,
+                work_location, employment_type, interview_type_required, positions_filled,
+                billing_rate_usd_cents, budget_min_usd_cents, budget_max_usd_cents, demand_status,
+                sourcing_enabled, bench_first_checked, assigned_recruiter_employee_id, delivery_engine,
+                confirmation_status, sow_reference, sow_received_date, source_type, duration_hours,
+                revenue_potential_usd_cents, created_by, updated_at, closed_at, domain, urgency,
+                is_deleted, job_skills_boolean_mode)
+            SELECT
+                d.id, d.job_title, COALESCE(d.job_description, d.job_title),
+                COALESCE((SELECT string_agg(v, ', ') FROM json_array_elements_text(
+                    CASE WHEN ltrim(d.required_skills) LIKE '[%' THEN d.required_skills::json ELSE '[]'::json END) AS v), ''),
+                CASE WHEN d.max_experience_years IS NOT NULL
+                     THEN (d.min_experience_years::float)::text || '-' || (d.max_experience_years::float)::text || ' years'
+                     ELSE (d.min_experience_years::float)::text || '+ years' END,
+                COALESCE(d.job_location, initcap(d.work_location)),
+                d.created_at,
+                CASE d.status WHEN 'OPEN' THEN 'active' WHEN 'IN_PROGRESS' THEN 'active'
+                              WHEN 'DRAFT' THEN 'draft' WHEN 'ON_HOLD' THEN 'active' ELSE 'closed' END,
+                d.headcount, d.required_start_date, c.company_name,
+                d.assigned_bu_id, d.tenant_id, d.client_id, d.project_id, d.opportunity_id,
+                d.required_skills, d.nice_to_have_skills, d.min_experience_years, d.max_experience_years,
+                d.work_location, d.employment_type, d.interview_type_required, d.positions_filled,
+                d.billing_rate_usd_cents, d.budget_min_usd_cents, d.budget_max_usd_cents, d.status,
+                d.sourcing_enabled, d.bench_first_checked, d.assigned_recruiter_employee_id, d.delivery_engine,
+                d.confirmation_status, d.sow_reference, d.sow_received_date, d.source_type, d.duration_hours,
+                d.revenue_potential_usd_cents, d.created_by, d.updated_at, d.closed_at, d.domain, d.urgency,
+                false, 'AND'
+            FROM app_schema.demands d
+            LEFT JOIN app_schema.clients c ON c.id = d.client_id
+            WHERE NOT EXISTS (SELECT 1 FROM app_schema.jobs j WHERE j."jobID" = d.id)
+        """))
+    steps += [
+        ("jobs.client_id from company name", """
+            UPDATE app_schema.jobs j SET client_id = c.id
+            FROM app_schema.clients c
+            WHERE j.client_id IS NULL AND j."companyName" IS NOT NULL
+              AND lower(trim(c.company_name)) = lower(trim(j."companyName"))
+              AND (c.tenant_id = j.tenant_id OR c.tenant_id IS NULL OR j.tenant_id IS NULL)
+        """),
+        ("jobs.demand_status from jobStatus", """
+            UPDATE app_schema.jobs SET demand_status = CASE lower(coalesce("jobStatus", ''))
+                WHEN 'active' THEN 'OPEN' WHEN 'closed' THEN 'CANCELLED' ELSE 'DRAFT' END
+            WHERE required_skills IS NULL AND demand_status = 'DRAFT'
+        """),
+    ]
+    for label, sql in steps:
+        try:
+            result = db.execute(text(sql))
+            db.commit()
+            if result.rowcount and result.rowcount > 0:
+                logger.info(f"[Contract] Migration: {label} ({result.rowcount} rows)")
+        except Exception as e:
+            logger.warning(f"[Contract] Migration warning for {label}: {e}")
+            db.rollback()
+
+    # Repoint foreign keys demands(id) -> jobs("jobID")
+    try:
+        fks = db.execute(text("""
+            SELECT tc.table_name, tc.constraint_name, kcu.column_name
+            FROM information_schema.table_constraints tc
+            JOIN information_schema.key_column_usage kcu
+              ON kcu.constraint_name = tc.constraint_name AND kcu.table_schema = tc.table_schema
+            JOIN information_schema.constraint_column_usage ccu
+              ON ccu.constraint_name = tc.constraint_name AND ccu.table_schema = tc.table_schema
+            WHERE tc.constraint_type = 'FOREIGN KEY' AND tc.table_schema = 'app_schema'
+              AND ccu.table_name = 'demands'
+        """)).fetchall()
+    except Exception as e:
+        logger.warning(f"[Contract] Migration warning listing demand foreign keys: {e}")
+        db.rollback()
+        fks = []
+    for table, constraint, column in fks:
+        try:
+            db.execute(text(f'ALTER TABLE app_schema.{table} DROP CONSTRAINT "{constraint}"'))
+            db.execute(text(f'ALTER TABLE app_schema.{table} ADD CONSTRAINT "fk_{table}_{column}_jobs" '
+                            f'FOREIGN KEY ({column}) REFERENCES app_schema.jobs("jobID")'))
+            db.commit()
+            logger.info(f"[Contract] Migration: {table}.{column} now references jobs")
+        except Exception as e:
+            logger.warning(f"[Contract] Migration warning repointing {table}.{column}: {e}")
             db.rollback()
 
 

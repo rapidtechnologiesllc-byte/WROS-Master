@@ -51,6 +51,8 @@ from app.schemas.invoice import (
     InvoiceListResponse,
 )
 from app.services.invoice_service import (
+    NothingToInvoice,
+    MissingBillRate,
     InvalidInvoiceTransition,
     OpenDisputeBlocksInvoice,
     UnapprovedTimesheetBlocksInvoice,
@@ -109,6 +111,8 @@ def generate_invoice_endpoint(
     except UnapprovedTimesheetBlocksInvoice as exc:
         raise HTTPException(status_code=409, detail=str(exc))
     except OpenDisputeBlocksInvoice as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
+    except (NothingToInvoice, MissingBillRate) as exc:
         raise HTTPException(status_code=409, detail=str(exc))
     db.commit()
     db.refresh(invoice)

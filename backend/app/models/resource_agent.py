@@ -47,7 +47,7 @@ class BenchAllocationRecommendation(Base):
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
 
     employee_id = Column(String(512), ForeignKey("employees.id"), nullable=False, index=True)
-    demand_id = Column(String(512), ForeignKey("demands.id"), nullable=False, index=True)
+    demand_id = Column(String(512), ForeignKey("jobs.jobID"), nullable=False, index=True)
 
     confidence_pct = Column(Numeric(5, 2), nullable=False)
     rationale = Column(Text, nullable=True)

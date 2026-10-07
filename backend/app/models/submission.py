@@ -60,7 +60,7 @@ class Submission(Base):
     id = Column(String(512), primary_key=True, default=_new_uuid)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
 
-    demand_id = Column(String(512), ForeignKey("demands.id"), nullable=False, index=True)
+    demand_id = Column(String(512), ForeignKey("jobs.jobID"), nullable=False, index=True)
     client_id = Column(String(512), ForeignKey("clients.id"), nullable=False, index=True)
     candidate_id = Column(String(512), ForeignKey("candidates.candidateID"), nullable=False, index=True)
 

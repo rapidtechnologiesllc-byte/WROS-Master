@@ -40,6 +40,8 @@ export default function JobCreate({
   const [experienceLevel, setExperienceLevel] = useState("");
   const [payAmount, setPayAmount] = useState("");
   const [payRateType, setPayRateType] = useState("$/Year");
+  // What the client is billed per hour (USD) -- invoices are built from it
+  const [billRate, setBillRate] = useState("");
   const [startDate, setStartDate] = useState("");
   const [skills, setSkills] = useState("");
   const [jobStatus, setJobStatus] = useState("Draft");
@@ -180,6 +182,8 @@ export default function JobCreate({
           hiring_manager_id: hmUserId || null,
           reporting_manager_id: rmUserId || null,
           salary_range: payAmount ? `${payAmount} ${payRateType}` : null,
+          client_id: clientList?.find((c) => c?.company_name === companyClient)?.id || "",
+          billing_rate_usd_cents: billRate ? Math.round(parseFloat(billRate) * 100) : 0,
           is_internal_role: isInternalRole,
         };
 
@@ -193,7 +197,7 @@ export default function JobCreate({
     }, 2000); // Auto-save 2 seconds after last change
 
     return () => clearTimeout(saveTimer);
-  }, [title, internalJD, skills, experienceLevel, locationValue, isJobLocationRemote, companyClient, payAmount, payRateType, startDate, hmUserId, rmUserId, noOfPositions, draftJobId, mode, isReadOnly]);
+  }, [title, internalJD, skills, experienceLevel, locationValue, isJobLocationRemote, companyClient, payAmount, payRateType, billRate, clientList, startDate, hmUserId, rmUserId, noOfPositions, draftJobId, mode, isReadOnly]);
 
   useEffect(() => {
     let isMounted = true;
@@ -363,6 +367,7 @@ export default function JobCreate({
     setExperienceLevel(initialJob.job_experience || "");
     setPayAmount(parsedPay.amount);
     setPayRateType(parsedPay.rateType);
+    setBillRate(initialJob.billing_rate_usd_cents ? String(initialJob.billing_rate_usd_cents / 100) : "");
     setStartDate(initialJob.startDate || "");
     setSkills((initialJob.skills || []).join(", "));
     setJobStatus(initialJob.jobStatus || initialJob.status || "Draft");
@@ -607,6 +612,9 @@ export default function JobCreate({
         job_location: pickedLocationLabel() || location?.trim(),
         company_type: companyType?.trim(),
         company_name: companyClient?.trim(),
+        // Link the job to the client record itself (not just its name)
+        client_id: selectedClientRecord?.id || null,
+        billing_rate_usd_cents: billRate ? Math.round(parseFloat(billRate) * 100) : null,
         contact_person: contactPerson || null,
         job_status: normalizeJobStatusForApi(jobStatus),
         no_of_positions: Number(noOfPositions || 0),
@@ -686,6 +694,8 @@ export default function JobCreate({
     }
     return formatLocation(locationValue) || "";
   };
+
+  const selectedClientRecord = clientList?.find((c) => c?.company_name === companyClient) || null;
 
   const handleNextWithGeneration = async () => {
     setIsGenerating(true);
@@ -868,6 +878,21 @@ export default function JobCreate({
                 onRateTypeChange={setPayRateType}
                 rateTypeOptions={["$/Hour", "$/Day", "$/Week", "$/Month", "$/Year", "₹/Hour", "₹/Day", "₹/Week", "₹/Month", "₹/Year"]}
               />
+              {selectedClientRecord && (
+                <label className="block">
+                  <div className="mb-1 text-xs font-semibold text-gray-700">Client Bill Rate (USD / hour)</div>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={billRate}
+                    onChange={(e) => setBillRate(e.target.value)}
+                    placeholder="e.g. 95"
+                    className="w-full rounded-xl border bg-white px-3 py-2 text-sm outline-none focus:border-gray-900"
+                  />
+                  <div className="mt-1 text-xs text-gray-500">Billed to {selectedClientRecord.company_name} for each approved hour.</div>
+                </label>
+              )}
             </div>
           </fieldset>
         );

@@ -166,7 +166,7 @@ export default function EmployeeConversionScreen() {
 
       if (result?.status === "success") {
         setActionSuccess(
-          `Employee created successfully! Employee ID: ${result.employee_id}`
+          `Employee created (ID ${result.employee_id})${result.allocation_id ? " and allocated to the job's client" : ""}.`
         );
         // Reset form
         setFormData({

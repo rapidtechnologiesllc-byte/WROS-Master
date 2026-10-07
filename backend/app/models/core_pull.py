@@ -38,7 +38,7 @@ class CorePullEvent(Base):
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
 
     employee_id = Column(String(512), ForeignKey("employees.id"), nullable=False, index=True)
-    core_demand_id = Column(String(512), ForeignKey("demands.id"), nullable=False, index=True)
+    core_demand_id = Column(String(512), ForeignKey("jobs.jobID"), nullable=False, index=True)
     speciality_allocation_id = Column(String(512), ForeignKey("employee_allocations.id"), nullable=False, index=True)
 
     status = Column(

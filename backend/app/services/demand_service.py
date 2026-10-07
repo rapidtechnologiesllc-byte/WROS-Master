@@ -109,8 +109,8 @@ def record_placement(db: Session, demand: Demand) -> Demand:
     the auto-fill-and-transition logic lives in one place from the start
     rather than being reimplemented per caller).
     """
-    demand.positions_filled += 1
-    if demand.positions_filled >= demand.headcount and demand.status != "FILLED":
+    demand.positions_filled = (demand.positions_filled or 0) + 1
+    if demand.positions_filled >= (demand.headcount or 1) and demand.status != "FILLED":
         transition_demand_status(db, demand, "FILLED", reason="Headcount reached", changed_by="system")
     else:
         db.add(demand)

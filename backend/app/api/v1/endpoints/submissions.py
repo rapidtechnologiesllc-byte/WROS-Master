@@ -32,6 +32,7 @@ Routes:
       The compliance audit log (every blocked attempt).
 """
 
+from app.services.employee_allocation_service import AllocationOverCapacity, BuddyProgramNotGraduated, EmployeeAlreadyAllocated
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -97,28 +98,10 @@ def submit_candidate(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user),
 ):
-    # Try to find as Demand first, then fall back to Job (treat Job as demand)
+    # A demand and a job are the same record (jobs table)
     demand = db.query(Demand).filter(Demand.id == body.demand_id).first()
     if demand is None:
-        # Fall back: try to find as Job and treat it as demand for submission
-        from app.models.jobs import Job
-        job = db.query(Job).filter(Job.job_id == body.demand_id).first()
-        if job is None:
-            raise HTTPException(status_code=404, detail="Demand or Job not found.")
-        # For job submission, create a minimal demand-like object
-        # The create_submission function needs a demand object with at least id
-        class JobAsDemand:
-            def __init__(self, job):
-                self.id = job.job_id
-                self.job_id = job.job_id
-                self.title = job.job_title
-                self.status = "open"
-                self.tenant_id = job.tenant_id
-        demand = JobAsDemand(job)
-    else:
-        # Ensure demand has required attributes
-        if not hasattr(demand, 'id'):
-            demand.id = body.demand_id
+        raise HTTPException(status_code=404, detail="Job not found.")
     candidate = db.query(Candidate).filter(Candidate.candidateID == body.candidate_id).first()
     if candidate is None:
         raise HTTPException(status_code=404, detail="Candidate not found.")
@@ -217,6 +200,10 @@ def client_response(
         )
     except InvalidSubmissionTransition as exc:
         raise HTTPException(status_code=409, detail=str(exc))
+    except (EmployeeAlreadyAllocated, BuddyProgramNotGraduated, AllocationOverCapacity) as exc:
+        # PLACED allocates the employee to the client; it can't be recorded half-done
+        db.rollback()
+        raise HTTPException(status_code=409, detail=f"Cannot place: {exc}")
     db.commit()
     db.refresh(submission)
     return _to_item(db, submission)

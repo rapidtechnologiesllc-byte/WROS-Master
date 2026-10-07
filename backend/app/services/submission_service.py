@@ -260,5 +260,31 @@ def update_client_response(
         demand = db.query(Demand).filter(Demand.id == submission.demand_id).first()
         if demand is not None:
             record_placement(db, demand)
+            _allocate_placed_employee(db, submission, demand)
 
     return submission
+
+
+def _allocate_placed_employee(db: Session, submission: Submission, demand) -> None:
+    """A placement puts the employee on the job's client (and project): the
+    ACTIVE allocation timesheets and invoices hang off. Idempotent per
+    employee+job; a conflicting active allocation elsewhere is raised, not
+    silently skipped, so the placement can't be recorded half-done."""
+    from app.models.employee_allocation import EmployeeAllocation
+    from app.models.project import Project
+    from app.services.employee_allocation_service import allocate_employee_to_project
+
+    employee = db.query(Employee).filter(Employee.candidate_id == submission.candidate_id).first()
+    if employee is None or not demand.client_id:
+        return
+    already = db.query(EmployeeAllocation).filter(
+        EmployeeAllocation.employee_id == employee.id, EmployeeAllocation.demand_id == demand.id,
+        EmployeeAllocation.status == "ACTIVE",
+    ).first()
+    if already:
+        return
+    project = db.query(Project).filter(Project.id == demand.project_id).first() if demand.project_id else None
+    allocate_employee_to_project(
+        db, tenant_id=submission.tenant_id, employee=employee, demand=demand,
+        start_date=demand.required_start_date, project=project, role=demand.job_title,
+    )

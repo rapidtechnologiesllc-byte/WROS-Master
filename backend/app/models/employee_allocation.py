@@ -56,7 +56,7 @@ class EmployeeAllocation(Base):
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
 
     employee_id = Column(String(512), ForeignKey("employees.id"), nullable=False, index=True)
-    demand_id = Column(String(512), ForeignKey("demands.id"), nullable=False, index=True)
+    demand_id = Column(String(512), ForeignKey("jobs.jobID"), nullable=False, index=True)
     client_id = Column(String(512), ForeignKey("clients.id"), nullable=False, index=True)
     # HRMS-0803 -- nullable: not every allocation is tied to a tracked project.
     project_id = Column(String(512), ForeignKey("projects.id"), nullable=True, index=True)

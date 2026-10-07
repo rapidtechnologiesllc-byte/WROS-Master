@@ -151,6 +151,12 @@ class JobCreateRequest(BaseModel):
     business_unit: Optional[int] = None
     department_id: Optional[str] = None
     start_date: Optional[date] = None
+    # The client this role is for (Client Management); empty for an internal hire.
+    # When omitted, company_name is matched against the client list.
+    client_id: Optional[str] = None
+    project_id: Optional[str] = None
+    # What the client is billed per hour for this role (invoices use it)
+    billing_rate_usd_cents: Optional[int] = None
 
 class JobCreateResponse(BaseModel):
     job_id: str
@@ -180,6 +186,10 @@ class JobResponse(BaseModel):
     salary_range: Optional[str] = None
     required_skills_canonical: Optional[list] = None
     job_skills_boolean_mode: Optional[str] = None
+    client_id: Optional[str] = None
+    client_name: Optional[str] = None
+    project_id: Optional[str] = None
+    billing_rate_usd_cents: Optional[int] = None
 
 class AllJobsResponse(BaseModel):
     total_jobs: int
@@ -336,6 +346,9 @@ class JobUpdateRequest(BaseModel):
     recuriter_id: Optional[str] = None
     hiring_manager_id: Optional[str] = None
     business_unit: Optional[int] = None
+    client_id: Optional[str] = None  # "" clears
+    project_id: Optional[str] = None  # "" clears
+    billing_rate_usd_cents: Optional[int] = None
     department_id: Optional[str] = None
 
 class CandidateUpdateRequest(BaseModel):

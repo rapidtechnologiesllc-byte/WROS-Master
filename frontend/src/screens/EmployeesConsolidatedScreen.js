@@ -8,7 +8,7 @@ import { useEffect, useState } from "react";
 import { Users, Briefcase, Grid3x3, UserPlus, ArrowRightLeft, RefreshCw, AlertCircle, CheckCircle2, Search } from "lucide-react";
 import { Card, Button, Input, Select, TextArea, StatusBadge } from "../components/ui";
 import cx from "../utils/cx";
-import { getAllEmployees, createEmployee, convertCandidateToEmployee, markEmployeeOnBench, removeEmployeeFromBench, updateEmployeeCertifications, updateEmployeeOrganization } from "../services/api/employees";
+import { getAllEmployees, createEmployee, markEmployeeOnBench, removeEmployeeFromBench, updateEmployeeCertifications, updateEmployeeOrganization } from "../services/api/employees";
 import { apiRequest } from "../services/api/client";
 
 // Our companies (Users & Access Control > Companies) and business units

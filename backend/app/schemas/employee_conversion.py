@@ -16,6 +16,8 @@ class EmployeeConversionRequest(BaseModel):
     first_name: Optional[str] = None
     last_name: Optional[str] = None
     job_title: Optional[str] = None
+    # Employer company; defaults from the job's client / the BU
+    company_id: Optional[str] = None
 
 class EmployeeAccountRequest(BaseModel):
     employee_name: str
@@ -36,6 +38,10 @@ class EmployeeConversionResponse(BaseModel):
     employee_email: str
     user_id: str
     roles_assigned: int
+    business_unit_id: Optional[int] = None
+    company_id: Optional[str] = None
+    allocation_id: Optional[str] = None  # set when the hire was for a client job
+    client_id: Optional[str] = None
 
 class EmployeeAccountResponse(BaseModel):
     user_id: str
