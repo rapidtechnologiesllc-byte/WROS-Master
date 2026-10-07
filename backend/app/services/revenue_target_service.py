@@ -215,9 +215,10 @@ def get_executive_revenue_dashboard(db: Session, *, client_ids: Optional[List[st
     rows = query.all()
 
     opportunities = [o for o, _bu_id in rows]
-    won = [o for o in opportunities if o.stage == "WON"]
+    # Won = contract signed / active engagement (there is no "WON" stage)
+    won = [o for o in opportunities if o.stage in WON_STAGES]
     lost = [o for o in opportunities if o.stage == "LOST"]
-    open_opps = [o for o in opportunities if o.stage not in ("WON", "LOST")]
+    open_opps = [o for o in opportunities if o.stage not in WON_STAGES + ("LOST",)]
 
     total_pipeline_usd_cents = sum(o.revenue_value_usd_cents for o in open_opps)
     won_usd_cents = sum(o.revenue_value_usd_cents for o in won)
@@ -227,7 +228,7 @@ def get_executive_revenue_dashboard(db: Session, *, client_ids: Optional[List[st
     by_bu = {}
     for o, bu_id in rows:
         bucket = by_bu.setdefault(bu_id, {"business_unit_id": bu_id, "pipeline_usd_cents": 0, "won_usd_cents": 0, "weighted_forecast_usd_cents": 0})
-        if o.stage == "WON":
+        if o.stage in WON_STAGES:
             bucket["won_usd_cents"] += o.revenue_value_usd_cents
         elif o.stage != "LOST":
             bucket["pipeline_usd_cents"] += o.revenue_value_usd_cents
@@ -239,6 +240,102 @@ def get_executive_revenue_dashboard(db: Session, *, client_ids: Optional[List[st
         "lost_usd_cents": lost_usd_cents,
         "weighted_forecast_usd_cents": weighted_forecast_usd_cents,
         "by_business_unit": list(by_bu.values()),
+        **_executive_extras(db, client_ids=client_ids, pipeline_by_bu=by_bu,
+                            total_pipeline_usd_cents=total_pipeline_usd_cents),
+    }
+
+
+WON_STAGES = ("CONTRACT", "ACTIVE")
+BENCH_AGING_DAYS = 60
+
+
+def _executive_extras(db: Session, *, client_ids, pipeline_by_bu: dict, total_pipeline_usd_cents: int) -> dict:
+    """CEO Executive Metrics: YTD revenue, revenue per BU (every active BU
+    from Business Units admin, with its FY revenue target from the goal
+    tree), pipeline coverage of the org FY revenue target, capacity
+    utilization and risk counts -- all from real records."""
+    from datetime import date as date_type, timedelta as td
+
+    from app.models.business_unit import BusinessUnit
+    from app.models.employee import Employee
+    from app.models.employee_allocation import EmployeeAllocation
+    from app.models.revenue_leakage import RevenueLeakageFlag
+    from app.models.strategic_goal import GoalTarget
+    from app.services.ar_followup_service import scan_overdue_invoices
+
+    now = datetime.utcnow()
+    year = now.year
+    start, end = datetime(year, 1, 1), datetime(year + 1, 1, 1)
+
+    revenue_query = (
+        db.query(Client.business_unit_id, func.sum(Invoice.total_usd_cents))
+        .join(Client, Client.id == Invoice.client_id)
+        .filter(Invoice.status.in_(("APPROVED", "SENT", "PAID")), Invoice.created_at >= start, Invoice.created_at < end)
+    )
+    if client_ids is not None:
+        revenue_query = revenue_query.filter(Invoice.client_id.in_(client_ids))
+    revenue_by_bu = {bu_id: int(total or 0) for bu_id, total in revenue_query.group_by(Client.business_unit_id).all()}
+
+    bu_targets = {
+        row.entity_id: row.target
+        for row in db.query(GoalTarget).filter(GoalTarget.year == year, GoalTarget.level == "BU",
+                                               GoalTarget.metric == "revenue").all()
+    }
+    visible_bus = None if client_ids is None else {bu for bu in revenue_by_bu} | {bu for bu in pipeline_by_bu}
+    bu_metrics = []
+    for bu in db.query(BusinessUnit).filter(BusinessUnit.active.is_(True)).order_by(BusinessUnit.name).all():
+        if visible_bus is not None and bu.id not in visible_bus:
+            continue
+        target = bu_targets.get(str(bu.id))
+        pipeline = pipeline_by_bu.get(bu.id, {})
+        bu_metrics.append({
+            "business_unit_id": bu.id,
+            "name": bu.display_name or bu.name,
+            "revenue_usd_cents": revenue_by_bu.get(bu.id, 0),
+            "target_usd_cents": int(round(target * 100)) if target else None,
+            "pipeline_usd_cents": pipeline.get("pipeline_usd_cents", 0),
+            "won_usd_cents": pipeline.get("won_usd_cents", 0),
+        })
+    bu_metrics.sort(key=lambda b: b["revenue_usd_cents"], reverse=True)
+    unassigned_revenue = revenue_by_bu.get(None, 0)
+
+    org_target = db.query(GoalTarget).filter(GoalTarget.year == year, GoalTarget.level == "ORG",
+                                             GoalTarget.metric == "revenue").first()
+    pipeline_coverage = (
+        round(total_pipeline_usd_cents / (org_target.target * 100), 2) if org_target and org_target.target else None
+    )
+
+    working = db.query(Employee).filter(Employee.status.notin_(("PRE_JOINING", "EXITED"))).all()
+    allocated_ids = {
+        row[0] for row in db.query(EmployeeAllocation.employee_id).filter(EmployeeAllocation.status == "ACTIVE").all()
+    }
+    allocated = sum(1 for e in working if e.id in allocated_ids)
+    utilization = round(allocated / len(working) * 100, 1) if working else None
+    unallocated = [e for e in working if e.id not in allocated_ids]
+    aging_cutoff = date_type.today() - td(days=BENCH_AGING_DAYS)
+    bench_aging = sum(1 for e in unallocated if e.joining_date and e.joining_date <= aging_cutoff)
+
+    leakage_flags = db.query(func.count(RevenueLeakageFlag.id)).filter(
+        RevenueLeakageFlag.partial_billing_reason.is_(None)
+    ).scalar() or 0
+    overdue = scan_overdue_invoices(db)
+
+    return {
+        "total_revenue_usd_cents": sum(revenue_by_bu.values()),
+        "unassigned_bu_revenue_usd_cents": unassigned_revenue,
+        "bu_metrics": bu_metrics,
+        "pipeline_coverage": pipeline_coverage,
+        "team_capacity_utilization_pct": utilization,
+        "risks": [
+            {"key": "revenue_leakage", "label": "Revenue Leakage", "severity": "high", "value": leakage_flags,
+             "detail": "Approved hours not invoiced (unexplained)"},
+            {"key": "overdue_invoices", "label": "Overdue Invoices", "severity": "medium", "value": len(overdue),
+             "detail": "Sent and unpaid past the grace period"},
+            {"key": "bench_aging", "label": f"Bench Aging > {BENCH_AGING_DAYS}d", "severity": "medium", "value": bench_aging,
+             "detail": f"Unallocated, joined more than {BENCH_AGING_DAYS} days ago"},
+            {"key": "unallocated", "label": "Unallocated Employees", "severity": "low", "value": len(unallocated),
+             "detail": "Working employees without an active allocation"},
+        ],
     }
 
 def get_pipeline_coverage(db: Session, *, client_ids: Optional[List[str]], revenue_target_usd_cents: int) -> Optional[float]:

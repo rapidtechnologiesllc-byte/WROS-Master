@@ -144,7 +144,11 @@ function MetricCard({ metric, onSaveTarget }) {
 
 function RevenueByBUChart({ buMetrics }) {
   if (!buMetrics || buMetrics.length === 0) {
-    return <div className="text-gray-500 text-sm">No revenue data by BU</div>;
+    return (
+      <div className="text-gray-500 text-sm">
+        No business units yet -- add them in Users &amp; Access Control → Business Units.
+      </div>
+    );
   }
 
   const colors = ["bg-blue-500", "bg-purple-500", "bg-pink-500", "bg-orange-500", "bg-green-500"];
@@ -153,13 +157,16 @@ function RevenueByBUChart({ buMetrics }) {
     <div className="space-y-3">
       {buMetrics.slice(0, 5).map((bu, idx) => {
         const maxRevenue = Math.max(...buMetrics.map(b => b.revenue_usd_cents || 0));
-        const percentage = maxRevenue ? (bu.revenue_usd_cents / maxRevenue) * 100 : 0;
+        const percentage = bu.target_usd_cents ? Math.min((bu.revenue_usd_cents / bu.target_usd_cents) * 100, 100) : (maxRevenue ? (bu.revenue_usd_cents / maxRevenue) * 100 : 0);
 
         return (
           <div key={idx}>
             <div className="flex items-center justify-between text-sm mb-1">
               <span className="font-medium text-gray-900">{bu.name}</span>
-              <span className="text-gray-600">{formatUsdCents(bu.revenue_usd_cents)}</span>
+              <span className="text-gray-600">
+                {formatUsdCents(bu.revenue_usd_cents)}
+                {bu.target_usd_cents ? ` / ${formatUsdCents(bu.target_usd_cents)} target` : ""}
+              </span>
             </div>
             <div className="w-full bg-gray-200 rounded-full h-2">
               <div
@@ -213,17 +220,17 @@ function PipelineFunnel({ candidates }) {
   );
 }
 
+const RISK_ICONS = { revenue_leakage: "💸", overdue_invoices: "📋", bench_aging: "⏳", unallocated: "👤" };
+
 function RiskTiles({ risks }) {
-  const defaultRisks = [
-    { label: "Revenue Leakage", severity: "high", value: "0", icon: "💸" },
-    { label: "Overdue Invoices", severity: "medium", value: "0", icon: "📋" },
-    { label: "Bench Aging > 60d", severity: "medium", value: "0", icon: "⏳" },
-    { label: "Unallocated Employees", severity: "low", value: "0", icon: "👤" },
-  ];
+  if (!risks || risks.length === 0) {
+    return <div className="text-gray-500 text-sm">Risk data unavailable</div>;
+  }
 
   return (
     <div className="grid grid-cols-2 gap-3">
-      {defaultRisks.map((risk, idx) => {
+      {risks.map((r, idx) => {
+        const risk = { ...r, icon: RISK_ICONS[r.key] || "⚠️" };
         const bgColor =
           risk.severity === "high" ? "bg-rose-50 border-rose-200" :
           risk.severity === "medium" ? "bg-amber-50 border-amber-200" :
@@ -239,6 +246,7 @@ function RiskTiles({ risks }) {
             <div className="text-2xl mb-1">{risk.icon}</div>
             <div className={`text-xs font-semibold ${textColor}`}>{risk.label}</div>
             <div className="text-lg font-bold text-gray-900 mt-1">{risk.value}</div>
+            {risk.detail && <div className="text-[11px] text-gray-500">{risk.detail}</div>}
           </div>
         );
       })}

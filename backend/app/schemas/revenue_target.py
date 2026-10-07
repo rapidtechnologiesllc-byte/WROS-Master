@@ -69,6 +69,13 @@ class ExecutiveRevenueDashboardResponse(BaseModel):
     lost_usd_cents: int
     weighted_forecast_usd_cents: int
     by_business_unit: list[BUDashboardBucket]
+    # CEO Executive Metrics tab
+    total_revenue_usd_cents: int = 0
+    unassigned_bu_revenue_usd_cents: int = 0
+    bu_metrics: list[dict] = []
+    pipeline_coverage: Optional[float] = None
+    team_capacity_utilization_pct: Optional[float] = None
+    risks: list[dict] = []
 
 class PipelineCoverageResponse(BaseModel):
     revenue_target_usd_cents: int
