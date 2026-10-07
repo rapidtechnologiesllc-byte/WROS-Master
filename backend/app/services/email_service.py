@@ -1,5 +1,6 @@
 import base64
 import requests
+import os
 from typing import List, Optional, Dict, Any
 from fastapi import HTTPException
 from app.core.graph_auth import get_graph_token
@@ -850,6 +851,40 @@ class EmailService:
             logger.error(f"Error: {str(e)}", exc_info=True)
             logger.error(f"[EmailService] send_login_credentials error: {e}")
             raise HTTPException(status_code=500, detail=str(e))
+
+    @classmethod
+    def send_user_welcome(
+        cls, *, to_email: str, user_name: str, temporary_password: str, role_name: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """New HRMS user (Users & Access Control): login link, email and the
+        temporary password the admin set. The account requires a new
+        password on first sign-in."""
+        portal_link = os.getenv("PRODUCTION_FRONTEND_URL") or "https://hrms.blitzenx.com/"
+        role_line = f" as <strong>{role_name}</strong>" if role_name else ""
+        body = f"""
+        <p style="font-size:16px;color:#111827;margin:0 0 16px;">Hi <strong>{user_name}</strong>,</p>
+        <p style="font-size:14px;color:#374151;line-height:1.6;">
+          Your BlitzenX HRMS account has been created{role_line}.
+        </p>
+        <table width="100%" cellpadding="0" cellspacing="0"
+               style="background:#f0f4ff;border-radius:6px;padding:16px;margin:16px 0;">
+          <tr><td style="padding:8px 0;font-size:14px;color:#374151;">
+            <strong>Sign in:</strong> <a href="{portal_link}" style="color:#1a56db;">{portal_link}</a></td></tr>
+          <tr><td style="padding:8px 0;font-size:14px;color:#374151;"><strong>Email:</strong> {to_email}</td></tr>
+          <tr><td style="padding:8px 0;font-size:14px;color:#374151;"><strong>Temporary password:</strong>
+            <span style="font-family:monospace;background:#e0e7ff;padding:2px 8px;border-radius:4px;">{temporary_password}</span></td></tr>
+        </table>
+        <p style="font-size:14px;color:#374151;line-height:1.6;">
+          You'll be asked to set your own password the first time you sign in.
+        </p>
+        <p style="font-size:14px;color:#374151;margin-top:24px;">Regards,<br/><strong>BlitzenX HR Team</strong></p>
+        """
+        return cls.send_email(
+            to_email=to_email,
+            subject="Your BlitzenX HRMS account",
+            body_content=cls._base_html("Welcome to BlitzenX HRMS", body),
+            is_html=True,
+        )
 
     # ------------------------------------------------------------------
     # Offer Letter Workflow Emails

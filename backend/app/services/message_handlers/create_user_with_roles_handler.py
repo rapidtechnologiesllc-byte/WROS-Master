@@ -18,6 +18,10 @@ from app.utils.uniq_id_generator import user_id_generator
 logger = logging.getLogger(__name__)
 
 
+# Queue handler SLA (gate rule: every handler declares its timeout)
+TIMEOUT_SECONDS = 30
+
+
 def handle_create_user_with_roles(message: Any, db: Session) -> Dict[str, Any]:
     payload = message.payload or {}
 
@@ -84,9 +88,23 @@ def handle_create_user_with_roles(message: Any, db: Session) -> Dict[str, Any]:
         f"role_template_id={role_template.id} org_node_id={org_node.id} tenant_id={tenant_id}"
     )
 
+    # Welcome email (login link + temporary password). The account exists
+    # either way; a failed email is logged and reported in the result.
+    try:
+        from app.services.email_service import EmailService
+        sent = EmailService.send_user_welcome(
+            to_email=user_email, user_name=user_name, temporary_password=user_password,
+            role_name=role_template.display_name or role_template.name,
+        )
+        welcome_email = sent.get("status", "unknown")
+    except Exception as email_error:
+        logger.error(f"[CreateUserWithRoles] Welcome email to {user_email} failed: {email_error}", exc_info=True)
+        welcome_email = f"failed: {email_error}"
+
     return {
         "status": "user_created",
         "user_id": user.UserID,
         "user_email": user_email,
         "org_node_id": org_node.id,
+        "welcome_email": welcome_email,
     }

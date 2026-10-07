@@ -819,7 +819,8 @@ def create_user_with_roles(
         ).first()
         if not department:
             raise HTTPException(status_code=400, detail="Department not found")
-        if request.business_unit_id and department.business_unit_id != request.business_unit_id:
+        # Org-wide departments (no BU) fit any business unit
+        if request.business_unit_id and department.business_unit_id and department.business_unit_id != request.business_unit_id:
             raise HTTPException(status_code=400, detail="Department does not belong to the selected business unit")
 
     if request.location_id:
