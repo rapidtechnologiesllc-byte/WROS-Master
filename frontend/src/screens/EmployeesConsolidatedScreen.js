@@ -15,7 +15,8 @@ import { apiRequest } from "../services/api/client";
 const COMPANIES_PATH = "/api/v1/api/admin/users-access-control/delivery-centers";
 const loadOrgOptions = () => Promise.all([apiRequest(COMPANIES_PATH), apiRequest("/rbac/business-units")])
   .then(([c, b]) => ({ companies: c.data?.delivery_centers || [], businessUnits: b.data?.business_units || [] }));
-import { createAllocation, getAllocations, endAllocation, getAllocationDropdowns } from "../services/api/allocations";
+import { getAllocations, endAllocation } from "../services/api/allocations";
+import AllocationForm from "../components/AllocationForm";
 
 const EMPLOYMENT_TYPES = [
   { value: "INTERN", label: "Intern" },
@@ -422,92 +423,6 @@ function AllocationsTab() {
       setError(err.message || "Failed to end allocation");
     }
   }
-}
-
-function AllocationForm({ onCancel, onSaved }) {
-  const [employeeId, setEmployeeId] = useState("");
-  const [demandId, setDemandId] = useState("");
-  const [projectId, setProjectId] = useState("");
-  const [utilizationPct, setUtilizationPct] = useState("100");
-  const [startDate, setStartDate] = useState("");
-  const [endDate, setEndDate] = useState("");
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(true);
-  const [employees, setEmployees] = useState([]);
-  const [demands, setDemands] = useState([]);
-
-  useEffect(() => {
-    const load = async () => {
-      try {
-        const data = await getAllocationDropdowns();
-        const empOptions = (data?.employees || []).map((e) => ({
-          value: e.id,
-          label: `${e.name} • ${e.job_title || ""}`,
-        }));
-        setEmployees(empOptions);
-        setDemands((data?.demands || []).map((d) => ({ value: d.id, label: d.name })));
-      } catch (err) {
-        console.error("Failed to load dropdown data:", err);
-      } finally {
-        setLoading(false);
-      }
-    };
-    load();
-  }, []);
-
-  const handleSave = async () => {
-    if (!employeeId || !demandId) {
-      setError("Employee and Demand are required.");
-      return;
-    }
-    setSaving(true);
-    setError("");
-    try {
-      await createAllocation({
-        employeeId,
-        demandId,
-        projectId: projectId || undefined,
-        startDate: startDate || undefined,
-        endDate: endDate || undefined,
-        utilizationPct: utilizationPct ? Number(utilizationPct) : 100,
-      });
-      onSaved();
-    } catch (err) {
-      setError(err.message || "Allocation blocked.");
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  if (loading) return <div className="text-gray-500">Loading form...</div>;
-
-  return (
-    <Card className="p-4">
-      <h3 className="font-semibold mb-3">Add Employee Allocation</h3>
-      {error && (
-        <div className="mb-3 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
-          {error}
-        </div>
-      )}
-      <div className="grid gap-3 sm:grid-cols-2">
-        <Select label="Employee" value={employeeId} onChange={setEmployeeId} options={employees} />
-        <Select label="Demand" value={demandId} onChange={setDemandId} options={demands} />
-        <Input label="Project ID (optional)" value={projectId} onChange={setProjectId} />
-        <Input label="Utilization %" type="number" value={utilizationPct} onChange={setUtilizationPct} />
-        <Input label="Start Date" type="date" value={startDate} onChange={setStartDate} />
-        <Input label="End Date (optional)" type="date" value={endDate} onChange={setEndDate} />
-      </div>
-      <div className="mt-3 flex gap-2">
-        <Button variant="primary" disabled={saving} onClick={handleSave}>
-          {saving ? "Saving…" : "Create Allocation"}
-        </Button>
-        <Button variant="ghost" onClick={onCancel}>
-          Cancel
-        </Button>
-      </div>
-    </Card>
-  );
 }
 
 function ResourcesTab() {

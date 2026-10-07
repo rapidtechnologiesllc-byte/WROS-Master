@@ -12,6 +12,7 @@ export const createAllocation = async ({
   utilizationPct,
   role,
   allowConcurrent,
+  billingRateUsdCents,
 }) => {
   const { data } = await apiRequest("/allocations", {
     method: "POST",
@@ -24,6 +25,7 @@ export const createAllocation = async ({
       utilization_pct: utilizationPct != null ? Number(utilizationPct) : undefined,
       role: role || undefined,
       allow_concurrent: !!allowConcurrent,
+      billing_rate_usd_cents: billingRateUsdCents || undefined,
     }),
   });
   return data;

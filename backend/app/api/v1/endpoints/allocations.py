@@ -39,7 +39,7 @@ from app.models.user import Users
 from app.schemas.allocation import (
     AllocationItem,
     AllocationListResponse,
-    AllocationDropdownsResponse,
+    AllocationDropdownsResponse, JobDropdownItem,
     CreateAllocationRequest,
     DropdownItem,
     EndAllocationRequest,
@@ -149,8 +149,18 @@ def get_allocation_dropdowns(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user),
 ):
-    employees = db.query(Employee).filter(Employee.tenant_id == current_user.tenant_id).order_by(Employee.created_at.desc()).all()
-    demands = db.query(Demand).filter(Demand.tenant_id == current_user.tenant_id).order_by(Demand.created_at.desc()).all()
+    from app.models.client import Client
+
+    employees = db.query(Employee).filter(
+        Employee.tenant_id == current_user.tenant_id, Employee.status != "EXITED",
+    ).order_by(Employee.created_at.desc()).all()
+    # Allocations bill a client, so only client jobs that are still live
+    demands = db.query(Demand).filter(
+        Demand.tenant_id == current_user.tenant_id, Demand.client_id.isnot(None),
+        Demand.is_deleted.is_(False), Demand.status != "CANCELLED",
+    ).order_by(Demand.created_at.desc()).all()
+    clients = {c.id: c.company_name for c in db.query(Client).filter(Client.id.in_({d.client_id for d in demands}))}
+    projects = {p.id: p.name for p in db.query(Project).filter(Project.id.in_({d.project_id for d in demands if d.project_id}))}
 
     employee_items = [
         DropdownItem(
@@ -160,9 +170,10 @@ def get_allocation_dropdowns(
         for e in employees
     ]
     demand_items = [
-        DropdownItem(
-            id=d.id,
-            name=f"{d.job_title}" if d.job_title else "(no title)"
+        JobDropdownItem(
+            id=d.id, name=d.job_title or "(no title)", client_name=clients.get(d.client_id),
+            project_id=d.project_id, project_name=projects.get(d.project_id),
+            billing_rate_usd_cents=d.billing_rate_usd_cents, status=d.status,
         )
         for d in demands
     ]

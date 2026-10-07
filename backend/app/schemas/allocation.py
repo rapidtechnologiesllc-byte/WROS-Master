@@ -59,6 +59,16 @@ class DropdownItem(BaseModel):
     id: str
     name: str
 
+class JobDropdownItem(BaseModel):
+    """A client job an employee can be allocated to (a job is the demand)."""
+    id: str
+    name: str
+    client_name: Optional[str] = None
+    project_id: Optional[str] = None
+    project_name: Optional[str] = None
+    billing_rate_usd_cents: Optional[int] = None
+    status: Optional[str] = None
+
 class AllocationDropdownsResponse(BaseModel):
     employees: List[DropdownItem]
-    demands: List[DropdownItem]
+    demands: List[JobDropdownItem]
