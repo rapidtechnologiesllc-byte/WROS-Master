@@ -955,8 +955,6 @@ export default function UsersAndAccessControl() {
   const [verbMatrix, setVerbMatrix] = useState({});
   const [currentUserPermissions, setCurrentUserPermissions] = useState({});
 
-  const canManageRoles = hasPermission("user_roles", "edit");
-
   useEffect(() => {
     loadData();
   }, []);
@@ -1020,6 +1018,7 @@ export default function UsersAndAccessControl() {
 function BusinessUnitsSection() {
   const navigate = useNavigate();
   const [businessUnits, setBusinessUnits] = useState([]);
+  const [loaded, setLoaded] = useState(false);
   const [actionError, setActionError] = useState(null);
   const [actionSuccess, setActionSuccess] = useState(null);
 
@@ -1035,8 +1034,10 @@ function BusinessUnitsSection() {
       const busData = Array.isArray(response) ? response : response?.data || [];
       setBusinessUnits(busData);
     } catch (err) {
-      console.error("Failed to load business units:", err);
-      setBusinessUnits([]);
+      console.error("[BusinessUnitsSection] Failed to load business units:", err);
+      setActionError(`Could not load business units: ${err.message}`);
+    } finally {
+      setLoaded(true);
     }
   };
 
@@ -1091,13 +1092,16 @@ function BusinessUnitsSection() {
         </div>
       )}
 
-      {hasPermission("business_unit", "create") && (
+      {hasPermission("business-units", "create") && (
         <button
           onClick={() => navigate('/admin/users-access-control/business-units/create')}
           className="flex items-center gap-2 px-4 py-2 bg-bx-orange text-white rounded-lg hover:bg-bx-orange-hover text-sm font-medium"
         >
           <Plus className="h-4 w-4" /> Add Business Unit
         </button>
+      )}
+      {loaded && businessUnits.length === 0 && !actionError && (
+        <p className="text-sm text-gray-600">No business units yet. Use Add Business Unit to create the first one.</p>
       )}
       <div className="space-y-3">
         {businessUnits.map((bu) => (
