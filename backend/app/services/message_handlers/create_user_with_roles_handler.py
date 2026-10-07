@@ -60,6 +60,8 @@ def handle_create_user_with_roles(message: Any, db: Session) -> Dict[str, Any]:
             specialization=payload.get("specialization") or role_template.specialization,
             parent_id=payload.get("parent_node_id"),
             department_id=payload.get("department_id"),
+            # The seat carries the user's company (BX-US / BX-IN)
+            company_id=payload.get("location_id"),
         )
 
         user = Users(

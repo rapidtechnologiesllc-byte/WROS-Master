@@ -802,8 +802,23 @@ def create_user_with_roles(
         logger.error(f"Failed to check role template: {role_error}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to validate role template")
 
-    # The role template is the source of truth for org level/specialization
-    if (request.hierarchy_level, request.specialization) != (role_template.hierarchy_level, role_template.specialization):
+    # The role template is the source of truth for org level/specialization,
+    # except the CEO seat: the top of the organization (level 17, reports to
+    # no one) whatever template grants their permissions. One per tenant.
+    is_ceo_seat = (request.job_title or "").strip().upper() == "CEO" and request.hierarchy_level == 17
+    if is_ceo_seat:
+        from app.models.org_structure import OrgNode
+        existing_ceo = db.query(OrgNode).filter(
+            OrgNode.tenant_id == current_user.tenant_id, OrgNode.hierarchy_level == 17, OrgNode.active.is_(True),
+        ).first()
+        if existing_ceo:
+            raise HTTPException(
+                status_code=409,
+                detail=f"The organization already has a CEO seat ({existing_ceo.name}) in the org chart",
+            )
+        if request.parent_node_id:
+            raise HTTPException(status_code=400, detail="The CEO reports to no one")
+    elif (request.hierarchy_level, request.specialization) != (role_template.hierarchy_level, role_template.specialization):
         raise HTTPException(
             status_code=400,
             detail=(

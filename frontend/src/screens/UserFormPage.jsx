@@ -225,6 +225,13 @@ export default function UserFormPage() {
       });
   }, [formData.hierarchy_level, formData.specialization, formData.business_unit_id]);
 
+  // The org-chart seat: a CEO is the top of the organization (level 17,
+  // reports to no one) whatever role template grants their permissions;
+  // everyone else takes the level/specialization of their role template.
+  const isCeo = formData.job_title === 'CEO';
+  const seatLevel = isCeo ? 17 : formData.hierarchy_level;
+  const seatSpecialization = isCeo ? 'General' : formData.specialization;
+
   const handleSave = async (e) => {
     e.preventDefault();
 
@@ -248,11 +255,11 @@ export default function UserFormPage() {
       setActionError('Role Template is required');
       return;
     }
-    if (mode === 'create' && (!formData.hierarchy_level || !formData.specialization)) {
+    if (mode === 'create' && (!seatLevel || !seatSpecialization)) {
       setActionError('Selected role template is missing a hierarchy level/specialization - pick a different role template');
       return;
     }
-    if (mode === 'create' && Number(formData.hierarchy_level) < 17 && !formData.parent_node_id) {
+    if (mode === 'create' && Number(seatLevel) < 17 && !formData.parent_node_id) {
       setActionError('Reports To is required for this hierarchy level');
       return;
     }
@@ -266,9 +273,9 @@ export default function UserFormPage() {
           job_title: formData.job_title.trim(),
           business_unit_id: parseInt(formData.business_unit_id, 10),
           role_template_id: parseInt(formData.role_template_id, 10),
-          hierarchy_level: parseInt(formData.hierarchy_level, 10),
-          specialization: formData.specialization,
-          parent_node_id: formData.parent_node_id || null,
+          hierarchy_level: parseInt(seatLevel, 10),
+          specialization: seatSpecialization,
+          parent_node_id: isCeo ? null : (formData.parent_node_id || null),
           department_id: formData.department_id || null,
           location_id: formData.location_id || null,
           user_password: formData.user_password
@@ -526,19 +533,19 @@ export default function UserFormPage() {
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Hierarchy Level
                 </label>
-                <Input type="text" value={formData.hierarchy_level ? `Level ${formData.hierarchy_level}` : ''} disabled />
+                <Input type="text" value={seatLevel ? `Level ${seatLevel}${isCeo ? ' (CEO - top of the organization)' : ''}` : ''} disabled />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Specialization
                 </label>
-                <Input type="text" value={formData.specialization || ''} disabled />
+                <Input type="text" value={seatSpecialization || ''} disabled />
               </div>
             </div>
           )}
 
           {/* Reports To - required for anyone below CEO level */}
-          {mode === 'create' && formData.hierarchy_level && Number(formData.hierarchy_level) < 17 && (
+          {mode === 'create' && seatLevel && Number(seatLevel) < 17 && (
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Reports To *
