@@ -18,6 +18,7 @@ class JobDescriptionState(TypedDict):
     location: str
     generated_description: str
     skills_needed: List[str]
+    ai_generated: bool
 
 def generate_description_node(state: JobDescriptionState) -> JobDescriptionState:
     """
@@ -41,26 +42,42 @@ Generate a professional, detailed job description that:
 5. Ends with application instructions
 
 Keep tone professional but friendly."""
+        if llm is None:
+            raise RuntimeError("No AI provider configured")
         result = llm.invoke(prompt)
         state['generated_description'] = result.content
+        state['ai_generated'] = True
         logger.info(f"Job description generated using {provider.value}")
     except Exception as e:
         logger.error(f"Failed to generate job description: {e}. Using template fallback.")
         # Return a professional template instead of error message
-        state['generated_description'] = f"""Overview:
-{state['job_description_oneliner']}
-
-Roles & Responsibilities:
-- Lead technical initiatives and contribute to team success
-- Collaborate with cross-functional teams to deliver solutions
-- Participate in code reviews and knowledge sharing
-- Drive quality and best practices
-
-Qualifications:
-- {state['experience']} years of professional experience
-- Strong problem-solving and communication skills
-- Experience in building scalable solutions
-- Located in or willing to work in {state['location']}"""
+        qualifications = []
+        if state['experience']:
+            qualifications.append(f"- {state['experience']} of relevant experience")
+        qualifications += [
+            "- Strong problem-solving and communication skills",
+            "- Experience in building scalable solutions",
+        ]
+        if state['location']:
+            qualifications.append(f"- Located in or willing to work in {state['location']}")
+        title_line = state['job_title'] + chr(10) if state['job_title'] else ''
+        responsibilities = [
+            '- Lead technical initiatives and contribute to team success',
+            '- Collaborate with cross-functional teams to deliver solutions',
+            '- Participate in code reviews and knowledge sharing',
+            '- Drive quality and best practices',
+        ]
+        state['generated_description'] = chr(10).join([
+            'Overview:',
+            title_line + state['job_description_oneliner'],
+            '',
+            'Roles & Responsibilities:',
+            *responsibilities,
+            '',
+            'Qualifications:',
+            *qualifications,
+        ])
+        state['ai_generated'] = False
 
     return state
 
@@ -69,6 +86,8 @@ def extract_skills_node(state: JobDescriptionState) -> JobDescriptionState:
     Node to extract required skills from generated description.
     """
     try:
+        if not state.get('ai_generated'):
+            raise RuntimeError("Skills come from the AI only when it wrote the description")
         llm, provider = get_llm()
         prompt = f"""
 From this job description, extract the top 10 required skills as a simple comma-separated list.
@@ -112,10 +131,12 @@ def generate_job_description_with_state(
         "experience": experience,
         "location": location,
         "generated_description": "",
-        "skills_needed": []
+        "skills_needed": [],
+        "ai_generated": False,
     })
 
     return {
         "generated_description": result.get("generated_description", ""),
-        "skills_needed": result.get("skills_needed", [])
+        "skills_needed": result.get("skills_needed", []),
+        "ai_generated": bool(result.get("ai_generated")),
     }

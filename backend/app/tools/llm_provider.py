@@ -18,6 +18,16 @@ load_dotenv()
 
 logger = logging.getLogger(__name__)
 
+
+def real_api_key(name: str):
+    """The env API key, or None when unset or still a template/dummy value
+    ("your_..._here", "...Dummy...", "sk-ant-d01-dummy-...")."""
+    value = (os.getenv(name) or "").strip()
+    lowered = value.lower()
+    if not value or "your_" in lowered or "dummy" in lowered or "placeholder" in lowered or len(value) < 20:
+        return None
+    return value
+
 class LLMProvider(Enum):
     CLAUDE = "claude"
     GEMINI = "gemini"
@@ -40,7 +50,7 @@ class RoundRobinLLMProvider:
         if "gemini" not in self.llm_instances:
             try:
                 from langchain_google_genai import ChatGoogleGenerativeAI
-                api_key = os.getenv("GEMINI_API_KEY")
+                api_key = real_api_key("GEMINI_API_KEY")
                 # Skip if API key not set or is dummy key
                 if not api_key or api_key == "AIzaSyDummy_For_Local_Dev":
                     logger.warning("GEMINI_API_KEY not set or is dummy key, skipping Gemini")
@@ -60,7 +70,7 @@ class RoundRobinLLMProvider:
         if "claude" not in self.llm_instances:
             try:
                 from langchain_anthropic import ChatAnthropic
-                api_key = os.getenv("ANTHROPIC_API_KEY")
+                api_key = real_api_key("ANTHROPIC_API_KEY")
                 if not api_key:
                     logger.warning("ANTHROPIC_API_KEY not set")
                     return None
@@ -79,7 +89,7 @@ class RoundRobinLLMProvider:
         if "grok" not in self.llm_instances:
             try:
                 from xai_sdk import XAIClient
-                api_key = os.getenv("XAI_API_KEY")
+                api_key = real_api_key("XAI_API_KEY")
                 if not api_key:
                     logger.warning("XAI_API_KEY not set")
                     return None
@@ -94,7 +104,7 @@ class RoundRobinLLMProvider:
         if "openai" not in self.llm_instances:
             try:
                 from langchain_openai import ChatOpenAI
-                api_key = os.getenv("OPENAI_API_KEY")
+                api_key = real_api_key("OPENAI_API_KEY")
                 if not api_key:
                     logger.warning("OPENAI_API_KEY not set")
                     return None

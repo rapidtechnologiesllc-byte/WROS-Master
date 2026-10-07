@@ -316,6 +316,7 @@ class GenerateJobCompleteResponse(BaseModel):
     contract_duration: Optional[str] = None
     role_type: Optional[str] = None
     client_name: Optional[str] = None
+    ai_generated: bool = False  # False = no AI key configured; description is a template
 
 # Update Schemas
 class JobUpdateRequest(BaseModel):

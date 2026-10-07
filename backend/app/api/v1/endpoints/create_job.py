@@ -165,6 +165,16 @@ def generate_job_with_agent(
         db.commit()
         raise
 
+def _known_skill_names(db: Session) -> list:
+    """Skill names already used on jobs and candidate profiles -- the
+    vocabulary the one-liner is matched against when no AI is configured."""
+    from app.models.candidate_profile_extras import CandidateProfileSkill
+    names = {row[0] for row in db.query(CandidateProfileSkill.name).distinct().limit(2000).all() if row[0]}
+    for (job_skills,) in db.query(Jobs.jobSkills).limit(2000).all():
+        names.update(part.strip() for part in (job_skills or "").split(",") if part.strip())
+    return sorted(n for n in names if 1 < len(n) <= 60)
+
+
 @router.post(
     "/generate-complete",
     response_model=GenerateJobCompleteResponse,
@@ -190,7 +200,8 @@ def generate_job_complete(
         agent = get_recruitment_job_agent()
         result = agent.generate_complete_job(
             request.job_description_oneliner,
-            request.answers
+            request.answers,
+            known_skills=_known_skill_names(db),
         )
 
         # Log agent action

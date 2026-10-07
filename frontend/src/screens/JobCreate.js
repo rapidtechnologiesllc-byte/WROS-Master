@@ -745,10 +745,32 @@ export default function JobCreate({
       }
       if (Array.isArray(data?.job_skills) && data.job_skills.length) {
         setSkills(data.job_skills.join(", "));
+        // Step 2's skills list is what gets submitted -- fill it unless already chosen
+        if (selectedSkills.length === 0) {
+          setSelectedSkills(data.job_skills.map((name, idx) => ({ name, yearsOfExperience: null, isPrimary: idx === 0 })));
+        }
+      }
+      if (data?.position_type && !positionType) setPositionType(data.position_type);
+
+      // Client named in the one-liner -> Company / Client and its Business Unit
+      if (!companyClient) {
+        const text = oneLiner.toLowerCase();
+        const named = data?.client_name
+          ? clientList.find((c) => c.company_name?.toLowerCase() === data.client_name.toLowerCase())
+          : clientList.find((c) => c.company_name && text.includes(c.company_name.toLowerCase()));
+        if (named) {
+          setCompanyClient(named.company_name);
+          if (named.line_type) setCompanyType(named.line_type);
+          if (named.business_unit_id && !selectedBusinessUnit) setSelectedBusinessUnit(String(named.business_unit_id));
+        }
       }
 
       setCurrent(1);
-      setActionSuccess("Job details generated! Review and submit.");
+      setActionSuccess(
+        data?.ai_generated
+          ? "Job details generated! Review and submit."
+          : "Step 2 filled from your Step 1 details. The description is a starter template (no AI is configured) -- review and edit it."
+      );
     } catch (err) {
       setScreenError(err?.message || "Failed to generate job details.");
       console.error("Generation error:", err);
