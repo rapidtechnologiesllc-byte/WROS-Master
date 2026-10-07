@@ -289,12 +289,17 @@ export default function UserFormPage() {
           location_id: formData.location_id || null,
           user_password: formData.user_password
         };
-        await apiRequest('/hr/users/create-with-roles', {
+        const { data: queued } = await apiRequest('/hr/users/create-with-roles', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
         });
         setActionError(null);
+        // Creation runs in the background: the Users list follows the job until the account exists
+        navigate('/admin/users-access-control/users', {
+          state: { pendingUser: { email: payload.user_email, name: payload.user_name, jobId: queued?.message_id } },
+        });
+        return;
       } else {
         const payload = {
           user_name: formData.user_name.trim(),

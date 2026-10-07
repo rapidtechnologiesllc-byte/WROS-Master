@@ -3,7 +3,7 @@
 // Sections: users, business-units, delivery-centers, organizational-hierarchy, role-templates
 
 import React, { useEffect, useMemo, useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useLocation } from "react-router-dom";
 import {
   Plus, Edit2, Trash2, Lock, Users, Building2, MapPin, Globe, AlertCircle, CheckCircle, X
 } from "lucide-react";
@@ -921,6 +921,10 @@ function RoleTemplatesSection({ loading, error, modules, roles, setRoles, users 
 export default function UsersAndAccessControl() {
   const { section } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
+  // A user just added on the form: creation is queued, so follow the job
+  const [pendingUser, setPendingUser] = useState(location.state?.pendingUser || null);
+  const [pendingNotice, setPendingNotice] = useState(null);
 
   // Map URL section to internal tab names
   const sectionMap = {
@@ -954,6 +958,58 @@ export default function UsersAndAccessControl() {
   useEffect(() => {
     loadData();
   }, []);
+
+  useEffect(() => {
+    if (!pendingUser) return undefined;
+    // Drop the router state so a page refresh doesn't start following again
+    navigate(location.pathname, { replace: true, state: null });
+    setPendingNotice({ kind: "info", text: `Creating ${pendingUser.email}…` });
+    let stopped = false;
+    let tries = 0;
+    const finish = (notice) => {
+      stopped = true;
+      setPendingNotice(notice);
+      setPendingUser(null);
+      loadData();
+    };
+    const tick = async () => {
+      if (stopped) return;
+      tries += 1;
+      try {
+        if (pendingUser.jobId) {
+          const { data: job } = await apiRequest(`/message-queue/tasks/${pendingUser.jobId}/status`);
+          if (job?.status === "completed") {
+            const email = job.result?.welcome_email;
+            finish({
+              kind: "success",
+              text: `${pendingUser.name || pendingUser.email} was created.` +
+                (email === "success" ? " Welcome email sent." : email ? ` Welcome email not sent (${email}).` : ""),
+            });
+            return;
+          }
+          if (job?.status === "failed" && (job.retry_count || 0) >= 1) {
+            finish({ kind: "error", text: `Could not create ${pendingUser.email}: ${job.error || "unknown error"}` });
+            return;
+          }
+        } else {
+          const list = await getAllUsers();
+          if ((list || []).some((u) => (u.user_email || "").toLowerCase() === pendingUser.email.toLowerCase())) {
+            finish({ kind: "success", text: `${pendingUser.email} was created.` });
+            return;
+          }
+        }
+      } catch (err) {
+        console.error("[UsersAndAccessControl] Following user creation:", err);
+      }
+      if (tries >= 45) {
+        finish({ kind: "error", text: `${pendingUser.email} is still being created - refresh in a minute, or check the Message Queue.` });
+        return;
+      }
+      setTimeout(tick, 2000);
+    };
+    tick();
+    return () => { stopped = true; };
+  }, [pendingUser]);
 
   const loadData = async () => {
     setLoading(true);
@@ -1786,6 +1842,18 @@ function LocationsSection() {
             );
           })}
         </div>
+
+        {pendingNotice && (
+          <div className={`mx-4 mt-4 rounded-lg border px-4 py-3 text-sm flex items-start justify-between gap-3 ${
+            pendingNotice.kind === "error" ? "border-rose-200 bg-rose-50 text-rose-700"
+              : pendingNotice.kind === "success" ? "border-green-200 bg-green-50 text-green-700"
+              : "border-blue-200 bg-blue-50 text-blue-700"}`}>
+            <span>{pendingNotice.text}</span>
+            {pendingNotice.kind !== "info" && (
+              <button onClick={() => setPendingNotice(null)} aria-label="Dismiss"><X className="w-4 h-4" /></button>
+            )}
+          </div>
+        )}
 
         {/* Section Content - Rendered based on URL param */}
         {!activeTab ? (
