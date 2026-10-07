@@ -147,67 +147,11 @@ def create_hr_assignment(
 # GET /hr-assignments/candidates  â€” Get all candidates (for dashboard/admin)
 # ---------------------------------------------------------------------------
 
-@router.get(
-    "/candidates",
-    response_model=HRAssignmentListResponse,
-    dependencies=[Depends(require_resource_permission("candidates", "view"))],
-    summary="Get all candidates (for dashboard display)",
-)
-def get_all_candidates(
-    db: Session = Depends(get_db),
-    skip: int = Query(default=0, ge=0),
-    limit: int = Query(default=50, ge=1, le=200),
-):
-    """
-    Returns all candidates in the system with their HR assignments.
-    Used for dashboard displays and admin views that show all candidates.
-
-    **Required permission:** `candidate.view`
-    """
-    query = db.query(HRAssignment)
-    total = query.count()
-    rows = query.order_by(HRAssignment.created_at.desc()).offset(skip).limit(limit).all()
-
-    return HRAssignmentListResponse(
-        total=total,
-        assignments=[_to_response(r, db) for r in rows],
-    )
 
 # ---------------------------------------------------------------------------
 # GET /hr-assignments/my-candidates  â€” Get my assigned candidates (as HR)
 # ---------------------------------------------------------------------------
 
-@router.get(
-    "/my-candidates",
-    response_model=HRAssignmentListResponse,
-    dependencies=[Depends(require_resource_permission("candidates", "view"))],
-    summary="Get all candidates assigned to me (as HR / Recruiter)",
-)
-def get_my_candidates(
-    db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_internal_user),
-    skip: int = Query(default=0, ge=0),
-    limit: int = Query(default=50, ge=1, le=200),
-):
-    """
-    Returns all candidates where the calling user is either **hr1** or **hr2**.
-
-    Useful for an HR/Recruiter to see their own workload / candidate queue.
-
-    **Required permission:** `candidate.view`
-    """
-    query = db.query(HRAssignment).filter(
-        (HRAssignment.hr1_id == current_user.UserID)
-        | (HRAssignment.hr2_id == current_user.UserID)
-    )
-
-    total = query.count()
-    rows = query.order_by(HRAssignment.created_at.desc()).offset(skip).limit(limit).all()
-
-    return HRAssignmentListResponse(
-        total=total,
-        assignments=[_to_response(r, db) for r in rows],
-    )
 
 # ---------------------------------------------------------------------------
 # GET /hr-assignments/by-candidate/{candidate_id}  â€” Get HR by candidate ID

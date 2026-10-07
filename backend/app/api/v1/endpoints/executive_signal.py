@@ -72,20 +72,6 @@ def close_cycle(cycle_id: str, current_user: Users = Depends(get_current_interna
         raise HTTPException(status_code=404, detail=f"Feedback cycle {cycle_id!r} not found.")
     return close_cycle_and_summarize(db, cycle, closed_by=current_user.UserID)
 
-@router.post(
-    "/feedback-cycles/{cycle_id}/responses",
-    dependencies=[Depends(require_resource_permission("executive-signal", "create"))]
-)
-def submit_response(
-    cycle_id: str, body: FeedbackSubmitRequest,
-    current_user: Users = Depends(get_current_internal_user), db: Session = Depends(get_db),
-):
-    cycle = db.query(EmployeeFeedbackCycle).filter(EmployeeFeedbackCycle.id == cycle_id, EmployeeFeedbackCycle.status == "OPEN").first()
-    if not cycle:
-        raise HTTPException(status_code=404, detail=f"Open feedback cycle {cycle_id!r} not found.")
-    employee = _current_employee(db, current_user)
-    submit_feedback(db, cycle, employee, body.response_text)
-    return {"submitted": True}
 
 @router.get("/recognition/pending", response_model=list[RecognitionDraftResponse], dependencies=[Depends(require_resource_permission("executive-signal", "view"))])
 def pending_recognition(db: Session = Depends(get_db)):

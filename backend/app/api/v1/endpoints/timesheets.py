@@ -377,39 +377,6 @@ def reopen(
         logger.error(f"Failed to reopen timesheet {timesheet_id}: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to reopen timesheet")
 
-@router.post(
-    "/bulk-approve",
-    response_model=BulkApproveResponse,
-    summary="Approve multiple submitted timesheets at once",
-    dependencies=[Depends(require_role_template_permission(*Permissions.TIMESHEETS_EDIT))]
-)
-def bulk_approve_endpoint(
-    body: BulkApproveRequest,
-    db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_internal_user),
-):
-    timesheets = db.query(Timesheet).filter(Timesheet.id.in_(body.timesheet_ids)).all()
-    result = bulk_approve(db, timesheets, approved_by=current_user.UserID)
-
-    try:
-        # Queue approval for each approved timesheet
-        for approved_id in result.get("approved", []):
-            MessageQueueService.enqueue(
-                task_name="timesheet_approved",
-                data={
-                    "timesheet_id": approved_id,
-                    "approved_by": current_user.UserID,
-                    "bulk_approve": True,
-                },
-            )
-        return BulkApproveResponse(
-            approved=result["approved"],
-            failed=[BulkApproveFailure(**f) for f in result["failed"]],
-        )
-    except Exception as e:
-        db.rollback()
-        logger.error(f"Failed to bulk approve timesheets: {str(e)}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Failed to approve timesheets")
 
 @router.get(
     "",
@@ -619,27 +586,3 @@ def resolve_dispute_endpoint(
         logger.error(f"Failed to resolve dispute {dispute_id}: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to resolve dispute")
 
-@router.post(
-    "/nag-cascade/run",
-    summary="EPIC-16 Timesheet Nag Cascade: scan + nag for one week",
-    dependencies=[Depends(require_role_template_permission(*Permissions.TIMESHEETS_EDIT))]
-)
-def run_timesheet_nag_cascade(
-    week_starting_date: str,
-    db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_internal_user),
-):
-    """Not wired to a scheduler -- same posture as every other
-    scheduled-job function in this codebase (a cron would call this
-    per-week; the idempotent function itself is what's real and
-    tested)."""
-    from datetime import date as date_cls
-
-    week = date_cls.fromisoformat(week_starting_date)
-    missing = scan_missing_timesheets(db, week_starting_date=week, tenant_id=current_user.tenant_id)
-    results = []
-    for employee in missing:
-        log = trigger_timesheet_nag(db, employee, week_starting_date=week, tenant_id=current_user.tenant_id)
-        if log:
-            results.append({"employee_id": employee.id, "escalation_level": log.escalation_level})
-    return {"nagged": results}

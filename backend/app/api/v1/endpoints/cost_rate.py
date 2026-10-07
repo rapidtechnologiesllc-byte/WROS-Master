@@ -117,18 +117,6 @@ def bu_pnl(
 ):
     return get_bu_pnl(db, business_unit_id=business_unit_id, year=year, month=month)
 
-@router.get(
-    "/pnl/org-summary",
-    response_model=OrgPnlSummaryResponse,
-    summary="EPIC-16 Executive Dashboard: org-wide P&L rollup across all Business Units",
-    dependencies=[Depends(require_resource_permission("revenue", "view"))]
-)
-def org_pnl_summary(
-    year: int, month: int,
-    db: Session = Depends(get_db),
-    current_user: Users = Depends(require_resource_permission("revenue", "view")),
-):
-    return get_org_pnl_summary(db, year=year, month=month, tenant_id=current_user.tenant_id)
 
 @router.post(
     "/reserve-fund/entries",
@@ -243,50 +231,3 @@ def create_bank_transaction(
     except BankReconciliationError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
 
-@router.post(
-    "/bank-transactions/{transaction_id}/match",
-    response_model=BankTransactionResponse,
-    dependencies=[Depends(require_resource_permission("revenue", "create"))]
-)
-def match_bank_transaction(
-    transaction_id: int, body: MatchTransactionRequest,
-    db: Session = Depends(get_db),
-    current_user: Users = Depends(require_resource_permission("revenue", "view")),
-):
-    from app.models.bank_reconciliation import BankTransaction
-
-    transaction = db.query(BankTransaction).filter(BankTransaction.id == transaction_id).first()
-    if transaction is None:
-        raise HTTPException(status_code=404, detail=f"Bank transaction {transaction_id} not found.")
-    invoice = db.query(Invoice).filter(Invoice.id == body.invoice_id).first()
-    if invoice is None:
-        raise HTTPException(status_code=404, detail=f"Invoice {body.invoice_id!r} not found.")
-    try:
-        return match_transaction_to_invoice(db, transaction, invoice)
-    except BankReconciliationError as exc:
-        raise HTTPException(status_code=400, detail=str(exc))
-
-@router.get(
-    "/bank-transactions/unreconciled",
-    response_model=list[BankTransactionResponse],
-    dependencies=[Depends(require_resource_permission("revenue", "view"))]
-)
-def unreconciled_bank_transactions(
-    db: Session = Depends(get_db),
-    current_user: Users = Depends(require_resource_permission("revenue", "view")),
-):
-    return get_unreconciled_transactions(db, tenant_id=current_user.tenant_id)
-
-@router.get(
-    "/invoices/unmatched-paid",
-    response_model=list[UnmatchedPaidInvoiceResponse],
-    dependencies=[Depends(require_resource_permission("invoices", "view"))]
-)
-def unmatched_paid_invoices(
-    db: Session = Depends(get_db),
-    current_user: Users = Depends(require_resource_permission("revenue", "view")),
-):
-    return [
-        UnmatchedPaidInvoiceResponse(invoice_id=inv.id, client_id=inv.client_id, total_usd_cents=inv.total_usd_cents)
-        for inv in get_unmatched_paid_invoices(db, tenant_id=current_user.tenant_id)
-    ]

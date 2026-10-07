@@ -57,23 +57,6 @@ def get_partner_events(
 ):
     return IncentiveEventListResponse(events=list_incentive_events_for_partner(db, partner_user_id))
 
-@router.post(
-    "/clients/{client_id}/check-new-logo",
-    response_model=IncentiveEventItem,
-    dependencies=[Depends(require_resource_permission("clients", "create"))]
-)
-def check_new_logo(
-    client_id: str,
-    db: Session = Depends(get_db),
-    current_user: Users = Depends(require_resource_permission("revenue", "view")),
-):
-    client = db.query(Client).filter(Client.id == client_id).first()
-    if not client:
-        raise HTTPException(status_code=404, detail=f"Client {client_id!r} not found.")
-    event = check_new_logo_incentive(db, client)
-    if event is None:
-        raise HTTPException(status_code=409, detail="Not yet eligible -- MSA not signed, no invoice, or no rule configured for this client's Partner.")
-    return event
 
 @router.post(
     "/partners/{partner_user_id}/calculate-revenue-share",
@@ -95,17 +78,3 @@ def calculate_revenue_share(
     event = calculate_revenue_share_payout(db, partner_user_id=partner_user_id, year=year, month=month, tenant_id=current_user.tenant_id)
     return RevenueShareCalculationResponse(event=event, already_calculated=bool(existing_before))
 
-@router.post(
-    "/events/{event_id}/mark-paid",
-    response_model=IncentiveEventItem,
-    dependencies=[Depends(require_resource_permission("partner-dashboard", "create"))]
-)
-def mark_paid(
-    event_id: str,
-    db: Session = Depends(get_db),
-    current_user: Users = Depends(require_resource_permission("revenue", "view")),
-):
-    event = db.query(PartnerIncentiveEvent).filter(PartnerIncentiveEvent.id == event_id).first()
-    if not event:
-        raise HTTPException(status_code=404, detail=f"Incentive event {event_id!r} not found.")
-    return mark_incentive_paid(db, event)

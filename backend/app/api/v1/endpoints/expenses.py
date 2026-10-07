@@ -109,23 +109,6 @@ def approve_expense_endpoint(
         raise HTTPException(status_code=404, detail=f"Expense {expense_id!r} not found.")
     return approve_expense(db, expense, approved_by=current_user.UserID)
 
-@router.post(
-    "/expenses/{expense_id}/mark-paid",
-    response_model=ExpenseItem,
-    dependencies=[Depends(require_resource_permission("expenses", "create"))]
-)
-def mark_expense_paid_endpoint(
-    expense_id: str,
-    db: Session = Depends(get_db),
-    current_user: Users = Depends(require_resource_permission("revenue", "view")),
-):
-    expense = db.query(ExpenseRecord).filter(ExpenseRecord.id == expense_id).first()
-    if not expense:
-        raise HTTPException(status_code=404, detail=f"Expense {expense_id!r} not found.")
-    try:
-        return mark_expense_paid(db, expense)
-    except ExpenseValidationError as exc:
-        raise HTTPException(status_code=400, detail=str(exc))
 
 @router.get(
     "/clients/{client_id}/investment-position",

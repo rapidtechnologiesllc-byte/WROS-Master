@@ -218,18 +218,6 @@ def list_projects(
     projects = query.order_by(Project.created_at.desc()).all()
     return ProjectListResponse(projects=[_to_item(p) for p in projects])
 
-@router.get(
-    "/{project_id}",
-    response_model=ProjectItem,
-    summary="Get one project",
-    dependencies=[Depends(require_resource_permission("projects", "view"))]
-)
-def get_project(
-    project_id: str,
-    db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_internal_user),
-):
-    return _to_item(_get_project_or_404(db, project_id))
 
 @router.post(
     "/{project_id}/status",

@@ -66,37 +66,6 @@ def get_bu_target(
 ):
     return get_bu_target_vs_actual(db, business_unit_id, target_period, fiscal_year)
 
-@router.post(
-    "/revenue-targets/partner-goals",
-    response_model=PartnerGoalItem,
-    status_code=201,
-    dependencies=[Depends(require_resource_permission("revenue", "create"))]
-)
-def create_partner_goal(
-    body: PartnerGoalCreateRequest,
-    db: Session = Depends(get_db),
-    current_user: Users = Depends(require_resource_permission("revenue", "view")),
-):
-    try:
-        return set_partner_goal(
-            db, partner_user_id=body.partner_user_id, target_period=body.target_period,
-            fiscal_year=body.fiscal_year, target_amount_usd_cents=body.target_amount_usd_cents,
-            created_by_user=current_user, tenant_id=current_user.tenant_id, notes=body.notes,
-        )
-    except RevenueTargetValidationError as exc:
-        raise HTTPException(status_code=403, detail=str(exc))
-
-@router.get(
-    "/revenue-targets/partners/{partner_user_id}/position",
-    response_model=PartnerMultiYearPositionResponse,
-    dependencies=[Depends(require_resource_permission("revenue", "view"))]
-)
-def get_partner_position(
-    partner_user_id: str,
-    db: Session = Depends(get_db),
-    current_user: Users = Depends(require_resource_permission("revenue", "view")),
-):
-    return get_partner_multi_year_position(db, partner_user_id)
 
 @router.get(
     "/revenue-targets/dashboard",

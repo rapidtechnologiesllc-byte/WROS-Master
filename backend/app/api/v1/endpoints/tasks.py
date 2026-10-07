@@ -145,38 +145,3 @@ def complete(task_id: int, current_user: Users = Depends(get_current_internal_us
     task = _get_task_or_404(db, task_id)
     return complete_task(db, task)
 
-@router.post(
-    "/reassign-suggest",
-    dependencies=[Depends(require_resource_permission("my-tasks", "create"))]
-)
-def reassign_suggest(
-    body: MarkUnavailableRequest, current_user: Users = Depends(get_current_internal_user), db: Session = Depends(get_db),
-):
-    """Raises PENDING TaskReassignmentRequest rows for every task due
-    today assigned to body.user_id -- never applies anything itself, a
-    manager must approve each one."""
-    requests = suggest_todays_reassignments(db, unavailable_user_id=body.user_id)
-    return {"requests_created": len(requests), "request_ids": [r.id for r in requests]}
-
-@router.post(
-    "/reassignments/{request_id}/approve",
-    dependencies=[Depends(require_resource_permission("my-tasks", "create"))]
-)
-def approve(
-    request_id: str, body: ReassignmentApproveRequest,
-    current_user: Users = Depends(get_current_internal_user), db: Session = Depends(get_db),
-):
-    req = db.query(TaskReassignmentRequest).filter(TaskReassignmentRequest.id == request_id).first()
-    if not req:
-        raise HTTPException(status_code=404, detail=f"Reassignment request {request_id!r} not found.")
-    return approve_reassignment(db, req, approved_by_user_id=current_user.UserID, final_to_user_id=body.final_to_user_id)
-
-@router.post(
-    "/reassignments/{request_id}/reject",
-    dependencies=[Depends(require_resource_permission("my-tasks", "create"))]
-)
-def reject(request_id: str, current_user: Users = Depends(get_current_internal_user), db: Session = Depends(get_db)):
-    req = db.query(TaskReassignmentRequest).filter(TaskReassignmentRequest.id == request_id).first()
-    if not req:
-        raise HTTPException(status_code=404, detail=f"Reassignment request {request_id!r} not found.")
-    return reject_reassignment(db, req, approved_by_user_id=current_user.UserID)

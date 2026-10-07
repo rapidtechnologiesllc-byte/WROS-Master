@@ -62,30 +62,6 @@ def create_ticket_endpoint(
 def get_categories(current_user: Users = Depends(get_current_internal_user), db: Session = Depends(get_db)):
     return list_categories(db)
 
-@router.post(
-    "/{task_id}/first-response",
-    response_model=TicketDetailResponse,
-    dependencies=[Depends(require_resource_permission("ticket-routing", "create"))]
-)
-def first_response(task_id: int, current_user: Users = Depends(get_current_internal_user), db: Session = Depends(get_db)):
-    task = db.query(Task).filter(Task.id == task_id, Task.task_type == "TICKET").first()
-    if not task:
-        raise HTTPException(status_code=404, detail=f"Ticket #{task_id} not found.")
-    detail = record_first_response(db, task)
-    if not detail:
-        raise HTTPException(status_code=404, detail="Ticket has no SLA detail row.")
-    return detail
-
-@router.get(
-    "/{task_id}/detail",
-    response_model=TicketDetailResponse,
-    dependencies=[Depends(require_resource_permission("ticket-routing", "view"))]
-)
-def get_ticket_detail(task_id: int, current_user: Users = Depends(get_current_internal_user), db: Session = Depends(get_db)):
-    detail = db.query(TicketDetail).filter(TicketDetail.task_id == task_id).first()
-    if not detail:
-        raise HTTPException(status_code=404, detail=f"No ticket detail for task #{task_id}.")
-    return detail
 
 # A read: was registered as POST on the same path as create, so creating a
 # rule returned the list instead of saving

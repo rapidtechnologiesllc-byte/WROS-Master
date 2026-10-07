@@ -242,28 +242,3 @@ def get_invoice(
     invoice = _get_invoice_or_404(db, invoice_id)
     return _to_item(db, invoice)
 
-@router.get(
-    "/ar/aging",
-    summary="EPIC-16 AR Follow-Up: overdue SENT invoices",
-    dependencies=[Depends(require_resource_permission("invoices", "view"))]
-)
-def ar_aging(
-    grace_days: int = 30,
-    db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_internal_user),
-):
-    return {"overdue": scan_overdue_invoices(db, grace_days=grace_days, tenant_id=current_user.tenant_id)}
-
-@router.post(
-    "/{invoice_id}/ar/follow-up",
-    summary="EPIC-16 AR Follow-Up: create/return the follow-up Task for this invoice",
-    dependencies=[Depends(require_resource_permission("invoices", "create"))]
-)
-def ar_follow_up(
-    invoice_id: str,
-    db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_internal_user),
-):
-    invoice = _get_invoice_or_404(db, invoice_id)
-    task = trigger_ar_follow_up(db, invoice)
-    return {"task_id": task.id, "title": task.title, "assigned_to_user_id": task.assigned_to_user_id}

@@ -40,27 +40,6 @@ def get_queue_types(db: Session = Depends(get_db)):
     }
 
 
-@router.get("/{message_id}/status", dependencies=[Depends(get_current_user)])
-def get_message_status(message_id: str, db: Session = Depends(get_db), current_user = Depends(get_current_user)):
-    """
-    Get status of a specific queued message by message_id.
-
-    Used for polling candidate creation progress after form submission.
-    Returns: {status: PENDING|PROCESSING|COMPLETED|FAILED, result: {...}, error: "..."}
-    """
-    message = db.query(ChannelQueueItem).filter(ChannelQueueItem.message_id == message_id).first()
-
-    if not message:
-        return {"status": "not_found", "message_id": message_id}
-
-    return {
-        "message_id": message.message_id,
-        "status": message.status,
-        "result": message.result,
-        "error": message.error,
-        "completed_at": message.completed_at.isoformat() if message.completed_at else None,
-    }
-
 
 @router.get("/display", dependencies=[Depends(require_resource_permission("message-queue", "view"))])
 def get_message_queue_display(

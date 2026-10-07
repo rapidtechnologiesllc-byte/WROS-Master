@@ -119,24 +119,6 @@ def portal_interviews(
 ):
     return PortalInterviewsResponse(interviews=get_portal_interviews(db, candidate))
 
-@router.get(
-    "/interviews/{interview_id}/ics",
-    dependencies=[Depends(require_resource_permission("candidates", "view"))]
-)
-def portal_interview_ics(
-    interview_id: int,
-    db: Session = Depends(get_db),
-    candidate: Candidate = Depends(get_current_candidate),
-):
-    try:
-        ics_bytes = get_interview_ics(db, candidate, interview_id)
-    except PortalInterviewNotFound:
-        raise HTTPException(status_code=404, detail="Interview not found.")
-    return Response(
-        content=ics_bytes,
-        media_type="text/calendar",
-        headers={"Content-Disposition": f"attachment; filename=interview-{interview_id}.ics"},
-    )
 
 @router.post(
     "/interviews/{interview_id}/reschedule-request",
@@ -155,20 +137,3 @@ def portal_reschedule_request(
         raise HTTPException(status_code=404, detail=str(exc))
     return PortalRescheduleResponse(**result)
 
-@router.post(
-    "/track",
-    response_model=PortalTrackResponse,
-    dependencies=[Depends(require_resource_permission("candidates", "create"))]
-)
-def portal_track_page_view(
-    body: PortalTrackRequest,
-    db: Session = Depends(get_db),
-    candidate: Candidate = Depends(get_current_candidate),
-):
-    """S-346 Step 4 / S-347 Step 4 -- called by the frontend on page
-    leave (beforeunload) or after 30s on page. Always 200 -- this is a
-    behavioral-telemetry beacon, not a business action; a missing
-    conversation just means the signal is silently skipped (see
-    track_portal_page_view()'s own docstring)."""
-    recorded = track_portal_page_view(db, candidate, body.page, body.time_on_page_seconds, body.scroll_depth_pct)
-    return PortalTrackResponse(recorded=recorded)

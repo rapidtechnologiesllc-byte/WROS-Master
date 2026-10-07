@@ -165,57 +165,6 @@ def _get_conversation_or_404(conversation_id: int, db: Session) -> CandidateConv
 # POST /ai-agent/assign
 # ===========================================================================
 
-@router.post(
-    "/assign",
-    response_model=AIAgentAssignResponse,
-    status_code=201,
-    dependencies=[Depends(require_resource_permission("candidates", "edit"))],
-    summary="Assign AI agent to a candidate",
-    description=(
-        "Assigns the onboarding AI agent to a candidate. "
-        "The agent immediately checks for missing profile fields and sends "
-        "a polite email to the candidate requesting the information. "
-        "All activity is logged to the conversation tables."
-    ),
-)
-def assign_agent(
-    body: AIAgentAssignRequest,
-    db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_internal_user),
-):
-    """
-    **Flow:**
-    1. Deactivates any previous AI assignment for the candidate.
-    2. Creates a new `candidate_ai_assignments` row.
-    3. Opens a `candidate_conversations` thread.
-    4. Detects missing core profile fields.
-    5. Sends a missing-fields email to the candidate.
-    6. Logs `ai_assigned`, `field_check`, and `ai_message_sent` events.
-
-    **Required permission:** `candidate.edit`
-    """
-    # 2026-08-12: was tenant_id=current_user.UserID -- whichever HR user
-    # clicked "Assign" became this conversation's tenant_id, a third
-    # value never matching what /activity-feed (or anything else) reads
-    # back by. assigned_by correctly stays current_user.UserID -- that's
-    # "who performed this action," a real and different field from
-    # tenant_id ("which org owns this data," always the same one here).
-    try:
-        result = assign_ai_agent(
-            candidate_id=body.candidate_id,
-            tenant_id=resolve_default_tenant_id(),
-            assigned_by=current_user.UserID,
-            db=db,
-        )
-    except Exception as e:
-        logger.error(f"[AssignAgent] Failed to assign AI agent: {e}", exc_info=True)
-        raise
-
-    if not result:
-        logger.error(f"[AssignAgent] assign_ai_agent returned None for candidate {body.candidate_id}")
-        raise HTTPException(status_code=500, detail="Failed to assign AI agent")
-
-    return AIAgentAssignResponse(**result)
 
 # ===========================================================================
 # GET /ai-agent/missing-fields/{candidate_id}
@@ -249,26 +198,6 @@ def preview_missing_fields(
 # GET /ai-agent/portal-link/{candidate_id}
 # ===========================================================================
 
-@router.get(
-    "/portal-link/{candidate_id}",
-    dependencies=[Depends(require_resource_permission("candidates", "view"))],
-    summary="Get this candidate's Candidate Portal magic link (S-017/HRMS-0417)",
-    description=(
-        "Returns the /candidate/{token} URL a recruiter can send the "
-        "candidate (WhatsApp/Email) so they can view their own "
-        "conversation, complete missing profile fields, and see "
-        "upcoming interviews without a password."
-    ),
-)
-def get_candidate_portal_link(
-    candidate_id: str,
-    db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_internal_user),
-):
-    from app.services.candidate_portal_service import generate_portal_link_url
-
-    _get_candidate_or_404(candidate_id, db)
-    return {"candidate_id": candidate_id, "portal_url": generate_portal_link_url(db, candidate_id)}
 
 # ===========================================================================
 # GET /ai-agent/memory/{candidate_id}
@@ -368,72 +297,16 @@ def correct_candidate_memory_fact(
 # GET /ai-agent/skill-suggestions
 # ===========================================================================
 
-@router.get(
-    "/skill-suggestions",
-    dependencies=[Depends(require_resource_permission("candidates", "view"))],
-    summary="Skills not yet in the synonym library, for BA review (S-029/HRMS-0429)",
-    description=(
-        "Real equivalent of the spec's admin skill-suggestions report -- "
-        "distinct skills tagged with confidence < 1.0 (not found in "
-        "app.constants.skill_synonyms) in the last 7 days, so a Lead BA "
-        "can fold genuinely common ones into the synonym library (BR-02: "
-        "requires BA approval + code review, this endpoint is read-only)."
-    ),
-)
-def get_skill_suggestions(
-    since_days: int = 7,
-    db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_internal_user),
-):
-    from app.services.skill_extraction_service import get_unknown_skill_suggestions
-
-    tenant_id = resolve_default_tenant_id()
-    if not tenant_id:
-        raise HTTPException(status_code=500, detail="No tenant available.")
-    return {"suggestions": get_unknown_skill_suggestions(db, tenant_id, since_days=since_days)}
 
 # ===========================================================================
 # GET /ai-agent/resume-completeness/{candidate_id}
 # ===========================================================================
 
-@router.get(
-    "/resume-completeness/{candidate_id}",
-    dependencies=[Depends(require_resource_permission("candidates", "view"))],
-    summary="Resume completeness score (S-030/HRMS-0430)",
-    description=(
-        "BR-01: distinct from profile completeness (missing-fields) -- this "
-        "measures the quality of the parsed resume document itself."
-    ),
-)
-def get_resume_completeness(
-    candidate_id: str,
-    db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_internal_user),
-):
-    candidate = _get_candidate_or_404(candidate_id, db)
-    return {"candidate_id": candidate_id, "resume_completeness_score": candidate.resume_completeness_score}
 
 # ===========================================================================
 # GET /ai-agent/prompt-templates
 # ===========================================================================
 
-@router.get(
-    "/prompt-templates",
-    dependencies=[Depends(require_resource_permission("ai-config", "view"))],
-    summary="AI prompt template catalog, admin-only (S-031/HRMS-0431)",
-    description=(
-        "Real equivalent of GET /api/admin/prompt-templates -- gated behind "
-        "tenant.ai_config (Super-User-only by default, same permission "
-        "HRMS-0411's Thunder identity config uses), since prompt templates "
-        "are the same class of BA-approved, admin-only product decision."
-    ),
-)
-async def get_prompt_templates_endpoint(
-    current_user: Users = Depends(get_current_internal_user),
-):
-    from app.services.prompt_framework_service import get_prompt_templates
-
-    return {"templates": get_prompt_templates()}
 
 # ===========================================================================
 # POST /ai-agent/webhook/email-reply
@@ -562,85 +435,6 @@ def get_conversations(
 # GET /ai-agent/conversations/{candidate_id}/active
 # ===========================================================================
 
-@router.get(
-    "/conversations/{candidate_id}/active",
-    response_model=ConversationThreadItem,
-    summary="Get the active conversation for a candidate",
-    dependencies=[Depends(require_resource_permission("candidates", "view"))],
-    description=(
-        "Returns the single most-recent open or awaiting conversation for the "
-        "candidate, with its full event log. Returns 404 if no active conversation exists."
-    ),
-)
-def get_active_conversation(
-    candidate_id: str,
-    db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_internal_user),
-):
-    _get_candidate_or_404(candidate_id, db)
-
-    try:
-        conv = (
-            db.query(CandidateConversation)
-            .filter(
-                CandidateConversation.candidate_id == candidate_id,
-                CandidateConversation.status.in_(["open", "awaiting_candidate"]),
-            )
-            .order_by(CandidateConversation.created_at.desc())
-            .first()
-        )
-    except Exception as e:
-        logger.error(f"[GetActiveConversation] Failed to query conversations: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Database error retrieving conversation")
-
-    if not conv:
-        raise HTTPException(
-            status_code=404,
-            detail=f"No active conversation found for candidate '{candidate_id}'.",
-        )
-
-    try:
-        events = (
-            db.query(ConversationEvent)
-            .filter(ConversationEvent.conversation_id == conv.id)
-            .order_by(ConversationEvent.created_at.asc())
-            .all()
-        )
-    except Exception as e:
-        logger.error(f"[GetActiveConversation] Failed to query conversation events: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Database error retrieving events")
-
-    from datetime import datetime as _datetime
-    from app.services.sla_monitoring_service import get_active_no_contact_breach_for_conversation
-    breach = get_active_no_contact_breach_for_conversation(db, conv.id)
-    no_contact_hours = round((_datetime.utcnow() - breach.breached_at).total_seconds() / 3600.0, 1) if breach else None
-
-    return ConversationThreadItem(
-        conversation_id=conv.id,
-        status=conv.status,
-        ai_agent_name=conv.ai_agent_name,
-        channel_preference=conv.channel_preference,
-        summary=conv.summary,
-        summary_generated_at=conv.summary_generated_at.isoformat() if conv.summary_generated_at else None,
-        no_contact_breach_hours=no_contact_hours,
-        next_action=conv.next_action,
-        owner_type=conv.owner_type,
-        escalation_state=conv.escalation_state,
-        created_at=conv.created_at.isoformat() if conv.created_at else None,
-        updated_at=conv.updated_at.isoformat() if conv.updated_at else None,
-        is_thunder_paused=bool(conv.is_thunder_paused),
-        thunder_resume_at=conv.thunder_resume_at.isoformat() if conv.thunder_resume_at else None,
-        events=[
-            ConversationEventOut(
-                id=ev.id,
-                event_type=ev.event_type,
-                event_data=ev.event_data,
-                triggered_by=ev.triggered_by,
-                created_at=ev.created_at.isoformat() if ev.created_at else None,
-            )
-            for ev in events
-        ],
-    )
 
 # ===========================================================================
 # POST /ai-agent/conversations/{conversation_id}/send
@@ -1094,123 +888,16 @@ def _inbox_not_implemented():
         detail="Reading the service mailbox is not implemented yet.",
     )
 
-@router.get(
-    "/inbox",
-    response_model=InboxResponse,
-    dependencies=[Depends(require_resource_permission("candidates", "view"))],
-    summary="Show all inbox messages from the service mailbox",
-    description=(
-        "Returns the most recent emails received in the `helpdesk_hrms@blitzenx.com` "
-        "service mailbox, newest-first. Supports pagination via `top` and `skip`.\n\n"
-        "> **Prerequisite**: The Azure AD application must have `Mail.Read` or "
-        "`Mail.ReadWrite` **Application** permission granted by an admin.\n"
-        "Go to: *Azure Portal → App Registrations → API permissions → Add permission "
-        "→ Microsoft Graph → Application permissions → Mail.Read → Grant admin consent*."
-    ),
-)
-def list_inbox(
-    top: int = 50,
-    skip: int = 0,
-    current_user: Users = Depends(get_current_internal_user),
-):
-    """
-    Lists all inbox messages from the service mailbox.
-    Returns 403 with a permission hint if Mail.Read is not granted.
-    """
-    _inbox_not_implemented()
-    messages = read_all_inbox(top=top, skip=skip)
-    return InboxResponse(
-        mailbox=SERVICE_MAILBOX,
-        total_returned=len(messages),
-        messages=[InboxMessageItem(**m) for m in messages],
-    )
 
 # ===========================================================================
 # GET /ai-agent/inbox/by-email
 # ===========================================================================
 
-@router.get(
-    "/inbox/by-email",
-    response_model=InboxResponse,
-    dependencies=[Depends(require_resource_permission("candidates", "view"))],
-    summary="Show all inbox messages from a specific sender email",
-    description=(
-        "Returns all inbox messages from `helpdesk_hrms@blitzenx.com` that were "
-        "sent **by** the given email address. Use this to view the full email "
-        "conversation thread with a specific candidate or sender.\n\n"
-        "> **Prerequisite**: `Mail.Read` or `Mail.ReadWrite` Application permission"
-    ),
-)
-def list_inbox_by_email(
-    email: str,
-    top: int = 50,
-    current_user: Users = Depends(get_current_internal_user),
-):
-    """
-    Returns inbox messages filtered by sender email address.
-    Returns 403 with a permission hint if Mail.Read is not granted.
-    """
-    _inbox_not_implemented()
-    messages = read_inbox_by_email(email=email, top=top)
-    return InboxResponse(
-        mailbox=SERVICE_MAILBOX,
-        total_returned=len(messages),
-        messages=[InboxMessageItem(**m) for m in messages],
-    )
 
 # ===========================================================================
 # GET /ai-agent/candidates/{candidate_id}/audit-log
 # ===========================================================================
 
-@router.get(
-    "/candidates/{candidate_id}/audit-log",
-    response_model=AuditLogResponse,
-    dependencies=[Depends(require_resource_permission("candidates", "view"))],
-    summary="Compliance-grade audit trail for a candidate's conversation actions (S-076)",
-    description=(
-        "Returns every ConversationAuditLog entry for this candidate, ordered "
-        "chronologically. Insert-only at the application level — no endpoint "
-        "in this API ever updates or deletes an audit record.\n\n"
-        "NOTE: strict Recruiter-excluded (HR/Admin only) enforcement is not "
-        "wired here — this codebase's RBAC permissions aren't seeded at that "
-        "granularity yet. Gated on `candidate.view` like the rest of this "
-        "router, same as `/missing-fields`."
-    ),
-)
-def get_audit_log(
-    candidate_id: str,
-    db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_internal_user),
-):
-    _get_candidate_or_404(candidate_id, db)
-    try:
-        entries = (
-            db.query(ConversationAuditLog)
-            .filter(ConversationAuditLog.candidate_id == candidate_id)
-            .order_by(ConversationAuditLog.created_at.asc())
-            .all()
-        )
-    except Exception as e:
-        logger.error(f"[GetAuditLog] Failed to query audit log entries: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Database error retrieving audit log")
-
-    return AuditLogResponse(
-        candidate_id=candidate_id,
-        total_count=len(entries),
-        audit_entries=[
-            AuditLogEntryOut(
-                id=e.id,
-                audit_event_type=e.audit_event_type,
-                audit_event_description=e.audit_event_description,
-                actor_type=e.actor_type,
-                actor_id=e.actor_id,
-                before_state=e.before_state,
-                after_state=e.after_state,
-                created_at=e.created_at.isoformat() if e.created_at else None,
-            )
-            for e in entries
-        ],
-    )
 
 # ===========================================================================
 # GET /ai-agent/messages/{event_id}/explanation
@@ -1220,24 +907,3 @@ def get_audit_log(
 from app.schemas.thunder_explanation import ExplanationLogResponse, MessageExplanationResponse
 from app.services.thunder_explanation_service import get_explanation_log, get_message_explanation
 
-@router.get(
-    "/messages/{event_id}/explanation",
-    response_model=MessageExplanationResponse,
-    dependencies=[Depends(require_resource_permission("candidates", "view"))],
-    summary="Why Thunder sent this specific message (S-064/HRMS-0464)",
-)
-def get_thunder_message_explanation(event_id: int, db: Session = Depends(get_db)):
-    explanation = get_message_explanation(db, event_id)
-    if explanation is None:
-        raise HTTPException(status_code=404, detail="Explanation not available for this message.")
-    return explanation
-
-@router.get(
-    "/candidates/{candidate_id}/thunder-explanation-log",
-    response_model=ExplanationLogResponse,
-    dependencies=[Depends(require_resource_permission("candidates", "view"))],
-    summary="Full immutable history of Thunder's explained decisions for a candidate (S-064/HRMS-0464)",
-)
-def get_thunder_explanation_log(candidate_id: str, db: Session = Depends(get_db)):
-    _get_candidate_or_404(candidate_id, db)
-    return ExplanationLogResponse(entries=get_explanation_log(db, candidate_id))

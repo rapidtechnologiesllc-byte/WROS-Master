@@ -212,30 +212,3 @@ async def delete_agent(
         logger.error(f"Error deleting agent: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
 
-@router.get(
-    "/pipeline/order",
-    dependencies=[Depends(require_resource_permission("agents", "view"))],
-    response_model=list[dict]
-)
-async def get_pipeline_order(
-    db: Session = Depends(get_db),
-    current_user = Depends(get_current_user)
-):
-    """
-    Get the pipeline execution order.
-
-    Returns agents in the order they execute in the pipeline.
-    Shows which agent outputs feed into which agent inputs.
-
-    Returns:
-    - List of agents ordered by execution sequence
-    - Includes queue names for flow tracing
-    - Only enabled agents included
-    """
-    try:
-        pipeline = AgentConfigService.get_pipeline_order(db, current_user.tenant_id)
-        return pipeline
-    except Exception as e:
-        logger.error(f"Error: {str(e)}", exc_info=True)
-        logger.error(f"Error fetching pipeline order: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Error: {str(e)}")

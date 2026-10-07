@@ -50,56 +50,6 @@ from app.models.user import Users
 
 router = APIRouter(prefix="/org", tags=["Organization Structure"])
 
-@router.post(
-    "/initialize",
-    response_model=OrgInitializeResponse,
-    summary="Initialize org hierarchy for a tenant",
-    description="Creates default org positions and approval chains for a new tenant",
-    dependencies=[Depends(require_resource_permission("admin-settings", "create"))],
-)
-def initialize_org_structure(
-    request: OrgInitializeRequest,
-    db: Session = Depends(get_db),
-) -> OrgInitializeResponse:
-    """
-    Initialize organizational hierarchy for a tenant.
-    Creates: org positions (10 levels), root CEO node, approval chains.
-
-    **Permission required:** ADMIN or SUPER_USER
-    """
-    tenant_id = request.tenant_id if hasattr(request, 'tenant_id') else None
-    if not tenant_id:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No tenant_id provided")
-
-    try:
-        # Step 1: Initialize default positions
-        pos_result = init_default_positions(db)
-        logger.info(f"[OrgInit] Tenant {tenant_id}: Created {pos_result['created']} positions, updated {pos_result['updated']}")
-
-        # Step 2: Create root CEO node
-        ceo_node = create_root_ceo_node(db, tenant_id, name=request.ceo_name or "CEO")
-        logger.info(f"[OrgInit] Tenant {tenant_id}: Created CEO node {ceo_node.id}")
-
-        # Step 3: Set up approval chains
-        chain_result = setup_approval_chains(db, tenant_id)
-        logger.info(f"[OrgInit] Tenant {tenant_id}: Created {chain_result['approval_chains_created']} approval chains")
-
-        return OrgInitializeResponse(
-            success=True,
-            message="Organizational hierarchy initialized successfully",
-            tenant_id=tenant_id,
-            ceo_node_id=ceo_node.id,
-            positions_created=pos_result["created"],
-            positions_updated=pos_result["updated"],
-            approval_chains_created=chain_result["approval_chains_created"],
-        )
-    except Exception as e:
-        logger.error(f"Error: {str(e)}", exc_info=True)
-        logger.error(f"[OrgInit] Tenant {tenant_id}: Failed to initialize: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to initialize org structure: {str(e)}"
-        )
 
 @router.get(
     "/positions",
@@ -220,30 +170,6 @@ def get_org_node(
 
     return OrgNodeResponse(**node_dict)
 
-@router.get(
-    "/nodes/{org_node_id}/approvers",
-    response_model=List[OrgNodeResponse],
-    summary="Get approval chain for an org node",
-    description="Returns the chain of approvers up to CEO for a given org node",
-    dependencies=[Depends(require_resource_permission("admin-settings", "view"))],
-)
-def get_approvers_for_node(
-    org_node_id: str,
-    current_user = Depends(get_current_internal_user),
-    db: Session = Depends(get_db),
-) -> List[OrgNodeResponse]:
-    """Get the approval chain (all approvers up to CEO) for a given org node."""
-    tenant_id = current_user.tenant_id
-    if not tenant_id:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User is not assigned to a tenant")
-
-    approvers_list = get_employee_approvers(db, org_node_id)
-    nodes = []
-    for approver_info in approvers_list:
-        node = db.query(OrgNode).filter(OrgNode.id == approver_info["org_node_id"], OrgNode.tenant_id == tenant_id).first()
-        if node:
-            nodes.append(OrgNodeResponse.from_orm(node))
-    return nodes
 
 @router.get(
     "/departments",
@@ -279,27 +205,6 @@ def list_departments(
 
     return result
 
-@router.get(
-    "/approval-chains",
-    response_model=List[ApprovalChainResponse],
-    summary="List approval chain workflows",
-    description="Returns all approval workflows for the tenant",
-    dependencies=[Depends(require_resource_permission("admin-settings", "view"))],
-)
-def list_approval_chains(
-    current_user = Depends(get_current_internal_user),
-    db: Session = Depends(get_db),
-) -> List[ApprovalChainResponse]:
-    """Get all approval chain configurations for the current tenant."""
-    tenant_id = current_user.tenant_id
-    if not tenant_id:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User is not assigned to a tenant")
-
-    chains = db.query(ApprovalChain).filter(
-        ApprovalChain.tenant_id == tenant_id,
-        ApprovalChain.active == True
-    ).all()
-    return [ApprovalChainResponse.from_orm(c) for c in chains]
 
 class CreateOrgNodeRequest(BaseModel):
     name: str

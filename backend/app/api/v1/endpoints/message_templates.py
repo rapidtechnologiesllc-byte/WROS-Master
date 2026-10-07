@@ -78,23 +78,6 @@ def get_template(
     return TemplateResponse.from_orm(template)
 
 
-@router.get("/{template_key}/versions")
-def get_template_versions(
-    template_key: str,
-    db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_internal_user),
-):
-    """Get all versions of a template."""
-    if template_key not in TEMPLATE_KEYS:
-        raise HTTPException(status_code=400, detail=f"Invalid template key: {template_key}")
-
-    templates = db.query(MessageTemplate).filter(
-        MessageTemplate.tenant_id == current_user.UserID,
-        MessageTemplate.template_key == template_key,
-    ).order_by(MessageTemplate.version.desc()).all()
-
-    return [TemplateResponse.from_orm(t) for t in templates]
-
 
 @router.post("/{template_key}")
 def create_template_version(

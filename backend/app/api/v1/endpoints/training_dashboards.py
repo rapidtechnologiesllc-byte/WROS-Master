@@ -25,67 +25,6 @@ router = APIRouter(prefix="/dashboards", tags=["Dashboards"])
 # Training & Certification Dashboard
 # ============================================================================
 
-@router.get(
-    "/training-certification",
-    dependencies=[Depends(require_resource_permission("certifications", "view"))]
-)
-def get_training_certification_dashboard(
-    db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_internal_user)
-):
-    """Get unified training and certification dashboard."""
-    try:
-        business_unit_id = getattr(current_user, 'business_unit_id', None)
-
-        buddy_overview = get_buddy_program_overview(db, business_unit_id)
-        cert_summary = get_certification_summary(db, business_unit_id)
-        employee_status = get_employee_training_status(db, None, business_unit_id)
-        pipeline_status = get_training_pipeline_status(db, business_unit_id)
-        next_steps = get_next_training_steps(db, business_unit_id=business_unit_id)
-
-        return {
-            "status": "success",
-            "data": {
-                "buddy_program": buddy_overview,
-                "certifications": cert_summary,
-                "employees": employee_status[:20],  # Top 20
-                "pipeline": pipeline_status,
-                "recommended_actions": next_steps,
-            }
-        }
-    except Exception as e:
-        logger.error(f"Error: {str(e)}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
-
-@router.get(
-    "/training-certification/employee/{employee_id}",
-    dependencies=[Depends(require_resource_permission("certifications", "view"))]
-)
-def get_employee_training_details(
-    employee_id: str,
-    db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_internal_user)
-):
-    """Get detailed training status for specific employee."""
-    try:
-        status_list = get_employee_training_status(db, employee_id)
-        if not status_list:
-            raise HTTPException(status_code=404, detail="Employee not found")
-
-        next_steps = get_next_training_steps(db, employee_id)
-
-        return {
-            "status": "success",
-            "data": {
-                "employee": status_list[0],
-                "recommended_next_steps": next_steps,
-            }
-        }
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error: {str(e)}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
 
 # ============================================================================
 # Troy's Partner Dashboard (Current Demand, Pipeline, Certifications, Buddy, Core Certified)

@@ -41,39 +41,6 @@ from app.services.ai_conversation_service import (
 
 router = APIRouter(tags=["ai-recruiter-assignment"])
 
-@router.get(
-    "/candidates/{candidate_id}/ai-assignment",
-    dependencies=[
-        Depends(require_resource_permission("candidates", "view")),
-        Depends(get_current_internal_user),
-    ],
-    response_model=AIAssignmentResponse,
-    summary="Get a candidate's current active Thunder assignment",
-)
-def get_candidate_ai_assignment(
-    candidate_id: str,
-    db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_internal_user),
-):
-    # A candidate has exactly one org owner (their assignment's own
-    # tenant_id) -- look up their active assignment directly rather
-    # than requiring the caller to already know which tenant owns them.
-    from app.models.candidate_ai import CandidateAIAssignment
-    assignment = (
-        db.query(CandidateAIAssignment)
-        .filter(CandidateAIAssignment.candidate_id == candidate_id, CandidateAIAssignment.is_active == True)
-        .order_by(CandidateAIAssignment.assigned_at.desc())
-        .first()
-    )
-    if not assignment:
-        raise HTTPException(status_code=404, detail=f"No active AI assignment found for candidate '{candidate_id}'.")
-
-    return AIAssignmentResponse(
-        ai_agent_name=assignment.ai_agent_name or DEFAULT_THUNDER_DISPLAY_NAME,
-        ai_agent_persona=assignment.ai_agent_persona,
-        assigned_at=assignment.assigned_at,
-        is_active=assignment.is_active,
-    )
 
 @router.get(
     "/admin/tenant/thunder-enabled",

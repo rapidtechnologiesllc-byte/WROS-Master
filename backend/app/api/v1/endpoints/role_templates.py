@@ -736,32 +736,6 @@ def delete_business_unit_rbac(
 
     return {"status": "deleted"}
 
-@router.get(
-    "/{template_id}/audit-trail",
-    dependencies=[Depends(require_resource_permission("role-templates", "view"))]
-)
-def get_template_audit_trail(
-    template_id: int,
-    db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_internal_user)
-):
-    """Get complete audit trail for a specific role template."""
-    template = db.query(RoleTemplate).filter(
-        RoleTemplate.id == template_id,
-        RoleTemplate.tenant_id == current_user.tenant_id
-    ).first()
-
-    if not template:
-        raise HTTPException(status_code=404, detail="Role template not found")
-
-    audit_logs = _audit_rows(db, current_user.tenant_id, entity_type="role_template",
-                             entity_id=str(template_id), limit=500)
-
-    return {
-        "template_id": template_id,
-        "template_name": template.name,
-        "audit_trail": audit_logs
-    }
 
 @router.get(
     "/{template_id}/users",
@@ -808,22 +782,3 @@ def get_users_for_role_template(
         ]
     }
 
-@router.get(
-    "/audit/logs",
-    dependencies=[Depends(require_resource_permission("audit-logs", "view"))]
-)
-def get_rbac_audit_logs(
-    entity_type: str = None,
-    action: str = None,
-    limit: int = 100,
-    db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_internal_user)
-):
-    """Get RBAC audit logs for the current tenant."""
-    logs = _audit_rows(db, current_user.tenant_id, entity_type=entity_type, action=action,
-                       limit=min(limit, 500))
-
-    return {
-        "total": len(logs),
-        "logs": logs
-    }

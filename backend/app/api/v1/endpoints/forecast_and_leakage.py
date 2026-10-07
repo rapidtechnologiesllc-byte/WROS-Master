@@ -58,20 +58,6 @@ def forecast_vs_actual(
         db, client_ids=list(client_ids) if client_ids is not None else None, year=year, month=month,
     )
 
-@router.get(
-    "/forecast-vs-actual/bu/{business_unit_id}",
-    response_model=ForecastVsActualResponse,
-    dependencies=[Depends(require_resource_permission("forecasts", "view"))]
-)
-def forecast_vs_actual_by_bu(
-    business_unit_id: int, year: int, month: int,
-    db: Session = Depends(get_db),
-    current_user: Users = Depends(require_resource_permission("revenue", "view")),
-):
-    scoped_bu_ids = _caller_business_unit_ids(db, current_user)
-    if scoped_bu_ids is not None and business_unit_id not in scoped_bu_ids:
-        raise HTTPException(status_code=403, detail="Not authorized to view this Business Unit's revenue.")
-    return get_forecast_vs_actual_by_bu(db, business_unit_id=business_unit_id, year=year, month=month)
 
 @router.get(
     "/forecast-vs-actual/trend",
@@ -89,53 +75,3 @@ def forecast_vs_actual_trend(
     )
     return ForecastVsActualTrendResponse(business_unit_id=None, year=year, months=months)
 
-@router.post(
-    "/revenue-leakage/scan",
-    response_model=PipelineLeakageScanResponse,
-    dependencies=[Depends(require_resource_permission("revenue", "create"))]
-)
-def scan_leakage(
-    db: Session = Depends(get_db),
-    current_user: Users = Depends(require_resource_permission("revenue", "view")),
-):
-    """Leakage detail (which opportunity, which demand) is P&L-adjacent
-    -- gated at revenue.view_pnl same tier as target-setting, not the
-    broader revenue.view."""
-    flags = scan_all_leakage(db, tenant_id=current_user.tenant_id)
-    db.commit()
-    for flag in flags:
-        db.refresh(flag)
-    total_impact = sum(f.estimated_impact_usd_cents or 0 for f in flags)
-    return PipelineLeakageScanResponse(flags=flags, total_estimated_impact_usd_cents=total_impact)
-
-@router.get(
-    "/revenue-leakage/active",
-    response_model=PipelineLeakageScanResponse,
-    dependencies=[Depends(require_resource_permission("revenue", "view"))]
-)
-def active_leakage(
-    db: Session = Depends(get_db),
-    current_user: Users = Depends(require_resource_permission("revenue", "view")),
-):
-    scoped_bu_ids = _caller_business_unit_ids(db, current_user)
-    flags = get_active_leakage_flags(db, business_unit_ids=scoped_bu_ids, tenant_id=current_user.tenant_id)
-    total_impact = sum(f.estimated_impact_usd_cents or 0 for f in flags)
-    return PipelineLeakageScanResponse(flags=flags, total_estimated_impact_usd_cents=total_impact)
-
-@router.post(
-    "/revenue-leakage/{flag_id}/resolve",
-    response_model=PipelineLeakageFlagItem,
-    dependencies=[Depends(require_resource_permission("revenue", "create"))]
-)
-def resolve_flag(
-    flag_id: str, body: ResolveLeakageFlagRequest,
-    db: Session = Depends(get_db),
-    current_user: Users = Depends(require_resource_permission("revenue", "view")),
-):
-    flag = db.query(PipelineLeakageFlag).filter(PipelineLeakageFlag.id == flag_id).first()
-    if flag is None:
-        raise HTTPException(status_code=404, detail="Leakage flag not found.")
-    resolve_leakage_flag(db, flag, resolution_note=body.resolution_note)
-    db.commit()
-    db.refresh(flag)
-    return flag

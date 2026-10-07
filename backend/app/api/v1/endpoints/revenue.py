@@ -152,44 +152,6 @@ def list_leakage_flags(
     flags = get_active_leakage_flags(db, tenant_id=current_user.tenant_id)
     return LeakageFlagsResponse(flags=[_flag_to_item(f) for f in flags])
 
-@router.get(
-    "/leakage/statistics",
-    response_model=dict,
-    summary="Get revenue leakage statistics and totals",
-    dependencies=[Depends(require_resource_permission("revenue", "view"))]
-)
-def get_leakage_statistics(
-    db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_internal_user),
-):
-    """
-    Returns aggregate statistics about revenue leakage:
-    - Total active leakage flags
-    - Total unbilled hours across all projects
-    - Estimated value of unbilled revenue (advisory only)
-    - Number of affected projects
-    """
-    stats = get_scan_statistics(db, tenant_id=current_user.tenant_id)
-    return stats
-
-@router.post(
-    "/leakage/rescan-all",
-    response_model=dict,
-    summary="Manually trigger full revenue scan (secondary action)",
-    dependencies=[Depends(require_resource_permission("revenue", "create"))]
-)
-def rescan_all_projects(
-    db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_internal_user),
-):
-    """
-    Manually trigger a full scan of all projects for revenue leakage.
-    This is a secondary action — the primary flow uses the daily cached results from GET /revenue/leakage.
-
-    Returns scan results and updates the cache for subsequent requests.
-    """
-    result = run_daily_revenue_scan_job(db)
-    return result
 
 @router.post(
     "/reconciliation/scan",

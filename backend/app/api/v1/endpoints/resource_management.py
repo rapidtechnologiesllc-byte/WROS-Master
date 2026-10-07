@@ -230,21 +230,6 @@ def reject_recommendation(
         message="Recommendation rejected.", recommendation=_to_item(db, rec),
     )
 
-@router.get(
-    "/employees/{employee_id}/actively-engaged",
-    dependencies=[
-        Depends(require_resource_permission("resources", "view")),
-        Depends(get_current_internal_user),
-    ],
-    response_model=dict,
-    summary="Check if an employee is actively engaged in allocations",
-)
-def check_actively_engaged(
-    employee_id: str,
-    db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_internal_user),
-):
-    return {"employee_id": employee_id, "actively_engaged": is_employee_actively_engaged(db, employee_id)}
 
 @router.get(
     "/demands/{demand_id}/matching-bench-resources",

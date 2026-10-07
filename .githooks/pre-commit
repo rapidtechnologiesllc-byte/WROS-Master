@@ -32,7 +32,8 @@ log_gate_pass() {
 }
 
 # Get list of staged files
-STAGED_FILES=$(git diff --cached --name-only)
+# Added, copied, modified and renamed files only: a deleted file has no content to validate
+STAGED_FILES=$(git diff --cached --name-only --diff-filter=ACMR)
 STAGED_PYTHON_FILES=$(echo "$STAGED_FILES" | grep -E '\.py$' || true)
 STAGED_JS_FILES=$(echo "$STAGED_FILES" | grep -E '\.(js|jsx|ts|tsx)$' || true)
 

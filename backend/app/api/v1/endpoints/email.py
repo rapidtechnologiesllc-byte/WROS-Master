@@ -199,31 +199,6 @@ async def send_mail_with_attachments(
         attachments=attachments if attachments else None,
     )
 
-@router.post(
-    "/notify",
-    dependencies=[
-        Depends(require_resource_permission("message-queue", "create")),
-        Depends(get_current_internal_user),
-    ],
-    summary="Send a styled HRMS notification email",
-)
-def send_notification(
-    request: SendNotificationRequest,
-    current_user=Depends(get_current_internal_user),
-):
-    """
-    Send a branded notification email with a heading and body message.
-    Uses the BlitzenX HRMS email template automatically.
-    """
-    logger.info(
-        f"[email/notify] Triggered by {current_user.UserEmail} â†' {request.to_email} | {request.heading}"
-    )
-    return EmailService.send_notification(
-        to_email=request.to_email,
-        heading=request.heading,
-        message=request.message,
-        cc_emails=request.cc_emails,
-    )
 
 @router.post(
     "/notify/event",
