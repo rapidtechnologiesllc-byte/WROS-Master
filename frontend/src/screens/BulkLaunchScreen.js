@@ -8,14 +8,11 @@ export default function BulkLaunchScreen() {
   const [file, setFile] = useState(null);
   const [importResult, setImportResult] = useState(null);
   const [importing, setImporting] = useState(false);
-  const [importProgress, setImportProgress] = useState(null);  // Track import progress
-  const [importJobId, setImportJobId] = useState(null);  // Store import job ID
   const [importHistory, setImportHistory] = useState([]);  // NEW: Store import history
   const [job, setJob] = useState(null);
   const [launching, setLaunching] = useState(false);
   const [actionError, setActionError] = useState(null);
   const pollRef = useRef(null);
-  const importPollRef = useRef(null);  // Separate poll for import progress
   const fileInputRef = useRef(null);
 
   const uploadTypeOptions = [
@@ -31,14 +28,6 @@ export default function BulkLaunchScreen() {
       try {
         const jobs = await getImportHistory();
         setImportHistory(jobs || []);
-
-        // Resume polling if there's an in-progress import
-        const inProgress = jobs?.find(j => j.status === "PROCESSING");
-        if (inProgress) {
-          setImportJobId(inProgress.id);
-          setImportProgress(inProgress);
-          pollImportProgress(inProgress.id);
-        }
       } catch (err) {
         console.error("Failed to load import history:", err);
       }
@@ -53,7 +42,6 @@ export default function BulkLaunchScreen() {
     return () => {
       clearInterval(historyRefreshInterval);
       if (pollRef.current) clearInterval(pollRef.current);
-      if (importPollRef.current) clearInterval(importPollRef.current);
     };
   }, []);
 
@@ -92,59 +80,16 @@ export default function BulkLaunchScreen() {
     }
 
     setImporting(true);
-    setImportProgress(null);  // Reset progress
     try {
-      const result = await bulkImportCsv(file);
-      setImportResult(result);
-
-      // Extract job ID from the message if available
-      const jobIdMatch = result.message?.match(/job_id: ([a-f0-9\-]+)/);
-      if (jobIdMatch && jobIdMatch[1]) {
-        const extractedJobId = jobIdMatch[1];
-        setImportJobId(extractedJobId);
-        // Start polling for import progress
-        pollImportProgress(extractedJobId);
-        setActionError(null);
-      } else {
-        // Fallback: try to use the result's job_id field if it exists
-        if (result.job_id) {
-          setImportJobId(result.job_id);
-          pollImportProgress(result.job_id);
-          setActionError(null);
-        } else {
-          // No job ID found, but request succeeded - still show success
-          setImporting(false);
-        }
-      }
+      // The import runs in the request: the response is the final result
+      // (imported / duplicates / errors); history below refreshes on its own.
+      setImportResult(await bulkImportCsv(file));
+      setActionError(null);
     } catch (err) {
       setActionError(err?.message || "CSV cannot exceed 100K rows, or is missing required columns.");
+    } finally {
       setImporting(false);
     }
-  };
-
-  // NEW: Poll import progress endpoint
-  const pollImportProgress = (jobId) => {
-    if (importPollRef.current) clearInterval(importPollRef.current);
-
-    importPollRef.current = setInterval(async () => {
-      try {
-        const response = await fetch(`http://localhost:8080/candidates/bulk-import/${jobId}/progress`);
-        if (response.ok) {
-          const progress = await response.json();
-          setImportProgress(progress);
-
-          // Stop polling when import is complete
-          if (progress.status === "COMPLETED" || progress.status === "FAILED") {
-            clearInterval(importPollRef.current);
-            setImporting(false);
-            setActionError(null);
-          }
-        }
-      } catch (err) {
-        // Transient poll failure, try again next tick
-        console.error("Progress poll error:", err);
-      }
-    }, 1000);  // Poll every 1 second for real-time updates
   };
 
   const pollJob = (jobId) => {
@@ -241,46 +186,7 @@ export default function BulkLaunchScreen() {
           </button>
         </div>
 
-        {/* NEW: Real-time Import Progress Dashboard */}
-        {importProgress && (
-          <div className="mt-4 space-y-3 rounded-lg border border-blue-200 bg-blue-50 p-4">
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-semibold text-gray-900">Import Progress</span>
-              <span className="text-sm font-bold text-blue-600">{importProgress.percent_complete}%</span>
-            </div>
-            <div className="h-2 w-full overflow-hidden rounded-full bg-gray-200">
-              <div
-                className="h-full bg-blue-500 transition-all duration-300"
-                style={{ width: `${importProgress.percent_complete}%` }}
-              />
-            </div>
-            <div className="text-sm text-gray-700">
-              <span className="font-semibold">{importProgress.imported}</span> of{' '}
-              <span className="font-semibold">{importProgress.total_rows}</span> candidates imported
-            </div>
-            <div className="grid grid-cols-3 gap-2 text-xs">
-              <div className="rounded bg-white p-2">
-                <div className="text-green-600 font-semibold">{importProgress.imported}</div>
-                <div className="text-gray-600">Imported</div>
-              </div>
-              <div className="rounded bg-white p-2">
-                <div className="text-yellow-600 font-semibold">{importProgress.skipped}</div>
-                <div className="text-gray-600">Duplicates</div>
-              </div>
-              <div className="rounded bg-white p-2">
-                <div className="text-red-600 font-semibold">{importProgress.errors}</div>
-                <div className="text-gray-600">Errors</div>
-              </div>
-            </div>
-            {importProgress.status === "PROCESSING" && (
-              <div className="text-xs text-gray-600">
-                Processing... (Batch size automatically reduced if database gets overwhelmed)
-              </div>
-            )}
-          </div>
-        )}
-
-        {importResult && !importProgress && (
+        {importResult && (
           <div className="mt-4 space-y-2">
             <div className="text-sm text-gray-700">
               Imported: <span className="font-semibold">{importResult.imported}</span> · Duplicates skipped: <span className="font-semibold">{importResult.skipped_duplicates}</span> · Errors: <span className="font-semibold">{importResult.errors.length}</span>

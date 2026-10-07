@@ -61,6 +61,7 @@ class AuthenticationMiddleware(BaseHTTPMiddleware):
         # (GET) and X-Hub-Signature-256 HMAC (POST) -- see
         # app.services.whatsapp_webhook_service.
         "/webhooks/whatsapp",
+        "/api/v1/webhooks/whatsapp",
         # Form dropdown data endpoints (authenticated users need these)
         "/admin/certifications/business-units",
         "/admin/certifications/roles",

@@ -26,13 +26,9 @@ export const canDo = (userPermissions, module, verb) => {
   return hasPermission(userPermissions, `${module}_${verb}`);
 };
 
-export const canView = (userPermissions, module) => {
-  return canDo(userPermissions, module, "view");
-};
 
-export const canCreate = (userPermissions, module) => {
-  return canDo(userPermissions, module, "create");
-};
+
+
 
 export const canEdit = (userPermissions, module) => {
   return canDo(userPermissions, module, "edit");

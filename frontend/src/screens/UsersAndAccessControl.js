@@ -14,15 +14,11 @@ import {
   getAllUsers,
   createHrUser,
   updateHrUser,
-  deleteHrUser,
-  updateUserPermissions,
-  getUserPermissions
+  deleteHrUser
 } from "../services/api/users";
 import {
   listRoleTemplates,
   listModulesAndResources,
-  grantPermission,
-  revokePermission,
   getRoleTemplate
 } from "../services/api/role_templates";
 import { apiRequest } from "../services/api/client";

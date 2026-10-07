@@ -2,7 +2,6 @@
 S-002/HRMS-0402 -- WhatsApp Webhook (Meta Cloud API)
 =======================================================
 Prefix: /webhooks
-import logging
 Tag:    whatsapp-webhook
 
 Public (no auth possible -- Meta calls this, not a logged-in user).
@@ -19,13 +18,11 @@ Routes:
 """
 import json
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
 from fastapi.responses import PlainTextResponse
 
 from app.core.database import SessionLocal
-from app.core.dependencies import get_current_internal_user, require_resource_permission
 from app.core.logging import logger
-from app.core.database import get_db
 from app.services.whatsapp_webhook_service import (
     process_delivery_status,
     store_inbound_whatsapp_message,
@@ -35,12 +32,11 @@ from app.services.whatsapp_webhook_service import (
 
 router = APIRouter(prefix="/webhooks", tags=["whatsapp-webhook"])
 
-@router.post(
+# No user auth on either route: Meta's servers call them. The GET handshake
+# is checked against the configured verify token, the POST body against Meta's
+# X-Hub-Signature-256 HMAC (validate_signature).
+@router.get(
     "/whatsapp",
-    dependencies=[
-        Depends(require_resource_permission("webhooks", "view")),
-        Depends(get_current_internal_user),
-    ],
     summary="Meta WhatsApp Cloud API webhook verification handshake",
 )
 def whatsapp_webhook_verify(request: Request):
@@ -75,10 +71,6 @@ def _process_webhook_payload(payload: dict) -> None:
 
 @router.post(
     "/whatsapp",
-    dependencies=[
-        Depends(require_resource_permission("webhooks", "create")),
-        Depends(get_current_internal_user),
-    ],
     status_code=200,
     summary="Receive inbound WhatsApp messages and delivery status updates",
 )

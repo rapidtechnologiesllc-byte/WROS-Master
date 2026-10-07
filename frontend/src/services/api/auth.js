@@ -19,14 +19,7 @@ export const login = async (payload) => {
   return data;
 };
 
-export const signup = async (payload) => {
-  const { data } = await apiRequest("/auth/signup", {
-    method: "POST",
-    skipAuth: true,
-    body: JSON.stringify(payload)
-  });
-  return data;
-};
+
 
 // Backlog item, 2026-08-05 (wros_email_2fa_backlog, candidate half).
 // verify/resend use the short-lived candidate_otp_pending token, not

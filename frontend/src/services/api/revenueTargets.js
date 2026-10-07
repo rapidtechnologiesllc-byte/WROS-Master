@@ -7,13 +7,7 @@ export const getExecutiveDashboard = async () => {
   return data;
 };
 
-export const getRevenueToDemandProjection = async (businessUnitId, year, month) => {
-  const { data } = await apiRequest(
-    `/revenue-to-demand/bu/${businessUnitId}?year=${year}&month=${month}`,
-    { method: "GET" },
-  );
-  return data;
-};
+
 
 export const getPipelineCoverage = async (revenueTargetUsdCents) => {
   const { data } = await apiRequest(
@@ -39,17 +33,6 @@ export const getBuTarget = async (businessUnitId, targetPeriod, fiscalYear) => {
   return data;
 };
 
-export const createPartnerGoal = async (payload) => {
-  const { data } = await apiRequest("/revenue-targets/partner-goals", {
-    method: "POST",
-    body: JSON.stringify(payload),
-  });
-  return data;
-};
 
-export const getPartnerPosition = async (partnerUserId) => {
-  const { data } = await apiRequest(`/revenue-targets/partners/${partnerUserId}/position`, {
-    method: "GET",
-  });
-  return data;
-};
+
+

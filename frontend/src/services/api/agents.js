@@ -42,11 +42,6 @@ export const getCFOBUComparison = async (yearMonth = null) => {
   return data.data;
 };
 
-export const getCFOExpenseBreakdown = async (yearMonth = null) => {
-  const url = `/agents/cfo/expense-breakdown${yearMonth ? `?year_month=${yearMonth}` : ""}`;
-  const { data } = await apiRequest(url, { method: "GET" });
-  return data.data;
-};
 
 export const getCFOForecast = async (monthsAhead = 3) => {
   const { data } = await apiRequest(`/agents/cfo/forecast?months_ahead=${monthsAhead}`, {
@@ -80,10 +75,6 @@ export const setFYTarget = async (metric, target, fyYear) => {
   return data;
 };
 
-export const getFYSettings = async () => {
-  const { data } = await apiRequest("/goals/fy-settings", { method: "GET" });
-  return data;
-};
 
 export const setFYStartMonth = async (startMonth) => {
   const { data } = await apiRequest("/goals/fy-settings", {

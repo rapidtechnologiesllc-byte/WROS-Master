@@ -15,13 +15,7 @@ export const getMissingFields = async (candidateId) => {
   return data;
 };
 
-export const assignAgent = async (candidateId, body) => {
-  const { data } = await apiRequest("/ai-agent/assign", {
-    method: "POST",
-    body: JSON.stringify({ candidate_id: candidateId, ...(body || {}) }),
-  });
-  return data;
-};
+
 
 export const pollForReply = async (candidateId) => {
   const { data } = await apiRequest(`/ai-agent/poll/${candidateId}`, {

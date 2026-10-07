@@ -18,20 +18,11 @@ export const getAllEmployees = async () => {
   return data?.employees || [];
 };
 
-export const getBenchPool = async () => {
-  const { data } = await apiRequest("/employees/bench-pool", { method: "GET" });
-  return data;
-};
 
-export const getBenchAgingAlerts = async () => {
-  const { data } = await apiRequest("/employees/bench-aging-alerts", { method: "GET" });
-  return data;
-};
 
-export const getEmployeeById = async (employeeId) => {
-  const { data } = await apiRequest(`/employees/${employeeId}`, { method: "GET" });
-  return data;
-};
+
+
+
 
 export const markEmployeeOnBench = async (employeeId, reason) => {
   const { data } = await apiRequest(`/employees/${employeeId}/mark-bench`, {
@@ -48,29 +39,11 @@ export const removeEmployeeFromBench = async (employeeId) => {
   return data;
 };
 
-export const getEmployeeBenchHistory = async (employeeId) => {
-  const { data } = await apiRequest(`/employees/${employeeId}/bench-history`, {
-    method: "GET",
-  });
-  return data;
-};
 
-// S-351/HRMS-0512 -- read-only Speciality/Core engine change audit trail.
-export const getEngineHistory = async (employeeId) => {
-  const { data } = await apiRequest(`/employees/${employeeId}/engine-history`, {
-    method: "GET",
-  });
-  return data;
-};
 
-// S-354/HRMS-0515 -- performance event timeline + score averages.
-// Never visible to the employee themselves (BU Head/RM/HR only).
-export const getEmployeePerformance = async (employeeId) => {
-  const { data } = await apiRequest(`/employees/${employeeId}/performance`, {
-    method: "GET",
-  });
-  return data;
-};
+
+
+
 
 // HRMS-0708 minimal slice -- the MVP bridge from candidate to employee.
 export const convertCandidateToEmployee = async (candidateId, payload) => {
@@ -81,16 +54,7 @@ export const convertCandidateToEmployee = async (candidateId, payload) => {
   return data;
 };
 
-// One-time bulk employee load from an .xlsx file.
-export const bulkImportEmployees = async (file) => {
-  const formData = new FormData();
-  formData.append("file", file);
-  const { data } = await apiRequest("/employees/bulk-import", {
-    method: "POST",
-    body: formData,
-  });
-  return data;
-};
+
 
 // S-DEFECT-1: Update employee certifications (Guidewire certification levels)
 // Employer company (BX-US / BX-IN) and business unit; "" / null clears

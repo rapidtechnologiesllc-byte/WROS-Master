@@ -212,17 +212,12 @@ export const getBusinessUnitId = () => {
 /**
  * Get business unit name
  */
-export const getBusinessUnitName = () => {
-  return localStorage.getItem('business_unit_name');
-};
+
 
 /**
  * Check if user can access full HRMS
  */
-export const canAccessFullHrms = ({ role }) => {
-  const normalized = String(role || '').trim().toUpperCase();
-  return normalized === 'SUPER_USER' || isSuperUser();
-};
+
 
 /**
  * Check if user can access workspace
@@ -246,37 +241,12 @@ export const isCandidateUser = ({ role, userType }) => {
 /**
  * Get permission error message for UI display
  */
-export const getPermissionErrorMessage = (action, resource) => {
-  const actionText = {
-    view: 'access',
-    create: 'create items in',
-    edit: 'edit items in',
-    delete: 'delete items in',
-    manage: 'manage'
-  }[action] || 'access';
 
-  return `You don't have permission to ${actionText} ${resource}`;
-};
 
 /**
  * Get permission tooltip for UI display
  */
-export const getPermissionTooltip = (permission) => {
-  if (!permission || typeof permission !== 'string') {
-    return 'Permission required';
-  }
 
-  const [resource, action] = permission.split('.');
-  const actionText = {
-    view: 'View',
-    create: 'Create',
-    edit: 'Edit',
-    delete: 'Delete',
-    manage: 'Manage'
-  }[action?.toLowerCase()] || 'Access';
-
-  return `Permission required: ${actionText} ${resource}`;
-};
 
 
 export const canViewModule = (moduleName) => {
@@ -293,53 +263,13 @@ export const canViewModule = (moduleName) => {
   return false;
 };
 
-export const canCreateInModule = (moduleName) => {
-  const permissions = getStoredPermissions();
-  if (!permissions) return false;
 
-  if (typeof permissions === 'object' && !Array.isArray(permissions)) {
-    return Object.values(permissions).some(p =>
-      p && (p.module_name === moduleName || p.display_name?.includes(moduleName)) && p.can_create
-    );
-  }
 
-  return false;
-};
 
-export const canEditInModule = (moduleName) => {
-  const permissions = getStoredPermissions();
-  if (!permissions) return false;
 
-  if (typeof permissions === 'object' && !Array.isArray(permissions)) {
-    return Object.values(permissions).some(p =>
-      p && (p.module_name === moduleName || p.display_name?.includes(moduleName)) && p.can_edit
-    );
-  }
 
-  return false;
-};
 
-export const canDeleteInModule = (moduleName) => {
-  const permissions = getStoredPermissions();
-  if (!permissions) return false;
 
-  if (typeof permissions === 'object' && !Array.isArray(permissions)) {
-    return Object.values(permissions).some(p =>
-      p && (p.module_name === moduleName || p.display_name?.includes(moduleName)) && p.can_delete
-    );
-  }
-
-  return false;
-};
-
-export const getModulePermissions = (moduleName) => {
-  return {
-    canView: canViewModule(moduleName),
-    canCreate: canCreateInModule(moduleName),
-    canEdit: canEditInModule(moduleName),
-    canDelete: canDeleteInModule(moduleName),
-  };
-};
 
 /**
  * Filter navigation items by allowed modules
