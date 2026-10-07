@@ -82,6 +82,10 @@ export default function LocationCascadeSelect({ value, onChange, disabled }) {
           <option value="">
             {stateCode ? "Select city" : "Select state first"}
           </option>
+          {city && !cities.some((c) => c.name === city) && (
+            // A stored city the dataset doesn't list (renamed, e.g. Gurugram/Gurgaon) stays selectable
+            <option value={city}>{city}</option>
+          )}
           {cities.map((c) => (
             <option key={`${c.name}-${c.latitude}`} value={c.name}>
               {c.name}
@@ -118,7 +122,23 @@ export function parseLocation(text) {
   const country = Country.getAllCountries().find(
     (c) => c.name.toLowerCase() === (countryName || "").toLowerCase(),
   );
-  if (!country) return { countryCode: "", stateCode: "", city: "" };
+  if (!country) {
+    // Legacy "City, State" without a country: infer the country from the
+    // state name when that name identifies one state (or one in IN/US,
+    // where this platform recruits); otherwise leave it for the user.
+    const matches = State.getAllStates().filter(
+      (s) => s.name.toLowerCase() === (countryName || "").toLowerCase(),
+    );
+    const preferred = matches.length === 1
+      ? matches[0]
+      : matches.find((s) => s.countryCode === "IN") || matches.find((s) => s.countryCode === "US");
+    if (!preferred) return { countryCode: "", stateCode: "", city: "" };
+    return {
+      countryCode: preferred.countryCode,
+      stateCode: preferred.isoCode,
+      city: parts.length >= 2 ? parts[0] : "",
+    };
+  }
 
   const stateName = parts.length >= 2 ? parts[parts.length - 2] : "";
   const state = stateName
