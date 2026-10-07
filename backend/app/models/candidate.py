@@ -44,6 +44,9 @@ class Candidate(Base):
     candidate_notice_period = Column(Integer, nullable=True)  # Notice period in days (30, 45, 60)
     candidateExpectedSalary = Column(String(512), nullable=True)
     candidateCurrentSalary = Column(String(512), nullable=True)
+    # Rate unit for the salary amounts ("$/Year", "INR/Month", "$/Hour", ...)
+    candidateExpectedSalaryType = Column(String(50), nullable=True)
+    candidateCurrentSalaryType = Column(String(50), nullable=True)
     candidateCurrentLocation = Column(String(512), nullable=True)
     candidatePassword = Column(String(512), nullable=False)
     candidateTempPassword = Column(String(512), nullable=True)  # plain-text password for credential emails

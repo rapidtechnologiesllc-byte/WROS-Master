@@ -1,5 +1,10 @@
 // HR create-candidate screen with optional resume upload and email.
 import { useEffect, useState } from "react";
+import PhoneField from "../components/ui/PhoneField";
+import {
+  EDUCATION_LEVELS, GENDER_OPTIONS, SALARY_RATE_TYPES, SOURCE_OPTIONS, experienceYears,
+} from "../utils/candidateFields";
+
 import { FileText, Users } from "lucide-react";
 import { createCandidate } from "../services/api/candidates";
 import { apiRequest } from "../services/api/client";
@@ -32,6 +37,15 @@ import { useRef } from "react";
 import { handleApiError } from "../utils/apiErrorHandler";
 import { hasPermission } from "../utils/permissionsRoleTemplate";
 
+// Rows count as filled when any field has a value; only the key field is required
+const hasAnyValue = (row, keys) => keys.some((k) => String(row[k] || "").trim());
+const EDUCATION_KEYS = ["education_level", "education_institute", "degree", "field_of_study", "starting_year", "year_of_passing", "percentage"];
+const EXPERIENCE_KEYS = ["company_name", "job_title", "start_date", "end_date", "responsibilities"];
+const CERTIFICATION_KEYS = ["name", "organization", "issue_date", "expiry_date", "credential_id"];
+const EMPTY_EDUCATION_ROW = { education_level: "", education_institute: "", degree: "", field_of_study: "", starting_year: "", year_of_passing: "", percentage: "" };
+const EMPTY_EXPERIENCE_ROW = { company_name: "", job_title: "", start_date: "", end_date: "", responsibilities: "" };
+const EMPTY_CERTIFICATION_ROW = { name: "", organization: "", issue_date: "", expiry_date: "", credential_id: "" };
+
 // Added 2026-07-23 -- real bug: the Mobile input used to strip any
 // country code the candidate typed (removed a leading "91", hard-capped
 // to 10 digits) and candidateMobile was sent to WhatsApp as-is with no
@@ -40,28 +54,7 @@ import { hasPermission } from "../utils/permissionsRoleTemplate";
 // so a non-Indian number was silently unreachable over WhatsApp. Not an
 // exhaustive ISO list -- the common countries this platform actually
 // recruits in/for, easy to extend.
-const COUNTRY_CODES = [
-  { value: "+91", label: "+91 (India)" },
-  { value: "+1", label: "+1 (US/Canada)" },
-  { value: "+44", label: "+44 (UK)" },
-  { value: "+61", label: "+61 (Australia)" },
-  { value: "+971", label: "+971 (UAE)" },
-  { value: "+65", label: "+65 (Singapore)" },
-  { value: "+49", label: "+49 (Germany)" },
-  { value: "+63", label: "+63 (Philippines)" },
-];
 
-const SOURCE_OPTIONS = [
-  { value: "Campus Hiring", label: "Campus Hiring" },
-  { value: "Conference", label: "Conference" },
-  { value: "LinkedIn", label: "LinkedIn" },
-  { value: "Career Site", label: "Career Site" },
-  { value: "Employee Referral", label: "Employee Referral" },
-  { value: "Indeed", label: "Indeed" },
-  { value: "Naukri", label: "Naukri" },
-  { value: "Monster", label: "Monster" },
-  { value: "Other", label: "Other" },
-];
 
 export default function CandidateCreate({ onBack, onSave }) {
   const { banner, showSuccess, showError, dismiss } = useScreenBanner();
@@ -95,6 +88,8 @@ export default function CandidateCreate({ onBack, onSave }) {
   const [isSaving, setIsSaving] = useState(false);
   const [educationRows, setEducationRows] = useState([]);
   const [experienceRows, setExperienceRows] = useState([]);
+  const [certificationRows, setCertificationRows] = useState([]);
+  const [noticePeriod, setNoticePeriod] = useState("");
   const [errors, setErrors] = useState({});
   const [users, setUsers] = useState([]);
   const today = new Date().toISOString().slice(0, 10);
@@ -541,55 +536,21 @@ export default function CandidateCreate({ onBack, onSave }) {
       setErrors(newErrors);
       return;
     }
-    const filledEducationRows = educationRows.filter((row) =>
-      [
-        row.education_institute,
-        row.degree,
-        row.field_of_study,
-        row.starting_year,
-        row.year_of_passing,
-        row.percentage,
-      ].some((v) => String(v || "").trim()),
-    );
-    const invalidEducation = filledEducationRows.some((row) =>
-      [
-        row.education_institute,
-        row.degree,
-        row.field_of_study,
-        row.starting_year,
-        row.year_of_passing,
-        row.percentage,
-      ].some((v) => !String(v || "").trim()),
-    );
-    if (invalidEducation) {
-      setActionNotice(
-        "Please complete all education prefill fields or remove incomplete rows.",
-      );
+    const filledEducationRows = educationRows.filter((row) => hasAnyValue(row, EDUCATION_KEYS));
+    if (filledEducationRows.some((row) => !String(row.education_institute || "").trim())) {
+      setActionNotice("Each education row needs an institute (or remove the row).");
       return;
     }
 
-    const filledExperienceRows = experienceRows.filter((row) =>
-      [
-        row.company_name,
-        row.job_title,
-        row.start_date,
-        row.end_date,
-        row.year_of_experience,
-      ].some((v) => String(v || "").trim()),
-    );
-    const invalidExperience = filledExperienceRows.some((row) =>
-      [
-        row.company_name,
-        row.job_title,
-        row.start_date,
-        row.end_date,
-        row.year_of_experience,
-      ].some((v) => !String(v || "").trim()),
-    );
-    if (invalidExperience) {
-      setActionNotice(
-        "Please complete all experience prefill fields or remove incomplete rows.",
-      );
+    const filledExperienceRows = experienceRows.filter((row) => hasAnyValue(row, EXPERIENCE_KEYS));
+    if (filledExperienceRows.some((row) => !String(row.company_name || "").trim())) {
+      setActionNotice("Each experience row needs a company (or remove the row).");
+      return;
+    }
+
+    const filledCertificationRows = certificationRows.filter((row) => hasAnyValue(row, CERTIFICATION_KEYS));
+    if (filledCertificationRows.some((row) => !String(row.name || "").trim())) {
+      setActionNotice("Each certification row needs a name (or remove the row).");
       return;
     }
 
@@ -624,6 +585,7 @@ export default function CandidateCreate({ onBack, onSave }) {
         candidate_experience: experience || null,
         candidate_skills: selectedSkills.length > 0 ? selectedSkills.map(s => s.name).join(", ") : null,
         candidate_joining_date: joiningDate || null,
+        candidate_notice_period: noticePeriod ? parseInt(noticePeriod, 10) : null,
         candidate_expected_salary: expectedSalary || null,
         candidate_expected_salary_type: expectedSalaryRateType || null,
         candidate_current_salary: currentSalary || null,
@@ -633,12 +595,13 @@ export default function CandidateCreate({ onBack, onSave }) {
         assigned_report_manager_id: assignedReportManagerId || null,
         education_records: filledEducationRows.length
           ? filledEducationRows.map((row) => ({
+              education_level: row.education_level || null,
               education_institute: row.education_institute.trim(),
-              degree: row.degree.trim(),
-              field_of_study: row.field_of_study.trim(),
-              starting_year: row.starting_year.trim(),
-              year_of_passing: row.year_of_passing.trim(),
-              percentage: row.percentage.trim(),
+              degree: row.degree.trim() || null,
+              field_of_study: row.field_of_study.trim() || null,
+              starting_year: row.starting_year.trim() || null,
+              year_of_passing: row.year_of_passing.trim() || null,
+              percentage: row.percentage.trim() || null,
               submitted_at: today,
               document_is_submitted: false,
             }))
@@ -646,12 +609,29 @@ export default function CandidateCreate({ onBack, onSave }) {
         experience_records: filledExperienceRows.length
           ? filledExperienceRows.map((row) => ({
               company_name: row.company_name.trim(),
-              job_title: row.job_title.trim(),
-              start_date: row.start_date,
-              end_date: row.end_date,
-              year_of_experience: row.year_of_experience.trim(),
+              job_title: row.job_title.trim() || null,
+              start_date: row.start_date || null,
+              end_date: row.end_date || null,
+              responsibilities: row.responsibilities.trim() || null,
               submitted_at: today,
               document_is_submitted: false,
+            }))
+          : null,
+        skill_records: selectedSkills.length
+          ? selectedSkills.map((sk) => ({
+              name: sk.name,
+              years_of_experience: sk.yearsOfExperience != null && sk.yearsOfExperience !== "" ? String(sk.yearsOfExperience) : null,
+              last_used_date: sk.lastUsedDate || null,
+              is_primary: Boolean(sk.isPrimary),
+            }))
+          : null,
+        certification_records: filledCertificationRows.length
+          ? filledCertificationRows.map((row) => ({
+              name: row.name.trim(),
+              organization: row.organization.trim() || null,
+              issue_date: row.issue_date || null,
+              expiry_date: row.expiry_date || null,
+              credential_id: row.credential_id.trim() || null,
             }))
           : null,
       });
@@ -904,27 +884,16 @@ export default function CandidateCreate({ onBack, onSave }) {
             <div className="mt-1 text-xs text-red-500">{errors.candidateJobTitle}</div>
           ) : null}
 
-          <div className="grid grid-cols-[minmax(0,7rem)_1fr] gap-2">
-            <Select
-              label="Code"
-              value={countryCode}
-              onChange={setCountryCode}
-              options={COUNTRY_CODES}
-            />
-            <Input
+          <div>
+            <PhoneField
               label="Mobile *"
-              value={mobile}
-              onChange={(value) => {
-                // Country code lives in its own field now -- just strip
-                // non-digits, no destructive stripping/hard-capping to
-                // 10 (real bug: this used to silently discard any
-                // country code the candidate typed, and always cap at
-                // exactly 10 digits regardless of the country).
-                const cleanedValue = value.replace(/\D/g, "").slice(0, 15);
-                setMobile(cleanedValue);
+              code={countryCode}
+              number={mobile}
+              onCodeChange={setCountryCode}
+              onNumberChange={(v) => {
+                setMobile(v);
                 clearFieldError("mobile");
               }}
-              type="tel"
               actionNotice={actionNotice}
               error={errors.mobile}
             />
@@ -941,7 +910,7 @@ export default function CandidateCreate({ onBack, onSave }) {
                 setGender(value);
                 clearFieldError("gender");
               }}
-              options={["", "Female", "Male", "Other"]}
+              options={["", ...GENDER_OPTIONS]}
               error={errors.gender}
             />
             {errors.gender ? (
@@ -999,6 +968,13 @@ export default function CandidateCreate({ onBack, onSave }) {
             }}
             type="date"
           />
+          <Input
+            label="Notice Period (days)"
+            type="number"
+            placeholder="e.g., 30, 45, 60"
+            value={noticePeriod}
+            onChange={(v) => setNoticePeriod(String(v).replace(/\D/g, "").slice(0, 3))}
+          />
 
           <div className="md:col-span-2">
             <div className="flex items-center justify-between mb-2">
@@ -1026,7 +1002,7 @@ export default function CandidateCreate({ onBack, onSave }) {
             onValueChange={setCurrentSalary}
             rateType={currentSalaryRateType}
             onRateTypeChange={setCurrentSalaryRateType}
-            rateTypeOptions={["$/Hour", "$/Day", "$/Week", "$/Month", "$/Year"]}
+            rateTypeOptions={SALARY_RATE_TYPES}
           />
 
           <RateField
@@ -1035,7 +1011,7 @@ export default function CandidateCreate({ onBack, onSave }) {
             onValueChange={setExpectedSalary}
             rateType={expectedSalaryRateType}
             onRateTypeChange={setExpectedSalaryRateType}
-            rateTypeOptions={["$/Hour", "$/Day", "$/Week", "$/Month", "$/Year"]}
+            rateTypeOptions={SALARY_RATE_TYPES}
           />
 
           <div className="md:col-span-2">
@@ -1053,22 +1029,8 @@ export default function CandidateCreate({ onBack, onSave }) {
             </div>
             <div className="mt-3 space-y-3">
               {educationRows.map((row, idx) => {
-                const isRowIncomplete = [
-                  row.education_institute,
-                  row.degree,
-                  row.field_of_study,
-                  row.starting_year,
-                  row.year_of_passing,
-                  row.percentage,
-                ].some((v) => !String(v || "").trim());
-                const hasAnyField = [
-                  row.education_institute,
-                  row.degree,
-                  row.field_of_study,
-                  row.starting_year,
-                  row.year_of_passing,
-                  row.percentage,
-                ].some((v) => String(v || "").trim());
+                const isRowIncomplete = !String(row.education_institute || "").trim();
+                const hasAnyField = hasAnyValue(row, EDUCATION_KEYS);
                 const shouldHighlight = actionNotice && hasAnyField && isRowIncomplete;
 
                 return (
@@ -1080,6 +1042,16 @@ export default function CandidateCreate({ onBack, onSave }) {
                       : "border-gray-200 bg-white"
                   }`}
                 >
+                  <Select
+                    label="Education Level"
+                    value={row.education_level || ""}
+                    onChange={(v) =>
+                      setEducationRows((prev) =>
+                        prev.map((r, i) => (i === idx ? { ...r, education_level: v } : r)),
+                      )
+                    }
+                    options={["", ...EDUCATION_LEVELS]}
+                  />
                   <Input
                     label="Institute"
                     value={row.education_institute}
@@ -1164,17 +1136,7 @@ export default function CandidateCreate({ onBack, onSave }) {
               <Button
                 variant="secondary"
                 onClick={() =>
-                  setEducationRows((prev) => [
-                    ...prev,
-                    {
-                      education_institute: "",
-                      degree: "",
-                      field_of_study: "",
-                      starting_year: "",
-                      year_of_passing: "",
-                      percentage: "",
-                    },
-                  ])
+                  setEducationRows((prev) => [...prev, { ...EMPTY_EDUCATION_ROW }])
                 }
               >
                 Add Education Row
@@ -1188,20 +1150,8 @@ export default function CandidateCreate({ onBack, onSave }) {
             </div>
             <div className="mt-3 space-y-3">
               {experienceRows.map((row, idx) => {
-                const isRowIncomplete = [
-                  row.company_name,
-                  row.job_title,
-                  row.start_date,
-                  row.end_date,
-                  row.year_of_experience,
-                ].some((v) => !String(v || "").trim());
-                const hasAnyField = [
-                  row.company_name,
-                  row.job_title,
-                  row.start_date,
-                  row.end_date,
-                  row.year_of_experience,
-                ].some((v) => String(v || "").trim());
+                const isRowIncomplete = !String(row.company_name || "").trim();
+                const hasAnyField = hasAnyValue(row, EXPERIENCE_KEYS);
                 const shouldHighlight = actionNotice && hasAnyField && isRowIncomplete;
 
                 return (
@@ -1259,17 +1209,22 @@ export default function CandidateCreate({ onBack, onSave }) {
                       )
                     }
                   />
-                  <Input
-                    label="Years of Experience"
-                    value={row.year_of_experience}
-                    onChange={(v) =>
-                      setExperienceRows((prev) =>
-                        prev.map((r, i) =>
-                          i === idx ? { ...r, year_of_experience: v } : r,
-                        ),
-                      )
-                    }
-                  />
+                  <div className="flex items-end text-sm text-gray-600">
+                    {experienceYears(row.start_date, row.end_date)
+                      ? `${experienceYears(row.start_date, row.end_date)} years${row.end_date ? "" : " (current)"}`
+                      : "Years are calculated from the dates"}
+                  </div>
+                  <div className="md:col-span-2">
+                    <Input
+                      label="Responsibilities"
+                      value={row.responsibilities || ""}
+                      onChange={(v) =>
+                        setExperienceRows((prev) =>
+                          prev.map((r, i) => (i === idx ? { ...r, responsibilities: v } : r)),
+                        )
+                      }
+                    />
+                  </div>
                   <div className="md:col-span-2 flex justify-end">
                     <Button
                       variant="danger"
@@ -1288,19 +1243,41 @@ export default function CandidateCreate({ onBack, onSave }) {
               <Button
                 variant="secondary"
                 onClick={() =>
-                  setExperienceRows((prev) => [
-                    ...prev,
-                    {
-                      company_name: "",
-                      job_title: "",
-                      start_date: "",
-                      end_date: "",
-                      year_of_experience: "",
-                    },
-                  ])
+                  setExperienceRows((prev) => [...prev, { ...EMPTY_EXPERIENCE_ROW }])
                 }
               >
                 Add Experience Row
+              </Button>
+            </div>
+          </div>
+
+          <div className="rounded-xl border bg-slate-50 p-3">
+            <div className="text-sm font-semibold text-slate-800">Certifications</div>
+            <div className="mt-3 space-y-3">
+              {certificationRows.map((row, idx) => {
+                const setField = (field) => (v) =>
+                  setCertificationRows((prev) => prev.map((r, i) => (i === idx ? { ...r, [field]: v } : r)));
+                const highlight = actionNotice && hasAnyValue(row, CERTIFICATION_KEYS) && !String(row.name || "").trim();
+                return (
+                  <div
+                    key={`cert-${idx}`}
+                    className={`grid gap-2 rounded-lg border p-3 md:grid-cols-2 ${highlight ? "border-red-400 bg-red-50" : "border-gray-200 bg-white"}`}
+                  >
+                    <Input label="Certification Name" value={row.name} onChange={setField("name")} />
+                    <Input label="Issuing Organization" value={row.organization} onChange={setField("organization")} />
+                    <Input label="Issue Date" type="date" value={row.issue_date} onChange={setField("issue_date")} />
+                    <Input label="Expiry Date" type="date" value={row.expiry_date} onChange={setField("expiry_date")} />
+                    <Input label="Credential ID" value={row.credential_id} onChange={setField("credential_id")} />
+                    <div className="flex items-end justify-end">
+                      <Button variant="danger" onClick={() => setCertificationRows((prev) => prev.filter((_, i) => i !== idx))}>
+                        Remove Row
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })}
+              <Button variant="secondary" onClick={() => setCertificationRows((prev) => [...prev, { ...EMPTY_CERTIFICATION_ROW }])}>
+                Add Certification Row
               </Button>
             </div>
           </div>

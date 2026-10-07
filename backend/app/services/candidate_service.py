@@ -289,3 +289,16 @@ def parse_experience_to_months(raw: Optional[str]) -> Optional[int]:
     if not match:
         return None  # Intentional: No numeric match means experience not verifiable
     return round(float(match.group(1)) * 12)
+
+
+def experience_years(start_date, end_date=None) -> Optional[str]:
+    """Years in a role from its dates (end empty = still there), one decimal.
+    Used by both Add Candidate and the profile's Experience section so the
+    stored year_of_experience never disagrees with the dates."""
+    if not start_date:
+        return None
+    from datetime import date as _date
+    end = end_date or _date.today()
+    if end < start_date:
+        return None
+    return str(round((end - start_date).days / 365.25, 1))

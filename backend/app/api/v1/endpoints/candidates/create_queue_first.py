@@ -20,7 +20,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.dependencies import get_current_user, require_resource_permission
-from app.schemas.candidate import EducationRecord, ExperienceRecord
+from app.schemas.candidate import EducationRecord, ExperienceRecord, HrCertificationItem, HrSkillItem
 from app.services.message_queue_service import MessageQueueService
 from app.utils.uniq_id_generator import candidate_id_generator
 
@@ -70,8 +70,11 @@ class CreateCandidateRequest(BaseModel):
     candidate_current_salary_type: Optional[str] = None
     assigned_hr_manager_id: Optional[str] = None
     assigned_report_manager_id: Optional[str] = None
+    candidate_notice_period: Optional[int] = None
     education_records: Optional[List[EducationRecord]] = None
     experience_records: Optional[List[ExperienceRecord]] = None
+    skill_records: Optional[List[HrSkillItem]] = None
+    certification_records: Optional[List[HrCertificationItem]] = None
 
     class Config:
         populate_by_name = True
@@ -204,8 +207,11 @@ async def create_candidate(
             "candidate_current_salary_type": request.candidate_current_salary_type,
             "assigned_hr_manager_id": request.assigned_hr_manager_id,
             "assigned_report_manager_id": request.assigned_report_manager_id,
+            "candidate_notice_period": request.candidate_notice_period,
             "education_records": [r.model_dump(mode="json") for r in request.education_records or []],
             "experience_records": [r.model_dump(mode="json") for r in request.experience_records or []],
+            "skill_records": [r.model_dump(mode="json") for r in request.skill_records or []],
+            "certification_records": [r.model_dump(mode="json") for r in request.certification_records or []],
             "created_by_user_id": getattr(current_user, 'UserID', None),
             "tenant_id": getattr(current_user, 'tenant_id', 1),
         }

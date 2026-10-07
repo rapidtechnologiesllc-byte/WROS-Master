@@ -776,6 +776,8 @@ def _run_schema_migrations():
                 ("processing_completed_at", "TIMESTAMP NULL"),
                 ("upload_error", "TEXT NULL"),
                 ("celery_task_id", "VARCHAR(512) NULL"),
+                ('"candidateExpectedSalaryType"', "VARCHAR(50) NULL"),
+                ('"candidateCurrentSalaryType"', "VARCHAR(50) NULL"),
             ],
             "candidate_conversations": [
                 ("next_touch_scheduled_at", "TIMESTAMP NULL"),

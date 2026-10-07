@@ -65,6 +65,8 @@ CandidateUpdateRequest)
 
 from app.utils.uniq_id_generator import generate_password
 
+from app.services.candidate_service import experience_years
+
 router = APIRouter(prefix="/candidates", tags=["candidates"])
 
 # ============================================
@@ -142,7 +144,9 @@ def _build_candidate_response(
         candidate_notice_period=getattr(candidate, 'candidate_notice_period', None),
         candidate_current_location=candidate.candidateCurrentLocation,
         candidate_current_salary=getattr(candidate, 'candidateCurrentSalary', None),
+        candidate_current_salary_type=getattr(candidate, 'candidateCurrentSalaryType', None),
         candidate_expected_salary=getattr(candidate, 'candidateExpectedSalary', None),
+        candidate_expected_salary_type=getattr(candidate, 'candidateExpectedSalaryType', None),
         candidate_employee_type=getattr(candidate, 'candidateEmployeeType', None),
         is_guidewire_candidate=is_guidewire,
         job_id=getattr(candidate, 'job_id', None),
@@ -515,7 +519,9 @@ def get_candidates_by_my_bu(
             candidate_notice_period=getattr(candidate, 'candidate_notice_period', None),
             candidate_current_location=candidate.candidateCurrentLocation,
             candidate_current_salary=candidate.candidateCurrentSalary,
+            candidate_current_salary_type=candidate.candidateCurrentSalaryType,
             candidate_expected_salary=candidate.candidateExpectedSalary,
+            candidate_expected_salary_type=candidate.candidateExpectedSalaryType,
             candidate_employee_type=candidate.candidateEmployeeType,
             is_guidewire_candidate=is_guidewire_candidate(db, candidate),
             job_id=candidate.job_id,
@@ -613,8 +619,10 @@ def replace_candidate_education(
             education_level=item.level,
             education_institute=item.institute,
             degree=item.degree,
+            field_of_study=item.field_of_study,
             starting_year=item.start,
             year_of_passing=item.end,
+            percentage=item.percentage,
         ))
     _record_profile_edit(db, candidate_id, user, f"Education updated ({len(items)} entries)")
     db.commit()
@@ -640,6 +648,7 @@ def replace_candidate_experience(
             job_title=item.job_title,
             start_date=item.start_date,
             end_date=item.end_date,
+            year_of_experience=experience_years(item.start_date, item.end_date),
             responsibilities=item.responsibilities,
         ))
     _record_profile_edit(db, candidate_id, user, f"Experience updated ({len(items)} entries)")
@@ -803,6 +812,15 @@ def update_candidate(candidate_id: str, request: CandidateUpdateRequest, db: Ses
         candidate.candidateCurrentSalary = request.candidate_current_salary
         if old_val != request.candidate_current_salary:
             corrections['candidate_current_salary'] = (old_val, request.candidate_current_salary)
+
+    for field, column in (("candidate_expected_salary_type", "candidateExpectedSalaryType"),
+                          ("candidate_current_salary_type", "candidateCurrentSalaryType")):
+        new_val = getattr(request, field)
+        if new_val is not None:
+            old_val = getattr(candidate, column)
+            setattr(candidate, column, new_val or None)
+            if old_val != (new_val or None):
+                corrections[field] = (old_val, new_val)
 
     if request.candidate_current_location is not None:
         old_val = candidate.candidateCurrentLocation

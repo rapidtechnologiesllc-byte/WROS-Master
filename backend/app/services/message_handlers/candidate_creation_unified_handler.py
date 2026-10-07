@@ -51,10 +51,16 @@ def _optional_candidate_fields(payload: Dict[str, Any]) -> Dict[str, Any]:
         "candidateExperience": payload.get("candidate_experience"),
         "candidateSkills": skills,
         "candidateExpectedSalary": payload.get("candidate_expected_salary"),
+        "candidateExpectedSalaryType": payload.get("candidate_expected_salary_type"),
         "candidateCurrentSalary": payload.get("candidate_current_salary"),
+        "candidateCurrentSalaryType": payload.get("candidate_current_salary_type"),
+        "candidate_notice_period": payload.get("candidate_notice_period"),
         "created_by_user_id": payload.get("created_by_user_id"),
     }
     return {k: v for k, v in fields.items() if v not in (None, "")}
+
+
+from app.services.candidate_service import experience_years
 
 
 def _add_education_and_experience(db: Session, candidate_id: str, payload: Dict[str, Any]) -> None:
@@ -66,6 +72,7 @@ def _add_education_and_experience(db: Session, candidate_id: str, payload: Dict[
             continue
         db.add(CandidateEducationForm(
             candidateID=candidate_id,
+            education_level=edu.get("education_level"),
             education_institute=edu.get("education_institute"),
             degree=edu.get("degree"),
             field_of_study=edu.get("field_of_study"),
@@ -87,10 +94,34 @@ def _add_education_and_experience(db: Session, candidate_id: str, payload: Dict[
             job_title=exp.get("job_title"),
             start_date=_parse_iso_date(exp.get("start_date")),
             end_date=_parse_iso_date(exp.get("end_date")),
-            year_of_experience=exp.get("year_of_experience"),
+            year_of_experience=experience_years(_parse_iso_date(exp.get("start_date")),
+                                                _parse_iso_date(exp.get("end_date"))) or exp.get("year_of_experience"),
+            responsibilities=exp.get("responsibilities"),
             submittedAt=_parse_iso_date(exp.get("submitted_at")),
             document_is_submitted=exp.get("document_is_submitted"),
             document_id=exp.get("document_id"),
+        ))
+
+    # Structured skills / certifications (same records the profile edits)
+    from app.models.candidate_profile_extras import CandidateCertification, CandidateProfileSkill
+    skills = [s for s in (payload.get("skill_records") or []) if isinstance(s, dict) and s.get("name")]
+    if skills and not any(s.get("is_primary") for s in skills):
+        skills[0]["is_primary"] = True
+    for skill in skills:
+        db.add(CandidateProfileSkill(
+            candidate_id=candidate_id, name=str(skill["name"]).strip(),
+            years_of_experience=skill.get("years_of_experience"),
+            last_used_date=_parse_iso_date(skill.get("last_used_date")),
+            is_primary=bool(skill.get("is_primary")),
+        ))
+    for cert in payload.get("certification_records") or []:
+        if not isinstance(cert, dict) or not cert.get("name"):
+            continue
+        db.add(CandidateCertification(
+            candidate_id=candidate_id, name=cert["name"], organization=cert.get("organization"),
+            issue_date=_parse_iso_date(cert.get("issue_date")),
+            expiry_date=_parse_iso_date(cert.get("expiry_date")),
+            credential_id=cert.get("credential_id"),
         ))
 
 

@@ -2,6 +2,12 @@ import { useEffect, useMemo, useState } from "react";
 import { Edit2, Save, X, Loader, ChevronDown, ChevronRight, Download, Upload, AlertCircle, CheckCircle } from "lucide-react";
 import { Button, Input, Select, Card } from "../../components/ui";
 import RateField from "../../components/ui/RateField";
+import PhoneField, { joinPhone, splitPhone } from "../../components/ui/PhoneField";
+import LocationCascadeSelect, { formatLocation, parseLocation } from "../../components/ui/LocationCascadeSelect";
+import {
+  DEFAULT_SALARY_RATE_TYPE, EDUCATION_LEVELS, GENDER_OPTIONS, SALARY_RATE_TYPES, SOURCE_OPTIONS,
+  experienceYears, joinSource, splitSource,
+} from "../../utils/candidateFields";
 import {
   getCandidateById,
   getCandidateContacts,
@@ -23,11 +29,6 @@ const useActionFeedback = () => {
   return { actionError, setActionError, actionSuccess, setActionSuccess, clearError, clearSuccess };
 };
 
-const GENDERS = ["Male", "Female", "Other", "Prefer not to say"];
-const SOURCES = ["LinkedIn", "Indeed", "Referral", "Direct Application", "Job Board", "Other"];
-const CURRENCY_OPTIONS = ["$/Hour", "$/Day", "$/Week", "$/Month", "$/Year"];
-const GOVT_ID_TYPES = ["Aadhar Card", "Pan Card", "Driver License", "Election Card", "State ID", "Passport", "Other"];
-const EDUCATION_LEVELS = ["High School", "Diploma", "Bachelor", "Master", "PhD", "Postdoctoral", "Other"];
 
 export default function ProfileTabEditable({ candidateId, candidate = {}, onRefresh }) {
   const [data, setData] = useState(null);
@@ -64,14 +65,8 @@ export default function ProfileTabEditable({ candidateId, candidate = {}, onRefr
   // Education state
   const [showEducationModal, setShowEducationModal] = useState(false);
   const [educationList, setEducationList] = useState([]);
-  const [educationForm, setEducationForm] = useState({
-    level: "",
-    school: "",
-    university: "",
-    start_date: "",
-    end_date: "",
-    degree: "",
-  });
+  const EMPTY_EDUCATION = { level: "", school: "", degree: "", field_of_study: "", start_year: "", end_year: "", percentage: "" };
+  const [educationForm, setEducationForm] = useState(EMPTY_EDUCATION);
   const [editingEducationIdx, setEditingEducationIdx] = useState(null);
 
   // Experience state
@@ -142,10 +137,11 @@ export default function ProfileTabEditable({ candidateId, candidate = {}, onRefr
       setEducationList((candidateFullDetails.education || []).map((e) => ({
         level: e.education_level || "",
         school: e.education_institute || "",
-        university: e.education_institute || "",
-        start_date: e.starting_year || "",
-        end_date: e.year_of_passing || "",
         degree: e.degree || "",
+        field_of_study: e.field_of_study || "",
+        start_year: e.starting_year || "",
+        end_year: e.year_of_passing || "",
+        percentage: e.percentage || "",
       })));
       setExperienceList((candidateFullDetails.experience || []).map((e) => ({
         company: e.company_name || "",
@@ -187,21 +183,22 @@ export default function ProfileTabEditable({ candidateId, candidate = {}, onRefr
         middle_name: profile?.candidate_middle_name || "",
         last_name: profile?.candidate_last_name || "",
         email: profile?.candidate_email || "",
-        mobile: profile?.candidate_mobile || "",
+        mobile_code: splitPhone(profile?.candidate_mobile).code,
+        mobile_number: splitPhone(profile?.candidate_mobile).number,
         job_title: profile?.candidate_job_title || "",
         gender: profile?.candidate_gender || "",
         dob: profile?.candidate_date_of_birth || "",
-        current_location: profile?.candidate_current_location || "",
+        location: parseLocation(profile?.candidate_current_location || ""),
+        location_text: profile?.candidate_current_location || "",
         experience: profile?.candidate_experience || "",
         joining_date: profile?.candidate_joining_date || "",
         notice_period: profile?.candidate_notice_period || "",
         expected_salary: profile?.candidate_expected_salary || "",
-        expected_salary_type: profile?.candidate_expected_salary_type || "$/Year",
+        expected_salary_type: profile?.candidate_expected_salary_type || DEFAULT_SALARY_RATE_TYPE,
         current_salary: profile?.candidate_current_salary || "",
-        current_salary_type: profile?.candidate_current_salary_type || "$/Year",
-        source: profile?.candidate_source || "",
-        govt_id_type: profile?.candidate_govt_id_type || "",
-        govt_id_number: profile?.candidate_govt_id_number || "",
+        current_salary_type: profile?.candidate_current_salary_type || DEFAULT_SALARY_RATE_TYPE,
+        source: splitSource(profile?.candidate_source).choice,
+        source_custom: splitSource(profile?.candidate_source).custom,
       });
     } catch (err) {
       console.error("Error loading edit form:", err);
@@ -224,23 +221,27 @@ export default function ProfileTabEditable({ candidateId, candidate = {}, onRefr
         updatePayload.candidate_middle_name = editForm.middle_name || null;
         updatePayload.candidate_last_name = editForm.last_name || null;
         updatePayload.candidate_email = editForm.email?.trim() || null;
-        updatePayload.candidate_mobile = editForm.mobile || null;
+        updatePayload.candidate_mobile = joinPhone(editForm.mobile_code, editForm.mobile_number) || null;
         updatePayload.candidate_job_title = editForm.job_title || null;
         updatePayload.candidate_gender = editForm.gender || null;
         updatePayload.candidate_date_of_birth = editForm.dob || null;
-        updatePayload.candidate_current_location = editForm.current_location || null;
+        const loc = editForm.location || {};
+        if (loc.countryCode && loc.stateCode && loc.city) {
+          updatePayload.candidate_current_location = formatLocation(loc);
+        } else if (loc.countryCode || loc.stateCode || loc.city) {
+          throw new Error("Select Country, State and City for the current location");
+        } else if (!editForm.location_text) {
+          updatePayload.candidate_current_location = null;
+        }
       } else if (section === "professional") {
         updatePayload.candidate_experience = editForm.experience || null;
-        updatePayload.candidate_source = editForm.source || null;
+        updatePayload.candidate_source = joinSource(editForm.source, editForm.source_custom) || null;
         updatePayload.candidate_joining_date = editForm.joining_date || null;
         updatePayload.candidate_notice_period = editForm.notice_period || null;
         updatePayload.candidate_expected_salary = editForm.expected_salary || null;
         updatePayload.candidate_expected_salary_type = editForm.expected_salary_type || null;
         updatePayload.candidate_current_salary = editForm.current_salary || null;
         updatePayload.candidate_current_salary_type = editForm.current_salary_type || null;
-      } else if (section === "identity") {
-        updatePayload.candidate_govt_id_type = editForm.govt_id_type || null;
-        updatePayload.candidate_govt_id_number = editForm.govt_id_number || null;
       }
 
       if (onRefresh) {
@@ -352,10 +353,12 @@ export default function ProfileTabEditable({ candidateId, candidate = {}, onRefr
               value={editForm.email || ""}
               onChange={(v) => setEditForm({...editForm, email: v})}
             />
-            <Input
+            <PhoneField
               label="Mobile"
-              value={editForm.mobile || ""}
-              onChange={(v) => setEditForm({...editForm, mobile: v})}
+              code={editForm.mobile_code}
+              number={editForm.mobile_number}
+              onCodeChange={(v) => setEditForm({...editForm, mobile_code: v})}
+              onNumberChange={(v) => setEditForm({...editForm, mobile_number: v})}
             />
             <Input
               label="Job Title"
@@ -366,7 +369,7 @@ export default function ProfileTabEditable({ candidateId, candidate = {}, onRefr
               label="Gender"
               value={editForm.gender || ""}
               onChange={(v) => setEditForm({...editForm, gender: v})}
-              options={GENDERS}
+              options={["", ...GENDER_OPTIONS]}
             />
             <Input
               label="Date of Birth"
@@ -374,11 +377,18 @@ export default function ProfileTabEditable({ candidateId, candidate = {}, onRefr
               value={editForm.dob || ""}
               onChange={(v) => setEditForm({...editForm, dob: v})}
             />
-            <Input
-              label="Current Location"
-              value={editForm.current_location || ""}
-              onChange={(v) => setEditForm({...editForm, current_location: v})}
-            />
+            <div className="md:col-span-3">
+              <div className="mb-1 text-xs font-semibold text-gray-700">Current Location</div>
+              <LocationCascadeSelect
+                value={editForm.location || { countryCode: "", stateCode: "", city: "" }}
+                onChange={(v) => setEditForm({...editForm, location: v})}
+              />
+              {editForm.location_text && !editForm.location?.countryCode && (
+                <p className="mt-1 text-xs text-amber-700">
+                  Saved as "{editForm.location_text}" -- pick Country, State and City to replace it.
+                </p>
+              )}
+            </div>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -422,22 +432,35 @@ export default function ProfileTabEditable({ candidateId, candidate = {}, onRefr
               label="Source"
               value={editForm.source || ""}
               onChange={(v) => setEditForm({...editForm, source: v})}
-              options={SOURCES}
+              options={["", ...SOURCE_OPTIONS]}
             />
+            {editForm.source === "Other" && (
+              <Input
+                label="Other Source"
+                value={editForm.source_custom || ""}
+                onChange={(v) => setEditForm({...editForm, source_custom: v})}
+              />
+            )}
             <Input
               label="Notice Period (days)"
+              type="number"
               placeholder="e.g., 30, 45, 60"
               value={editForm.notice_period || ""}
               onChange={(v) => setEditForm({...editForm, notice_period: v})}
             />
-            <div />
+            <Input
+              label="Availability Date"
+              type="date"
+              value={editForm.joining_date || ""}
+              onChange={(v) => setEditForm({...editForm, joining_date: v})}
+            />
             <RateField
               label="Expected Salary"
               value={editForm.expected_salary}
               rateType={editForm.expected_salary_type}
               onValueChange={(v) => setEditForm({...editForm, expected_salary: v})}
               onRateTypeChange={(v) => setEditForm({...editForm, expected_salary_type: v})}
-              rateTypeOptions={CURRENCY_OPTIONS}
+              rateTypeOptions={SALARY_RATE_TYPES}
             />
             <RateField
               label="Current Salary"
@@ -445,15 +468,15 @@ export default function ProfileTabEditable({ candidateId, candidate = {}, onRefr
               rateType={editForm.current_salary_type}
               onValueChange={(v) => setEditForm({...editForm, current_salary: v})}
               onRateTypeChange={(v) => setEditForm({...editForm, current_salary_type: v})}
-              rateTypeOptions={CURRENCY_OPTIONS}
+              rateTypeOptions={SALARY_RATE_TYPES}
             />
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <InfoDisplay label="Experience (Auto-calculated)" value={candidateFullDetails?.experience && candidateFullDetails.experience.length > 0 ? `${Math.round(candidateFullDetails.experience.length)} roles` : profile?.candidate_experience || "—"} suffix=" years" />
+            <InfoDisplay label="Experience (Years)" value={profile?.candidate_experience || "—"} />
             <InfoDisplay label="Source" value={profile?.candidate_source} />
             <InfoDisplay label="Notice Period" value={profile?.candidate_notice_period ? `${profile.candidate_notice_period} days` : "—"} />
-            <div />
+            <InfoDisplay label="Availability Date" value={profile?.candidate_joining_date} />
             <InfoDisplay
               label="Expected Salary"
               value={profile?.candidate_expected_salary ? `${profile?.candidate_expected_salary} ${profile?.candidate_expected_salary_type || '$/Year'}` : null}
@@ -756,41 +779,51 @@ export default function ProfileTabEditable({ candidateId, candidate = {}, onRefr
                 <h3 className="text-sm font-semibold text-gray-900">
                   {editingEducationIdx !== null ? "Edit Education" : "Add Education"}
                 </h3>
-                <Select
-                  label="Education Level"
-                  value={educationForm.level}
-                  onChange={(v) => setEducationForm({...educationForm, level: v})}
-                  options={EDUCATION_LEVELS}
-                />
-                <Input
-                  label="University/College Name"
-                  value={educationForm.school || educationForm.university || ""}
-                  onChange={(v) => setEducationForm({...educationForm, school: v, university: v})}
-                />
                 <div className="grid grid-cols-2 gap-3">
-                  <Input
-                    label="Start Date"
-                    type="date"
-                    value={educationForm.start_date}
-                    onChange={(v) => setEducationForm({...educationForm, start_date: v})}
+                  <Select
+                    label="Education Level"
+                    value={educationForm.level}
+                    onChange={(v) => setEducationForm({...educationForm, level: v})}
+                    options={["", ...EDUCATION_LEVELS]}
                   />
                   <Input
-                    label="End Date"
-                    type="date"
-                    value={educationForm.end_date}
-                    onChange={(v) => setEducationForm({...educationForm, end_date: v})}
+                    label="Institute"
+                    value={educationForm.school || ""}
+                    onChange={(v) => setEducationForm({...educationForm, school: v})}
+                  />
+                  <Input
+                    label="Degree"
+                    value={educationForm.degree}
+                    onChange={(v) => setEducationForm({...educationForm, degree: v})}
+                    placeholder="e.g., B.Tech, M.A., MBA"
+                  />
+                  <Input
+                    label="Field of Study"
+                    value={educationForm.field_of_study}
+                    onChange={(v) => setEducationForm({...educationForm, field_of_study: v})}
+                  />
+                  <Input
+                    label="Start Year"
+                    type="number"
+                    value={educationForm.start_year}
+                    onChange={(v) => setEducationForm({...educationForm, start_year: v.slice(0, 4)})}
+                  />
+                  <Input
+                    label="Year of Passing"
+                    type="number"
+                    value={educationForm.end_year}
+                    onChange={(v) => setEducationForm({...educationForm, end_year: v.slice(0, 4)})}
+                  />
+                  <Input
+                    label="Percentage / CGPA"
+                    value={educationForm.percentage}
+                    onChange={(v) => setEducationForm({...educationForm, percentage: v.slice(0, 10)})}
                   />
                 </div>
-                <Input
-                  label="Degree Attained"
-                  value={educationForm.degree}
-                  onChange={(v) => setEducationForm({...educationForm, degree: v})}
-                  placeholder="e.g., B.Tech, M.A., MBA"
-                />
                 <button
                   onClick={() => {
-                    if (!educationForm.level.trim() || !educationForm.school.trim()) {
-                      setActionError("Please fill in all required fields");
+                    if (!educationForm.school.trim()) {
+                      setActionError("Institute is required");
                       return;
                     }
                     clearError();
@@ -802,14 +835,7 @@ export default function ProfileTabEditable({ candidateId, candidate = {}, onRefr
                     } else {
                       setEducationList([...educationList, educationForm]);
                     }
-                    setEducationForm({
-                      level: "",
-                      school: "",
-                      university: "",
-                      start_date: "",
-                      end_date: "",
-                      degree: "",
-                    });
+                    setEducationForm(EMPTY_EDUCATION);
                   }}
                   className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm font-medium"
                 >
@@ -825,8 +851,8 @@ export default function ProfileTabEditable({ candidateId, candidate = {}, onRefr
                     <div key={idx} className="flex items-start justify-between p-3 bg-gray-50 rounded-lg">
                       <div className="flex-1">
                         <p className="text-sm font-medium text-gray-900">{edu.degree || edu.level}</p>
-                        <p className="text-xs text-gray-600">{edu.school || edu.university}</p>
-                        {edu.start_date && <p className="text-xs text-gray-600">{edu.start_date} to {edu.end_date}</p>}
+                        <p className="text-xs text-gray-600">{edu.school}{edu.field_of_study ? ` -- ${edu.field_of_study}` : ""}</p>
+                        {(edu.start_year || edu.end_year) && <p className="text-xs text-gray-600">{edu.start_year || "?"} to {edu.end_year || "?"}{edu.percentage ? ` · ${edu.percentage}` : ""}</p>}
                       </div>
                       <div className="flex gap-2">
                         <button
@@ -857,10 +883,12 @@ export default function ProfileTabEditable({ candidateId, candidate = {}, onRefr
                   try {
                     await saveCandidateEducation(candidateId, educationList.map((e) => ({
                       level: e.level || null,
-                      institute: e.school || e.university || null,
+                      institute: e.school || null,
                       degree: e.degree || null,
-                      start: e.start_date || null,
-                      end: e.end_date || null,
+                      field_of_study: e.field_of_study || null,
+                      start: e.start_year || null,
+                      end: e.end_year || null,
+                      percentage: e.percentage || null,
                     })));
                   } catch (err) {
                     setActionError(err?.message || "Failed to save education");
@@ -1176,10 +1204,12 @@ export default function ProfileTabEditable({ candidateId, candidate = {}, onRefr
               <div key={idx} className="pb-4 border-b border-gray-200 last:border-0">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <InfoDisplay label="Level" value={edu.level || "—"} />
-                  <InfoDisplay label="University/College" value={edu.school || edu.university || "—"} />
-                  <InfoDisplay label="Start Date" value={edu.start_date || "—"} />
-                  <InfoDisplay label="End Date" value={edu.end_date || "—"} />
-                  <InfoDisplay label="Degree Attained" value={edu.degree || "—"} />
+                  <InfoDisplay label="Institute" value={edu.school || "—"} />
+                  <InfoDisplay label="Degree" value={edu.degree || "—"} />
+                  <InfoDisplay label="Field of Study" value={edu.field_of_study || "—"} />
+                  <InfoDisplay label="Start Year" value={edu.start_year || "—"} />
+                  <InfoDisplay label="Year of Passing" value={edu.end_year || "—"} />
+                  <InfoDisplay label="Percentage / CGPA" value={edu.percentage || "—"} />
                 </div>
               </div>
             ))}
@@ -1211,7 +1241,8 @@ export default function ProfileTabEditable({ candidateId, candidate = {}, onRefr
                   <InfoDisplay label="Company" value={exp.company || "—"} />
                   <InfoDisplay label="Job Title" value={exp.job_title || "—"} />
                   <InfoDisplay label="Start Date" value={exp.start_date || "—"} />
-                  <InfoDisplay label="End Date" value={exp.end_date || "—"} />
+                  <InfoDisplay label="End Date" value={exp.end_date || "Present"} />
+                  <InfoDisplay label="Years" value={experienceYears(exp.start_date, exp.end_date) || "—"} />
                   <InfoDisplay label="Job Responsibilities" value={exp.job_responsibilities || "—"} />
                 </div>
               </div>
@@ -1255,36 +1286,6 @@ export default function ProfileTabEditable({ candidateId, candidate = {}, onRefr
         )}
       </div>
 
-      {/* Identity & Background */}
-      <EditableSection
-        title="Identity & Background"
-        isEditing={editingSection === "identity"}
-        isSaving={savingSection === "identity"}
-        onEdit={() => handleEditSection("identity")}
-        onCancel={handleCancelEdit}
-        onSave={() => handleSaveSection("identity")}
-      >
-        {editingSection === "identity" ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Select
-              label="Government ID Type"
-              value={editForm.govt_id_type || ""}
-              onChange={(v) => setEditForm({...editForm, govt_id_type: v})}
-              options={GOVT_ID_TYPES}
-            />
-            <Input
-              label="Government ID Number"
-              value={editForm.govt_id_number || ""}
-              onChange={(v) => setEditForm({...editForm, govt_id_number: v})}
-            />
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <InfoDisplay label="Government ID Type" value={profile?.candidate_govt_id_type} />
-            <InfoDisplay label="Government ID Number" value={profile?.candidate_govt_id_number} />
-          </div>
-        )}
-      </EditableSection>
 
     </div>
   );

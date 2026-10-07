@@ -68,6 +68,8 @@ class CandidateUpdateRequest(BaseModel):
     candidate_current_location: Optional[str] = None
     candidate_job_title: Optional[str] = None
     candidate_employee_type: Optional[str] = None
+    candidate_expected_salary_type: Optional[str] = None
+    candidate_current_salary_type: Optional[str] = None
     assigned_hr_manager_id: Optional[str] = None
     assigned_report_manager_id: Optional[str] = None
     assigned_recruiter_id: Optional[str] = None
@@ -243,13 +245,15 @@ class CandidateInfoForm(BaseModel):
 
 # Single education record (without candidate_id for use in lists)
 class EducationRecord(BaseModel):
+    # Same fields as the profile's Education section (HrEducationItem)
+    education_level: Optional[str] = None
     education_institute: str
-    degree: str
-    field_of_study: str
-    starting_year: str
-    year_of_passing: str
-    percentage: str
-    submitted_at: date
+    degree: Optional[str] = None
+    field_of_study: Optional[str] = None
+    starting_year: Optional[str] = None
+    year_of_passing: Optional[str] = None
+    percentage: Optional[str] = None
+    submitted_at: Optional[date] = None
     document_is_submitted: bool | None = None
     document_id: Optional[int] = None   # optional link to CandidateDocument.id
 
@@ -259,12 +263,15 @@ class CandidateEducationForm(BaseModel):
 
 # Single experience record (without candidate_id for use in lists)
 class ExperienceRecord(BaseModel):
+    # Same fields as the profile's Experience section (HrExperienceItem);
+    # years are computed from the dates, end_date empty = current job
     company_name: str
-    job_title: str
-    start_date: date
-    end_date: date
-    year_of_experience: str
-    submitted_at: date
+    job_title: Optional[str] = None
+    start_date: Optional[date] = None
+    end_date: Optional[date] = None
+    year_of_experience: Optional[str] = None
+    responsibilities: Optional[str] = None
+    submitted_at: Optional[date] = None
     document_is_submitted: bool | None = None
     document_id: Optional[int] = None   # optional link to CandidateDocument.id
 
@@ -385,8 +392,10 @@ class HrEducationItem(BaseModel):
     level: Optional[str] = None
     institute: Optional[str] = None
     degree: Optional[str] = None
-    start: Optional[str] = None
-    end: Optional[str] = None
+    field_of_study: Optional[str] = None
+    start: Optional[str] = None  # starting year
+    end: Optional[str] = None  # year of passing
+    percentage: Optional[str] = None
 
 
 class HrExperienceItem(BaseModel):
