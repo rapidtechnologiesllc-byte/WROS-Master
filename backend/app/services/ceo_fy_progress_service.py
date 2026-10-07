@@ -44,7 +44,8 @@ def get_fy_targets(db: Session, fy_year: Optional[int] = None, tenant_id: Option
     """{metric_key: {"target": float|None}} -- the ORG-level rows of the goal tree."""
     from app.models.strategic_goal import GoalTarget
 
-    fy_year = fy_year or datetime.utcnow().year
+    from app.services.fiscal_year_service import current_fy
+    fy_year = fy_year or current_fy(db, tenant_id)
     query = db.query(GoalTarget).filter(
         GoalTarget.year == fy_year, GoalTarget.level == "ORG", GoalTarget.metric.in_(list(FY_METRICS)),
     )
@@ -71,13 +72,14 @@ def _metric(key: str, current, target, fy_progress_pct: float, *, higher_is_bett
 
 def get_fy_progress(db: Session, fy_year: Optional[int] = None, tenant_id: Optional[int] = None) -> dict:
     """Actual FY progress against the CEO's targets."""
-    fy_year = fy_year or datetime.utcnow().year
+    from app.services.fiscal_year_service import fy_info, fy_window
+
+    fy_year = fy_year or fy_info(db, tenant_id=tenant_id)["fy_year"]
     targets = get_fy_targets(db, fy_year, tenant_id)
 
-    # Fiscal year = calendar year
-    fy_start = datetime(fy_year, 1, 1)
-    fy_end = datetime(fy_year, 12, 31)
-    today = min(datetime.utcnow(), datetime(fy_year, 12, 31, 23, 59))
+    # Fiscal year window from the tenant setting (e.g. April - March)
+    fy_start, fy_end = fy_window(db, fy_year, tenant_id)
+    today = max(min(datetime.utcnow(), fy_end), fy_start)
     total_fy_days = (fy_end - fy_start).days
     days_elapsed = max(1, (today - fy_start).days)
     fy_progress_pct = min(100, days_elapsed / total_fy_days * 100)
@@ -135,9 +137,14 @@ def get_fy_progress(db: Session, fy_year: Optional[int] = None, tenant_id: Optio
     ]
     by_key = {m["key"]: m for m in metrics}
 
+    info = fy_info(db, fy_year, tenant_id)
     return {
         "fy_year": fy_year,
+        "fy_label": info["label"],
+        "fy_start": info["start"],
+        "fy_end": info["end"],
         "fy_progress_pct": round(fy_progress_pct, 1),
+        "monthly": _monthly_progress(db, fy_year, tenant_id, today, t),
         "days_elapsed": days_elapsed,
         "total_fy_days": total_fy_days,
         "metrics": metrics,
@@ -152,6 +159,54 @@ def get_fy_progress(db: Session, fy_year: Optional[int] = None, tenant_id: Optio
         "utilization": {**by_key["utilization"], "current_pct": by_key["utilization"]["current"], "target_pct": t["utilization"]},
         "margin": {**by_key["margin"], "current_pct": by_key["margin"]["current"], "target_pct": t["margin"]},
     }
+
+
+def _monthly_progress(db: Session, fy_year: int, tenant_id: Optional[int], today: datetime, targets: dict) -> list:
+    """Month by month through the FY, for the cumulative metrics: billable
+    headcount at month end (or today for the current month), and revenue /
+    new logos accumulated from the FY start. Also the straight-line pace
+    each target implies by that month. Future months are omitted."""
+    from datetime import timedelta
+    from app.models.employee_allocation import EmployeeAllocation
+    from app.services.fiscal_year_service import fy_month_starts, fy_window
+
+    fy_start, _ = fy_window(db, fy_year, tenant_id)
+    months = fy_month_starts(db, fy_year, tenant_id)
+    series = []
+    for i, month_start in enumerate(months):
+        if datetime.combine(month_start, datetime.min.time()) > today:
+            break
+        next_start = months[i + 1] if i + 1 < len(months) else None
+        if next_start is None:
+            next_start = (month_start.replace(day=28) + timedelta(days=4)).replace(day=1)
+        point = min(datetime.combine(next_start, datetime.min.time()) - timedelta(seconds=1), today)
+        point_date = point.date()
+
+        billable = db.query(func.count(func.distinct(EmployeeAllocation.employee_id))).filter(
+            EmployeeAllocation.start_date <= point_date,
+            (EmployeeAllocation.end_date.is_(None)) | (EmployeeAllocation.end_date >= point_date),
+            EmployeeAllocation.status.in_(("ACTIVE", "ENDED")),
+        ).scalar() or 0
+        revenue_cents = db.query(func.sum(Invoice.total_usd_cents)).filter(
+            Invoice.created_at >= fy_start, Invoice.created_at <= point,
+            Invoice.status.in_(["APPROVED", "SENT", "PAID"]),
+        ).scalar() or 0
+        logos = db.query(func.count(Client.id)).filter(
+            Client.status == "ACTIVE", Client.created_at >= fy_start, Client.created_at <= point,
+        ).scalar() or 0
+
+        share = (i + 1) / 12
+        series.append({
+            "month": month_start.isoformat(),
+            "label": month_start.strftime("%b"),
+            "is_current": point == today,
+            "headcount": billable,
+            "revenue": round(revenue_cents / 100, 2),
+            "new_logos": logos,
+            "pace": {k: (round(targets[k] * share, 2) if targets.get(k) else None)
+                     for k in ("headcount", "revenue", "new_logos")},
+        })
+    return series
 
 
 def _fmt(metric: dict) -> str:

@@ -59,7 +59,8 @@ def _targets(db: Session, tenant_id: int, year: int) -> Dict[tuple, float]:
 
 
 def _bu_actuals(db: Session, tenant_id: int, year: int) -> Dict[int, Dict[str, float]]:
-    start, end = datetime(year, 1, 1), datetime(year + 1, 1, 1)
+    from app.services.fiscal_year_service import fy_window
+    start, end = fy_window(db, year, tenant_id)
     actuals: Dict[int, Dict[str, float]] = defaultdict(lambda: {m: 0 for m in TREE_METRICS})
 
     for bu_id, cents in (
@@ -108,7 +109,8 @@ def _sum(children: List[dict]) -> Dict[str, float]:
 
 
 def get_goal_tree(db: Session, tenant_id: int, year: Optional[int] = None) -> dict:
-    year = year or datetime.utcnow().year
+    from app.services.fiscal_year_service import current_fy, fy_info
+    year = year or current_fy(db, tenant_id)
     targets = _targets(db, tenant_id, year)
     bu_actuals = _bu_actuals(db, tenant_id, year)
 
@@ -176,8 +178,14 @@ def get_goal_tree(db: Session, tenant_id: int, year: Optional[int] = None) -> di
     for key, m in ((m["key"], m) for m in progress["metrics"]):
         org["metrics"][key]["status"] = m["status"]
 
+    info = fy_info(db, year, tenant_id)
     return {
         "year": year,
+        "fy_label": info["label"],
+        "fy_start": info["start"],
+        "fy_end": info["end"],
+        "fy_start_month": info["start_month"],
+        "current_fy": info["current_fy"],
         "fy_progress_pct": progress["fy_progress_pct"],
         "metrics": [{"key": k, "label": v[0], "unit": v[1], "detail": v[2], "rolls_up": k in TREE_METRICS}
                     for k, v in FY_METRICS.items()],
@@ -216,7 +224,8 @@ def _validate_entity(db: Session, tenant_id: int, level: str, entity_id: str) ->
 def set_goal_target(db: Session, user: Users, *, level: str, entity_id: str, metric: str,
                     target: Optional[float], year: Optional[int] = None) -> Optional[GoalTarget]:
     """Create/update a target, or clear it with target=None. Raises ValueError on bad input."""
-    year = year or datetime.utcnow().year
+    from app.services.fiscal_year_service import current_fy
+    year = year or current_fy(db, user.tenant_id)
     if level not in GOAL_LEVELS:
         raise ValueError(f"level must be one of {GOAL_LEVELS}")
     allowed = list(FY_METRICS) if level == "ORG" else list(TREE_METRICS)

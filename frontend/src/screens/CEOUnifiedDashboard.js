@@ -5,7 +5,8 @@ import cx from "../utils/cx";
 import { getExecutiveDashboard } from "../services/api/revenueTargets";
 import { getAllCandidates } from "../services/api/candidates";
 import { getAllJobs } from "../services/api/jobs";
-import { getCEOFYProgress, getCEOFYSummary, setFYTarget } from "../services/api/agents";
+import { getCEOFYProgress, getCEOFYSummary, setFYStartMonth, setFYTarget } from "../services/api/agents";
+import FYProgressPanel from "../components/FYProgressPanel";
 
 const formatUsdCents = (cents) =>
   cents == null
@@ -311,13 +312,20 @@ export default function CEOUnifiedDashboard() {
     loadDashboard();
   }, []);
 
-  const fyYear = new Date().getFullYear();
-
-  const handleSaveTarget = async (metricKey, target) => {
-    await setFYTarget(metricKey, target, fyYear);
-    const [progress, summary] = await Promise.all([getCEOFYProgress(fyYear), getCEOFYSummary()]);
+  const refreshFY = async () => {
+    const [progress, summary] = await Promise.all([getCEOFYProgress(), getCEOFYSummary()]);
     setFyData(progress);
     setFySummary(summary);
+  };
+
+  const handleSaveTarget = async (metricKey, target) => {
+    await setFYTarget(metricKey, target, fyData?.fy_year);
+    await refreshFY();
+  };
+
+  const handleChangeFYStart = async (startMonth) => {
+    await setFYStartMonth(startMonth);
+    await refreshFY();
   };
 
   const loadDashboard = async () => {
@@ -325,7 +333,7 @@ export default function CEOUnifiedDashboard() {
     setError("");
     try {
       const [fyProgressData, fySummaryData, executiveData, candidatesData, jobsData] = await Promise.all([
-        getCEOFYProgress(fyYear).catch(() => null),
+        getCEOFYProgress().catch(() => null),
         getCEOFYSummary().catch(() => null),
         getExecutiveDashboard().catch(() => null),
         getAllCandidates().catch(() => ({ candidates: [] })),
@@ -391,14 +399,9 @@ export default function CEOUnifiedDashboard() {
           {activeTab === "fy-progress" && fySummary && (
             <div className="space-y-6">
               {/* Executive Summary Cards */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <Card className="bg-gradient-to-br from-blue-50 to-blue-100/50">
-                  <div>
-                    <div className="text-xs font-semibold text-blue-600 uppercase">FY Progress</div>
-                    <div className="text-3xl font-bold text-blue-900 mt-2">{fySummary.fy_progress_pct.toFixed(0)}%</div>
-                    <div className="text-xs text-blue-600 mt-2">Through the fiscal year</div>
-                  </div>
-                </Card>
+              <FYProgressPanel fyData={fyData} onChangeStartMonth={handleChangeFYStart} />
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 
                 <Card className="bg-gradient-to-br from-green-50 to-green-100/50">
                   <div>

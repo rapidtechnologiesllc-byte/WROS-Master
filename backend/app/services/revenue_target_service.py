@@ -49,8 +49,8 @@ def status_band(actual_usd_cents: int, target_usd_cents: int) -> str:
 def _fy_invoice_total_for_clients(db: Session, client_ids: List[str], fiscal_year: int) -> int:
     if not client_ids:
         return 0
-    start = datetime(fiscal_year, 1, 1)
-    end = datetime(fiscal_year + 1, 1, 1)
+    from app.services.fiscal_year_service import fy_window
+    start, end = fy_window(db, fiscal_year)
     total = (
         db.query(func.sum(Invoice.total_usd_cents))
         .filter(
@@ -264,8 +264,9 @@ def _executive_extras(db: Session, *, client_ids, pipeline_by_bu: dict, total_pi
     from app.services.ar_followup_service import scan_overdue_invoices
 
     now = datetime.utcnow()
-    year = now.year
-    start, end = datetime(year, 1, 1), datetime(year + 1, 1, 1)
+    from app.services.fiscal_year_service import current_fy, fy_window
+    year = current_fy(db)
+    start, end = fy_window(db, year)
 
     revenue_query = (
         db.query(Client.business_unit_id, func.sum(Invoice.total_usd_cents))

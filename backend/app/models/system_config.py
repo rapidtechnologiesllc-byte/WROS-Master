@@ -25,7 +25,7 @@ from sqlalchemy.orm import relationship
 
 from app.models.base import Base
 
-CONFIG_CATEGORIES = ("AI_THRESHOLDS", "SLA", "CHANNELS")
+CONFIG_CATEGORIES = ("AI_THRESHOLDS", "SLA", "CHANNELS", "FINANCE")
 CONFIG_VALUE_TYPES = ("PERCENT", "INT", "ENUM", "BOOL", "STRING")
 
 logger = logging.getLogger(__name__)

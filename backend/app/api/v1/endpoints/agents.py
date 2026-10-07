@@ -1,6 +1,6 @@
 from app.core.logging import logger
 """Agent endpoints for Partner ROI, CFO, and CEO agents."""
-from typing import List
+from typing import Optional, List
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from app.core.dependencies import get_current_internal_user, require_resource_permission
@@ -175,7 +175,7 @@ def get_cfo_forecast(
 
 @router.get("/ceo/fy-progress", dependencies=[Depends(require_resource_permission("revenue", "view"))])
 def get_ceo_fy_progress(
-    fy_year: int = 2026,
+    fy_year: Optional[int] = None,
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user)
 ):
@@ -185,7 +185,7 @@ def get_ceo_fy_progress(
     Returns: headcount, revenue, new logos, engagement, retention, utilization, margin progress.
     """
     try:
-        progress = get_fy_progress(db, fy_year)
+        progress = get_fy_progress(db, fy_year, tenant_id=current_user.tenant_id)
         return {"status": "success", "data": progress}
     except Exception as e:
         logger.error(f"Error: {str(e)}", exc_info=True)
@@ -198,7 +198,7 @@ def get_ceo_fy_summary(
 ):
     """Get executive summary of FY progress with top priorities (revenue.view_pnl gated)."""
     try:
-        summary = get_fy_executive_summary(db)
+        summary = get_fy_executive_summary(db, tenant_id=current_user.tenant_id)
         return {"status": "success", "data": summary}
     except Exception as e:
         logger.error(f"Error: {str(e)}", exc_info=True)
@@ -224,13 +224,3 @@ def get_ceo_executive_dashboard(
     except Exception as e:
         logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
-
-# ============================================================================
-# Agent Registry & Discovery Endpoints
-# ============================================================================
-# NOTE: Endpoints commented out - AgentRegistry class not yet implemented
-# TODO: Implement AgentRegistry, AgentTier, AgentStatus in agent_registry_service.py
-# @router.get("/registry/all", dependencies=[Depends(require_resource_permission("admin-settings", "view"))])
-# def list_all_agents(db: Session = Depends(get_db)):
-#     """List all 70+ agents with status and metadata."""
-#     pass

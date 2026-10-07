@@ -202,6 +202,35 @@ class FYTargetRequest(BaseModel):
     target: float
 
 
+class FYSettingsRequest(BaseModel):
+    start_month: int  # 1-12; e.g. 4 = April - March
+
+
+@router.get(
+    "/fy-settings",
+    dependencies=[Depends(require_resource_permission("goals", "view"))]
+)
+def get_fy_settings(current_user: Users = Depends(get_current_user), db: Session = Depends(get_db)) -> Dict[str, Any]:
+    """Fiscal year definition: start month, current FY and its dates."""
+    from app.services.fiscal_year_service import fy_info
+    return fy_info(db, tenant_id=current_user.tenant_id)
+
+
+@router.put(
+    "/fy-settings",
+    dependencies=[Depends(require_resource_permission("goals", "edit"))]
+)
+def set_fy_settings(
+    body: FYSettingsRequest, current_user: Users = Depends(get_current_user), db: Session = Depends(get_db),
+) -> Dict[str, Any]:
+    from app.services.fiscal_year_service import fy_info, set_fy_start_month
+    try:
+        set_fy_start_month(db, body.start_month, current_user.tenant_id, current_user.UserID)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+    return fy_info(db, tenant_id=current_user.tenant_id)
+
+
 @router.get(
     "/tree",
     dependencies=[Depends(require_resource_permission("goals", "view"))]
@@ -247,8 +276,8 @@ def get_fy_target_settings(
     """Organization-level FY metrics with current value and target (null = not set)."""
     from app.services.ceo_fy_progress_service import get_fy_progress
 
-    year = year or datetime.utcnow().year
     progress = get_fy_progress(db, year, tenant_id=current_user.tenant_id)
+    year = progress["fy_year"]
     return {"year": year, "fy_progress_pct": progress["fy_progress_pct"], "metrics": progress["metrics"]}
 
 

@@ -57,8 +57,10 @@ export const getCFOForecast = async (monthsAhead = 3) => {
 
 // CEO FY Progress
 
-export const getCEOFYProgress = async (fyYear = new Date().getFullYear()) => {
-  const { data } = await apiRequest(`/agents/ceo/fy-progress?fy_year=${fyYear}`, {
+// fyYear omitted = the current fiscal year (per the FY start-month setting)
+export const getCEOFYProgress = async (fyYear) => {
+  const query = fyYear ? `?fy_year=${fyYear}` : "";
+  const { data } = await apiRequest(`/agents/ceo/fy-progress${query}`, {
     method: "GET",
   });
   return data.data;
@@ -74,6 +76,19 @@ export const setFYTarget = async (metric, target, fyYear) => {
   const { data } = await apiRequest(`/goals/fy-targets/${metric}?year=${fyYear}`, {
     method: "PUT",
     body: JSON.stringify({ target }),
+  });
+  return data;
+};
+
+export const getFYSettings = async () => {
+  const { data } = await apiRequest("/goals/fy-settings", { method: "GET" });
+  return data;
+};
+
+export const setFYStartMonth = async (startMonth) => {
+  const { data } = await apiRequest("/goals/fy-settings", {
+    method: "PUT",
+    body: JSON.stringify({ start_month: startMonth }),
   });
   return data;
 };

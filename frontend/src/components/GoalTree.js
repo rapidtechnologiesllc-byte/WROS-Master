@@ -129,8 +129,7 @@ function TreeRows({ node, depth, metrics, onSave, expanded, toggle }) {
 }
 
 export default function GoalTree() {
-  const currentYear = new Date().getFullYear();
-  const [year, setYear] = useState(currentYear);
+  const [year, setYear] = useState(null); // null = current fiscal year (server decides)
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -139,7 +138,7 @@ export default function GoalTree() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const { data: tree } = await apiRequest(`/goals/tree?year=${year}`);
+      const { data: tree } = await apiRequest(`/goals/tree${year ? `?year=${year}` : ""}`);
       setData(tree);
       setError(null);
     } catch (err) {
@@ -156,7 +155,7 @@ export default function GoalTree() {
   const saveTarget = async (node, metric, target) => {
     await apiRequest("/goals/targets", {
       method: "PUT",
-      body: JSON.stringify({ level: node.level, entity_id: node.entity_id, metric, target, year }),
+      body: JSON.stringify({ level: node.level, entity_id: node.entity_id, metric, target, year: data?.year }),
     });
     await load();
   };
@@ -176,15 +175,18 @@ export default function GoalTree() {
           </div>
           <p className="text-xs text-gray-500">
             Actual / target for each level. Click the pencil to set a target. The Organization row feeds the CEO Dashboard.
-            {data ? ` ${data.fy_progress_pct}% of FY ${data.year} elapsed.` : ""}
+            {data ? ` ${Math.round(data.fy_progress_pct)}% of ${data.fy_label} elapsed.` : ""}
           </p>
         </div>
         <div className="w-32">
           <Select
             label="Fiscal year"
-            value={String(year)}
+            value={String(data?.year ?? "")}
             onChange={(v) => setYear(Number(v))}
-            options={[currentYear - 1, currentYear, currentYear + 1].map((y) => ({ value: String(y), label: String(y) }))}
+            options={data ? [data.current_fy - 1, data.current_fy, data.current_fy + 1].map((y) => ({
+              value: String(y),
+              label: data.fy_start_month === 1 ? `FY ${y}` : `FY ${y}-${String(y + 1).slice(-2)}`,
+            })) : []}
           />
         </div>
       </div>
