@@ -1,4 +1,4 @@
-# Session Handoff — 2026-10-05
+# Session Handoff — 2026-10-06
 
 Start a new Claude Code session on `main` and say: "Read HANDOFF.md and continue."
 Work directly on `main` (no feature branches); push to `origin main` after checks.
@@ -23,6 +23,41 @@ login (needs a real password; do it in the browser yourself).
 | 7 | Startup printed `DATABASE_URL` with the password (journald) — and the same password is in git history | Logs now mask it (`***`). **DB password rotated** (40 random chars, generated on the server, only in `backend/.env` there). Old password rejected by Postgres |
 | 9 | Clicking a LinkedIn task on My Tasks showed "No action configured"; LinkedIn steps never reached the candidate's history | Tasks with a candidate open `/candidates/:id` (notes, History, stage bar); LinkedIn tasks without one open `/linkedin-pipeline`. Each pipeline move/Import writes a History entry with the recruiter's notes; unified creation logs "Candidate Added" again (`f2818123`). Ankurjit Singh's history backfilled |
 | 8 | CI `npm ci` failed: lock written by npm 11, runners use npm 10; Node 18 too old | Lock regenerated with npm 10.9 (`b132a4c5`); `test-and-deploy.yml` on Node 22 |
+
+## 2026-10-06 (all on main, deployed; prod at `aaf1f82d`)
+
+| Commit | What |
+|---|---|
+| `97fa1f9b` | Funnel, agent accountability, finance P&L, opportunity pipeline health, BU weekly report, partner success rebuilt on real columns (the "~246 bad field references" item). Shared filters in `services/candidate_pipeline_stage.py`, `services/scope_helpers.py` |
+| `4171a38b` | ~130 runtime NameErrors (pyflakes) + 8 modules that could not import. Job approval (`/approve_job`) never compiled; My Timesheet save/submit/history; role-template create crashed after commit (deleted RBAC audit service -> `audit_log`); queue processor retry paths; HR interview-response email NameError after every send; `import logging` inside module docstrings |
+| `06ac631c` | 30 GET endpoints that 500'd, found by calling every parameterless GET route as superuser (CEO goals PUT saved nothing; revenue response models; referrals; queue monitor; UAC org hierarchy) |
+| `51637924` | **Task updates** (My Tasks > Log update: what was done + next action -> follow-up task + candidate History "Activity Logged"; table `task_activities`). **Outlook mail capture** made real (see below). **FY goal tree** (see below) |
+| `1e801f25` | Sidebar: UAC tabs (role templates, BUs, delivery centers, org hierarchy) no longer separate menu items (`NAV_TAB_RESOURCES` in `init_resources.py`); labels left-aligned; icon map keyed by resource name |
+| `fb7501ff`, `aaf1f82d` | Placeholder Azure values treated as unset; last failing GETs (learning, standups, wellness, Flash coordination, HTD health; SLM learning tables uuid -> varchar = Migration 5d; `slm_job_metadata`/`slm_feedback` tables now created at init) |
+
+Local GET sweep as superuser: 252 x 200, 0 x 500 (the rest are 403/404/422 by design, 501 for the unimplemented service-mailbox reader, 502/503 for Microsoft not configured).
+
+### Outlook mail capture (`msgraph_mail_sync_service`)
+Per user: My Tasks > Connect Outlook -> Microsoft sign-in -> `GET /msgraph/auth/callback` (public, served at the
+registered redirect URI `https://hrms-backend.blitzenx.com/msgraph/auth/callback`, which proxies without `/api/v1`).
+Tokens in `msgraph_sessions` (was never created: own declarative Base), refreshed with the refresh token. Cron runs
+`python -m app.workers.mail_sync_worker` every 15 min (installed by `deploy_backend.sh`, log `/home/HRMS/wros-mail-sync.log`).
+Inbox + Sent Items since last sync; only messages whose other party is a known candidate/employee are linked
+(subject, direction, mailbox owner, Outlook link -- never the body) to the activity timeline and candidate History.
+**Blocked on the Azure app** (all 7 Microsoft values in prod `.env` are placeholders): needs tenant id, client id,
+secret, delegated `Mail.Read` + `offline_access` (+ `User.Read`) consented, and the redirect URI above registered.
+The same app with application `Mail.Send` is what outbound email needs (item 2 below). "Sign in with Microsoft" on the
+login page is not wired to a WROS session (callback returns `?sso=unavailable`).
+
+### FY goals: Org > Location > Partner > BU (`services/goal_tree_service.py`, table `goal_targets`)
+- Screen: Executive Revenue (`/executive-revenue-dashboard`) "FY Goals" tree; CEO Dashboard metric cards edit the ORG row.
+- Location = Delivery Centers (`locations`; create BXUS/BXIN there). BU form now saves Location (`business_units.location_id`)
+  and Partner (`partner_bu_assignments`; partner = org-chart node at the "Partner / C-Level" level). The old partner picker
+  in the orphaned `OrganizationSection.jsx` was never saved; Region/Continent were never stored (removed from the form).
+- ORG carries all 7 metrics; Location/Partner/BU carry revenue, headcount, new logos (actuals summed from BUs).
+  Partner targets are per partner within a location (`entity_id = "<location_id>:<node_id>"`). BU revenue targets also
+  append to `bu_revenue_targets` (clearing a target does not remove that history row).
+- `CEOGoalsSettingScreen.js` / `GoalsManagementScreen.js` were never routed (orphans, left as is). Prod has 0 BUs, 0 partners, 0 locations yet.
 
 ## Deploying
 
@@ -93,11 +128,8 @@ The `HRMS` user has **no usable sudo** (`sudo -l` lists NOPASSWD ALL, but every
    `agent_execution_log` (33 tables had `tenant_id` FK → `users`, so all agent
    logging failed — Migration 8 drops them). BU Head / Partner: users without a
    BU pick one. Prod has no employees/invoices/BUs yet, so most show zeros.
-   Still open: ~246 references to nonexistent model columns in other services
-   (`attrscan`: e.g. finance_agent, agent_pyramid_reporting, kpi_service,
-   recruitment_funnel_dashboard_service, partner_roi_service) — not on these
-   dashboards' paths, but they will 500 when used. Partner ROI screen
-   (`/partner-roi`, not in the menu) uses partner_roi_service.
+   The ~246 bad column references were fixed on 2026-10-06 (except
+   `personal_goal_agents.py`, unused, and Phase 3B `thunder_autonomous_progression_service.py`, deliberately untouched).
 0b. **Menu items with no page (hidden from nav since `abb40807`, still grantable):**
    interviews (no `/interviews` route at all — My Tasks still navigates there),
    notifications, activity-feed, ask-flash, ai-coaching, agent-pyramid, goals,
@@ -119,8 +151,8 @@ The `HRMS` user has **no usable sudo** (`sudo -l` lists NOPASSWD ALL, but every
    behind `THUNDER_ENGAGEMENT_ENABLED` (default false) with a real kill switch,
    a created-after cutoff, and `send_thunder_message` (WhatsApp → email
    fallback). Delete Phase 3B. Needs the user's decision on the cutoff.
-2. **Email:** `backend/.env` `AZURE_TENANT_ID/CLIENT_ID/CLIENT_SECRET` are
-   placeholders, so nothing has ever been sent. Needs an Entra app with
+2. **Email + Outlook capture:** `backend/.env` `AZURE_TENANT_ID/CLIENT_ID/CLIENT_SECRET` (and `TENANT_ID/CLIENT_ID/
+   CLIENT_SECRET/AUTHORITY`) are placeholders, so nothing has ever been sent and no mailbox can be connected (re-confirmed 2026-10-06). Needs an Entra app with
    application `Mail.Send` (admin consent) and a real `helpdesk_hrms@blitzenx.com`
    mailbox (sender is hardcoded in `email_service.py`). The user sets these;
    locally use a stub/allowlist so real candidates aren't emailed.
@@ -130,6 +162,13 @@ The `HRMS` user has **no usable sudo** (`sudo -l` lists NOPASSWD ALL, but every
    `task_service.create_task` commits internally.
 4. 4 jobs are stuck in `pending_approval` (created before approval was disabled);
    the user hasn't decided whether to activate them.
+
+5. **Still not built (2026-10-06):** service-mailbox inbox reader (`/ai-agent/inbox` returns 501), Panel-vs-Flash interview
+   comparison (501), Microsoft SSO login. Dead modules that still don't import: `permission_decorators`,
+   `flash_orchestrator_final`, `invoice_management_service`, `period_close_service`, `progressive_upload_*`,
+   `s3_upload_service`, `service_helpers`, `slm_agent_training` (nothing imports them).
+6. `/api/v1/opportunities/pipeline-health` is shadowed by `GET /opportunities/{id}` (both routers use `/opportunities`);
+   nothing in the UI calls it (Flash calls the service directly).
 
 ## Local dev notes
 
