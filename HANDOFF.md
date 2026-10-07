@@ -1,4 +1,4 @@
-# Session Handoff — 2026-10-06
+# Session Handoff — 2026-10-07
 
 Start a new Claude Code session on `main` and say: "Read HANDOFF.md and continue."
 Work directly on `main` (no feature branches); push to `origin main` after checks.
@@ -23,6 +23,21 @@ login (needs a real password; do it in the browser yourself).
 | 7 | Startup printed `DATABASE_URL` with the password (journald) — and the same password is in git history | Logs now mask it (`***`). **DB password rotated** (40 random chars, generated on the server, only in `backend/.env` there). Old password rejected by Postgres |
 | 9 | Clicking a LinkedIn task on My Tasks showed "No action configured"; LinkedIn steps never reached the candidate's history | Tasks with a candidate open `/candidates/:id` (notes, History, stage bar); LinkedIn tasks without one open `/linkedin-pipeline`. Each pipeline move/Import writes a History entry with the recruiter's notes; unified creation logs "Candidate Added" again (`f2818123`). Ankurjit Singh's history backfilled |
 | 8 | CI `npm ci` failed: lock written by npm 11, runners use npm 10; Node 18 too old | Lock regenerated with npm 10.9 (`b132a4c5`); `test-and-deploy.yml` on Node 22 |
+
+## 2026-10-07 (all on main, deployed; prod at `4043c607`)
+
+| Commit | What |
+|---|---|
+| `dd337aba` | Business Units tab: Add button checked a nonexistent `business_unit` resource |
+| `0f5150af` | Org → Company (BX-US/BX-IN, "Companies" tab = `locations`) → Partner → BU. BU operates in several companies (`business_unit_companies`), `partner_user_id`, BU head = `manager_id`. Client `contracting_company_id`, employee/org-node `company_id`. Partner + BU Head role templates (non-system, own permission set). Partner/BU Head dashboards follow the person. Departments are org-wide routing groups (BU optional) |
+| `d02b4c4c` | Removed 56 unreachable frontend files + 66 unused API functions; WhatsApp webhook fixed (GET verify, no user auth, public route) |
+| `179db5eb` | **One endpoint per action:** 966 → 542 routes; every route a client calls kept (447), no duplicate method+path. Commit gate checks added/modified files only (it syntax-checked deleted files) |
+| `bc60293a` | **Job = Demand** (one `jobs` row; `Demand` is `Jobs` via synonyms; FKs repointed; `demands` table kept, unreferenced). Chain verified end to end through the API: client → job (client, project, bill rate) → candidate → employee (BU, company, W2, joins ACTIVE) → submission → PLACED allocates → timesheet → invoice → paid → Goals revenue/headcount. Fixed: timesheet endpoints never committed, experience months never computed, PRE_JOINING never left (worker now activates on joining date), placement didn't allocate, $0/empty invoices allowed, revenue required an opportunity |
+| `d708d0ba` | `candidate_update` queue handler (no `process()`) and event-bus types (never registered) fixed; Company form: Country/State/City picker, subsidiary must have a parent company |
+| `4043c607` | One shared `components/AllocationForm` for Allocations, Employees, Projects (Projects' assign was broken) |
+
+Prod data: BX-US (parent) and BX-IN (subsidiary of BX-US). No BUs, clients, jobs or employees yet.
+The careers site (`/career`) is **not** going to production for now (user decision) — ignore it.
 
 ## 2026-10-06 (all on main, deployed; prod at `aaf1f82d`)
 
@@ -118,6 +133,12 @@ The `HRMS` user has **no usable sudo** (`sudo -l` lists NOPASSWD ALL, but every
 - Thunder activity feed: tenant scoping fixed, `ConversationEvent.tenant_id` inherited from its conversation, read state per user, Thunder loop respects `thunder_enabled`.
 
 ## Open decisions / next work
+
+00. **Waiting on the user (2026-10-07):** Azure tenant/client/secret + `ANTHROPIC_API_KEY` in prod
+    `backend/.env` (Outlook capture, email, SharePoint offer templates, AI job descriptions) → then restart
+    and test; Thunder go-live decision (see 1); setup data (users with Partner/BU Head roles, BUs, clients,
+    projects, jobs with bill rate, goals). Event-bus `rejected/archived/reactivated` handlers are not
+    registered: nothing publishes them, and the rejection one emails the candidate (needs a decision).
 
 0. **Dashboards — fixed end to end (`665720d8`, `db07713e`).** All 25 load-time
    calls of the Executive/Admin dashboards return 200 on prod as Admin (was 9/26):
