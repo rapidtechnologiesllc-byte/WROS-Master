@@ -5,7 +5,7 @@
 export const GENDER_OPTIONS = ["Female", "Male", "Other", "Prefer not to say"];
 
 export const SOURCE_OPTIONS = [
-  "LinkedIn", "Career Site", "Employee Referral", "Campus Hiring", "Conference",
+  "LinkedIn", "Career Site", "Employee Referral", "Referral", "Campus Hiring", "Conference",
   "Indeed", "Naukri", "Monster", "Job Board", "Direct Application", "Other",
 ];
 
