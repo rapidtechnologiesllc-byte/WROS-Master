@@ -851,6 +851,10 @@ def _run_schema_migrations():
                 # Contracting company (BX-US / BX-IN): revenue splits by company
                 ("contracting_company_id", "VARCHAR(512) NULL REFERENCES app_schema.locations(id) ON DELETE SET NULL"),
             ],
+            "locations": [
+                ("state", "VARCHAR(512) NULL"),
+                ("parent_company_id", "VARCHAR(512) NULL REFERENCES app_schema.locations(id) ON DELETE RESTRICT"),
+            ],
             "intercompany_settlements": [
                 ("business_unit_id", "INTEGER NULL REFERENCES app_schema.business_units(id) ON DELETE SET NULL"),
             ],

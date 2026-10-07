@@ -309,6 +309,50 @@ def _initialize_default_handlers():
 
 
 # MEDIUM FIX #12: Initialize handlers and validate
+def _event_bus_adapter(process: Callable) -> Callable:
+    """CandidateEventBus enqueues {event_type, candidate_id, timestamp, data:{...}};
+    the candidate handlers read their fields at the top level. Flatten before calling."""
+    def run(message, db):
+        payload = dict(message.payload or {})
+        flat = {"candidate_id": payload.get("candidate_id"), **(payload.get("data") or {})}
+
+        class _Flat:
+            id = getattr(message, "id", None)
+            tenant_id = getattr(message, "tenant_id", None)
+            retry_count = getattr(message, "retry_count", 0)
+        _Flat.payload = flat
+        return process(_Flat, db)
+    run.__name__ = getattr(process, "__name__", "event_bus_handler")
+    return run
+
+
+def _pause_thunder_on_interview(message, db):
+    """interview_scheduled from the event bus: the interview already exists (the
+    endpoint created it), so only pause Thunder outreach for the candidate."""
+    from app.models.candidate import Candidate
+
+    candidate = db.query(Candidate).filter(Candidate.candidateID == message.payload.get("candidate_id")).first()
+    if candidate is None:
+        raise ValueError(f"Candidate {message.payload.get('candidate_id')} not found")
+    paused = bool(candidate.thunder_enabled)
+    if paused:
+        candidate.thunder_enabled = False
+        db.add(candidate)
+        db.commit()
+    return {"status": "success", "candidate_id": candidate.candidateID, "thunder_paused": paused}
+
+
+def _register_event_bus_handlers():
+    """Message types CandidateEventBus publishes (see its _get_handler_function).
+    Rejected/archived/reactivated/created have no live publisher; not registered."""
+    from app.services.message_handlers.candidate_data_change_handler import CandidateDataChangeHandler
+    from app.services.message_handlers.candidate_status_change_handler import CandidateStatusChangeHandler
+
+    MessageHandlerRegistry.register("handle_candidate_data_changed", _event_bus_adapter(CandidateDataChangeHandler.process))
+    MessageHandlerRegistry.register("handle_candidate_status_changed", _event_bus_adapter(CandidateStatusChangeHandler.process))
+    MessageHandlerRegistry.register("handle_interview_scheduled", _event_bus_adapter(_pause_thunder_on_interview))
+
+
 def _validate_handler_registry():
     """Validate that critical handlers are registered."""
     critical_handlers = [
@@ -330,6 +374,7 @@ def _validate_handler_registry():
 # Initialize default handlers on module load
 try:
     _initialize_default_handlers()
+    _register_event_bus_handlers()
     _validate_handler_registry()
 except Exception as e:
     logger.warning(f"[Registry] Failed to initialize default handlers: {e}")

@@ -4,6 +4,8 @@ import { ArrowLeft, X } from 'lucide-react';
 import Button from '../components/ui/Button';
 import Card from '../components/ui/Card';
 import Input from '../components/ui/Input';
+import LocationCascadeSelect, { parseLocation } from '../components/ui/LocationCascadeSelect';
+import { Country, State } from 'country-state-city';
 import { apiRequest } from '../services/api/client';
 import { hasPermission } from '../utils/permissionsRoleTemplate';
 
@@ -39,10 +41,13 @@ export default function DeliveryCenterFormPage() {
   const [formData, setFormData] = useState({
     name: '',
     center_type: 'Delivery',
-    city: '',
-    country: '',
+    // Country -> State -> City picker value (same component as Add Candidate)
+    location: { countryCode: '', stateCode: '', city: '' },
+    parent_company_id: '',
     headcount: 0
   });
+  // Parent companies a subsidiary can belong to
+  const [parents, setParents] = useState([]);
   const [loading, setLoading] = useState(mode === 'edit');
   const [saving, setSaving] = useState(false);
   const [actionError, setActionError] = useState(null);
@@ -51,6 +56,19 @@ export default function DeliveryCenterFormPage() {
     if (mode === 'edit' && dcId) {
       loadDeliveryCenter();
     }
+  }, [dcId, mode]);
+
+  useEffect(() => {
+    apiRequest(DELIVERY_CENTERS_PATH)
+      .then((res) => {
+        const parentList = (res.data?.delivery_centers || []).filter((c) => c.center_type === 'HQ' && String(c.id) !== String(dcId));
+        setParents(parentList);
+        // With no parent company yet, the first company added is the parent
+        if (mode === 'create' && parentList.length === 0) {
+          setFormData((prev) => ({ ...prev, center_type: 'HQ' }));
+        }
+      })
+      .catch((err) => setActionError(`Could not load companies: ${err.message}`));
   }, [dcId, mode]);
 
   const loadDeliveryCenter = async () => {
@@ -62,8 +80,8 @@ export default function DeliveryCenterFormPage() {
         setFormData({
           name: dc.name || '',
           center_type: dc.center_type || 'Delivery',
-          city: dc.city || '',
-          country: dc.country || '',
+          location: parseLocation([dc.city, dc.state, dc.country].filter(Boolean).join(', ')),
+          parent_company_id: dc.parent_company_id || '',
           headcount: dc.headcount || 0
         });
       } else {
@@ -94,19 +112,27 @@ export default function DeliveryCenterFormPage() {
       setActionError('Company name is required');
       return;
     }
+    if (formData.center_type !== 'HQ' && !formData.parent_company_id) {
+      setActionError('Pick the parent company this subsidiary belongs to');
+      return;
+    }
 
     setSaving(true);
     try {
+      const { location, ...rest } = formData;
+      const country = location.countryCode ? Country.getCountryByCode(location.countryCode) : null;
+      const state = location.stateCode ? State.getStateByCodeAndCountry(location.stateCode, location.countryCode) : null;
+      const body = JSON.stringify({
+        ...rest,
+        parent_company_id: rest.center_type === 'HQ' ? '' : rest.parent_company_id,
+        country: country?.name || '',
+        state: state?.name || '',
+        city: location.city || '',
+      });
       if (mode === 'create') {
-        await apiRequest(DELIVERY_CENTERS_PATH, {
-          method: 'POST',
-          body: JSON.stringify(formData)
-        });
+        await apiRequest(DELIVERY_CENTERS_PATH, { method: 'POST', body });
       } else {
-        await apiRequest(`${DELIVERY_CENTERS_PATH}/${dcId}`, {
-          method: 'PUT',
-          body: JSON.stringify(formData)
-        });
+        await apiRequest(`${DELIVERY_CENTERS_PATH}/${dcId}`, { method: 'PUT', body });
       }
       setActionError(null);
       navigate('/admin/users-access-control/delivery-centers');
@@ -184,35 +210,35 @@ export default function DeliveryCenterFormPage() {
               disabled={saving}
             >
               <option value="HQ">Parent company</option>
-              <option value="Delivery">Subsidiary / subcontracting company</option>
+              <option value="Delivery" disabled={parents.length === 0}>Subsidiary / subcontracting company</option>
             </select>
+            {parents.length === 0 && (
+              <p className="mt-1 text-xs text-gray-500">Add the parent company first; subsidiaries are added under it.</p>
+            )}
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          {formData.center_type !== 'HQ' && (
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                City
-              </label>
-              <Input
-                type="text"
-                value={formData.city}
-                onChange={setField('city')}
-                placeholder="City"
+              <label className="block text-sm font-medium text-gray-700 mb-1">Parent company *</label>
+              <select
+                value={formData.parent_company_id}
+                onChange={setField('parent_company_id')}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-bx-orange"
                 disabled={saving}
-              />
+              >
+                <option value="">Select parent company</option>
+                {parents.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+              </select>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Country
-              </label>
-              <Input
-                type="text"
-                value={formData.country}
-                onChange={setField('country')}
-                placeholder="Country"
-                disabled={saving}
-              />
-            </div>
+          )}
+
+          <div>
+            <div className="block text-sm font-medium text-gray-700 mb-1">Location</div>
+            <LocationCascadeSelect
+              value={formData.location}
+              onChange={(location) => setFormData(prev => ({ ...prev, location }))}
+              disabled={saving}
+            />
           </div>
 
           <p className="text-xs text-gray-500">

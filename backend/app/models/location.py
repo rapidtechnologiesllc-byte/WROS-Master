@@ -21,8 +21,11 @@ class Location(Base):
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False, server_default=str(DEFAULT_TENANT_ID), default=DEFAULT_TENANT_ID, index=True)
     name = Column(String(MAX_STRING_COLUMN_LENGTH), nullable=False, index=True)
     city = Column(String(MAX_STRING_COLUMN_LENGTH), nullable=True)
+    state = Column(String(MAX_STRING_COLUMN_LENGTH), nullable=True)
     country = Column(String(MAX_STRING_COLUMN_LENGTH), nullable=True)
-    location_type = Column(String(MAX_STRING_COLUMN_LENGTH), nullable=True)
+    location_type = Column(String(MAX_STRING_COLUMN_LENGTH), nullable=True)  # HQ = parent company, Delivery = subsidiary
+    # A subsidiary (e.g. BX-IN) belongs to a parent company (e.g. BX-US)
+    parent_company_id = Column(String(MAX_STRING_COLUMN_LENGTH), ForeignKey("locations.id", ondelete="RESTRICT"), nullable=True, index=True)
     headcount = Column(Integer, default=0)
     status = Column(String(MAX_STRING_COLUMN_LENGTH), default=DEFAULT_LOCATION_STATUS)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)

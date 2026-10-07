@@ -84,10 +84,36 @@ class BusinessUnitCreateRequest(BaseModel):
 
 class DeliveryCenterCreateRequest(BaseModel):
     name: str
+    # Country / State / City names, from the same cascading picker as candidates
     city: Optional[str] = None
+    state: Optional[str] = None
     country: Optional[str] = None
-    center_type: Optional[str] = "Delivery"  # HQ, Delivery, etc.
+    center_type: Optional[str] = "Delivery"  # HQ = parent company, Delivery = subsidiary
     headcount: Optional[int] = 0
+    # Required for a subsidiary: the parent company it belongs to
+    parent_company_id: Optional[str] = None
+
+
+PARENT_COMPANY_TYPE = "HQ"
+
+
+def _validate_company_structure(db: Session, tenant_id, center_type, parent_company_id, company_id=None):
+    """A subsidiary must name an existing parent company; a parent company has none."""
+    if center_type == PARENT_COMPANY_TYPE:
+        if parent_company_id:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="A parent company cannot itself have a parent company")
+        return None
+    if not parent_company_id:
+        has_parent = db.query(Location).filter(Location.tenant_id == tenant_id, Location.location_type == PARENT_COMPANY_TYPE).first()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Pick the parent company this subsidiary belongs to" if has_parent
+            else "Add the parent company first: a subsidiary has to belong to one",
+        )
+    parent = db.query(Location).filter(Location.id == parent_company_id, Location.tenant_id == tenant_id).first()
+    if parent is None or parent.location_type != PARENT_COMPANY_TYPE or parent.id == company_id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="The parent must be an existing parent company")
+    return parent.id
 
 @router.get(
     "/delivery-centers",
@@ -114,6 +140,7 @@ def list_delivery_centers(
     total = query.count()
     locations = query.order_by(Location.name).offset(skip).limit(limit).all()
     ids = [l.id for l in locations]
+    names = {l.id: l.name for l in db.query(Location).filter(Location.tenant_id == current_user.tenant_id)}
     headcount = dict(
         db.query(Employee.company_id, func.count(Employee.id))
         .filter(Employee.company_id.in_(ids), Employee.status.notin_(WORKING_STATUSES_EXCLUDED))
@@ -130,6 +157,9 @@ def list_delivery_centers(
                 "id": l.id,
                 "name": l.name,
                 "city": getattr(l, 'city', None),
+                "state": getattr(l, 'state', None),
+                "parent_company_id": l.parent_company_id,
+                "parent_company_name": names.get(l.parent_company_id),
                 "country": getattr(l, 'country', None),
                 "center_type": getattr(l, 'location_type', 'Delivery'),
                 "headcount": headcount.get(l.id, 0),
@@ -155,11 +185,15 @@ def create_delivery_center(
     """Create a new delivery center (Admin and Super User only)."""
     # Validate input
     if not req.name:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Delivery Center name is required")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Company name is required")
+    tenant_id = current_user.tenant_id if hasattr(current_user, 'tenant_id') else 1
+    parent_id = _validate_company_structure(db, tenant_id, req.center_type, req.parent_company_id)
 
     new_dc = Location(
+        parent_company_id=parent_id,
         name=req.name,
         city=req.city,
+        state=req.state,
         country=req.country,
         location_type=req.center_type,
         headcount=req.headcount,
@@ -194,10 +228,21 @@ def update_delivery_center(
     # Update fields
     if req.name:
         dc.name = req.name
-    if req.city:
-        dc.city = req.city
-    if req.country:
-        dc.country = req.country
+    if req.center_type or req.parent_company_id is not None:
+        new_type = req.center_type or dc.location_type
+        new_parent = req.parent_company_id if req.parent_company_id is not None else dc.parent_company_id
+        if new_type != PARENT_COMPANY_TYPE and dc.location_type == PARENT_COMPANY_TYPE and \
+                db.query(Location).filter(Location.parent_company_id == dc.id).first():
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT,
+                                detail="This parent company has subsidiaries; move them first")
+        dc.parent_company_id = _validate_company_structure(db, dc.tenant_id, new_type, new_parent or None, dc.id)
+    # None leaves a field unchanged; "" clears it
+    if req.city is not None:
+        dc.city = req.city or None
+    if req.state is not None:
+        dc.state = req.state or None
+    if req.country is not None:
+        dc.country = req.country or None
     if req.center_type:
         dc.location_type = req.center_type
     if req.headcount is not None:
@@ -225,6 +270,9 @@ def delete_delivery_center(
     dc = db.query(Location).filter(Location.id == dc_id).first()
     if not dc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Delivery Center not found")
+    if db.query(Location).filter(Location.parent_company_id == dc.id).first():
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT,
+                            detail="This parent company has subsidiaries; delete or move them first")
 
     db.delete(dc)
     db.commit()

@@ -1697,11 +1697,11 @@ function LocationsSection() {
                       ? "bg-purple-100 text-purple-800"
                       : "bg-blue-100 text-blue-800"
                   }`}>
-                    {dc.center_type === "HQ" ? "Parent company" : "Subsidiary"}
+                    {dc.center_type === "HQ" ? "Parent company" : `Subsidiary of ${dc.parent_company_name || "?"}`}
                   </span>
                 </div>
                 <div className="grid grid-cols-3 gap-4 mt-2 text-sm text-gray-600">
-                  <div><span className="font-medium">Country:</span> {[dc.city, dc.country].filter(Boolean).join(", ") || "-"}</div>
+                  <div><span className="font-medium">Location:</span> {[dc.city, dc.state, dc.country].filter(Boolean).join(", ") || "-"}</div>
                   <div><span className="font-medium">Business units:</span> {dc.business_unit_count}</div>
                   <div><span className="font-medium">Employees:</span> {dc.headcount}</div>
                 </div>

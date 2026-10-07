@@ -4,7 +4,7 @@ Processes updates asynchronously to provide audit trail and failure visibility.
 """
 import logging
 from datetime import datetime
-from typing import Optional, Dict, Any
+from typing import Any, Dict, Optional
 from sqlalchemy.orm import Session
 
 from app.models.candidate import Candidate
@@ -28,6 +28,19 @@ class CandidateUpdateHandler(BaseMessageHandler):
 
     HANDLER_NAME = "candidate_update"
     TIMEOUT_SECONDS = 30
+
+    @staticmethod
+    def process(message: Any, db: Session) -> Dict[str, Any]:
+        """Queue entry point (registry calls process(message, db)). Fails the
+        message, with the handler's own reason, when the update didn't apply."""
+        payload = message.payload if hasattr(message, "payload") else message
+        handler = CandidateUpdateHandler()
+        if not handler.validate_message(payload):
+            raise ValueError(f"candidate_update payload missing required fields: {sorted(payload or {})}")
+        result = handler.execute(payload)
+        if result.get("status") == "failed":
+            raise RuntimeError(result.get("error") or "candidate_update failed")
+        return result
 
     def validate_message(self, message: Dict[str, Any]) -> bool:
         """Validate update message has required fields."""

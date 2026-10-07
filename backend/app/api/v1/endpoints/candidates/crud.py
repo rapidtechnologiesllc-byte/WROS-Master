@@ -732,19 +732,7 @@ def update_candidate(candidate_id: str, request: CandidateUpdateRequest, db: Ses
     # NOTE: History creation, event publishing, and SLM feedback now handled by CandidateUpdateHandler
     # in the async queue - this removes duplication and provides audit trail visibility
 
-    # Emit candidate_data_changed event with all changed fields
-    if corrections:
-        try:
-            from app.services.candidate_event_bus import CandidateEventBus
-            CandidateEventBus.publish_data_changed(
-                candidate_id=candidate_id,
-                changed_fields=list(corrections.keys()),
-                **{field: corrections[field][1] for field in corrections}  # new values
-            )
-            logger.info(f"[CRUD] Emitted candidate_data_changed event for {candidate_id} ({len(corrections)} fields)")
-        except Exception as e:
-            logger.error(f"[CRUD] Failed to emit event: {e}", exc_info=True)
-            # Don't fail update if event emission fails
+    # candidate_data_changed is published by CandidateUpdateHandler once the queued update applies
 
     # Wire SLM: Record corrections for learning
     if corrections:
@@ -1003,19 +991,6 @@ def delete_candidate_restful(candidate_id: str, db: Session = Depends(get_db), u
             'deleted_at': datetime.now().isoformat()
         }
     )
-
-    # Emit candidate_deleted event
-    try:
-        from app.services.candidate_event_bus import CandidateEventBus
-        CandidateEventBus.publish_event(
-            event_type="candidate_deleted",
-            candidate_id=candidate_id,
-            data={"deleted_at": datetime.utcnow().isoformat(), "deleted_by_user_id": user.UserID if hasattr(user, 'UserID') else None}
-        )
-        logger.info(f"[CRUD] Emitted candidate_deleted event for {candidate_id}")
-    except Exception as e:
-        logger.error(f"[CRUD] Failed to emit candidate_deleted event: {e}", exc_info=True)
-        # Don't fail delete if event emission fails
 
     return DeleteResponse(
         status="Success",

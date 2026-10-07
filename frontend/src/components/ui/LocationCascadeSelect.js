@@ -115,13 +115,21 @@ export function formatLocation(value) {
 // value -- used to prefill the dropdowns when editing a candidate who
 // already has a value stored the old way. Falls back to all-empty if it
 // can't confidently match, rather than guessing wrong.
+// Short forms people type for a country ("USA", "UK", ISO codes like "IN")
+const COUNTRY_ALIASES = { usa: "US", "u.s.a.": "US", "u.s.": "US", "united states of america": "US", uk: "GB", "great britain": "GB", uae: "AE" };
+
+function findCountry(name) {
+  const key = (name || "").trim().toLowerCase();
+  if (!key) return null;
+  const code = COUNTRY_ALIASES[key] || (key.length === 2 ? key.toUpperCase() : null);
+  return Country.getAllCountries().find((c) => c.name.toLowerCase() === key || (code && c.isoCode === code)) || null;
+}
+
 export function parseLocation(text) {
   if (!text) return { countryCode: "", stateCode: "", city: "" };
   const parts = text.split(",").map((p) => p.trim()).filter(Boolean);
   const countryName = parts[parts.length - 1];
-  const country = Country.getAllCountries().find(
-    (c) => c.name.toLowerCase() === (countryName || "").toLowerCase(),
-  );
+  const country = findCountry(countryName);
   if (!country) {
     // Legacy "City, State" without a country: infer the country from the
     // state name when that name identifies one state (or one in IN/US,
