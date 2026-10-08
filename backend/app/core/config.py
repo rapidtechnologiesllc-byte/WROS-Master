@@ -170,6 +170,11 @@ class Settings:
     THUNDER_MIN_GAP_HOURS: int = int(os.getenv("THUNDER_MIN_GAP_HOURS", "48"))
     THUNDER_NURTURE_INTERVAL_DAYS: int = int(os.getenv("THUNDER_NURTURE_INTERVAL_DAYS", "30"))
 
+    # Finance: invoices are emailed from this mailbox (same Graph app permissions as Thunder)
+    FINANCE_MAILBOX: str = os.getenv("FINANCE_MAILBOX", "") or THUNDER_MAILBOX
+    # Paid hours in a month (40h x 52 weeks / 12); turns monthly loaded cost into an hourly cost
+    STANDARD_MONTHLY_HOURS: float = float(os.getenv("STANDARD_MONTHLY_HOURS", "173.33"))
+
     # Background jobs (app/core/scheduled_jobs.py): comma-separated names; empty = none run
     SCHEDULED_JOBS_ENABLED: str = os.getenv("SCHEDULED_JOBS_ENABLED", "")
     SCHEDULED_JOB_LEASE_GRACE_SECONDS: int = int(os.getenv("SCHEDULED_JOB_LEASE_GRACE_SECONDS", "120"))

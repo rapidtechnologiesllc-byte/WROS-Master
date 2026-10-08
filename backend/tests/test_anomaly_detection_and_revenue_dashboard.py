@@ -34,7 +34,7 @@ from app.models.invoice import Invoice, InvoiceLineItem
 from app.services.employee_allocation_service import allocate_employee_to_project
 from app.services.project_service import create_project
 from app.services.timesheet_service import create_weekly_draft, upsert_entries, submit_timesheet, approve_timesheet
-from app.services.invoice_service import generate_invoice, approve_invoice, send_invoice
+from app.services.invoice_service import generate_invoice, approve_invoice, mark_invoice_sent
 from app.services.timesheet_anomaly_service import scan_timesheet_anomalies, get_anomaly_flags_for_timesheet
 from app.services.client_revenue_dashboard_service import get_client_revenue_dashboard
 
@@ -280,7 +280,7 @@ def test_dashboard_earned_and_billable_ratio_computed(db_session, tenant_and_cli
 
     invoice = generate_invoice(db_session, project, period_start=monday, period_end=monday + timedelta(days=6))
     approve_invoice(db_session, invoice, approved_by="U-FIN")
-    send_invoice(db_session, invoice)
+    mark_invoice_sent(db_session, invoice)
     db_session.commit()
 
     result = get_client_revenue_dashboard(db_session, client, tenant_id=tenant.id)
@@ -356,7 +356,7 @@ def test_dashboard_burn_rate_computed_for_fixed_bid_with_dates(db_session, tenan
     db_session.commit()
     invoice = generate_invoice(db_session, project, period_start=monday, period_end=monday + timedelta(days=6))
     approve_invoice(db_session, invoice, approved_by="U-FIN")
-    send_invoice(db_session, invoice)
+    mark_invoice_sent(db_session, invoice)
     db_session.commit()
     # earned = 40h * $100 = 400000 cents; expected spend at 50% elapsed = 5000000 cents
     # burn_rate = 400000/5000000*100 = 8.0

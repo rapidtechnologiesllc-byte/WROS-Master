@@ -1,14 +1,11 @@
 """S-313 Employee Conversion Service"""
+import logging
 from datetime import date
-from typing import List, Optional, Tuple
-from sqlalchemy.orm import Session
-from app.core.logging import logger
+
 from app.core.security import get_password_hash
-from app.models.candidate import Candidate
 from app.models.employee import Employee, EmployeeEngineHistory
 from app.models.user import Users
 from app.services.email_service import EmailService
-import logging
 from app.utils.uniq_id_generator import user_id_generator, generate_password
 logger = logging.getLogger(__name__)
 
@@ -35,6 +32,19 @@ def hired_for_job(db, candidate):
     sub = (db.query(Submission).filter(Submission.candidate_id == candidate.candidateID)
            .order_by(Submission.created_at.desc()).first())
     return db.query(Jobs).filter(Jobs.jobID == sub.demand_id).first() if sub else None
+
+
+def monthly_salary_from_offer(db, candidate, job):
+    """Monthly base salary (USD cents) from the candidate's accepted or signed offer,
+    for this job when there is one. None when there is no such offer."""
+    from app.models.offer import Offer
+
+    query = db.query(Offer).filter(Offer.candidate_id == candidate.candidateID,
+                                   Offer.status.in_(("ACCEPTED", "SIGNED")))
+    if job is not None:
+        query = query.filter(Offer.job_id == job.jobID)
+    offer = query.order_by(Offer.accepted_at.desc().nullslast(), Offer.created_at.desc()).first()
+    return round(offer.base_salary_usd_cents / 12) if offer and offer.base_salary_usd_cents else None
 
 
 def employer_company_for(db, job, bu_id):
@@ -89,6 +99,9 @@ class EmployeeConversionService:
         if final_company_id:
             user.location_id = final_company_id
         fields.pop("delivery_engine", None)
+        if fields.get("base_salary_usd_cents") is None:
+            # without it the employee's cost is unknown and every P&L they touch is incomplete
+            fields["base_salary_usd_cents"] = monthly_salary_from_offer(db, candidate, job)
         emp = Employee(tenant_id=tid, candidate_id=candidate.candidateID, first_name=fn, last_name=ln, email=email, phone=ph,
                        joining_date=joining_date, employment_type=employment_type, delivery_engine="SPECIALITY",
                        engine_entry_date=joining_date, wros_user_id=user.UserID, bu_id=final_bu_id,

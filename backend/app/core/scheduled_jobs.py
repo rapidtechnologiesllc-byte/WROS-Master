@@ -26,6 +26,9 @@ class ScheduledJob:
 _JOBS = (
     ScheduledJob("timesheet_draft_creation", "app.services.timesheet_service:create_weekly_draft_batch",
                  timedelta(hours=6), timeout_s=300),
+    # internal staff only (employee, then reporting manager); last completed week only
+    ScheduledJob("timesheet_reminders", "app.services.timesheet_nag_service:run_timesheet_nag_job",
+                 timedelta(days=1), timeout_s=300, daily_after_utc="13:00"),
     ScheduledJob("ar_follow_up", "app.services.ar_followup_service:run_ar_follow_up_job",
                  timedelta(days=1), timeout_s=300, daily_after_utc="09:30"),
     ScheduledJob("expire_bu_ownerships", "app.services.candidate_pool_service:expire_bu_ownerships",

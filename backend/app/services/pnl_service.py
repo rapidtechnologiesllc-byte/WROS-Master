@@ -9,109 +9,74 @@ engine (CORE/SPECIALITY) is a staffing-model split that correlates
 with but isn't the same thing as legal entity. Building Location P&L
 against either would be a guess dressed up as data. Flagged for
 whoever adds a real entity/geography field to Employee next.
+
+2026-10-08: both functions now read the revenue-chain P&L, so BU, partner
+and org figures come from one calculation. Revenue is earned revenue by
+timesheet week (was: invoice totals by creation month); cost is delivery
+hours x hourly loaded cost plus bench (was: full salary of whoever is
+currently allocated, regardless of the month).
 """
-from datetime import date
 import logging
-from typing import List, Optional
+from typing import Optional
 
 from sqlalchemy.orm import Session
 
-from app.models.client import Client
-from app.models.employee import Employee
-from app.models.employee_allocation import EmployeeAllocation
 from app.models.business_unit import BusinessUnit
-from app.services.cost_rate_service import calculate_fully_loaded_cost_usd_cents, get_active_cost_rate_config
-from app.services.forecast_variance_service import get_monthly_actual_revenue
+from app.services.revenue_chain_service import month_bounds, pnl
 
-def get_bu_pnl(db: Session, *, business_unit_id: int, year: int, month: int) -> dict:
-    """Revenue (real Invoice actuals for the BU's clients) minus cost
-    (fully loaded cost of every employee ACTIVE-allocated to one of
-    those clients this month). Both real, derived numbers -- no
-    invented allocation formula beyond what cost_rate_service already
-    established."""
-    client_ids = [c.id for c in db.query(Client.id).filter(Client.business_unit_id == business_unit_id).all()]
-    revenue_usd_cents = get_monthly_actual_revenue(db, client_ids=client_ids, year=year, month=month)
+logger = logging.getLogger(__name__)
 
-    config = get_active_cost_rate_config(db, business_unit_id=business_unit_id)
 
-    cost_usd_cents = 0
-    cost_data_complete = True
-    if client_ids and config is not None:
-        employee_ids = {
-            row[0] for row in db.query(EmployeeAllocation.employee_id).filter(
-                EmployeeAllocation.client_id.in_(client_ids), EmployeeAllocation.status == "ACTIVE",
-            ).distinct().all()
-        }
-        for employee_id in employee_ids:
-            employee = db.query(Employee).filter(Employee.id == employee_id).first()
-            if employee is None:
-                continue
-            employee_cost = calculate_fully_loaded_cost_usd_cents(employee, config)
-            if employee_cost is None:
-                cost_data_complete = False
-                continue
-            cost_usd_cents += employee_cost
-    elif config is None:
-        cost_data_complete = False
-
-    gross_margin_usd_cents = revenue_usd_cents - cost_usd_cents if cost_data_complete else None
-    margin_pct = (
-        round(gross_margin_usd_cents / revenue_usd_cents * 100, 1)
-        if gross_margin_usd_cents is not None and revenue_usd_cents > 0
-        else None
-    )
-
+def _legacy(section: dict) -> dict:
+    """The revenue-chain P&L in the shape existing callers read: cost is None (not a
+    fake figure) when any salary or cost-rate config is missing."""
+    complete = section["cost_data_complete"]
     return {
-        "business_unit_id": business_unit_id, "year": year, "month": month,
-        "revenue_usd_cents": revenue_usd_cents,
-        "cost_usd_cents": cost_usd_cents if cost_data_complete else None,
-        "gross_margin_usd_cents": gross_margin_usd_cents,
-        "margin_pct": margin_pct,
-        "cost_data_complete": cost_data_complete,
+        "revenue_usd_cents": section["revenue_usd_cents"],
+        "cost_usd_cents": section["total_cost_usd_cents"] if complete else None,
+        "gross_margin_usd_cents": section["margin_usd_cents"],
+        "margin_pct": section["margin_pct"],
+        "cost_data_complete": complete,
+        "billed_usd_cents": section["billed_usd_cents"],
+        "collected_usd_cents": section["collected_usd_cents"],
+        "unbilled_usd_cents": section["unbilled_usd_cents"],
+        "delivery_cost_usd_cents": section["delivery_cost_usd_cents"],
+        "bench_cost_usd_cents": section["bench_cost_usd_cents"],
     }
 
+
+def get_bu_pnl(db: Session, *, business_unit_id: int, year: int, month: int) -> dict:
+    """One business unit's month from the revenue-chain P&L (app.services.revenue_chain_service):
+    revenue earned on the BU's clients, their delivery cost, and the bench cost of the BU's own staff."""
+    start, end = month_bounds(year, month)
+    report = pnl(db, start=start, end=end)
+    section = next((row for row in report["by_business_unit"] if row["key"] == business_unit_id), None)
+    if section is None:
+        return {"business_unit_id": business_unit_id, "year": year, "month": month,
+                "revenue_usd_cents": 0, "cost_usd_cents": 0, "gross_margin_usd_cents": 0, "margin_pct": None,
+                "cost_data_complete": True, "billed_usd_cents": 0, "collected_usd_cents": 0,
+                "unbilled_usd_cents": 0, "delivery_cost_usd_cents": 0, "bench_cost_usd_cents": 0}
+    return {"business_unit_id": business_unit_id, "year": year, "month": month, **_legacy(section)}
+
+
 def get_org_pnl_summary(db: Session, *, year: int, month: int, tenant_id: Optional[int] = None) -> dict:
-    """EPIC-16 Executive Dashboard -- org-level rollup, real sum of
-    every BU's own get_bu_pnl(), not a separately recomputed number
-    (BR-0212-01-style "one shared calculation" discipline: the BU
-    figure is the only place revenue-per-BU/cost-per-BU gets computed,
-    this just adds them up). A BU with incomplete cost data (no
-    cost-rate config set) is flagged in by_bu but doesn't silently
-    zero out or block the other BUs' totals -- org_cost_data_complete
-    is False whenever any BU's own cost_data_complete is False, so the
-    org total is honestly marked incomplete rather than pretending to
-    be exact.
-
-    Deliberately not tenant-filtered on BusinessUnit itself -- BU rows
-    are a small, admin-created list (confirmed via grep this session:
-    not auto-seeded per-tenant), same posture as list_business_units()
-    elsewhere in this codebase, which doesn't filter by tenant either.
-    Revenue/cost per BU still only ever reads that tenant's own real
-    data through get_bu_pnl()'s existing scoping."""
-    business_units = db.query(BusinessUnit).all()
-
-    by_bu = []
-    total_revenue = 0
-    total_cost = 0
-    org_cost_data_complete = True
-    for bu in business_units:
-        pnl = get_bu_pnl(db, business_unit_id=bu.id, year=year, month=month)
-        by_bu.append({"business_unit_id": bu.id, "business_unit_name": bu.name, **pnl})
-        total_revenue += pnl["revenue_usd_cents"]
-        if pnl["cost_data_complete"] and pnl["cost_usd_cents"] is not None:
-            total_cost += pnl["cost_usd_cents"]
-        else:
-            org_cost_data_complete = False
-
-    total_margin = (total_revenue - total_cost) if org_cost_data_complete else None
-    margin_pct = round(total_margin / total_revenue * 100, 1) if total_margin is not None and total_revenue > 0 else None
-
+    """Org month from the same calculation as every BU and partner, so they always add up."""
+    start, end = month_bounds(year, month)
+    report = pnl(db, start=start, end=end, tenant_id=tenant_id)
+    names = {u.id: u.name for u in db.query(BusinessUnit).all()}
+    org = _legacy(report)
+    by_bu = [
+        {"business_unit_id": row["key"], "business_unit_name": names.get(row["key"]),
+         "year": year, "month": month, **_legacy(row)}
+        for row in report["by_business_unit"] if row["key"] is not None
+    ]
     return {
         "year": year, "month": month,
-        "total_revenue_usd_cents": total_revenue,
-        "total_cost_usd_cents": total_cost if org_cost_data_complete else None,
-        "total_gross_margin_usd_cents": total_margin,
-        "margin_pct": margin_pct,
-        "org_cost_data_complete": org_cost_data_complete,
+        "total_revenue_usd_cents": org["revenue_usd_cents"],
+        "total_cost_usd_cents": org["cost_usd_cents"],
+        "total_gross_margin_usd_cents": org["gross_margin_usd_cents"],
+        "margin_pct": org["margin_pct"],
+        "org_cost_data_complete": org["cost_data_complete"],
         "by_business_unit": by_bu,
+        "by_partner": report["by_partner"],
     }

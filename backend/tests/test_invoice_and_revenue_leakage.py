@@ -35,7 +35,7 @@ from app.services.project_service import create_project
 from app.services.timesheet_service import create_weekly_draft, upsert_entries, submit_timesheet, approve_timesheet
 from app.services.timesheet_dispute_service import raise_dispute
 from app.services.invoice_service import (
-    generate_invoice, approve_invoice, send_invoice, mark_invoice_paid,
+    generate_invoice, approve_invoice, mark_invoice_sent, mark_invoice_paid,
     UnapprovedTimesheetBlocksInvoice, OpenDisputeBlocksInvoice, InvalidInvoiceTransition,
 )
 from app.services.revenue_leakage_service import (
@@ -166,7 +166,7 @@ def test_invoice_lifecycle_draft_to_paid(db_session, project_with_approved_times
     assert invoice.status == "APPROVED"
     assert invoice.approved_by == "U-FIN"
 
-    send_invoice(db_session, invoice)
+    mark_invoice_sent(db_session, invoice)
     db_session.commit()
     assert invoice.status == "SENT"
     assert invoice.sent_at is not None
@@ -182,7 +182,7 @@ def test_cannot_send_a_draft_invoice(db_session, project_with_approved_timesheet
     db_session.commit()
 
     with pytest.raises(InvalidInvoiceTransition):
-        send_invoice(db_session, invoice)
+        mark_invoice_sent(db_session, invoice)
 
 def test_cannot_approve_a_non_draft_invoice(db_session, project_with_approved_timesheet):
     tenant, client, project, employee, allocation, ts, period_start, period_end = project_with_approved_timesheet

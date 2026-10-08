@@ -36,6 +36,16 @@ class InvoiceItem(BaseModel):
     sent_at: Optional[datetime] = None
     paid_at: Optional[datetime] = None
     line_items: List[InvoiceLineItemItem] = []
+    # How the invoice reaches the client: EMAIL (QUEUED -> DRAFTED -> SENT) or EXTERNAL
+    delivery_channel: Optional[str] = None
+    delivery_status: Optional[str] = None
+    delivery_to: Optional[str] = None
+
+class RecordExternalDeliveryRequest(BaseModel):
+    note: str  # how it was delivered, e.g. "uploaded to the client's Ariba portal"
+
+class MarkPaidRequest(BaseModel):
+    paid_on: Optional[date] = None  # defaults to today
 
 class InvoiceListResponse(BaseModel):
     invoices: List[InvoiceItem]

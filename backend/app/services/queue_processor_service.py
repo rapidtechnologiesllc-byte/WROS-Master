@@ -72,6 +72,7 @@ class QueueProcessorService:
         'enrich_linkedin_candidate': 50,  # Free web/GitHub lookups; handler self-limits to 45s
         'thunder_send_email': 60,  # Graph draft + send
         'thunder_process_inbound_email': 80,  # LLM classify (up to ~63s) + writes
+        'send_invoice_email': 50,  # Graph draft + send; handler self-limits to 45s
         'send_whatsapp_message': 60,  # WhatsApp API calls
         'send_email_message': 30,  # Email typically fast
         'send_sms_message': 30,  # SMS typically fast
