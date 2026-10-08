@@ -1,0 +1,64 @@
+name: Production Ops
+
+# Fixed, reviewed operations on production (backend/scripts/prod_ops.py), run
+# over the deploy SSH path. Output masks emails and redacts credential lines.
+#   enroll-dry-run   who Thunder would enrol and why others are excluded (writes nothing)
+#   enroll           enrol up to `limit` existing candidates, starts staggered by the send cap
+#   smoke-candidate  create a candidate for `email` through the real queue and follow it
+#                    until Thunder's first email is sent
+
+on:
+  workflow_dispatch:
+    inputs:
+      command:
+        description: "Operation"
+        type: choice
+        options: [enroll-dry-run, enroll, smoke-candidate]
+        default: enroll-dry-run
+      limit:
+        description: "enroll: maximum candidates to enrol"
+        default: "200"
+      email:
+        description: "smoke-candidate: address of the test candidate"
+        default: ""
+      timezone:
+        description: "smoke-candidate: timezone for the test candidate's send window"
+        default: "America/Los_Angeles"
+
+env:
+  PROD_SERVER: ${{ secrets.PROD_SERVER_HOST }}
+  PROD_USER: ${{ secrets.PROD_USER }}
+  PROD_PATH: /home/HRMS/WROS-Master
+
+jobs:
+  ops:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    concurrency: prod-ops
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup SSH
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.PROD_SSH_KEY }}
+
+      - name: Add host key to known_hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -p 22587 -H ${{ env.PROD_SERVER }} >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Run operation
+        env:
+          COMMAND: ${{ inputs.command }}
+          LIMIT: ${{ inputs.limit }}
+          EMAIL: ${{ inputs.email }}
+          TZ_NAME: ${{ inputs.timezone }}
+        run: |
+          case "$COMMAND" in enroll-dry-run|enroll|smoke-candidate) ;; *) echo "bad command"; exit 2;; esac
+          [[ "$LIMIT" =~ ^[0-9]+$ ]] || { echo "limit must be a number"; exit 2; }
+          [[ -z "$EMAIL" || "$EMAIL" =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ ]] || { echo "bad email"; exit 2; }
+          [[ "$TZ_NAME" =~ ^[A-Za-z_]+(/[A-Za-z_+-]+)*$ ]] || { echo "bad timezone"; exit 2; }
+          ssh -o StrictHostKeyChecking=no -p 22587 ${{ env.PROD_USER }}@${{ env.PROD_SERVER }} \
+            "cd ${{ env.PROD_PATH }}/backend && OPS_COMMAND='$COMMAND' OPS_LIMIT='$LIMIT' OPS_EMAIL='$EMAIL' OPS_TIMEZONE='$TZ_NAME' timeout 300 ${{ env.PROD_PATH }}/venv/bin/python -" \
+            < backend/scripts/prod_ops.py

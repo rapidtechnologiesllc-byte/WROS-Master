@@ -88,13 +88,23 @@ class ThunderEngagementHandler:
                 return {"status": "skipped", "reason": reason, "candidate_id": candidate_id,
                         "message_sent": False, "delivery_confirmed": False}
 
+            # Email first: every contactable candidate goes into the email cadence (idempotent);
+            # step 1 is queued after the commit below, since enqueue uses its own session
+            from app.services.thunder_mail.cadence_service import start_cadence
+            cadence_state = start_cadence(db, candidate)
+            new_cadence = cadence_state.touches_sent == 0 and cadence_state.next_step == "1"
+
             # ===== STEP 2: Create/fetch conversation =====
             conversation = db.query(CandidateConversation).filter(
                 CandidateConversation.candidate_id == candidate_id
             ).first()
 
             if not conversation:
+                # tenant_id here is the owning user (FK users.UserID), NOT NULL: without it
+                # every new engagement crashed
+                from app.services.candidate_service import get_user_for_tenant
                 conversation = CandidateConversation(
+                    tenant_id=candidate.assigned_recruiter_id or get_user_for_tenant(db, candidate.tenant_id or 1),
                     candidate_id=candidate_id,
                     owner_type="Thunder",
                     owner_id="Thunder_Autonomous",
@@ -157,12 +167,20 @@ class ThunderEngagementHandler:
                 logger.error(f"[Thunder] Commit failed for {candidate_id}: {commit_err}", exc_info=True)
                 raise RuntimeError(f"Database commit failed: {str(commit_err)}") from commit_err
 
+            email_queued = False
+            if new_cadence:
+                from app.services.thunder_mail.cadence_service import enqueue_send
+                email_queued = enqueue_send(cadence_state)
+                logger.info(f"[Thunder] Email cadence step 1 queued for {candidate_id}: {email_queued}")
+
             return {
                 "status": "success",
                 "candidate_id": candidate_id,
                 "conversation_id": conversation_id,
                 "message_sent": message_sent,
                 "delivery_confirmed": delivery_confirmed,
+                "email_cadence_started": new_cadence,
+                "email_step1_queued": email_queued,
             }
 
         except ValueError as e:
