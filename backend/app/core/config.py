@@ -175,8 +175,14 @@ class Settings:
     # Paid hours in a month (40h x 52 weeks / 12); turns monthly loaded cost into an hourly cost
     STANDARD_MONTHLY_HOURS: float = float(os.getenv("STANDARD_MONTHLY_HOURS", "173.33"))
 
-    # Background jobs (app/core/scheduled_jobs.py): comma-separated names; empty = none run
-    SCHEDULED_JOBS_ENABLED: str = os.getenv("SCHEDULED_JOBS_ENABLED", "")
+    # Background jobs (app/core/scheduled_jobs.py): comma-separated names. Unset = every
+    # registered job (all internal: drafts, staff reminders, AR tasks, metrics); set it to ""
+    # in .env to switch them all off, or to a shorter list
+    SCHEDULED_JOBS_ENABLED: str = os.getenv(
+        "SCHEDULED_JOBS_ENABLED",
+        "timesheet_draft_creation,timesheet_reminders,ar_follow_up,expire_bu_ownerships,"
+        "daily_revenue_scan,engagement_metrics,birthday_drafts",
+    )
     SCHEDULED_JOB_LEASE_GRACE_SECONDS: int = int(os.getenv("SCHEDULED_JOB_LEASE_GRACE_SECONDS", "120"))
 
     @classmethod
