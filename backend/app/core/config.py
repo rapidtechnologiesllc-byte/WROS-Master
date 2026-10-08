@@ -170,6 +170,10 @@ class Settings:
     THUNDER_MIN_GAP_HOURS: int = int(os.getenv("THUNDER_MIN_GAP_HOURS", "48"))
     THUNDER_NURTURE_INTERVAL_DAYS: int = int(os.getenv("THUNDER_NURTURE_INTERVAL_DAYS", "30"))
 
+    # Background jobs (app/core/scheduled_jobs.py): comma-separated names; empty = none run
+    SCHEDULED_JOBS_ENABLED: str = os.getenv("SCHEDULED_JOBS_ENABLED", "")
+    SCHEDULED_JOB_LEASE_GRACE_SECONDS: int = int(os.getenv("SCHEDULED_JOB_LEASE_GRACE_SECONDS", "120"))
+
     @classmethod
     def validate_config(cls) -> bool:
         """Validate that required configuration is present.

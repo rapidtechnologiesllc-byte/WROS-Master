@@ -21,6 +21,9 @@ from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
 
+# Records the event only (no I/O beyond the queue row), well inside the worker's default timeout
+TIMEOUT_SECONDS = 10
+
 # Every task name that should use this generic handler.
 FLASH_NOTIFICATION_TASK_NAMES = [
     "employee_created_flash",
@@ -39,6 +42,18 @@ FLASH_NOTIFICATION_TASK_NAMES = [
     "milestone_created",
     "milestone_completed",
     "revenue_dashboard_update",
+    # Domain events whose real work is committed before they are queued: recorded, not acted on
+    "timesheet_created",
+    "timesheet_entries_updated",
+    "timesheet_submitted",
+    "timesheet_approved",
+    "timesheet_rejected",
+    "timesheet_reopened",
+    "timesheet_anomalies_scanned",
+    "dispute_raised",
+    "dispute_resolved",
+    "project_created",
+    "project_status_changed",
     "offer_sent_notification",
 ]
 

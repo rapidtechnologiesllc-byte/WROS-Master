@@ -23,6 +23,8 @@ from app.services.candidate_activity_service import log_thunder_operation
 
 logger = logging.getLogger(__name__)
 
+TIMEOUT_SECONDS = 15
+
 
 def handle_interview_scheduled(event_payload: dict, db: Session) -> Dict[str, Any]:
     """
@@ -55,7 +57,7 @@ class InterviewScheduledHandler:
     RETRY_DELAY_MINUTES = 30
 
     @staticmethod
-    @time_bound(timeout_seconds=15)
+    @time_bound(timeout_seconds=TIMEOUT_SECONDS)
     def process(message: ChannelQueueItem, db: Session) -> Dict[str, Any]:
         """
         Process interview scheduled message - creates interview record and pauses Thunder.
@@ -159,22 +161,6 @@ class InterviewScheduledHandler:
             if hasattr(candidate, 'thunder_enabled') and candidate.thunder_enabled:
                 candidate.thunder_enabled = False
                 logger.info(f"[InterviewHandler] Paused Thunder for candidate {candidate_id}")
-
-            # ===== PHASE 4: Queue Thunder pause notification =====
-            try:
-                MessageQueueService.enqueue(
-                    task_name='interview_scheduled_pause_thunder',
-                    task_id=f"interview_pause_{interview_id}",
-                    data={
-                        'candidate_id': candidate_id,
-                        'interview_id': interview_id,
-                        'reason': f'Interview scheduled for {interview_date}',
-                        'pause_until': interview_date
-                    }
-                )
-                logger.info(f"[InterviewHandler] ✅ Thunder pause notification queued")
-            except Exception as queue_err:
-                logger.warning(f"[InterviewHandler] Thunder queue failed (non-blocking): {queue_err}")
 
             # ===== PHASE 5: Commit transaction =====
             try:

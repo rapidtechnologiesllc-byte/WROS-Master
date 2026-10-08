@@ -72,24 +72,9 @@ class CandidateNoteAddedHandler:
                 f"category='{category}' by {created_by_name}"
             )
 
-            # Queue update to Thunder Memory/Intelligence
-            # Thunder will learn from this note in the next analysis cycle
-            try:
-                from app.services.message_queue_service import MessageQueueService
-                MessageQueueService.enqueue(
-                    task_name="thunder_memory_update",
-                    data={
-                        "candidate_id": candidate_id,
-                        "signal_type": "note_added",
-                        "content": content,
-                        "category": category,
-                        "source": "HR_NOTE",
-                    }
-                )
-                memory_updated = True
-            except Exception as e:
-                logger.warning(f"Failed to queue Thunder memory update: {e}")
-                memory_updated = False
+            # No consumer existed for the former thunder_memory_update message, so
+            # notes never reached memory; candidate-memory wiring is a separate change.
+            memory_updated = False
 
             return {
                 'candidate_id': candidate_id,

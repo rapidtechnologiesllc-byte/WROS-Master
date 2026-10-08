@@ -204,58 +204,11 @@ def run_auto_assign_ai_agent_in_background(candidate_id: str):
             logger.error(f"[Thunder] No system admin found, cannot prepare candidate {candidate_id}")
             return
 
-        tenant_user_id = system_admin.UserID
+        # The create_conversation / send_initial_email messages this used to queue had no
+        # handler and never ran; applicant outreach belongs to the Thunder email cadence.
+        logger.info(f"[Thunder] Candidate {candidate_id} has an admin owner; outreach is handled by the email cadence")
+        return
 
-        # Queue conversation creation through message queue (not direct DB writes)
-        # This ensures idempotency and distributed-system safety
-        try:
-            from app.services.message_queue_service import MessageQueueService
-
-            # Queue message to create Thunder conversation
-            MessageQueueService.enqueue(
-                task_name="create_conversation",
-                data={
-                    "candidate_id": candidate_id,
-                    "tenant_id": tenant_user_id,
-                    "owner_type": "ai_agent",
-                    "owner_id": "THUNDER",
-                    "status": "open",
-                    "ai_agent_name": "THUNDER",
-                    "channel_preference": "email",
-                    "candidate_email": getattr(candidate, 'candidateEmail', None),
-                    "candidate_name": f"{getattr(candidate, 'candidateFirstName', '')} {getattr(candidate, 'candidateLastName', '') or ''}".strip(),
-                    "job_title": getattr(candidate, 'candidateJobTitle', None),
-                    "location": getattr(candidate, 'candidateCurrentLocation', None)
-                }
-            )
-            logger.info(f"[Thunder] Queued conversation creation for candidate {candidate_id}")
-
-            # Queue initial email message (will be sent after conversation exists)
-            candidate_email = getattr(candidate, 'candidateEmail', None)
-            if candidate_email:
-                MessageQueueService.enqueue(
-                    task_name="send_initial_email",
-                    data={
-                        "candidate_id": candidate_id,
-                        "candidate_email": candidate_email,
-                        "candidate_name": f"{getattr(candidate, 'candidateFirstName', '')} {getattr(candidate, 'candidateLastName', '') or ''}".strip(),
-                        "template": "thunder_initial_intake"
-                    }
-                )
-                logger.info(f"[Thunder] Queued initial email for candidate {candidate_id}")
-
-            try:
-                db.commit()
-            except Exception as commit_err:
-                db.rollback()
-                logger.error(f"[Thunder] Failed to commit queued messages for candidate {candidate_id}: {commit_err}", exc_info=True)
-                raise
-
-        except Exception as e:
-            logger.error(f"[Thunder] Failed to queue messages for candidate {candidate_id}: {str(e)}", exc_info=True)
-            raise
-
-        logger.info(f"[Thunder] Prepared candidate {candidate_id} for autonomous outreach (tasks queued)")
 
     except Exception as e:
         logger.error(f"[Thunder] Failed to prepare candidate {candidate_id}: {str(e)}", exc_info=True)
