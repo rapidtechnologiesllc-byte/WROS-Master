@@ -210,17 +210,24 @@ def get_activity_feed(
 
     activities = [_serialize(db, event, candidates_by_id.get(conv.candidate_id), event.id in read_ids) for event, conv in rows]
 
-    unread_count_query = (
-        db.query(ConversationEvent)
+    # PERF FIX: Count unread items directly in DB instead of loading all rows into memory
+    # Use LEFT JOIN to find events without a read_state record (unread items)
+    from sqlalchemy import func
+    unread_count = (
+        db.query(func.count(ConversationEvent.id))
         .join(CandidateConversation, ConversationEvent.conversation_id == CandidateConversation.id)
         .join(Candidate, Candidate.candidateID == CandidateConversation.candidate_id)
-        .filter(Candidate.tenant_id == int(tenant_id), ConversationEvent.event_type.in_(ACTIVITY_EVENT_TYPES), ConversationEvent.created_at >= since)
+        .outerjoin(ActivityFeedReadState, ConversationEvent.id == ActivityFeedReadState.conversation_event_id)
+        .filter(
+            Candidate.tenant_id == int(tenant_id),
+            ConversationEvent.event_type.in_(ACTIVITY_EVENT_TYPES),
+            ConversationEvent.created_at >= since,
+            ActivityFeedReadState.conversation_event_id.is_(None)  # Only count events without a read state (unread)
+        )
     )
     if candidate_id:
-        unread_count_query = unread_count_query.filter(CandidateConversation.candidate_id == candidate_id)
-    all_ids_in_window = [e.id for e in unread_count_query.all()]
-    read_in_window = {r.conversation_event_id for r in db.query(ActivityFeedReadState.conversation_event_id).filter(ActivityFeedReadState.conversation_event_id.in_(all_ids_in_window)).all()} if all_ids_in_window else set()
-    unread_count = len(all_ids_in_window) - len(read_in_window)
+        unread_count = unread_count.filter(CandidateConversation.candidate_id == candidate_id)
+    unread_count = unread_count.scalar()
 
     return {
         "activities": activities,
