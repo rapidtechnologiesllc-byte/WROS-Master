@@ -140,8 +140,10 @@ def _initialize_default_handlers():
     try:
         from app.services.message_handlers.thunder_outreach_handler import ThunderOutreachHandler
 
-        # Thunder sends outreach and reports delivery metrics back to Flash
-        MessageHandlerRegistry.register("engage_candidate_with_thunder", ThunderOutreachHandler.process)
+        # Thunder sends outreach campaigns and reports delivery metrics back to Flash
+        # NOTE: engage_candidate_with_thunder is already registered to ThunderEngagementHandler (line 54)
+        # This handler processes OUTREACH campaigns, not initial engagement
+        MessageHandlerRegistry.register("thunder_send_outreach", ThunderOutreachHandler.process)
 
         # Formation feedback: Thunder → Flash (health metrics)
         def _handle_formation_feedback(message: Any, db: Session) -> Dict[str, Any]:
