@@ -1114,7 +1114,7 @@ def get_candidate_contacts(
 # Include legacy candidate routes (self-service + creation)
 # ============================================================
 # Load and include the legacy candidates.py module which contains
-# self-service routes (/candidate/create, /candidate/import/linkedin, etc.)
+# self-service routes (/candidate/create, etc.)
 # This consolidates both HR admin routes (/candidates/*) and candidate
 # self-service routes (/candidate/*) into a single integrated router
 try:

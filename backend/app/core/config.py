@@ -150,7 +150,17 @@ class Settings:
     SMTP_PORT: Optional[int] = int(os.getenv("SMTP_PORT", "587")) if os.getenv("SMTP_PORT") else None
     SMTP_USER: Optional[str] = os.getenv("SMTP_USER")
     SMTP_PASSWORD: Optional[str] = os.getenv("SMTP_PASSWORD")
-    
+
+    # Passive-talent enrichment (free sources only; a source with no credentials is skipped)
+    ENRICHMENT_ENABLED: bool = os.getenv("ENRICHMENT_ENABLED", "true").lower() == "true"
+    SEARXNG_URL: Optional[str] = os.getenv("SEARXNG_URL")
+    GOOGLE_CSE_API_KEY: Optional[str] = get_secret("google-cse-api-key", default=os.getenv("GOOGLE_CSE_API_KEY"))
+    GOOGLE_CSE_ID: Optional[str] = os.getenv("GOOGLE_CSE_ID")
+    # Free tier is 100/day; keep headroom for manual checks
+    GOOGLE_CSE_DAILY_BUDGET: int = int(os.getenv("GOOGLE_CSE_DAILY_BUDGET", "90"))
+    GITHUB_TOKEN: Optional[str] = get_secret("github-token", default=os.getenv("GITHUB_TOKEN"))
+    OUTREACH_SENDER_NAME: str = os.getenv("OUTREACH_SENDER_NAME", "the BlitzenX talent team")
+
     @classmethod
     def validate_config(cls) -> bool:
         """Validate that required configuration is present.

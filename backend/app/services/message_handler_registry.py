@@ -108,6 +108,13 @@ def _initialize_default_handlers():
     except Exception as e:
         logger.error(f"[Registry] Failed to register candidate note handler: {e}", exc_info=True)
 
+    try:
+        from app.services.message_handlers.enrich_linkedin_candidate_handler import EnrichLinkedInCandidateHandler
+        MessageHandlerRegistry.register("enrich_linkedin_candidate", EnrichLinkedInCandidateHandler.process)
+        logger.info("[Registry] Registered enrich_linkedin_candidate handler")
+    except Exception as e:
+        logger.error(f"[Registry] CRITICAL: Failed to register enrich_linkedin_candidate handler: {e}", exc_info=True)
+
     # Register ops alert handler (NEW - Phase 3/4 stale message detection)
     try:
         from app.services.message_handlers.ops_alert_handler import OpsAlertHandler
@@ -138,11 +145,8 @@ def _initialize_default_handlers():
 
     # CYCLE 20A: Spartan Phalanx Formation Feedback (Thunder reports back to Flash)
     try:
-        from app.services.message_handlers.thunder_outreach_handler import ThunderOutreachHandler
-
-        # Thunder sends outreach and reports delivery metrics back to Flash
-        MessageHandlerRegistry.register("engage_candidate_with_thunder", ThunderOutreachHandler.process)
-
+        # engage_candidate_with_thunder stays on ThunderEngagementHandler (registered above):
+        # ThunderOutreachHandler requires job_id, which no candidate-creation caller sends.
         # Formation feedback: Thunder → Flash (health metrics)
         def _handle_formation_feedback(message: Any, db: Session) -> Dict[str, Any]:
             """Formation feedback handler: Receive health reports from downstream neighbors."""
