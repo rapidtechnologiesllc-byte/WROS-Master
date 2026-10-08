@@ -4,10 +4,11 @@
     {
       "name": "Backend",
       "runtimeExecutable": "python",
-      "runtimeArgs": ["-m", "uvicorn", "app.main:app", "--reload", "--host", "127.0.0.1", "--port", "8080"],
+      "runtimeArgs": ["-m", "uvicorn", "app.main:app", "--reload", "--host", "127.0.0.1"],
       "port": 8080,
+      "autoPort": true,
       "cwd": "backend",
-      "note": "Port hardcoded to 8080 (matches setupProxy.js and the documented backend port). Kill any process on 8080 if startup fails."
+      "note": "autoPort enabled to use PORT environment variable for dynamic port assignment"
     },
     {
       "name": "Frontend",

@@ -788,79 +788,30 @@ export default function InterviewsTab({ candidateId, onScheduleInterview }) {
           </div>
         </SectionCard>
 
-        {/* Activity Logging Section */}
-        <SectionCard title="Log Activity">
-          <div className="space-y-4">
-            <p className="text-sm text-gray-600">Log candidate communication and meetings</p>
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-              <ActivityLogButton
-                icon={Mail}
-                label="Log Email"
-                onClick={() => {
-                  setSelectedActivityType("email");
-                  setShowActivityModal(true);
-                }}
-              />
-              <ActivityLogButton
-                icon={Phone}
-                label="Log Call"
-                onClick={() => {
-                  setSelectedActivityType("call");
-                  setShowActivityModal(true);
-                }}
-              />
-              <ActivityLogButton
-                icon={MessageCircle}
-                label="Log LinkedIn"
-                onClick={() => {
-                  setSelectedActivityType("linkedin");
-                  setShowActivityModal(true);
-                }}
-              />
-              <ActivityLogButton
-                icon={MessageSquare}
-                label="Log WhatsApp"
-                onClick={() => {
-                  setSelectedActivityType("whatsapp");
-                  setShowActivityModal(true);
-                }}
-              />
-              <ActivityLogButton
-                icon={Video}
-                label="Log Meeting"
-                onClick={() => {
-                  setSelectedActivityType("meeting");
-                  setShowActivityModal(true);
-                }}
-              />
-              <ActivityLogButton
-                icon={Upload}
-                label="Upload Transcript"
-                onClick={() => setShowTranscriptModal(true)}
-              />
+        <SectionCard title="Scheduling Interview">
+          {onScheduleInterview ? (
+            <div className="flex justify-center">
+              <button
+                type="button"
+                onClick={onScheduleInterview}
+                className="inline-flex items-center rounded-xl bg-orange-500 px-6 py-2 text-sm font-medium text-white transition hover:bg-orange-600"
+              >
+                Schedule Interview
+              </button>
             </div>
-          </div>
+          ) : (
+            <div className="text-sm text-gray-500">
+              No scheduling options available
+            </div>
+          )}
         </SectionCard>
 
-        <SectionCard title="Interviews by Job">
+        <SectionCard title="Log Interview">
           {!interviews.length ? (
-            <div className="space-y-4">
-              <EmptyState
-                title="No interview activity yet"
-                subtitle="Once an interview is scheduled for this candidate, its schedule and feedback will appear here together."
-              />
-              {onScheduleInterview && (
-                <div className="flex justify-center">
-                  <button
-                    type="button"
-                    onClick={onScheduleInterview}
-                    className="inline-flex items-center rounded-xl bg-orange-500 px-6 py-2 text-sm font-medium text-white transition hover:bg-orange-600"
-                  >
-                    Schedule Interview
-                  </button>
-                </div>
-              )}
-            </div>
+            <EmptyState
+              title="No interviews scheduled"
+              subtitle="Once an interview is scheduled for this candidate, you can log completed interviews and upload transcripts here."
+            />
           ) : (
             <div className="space-y-6">
               {jobGroups.map((group) => (
@@ -888,6 +839,7 @@ export default function InterviewsTab({ candidateId, onScheduleInterview }) {
                           onViewDetails={() => openDetailsModal(interviewId)}
                           onReschedule={() => openRescheduleModal(interview)}
                           onCancel={() => openCancelModal(interview)}
+                          onUploadTranscript={() => setShowTranscriptModal(true)}
                         />
                       );
                     })}
@@ -1145,6 +1097,7 @@ function InterviewRoundCard({
   onViewDetails,
   onReschedule,
   onCancel,
+  onUploadTranscript,
 }) {
   const interviewId = getInterviewId(interview);
   const roundName = interview?.panel_round_name || interview?.round_name || "Interview Round";
@@ -1205,6 +1158,12 @@ function InterviewRoundCard({
           <button type="button" onClick={onCancel} className="inline-flex items-center rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-700 transition hover:bg-red-100">
             Cancel
           </button>
+          {onUploadTranscript && (
+            <button type="button" onClick={onUploadTranscript} className="inline-flex items-center gap-2 rounded-xl border border-green-200 bg-green-50 px-3 py-2 text-sm font-medium text-green-700 transition hover:bg-green-100">
+              <Upload className="h-4 w-4" />
+              Upload Transcript
+            </button>
+          )}
           {meetingLink ? (
             <a href={meetingLink} target="_blank" rel="noreferrer" className="inline-flex items-center rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-medium text-blue-700 transition hover:bg-blue-100">
               Join Meeting

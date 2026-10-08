@@ -325,6 +325,10 @@ export default function CandidateDetailsScreen({
   const [showNoteModal, setShowNoteModal] = useState(false);
   const [noteText, setNoteText] = useState("");
   const [savingNote, setSavingNote] = useState(false);
+  const [showActivityModal, setShowActivityModal] = useState(false);
+  const [selectedActivityType, setSelectedActivityType] = useState("");
+  const [activityNote, setActivityNote] = useState("");
+  const [activityLogging, setActivityLogging] = useState(false);
   const [candidateJobs, setCandidateJobs] = useState([]);
   const [selectedJobId, setSelectedJobId] = useState("");
   const [loadingCandidateJobs, setLoadingCandidateJobs] = useState(false);
@@ -1227,6 +1231,35 @@ ${formattedJD}
     }
   };
 
+  const handleLogActivity = async () => {
+    if (!selectedActivityType || !activityNote.trim()) {
+      return;
+    }
+    try {
+      setActivityLogging(true);
+      const eventTypeMap = {
+        email: "Email Sent",
+        call: "Phone Call",
+        linkedin: "LinkedIn Message",
+        whatsapp: "WhatsApp Message",
+        meeting: "Meeting",
+      };
+      await createCandidateHistoryEvent(candidate?.id, {
+        event_type: eventTypeMap[selectedActivityType] || selectedActivityType,
+        note: activityNote.trim(),
+      });
+      setShowActivityModal(false);
+      setSelectedActivityType("");
+      setActivityNote("");
+      showNotice("Activity logged successfully", "success");
+    } catch (error) {
+      console.error("Failed to log activity", error);
+      showNotice("Failed to log activity", "error");
+    } finally {
+      setActivityLogging(false);
+    }
+  };
+
   const handleArchiveToggle = async () => {
     try {
       const currentStatus = candidate?.accountStatus || statusData?.status;
@@ -1562,9 +1595,19 @@ ${formattedJD}
                             setShowNotesMenu(false);
                             setShowNoteModal(true);
                           }}
-                          className="w-full px-4 py-3 text-sm text-left text-gray-700 hover:bg-gray-50"
+                          className="w-full px-4 py-3 text-sm text-left text-gray-700 hover:bg-gray-50 border-b"
                         >
                           Add Note
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowNotesMenu(false);
+                            setShowActivityModal(true);
+                          }}
+                          className="w-full px-4 py-3 text-sm text-left text-gray-700 hover:bg-gray-50"
+                        >
+                          Log Activity
                         </button>
                       </div>
                     )}
@@ -1768,6 +1811,79 @@ ${formattedJD}
                 <Button onClick={handleSaveNote} disabled={savingNote}>
                   {savingNote ? "Saving..." : "Save Note"}
                 </Button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Activity Logging Modal */}
+        {showActivityModal && (
+          <div className="fixed inset-0 z-50 bg-black/45 flex items-center justify-center px-4 py-6">
+            <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl border border-gray-200 overflow-hidden">
+              <div className="border-b px-6 py-5 flex items-center justify-between">
+                <h2 className="text-lg font-semibold text-gray-900">Log Activity</h2>
+                <button
+                  onClick={() => {
+                    setShowActivityModal(false);
+                    setSelectedActivityType("");
+                    setActivityNote("");
+                  }}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="p-6 space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Activity Type
+                  </label>
+                  <select
+                    value={selectedActivityType}
+                    onChange={(e) => setSelectedActivityType(e.target.value)}
+                    className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none transition focus:border-blue-500"
+                  >
+                    <option value="">Select activity type</option>
+                    <option value="email">Email Sent</option>
+                    <option value="call">Phone Call</option>
+                    <option value="linkedin">LinkedIn Message</option>
+                    <option value="whatsapp">WhatsApp Message</option>
+                    <option value="meeting">Meeting</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Notes
+                  </label>
+                  <textarea
+                    value={activityNote}
+                    onChange={(e) => setActivityNote(e.target.value)}
+                    placeholder="What happened in this activity? (e.g., Discussed technical skills, culture fit concerns, next round timing)"
+                    className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none transition focus:border-blue-500 resize-none h-28"
+                  />
+                </div>
+
+                <div className="flex gap-3 pt-4">
+                  <button
+                    onClick={() => {
+                      setShowActivityModal(false);
+                      setSelectedActivityType("");
+                      setActivityNote("");
+                    }}
+                    className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition text-sm font-medium"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleLogActivity}
+                    disabled={activityLogging || !selectedActivityType || !activityNote.trim()}
+                    className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {activityLogging ? "Logging..." : "Log Activity"}
+                  </button>
+                </div>
               </div>
             </div>
           </div>
