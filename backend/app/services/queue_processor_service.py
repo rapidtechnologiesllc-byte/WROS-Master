@@ -67,6 +67,7 @@ class QueueProcessorService:
     # Email/SMS handlers are quick, webhook calls vary
     HANDLER_TIMEOUTS = {
         'engage_candidate_with_thunder': 60,  # Thunder: WhatsApp/Email API calls (network latency)
+        'enrich_linkedin_candidate': 50,  # Free web/GitHub lookups; handler self-limits to 45s
         'send_whatsapp_message': 60,  # WhatsApp API calls
         'send_email_message': 30,  # Email typically fast
         'send_sms_message': 30,  # SMS typically fast
@@ -825,23 +826,8 @@ class QueueProcessorService:
                 message.retry_count = 0
                 db.commit()
 
-                # BLOCKING FIX #3: Queue to Thunder after candidate creation completes
-                if message.type == 'create_candidate' and handler_result and isinstance(handler_result, dict) and 'candidate_id' in handler_result:
-                    try:
-                        from app.services.message_queue_service import MessageQueueService
-                        tenant_id = message.payload.get('tenant_id', '1') if isinstance(message.payload, dict) else '1'
-                        thunder_result = MessageQueueService.enqueue(
-                            task_name='engage_candidate_with_thunder',
-                            data={
-                                'candidate_id': handler_result['candidate_id'],
-                                'tenant_id': tenant_id,
-                                'source': 'candidate_creation_handler'
-                            }
-                        )
-                        logger.info(f"[QueueProcessor] Queued Thunder engagement for candidate {handler_result['candidate_id']}: {thunder_result}")
-                    except Exception as thunder_err:
-                        logger.error(f"[QueueProcessor] Failed to queue Thunder engagement after candidate creation: {thunder_err}", exc_info=True)
-                        # Continue even if Thunder queueing fails - candidate was created successfully
+                # Thunder engagement after create_candidate is queued by
+                # CandidateCreationUnifiedHandler, which honours thunder_enabled.
 
                 # Reset circuit breaker on success (HIGH FIX #1: Thread-safe)
                 with QueueProcessorService._consecutive_failures_lock:

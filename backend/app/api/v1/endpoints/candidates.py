@@ -47,14 +47,6 @@ from app.schemas.candidate import (
     ExperienceRecord
 )
 from app.utils.uniq_id_generator import candidate_id_generator, generate_password, user_id_generator
-from app.services.linkedin_import_service import (
-    import_linkedin_candidate,
-    InvalidLinkedInURL,
-    ApolloCandidateNotFound,
-    CandidateNotOpenToWork,
-    DuplicateCandidateExists
-)
-from app.services.apollo_integration import search_apollo_by_linkedin_url
 
 router = APIRouter(prefix="/candidates", tags=["candidates"])
 
@@ -150,29 +142,6 @@ class CreateCandidateResponse(BaseModel):
 # Create Candidate Endpoint (Async)
 # ============================================================================
 
-
-# ============================================================================
-# LinkedIn Import Request/Response Models
-# ============================================================================
-
-class LinkedInImportRequest(BaseModel):
-    """Import candidate from LinkedIn profile URL"""
-    linkedin_url: str
-
-class LinkedInImportResponse(BaseModel):
-    """Response after LinkedIn candidate import"""
-    status: str
-    candidate_id: str
-    email: str
-    phone: str
-    full_name: str
-    open_to_work: bool
-    linkedin_url: str
-    message: str
-
-# ============================================================================
-# LinkedIn Import Endpoint
-# ============================================================================
 
 
 @router.post("/change_password", response_model=ChangePasswordResponse, dependencies=[Depends(require_resource_permission("candidates", "create"))])

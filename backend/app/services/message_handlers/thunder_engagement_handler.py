@@ -19,14 +19,18 @@ from app.services.message_handlers.base_message_handler import time_bound
 logger = logging.getLogger(__name__)
 
 
+TIMEOUT_SECONDS = 60
+
+
 class ThunderEngagementHandler:
     """Handles candidate engagement messages from Thunder queue with validation."""
 
+    TIMEOUT_SECONDS = TIMEOUT_SECONDS
     MAX_RETRIES = 5
     RETRY_DELAY_MINUTES = 15
 
     @staticmethod
-    @time_bound(timeout_seconds=60)
+    @time_bound(timeout_seconds=TIMEOUT_SECONDS)
     def process(message: Any, db: Session) -> Dict[str, Any]:
         """
         Process Thunder engagement message - send initial message to candidate.
@@ -74,6 +78,15 @@ class ThunderEngagementHandler:
                 raise ValueError(f"Candidate {candidate_id} not found")
 
             logger.info(f"[Thunder] ✅ Candidate exists: {candidate_id}")
+
+            # Gate: never engage a placeholder (un-enriched LinkedIn) candidate, a
+            # candidate with Thunder off, or one inside a post-rejection no-contact period
+            from app.services.candidate_contact_policy import is_contactable
+            contactable, reason = is_contactable(db, candidate)
+            if not contactable:
+                logger.info(f"[Thunder] Skipping engagement for {candidate_id}: {reason}")
+                return {"status": "skipped", "reason": reason, "candidate_id": candidate_id,
+                        "message_sent": False, "delivery_confirmed": False}
 
             # ===== STEP 2: Create/fetch conversation =====
             conversation = db.query(CandidateConversation).filter(
@@ -201,6 +214,9 @@ class ThunderEngagementHandler:
         """
         if not result or "candidate_id" not in result:
             raise ValueError(f"Invalid result: {result}")
+
+        if result.get("status") == "skipped":
+            return
 
         candidate_id = result.get("candidate_id")
         conversation_id = result.get("conversation_id")

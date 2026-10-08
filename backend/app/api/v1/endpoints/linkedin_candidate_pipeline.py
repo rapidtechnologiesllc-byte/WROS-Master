@@ -27,6 +27,8 @@ from app.models.event_log import EventLog
 from app.models.linkedin_candidate_pipeline import LinkedInCandidatePipeline, LinkedInPipelineStatus
 from app.models.user import Users
 from app.services.candidate_activity_service import log_linkedin_pipeline_step
+from app.services.candidate_contact_policy import rejection_cooldown_until
+from app.services.message_handlers.enrich_linkedin_candidate_handler import queue_enrichment
 from app.services.linkedin_pipeline_task_service import (
     creation_pending, is_placeholder_email, link_candidate_to_pipeline, name_from_slug,
     queue_pipeline_candidate, sync_outreach_task,
@@ -276,8 +278,18 @@ def queue_linkedin_candidate(
             detail="Added to your pipeline, but creating the candidate record failed. It will be retried on the next status change.",
         )
 
+    # Autonomous enrichment replaces the manual connect/collect/import steps;
+    # the recruiter task stays as the fallback if enrichment is exhausted.
+    enrichment_queued = True
+    try:
+        queue_enrichment(str(pipeline_item.id), current_user.tenant_id)
+    except Exception as exc:
+        enrichment_queued = False
+        logger.error(f"[LinkedInPipeline] Enrichment not queued for {pipeline_item.id}: {exc}", exc_info=True)
+
     return {
         "status": "QUEUED",
+        "enrichment_queued": enrichment_queued,
         "message": "Added to your LinkedIn pipeline; the candidate record is being created",
         "pipeline_item_id": str(pipeline_item.id),
         "candidate_message_id": message_id,
@@ -424,36 +436,14 @@ def complete_linkedin_import(
 
         candidate.candidateMobile = phone
 
-        # CRITICAL FIX: Don't re-enable Thunder if candidate was previously rejected
-        # (90-day no-contact flag means we should not automatically resume engagement)
-        from app.models.event_log import EventLog
-        rejection_event = db.query(EventLog).filter(
-            EventLog.entity_id == str(candidate.candidateID),
-            EventLog.entity_type == "candidate",
-            EventLog.event_type == "candidate_rejection"
-        ).order_by(EventLog.created_at.desc()).first()
+        no_contact_until = rejection_cooldown_until(db, candidate.candidateID)
+        if no_contact_until is not None:
+            raise HTTPException(
+                status_code=403,
+                detail=f"Candidate is in a post-rejection no-contact period until "
+                       f"{no_contact_until.isoformat()}. Cannot enable Thunder until it expires.",
+            )
 
-        if rejection_event:
-            try:
-                rejection_data = rejection_event.data or {}
-                no_contact_until = rejection_data.get('no_contact_until')
-                if no_contact_until:
-                    from datetime import datetime
-                    no_contact_dt = datetime.fromisoformat(no_contact_until.replace('Z', '+00:00'))
-                    if datetime.utcnow() < no_contact_dt:
-                        raise HTTPException(
-                            status_code=403,
-                            detail=f"Candidate was rejected on {rejection_event.created_at.isoformat()}. "
-                                   f"90-day no-contact period active until {no_contact_until}. "
-                                   f"Cannot enable Thunder until contact period expires.",
-                        )
-            except HTTPException:
-                db.rollback()
-                raise
-            except Exception as e:
-                logger.warning(f"Failed to check rejection status: {e}")
-
-        # Only enable Thunder if not previously rejected or rejection period has expired
         candidate.thunder_enabled = True
         db.add(candidate)
 
