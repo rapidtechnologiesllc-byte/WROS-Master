@@ -223,38 +223,46 @@ def get_candidate_memory(
 ):
     from app.services.ai_conversation_service import resolve_default_tenant_id
     from app.services.candidate_memory_service import get_memory
-
-    from app.models.candidate_conversations import CandidateConversation
-
-    _get_candidate_or_404(candidate_id, db)
-    tenant_id = resolve_default_tenant_id()
-    memory = get_memory(db, candidate_id, tenant_id)
-
-    # Fetch Thunder engagement data with error handling
-    thunder_data = {
-        "last_contact_at": None,
-        "next_contact_at": None,
-        "is_thunder_paused": False,
-        "message_count": 0,
-        "conversation_id": None,
-    }
+    from app.models.candidate_ai import CandidateConversation
 
     try:
-        conversation = db.query(CandidateConversation).filter(
-            CandidateConversation.candidate_id == candidate_id,
-            CandidateConversation.tenant_id == tenant_id
-        ).order_by(CandidateConversation.created_at.desc()).first()
+        _get_candidate_or_404(candidate_id, db)
+        tenant_id = resolve_default_tenant_id()
 
-        if conversation:
-            thunder_data["last_contact_at"] = conversation.last_touch_scheduled_at
-            thunder_data["next_contact_at"] = conversation.next_touch_scheduled_at
-            thunder_data["is_thunder_paused"] = conversation.is_thunder_paused or False
-            thunder_data["message_count"] = len(conversation.events) if hasattr(conversation, 'events') else 0
-            thunder_data["conversation_id"] = str(conversation.id)
+        try:
+            memory = get_memory(db, candidate_id, tenant_id)
+        except Exception as e:
+            logger.error(f"[CandidateMemory] Failed to fetch memory for {candidate_id}: {e}", exc_info=True)
+            memory = {"summary": None, "facts": [], "signals": []}
+
+        # Fetch Thunder engagement data with error handling
+        thunder_data = {
+            "last_contact_at": None,
+            "next_contact_at": None,
+            "is_thunder_paused": False,
+            "message_count": 0,
+            "conversation_id": None,
+        }
+
+        try:
+            conversation = db.query(CandidateConversation).filter(
+                CandidateConversation.candidate_id == candidate_id,
+                CandidateConversation.tenant_id == tenant_id
+            ).order_by(CandidateConversation.created_at.desc()).first()
+
+            if conversation:
+                thunder_data["last_contact_at"] = conversation.last_touch_scheduled_at
+                thunder_data["next_contact_at"] = conversation.next_touch_scheduled_at
+                thunder_data["is_thunder_paused"] = conversation.is_thunder_paused or False
+                thunder_data["message_count"] = len(conversation.events) if hasattr(conversation, 'events') else 0
+                thunder_data["conversation_id"] = str(conversation.id)
+        except Exception as e:
+            logger.error(f"[CandidateMemory] Thunder engagement fetch failed: {e}", exc_info=True)
+
+        return CandidateMemoryResponse(candidate_id=candidate_id, last_updated=memory.get("last_updated"), summary=memory.get("summary"), facts=memory.get("facts", []), signals=memory.get("signals", []), **thunder_data)
     except Exception as e:
-        logger.error(f"[CandidateMemory] Thunder engagement fetch failed: {e}", exc_info=True)
-
-    return CandidateMemoryResponse(candidate_id=candidate_id, **memory, **thunder_data)
+        logger.error(f"[CandidateMemory] Endpoint error for {candidate_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to retrieve memory: {str(e)}")
 
 # ===========================================================================
 # PATCH /ai-agent/memory/{candidate_id}/facts/{fact_id}
