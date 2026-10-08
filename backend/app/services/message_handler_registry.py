@@ -124,6 +124,13 @@ def _initialize_default_handlers():
     except Exception as e:
         logger.error(f"[Registry] CRITICAL: Failed to register Thunder email handlers: {e}", exc_info=True)
 
+    try:
+        from app.services.message_handlers.send_invoice_email_handler import SendInvoiceEmailHandler
+        MessageHandlerRegistry.register("send_invoice_email", SendInvoiceEmailHandler.process)
+        logger.info("[Registry] Registered send_invoice_email handler")
+    except Exception as e:
+        logger.error(f"[Registry] CRITICAL: Failed to register send_invoice_email handler: {e}", exc_info=True)
+
     # Register ops alert handler (NEW - Phase 3/4 stale message detection)
     try:
         from app.services.message_handlers.ops_alert_handler import OpsAlertHandler
