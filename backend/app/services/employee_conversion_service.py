@@ -35,8 +35,9 @@ def hired_for_job(db, candidate):
 
 
 def monthly_salary_from_offer(db, candidate, job):
-    """Monthly base salary (USD cents) from the candidate's accepted or signed offer,
-    for this job when there is one. None when there is no such offer."""
+    """Monthly base salary (USD cents) from the candidate's accepted offer, for this job
+    when there is one: an Offer (annual USD), else an accepted OfferLetter (annual CTC in
+    INR, converted with FX_INR_PER_USD). None when neither gives a reliable figure."""
     from app.models.offer import Offer
 
     query = db.query(Offer).filter(Offer.candidate_id == candidate.candidateID,
@@ -44,7 +45,31 @@ def monthly_salary_from_offer(db, candidate, job):
     if job is not None:
         query = query.filter(Offer.job_id == job.jobID)
     offer = query.order_by(Offer.accepted_at.desc().nullslast(), Offer.created_at.desc()).first()
-    return round(offer.base_salary_usd_cents / 12) if offer and offer.base_salary_usd_cents else None
+    if offer and offer.base_salary_usd_cents:
+        return round(offer.base_salary_usd_cents / 12)
+    return _monthly_usd_from_offer_letter(db, candidate, job)
+
+
+def _monthly_usd_from_offer_letter(db, candidate, job):
+    import re
+
+    from app.core.config import settings
+    from app.models.offer_letter import OfferLetter
+
+    query = db.query(OfferLetter).filter(OfferLetter.candidate_id == candidate.candidateID,
+                                         OfferLetter.offer_status == "Accepted")
+    if job is not None:
+        query = query.filter((OfferLetter.job_id == job.jobID) | (OfferLetter.job_id.is_(None)))
+    letter = query.order_by(OfferLetter.responded_at.desc().nullslast(), OfferLetter.id.desc()).first()
+    if letter is None:
+        return None
+    digits = re.sub(r"[^0-9.]", "", letter.salary or "")
+    if not digits or not settings.FX_INR_PER_USD:
+        logger.warning(f"[Conversion] offer letter {letter.id}: salary {letter.salary!r} not converted "
+                       f"(FX_INR_PER_USD {'set' if settings.FX_INR_PER_USD else 'not set'}); cost stays unknown")
+        return None
+    annual_inr = float(digits)
+    return round(annual_inr / settings.FX_INR_PER_USD * 100 / 12)
 
 
 def employer_company_for(db, job, bu_id):

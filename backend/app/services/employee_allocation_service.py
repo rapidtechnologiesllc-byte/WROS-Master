@@ -27,7 +27,6 @@ from app.models.demand import Demand
 from app.models.employee import Employee
 from app.models.employee_allocation import EmployeeAllocation
 from app.services.employee_service import transition_employee_status
-from app.core.logging import logger
 from app.services.resource_management_service import (
     log_allocation_conflict,
     mark_employee_on_bench,
@@ -42,6 +41,14 @@ class EmployeeAlreadyAllocated(Exception):
 class AllocationOverCapacity(Exception):
     """HRMS-0803 BR-0803-01: overlapping allocations summing over 100%
     utilization are blocked, hard -- not just a warning."""
+
+class AllocationNeedsClient(Exception):
+    """The job has no client: there is nobody to bill, so nothing to allocate to."""
+
+
+class ProjectClientMismatch(Exception):
+    """The project belongs to a different client than the job."""
+
 
 class BuddyProgramNotGraduated(Exception):
     """S-365/HRMS-0521 BR: no client deployment while an employee is
@@ -92,6 +99,15 @@ def allocate_employee_to_project(
         raise BuddyProgramNotGraduated(
             f"Employee {employee.id} must complete Buddy Program graduation "
             f"(current status: {employee.buddy_program_status}) before client deployment."
+        )
+
+    if not demand.client_id:
+        raise AllocationNeedsClient(
+            f"Job {demand.id} has no client. Set the client on the job before allocating anyone to it."
+        )
+    if project is not None and project.client_id != demand.client_id:
+        raise ProjectClientMismatch(
+            f"Project {project.id} belongs to a different client than job {demand.id}."
         )
 
     start = start_date or date.today()

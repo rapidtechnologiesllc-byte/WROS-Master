@@ -4,7 +4,7 @@
 // per engine. A single Business Unit + Year/Month selector at the top
 // drives every read-only panel below -- pick once, see everything for
 // that BU/period, matching the "fewer clicks, more outcome" mandate.
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Wallet, DollarSign, Building2, RefreshCw, Search, Receipt, CheckCircle2 } from "lucide-react";
 import { Card, Button, Input, Select, Table } from "../components/ui";
 import { listBusinessUnits } from "../services/api/rbac";
@@ -26,7 +26,9 @@ import {
   calculateRevenueShare,
   createIncentiveRule,
 } from "../services/api/partnerIncentives";
-import { listAllExpenses, approveExpense } from "../services/api/expenses";
+import {
+  listAllExpenses, approveExpense, managerApproveExpense, managerRejectExpense, markExpensePaid,
+} from "../services/api/expenses";
 import { apiRequest } from "../services/api/client";
 
 const INCENTIVE_TYPES = [
@@ -212,17 +214,26 @@ export default function FinanceOperationsScreen() {
     }
   };
 
-  const handleApproveExpense = async (expenseId) => {
+  // One handler per step: manager review -> finance approval for payment -> mark paid
+  const runExpenseAction = async (expenseId, action) => {
     setApprovingExpenseId(expenseId);
     setExpensesError("");
     try {
-      await approveExpense(expenseId);
+      await action(expenseId);
       await loadAllExpenses();
     } catch (err) {
-      setExpensesError(err.message || "Failed to approve expense.");
+      setExpensesError(err.message || "Expense action failed.");
     } finally {
       setApprovingExpenseId(null);
     }
+  };
+
+  const expenseStage = (e) => {
+    if (e.manager_approval_status === "REJECTED") return { label: "REJECTED", tone: "bg-rose-50 text-rose-800" };
+    if (e.manager_approval_status !== "APPROVED") return { label: "MANAGER REVIEW", tone: "bg-amber-50 text-amber-800" };
+    if (e.payment_status === "PENDING") return { label: "FINANCE REVIEW", tone: "bg-amber-50 text-amber-800" };
+    if (e.payment_status === "APPROVED") return { label: "TO PAY", tone: "bg-blue-50 text-blue-800" };
+    return { label: e.payment_status, tone: "bg-emerald-50 text-emerald-800" };
   };
 
   const buOptions = [
@@ -230,7 +241,7 @@ export default function FinanceOperationsScreen() {
     ...businessUnits.map((bu) => ({ label: bu.name, value: bu.id })),
   ];
 
-  const load = async () => {
+  const load = useCallback(async () => {
     if (!businessUnitId) return;
     setLoading(true);
     setError("");
@@ -248,11 +259,11 @@ export default function FinanceOperationsScreen() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [businessUnitId, year, month]);
 
   useEffect(() => {
     load();
-  }, [businessUnitId, year, month]);
+  }, [load]);
 
   const handleSetCostRateConfig = async () => {
     try {
@@ -590,26 +601,43 @@ export default function FinanceOperationsScreen() {
               category: `${e.expense_category}${e.travel_type ? ` / ${e.travel_type}` : ""}`,
               amount: formatUsdCents(e.amount_usd_cents),
               status: (
-                <span
-                  className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
-                    e.payment_status === "PENDING"
-                      ? "bg-amber-50 text-amber-800"
-                      : e.payment_status === "APPROVED"
-                      ? "bg-blue-50 text-blue-800"
-                      : "bg-emerald-50 text-emerald-800"
-                  }`}
-                >
-                  {e.payment_status}
+                <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${expenseStage(e).tone}`}>
+                  {expenseStage(e).label}
                 </span>
               ),
               actions:
-                e.payment_status === "PENDING" ? (
+                e.manager_approval_status === "PENDING" || !e.manager_approval_status ? (
+                  <div className="flex gap-2">
+                    <Button
+                      variant="success"
+                      disabled={approvingExpenseId === e.id}
+                      onClick={() => runExpenseAction(e.id, managerApproveExpense)}
+                    >
+                      <CheckCircle2 className="h-4 w-4" /> Approve
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      disabled={approvingExpenseId === e.id}
+                      onClick={() => runExpenseAction(e.id, managerRejectExpense)}
+                    >
+                      Reject
+                    </Button>
+                  </div>
+                ) : e.manager_approval_status === "APPROVED" && e.payment_status === "PENDING" ? (
                   <Button
                     variant="success"
                     disabled={approvingExpenseId === e.id}
-                    onClick={() => handleApproveExpense(e.id)}
+                    onClick={() => runExpenseAction(e.id, approveExpense)}
                   >
-                    <CheckCircle2 className="h-4 w-4" /> Approve
+                    <CheckCircle2 className="h-4 w-4" /> Approve for payment
+                  </Button>
+                ) : e.payment_status === "APPROVED" ? (
+                  <Button
+                    variant="ghost"
+                    disabled={approvingExpenseId === e.id}
+                    onClick={() => runExpenseAction(e.id, markExpensePaid)}
+                  >
+                    Mark paid
                   </Button>
                 ) : null,
             }))}

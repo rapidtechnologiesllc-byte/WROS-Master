@@ -3,7 +3,6 @@ import logging
 from typing import Optional
 
 from pydantic import BaseModel
-from app.core.logging import logger
 
 logger = logging.getLogger(__name__)
 
@@ -37,6 +36,8 @@ class ExpenseItem(BaseModel):
     description: Optional[str]
     receipt_ref: Optional[str]
     expense_date: date
+    manager_approval_status: Optional[str] = None  # PENDING -> APPROVED/REJECTED (counts in P&L once APPROVED)
+    manager_approved_by: Optional[str] = None
     payment_status: str
     approved_by: Optional[str]
     created_at: Optional[datetime]

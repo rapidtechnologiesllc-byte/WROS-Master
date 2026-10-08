@@ -67,7 +67,7 @@ RESOURCE_ROUTES = {
     "invoices": "/invoices",
     "forecasts": "/forecast",
     "finance-operations": "/finance-operations",
-    "revenue": "/revenue",
+    "revenue": "/pnl",  # partner & org P&L (sales-ops keeps /revenue)
     # Reporting
     "bi-explorer": "/bi-explorer",
     # System
@@ -108,6 +108,7 @@ RESOURCE_ROUTES = {
 
 # Menu labels where title-casing the resource name reads wrong
 NAV_LABELS = {
+    "revenue": "P&L (Partner & Org)",
     "goals": "Goals & Revenue",
     "ceo-dashboard": "CEO Dashboard",
     "cfo-dashboard": "CFO Dashboard",
@@ -190,7 +191,7 @@ def init_modules_and_resources(db: Session, tenant_id: int = 1):
 def make_personal_resources_mandatory(db: Session, tenant_id: int = 1):
     """Make Personal resources (dashboard, my-tasks, etc.) mandatory for all users."""
 
-    print(f"Making Personal resources mandatory for all users...")
+    print("Making Personal resources mandatory for all users...")
 
     # Get all role templates
     all_roles = db.query(RoleTemplate).filter(

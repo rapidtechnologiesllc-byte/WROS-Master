@@ -45,7 +45,9 @@ from app.schemas.allocation import (
     EndAllocationRequest,
 )
 from app.services.employee_allocation_service import (
+    AllocationNeedsClient,
     AllocationOverCapacity,
+    ProjectClientMismatch,
     BuddyProgramNotGraduated,
     EmployeeAlreadyAllocated,
     allocate_employee_to_project,
@@ -135,6 +137,8 @@ def create_allocation(
         raise HTTPException(status_code=409, detail=str(exc))
     except AllocationOverCapacity as exc:
         raise HTTPException(status_code=409, detail=str(exc))
+    except (AllocationNeedsClient, ProjectClientMismatch) as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
     db.commit()
     db.refresh(allocation)
     return _to_item(db, allocation)

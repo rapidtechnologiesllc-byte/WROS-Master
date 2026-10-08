@@ -30,6 +30,7 @@ Routes:
                                     it becomes SENT once the email has actually gone out.
   POST   /invoices/{id}/record-external-delivery  APPROVED -> SENT when delivered another way.
   POST   /invoices/{id}/mark-paid   SENT -> PAID, and the revenue is recognised.
+  POST   /invoices/{id}/record-payment  Record the bank payment: matched transaction + PAID + revenue.
   GET    /invoices                  List (optional project_id/client_id/status filter).
   GET    /invoices/{id}             One invoice with line items.
 """
@@ -50,6 +51,7 @@ from app.models.invoice_delivery import InvoiceDelivery
 from app.schemas.invoice import (
     GenerateInvoiceRequest,
     MarkPaidRequest,
+    RecordPaymentRequest,
     RecordExternalDeliveryRequest,
     InvoiceItem,
     InvoiceLineItemItem,
@@ -247,6 +249,32 @@ def mark_invoice_paid_endpoint(
     except InvalidInvoiceTransition as exc:
         raise HTTPException(status_code=409, detail=str(exc))
     db.commit()
+    db.refresh(invoice)
+    return _to_item(db, invoice)
+
+@router.post(
+    "/{invoice_id}/record-payment",
+    response_model=InvoiceItem,
+    summary="Record the client's payment: bank transaction matched, invoice PAID, revenue recognised",
+    dependencies=[Depends(require_resource_permission("invoices", "create"))]
+)
+def record_payment_endpoint(
+    invoice_id: str,
+    body: RecordPaymentRequest,
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_internal_user),
+):
+    from app.services.bank_reconciliation_service import BankReconciliationError, record_invoice_payment
+
+    invoice = _get_invoice_or_404(db, invoice_id, current_user.tenant_id)
+    if body.paid_on > datetime.utcnow().date():
+        raise HTTPException(status_code=422, detail="paid_on cannot be in the future.")
+    try:
+        record_invoice_payment(db, invoice, paid_on=body.paid_on, amount_usd_cents=body.amount_usd_cents,
+                               reference=body.reference, recorded_by=current_user.UserID)
+    except BankReconciliationError as exc:
+        db.rollback()
+        raise HTTPException(status_code=409, detail=str(exc))
     db.refresh(invoice)
     return _to_item(db, invoice)
 

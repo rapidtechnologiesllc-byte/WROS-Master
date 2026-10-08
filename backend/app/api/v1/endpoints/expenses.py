@@ -6,7 +6,10 @@ Prefix: /expenses
 POST /expenses                       -- self-service: log YOUR OWN expense
 GET  /expenses/mine                  -- your own logged expenses
 GET  /expenses                       -- all expenses (revenue.view -- BU Head/Partner/Finance/CEO review)
-POST /expenses/{id}/approve          -- revenue.view_pnl (approval authority)
+POST /expenses/{id}/manager-approve  -- the assigned manager (or finance): counts in the P&L from now
+POST /expenses/{id}/manager-reject   -- the assigned manager (or finance): never counts
+POST /expenses/{id}/approve          -- finance approval for payment (after the manager)
+POST /expenses/{id}/mark-paid        -- finance: reimbursed
 GET  /clients/{client_id}/investment-position -- full prospect-to-breakeven history
 
 Create is deliberately self-service only (get_current_internal_user,
@@ -28,8 +31,8 @@ from app.schemas.expense import (
     ClientInvestmentPositionResponse, ExpenseCreateRequest, ExpenseItem, ExpenseListResponse,
 )
 from app.services.expense_service import (
-    ExpenseValidationError, approve_expense, get_client_investment_position, log_expense,
-    mark_expense_paid,
+    ExpenseValidationError, approve_expense, approve_manager_step, can_review_as_manager,
+    get_client_investment_position, log_expense, mark_expense_paid, reject_manager_step,
 )
 
 router = APIRouter(tags=["expenses"])
@@ -94,6 +97,52 @@ def list_all_expenses(
     expenses = query.order_by(ExpenseRecord.expense_date.desc()).all()
     return ExpenseListResponse(expenses=expenses)
 
+def _expense_or_404(db: Session, expense_id: str, user: Users) -> ExpenseRecord:
+    expense = db.query(ExpenseRecord).filter(ExpenseRecord.id == expense_id,
+                                             ExpenseRecord.tenant_id == user.tenant_id).first()
+    if not expense:
+        raise HTTPException(status_code=404, detail=f"Expense {expense_id!r} not found.")
+    return expense
+
+
+@router.post(
+    "/expenses/{expense_id}/manager-approve",
+    response_model=ExpenseItem,
+    dependencies=[Depends(require_resource_permission("expenses", "view"))]
+)
+def manager_approve_expense(
+    expense_id: str,
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_internal_user),
+):
+    expense = _expense_or_404(db, expense_id, current_user)
+    if not can_review_as_manager(db, expense, current_user):
+        raise HTTPException(status_code=403, detail="Only the assigned manager or finance can review this expense.")
+    try:
+        return approve_manager_step(db, expense, approved_by=current_user.UserID)
+    except ExpenseValidationError as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
+
+
+@router.post(
+    "/expenses/{expense_id}/manager-reject",
+    response_model=ExpenseItem,
+    dependencies=[Depends(require_resource_permission("expenses", "view"))]
+)
+def manager_reject_expense(
+    expense_id: str,
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_internal_user),
+):
+    expense = _expense_or_404(db, expense_id, current_user)
+    if not can_review_as_manager(db, expense, current_user):
+        raise HTTPException(status_code=403, detail="Only the assigned manager or finance can review this expense.")
+    try:
+        return reject_manager_step(db, expense, rejected_by=current_user.UserID)
+    except ExpenseValidationError as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
+
+
 @router.post(
     "/expenses/{expense_id}/approve",
     response_model=ExpenseItem,
@@ -104,10 +153,28 @@ def approve_expense_endpoint(
     db: Session = Depends(get_db),
     current_user: Users = Depends(require_resource_permission("revenue", "view")),
 ):
-    expense = db.query(ExpenseRecord).filter(ExpenseRecord.id == expense_id).first()
-    if not expense:
-        raise HTTPException(status_code=404, detail=f"Expense {expense_id!r} not found.")
-    return approve_expense(db, expense, approved_by=current_user.UserID)
+    expense = _expense_or_404(db, expense_id, current_user)
+    try:
+        return approve_expense(db, expense, approved_by=current_user.UserID)
+    except ExpenseValidationError as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
+
+
+@router.post(
+    "/expenses/{expense_id}/mark-paid",
+    response_model=ExpenseItem,
+    dependencies=[Depends(require_resource_permission("expenses", "create"))]
+)
+def mark_expense_paid_endpoint(
+    expense_id: str,
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(require_resource_permission("revenue", "view")),
+):
+    expense = _expense_or_404(db, expense_id, current_user)
+    try:
+        return mark_expense_paid(db, expense)
+    except ExpenseValidationError as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
 
 
 @router.get(

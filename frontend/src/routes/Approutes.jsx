@@ -76,6 +76,7 @@ import OpportunityPipelineScreen from "../screens/OpportunityPipelineScreen";
 import MyExpensesScreen from "../screens/MyExpensesScreen";
 import ExecutiveRevenueDashboardScreen from "../screens/ExecutiveRevenueDashboardScreen";
 import FinanceOperationsScreen from "../screens/FinanceOperationsScreen";
+import PnlScreen from "../screens/PnlScreen";
 import DemandConfirmationScreen from "../screens/DemandConfirmationScreen";
 import SubmissionsScreen from "../screens/SubmissionsScreen";
 import AllocationsScreen from "../screens/AllocationsScreen";
@@ -670,6 +671,7 @@ export default function AppRoutes() {
             <Route path="opportunity-pipeline" element={<OpportunityPipelineScreen />} />
             <Route path="executive-revenue-dashboard" element={<ExecutiveRevenueDashboardScreen />} />
             <Route path="finance-operations" element={<FinanceOperationsScreen />} />
+            <Route path="pnl" element={<PnlScreen />} />
             <Route path="partner-roi" element={<PartnerROIAgentScreen />} />
             <Route path="ceo-fy-progress" element={<CEOUnifiedDashboard />} />
             <Route path="cfo-dashboard" element={<CFOAgentScreen />} />
