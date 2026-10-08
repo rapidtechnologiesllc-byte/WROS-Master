@@ -445,20 +445,35 @@ export default function CandidateSearch({
     {
       title: "Thunder",
       dataIndex: "thunder_enabled",
-      width: 100,
-      render: (_, record) => (
-        <label className="flex items-center gap-2 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={record?.thunder_enabled ?? true}
-            onChange={() => handleThunderToggle(record?.candidate_id, record?.thunder_enabled ?? true)}
-            className="w-4 h-4"
-          />
-          <span className="text-xs text-gray-600">
-            {record?.thunder_enabled !== false ? "Enabled" : "Disabled"}
-          </span>
-        </label>
-      ),
+      width: 120,
+      render: (_, record) => {
+        const isEnabled = record?.thunder_enabled !== false;
+        return (
+          <button
+            onClick={() => handleThunderToggle(record?.candidate_id, record?.thunder_enabled ?? true)}
+            title={isEnabled ? "Click to unsubscribe from Thunder" : "Thunder is disabled"}
+            className={`relative inline-flex h-8 w-14 items-center rounded-full transition-colors ${
+              isEnabled
+                ? "bg-green-500 hover:bg-green-600"
+                : "bg-gray-300 hover:bg-gray-400 cursor-not-allowed"
+            }`}
+          >
+            <span
+              className={`inline-block h-6 w-6 transform rounded-full bg-white shadow-md transition-transform ${
+                isEnabled ? "translate-x-7" : "translate-x-1"
+              }`}
+            />
+            <span className="absolute left-2 text-[10px] font-bold text-white opacity-0">
+              ON
+            </span>
+            <span className={`absolute right-2 text-[10px] font-bold transition-opacity ${
+              isEnabled ? "opacity-0" : "opacity-100 text-gray-600"
+            }`}>
+              OFF
+            </span>
+          </button>
+        );
+      },
     },
     {
       title: "Job Title",
