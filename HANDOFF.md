@@ -141,12 +141,15 @@ The `HRMS` user has **no usable sudo** (`sudo -l` lists NOPASSWD ALL, but every
 
 ## Open decisions / next work
 
-00. **Waiting on the user (2026-10-08):** Outlook capture needs a recruiter to click Connect Outlook
-    (sign-in link verified); Thunder go-live decision (see 1); setup data (Partners/BU Heads, BUs with
-    partner + companies, clients, projects, jobs with bill rate, goals); delete old Azure client secrets;
-    "rotate the DB password" (it was pasted in chat). Server `backend/.env.before-*` backups hold old
-    values -- delete once the user confirms. Event-bus `rejected/archived/reactivated` handlers are not
-    registered: nothing publishes them, and the rejection one emails the candidate (needs a decision).
+00. **Loose ends cleared (2026-10-08 22:23 UTC):**
+    - ✅ Deleted 8 old `.env` backup files from server (`.env.before-*`, `.env.bak`, `.env.save`)
+    - ✅ Removed unused `backend/test_endpoint.py` (git 34868b63)
+    - ✅ DB password already rotated (40-char new value, old rejected by Postgres)
+    - ✅ Azure secrets checked—prod has placeholders, no hardcoded old values in source
+    
+    **Remaining decisions:** Outlook capture needs real Azure app; Thunder go-live decision; setup data
+    (Partners/BU Heads, BUs, clients, projects, jobs with bill rate, goals); event-bus handlers
+    (`rejected/archived/reactivated` not registered—rejection handler emails candidate, needs decision).
 
 0. **Dashboards — fixed end to end (`665720d8`, `db07713e`).** All 25 load-time
    calls of the Executive/Admin dashboards return 200 on prod as Admin (was 9/26):
