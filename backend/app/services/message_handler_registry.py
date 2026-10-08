@@ -257,14 +257,6 @@ def _initialize_default_handlers():
     except ImportError as e:
         logger.warning(f"[Registry] Could not import interview handlers: {e}")
 
-    # Register project/milestone handlers
-    try:
-        from app.services.message_handlers.project_handlers import handle_project_created, handle_project_status_changed
-        MessageHandlerRegistry.register("project_created", handle_project_created)
-        MessageHandlerRegistry.register("project_status_changed", handle_project_status_changed)
-    except ImportError:
-        logger.info("[Registry] Project handlers not yet available")
-
     # Register offer generation handler (existing - needs adapter)
     try:
         from app.services.message_handlers.offer_generated_handler import handle_offer_generated as legacy_handle_offer_generated

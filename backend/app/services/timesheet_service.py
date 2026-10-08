@@ -272,8 +272,7 @@ def create_weekly_draft_batch(db: Session) -> dict:
 
     Returns: dict with counts (created, skipped, errors)
     """
-    from datetime import datetime, timedelta
-    from app.models.resource_management import EmployeeAllocation
+    from datetime import timedelta
 
     today = date.today()
     # Calculate the Monday of the current week
@@ -293,20 +292,21 @@ def create_weekly_draft_batch(db: Session) -> dict:
             timesheet = create_weekly_draft(
                 db, allocation, week_starting_date, tenant_id=allocation.tenant_id
             )
-            # Check if this is a newly created timesheet or an existing one
-            if timesheet.created_at and (datetime.utcnow() - timesheet.created_at).total_seconds() < 300:
+            is_new = timesheet in db.new
+            # Commit per allocation: one bad row must not lose the drafts already created
+            db.commit()
+            if is_new:
                 created += 1
             else:
                 skipped += 1
         except Exception as exc:
-            logger.error(f"Error: {str(exc)}", exc_info=True)
+            db.rollback()
+            logger.error(f"[TimesheetDraft] allocation {allocation.id} failed: {exc}", exc_info=True)
             errors.append({
                 "allocation_id": allocation.id,
                 "employee_id": allocation.employee_id,
                 "error": str(exc)
             })
-
-            db.commit()
 
     return {
         "created": created,

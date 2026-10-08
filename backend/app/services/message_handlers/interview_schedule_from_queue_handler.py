@@ -136,28 +136,7 @@ class InterviewScheduleFromQueueHandler:
             except Exception as slm_err:
                 logger.warning(f"[InterviewScheduler] SLM pre-flight failed: {slm_err}")
 
-            # PHASE 4: NOTIFY THUNDER (Queue pause signal)
-            # Thunder should pause outreach for this candidate (in interview)
-            try:
-                from app.services.message_queue_service import MessageQueueService
-
-                MessageQueueService.enqueue(
-                    task_name='interview_scheduled_pause_thunder',
-                    task_id=f"interview_{interview_id}",
-                    data={
-                        'candidate_id': candidate_id,
-                        'interview_id': interview_id,
-                        'reason': f'Interview scheduled for {interview_date}',
-                        'pause_until': interview_date,  # Resume after interview
-                    }
-                )
-                logger.info(f"[InterviewScheduler] Thunder pause signal queued for {candidate_id}")
-
-            except Exception as thunder_err:
-                logger.warning(
-                    f"[InterviewScheduler] Failed to queue Thunder pause: {thunder_err} "
-                    f"(non-blocking, interview already created)"
-                )
+            # Thunder pause on interview is done by the interview_scheduled event handler
 
             # PHASE 5: SEND INTERVIEW INVITE EMAIL
             delivery_id = None

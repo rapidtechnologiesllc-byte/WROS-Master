@@ -20,6 +20,8 @@ from app.models.user import Users
 from app.services.notification_service import ChannelNotConfigured, send_notification
 from app.services.task_service import create_task
 
+logger = logging.getLogger(__name__)
+
 DEFAULT_AR_GRACE_DAYS = 30
 
 def scan_overdue_invoices(
@@ -104,10 +106,18 @@ def run_ar_follow_up_job(db: Session) -> dict:
     the invoice's own tenant_id. Idempotent (trigger_ar_follow_up returns
     the existing open Task rather than duplicating), safe to re-run on
     every scheduler tick."""
-    processed = 0
+    processed, failed = 0, []
     for row in scan_overdue_invoices(db):
         invoice = db.query(Invoice).filter(Invoice.id == row["invoice_id"]).first()
-        if invoice:
+        if invoice is None:
+            continue
+        try:
             trigger_ar_follow_up(db, invoice)
+            db.commit()
             processed += 1
-    return {"processed": processed}
+        except Exception as exc:
+            # One invoice (e.g. NULL tenant -> cross-tenant notification refusal) must not abort the run
+            db.rollback()
+            logger.error(f"[ARFollowUp] invoice {row['invoice_id']} failed: {exc}", exc_info=True)
+            failed.append(row["invoice_id"])
+    return {"processed": processed, "failed": len(failed), "failed_invoice_ids": failed[:50]}
