@@ -14,7 +14,7 @@ import {
   updateCandidate,
 } from "../../services/api/candidates";
 import { getHrCandidateFullDetails } from "../../services/api/candidateSelfService";
-import { saveCandidateCertifications, saveCandidateEducation, saveCandidateExperience, saveCandidateSkills } from "../../services/api/candidates";
+import { saveCandidateCertifications, saveCandidateEducation, saveCandidateExperience, saveCandidateSkills, saveCandidateQualifications, saveCandidateLicenses } from "../../services/api/candidates";
 import { getCandidateDocuments, uploadResume } from "../../services/api/documents";
 import { getAllUsers } from "../../services/api/users";
 
@@ -95,6 +95,30 @@ export default function ProfileTabEditable({ candidateId, candidate = {}, onRefr
   });
   const [editingCertificationsIdx, setEditingCertificationsIdx] = useState(null);
 
+  // Qualifications state
+  const [showQualificationsModal, setShowQualificationsModal] = useState(false);
+  const [qualificationsList, setQualificationsList] = useState([]);
+  const [qualificationsForm, setQualificationsForm] = useState({
+    name: "",
+    level: "",
+    field: "",
+    issuer: "",
+    issue_date: "",
+  });
+  const [editingQualificationsIdx, setEditingQualificationsIdx] = useState(null);
+
+  // Licenses state
+  const [showLicensesModal, setShowLicensesModal] = useState(false);
+  const [licensesList, setLicensesList] = useState([]);
+  const [licensesForm, setLicensesForm] = useState({
+    name: "",
+    number: "",
+    issuer: "",
+    issue_date: "",
+    expiry_date: "",
+  });
+  const [editingLicensesIdx, setEditingLicensesIdx] = useState(null);
+
   // Resume upload state
   const [resumeFile, setResumeFile] = useState(null);
   const [uploadingResume, setUploadingResume] = useState(false);
@@ -162,6 +186,20 @@ export default function ProfileTabEditable({ candidateId, candidate = {}, onRefr
         yearsOfExperience: sk.years_of_experience || "",
         lastUsedDate: sk.last_used_date || "",
         isPrimary: Boolean(sk.is_primary),
+      })));
+      setQualificationsList((candidateFullDetails.qualifications || []).map((q) => ({
+        name: q.name || "",
+        level: q.level || "",
+        field: q.field || "",
+        issuer: q.issuer || "",
+        issue_date: q.issue_date || "",
+      })));
+      setLicensesList((candidateFullDetails.licenses || []).map((l) => ({
+        name: l.name || "",
+        number: l.number || "",
+        issuer: l.issuer || "",
+        issue_date: l.issue_date || "",
+        expiry_date: l.expiry_date || "",
       })));
     }
   }, [candidateFullDetails]);
@@ -1184,6 +1222,271 @@ export default function ProfileTabEditable({ candidateId, candidate = {}, onRefr
         </div>
       )}
 
+      {/* Qualifications Management Modal */}
+      {showQualificationsModal && (
+        <div className="fixed inset-0 z-50 bg-black/45 flex items-center justify-center px-4 py-6">
+          <div className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl border border-gray-200 overflow-hidden">
+            <div className="border-b px-6 py-5 flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-gray-900">Manage Qualifications</h2>
+              <button onClick={() => setShowQualificationsModal(false)} className="text-gray-400 hover:text-gray-600">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="p-6 max-h-[600px] overflow-y-auto space-y-4">
+              {/* Add/Edit Qualifications Form */}
+              <div className="border-b pb-4 space-y-3">
+                <h3 className="text-sm font-semibold text-gray-900">
+                  {editingQualificationsIdx !== null ? "Edit Qualification" : "Add Qualification"}
+                </h3>
+                <Input
+                  label="Qualification Name"
+                  value={qualificationsForm.name || ""}
+                  onChange={(v) => setQualificationsForm({...qualificationsForm, name: v})}
+                />
+                <Input
+                  label="Level"
+                  value={qualificationsForm.level || ""}
+                  onChange={(v) => setQualificationsForm({...qualificationsForm, level: v})}
+                  placeholder="e.g., Bachelor, Master, Diploma"
+                />
+                <Input
+                  label="Field"
+                  value={qualificationsForm.field || ""}
+                  onChange={(v) => setQualificationsForm({...qualificationsForm, field: v})}
+                  placeholder="e.g., Computer Science, Engineering"
+                />
+                <Input
+                  label="Issuer"
+                  value={qualificationsForm.issuer || ""}
+                  onChange={(v) => setQualificationsForm({...qualificationsForm, issuer: v})}
+                  placeholder="University or Institution"
+                />
+                <Input
+                  label="Issue Date"
+                  type="date"
+                  value={qualificationsForm.issue_date}
+                  onChange={(v) => setQualificationsForm({...qualificationsForm, issue_date: v})}
+                />
+                <button
+                  onClick={() => {
+                    if (!qualificationsForm.name?.trim()) {
+                      setActionError("Please enter qualification name");
+                      return;
+                    }
+                    clearError();
+                    if (editingQualificationsIdx !== null) {
+                      const updated = [...qualificationsList];
+                      updated[editingQualificationsIdx] = qualificationsForm;
+                      setQualificationsList(updated);
+                      setEditingQualificationsIdx(null);
+                    } else {
+                      setQualificationsList([...qualificationsList, qualificationsForm]);
+                    }
+                    setQualificationsForm({ name: "", level: "", field: "", issuer: "", issue_date: "" });
+                  }}
+                  className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm font-medium"
+                >
+                  {editingQualificationsIdx !== null ? "Update Qualification" : "Add Qualification"}
+                </button>
+              </div>
+
+              {/* Qualifications List */}
+              {qualificationsList.length > 0 && (
+                <div className="space-y-2">
+                  <h3 className="text-sm font-semibold text-gray-900">Your Qualifications ({qualificationsList.length})</h3>
+                  {qualificationsList.map((qual, idx) => (
+                    <div key={idx} className="flex items-start justify-between p-3 bg-gray-50 rounded-lg">
+                      <div className="flex-1">
+                        <p className="text-sm font-medium text-gray-900">{qual.name}</p>
+                        <p className="text-xs text-gray-600">{qual.level} in {qual.field}</p>
+                        <p className="text-xs text-gray-600">{qual.issuer}</p>
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => {
+                            setQualificationsForm(qual);
+                            setEditingQualificationsIdx(idx);
+                          }}
+                          className="text-blue-600 hover:text-blue-900 text-xs font-medium"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => {
+                            setQualificationsList(qualificationsList.filter((_, i) => i !== idx));
+                          }}
+                          className="text-red-600 hover:text-red-900 text-xs font-medium"
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <button
+                onClick={async () => {
+                  try {
+                    await saveCandidateQualifications(candidateId, qualificationsList
+                      .filter((q) => q.name?.trim())
+                      .map((q) => ({
+                        name: q.name.trim(),
+                        level: q.level || null,
+                        field: q.field || null,
+                        issuer: q.issuer || null,
+                        issue_date: q.issue_date || null,
+                      })));
+                  } catch (err) {
+                    setActionError(err?.message || "Failed to save qualifications");
+                    return;
+                  }
+                  setShowQualificationsModal(false);
+                  setActionSuccess("Qualifications updated successfully");
+                }}
+                className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm font-medium"
+              >
+                Save & Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Licenses Management Modal */}
+      {showLicensesModal && (
+        <div className="fixed inset-0 z-50 bg-black/45 flex items-center justify-center px-4 py-6">
+          <div className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl border border-gray-200 overflow-hidden">
+            <div className="border-b px-6 py-5 flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-gray-900">Manage Licenses</h2>
+              <button onClick={() => setShowLicensesModal(false)} className="text-gray-400 hover:text-gray-600">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="p-6 max-h-[600px] overflow-y-auto space-y-4">
+              {/* Add/Edit Licenses Form */}
+              <div className="border-b pb-4 space-y-3">
+                <h3 className="text-sm font-semibold text-gray-900">
+                  {editingLicensesIdx !== null ? "Edit License" : "Add License"}
+                </h3>
+                <Input
+                  label="License Name"
+                  value={licensesForm.name || ""}
+                  onChange={(v) => setLicensesForm({...licensesForm, name: v})}
+                />
+                <Input
+                  label="License Number"
+                  value={licensesForm.number || ""}
+                  onChange={(v) => setLicensesForm({...licensesForm, number: v})}
+                />
+                <Input
+                  label="Issuer"
+                  value={licensesForm.issuer || ""}
+                  onChange={(v) => setLicensesForm({...licensesForm, issuer: v})}
+                  placeholder="Government or organization"
+                />
+                <div className="grid grid-cols-2 gap-3">
+                  <Input
+                    label="Issue Date"
+                    type="date"
+                    value={licensesForm.issue_date}
+                    onChange={(v) => setLicensesForm({...licensesForm, issue_date: v})}
+                  />
+                  <Input
+                    label="Expiry Date"
+                    type="date"
+                    value={licensesForm.expiry_date}
+                    onChange={(v) => setLicensesForm({...licensesForm, expiry_date: v})}
+                  />
+                </div>
+                <button
+                  onClick={() => {
+                    if (!licensesForm.name?.trim()) {
+                      setActionError("Please enter license name");
+                      return;
+                    }
+                    clearError();
+                    if (editingLicensesIdx !== null) {
+                      const updated = [...licensesList];
+                      updated[editingLicensesIdx] = licensesForm;
+                      setLicensesList(updated);
+                      setEditingLicensesIdx(null);
+                    } else {
+                      setLicensesList([...licensesList, licensesForm]);
+                    }
+                    setLicensesForm({ name: "", number: "", issuer: "", issue_date: "", expiry_date: "" });
+                  }}
+                  className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm font-medium"
+                >
+                  {editingLicensesIdx !== null ? "Update License" : "Add License"}
+                </button>
+              </div>
+
+              {/* Licenses List */}
+              {licensesList.length > 0 && (
+                <div className="space-y-2">
+                  <h3 className="text-sm font-semibold text-gray-900">Your Licenses ({licensesList.length})</h3>
+                  {licensesList.map((lic, idx) => (
+                    <div key={idx} className="flex items-start justify-between p-3 bg-gray-50 rounded-lg">
+                      <div className="flex-1">
+                        <p className="text-sm font-medium text-gray-900">{lic.name}</p>
+                        <p className="text-xs text-gray-600">License #: {lic.number}</p>
+                        <p className="text-xs text-gray-600">{lic.issuer}</p>
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => {
+                            setLicensesForm(lic);
+                            setEditingLicensesIdx(idx);
+                          }}
+                          className="text-blue-600 hover:text-blue-900 text-xs font-medium"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => {
+                            setLicensesList(licensesList.filter((_, i) => i !== idx));
+                          }}
+                          className="text-red-600 hover:text-red-900 text-xs font-medium"
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <button
+                onClick={async () => {
+                  try {
+                    await saveCandidateLicenses(candidateId, licensesList
+                      .filter((l) => l.name?.trim())
+                      .map((l) => ({
+                        name: l.name.trim(),
+                        number: l.number || null,
+                        issuer: l.issuer || null,
+                        issue_date: l.issue_date || null,
+                        expiry_date: l.expiry_date || null,
+                      })));
+                  } catch (err) {
+                    setActionError(err?.message || "Failed to save licenses");
+                    return;
+                  }
+                  setShowLicensesModal(false);
+                  setActionSuccess("Licenses updated successfully");
+                }}
+                className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm font-medium"
+              >
+                Save & Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Education Details */}
       <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
         <div className="flex items-center justify-between mb-4">
@@ -1286,6 +1589,71 @@ export default function ProfileTabEditable({ candidateId, candidate = {}, onRefr
         )}
       </div>
 
+      {/* Qualifications */}
+      <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h3 className="text-sm font-semibold text-gray-900">QUALIFICATIONS</h3>
+            <p className="text-xs text-gray-500 mt-1">Professional qualifications and credentials</p>
+          </div>
+          <button
+            onClick={() => setShowQualificationsModal(true)}
+            className="px-3 py-1 bg-blue-600 text-white rounded-lg text-xs hover:bg-blue-700 transition font-medium"
+          >
+            Add/Edit
+          </button>
+        </div>
+        {qualificationsList && qualificationsList.length > 0 ? (
+          <div className="space-y-4">
+            {qualificationsList.map((qual, idx) => (
+              <div key={idx} className="pb-4 border-b border-gray-200 last:border-0">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <InfoDisplay label="Qualification Name" value={qual.name || "—"} />
+                  <InfoDisplay label="Level" value={qual.level || "—"} />
+                  <InfoDisplay label="Field" value={qual.field || "—"} />
+                  <InfoDisplay label="Issuer" value={qual.issuer || "—"} />
+                  <InfoDisplay label="Issue Date" value={qual.issue_date || "—"} />
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-sm text-gray-600">No data available. Click "Add/Edit" to add qualifications.</p>
+        )}
+      </div>
+
+      {/* Licenses */}
+      <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h3 className="text-sm font-semibold text-gray-900">LICENSES</h3>
+            <p className="text-xs text-gray-500 mt-1">Professional licenses and certifications</p>
+          </div>
+          <button
+            onClick={() => setShowLicensesModal(true)}
+            className="px-3 py-1 bg-blue-600 text-white rounded-lg text-xs hover:bg-blue-700 transition font-medium"
+          >
+            Add/Edit
+          </button>
+        </div>
+        {licensesList && licensesList.length > 0 ? (
+          <div className="space-y-4">
+            {licensesList.map((lic, idx) => (
+              <div key={idx} className="pb-4 border-b border-gray-200 last:border-0">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <InfoDisplay label="License Name" value={lic.name || "—"} />
+                  <InfoDisplay label="License Number" value={lic.number || "—"} />
+                  <InfoDisplay label="Issuer" value={lic.issuer || "—"} />
+                  <InfoDisplay label="Issue Date" value={lic.issue_date || "—"} />
+                  <InfoDisplay label="Expiry Date" value={lic.expiry_date || "—"} />
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-sm text-gray-600">No data available. Click "Add/Edit" to add licenses.</p>
+        )}
+      </div>
 
     </div>
   );
