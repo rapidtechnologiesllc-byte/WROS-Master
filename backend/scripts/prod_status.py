@@ -19,11 +19,15 @@ import traceback
 sys.path.insert(0, os.getcwd())
 
 EMAIL = re.compile(r"[\w.+-]+@[\w-]+\.[\w.-]+")
+SECRETISH = re.compile(r"(secret|password|passwd|token|api[_-]?key|database_url)", re.IGNORECASE)
 PHONE = re.compile(r"\+?\d[\d\s().-]{8,}\d")
 
 
 def mask(text, limit: int = 300) -> str:
-    return PHONE.sub("<phone>", EMAIL.sub("<email>", str(text)))[:limit]
+    text = str(text)
+    if SECRETISH.search(text):  # never echo a line that mentions a credential, even a fragment of one
+        return "<line mentioning a credential: redacted>"
+    return PHONE.sub("<phone>", EMAIL.sub("<email>", text))[:limit]
 
 
 def section(title: str):
@@ -118,9 +122,9 @@ def main() -> int:
               "SELECT left(error, 160), count(*) FROM channel_queue_item WHERE status = 'PENDING' "
               "AND error LIKE 'NOT_SENT:%' GROUP BY 1 ORDER BY 2 DESC LIMIT 10", lambda r: f"{r[1]} {mask(r[0])}")
         table("Recent failures (count / type / error)",
-              "SELECT type, left(error, 160), count(*) FROM channel_queue_item WHERE status = 'FAILED' "
+              "SELECT type, left(error, 160), count(*), max(created_at) FROM channel_queue_item WHERE status = 'FAILED' "
               "AND created_at > now() - interval '3 days' GROUP BY 1, 2 ORDER BY 3 DESC LIMIT 12",
-              lambda r: f"{r[2]} {r[0]} {mask(r[1])}")
+              lambda r: f"{r[2]} {r[0]} (last {r[3]:%Y-%m-%d %H:%M}) {mask(r[1])}")
 
         section("Thunder email")
         for label, sql in (
