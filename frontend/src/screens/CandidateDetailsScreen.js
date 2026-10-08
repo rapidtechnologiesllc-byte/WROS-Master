@@ -33,7 +33,7 @@ import {
 import { sendPlainEmail, sendInterviewInvite } from "../services/api/email";
 import { getCandidateDocuments } from "../services/api/documents";
 import { getAllUsers } from "../services/api/users";
-import { getCandidateById } from "../services/api/candidates";
+import { getCandidateById, updateCandidate } from "../services/api/candidates";
 import {
   getOnlineInterviewEmailTemplate,
   getFaceToFaceInterviewEmailTemplate,
@@ -150,6 +150,10 @@ function UsersBUDetailsPanel({ candidate, onUpdate }) {
         assigned_recruiter_name: recruiter?.user_name || "",
       };
 
+      // Call backend API to update the candidate's recruiter assignment
+      await updateCandidate(candidate.id, updates);
+
+      // Then refresh the candidate data via the onUpdate callback
       if (onUpdate) {
         await onUpdate(updates);
       }
