@@ -23,6 +23,7 @@ from app.core.dependencies import get_current_internal_user, require_resource_pe
 from app.core.logging import logger
 from app.models.candidate import Candidate
 from app.models.consent import ConsentRecord
+from app.models.event_log import EventLog
 from app.models.linkedin_candidate_pipeline import LinkedInCandidatePipeline, LinkedInPipelineStatus
 from app.models.user import Users
 from app.services.candidate_activity_service import log_linkedin_pipeline_step
@@ -409,7 +410,50 @@ def complete_linkedin_import(
                 detail=f"This candidate already has email {candidate.candidateEmail}.",
             )
 
+        # CRITICAL FIX: Check if phone already belongs to another candidate
+        # (can't overwrite phone for a different candidate)
+        if phone and candidate.candidateMobile != phone:
+            phone_conflict = db.query(Candidate).filter(
+                Candidate.candidateMobile == phone, Candidate.candidateID != candidate.candidateID
+            ).first()
+            if phone_conflict:
+                raise HTTPException(
+                    status_code=409,
+                    detail=f"Phone {phone} already belongs to candidate {_candidate_name(phone_conflict)}.",
+                )
+
         candidate.candidateMobile = phone
+
+        # CRITICAL FIX: Don't re-enable Thunder if candidate was previously rejected
+        # (90-day no-contact flag means we should not automatically resume engagement)
+        from app.models.event_log import EventLog
+        rejection_event = db.query(EventLog).filter(
+            EventLog.entity_id == str(candidate.candidateID),
+            EventLog.entity_type == "candidate",
+            EventLog.event_type == "candidate_rejection"
+        ).order_by(EventLog.created_at.desc()).first()
+
+        if rejection_event:
+            try:
+                rejection_data = rejection_event.data or {}
+                no_contact_until = rejection_data.get('no_contact_until')
+                if no_contact_until:
+                    from datetime import datetime
+                    no_contact_dt = datetime.fromisoformat(no_contact_until.replace('Z', '+00:00'))
+                    if datetime.utcnow() < no_contact_dt:
+                        raise HTTPException(
+                            status_code=403,
+                            detail=f"Candidate was rejected on {rejection_event.created_at.isoformat()}. "
+                                   f"90-day no-contact period active until {no_contact_until}. "
+                                   f"Cannot enable Thunder until contact period expires.",
+                        )
+            except HTTPException:
+                db.rollback()
+                raise
+            except Exception as e:
+                logger.warning(f"Failed to check rejection status: {e}")
+
+        # Only enable Thunder if not previously rejected or rejection period has expired
         candidate.thunder_enabled = True
         db.add(candidate)
 
