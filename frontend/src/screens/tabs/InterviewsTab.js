@@ -137,6 +137,10 @@ export default function InterviewsTab({ candidateId, onScheduleInterview }) {
   const [activityNote, setActivityNote] = useState("");
   const [activityLogging, setActivityLogging] = useState(false);
 
+  const [showLogInterviewModal, setShowLogInterviewModal] = useState(false);
+  const [logInterviewNote, setLogInterviewNote] = useState("");
+  const [loggingInterview, setLoggingInterview] = useState(false);
+
   const [showTranscriptModal, setShowTranscriptModal] = useState(false);
   const [transcriptFile, setTranscriptFile] = useState(null);
   const [transcriptNote, setTranscriptNote] = useState("");
@@ -807,47 +811,32 @@ export default function InterviewsTab({ candidateId, onScheduleInterview }) {
         </SectionCard>
 
         <SectionCard title="Log Interview">
-          {!interviews.length ? (
-            <EmptyState
-              title="No interviews scheduled"
-              subtitle="Once an interview is scheduled for this candidate, you can log completed interviews and upload transcripts here."
-            />
-          ) : (
-            <div className="space-y-6">
-              {jobGroups.map((group) => (
-                <div key={group.jobId || "unassigned"}>
-                  <div className="mb-2 flex items-center gap-2">
-                    <div className="text-sm font-bold text-bx-navy">{group.jobTitle}</div>
-                    <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-500">
-                      {group.rounds.length} round{group.rounds.length === 1 ? "" : "s"}
-                    </span>
-                  </div>
-                  <div className="space-y-4 border-l-2 border-gray-100 pl-4">
-                    {group.rounds.map((interview) => {
-                      const interviewId = getInterviewId(interview);
-                      return (
-                        <InterviewRoundCard
-                          key={interviewId}
-                          interview={interview}
-                          feedbackList={feedbackMap[interviewId] || []}
-                          feedbackLoading={feedbackLoading}
-                          panelMembers={panelMembersMap[interview.panel_id] || []}
-                          myPanelInterview={myPanelInterviewMap.get(interviewId)}
-                          loggedInInterviewerId={loggedInInterviewerId}
-                          onSubmitClick={() => openSubmitModal(interview)}
-                          onSkipClick={() => openSkipModal(interview)}
-                          onViewDetails={() => openDetailsModal(interviewId)}
-                          onReschedule={() => openRescheduleModal(interview)}
-                          onCancel={() => openCancelModal(interview)}
-                          onUploadTranscript={() => setShowTranscriptModal(true)}
-                        />
-                      );
-                    })}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
+          {(() => {
+            const pastInterviews = interviews.filter(
+              (i) => i.start_time && new Date(i.start_time) < new Date()
+            );
+
+            if (!pastInterviews.length) {
+              return (
+                <EmptyState
+                  title="No completed interviews"
+                  subtitle="Once an interview is completed, you can log it here with feedback and transcripts."
+                />
+              );
+            }
+
+            return (
+              <div className="flex justify-center">
+                <button
+                  type="button"
+                  onClick={() => setShowLogInterviewModal(true)}
+                  className="inline-flex items-center rounded-xl bg-green-600 px-6 py-2 text-sm font-medium text-white transition hover:bg-green-700"
+                >
+                  Log Completed Interview
+                </button>
+              </div>
+            );
+          })()}
         </SectionCard>
       </div>
 
@@ -1066,6 +1055,69 @@ export default function InterviewsTab({ candidateId, onScheduleInterview }) {
                 >
                   {uploadingTranscript && <Loader className="h-4 w-4 animate-spin" />}
                   Upload & Analyze
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Log Interview Modal */}
+      {showLogInterviewModal && (
+        <div className="fixed inset-0 z-50 bg-black/45 flex items-center justify-center px-4 py-6">
+          <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl border border-gray-200 overflow-hidden">
+            <div className="border-b px-6 py-5 flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-gray-900">Log Completed Interview</h2>
+              <button
+                onClick={() => {
+                  setShowLogInterviewModal(false);
+                  setLogInterviewNote("");
+                }}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Interview Summary & Feedback
+                </label>
+                <textarea
+                  value={logInterviewNote}
+                  onChange={(e) => setLogInterviewNote(e.target.value)}
+                  placeholder="Summary of interview discussion, candidate performance, strengths, areas for improvement, and recommendation"
+                  className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none transition focus:border-blue-500 resize-none h-32"
+                  autoFocus
+                />
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  onClick={() => {
+                    setShowLogInterviewModal(false);
+                    setLogInterviewNote("");
+                  }}
+                  className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition text-sm font-medium"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    if (logInterviewNote.trim()) {
+                      createCandidateHistoryEvent(candidateId, {
+                        event_type: "Interview Completed",
+                        note: logInterviewNote.trim(),
+                      });
+                      setShowLogInterviewModal(false);
+                      setLogInterviewNote("");
+                    }
+                  }}
+                  disabled={loggingInterview || !logInterviewNote.trim()}
+                  className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {loggingInterview ? "Logging..." : "Log Interview"}
                 </button>
               </div>
             </div>
