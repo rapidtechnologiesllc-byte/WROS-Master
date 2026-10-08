@@ -142,4 +142,21 @@ def create_note(
         f"by user '{author_id}' ({author_name})."
     )
 
+    # Queue note to Thunder for Memory & Intelligence processing
+    try:
+        from app.services.message_queue_service import MessageQueueService
+        MessageQueueService.enqueue(
+            task_name="candidate_note_added",
+            data={
+                "candidate_id": candidate_id,
+                "note_id": note.id,
+                "content": payload.content,
+                "category": payload.category or "General",
+                "created_by_id": author_id,
+                "created_by_name": author_name,
+            }
+        )
+    except Exception as e:
+        logger.warning(f"Failed to queue note to Thunder: {e}")
+
     return InternalNoteResponse.model_validate(note)

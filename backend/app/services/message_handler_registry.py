@@ -98,6 +98,16 @@ def _initialize_default_handlers():
     except Exception as e:
         logger.error(f"[Registry] Failed to register candidate_update handler: {e}", exc_info=True)
 
+    # Register candidate note handler (Thunder Memory updates)
+    try:
+        from app.services.message_handlers.candidate_note_added_handler import CandidateNoteAddedHandler
+        MessageHandlerRegistry.register("candidate_note_added", CandidateNoteAddedHandler.process)
+        logger.info("[Registry] Registered candidate note added handler")
+    except ImportError as e:
+        logger.warning(f"[Registry] Could not import candidate note handler: {e}")
+    except Exception as e:
+        logger.error(f"[Registry] Failed to register candidate note handler: {e}", exc_info=True)
+
     # Register ops alert handler (NEW - Phase 3/4 stale message detection)
     try:
         from app.services.message_handlers.ops_alert_handler import OpsAlertHandler
