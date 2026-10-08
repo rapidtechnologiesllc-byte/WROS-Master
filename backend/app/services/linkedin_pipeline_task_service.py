@@ -6,6 +6,7 @@ Thunder off until Import) and exactly one open follow-up task for its
 owner, due today so it shows on My Tasks. Moving the item to the next stage
 completes that task and opens the next one; Imported to Thunder has none.
 """
+import hashlib
 import re
 from datetime import datetime
 from typing import Optional
@@ -42,8 +43,14 @@ _STAGE_TASKS = {
 }
 
 def placeholder_email(profile_slug: str) -> str:
-    safe = re.sub(r"[^a-z0-9-]", "", profile_slug) or "profile"
-    return f"{safe}@{PLACEHOLDER_EMAIL_DOMAIN}"
+    """Generate unique placeholder email from LinkedIn profile slug.
+
+    Uses SHA256 hash of the full profile slug to ensure uniqueness,
+    even for similar profiles (john-doe-1a2b3c vs john_doe_1a2b3c).
+    """
+    # Hash the full profile slug to ensure uniqueness
+    slug_hash = hashlib.sha256(profile_slug.encode()).hexdigest()[:16]
+    return f"li-{slug_hash}@{PLACEHOLDER_EMAIL_DOMAIN}"
 
 def is_placeholder_email(email: Optional[str]) -> bool:
     return bool(email) and email.endswith("@" + PLACEHOLDER_EMAIL_DOMAIN)
