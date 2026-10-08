@@ -3,6 +3,7 @@ import requests
 import os
 from typing import List, Optional, Dict, Any
 from fastapi import HTTPException
+from app.core.config import settings
 from app.core.graph_auth import get_graph_token
 import logging
 from app.core.logging import logger
@@ -16,7 +17,7 @@ class EmailService:
     using Microsoft Graph API (Application permissions — no user sign-in required).
     """
 
-    SERVICE_EMAIL = "helpdesk_hrms@blitzenx.com"
+    SERVICE_EMAIL = settings.THUNDER_MAILBOX
     SERVICE_NAME = "BlitzenX HRMS"
 
     # ------------------------------------------------------------------

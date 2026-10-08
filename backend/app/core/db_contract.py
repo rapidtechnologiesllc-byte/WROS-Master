@@ -87,6 +87,10 @@ def initialize_database():
         _initialize_linkedin_outreach_tasks()
         logger.info("[OK] LinkedIn outreach tasks backfilled")
 
+        # Step 8: Approved Thunder email copy (idempotent; never overwrites DB edits)
+        logger.info("[Contract] Step 8: Seeding Thunder email variants...")
+        _initialize_thunder_variants()
+
         logger.info("[OK] Database contract validated - all systems ready")
 
     except Exception as e:
@@ -104,6 +108,20 @@ def _initialize_linkedin_outreach_tasks():
         # Optional data backfill: never block backend startup over it
         db.rollback()
         logger.error(f"[Contract] LinkedIn outreach task backfill failed (startup continues): {e}", exc_info=True)
+    finally:
+        db.close()
+
+def _initialize_thunder_variants():
+    """Seed approved Thunder email copy that is missing."""
+    from app.services.thunder_mail.seed_variants import seed_thunder_variants
+    db = SessionLocal()
+    try:
+        added = seed_thunder_variants(db)
+        logger.info(f"[OK] Thunder email variants seeded ({added} added)")
+    except Exception as e:
+        # Sends fail closed without variants (choose_variant raises), so startup continues
+        db.rollback()
+        logger.error(f"[Contract] Thunder variant seeding failed (startup continues): {e}", exc_info=True)
     finally:
         db.close()
 

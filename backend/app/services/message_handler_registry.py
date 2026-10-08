@@ -115,6 +115,15 @@ def _initialize_default_handlers():
     except Exception as e:
         logger.error(f"[Registry] CRITICAL: Failed to register enrich_linkedin_candidate handler: {e}", exc_info=True)
 
+    try:
+        from app.services.message_handlers.thunder_send_email_handler import ThunderSendEmailHandler
+        from app.services.message_handlers.thunder_inbound_email_handler import ThunderInboundEmailHandler
+        MessageHandlerRegistry.register("thunder_send_email", ThunderSendEmailHandler.process)
+        MessageHandlerRegistry.register("thunder_process_inbound_email", ThunderInboundEmailHandler.process)
+        logger.info("[Registry] Registered Thunder email cadence handlers")
+    except Exception as e:
+        logger.error(f"[Registry] CRITICAL: Failed to register Thunder email handlers: {e}", exc_info=True)
+
     # Register ops alert handler (NEW - Phase 3/4 stale message detection)
     try:
         from app.services.message_handlers.ops_alert_handler import OpsAlertHandler

@@ -11,6 +11,7 @@ from app.models.candidate_intelligence import CandidateIntelligenceProfile
 from app.models.candidate_rejection import CandidateRejection
 from app.models.consent import ConsentRecord
 from app.models.tenant import Tenant
+from app.models.thunder_email import ThunderCadenceState
 from app.models.linkedin_candidate_pipeline import LinkedInCandidatePipeline, LinkedInPipelineStatus
 from app.services.candidate_contact_policy import is_contactable
 from app.services.linkedin_pipeline_task_service import name_from_slug, placeholder_email
@@ -69,7 +70,7 @@ def _run(db, pipeline_id, result, attempt=0):
     return outcome, enqueue
 
 
-def test_confirmed_contact_imports_to_thunder_and_queues_first_touch(db, pipeline):
+def test_confirmed_contact_imports_to_thunder_and_starts_email_cadence(db, pipeline):
     outcome, enqueue = _run(db, pipeline.item.id, _result(contact="hello@ankur.dev"))
 
     db.refresh(pipeline.candidate)
@@ -82,9 +83,10 @@ def test_confirmed_contact_imports_to_thunder_and_queues_first_touch(db, pipelin
     assert pipeline.item.status == LinkedInPipelineStatus.IMPORTED_TO_THUNDER
     assert db.query(CandidateExperienceForm).filter_by(candidateID=pipeline.candidate.candidateID).one().company_name == "Acme Corp"
     assert db.query(CandidateEducationForm).filter_by(candidateID=pipeline.candidate.candidateID).one().education_institute == "IIT Delhi"
-    sent = [c.kwargs for c in enqueue.call_args_list if c.kwargs.get("task_name") == "send_email_to_candidate"]
-    assert len(sent) == 1 and sent[0]["data"]["to_email"] == "hello@ankur.dev"
-    assert "remove" in sent[0]["data"]["body"] and "ankur.dev" in sent[0]["data"]["body"]
+    sent = [c.kwargs for c in enqueue.call_args_list if c.kwargs.get("task_name") == "thunder_send_email"]
+    assert len(sent) == 1 and sent[0]["data"]["step"] == "1"
+    state = db.query(ThunderCadenceState).filter_by(candidate_id=pipeline.candidate.candidateID).one()
+    assert (state.stage, state.next_step) == ("ACTIVE", "1")
     assert is_contactable(db, pipeline.candidate) == (True, "ok")
     # Enrichment never invents consent
     assert db.query(ConsentRecord).filter_by(subject_id=pipeline.candidate.candidateID).count() == 0

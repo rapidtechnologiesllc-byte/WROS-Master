@@ -6,9 +6,10 @@ Cron runs this every 15 minutes under flock (see scripts/deploy_backend.sh):
 
 It syncs every user who connected Outlook: new Inbox / Sent Items messages
 whose other party is a known candidate or employee are linked to that
-person's history (metadata only). Runs on its own rather than through the
-in-process APScheduler, which also holds the Thunder outreach jobs and is
-not started in production.
+person's history (metadata only). Then it reads the Thunder mailbox for
+candidate replies and queues every due Thunder email (silence follow-ups,
+monthly nurture). Runs on its own rather than through the in-process
+APScheduler, which is not started in production.
 """
 import logging
 import sys
@@ -22,16 +23,23 @@ def main() -> int:
     from app.core.database import SessionLocal
     from app.services.msgraph_mail_sync_service import run_msgraph_mail_sync_job
 
-    db = SessionLocal()
-    try:
-        result = run_msgraph_mail_sync_job(db)
-        logger.info(f"Mail sync complete: {result}")
-        return 0
-    except Exception as exc:
-        logger.error(f"Mail sync run failed: {exc}", exc_info=True)
-        return 1
-    finally:
-        db.close()
+    from app.services.thunder_mail.mail_poll_service import poll_thunder_mailbox, run_cadence_sweep
+
+    failed = False
+    # Independent sessions: one job failing never blocks the others
+    for name, job in (("Mail sync", run_msgraph_mail_sync_job),
+                      ("Thunder mailbox poll", poll_thunder_mailbox),
+                      ("Thunder cadence sweep", run_cadence_sweep)):
+        db = SessionLocal()
+        try:
+            logger.info(f"{name} complete: {job(db)}")
+        except Exception as exc:
+            failed = True
+            db.rollback()
+            logger.error(f"{name} failed: {exc}", exc_info=True)
+        finally:
+            db.close()
+    return 1 if failed else 0
 
 
 if __name__ == "__main__":
