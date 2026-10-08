@@ -195,6 +195,30 @@ class CandidateCreationUnifiedHandler:
             if payload.get('thunder_enabled') is False:
                 candidate.thunder_enabled = False
                 db.add(candidate)
+            else:
+                # Queue Thunder engagement for newly created candidates (PRODUCTION: Thunder is ACTIVE)
+                # Thunder will send welcome email/WhatsApp and begin autonomous outreach
+                from app.services.message_queue_service import MessageQueueService
+                try:
+                    result = MessageQueueService.enqueue(
+                        task_name='engage_candidate_with_thunder',
+                        data={
+                            'candidate_id': candidate_id,
+                            'email': email,
+                            'first_name': first_name,
+                            'last_name': last_name,
+                            'source': source,
+                            'tenant_id': tenant_id,
+                        }
+                    )
+                    logger.info(
+                        f"[CandidateCreationUnified] ✅ Queued Thunder engagement for {candidate_id}: "
+                        f"message_id={result.get('message_id')}"
+                    )
+                except Exception as e:
+                    logger.warning(
+                        f"[CandidateCreationUnified] Failed to queue Thunder engagement for {candidate_id}: {e}"
+                    )
 
         # Queued from the LinkedIn pipeline: link the item and its open task
         if payload.get('linkedin_pipeline_id'):
