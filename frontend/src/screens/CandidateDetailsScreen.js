@@ -1242,7 +1242,7 @@ ${formattedJD}
         call: "Phone Call",
         linkedin: "LinkedIn Message",
         whatsapp: "WhatsApp Message",
-        meeting: "Meeting",
+        meeting: "Activity Logged",
       };
       await createCandidateHistoryEvent(candidate?.id, {
         event_type: eventTypeMap[selectedActivityType] || selectedActivityType,
@@ -1588,7 +1588,7 @@ ${formattedJD}
                     </button>
 
                     {showNotesMenu && (
-                      <div className="absolute top-full -left-24 mt-2 w-44 rounded-xl border border-gray-200 bg-white shadow-xl  z-50 overflow-hidden">
+                      <div className="absolute top-full -left-24 mt-2 w-48 rounded-xl border border-gray-200 bg-white shadow-xl  z-50 overflow-hidden">
                         <button
                           type="button"
                           onClick={() => {
@@ -1603,11 +1603,56 @@ ${formattedJD}
                           type="button"
                           onClick={() => {
                             setShowNotesMenu(false);
+                            setSelectedActivityType("email");
+                            setShowActivityModal(true);
+                          }}
+                          className="w-full px-4 py-3 text-sm text-left text-gray-700 hover:bg-gray-50 border-b"
+                        >
+                          Log Email
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowNotesMenu(false);
+                            setSelectedActivityType("call");
+                            setShowActivityModal(true);
+                          }}
+                          className="w-full px-4 py-3 text-sm text-left text-gray-700 hover:bg-gray-50 border-b"
+                        >
+                          Log Call
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowNotesMenu(false);
+                            setSelectedActivityType("linkedin");
+                            setShowActivityModal(true);
+                          }}
+                          className="w-full px-4 py-3 text-sm text-left text-gray-700 hover:bg-gray-50 border-b"
+                        >
+                          Log LinkedIn
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowNotesMenu(false);
+                            setSelectedActivityType("whatsapp");
+                            setShowActivityModal(true);
+                          }}
+                          className="w-full px-4 py-3 text-sm text-left text-gray-700 hover:bg-gray-50 border-b"
+                        >
+                          Log WhatsApp
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowNotesMenu(false);
+                            setSelectedActivityType("meeting");
                             setShowActivityModal(true);
                           }}
                           className="w-full px-4 py-3 text-sm text-left text-gray-700 hover:bg-gray-50"
                         >
-                          Log Activity
+                          Log Meeting
                         </button>
                       </div>
                     )}
@@ -1821,7 +1866,9 @@ ${formattedJD}
           <div className="fixed inset-0 z-50 bg-black/45 flex items-center justify-center px-4 py-6">
             <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl border border-gray-200 overflow-hidden">
               <div className="border-b px-6 py-5 flex items-center justify-between">
-                <h2 className="text-lg font-semibold text-gray-900">Log Activity</h2>
+                <h2 className="text-lg font-semibold text-gray-900">
+                  Log {selectedActivityType === 'email' ? 'Email' : selectedActivityType === 'call' ? 'Call' : selectedActivityType === 'linkedin' ? 'LinkedIn' : selectedActivityType === 'whatsapp' ? 'WhatsApp' : 'Meeting'}
+                </h2>
                 <button
                   onClick={() => {
                     setShowActivityModal(false);
@@ -1837,35 +1884,18 @@ ${formattedJD}
               <div className="p-6 space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Activity Type
-                  </label>
-                  <select
-                    value={selectedActivityType}
-                    onChange={(e) => setSelectedActivityType(e.target.value)}
-                    className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none transition focus:border-blue-500"
-                  >
-                    <option value="">Select activity type</option>
-                    <option value="email">Email Sent</option>
-                    <option value="call">Phone Call</option>
-                    <option value="linkedin">LinkedIn Message</option>
-                    <option value="whatsapp">WhatsApp Message</option>
-                    <option value="meeting">Meeting</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Notes
+                    Activity Details
                   </label>
                   <textarea
                     value={activityNote}
                     onChange={(e) => setActivityNote(e.target.value)}
-                    placeholder="What happened in this activity? (e.g., Discussed technical skills, culture fit concerns, next round timing)"
-                    className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none transition focus:border-blue-500 resize-none h-28"
+                    placeholder="What happened? (e.g., Discussed technical skills, culture fit, next steps)"
+                    className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none transition focus:border-blue-500 resize-none h-32"
+                    autoFocus
                   />
                 </div>
 
-                <div className="flex gap-3 pt-4">
+                <div className="flex gap-3 pt-2">
                   <button
                     onClick={() => {
                       setShowActivityModal(false);
@@ -1878,10 +1908,10 @@ ${formattedJD}
                   </button>
                   <button
                     onClick={handleLogActivity}
-                    disabled={activityLogging || !selectedActivityType || !activityNote.trim()}
+                    disabled={activityLogging || !activityNote.trim()}
                     className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    {activityLogging ? "Logging..." : "Log Activity"}
+                    {activityLogging ? "Logging..." : "Log"}
                   </button>
                 </div>
               </div>
