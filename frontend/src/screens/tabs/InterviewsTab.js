@@ -10,6 +10,7 @@
 // Hiring-Manager limitedMode single-interview review card (a different,
 // narrower context this merge doesn't touch).
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { Mail, Phone, MessageCircle, MessageSquare, Video, FileText, X, Loader } from "lucide-react";
 import { hasPermission } from "../../utils/permissionsRoleTemplate";
 import {
   createCandidateHistoryEvent,
@@ -130,6 +131,11 @@ export default function InterviewsTab({ candidateId, onScheduleInterview }) {
   const [cancelling, setCancelling] = useState(false);
   const [cancelNotice, setCancelNotice] = useState("");
   const [cancelNoticeType, setCancelNoticeType] = useState("success");
+
+  const [showActivityModal, setShowActivityModal] = useState(false);
+  const [selectedActivityType, setSelectedActivityType] = useState("");
+  const [activityNote, setActivityNote] = useState("");
+  const [activityLogging, setActivityLogging] = useState(false);
 
   const fetchData = useCallback(async () => {
     if (!candidateId) return;
@@ -615,6 +621,38 @@ export default function InterviewsTab({ candidateId, onScheduleInterview }) {
     }
   };
 
+  const handleLogActivity = async () => {
+    if (!selectedActivityType || !activityNote.trim()) {
+      setActionError("Please select an activity type and enter a note");
+      return;
+    }
+    try {
+      setActivityLogging(true);
+      const eventTypeMap = {
+        email: "Email Sent",
+        call: "Call",
+        linkedin: "LinkedIn Message",
+        whatsapp: "WhatsApp Message",
+        meeting: "Meeting",
+      };
+      const eventType = eventTypeMap[selectedActivityType] || "Activity Logged";
+      await createCandidateHistoryEvent(candidateId, {
+        event_type: eventType,
+        note: activityNote,
+      });
+      await fetchData();
+      setActionSuccess(`${eventType} logged successfully`);
+      setShowActivityModal(false);
+      setSelectedActivityType("");
+      setActivityNote("");
+      setActivityLogging(false);
+    } catch (err) {
+      console.error("Failed to log activity", err);
+      setActionError(err?.message || "Failed to log activity");
+      setActivityLogging(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="space-y-6">
@@ -689,6 +727,55 @@ export default function InterviewsTab({ candidateId, onScheduleInterview }) {
             <Stat label="Cancelled" value={summary.cancelled} />
             <Stat label="With Feedback" value={summary.interviewsWithFeedback} />
             <Stat label="Without Feedback" value={summary.interviewsWithoutFeedback} />
+          </div>
+        </SectionCard>
+
+        {/* Activity Logging Section */}
+        <SectionCard title="Log Activity">
+          <div className="space-y-4">
+            <p className="text-sm text-gray-600">Log candidate communication and meetings</p>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+              <ActivityLogButton
+                icon={Mail}
+                label="Log Email"
+                onClick={() => {
+                  setSelectedActivityType("email");
+                  setShowActivityModal(true);
+                }}
+              />
+              <ActivityLogButton
+                icon={Phone}
+                label="Log Call"
+                onClick={() => {
+                  setSelectedActivityType("call");
+                  setShowActivityModal(true);
+                }}
+              />
+              <ActivityLogButton
+                icon={MessageCircle}
+                label="Log LinkedIn"
+                onClick={() => {
+                  setSelectedActivityType("linkedin");
+                  setShowActivityModal(true);
+                }}
+              />
+              <ActivityLogButton
+                icon={MessageSquare}
+                label="Log WhatsApp"
+                onClick={() => {
+                  setSelectedActivityType("whatsapp");
+                  setShowActivityModal(true);
+                }}
+              />
+              <ActivityLogButton
+                icon={Video}
+                label="Log Meeting"
+                onClick={() => {
+                  setSelectedActivityType("meeting");
+                  setShowActivityModal(true);
+                }}
+              />
+            </div>
           </div>
         </SectionCard>
 
@@ -812,6 +899,80 @@ export default function InterviewsTab({ candidateId, onScheduleInterview }) {
           onClose={closeCancelModal}
           onConfirm={handleCancelInterview}
         />
+      )}
+
+      {/* Activity Logging Modal */}
+      {showActivityModal && (
+        <div className="fixed inset-0 z-50 bg-black/45 flex items-center justify-center px-4 py-6">
+          <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl border border-gray-200 overflow-hidden">
+            <div className="border-b px-6 py-5 flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-gray-900">Log Activity</h2>
+              <button
+                onClick={() => {
+                  setShowActivityModal(false);
+                  setSelectedActivityType("");
+                  setActivityNote("");
+                }}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Activity Type
+                </label>
+                <select
+                  value={selectedActivityType}
+                  onChange={(e) => setSelectedActivityType(e.target.value)}
+                  className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none transition focus:border-blue-500"
+                >
+                  <option value="">Select activity type</option>
+                  <option value="email">Email Sent</option>
+                  <option value="call">Phone Call</option>
+                  <option value="linkedin">LinkedIn Message</option>
+                  <option value="whatsapp">WhatsApp Message</option>
+                  <option value="meeting">Meeting</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Notes
+                </label>
+                <textarea
+                  value={activityNote}
+                  onChange={(e) => setActivityNote(e.target.value)}
+                  placeholder="What happened in this activity? (e.g., Discussed technical skills, culture fit concerns, next round timing)"
+                  className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none transition focus:border-blue-500 resize-none h-28"
+                />
+              </div>
+
+              <div className="flex gap-3 pt-4">
+                <button
+                  onClick={() => {
+                    setShowActivityModal(false);
+                    setSelectedActivityType("");
+                    setActivityNote("");
+                  }}
+                  className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition text-sm font-medium"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleLogActivity}
+                  disabled={activityLogging}
+                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm font-medium disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {activityLogging && <Loader className="h-4 w-4 animate-spin" />}
+                  Log Activity
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </>
   );
@@ -1350,6 +1511,18 @@ function Stat({ label, value }) {
       <div className="text-2xl font-semibold text-gray-900">{value ?? 0}</div>
       <div className="mt-1 text-xs text-gray-500">{label}</div>
     </div>
+  );
+}
+
+function ActivityLogButton({ icon: Icon, label, onClick }) {
+  return (
+    <button
+      onClick={onClick}
+      className="flex flex-col items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-3 transition hover:border-blue-300 hover:bg-blue-50"
+    >
+      <Icon className="h-5 w-5 text-gray-600" />
+      <span className="text-xs font-medium text-gray-700">{label}</span>
+    </button>
   );
 }
 
