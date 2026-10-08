@@ -1,29 +1,34 @@
 """
 Email Message Handler - Processes send_email_to_candidate messages through Thunder queue.
 
-Routes emails through Azure Graph API (Microsoft 365) with graceful fallback to stub
-logging when credentials are not configured.
+Sends through Microsoft Graph from the HRMS mailbox (settings.THUNDER_MAILBOX).
+If delivery is not possible (credentials or permission missing), raises
+DeliveryDeferred: the queue keeps the message PENDING as "not sent".
 
 Message type: send_email_to_candidate
 Queue: EMAIL_QUEUE
-Status flow: PENDING → PROCESSING → COMPLETED/FAILED
+Status flow: PENDING → PROCESSING → COMPLETED, back to PENDING when not sent, FAILED after retries
 """
 
 import logging
-import uuid
 from datetime import datetime
 from typing import Dict, Any
 from sqlalchemy.orm import Session
 
-from app.core.logging import logger
-from app.services.email_service import EmailService
+from fastapi import HTTPException
+
+from app.core.config import settings
 from app.core.graph_auth import GraphServiceAuth
+from app.services.delivery_errors import DeliveryDeferred
+from app.services.email_service import EmailService
 
 logger = logging.getLogger(__name__)
 
 
 class SendEmailHandler:
     """Handles email delivery through Thunder queue."""
+
+    TIMEOUT_SECONDS = 30
 
     @staticmethod
     def process(message: Any, db: Session) -> Dict[str, Any]:
@@ -40,7 +45,7 @@ class SendEmailHandler:
             "email_type": "OFFER|INTERVIEW|ENGAGEMENT|TEST_EMAIL|...",  # optional
             "recruiter_id": "...",  # optional - explicit recruiter to send from
             "recruiter_email": "...",  # optional - explicit recruiter email
-            "cc_emails": [...]  # optional - additional CC recipients (helpdesk always CCed)
+            "cc_emails": [...]  # optional - additional CC recipients
         }
 
         Returns:
@@ -68,12 +73,7 @@ class SendEmailHandler:
 
             # Validate required fields
             if not to_email:
-                logger.error(f"[SendEmailHandler] Missing to_email in payload: {payload}")
-                return {
-                    "status": "failed",
-                    "error": "Missing to_email in message payload",
-                    "method": "validation"
-                }
+                raise ValueError(f"Missing to_email in message payload: {payload}")
 
             # ─────────────────────────────────────────────────────────────
             # RECRUITER ASSIGNMENT: Auto-assign if candidate has no recruiter
@@ -123,99 +123,64 @@ class SendEmailHandler:
                                         f"to candidate {candidate_id}"
                                     )
                                 except RuntimeError as e:
-                                    # No recruiters available - fall back to helpdesk
-                                    logger.warning(
-                                        f"[SendEmailHandler] Could not auto-assign recruiter: {e}. "
-                                        f"Will use helpdesk as sender."
-                                    )
+                                    logger.warning(f"[SendEmailHandler] Could not auto-assign recruiter: {e}")
                 except Exception as e:
-                    logger.warning(f"[SendEmailHandler] Recruiter assignment failed: {e}. Continuing with helpdesk.")
+                    logger.warning(f"[SendEmailHandler] Recruiter assignment failed: {e}")
 
-            # Set default sender (helpdesk) if no recruiter email determined
-            if not recruiter_email:
-                recruiter_email = "helpdesk_hrms@blitzenx.com"
+            # All candidate email goes from the one HRMS mailbox (replies land where
+            # Thunder reads them); recruiter assignment above is ownership only.
+            sender_email = settings.THUNDER_MAILBOX
+            cc_emails = [c for c in cc_emails if c and c.lower() != sender_email.lower()]
 
-            # Always CC helpdesk for audit trail
-            if "helpdesk_hrms@blitzenx.com" not in cc_emails:
-                cc_emails.append("helpdesk_hrms@blitzenx.com")
-
-            # Check if Azure credentials are configured
             if not GraphServiceAuth.is_configured():
-                # Graceful fallback: log to database instead of failing
-                logger.warning(
-                    f"[SendEmailHandler] Azure credentials not configured. "
-                    f"Email to {to_email} logged as stub (not actually sent). "
-                    f"To send real emails, configure AZURE_TENANT_ID, AZURE_CLIENT_ID, AZURE_CLIENT_SECRET"
+                raise DeliveryDeferred(
+                    "Azure Graph credentials not configured (AZURE_TENANT_ID, AZURE_CLIENT_ID, AZURE_CLIENT_SECRET)"
                 )
-                return {
-                    "status": "skipped",
-                    "reason": "Azure credentials not configured",
-                    "message": f"Email to {to_email} would be sent when Azure is configured",
-                    "method": "stub",
-                    "recipient": to_email,
-                    "email_type": email_type,
-                    "timestamp": datetime.utcnow().isoformat()
-                }
 
-            # Send via Azure Graph
             logger.info(
-                f"[SendEmailHandler] Sending email via Azure Graph: "
+                f"[SendEmailHandler] Sending via Graph from {sender_email}: "
                 f"to={to_email}, subject={subject[:50]}..., type={email_type}"
             )
-
-            result = EmailService.send_email(
-                to_email=to_email,
-                subject=subject,
-                body_content=body,
-                is_html=is_html,
-                sender_email=recruiter_email,
-                cc_emails=cc_emails if cc_emails else None
-            )
-
-            # EmailService returns {status, message, ...}
-            if result.get("status") == "success":
-                logger.info(
-                    f"[SendEmailHandler] Email sent successfully: "
-                    f"to={to_email}, type={email_type}, candidate_id={candidate_id}, "
-                    f"from={recruiter_email}, cc_count={len(cc_emails) if cc_emails else 0}"
+            try:
+                result = EmailService.send_email(
+                    to_email=to_email,
+                    subject=subject,
+                    body_content=body,
+                    is_html=is_html,
+                    sender_email=sender_email,
+                    cc_emails=cc_emails or None,
                 )
-                return {
-                    "status": "success",
-                    "message": f"Email sent to {to_email}",
-                    "method": "graph",
-                    "recipient": to_email,
-                    "email_type": email_type,
-                    "candidate_id": candidate_id,
-                    "recruiter_id": recruiter_id,
-                    "recruiter_email": recruiter_email,
-                    "was_auto_assigned": was_auto_assigned,
-                    "cc_count": len(cc_emails) if cc_emails else 0,
-                    "timestamp": datetime.utcnow().isoformat(),
-                    "attachments_sent": result.get("attachments_sent", 0),
-                    "message_sent": True,
-                    "delivery_confirmed": True
-                }
-            else:
-                # EmailService failed - MUST raise exception so queue processor marks as FAILED/RETRYABLE
-                error_msg = result.get("message", "EmailService failed")
-                logger.error(
-                    f"[SendEmailHandler] Email send failed: "
-                    f"to={to_email}, reason={error_msg}"
-                )
-                raise RuntimeError(f"Email delivery failed to {to_email}: {error_msg}")
+            except HTTPException as exc:
+                if exc.status_code in (401, 403):
+                    raise DeliveryDeferred(f"Graph refused send from {sender_email} (HTTP {exc.status_code}): {exc.detail}")
+                raise RuntimeError(f"Email delivery failed to {to_email}: {exc.detail}") from exc
 
-        except Exception as e:
-            logger.error(
-                f"[SendEmailHandler] Exception processing email to {to_email}: {str(e)}",
-                exc_info=True
+            if result.get("status") != "success":
+                raise RuntimeError(f"Email delivery failed to {to_email}: {result.get('message', 'EmailService failed')}")
+
+            logger.info(
+                f"[SendEmailHandler] Email sent: to={to_email}, type={email_type}, "
+                f"candidate_id={candidate_id}, from={sender_email}, cc_count={len(cc_emails)}"
             )
-            import traceback
-            error_detail = f"{str(e)}\n{traceback.format_exc()}"
             return {
-                "status": "failed",
-                "error": str(e),
-                "error_detail": error_detail,
-                "method": "handler",
+                "status": "success",
+                "message": f"Email sent to {to_email}",
+                "method": "graph",
                 "recipient": to_email,
-                "timestamp": datetime.utcnow().isoformat()
+                "email_type": email_type,
+                "candidate_id": candidate_id,
+                "recruiter_id": recruiter_id,
+                "sender_email": sender_email,
+                "was_auto_assigned": was_auto_assigned,
+                "cc_count": len(cc_emails),
+                "timestamp": datetime.utcnow().isoformat(),
+                "attachments_sent": result.get("attachments_sent", 0),
+                "message_sent": True,
+                "delivery_confirmed": True,
             }
+
+        except DeliveryDeferred:
+            raise
+        except Exception as e:
+            logger.error(f"[SendEmailHandler] Failed to send email: {e}", exc_info=True)
+            raise

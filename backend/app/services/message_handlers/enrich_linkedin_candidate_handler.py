@@ -3,7 +3,8 @@
 Replaces the manual LinkedIn outreach steps (connect -> collect phone/email ->
 Import) with autonomous enrichment from free sources. When identity and a
 self-published contact address are confirmed, the candidate is imported to
-Thunder and a first-touch email (with source disclosure + opt-out) is queued.
+Thunder and its email cadence starts (step 1 = first touch with source
+disclosure and opt-out; see app/services/thunder_mail).
 
 Compensation: enrichment never deletes anything. A failed run leaves the
 candidate exactly as created (placeholder email, Thunder off) and the
@@ -126,28 +127,6 @@ def _apply_profile_fields(db: Session, candidate: Candidate, slug: str, result: 
     has_education = db.query(CandidateEducationForm).filter_by(candidateID=candidate.candidateID).first()
     if school and not has_education:
         db.add(CandidateEducationForm(candidateID=candidate.candidateID, education_institute=school[:512]))
-
-
-def _first_touch_email(candidate: Candidate, result: EnrichmentResult) -> Dict[str, str]:
-    """Personal, specific, and honest about where we found them (GDPR Art. 14 / DPDP)."""
-    name = candidate.candidateFirstName or "there"
-    hook = ""
-    open_source = _value(result, "open_source") or {}
-    if open_source.get("top_repos"):
-        hook = f"I came across your work on {open_source['top_repos'][0]['name']}, and "
-    elif _value(result, "headline"):
-        hook = f"Your experience as {_value(result, 'headline')} stood out, and "
-    body = (
-        f"<p>Hi {name},</p>"
-        f"<p>{hook}I'd like to share a role that I think fits where you are heading. "
-        f"No pressure if you're happy where you are; a 15-minute conversation is all I'm asking for.</p>"
-        f"<p>Would you be open to that?</p>"
-        f"<p>Regards,<br>{settings.OUTREACH_SENDER_NAME}</p>"
-        f"<hr><p style='font-size:12px;color:#666'>We found your public professional profile and the "
-        f"contact address published at {result.contact_source.split(':', 1)[-1]}. "
-        f"Reply \"remove\" and we will delete your details and not contact you again.</p>"
-    )
-    return {"subject": f"{name}, a quick question about your next move", "body": body}
 
 
 class EnrichLinkedInCandidateHandler:
@@ -275,6 +254,10 @@ class EnrichLinkedInCandidateHandler:
                         performed_by_id=None, performed_by_name="Thunder Enrichment",
                     )
                     sync_outreach_task(db, item, tenant_id)
+                    profile.profile_json = {**(result.profile or {}), "contact_source": {
+                        "value": result.contact_source, "source": "personal_site", "confidence": 1.0}}
+                    from app.services.thunder_mail.cadence_service import start_cadence
+                    cadence_state = start_cadence(db, candidate)
                     profile.status = "IMPORTED"
                     imported = True
             else:
@@ -302,18 +285,8 @@ class EnrichLinkedInCandidateHandler:
         )
         # Enqueue only after commit: enqueue uses its own session and can't share this transaction
         if imported:
-            from app.services.message_queue_service import MessageQueueService
-            email = _first_touch_email(candidate, result)
-            MessageQueueService.enqueue(
-                task_name="send_email_to_candidate",
-                data={
-                    "to_email": candidate.candidateEmail, "candidate_id": candidate.candidateID,
-                    "subject": email["subject"], "body": email["body"], "is_html": True,
-                    "email_type": "PASSIVE_FIRST_TOUCH",
-                },
-                idempotency_key=f"passive_first_touch:{candidate.candidateID}",
-                tenant_id=int(tenant_id or 1),
-            )
+            from app.services.thunder_mail.cadence_service import enqueue_send
+            enqueue_send(cadence_state)
         elif profile.status in ("NO_CONTACT", "AMBIGUOUS") and profile.next_attempt_at:
             delay = max(60, int((profile.next_attempt_at - datetime.utcnow()).total_seconds()))
             queue_enrichment(pipeline_id, tenant_id, profile.attempts, delay_seconds=delay)

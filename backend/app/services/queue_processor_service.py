@@ -35,6 +35,8 @@ from app.core.logging import logger
 logger = logging.getLogger(__name__)
 
 
+from app.services.delivery_errors import DeliveryDeferred
+
 class QueueStatus(str, Enum):
     """Queue message status"""
     PENDING = "PENDING"
@@ -68,6 +70,8 @@ class QueueProcessorService:
     HANDLER_TIMEOUTS = {
         'engage_candidate_with_thunder': 60,  # Thunder: WhatsApp/Email API calls (network latency)
         'enrich_linkedin_candidate': 50,  # Free web/GitHub lookups; handler self-limits to 45s
+        'thunder_send_email': 60,  # Graph draft + send
+        'thunder_process_inbound_email': 80,  # LLM classify (up to ~63s) + writes
         'send_whatsapp_message': 60,  # WhatsApp API calls
         'send_email_message': 30,  # Email typically fast
         'send_sms_message': 30,  # SMS typically fast
@@ -309,7 +313,7 @@ class QueueProcessorService:
                     and_(
                         ChannelQueueItem.status == QueueStatus.PENDING.value,
                         or_(
-                            ChannelQueueItem.retry_count == 0,
+                            ChannelQueueItem.next_retry_at.is_(None),
                             ChannelQueueItem.next_retry_at <= datetime.utcnow()
                         )
                     ),
@@ -383,6 +387,7 @@ class QueueProcessorService:
 
     # Circuit breaker state (thread-safe with lock) - HIGH FIX #1: Thread safety
     _consecutive_failures = 0
+    _consecutive_failures_lock = threading.Lock()
     _FAILURE_THRESHOLD = 5
     HANDLER_TIMEOUT_SECONDS = 30  # ARCHITECT FIX: Timeout for long-running handlers
 
@@ -757,10 +762,11 @@ class QueueProcessorService:
                                 message.retry_count += 1
                                 message.error = f"Validation retry: {str(rt_err)[:500]}"
                                 message.next_retry_at = datetime.utcnow() + timedelta(seconds=60)
+                                message.status = QueueStatus.PENDING.value
                                 db.commit()
 
                                 return {
-                                    "status": QueueStatus.RETRY_SCHEDULED.value,
+                                    "status": QueueStatus.PENDING.value,
                                     "message": f"Validation error, retrying: {str(rt_err)[:100]}",
                                     "retry_count": message.retry_count,
                                     "duration_ms": handler_duration_ms
@@ -784,9 +790,10 @@ class QueueProcessorService:
                         message.retry_count += 1
                         message.error = f"Handler validation error: {str(validation_err)[:500]}"
                         message.next_retry_at = datetime.utcnow() + timedelta(seconds=60)
+                        message.status = QueueStatus.PENDING.value
                         db.commit()
                         return {
-                            "status": QueueStatus.RETRY_SCHEDULED.value,
+                            "status": QueueStatus.PENDING.value,
                             "message": f"Handler validation error, retrying",
                             "retry_count": message.retry_count,
                             "duration_ms": handler_duration_ms
@@ -839,6 +846,29 @@ class QueueProcessorService:
                     "task": message.type,
                     "result": handler_result,
                     "handler_duration_ms": handler_duration_ms
+                }
+
+            except DeliveryDeferred as deferred:
+                # Not sent: stays PENDING as "not sent" until retry_at, never FAILED/COMPLETED
+                db.rollback()
+                message.status = QueueStatus.PENDING.value
+                message.next_retry_at = deferred.retry_at
+                message.last_attempted_at = datetime.utcnow()
+                message.error = f"NOT_SENT: {deferred.reason}"[:500]
+                message.result = json.dumps({
+                    "success": False, "not_sent": True, "reason": deferred.reason,
+                    "next_retry_at": deferred.retry_at.isoformat(),
+                })
+                db.commit()
+                logger.warning(
+                    f"[QueueProcessor] {message.id} ({message.type}) NOT SENT: {deferred.reason}; "
+                    f"pending until {deferred.retry_at.isoformat()}"
+                )
+                return {
+                    "status": QueueStatus.PENDING.value,
+                    "message_id": message.id,
+                    "not_sent": True,
+                    "next_retry_at": deferred.retry_at.isoformat(),
                 }
 
             except Exception as handler_err:
