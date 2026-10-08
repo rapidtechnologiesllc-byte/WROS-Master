@@ -132,7 +132,7 @@ class CandidateCreationHandler:
                 last_name = candidate.candidateLastName or "Candidate"
                 record_message_signal(
                     db, tenant_id, candidate_id, "CANDIDATE_CREATED",
-                    f"Candidate {first_name} {last_name} created from {payload.get("candidate_source") or "DIRECT"}"
+                    f"Candidate {first_name} {last_name} created from {payload.get('candidate_source') or 'DIRECT'}"
                 )
                 logger.info(f"[Handler] ✅ CANDIDATE_CREATED signal recorded for {candidate_id}")
             except Exception as signal_err:
