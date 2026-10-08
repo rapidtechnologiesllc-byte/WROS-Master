@@ -53,11 +53,12 @@ def handle_candidate_conversion(event_data, db_session):
 __all__ = [
     "CandidateCreationHandler",
     "CandidateUpdateHandler",
+    "CandidateConversionHandler",
     "handle_candidate_status_changed",
     "handle_candidate_data_changed",
     "handle_candidate_rejected",
     "handle_candidate_archived",
-    "handle_candidate_reactivation",
+    "handle_candidate_reactivated",
     "handle_candidate_conversion",
     "handle_duplicate_candidate_analysis",
     "handle_interview_scheduled",

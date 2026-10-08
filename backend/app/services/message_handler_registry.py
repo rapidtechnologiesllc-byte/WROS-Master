@@ -343,14 +343,24 @@ def _pause_thunder_on_interview(message, db):
 
 
 def _register_event_bus_handlers():
-    """Message types CandidateEventBus publishes (see its _get_handler_function).
-    Rejected/archived/reactivated/created have no live publisher; not registered."""
+    """Message types CandidateEventBus publishes (see its _get_handler_function)."""
     from app.services.message_handlers.candidate_data_change_handler import CandidateDataChangeHandler
     from app.services.message_handlers.candidate_status_change_handler import CandidateStatusChangeHandler
+    from app.services.message_handlers.candidate_rejection_handler import handle_candidate_rejected
+    from app.services.message_handlers.candidate_archive_handler import handle_candidate_archived
+    from app.services.message_handlers.candidate_reactivation_handler import handle_candidate_reactivated
 
+    # Standard event-bus handlers
     MessageHandlerRegistry.register("handle_candidate_data_changed", _event_bus_adapter(CandidateDataChangeHandler.process))
     MessageHandlerRegistry.register("handle_candidate_status_changed", _event_bus_adapter(CandidateStatusChangeHandler.process))
     MessageHandlerRegistry.register("handle_interview_scheduled", _event_bus_adapter(_pause_thunder_on_interview))
+
+    # Candidate lifecycle handlers (rejection, archiving, reactivation)
+    MessageHandlerRegistry.register("handle_candidate_rejected", _event_bus_adapter(handle_candidate_rejected))
+    MessageHandlerRegistry.register("handle_candidate_archived", _event_bus_adapter(handle_candidate_archived))
+    MessageHandlerRegistry.register("handle_candidate_reactivated", _event_bus_adapter(handle_candidate_reactivated))
+
+    logger.info("[Registry] Registered 6 event-bus handlers (data-change, status-change, interview, rejection, archive, reactivation)")
 
 
 def _validate_handler_registry():
