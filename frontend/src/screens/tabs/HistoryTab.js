@@ -109,6 +109,24 @@ const getEventBadgeClass = (eventType) => {
   }
 };
 
+function CounterCard({ label, count, color }) {
+  const colorClasses = {
+    blue: "bg-blue-50 border-blue-100 text-blue-700",
+    purple: "bg-purple-50 border-purple-100 text-purple-700",
+    green: "bg-green-50 border-green-100 text-green-700",
+    red: "bg-red-50 border-red-100 text-red-700",
+    amber: "bg-amber-50 border-amber-100 text-amber-700",
+    gray: "bg-gray-50 border-gray-100 text-gray-700",
+  };
+
+  return (
+    <div className={`rounded-xl border p-3 ${colorClasses[color] || colorClasses.gray}`}>
+      <p className="text-xs font-medium opacity-80">{label}</p>
+      <p className="mt-1 text-2xl font-semibold">{count}</p>
+    </div>
+  );
+}
+
 export default function HistoryTab({ candidateId }) {
   const [historyData, setHistoryData] = useState({
     candidateId: "",
@@ -188,6 +206,18 @@ export default function HistoryTab({ candidateId }) {
     });
   }, [historyData?.events, searchText]);
 
+  const activityCounters = useMemo(() => {
+    const events = Array.isArray(historyData?.events) ? historyData.events : [];
+    return {
+      submitted: events.filter((e) => e.event_type === HISTORY_EVENT_TYPES.APPLIED).length,
+      interviewed: events.filter((e) => e.event_type === HISTORY_EVENT_TYPES.INTERVIEW_COMPLETED).length,
+      started: events.filter((e) => e.event_type === HISTORY_EVENT_TYPES.ONBOARDED).length,
+      cancelled: events.filter((e) => e.event_type === HISTORY_EVENT_TYPES.REJECTED).length,
+      withFeedback: events.filter((e) => e.note && e.note.trim()).length,
+      withoutFeedback: events.filter((e) => !e.note || !e.note.trim()).length,
+    };
+  }, [historyData?.events]);
+
   if (!candidateId) {
     return (
       <div className="rounded-2xl border border-gray-200 bg-white p-6 text-sm text-gray-500">
@@ -233,6 +263,16 @@ export default function HistoryTab({ candidateId }) {
             )}
             Refresh
           </button>
+        </div>
+
+        {/* Activity Counters */}
+        <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
+          <CounterCard label="Submitted" count={activityCounters.submitted} color="blue" />
+          <CounterCard label="Interviewed" count={activityCounters.interviewed} color="purple" />
+          <CounterCard label="Started" count={activityCounters.started} color="green" />
+          <CounterCard label="Cancelled" count={activityCounters.cancelled} color="red" />
+          <CounterCard label="With Feedback" count={activityCounters.withFeedback} color="amber" />
+          <CounterCard label="Without Feedback" count={activityCounters.withoutFeedback} color="gray" />
         </div>
 
         <div className="mt-5 grid gap-3 lg:grid-cols-[260px_1fr_auto] lg:items-center">
