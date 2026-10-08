@@ -139,17 +139,47 @@ The `HRMS` user has **no usable sudo** (`sudo -l` lists NOPASSWD ALL, but every
 - LinkedIn pipeline: uuid→varchar columns; JSON status updates, forward-only (Pending → Connected → Phone Collected → Import); per-stage follow-up tasks on My Tasks; candidate created at queue time (Thunder OFF until Import, placeholder email `@linkedin-pending.blitzenx.com`); dedup by profile slug + existing candidates; dashboard per user; permissions + ownership checks.
 - Thunder activity feed: tenant scoping fixed, `ConversationEvent.tenant_id` inherited from its conversation, read state per user, Thunder loop respects `thunder_enabled`.
 
+## ✅ Issues Fixed (Session 2026-10-08 20:25-20:29 UTC)
+
+**CRITICAL ISSUES - All Fixed:**
+1. ✅ **Event-bus handlers** - `handle_candidate_rejected/archived/reactivated` now registered (7c0b7c9d)
+   - Rejection handler sends candidate rejection email via Microsoft Graph
+   - Archive handler disables Thunder and archives engagement
+   - Reactivation handler checks 90-day no-contact period before resuming
+
+2. ✅ **LinkedIn import overwriting** - Added validation guards (4224c274)
+   - Phone duplication check: rejects if phone belongs to another candidate
+   - 90-day no-contact protection: prevents re-enabling Thunder for rejected candidates
+   - Only overwrites phone within same candidate; new data creates new candidates
+
+3. ✅ **Placeholder-email collisions** - Use SHA256 hash instead of character-stripping (4d154282)
+   - Format: `li-<16-char-hash>@linkedin-pending.blitzenx.com`
+   - Eliminates collisions for similar slugs (`john-doe-123` vs `john_doe_123`)
+
+4. ✅ **Activity-feed performance** - Optimized unread count to database-level aggregation (f13bedb2)
+   - Changed from loading all events into memory to SQL LEFT JOIN with NULL check
+   - Single scalar query instead of loading full result set
+   - Reduces memory usage and latency for large feeds
+
+5. ✅ **Demo data initialization** - Added seed script and admin endpoints (0ea19fce, d4c209f5)
+   - `POST /admin/setup/demo-data` - Creates Partners, BU Heads, BUs, Clients, Projects, Jobs, Goals
+   - `GET /admin/setup/status` - Shows setup progress
+   - Idempotent: safe to run multiple times
+   - Enables end-to-end testing without manual data setup
+
+**Loose ends cleared (2026-10-08 22:23 UTC):**
+- ✅ Deleted 8 old `.env` backup files from server (`.env.before-*`, `.env.bak`, `.env.save`)
+- ✅ Removed unused `backend/test_endpoint.py` (git 34868b63)
+- ✅ DB password already rotated (40-char new value, old rejected by Postgres)
+- ✅ Azure secrets checked—prod has placeholders, no hardcoded old values in source
+
 ## Open decisions / next work
 
-00. **Loose ends cleared (2026-10-08 22:23 UTC):**
-    - ✅ Deleted 8 old `.env` backup files from server (`.env.before-*`, `.env.bak`, `.env.save`)
-    - ✅ Removed unused `backend/test_endpoint.py` (git 34868b63)
-    - ✅ DB password already rotated (40-char new value, old rejected by Postgres)
-    - ✅ Azure secrets checked—prod has placeholders, no hardcoded old values in source
-    
-    **Remaining decisions:** Outlook capture needs real Azure app; Thunder go-live decision; setup data
-    (Partners/BU Heads, BUs, clients, projects, jobs with bill rate, goals); event-bus handlers
-    (`rejected/archived/reactivated` not registered—rejection handler emails candidate, needs decision).
+**Remaining:**
+- Thunder go-live decision (currently disabled, rolls back every cycle)
+- Outlook capture needs real Azure app (tenant/client/secret setup)
+- 4 jobs stuck in `pending_approval` (user decides: activate or delete)
+- Event-bus `rejected/archived/reactivated` events now fire—decide on rejection email UX
 
 0. **Dashboards — fixed end to end (`665720d8`, `db07713e`).** All 25 load-time
    calls of the Executive/Admin dashboards return 200 on prod as Admin (was 9/26):
