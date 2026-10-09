@@ -1,7 +1,6 @@
 """
 Flash -- a real, authenticated conversational query surface for
 BlitzenX staff and employees, alongside the candidate-facing agent
-import logging
 Thunder (app.services.thunder_service / app.services.public_chat_service).
 
 2026-08-06, Avinash's explicit product split: "Thunder will have only
@@ -69,20 +68,17 @@ words, same "no fake success" principle as the rest of this codebase.
 import logging
 import json
 import re
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Dict, List, Optional
 
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
-from app.core.logging import logger
 from app.core.revenue_visibility_scope import can_view_pnl, is_revenue_bu_scoped
 from app.models.candidate import Candidate, CandidateStatus
 from app.models.employee import Employee
-from app.models.invoice import Invoice
 from app.models.business_unit import BusinessUnit
 from app.models.resource_management import BenchPoolEntry
-from app.models.task import Task
 from app.models.user import Users
 from app.services.ar_followup_service import scan_overdue_invoices
 from app.services.pnl_service import get_bu_pnl, get_org_pnl_summary
@@ -95,7 +91,20 @@ INTENT_FINANCE_PNL = "finance_pnl"
 INTENT_AR_AGING = "ar_aging"
 INTENT_MY_TASKS = "my_tasks"
 INTENT_JOB_CREATE = "job_create"
+INTENT_MY_TIMESHEETS = "my_timesheets"
 INTENT_UNKNOWN = "unknown"
+
+# What the AI router may choose (it never answers -- every answer is a real DB lookup)
+AI_INTENTS = {
+    INTENT_SOURCING: "find candidates for a role or skills (query: the role/skills)",
+    INTENT_CANDIDATE_STATUS: "where a named candidate is in hiring (query: the person's name)",
+    INTENT_BENCH_AVAILABILITY: "who is on the bench / available (query: skills, may be empty)",
+    INTENT_FINANCE_PNL: "profit, margin or P&L (query: business unit name, may be empty)",
+    INTENT_AR_AGING: "overdue or unpaid client invoices (query: empty)",
+    INTENT_MY_TASKS: "the asker's own tasks (query: empty)",
+    INTENT_MY_TIMESHEETS: "the asker's own timesheets or hours (query: empty)",
+    INTENT_JOB_CREATE: "create or open a new job (query: the job description)",
+}
 
 UNSUPPORTED_QUERY_MESSAGE = (
     "I can't answer that yet -- right now I can only help with sourcing candidates, "
@@ -185,6 +194,7 @@ _AR_AGING_PATTERN = re.compile(
     r"accounts?\s+receivable|\bar\s+aging\b|who\s+owes",
     re.IGNORECASE,
 )
+_MY_TIMESHEETS_PATTERN = re.compile(r"\bmy\s+(time\s*sheets?|hours)\b|\b(did|have)\s+i\s+(submit|log)", re.IGNORECASE)
 _MY_TASKS_PATTERN = re.compile(r"\bmy\s+(open\s+)?tasks?\b|\bmy\s+plate\b|\bdue\s+today\b|\bmy\s+to.?do\b", re.IGNORECASE)
 _BENCH_PATTERN = re.compile(
     r"\bbench\b|who.{0,4}s\s+free\b|who\s+is\s+free\b|available\s+(employee|developer|engineer|resource)",
@@ -268,6 +278,9 @@ def classify_internal_query(message: str, *, history: Optional[List[Dict]] = Non
 
     if _MY_TASKS_PATTERN.search(text):
         return {"intent": INTENT_MY_TASKS, "query": ""}
+
+    if _MY_TIMESHEETS_PATTERN.search(text):
+        return {"intent": INTENT_MY_TIMESHEETS, "query": ""}
 
     if _BENCH_PATTERN.search(text):
         keywords = _extract_keywords(_NOISE_WORD_PATTERN.sub("", _BENCH_PATTERN.sub("", text)))
@@ -502,12 +515,18 @@ def get_candidate_status_summary(db: Session, name_query: str, *, tenant_id: int
             .order_by(CandidateStatus.updatedAt.desc())
             .first()
         )
+        from app.models.hiring_pipeline import HiringPipeline
+
+        pipeline = db.query(HiringPipeline).filter(HiringPipeline.candidate_id == candidate.candidateID) \
+            .order_by(HiringPipeline.closed_at.isnot(None), HiringPipeline.id.desc()).first()
         matches.append({
             "candidate_id": candidate.candidateID,
             "name": " ".join(filter(None, [candidate.candidateFirstName, candidate.candidateLastName])) or candidate.candidateEmail,
             "pipeline_status": status.piplineStatus if status else None,
             "account_status": status.status if status else None,
             "job_id": candidate.job_id,
+            "hiring_stage": pipeline.stage if pipeline else None,
+            "waiting_for": (pipeline.blockers or []) if pipeline else [],
         })
     return {"matches": matches}
 
@@ -584,12 +603,17 @@ def _format_status_reply(name_query: str, matches: List[Dict]) -> str:
             + "\nWhich one did you mean?"
         )
     m = matches[0]
-    return (
+    reply = (
         f"{m['name']} -- pipeline status: {m['pipeline_status'] or 'not set'}, "
         f"account status: {m['account_status'] or 'not set'}"
         + (f", linked to job {m['job_id']}" if m["job_id"] else "")
         + "."
     )
+    if m.get("hiring_stage"):
+        stage = m["hiring_stage"].replace("_", " ").lower()
+        waiting = "; ".join(m.get("waiting_for") or [])
+        reply += f" Hiring stage: {stage}" + (f" -- waiting for {waiting}." if waiting else ".")
+    return reply
 
 def get_finance_pnl_answer(db: Session, user: Users, bu_name_query: str) -> Dict:
     """Real read of pnl_service's own BU P&L / org summary -- same
@@ -936,6 +960,87 @@ def _create_job_from_details(db: Session, user: Users, details: Dict) -> Dict:
             "reply": f"Sorry, I couldn't create the job. Error: {str(e)[:100]}"
         }
 
+AI_ROUTER_TIMEOUT_SECONDS = 8
+
+
+def _ai_llm_call(system_prompt: str, user_prompt: str, max_tokens: int, temperature: float) -> str:
+    import os
+
+    import requests
+
+    from app.services.prompt_framework_service import GEMINI_MODEL_URL
+
+    api_key = os.getenv("GEMINI_API_KEY", "")
+    if not api_key:
+        raise RuntimeError("GEMINI_API_KEY not set")
+    resp = requests.post(f"{GEMINI_MODEL_URL}?key={api_key}", timeout=AI_ROUTER_TIMEOUT_SECONDS, json={
+        "contents": [{"parts": [{"text": f"{system_prompt}\n\n{user_prompt}"}]}],
+        "generationConfig": {"temperature": temperature, "maxOutputTokens": max_tokens,
+                             "responseMimeType": "application/json"}})
+    resp.raise_for_status()
+    return resp.json()["candidates"][0]["content"]["parts"][0]["text"]
+
+
+def classify_with_ai(db: Session, message: str, *, history: Optional[List[Dict]] = None,
+                     tenant_id: Optional[int] = None, llm_call=None) -> Optional[Dict]:
+    """For phrasings the rules don't recognise: the model may only pick one of AI_INTENTS
+    and extract a short query. Returns None when it can't (no key, timeout, bad output),
+    so the caller falls back to the honest "unsupported" reply -- never a guessed answer."""
+    import os
+
+    from app.services.prompt_framework_service import call_llm
+
+    if llm_call is None and _ai_llm_call.__module__ == __name__ and not os.getenv("GEMINI_API_KEY"):
+        return None  # no model configured: the rules alone decide
+    intents = "\n".join(f"- {name}: {desc}" for name, desc in AI_INTENTS.items())
+    recent = "\n".join(f"Q: {t.get('question', '')}\nA: {t.get('reply', '')[:200]}"
+                       for t in (history or [])[-MAX_HISTORY_TURNS:])
+    system_prompt = (
+        "You route questions for BlitzenX's internal staffing assistant. You never answer them. "
+        "Reply with JSON only: {\"intent\": <one of the names below or \"unknown\">, \"query\": <short text>}.\n"
+        f"Intents:\n{intents}")
+    user_prompt = (f"Recent conversation:\n{recent}\n\n" if recent else "") + f"Question: {message}"
+    try:
+        raw = call_llm(db, str(tenant_id or 1), None, "flash_intent", "v1", system_prompt, user_prompt, 80, 0.0,
+                       llm_call=llm_call or _ai_llm_call, sleep_fn=lambda _seconds: None)
+        parsed = json.loads(re.sub(r"^```(?:json)?|```$", "", raw.strip()).strip())
+    except Exception as exc:
+        logger.warning(f"[Flash] AI routing unavailable: {exc}")
+        return None
+    intent = parsed.get("intent") if isinstance(parsed, dict) else None
+    if intent not in AI_INTENTS:
+        return None
+    query = str(parsed.get("query") or "")[:200].strip()
+    return {"intent": intent, "query": query, "routed_by": "ai"}
+
+
+def get_my_timesheets_answer(db: Session, user: Users) -> Dict:
+    from app.models.employee_allocation import EmployeeAllocation
+    from app.models.timesheet import Timesheet
+
+    employee = db.query(Employee).filter(Employee.wros_user_id == user.UserID).first()
+    if employee is None:
+        return {"employee": False}
+    sheets = db.query(Timesheet).filter(Timesheet.employee_id == employee.id) \
+        .order_by(Timesheet.week_starting_date.desc()).limit(4).all()
+    active = db.query(EmployeeAllocation).filter(EmployeeAllocation.employee_id == employee.id,
+                                                 EmployeeAllocation.status == "ACTIVE").count()
+    return {"employee": True, "status": employee.status, "allocations": active,
+            "sheets": [{"week": s.week_starting_date, "status": s.status, "hours": float(s.total_hours or 0)}
+                       for s in sheets]}
+
+
+def _format_my_timesheets_reply(result: Dict) -> str:
+    if not result["employee"]:
+        return "You don't have an employee record, so there are no timesheets for you."
+    if not result["allocations"] and not result["sheets"]:
+        return f"You're on the {result['status'].lower()} with no project allocation, so there's no timesheet to fill yet."
+    if not result["sheets"]:
+        return "You have a project allocation but no timesheets yet. Open My Timesheet to log this week."
+    lines = [f"- week of {s['week']:%d %b}: {s['status'].lower()}, {s['hours']:g}h" for s in result["sheets"]]
+    return "Your recent timesheets:\n" + "\n".join(lines)
+
+
 def answer_internal_query(
     db: Session, message: str, *, current_user: Optional[Users] = None, history: Optional[List[Dict]] = None, conversation_state: Optional[Dict] = None,
 ) -> Dict:
@@ -961,8 +1066,18 @@ def answer_internal_query(
         logger.warning(f"[Flash] classification failed: {exc}")
         return {"intent": INTENT_UNKNOWN, "reply": UNSUPPORTED_QUERY_MESSAGE}
 
+    if classification["intent"] == INTENT_UNKNOWN:
+        routed = classify_with_ai(db, message, history=history, tenant_id=getattr(current_user, "tenant_id", None))
+        if routed is not None:
+            classification = routed
+
     intent = classification["intent"]
     query = classification["query"]
+
+    if intent == INTENT_MY_TIMESHEETS:
+        if current_user is None:
+            return {"intent": intent, "reply": UNSUPPORTED_QUERY_MESSAGE}
+        return {"intent": intent, "reply": _format_my_timesheets_reply(get_my_timesheets_answer(db, current_user))}
 
     if intent == INTENT_SOURCING:
         if not query:
