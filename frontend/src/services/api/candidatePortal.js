@@ -46,6 +46,28 @@ export const updatePortalProfile = (token, fields) =>
   portalRequest("/portal/profile", token, { method: "PATCH", body: { fields } });
 export const getPortalInterviews = (token) => portalRequest("/portal/interviews", token);
 export const getPortalOffers = (token) => portalRequest("/portal/offers", token);
+export const getPortalOnboarding = (token) => portalRequest("/portal/onboarding", token);
+export const uploadPortalDocument = async (token, docId, file) => {
+  const form = new FormData();
+  form.append("file", file);
+  const response = await fetch(`${getApiBaseUrl()}/api/v1/portal/onboarding/documents/${docId}`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+    body: form,
+  });
+  let data = null;
+  try {
+    data = await response.json();
+  } catch (_) {
+    data = null;
+  }
+  if (!response.ok) {
+    const error = new Error(formatApiErrorMessage(data));
+    error.status = response.status;
+    throw error;
+  }
+  return data;
+};
 export const respondToPortalOffer = (token, offerId, action, message) =>
   portalRequest(`/portal/offers/${offerId}/respond`, token, { method: "POST", body: { action, message } });
 export const requestPortalReschedule = (token, interviewId, note) =>

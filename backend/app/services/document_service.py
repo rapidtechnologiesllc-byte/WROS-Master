@@ -3,7 +3,6 @@ Document Service Layer
 Handles all document upload, validation, and management operations.
 Provides secure and scalable document handling with SharePoint integration.
 Uses service account authentication for SharePoint access.
-import logging
 """
 
 import logging
@@ -17,8 +16,6 @@ from sqlalchemy.orm import Session
 import requests
 
 from app.models.document import CandidateDocument
-from app.core.logging import logger
-from app.core.graph_auth import get_graph_token
 
 # SharePoint configuration
 SHAREPOINT_SITE_ID = os.getenv("SHAREPOINT_SITE_ID", "")

@@ -14,8 +14,8 @@
 // Mobile-first (BR-03): single column, large touch targets, built for
 // a 375px-wide screen since this is primarily opened via a WhatsApp
 // link tap on a phone.
-import { useEffect, useRef, useState } from "react";
-import { Calendar, FileText, MessageSquare, User as UserIcon, Zap, Home as HomeIcon } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Calendar, ClipboardCheck, FileText, MessageSquare, User as UserIcon, Zap, Home as HomeIcon } from "lucide-react";
 import cx from "../utils/cx";
 import {
   downloadPortalInterviewIcs,
@@ -23,12 +23,14 @@ import {
   getPortalInterviews,
   getPortalMessages,
   getPortalOffers,
+  getPortalOnboarding,
   getPortalProfileFields,
   pollPortalMessages,
   requestPortalReschedule,
   respondToPortalOffer,
   sendPortalReply,
   updatePortalProfile,
+  uploadPortalDocument,
 } from "../services/api/candidatePortal";
 
 // S-346, 2026-08-06: how often the Messages tab checks for new messages
@@ -43,6 +45,7 @@ const TABS = [
   { key: "profile", label: "Profile", icon: UserIcon },
   { key: "interviews", label: "Interviews", icon: Calendar },
   { key: "offer", label: "Offer", icon: FileText },
+  { key: "onboarding", label: "Joining", icon: ClipboardCheck },
 ];
 
 export default function CandidatePortalScreen({ token }) {
@@ -107,6 +110,7 @@ export default function CandidatePortalScreen({ token }) {
         {tab === "profile" ? <ProfileTab token={token} onProgress={() => {}} /> : null}
         {tab === "interviews" ? <InterviewsTab token={token} /> : null}
         {tab === "offer" ? <OfferTab token={token} /> : null}
+        {tab === "onboarding" ? <OnboardingTab token={token} /> : null}
       </div>
 
       <nav className="fixed inset-x-0 bottom-0 flex border-t border-gray-200 bg-white">
@@ -589,6 +593,90 @@ function OfferTab({ token }) {
           ) : null}
         </div>
       ))}
+    </div>
+  );
+}
+
+const DOC_STATUS = {
+  PENDING: "Needed",
+  RECEIVED: "Uploaded — being checked",
+  VERIFIED: "Verified",
+  WAIVED: "Not needed",
+};
+
+function OnboardingTab({ token }) {
+  const [data, setData] = useState(null);
+  const [busy, setBusy] = useState(null);
+  const [notice, setNotice] = useState("");
+
+  const load = useCallback(
+    () =>
+      getPortalOnboarding(token)
+        .then(setData)
+        .catch(() => setData({ documents: [], checklists: [] })),
+    [token],
+  );
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const upload = async (docId, file) => {
+    if (!file) return;
+    setBusy(docId);
+    setNotice("");
+    try {
+      await uploadPortalDocument(token, docId, file);
+      setNotice("Thanks! We received it and will verify it shortly.");
+      await load();
+    } catch (err) {
+      setNotice(err.message || "Upload failed. PDF, JPG or PNG up to 10 MB.");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  if (!data) {
+    return <div className="py-6 text-center text-sm text-gray-500">Loading…</div>;
+  }
+  if (!data.documents.length) {
+    return (
+      <div className="rounded-2xl border border-gray-200 bg-white p-4 text-sm text-gray-600 shadow-sm">
+        Once you accept your offer, the documents we need for your joining will appear here.
+      </div>
+    );
+  }
+  const outstanding = data.documents.filter((d) => d.status === "PENDING").length;
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="rounded-2xl border border-gray-200 bg-white p-4 text-sm text-gray-700 shadow-sm">
+        {outstanding ? `${outstanding} document(s) still needed.` : "All documents uploaded. We'll let you know once everything is verified."}
+        {data.joining_date ? <div className="mt-1 text-xs text-gray-500">Joining date: {data.joining_date}</div> : null}
+      </div>
+      {notice ? <div className="rounded-lg bg-gray-100 px-3 py-2 text-sm text-gray-700">{notice}</div> : null}
+      {data.documents.map((d) => (
+        <div key={d.id} className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
+          <div className="text-sm font-semibold text-bx-navy">{d.label}</div>
+          <div className="mt-1 text-xs text-gray-600">{DOC_STATUS[d.status] || d.status}</div>
+          {d.status === "PENDING" ? (
+            <label className="mt-3 flex min-h-[44px] cursor-pointer items-center justify-center rounded-xl bg-bx-orange px-4 text-sm font-semibold text-white">
+              {busy === d.id ? "Uploading…" : "Upload"}
+              <input
+                type="file"
+                accept=".pdf,.jpg,.jpeg,.png"
+                className="hidden"
+                disabled={busy !== null}
+                onChange={(e) => upload(d.id, e.target.files && e.target.files[0])}
+              />
+            </label>
+          ) : null}
+        </div>
+      ))}
+      {data.checklists.length ? (
+        <div className="rounded-2xl border border-gray-200 bg-white p-4 text-sm text-gray-700 shadow-sm">
+          Checklists: {data.checklists.map((c) => `${c.name} (${c.status})`).join(", ")}
+        </div>
+      ) : null}
     </div>
   );
 }

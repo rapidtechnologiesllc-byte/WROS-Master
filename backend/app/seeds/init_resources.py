@@ -52,7 +52,8 @@ RESOURCE_ROUTES = {
     "timesheets": "/timesheets",
     "htd-intake": "/htd-intake",
     "buddy-program": "/buddy-program",
-    "convert-to-employee": "/employee-conversion",
+    # the hiring pipeline (screen -> ... -> bench -> client); manual conversion stays at /employee-conversion
+    "convert-to-employee": "/hiring-pipeline",
     "utilization-dashboard": "/utilization-dashboard",
     "resource-forecast": "/forecast",
     # Sales
@@ -108,6 +109,7 @@ RESOURCE_ROUTES = {
 
 # Menu labels where title-casing the resource name reads wrong
 NAV_LABELS = {
+    "convert-to-employee": "Hiring Pipeline",
     "revenue": "P&L (Partner & Org)",
     "goals": "Goals & Revenue",
     "ceo-dashboard": "CEO Dashboard",
