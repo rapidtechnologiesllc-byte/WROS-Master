@@ -25,6 +25,10 @@ import {
   testSharepointConnection
 } from "../services/api/msgraph";
 
+// Interviewer recommendations (same list the backend accepts on submit and update):
+// any No Hire fails the round, all Hire/Must Hire passes it, anything else goes to the hiring manager.
+const RECOMMENDATION_OPTIONS = ["No Hire", "Not sure", "Average", "Hire", "Must Hire"];
+
 export default function InterviewStatus({
   interviews,
   candidates,
@@ -62,24 +66,12 @@ export default function InterviewStatus({
     comments: ""
   });
 
-  const UPDATE_RECOMMENDATION_OPTIONS = ["Hire", "Hold", "Reject"]; // backend: update feedback
-  const SUBMIT_RECOMMENDATION_OPTIONS = [
-    "No Hire",
-    "Not sure",
-    "Average",
-    "Hire",
-    "Must Hire"
-  ]; // backend: submit feedback
 
   const isUpdatingFeedback = Boolean(feedbackForm.feedbackId);
-  const recommendationOptions = isUpdatingFeedback
-    ? UPDATE_RECOMMENDATION_OPTIONS
-    : SUBMIT_RECOMMENDATION_OPTIONS;
+  const recommendationOptions = RECOMMENDATION_OPTIONS;
 
   useEffect(() => {
-    const options = isUpdatingFeedback
-      ? UPDATE_RECOMMENDATION_OPTIONS
-      : SUBMIT_RECOMMENDATION_OPTIONS;
+    const options = RECOMMENDATION_OPTIONS;
     setFeedbackForm((prev) => {
       if (options.includes(prev.recommendation)) return prev;
       return { ...prev, recommendation: options[0] };

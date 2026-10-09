@@ -14,12 +14,16 @@
 // authenticated session, same as every other self-service screen.
 import { useEffect, useState } from "react";
 import { UserCheck, CheckCircle2, XCircle, HelpCircle } from "lucide-react";
-import { Card } from "../components/ui";
+import { Button, Card } from "../components/ui";
 import cx from "../utils/cx";
 import { getMyHmCandidateReview } from "../services/api/interviews";
 
+const POSITIVE = ["Hire", "Must Hire"];
+const NEGATIVE = ["No Hire", "Reject"];
+
 const RECOMMENDATION_STYLES = {
   Hire: "border-emerald-200 bg-emerald-50 text-emerald-800",
+  "No Hire": "border-rose-200 bg-rose-50 text-rose-800",
   Mixed: "border-amber-200 bg-amber-50 text-amber-800",
   "No Feedback": "border-gray-200 bg-gray-50 text-gray-600",
 };
@@ -47,10 +51,10 @@ function RoundCard({ round }) {
                 <span
                   className={cx(
                     "inline-flex items-center gap-1 font-semibold",
-                    f.recommendation === "Hire" ? "text-emerald-700" : f.recommendation === "Reject" ? "text-rose-700" : "text-amber-700",
+                    POSITIVE.includes(f.recommendation) ? "text-emerald-700" : NEGATIVE.includes(f.recommendation) ? "text-rose-700" : "text-amber-700",
                   )}
                 >
-                  {f.recommendation === "Hire" ? <CheckCircle2 className="h-3 w-3" /> : f.recommendation === "Reject" ? <XCircle className="h-3 w-3" /> : <HelpCircle className="h-3 w-3" />}
+                  {POSITIVE.includes(f.recommendation) ? <CheckCircle2 className="h-3 w-3" /> : NEGATIVE.includes(f.recommendation) ? <XCircle className="h-3 w-3" /> : <HelpCircle className="h-3 w-3" />}
                   {f.recommendation}
                 </span>
               </div>
