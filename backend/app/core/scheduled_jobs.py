@@ -37,6 +37,9 @@ _JOBS = (
                  timedelta(days=1), timeout_s=300, daily_after_utc="02:00"),
     ScheduledJob("engagement_metrics", "app.services.engagement_metrics_service:run_engagement_metrics_job",
                  timedelta(hours=4), timeout_s=300),
+    # internal only: re-derives hiring stages from facts and backfills pipelines
+    ScheduledJob("hiring_pipeline_sweep", "app.services.hiring_pipeline_service:run_pipeline_sweep",
+                 timedelta(hours=1), timeout_s=300),
     ScheduledJob("birthday_drafts", "app.services.culture_agent_service:generate_birthday_drafts",
                  timedelta(days=1), timeout_s=120, daily_after_utc="03:00"),
 )

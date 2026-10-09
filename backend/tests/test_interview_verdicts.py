@@ -42,7 +42,8 @@ def client(db):
 
     app.dependency_overrides[get_db] = lambda: db
     with patch("app.services.email_service.EmailService.send_notification"), \
-            patch("app.api.v1.endpoints.interviews._notify_feedback_submitted"):
+            patch("app.api.v1.endpoints.interviews._notify_feedback_submitted"), \
+            patch("app.services.thunder_mail.cadence_service.enqueue_once", return_value=True):
         yield TestClient(app)
     app.dependency_overrides.clear()
 

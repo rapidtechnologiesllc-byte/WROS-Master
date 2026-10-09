@@ -81,9 +81,16 @@ def respond_to_offer(db: Session, candidate: Candidate, offer_id: int, action: s
     return offer
 
 
+def notify_pipeline(offer: OfferLetter) -> None:
+    from app.services.hiring_pipeline_service import notify
+
+    notify(offer.candidate_id, "offer", f"{offer.id}:{offer.offer_status}")
+
+
 def after_response(db: Session, offer: OfferLetter, candidate: Candidate, message: Optional[str] = None) -> None:
-    """After commit: tell the offer's creator. Their email is a courtesy; the offer state is
-    already saved, so a mail failure is logged, not raised."""
+    """After commit: move the hiring pipeline on, and tell the offer's creator. The email is a
+    courtesy; the offer state is already saved, so a mail failure is logged, not raised."""
+    notify_pipeline(offer)
     creator = db.query(Users).filter(Users.UserID == offer.created_by).first()
     if creator is None or not creator.UserEmail:
         return

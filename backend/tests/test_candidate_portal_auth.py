@@ -43,7 +43,10 @@ def client(db):
     from app.main import app
 
     app.dependency_overrides[get_db] = lambda: db
-    yield TestClient(app)
+    with patch("app.services.thunder_mail.cadence_service.enqueue_once", return_value=True) as queued:
+        client = TestClient(app)
+        client.queued = queued
+        yield client
     app.dependency_overrides.clear()
 
 
@@ -134,6 +137,8 @@ def test_portal_accept_moves_offer_to_accepted(client, db, world):
                                headers=_candidate_headers(me), json={"action": "accept", "message": "Excited!"})
     assert response.status_code == 200, response.text
     assert response.json()["offer_status"] == "Accepted" and mail.call_count == 1
+    # the hiring pipeline is told, so onboarding starts without anyone pushing it
+    assert any(c.args[0] == "hiring_pipeline_evaluate" for c in client.queued.call_args_list)
     db.expire_all()
     assert db.get(OfferLetter, offers["released"].id).offer_status == "Accepted"
     assert db.query(CandidateStatus).filter_by(candidateID=me.candidateID).one().piplineStatus == "Hired"

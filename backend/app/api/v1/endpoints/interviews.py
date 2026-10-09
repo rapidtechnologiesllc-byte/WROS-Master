@@ -89,10 +89,13 @@ def _record_round_verdict(db: Session, interview: Interview) -> None:
     """Recompute and save the round's verdict after its feedback or status changed."""
     from app.services.interview_verdict_service import compute_verdict
 
+    from app.services.hiring_pipeline_service import notify
+
     panel = db.query(InterviewPanel).filter(InterviewPanel.id == interview.panel_id).first()
     if panel is not None:
-        compute_verdict(db, panel)
+        row = compute_verdict(db, panel)
         db.commit()
+        notify(panel.candidate_id, "verdict", f"{panel.id}:{row.verdict}")
 
 
 def _check_and_auto_submit_for_hire(interview: Interview, db: Session) -> None:
@@ -865,6 +868,9 @@ def create_interview_panel(
     verdict = ensure_verdict_row(db, panel, level)
     db.commit()
     db.refresh(panel)
+    from app.services.hiring_pipeline_service import notify
+
+    notify(panel.candidate_id, "panel_created", panel.id)
 
     return InterviewPanelResponse(
         id=panel.id,
@@ -1129,6 +1135,9 @@ def decide_round_verdict(panel_id: int, request: RoundVerdictRequest, db: Sessio
     except VerdictError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     db.commit()
+    from app.services.hiring_pipeline_service import notify
+
+    notify(panel.candidate_id, "verdict", f"{panel.id}:{row.verdict}:manual")
     latest = db.query(Interview).filter(Interview.panel_id == panel.id).order_by(Interview.id.desc()).first()
     if latest is not None:
         _check_and_auto_submit_for_hire(latest, db)

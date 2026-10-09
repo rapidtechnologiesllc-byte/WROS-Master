@@ -131,6 +131,17 @@ def _initialize_default_handlers():
         logger.error(f"[Registry] CRITICAL: Failed to register send_account_email handler: {e}", exc_info=True)
 
     try:
+        from app.services.message_handlers.hiring_pipeline_handlers import (
+            HiringPipelineEvaluateHandler,
+            HiringStageActionHandler,
+        )
+        MessageHandlerRegistry.register("hiring_pipeline_evaluate", HiringPipelineEvaluateHandler.process)
+        MessageHandlerRegistry.register("hiring_stage_action", HiringStageActionHandler.process)
+        logger.info("[Registry] Registered hiring pipeline handlers")
+    except Exception as e:
+        logger.error(f"[Registry] CRITICAL: Failed to register hiring pipeline handlers: {e}", exc_info=True)
+
+    try:
         from app.services.message_handlers.send_invoice_email_handler import SendInvoiceEmailHandler
         MessageHandlerRegistry.register("send_invoice_email", SendInvoiceEmailHandler.process)
         logger.info("[Registry] Registered send_invoice_email handler")
