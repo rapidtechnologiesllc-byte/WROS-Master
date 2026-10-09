@@ -132,11 +132,15 @@ def _initialize_default_handlers():
 
     try:
         from app.services.message_handlers.hiring_pipeline_handlers import (
+            HiringConvertToBenchHandler,
             HiringPipelineEvaluateHandler,
             HiringStageActionHandler,
         )
+        MessageHandlerRegistry.register("hiring_convert_to_bench", HiringConvertToBenchHandler.process)
         MessageHandlerRegistry.register("hiring_pipeline_evaluate", HiringPipelineEvaluateHandler.process)
         MessageHandlerRegistry.register("hiring_stage_action", HiringStageActionHandler.process)
+        from app.services.message_handlers.send_pipeline_email_handler import SendPipelineEmailHandler
+        MessageHandlerRegistry.register("send_pipeline_email", SendPipelineEmailHandler.process)
         logger.info("[Registry] Registered hiring pipeline handlers")
     except Exception as e:
         logger.error(f"[Registry] CRITICAL: Failed to register hiring pipeline handlers: {e}", exc_info=True)

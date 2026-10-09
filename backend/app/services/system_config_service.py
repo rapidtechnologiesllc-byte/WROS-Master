@@ -54,6 +54,12 @@ class ConfigKeySpec:
     max_value: Optional[float] = None
 
 KNOWN_CONFIG_KEYS: Dict[str, ConfigKeySpec] = {
+    "prejoining_checklist_template_id": ConfigKeySpec(
+        key="prejoining_checklist_template_id", category="ONBOARDING", value_type="INT", default=0,
+        label="Checklist template assigned automatically when a candidate accepts an offer (0 = none)",
+        source="app.services.hiring_onboarding_service.start_onboarding -- wired live",
+        min_value=0,
+    ),
     "low_confidence_threshold": ConfigKeySpec(
         key="low_confidence_threshold", category="AI_THRESHOLDS", value_type="PERCENT", default=0.7,
         label="Candidate memory: low-confidence fact threshold",

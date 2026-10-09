@@ -13,7 +13,7 @@ Candidate Routes  (prefix: /checklist/candidate)
   - Mark an item complete (queue auto-activates next)
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -21,6 +21,11 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.dependencies import get_current_candidate, get_current_internal_user, require_resource_permission
+from app.services.checklist_assignment_service import (
+    ChecklistAlreadyAssigned,
+    activate_first_queue_item,
+    assign_template,
+)
 from app.models.checklist import (
     ChecklistTemplate,
     ChecklistTemplateItem,
@@ -100,20 +105,7 @@ def _build_checklist_response(checklist: CandidateChecklist) -> CandidateCheckli
     )
 
 def _activate_first_queue_item(db: Session, checklist_id: int) -> None:
-    """Set the lowest-order-index queue item to 'active' on a fresh checklist."""
-    first_queue = (
-        db.query(CandidateChecklistItem)
-        .filter(
-            CandidateChecklistItem.checklist_id == checklist_id,
-            CandidateChecklistItem.item_type == "queue",
-            CandidateChecklistItem.status == "pending",
-        )
-        .order_by(CandidateChecklistItem.order_index)
-        .first()
-    )
-    if first_queue:
-        first_queue.status = "active"
-        first_queue.activated_at = datetime.now()
+    activate_first_queue_item(db, checklist_id)
 
 def _complete_item_logic(
     db: Session, item: CandidateChecklistItem
@@ -436,58 +428,10 @@ def assign_checklist(
     if not template:
         raise HTTPException(status_code=404, detail=f"Template {request.template_id} not found.")
 
-    # Prevent duplicate assignment — same template cannot be assigned to the same candidate twice
-    existing_assignment = (
-        db.query(CandidateChecklist)
-        .filter(
-            CandidateChecklist.candidate_id == request.candidate_id,
-            CandidateChecklist.template_id == request.template_id,
-        )
-        .first()
-    )
-    if existing_assignment:
-        raise HTTPException(
-            status_code=409,
-            detail=(
-                f"Template '{template.name}' (ID {request.template_id}) is already assigned "
-                f"to candidate '{request.candidate_id}'. Duplicate assignment is not allowed."
-            ),
-        )
-
-    # Create candidate checklist
-    checklist = CandidateChecklist(
-        candidate_id=request.candidate_id,
-        template_id=template.id,
-        template_name=template.name,
-        assigned_by_user_id=user.UserID,
-        status="active",
-    )
-    db.add(checklist)
-    db.flush()  # get checklist.id
-
-    now = datetime.now()
-    for t_item in template.items:
-        due_date = (
-            now + timedelta(days=t_item.due_days_offset)
-            if t_item.due_days_offset is not None
-            else None
-        )
-        c_item = CandidateChecklistItem(
-            checklist_id=checklist.id,
-            template_item_id=t_item.id,
-            title=t_item.title,
-            description=t_item.description,
-            item_type=t_item.item_type,
-            order_index=t_item.order_index,
-            status="pending",
-            due_date=due_date,
-        )
-        db.add(c_item)
-
-    db.flush()
-
-    # Activate the first queue item
-    _activate_first_queue_item(db, checklist.id)
+    try:
+        checklist = assign_template(db, request.candidate_id, template, user.UserID)
+    except ChecklistAlreadyAssigned as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
 
     db.commit()
     db.refresh(checklist)

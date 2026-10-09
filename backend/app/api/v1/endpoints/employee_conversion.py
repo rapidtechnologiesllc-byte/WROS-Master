@@ -32,6 +32,15 @@ def convert_candidate(request: EmployeeConversionRequest, db: Session = Depends(
     candidate = db.query(Candidate).filter(Candidate.candidateID == request.candidate_id).first()
     if not candidate:
         raise HTTPException(status_code=404, detail=f"Candidate {request.candidate_id} not found")
+    # CEO hiring order: an employee only after interviews, accepted offer, onboarding and BGV
+    from app.services.hiring_pipeline_service import PipelineGateBlocked, assert_cleared_for_employment
+
+    try:
+        assert_cleared_for_employment(db, request.candidate_id)
+    except PipelineGateBlocked as blocked:
+        db.rollback()
+        raise HTTPException(status_code=409, detail={
+            "message": "Candidate has not cleared hiring yet.", "stage": blocked.stage, "blockers": blocked.blockers})
 
     try:
         user, employee = EmployeeConversionService.convert_candidate_to_employee(
@@ -63,6 +72,9 @@ def convert_candidate(request: EmployeeConversionRequest, db: Session = Depends(
 
     # the employee's login: a set-password link by email (queued; retried until delivered)
     queue_account_email(user, "ACTIVATE")
+    from app.services.hiring_pipeline_service import notify
+
+    notify(candidate.candidateID, "converted", employee.id)
     return EmployeeConversionResponse(
         status="success",
         employee_id=employee.id,

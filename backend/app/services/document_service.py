@@ -35,11 +35,13 @@ DOCUMENT_TYPES = {
     "salary_slip": {"folder": "Salary_Slips", "max_size": 10 * 1024 * 1024, "extensions": [".pdf", ".jpg", ".jpeg", ".png"]},
     "bank_statement": {"folder": "Bank_Statements", "max_size": 10 * 1024 * 1024, "extensions": [".pdf", ".jpg", ".jpeg", ".png"]},
     "uan_pf": {"folder": "UAN_PF", "max_size": 10 * 1024 * 1024, "extensions": [".pdf", ".jpg", ".jpeg", ".png"]},
+    # pre-joining documents requested after an offer is accepted (ID, address proof, BGV consent...)
+    "preboarding": {"folder": "Preboarding", "max_size": 10 * 1024 * 1024, "extensions": [".pdf", ".jpg", ".jpeg", ".png"]},
 }
 
 # Document types that allow multiple independent uploads (each file is a separate record).
 # For all other types only ONE active document (is_latest=True) is kept per candidate.
-MULTI_UPLOAD_TYPES = {"education", "experience","pan","aadhar","salary_slip","bank_statement","uan_pf"}
+MULTI_UPLOAD_TYPES = {"education", "experience", "pan", "aadhar", "salary_slip", "bank_statement", "uan_pf", "preboarding"}
 
 logger = logging.getLogger(__name__)
 

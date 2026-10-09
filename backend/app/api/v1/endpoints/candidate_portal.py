@@ -22,9 +22,11 @@ Routes:
   GET   /portal/interviews/{interview_id}/ics
   POST  /portal/interviews/{interview_id}/reschedule-request
   GET   /portal/offers
+  GET   /portal/onboarding                      documents to upload, checklists
+  POST  /portal/onboarding/documents/{doc_id}   upload one requested document
   POST  /portal/offers/{offer_id}/respond     body {action: accept|decline, message}
 """
-from fastapi import APIRouter, Depends, HTTPException, Response
+from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFile
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -173,3 +175,37 @@ def portal_offer_respond(
     return OfferAcceptanceResponse(status="Success", message=f"Offer {offer.offer_status.lower()}",
                                    offer_id=offer.id, offer_status=offer.offer_status,
                                    responded_at=offer.responded_at)
+
+
+@router.get("/onboarding")
+def portal_onboarding_status(
+    db: Session = Depends(get_db),
+    candidate: Candidate = Depends(get_current_candidate),
+):
+    from app.services.hiring_onboarding_service import portal_onboarding
+
+    return portal_onboarding(db, candidate)
+
+
+@router.post("/onboarding/documents/{doc_id}")
+async def portal_upload_onboarding_document(
+    doc_id: int,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    candidate: Candidate = Depends(get_current_candidate),
+):
+    """Stores the file (SharePoint, virus-scanned) and marks the requested document received."""
+    from app.api.v1.endpoints.documents import _upload_document_helper
+    from app.services.hiring_onboarding_service import OnboardingError, _own_document, receive_document
+
+    try:
+        _own_document(db, candidate, doc_id)
+    except OnboardingError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=str(exc))
+    stored = await _upload_document_helper(file, "preboarding", candidate, db)
+    try:
+        doc = receive_document(db, candidate, doc_id, stored.sharepoint_url)
+    except OnboardingError as exc:
+        db.rollback()
+        raise HTTPException(status_code=exc.status_code, detail=str(exc))
+    return {"id": doc.id, "label": doc.document_label, "status": doc.status, "received_at": doc.received_at}

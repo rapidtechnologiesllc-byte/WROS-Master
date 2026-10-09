@@ -1,13 +1,16 @@
-"""Message Handlers: hiring_pipeline_evaluate, hiring_stage_action
+"""Message Handlers: hiring_pipeline_evaluate, hiring_stage_action, hiring_convert_to_bench
 
 hiring_pipeline_evaluate  {candidate_id, trigger, ref}
     A fact about the candidate changed (verdict, offer answer, document, BGV, submission...):
     re-derive the pipeline stage, commit, then queue the new stage's entry action.
+hiring_convert_to_bench   {pipeline_id}
+    BGV cleared and the joining date has come: create the employee (BENCH) and their
+    system login, and email the set-password link. Skips if no longer ready.
 hiring_stage_action       {pipeline_id, stage}
     Run the stage's entry action (task, email, conversion) once; skipped when the pipeline
     has moved on since it was queued.
 
-Both are idempotent: evaluation is derived from facts and the action's queue task id is
+All are idempotent: evaluation is derived from facts and the action's queue task id is
 deterministic (hp-act:{pipeline}:{stage}). Compensation: none needed; a failed run is
 retried by the queue and re-reads the facts.
 """
@@ -54,3 +57,17 @@ class HiringStageActionHandler:
             raise ValueError(f"Message {message.id} has no pipeline_id or an unknown stage {stage!r}")
         outcome = run_stage_action(db, int(pipeline_id), stage)
         return {"status": "done", "pipeline_id": pipeline_id, "stage": stage, "outcome": outcome}
+
+
+class HiringConvertToBenchHandler:
+    TIMEOUT_SECONDS = TIMEOUT_SECONDS
+
+    @staticmethod
+    @time_bound(timeout_seconds=TIMEOUT_SECONDS)
+    def process(message: Any, db: Session) -> Dict[str, Any]:
+        from app.services.hiring_pipeline_service import convert_to_bench
+
+        pipeline_id = (message.payload or {}).get("pipeline_id")
+        if not pipeline_id:
+            raise ValueError(f"Message {message.id} missing pipeline_id")
+        return {"status": "done", "pipeline_id": pipeline_id, "outcome": convert_to_bench(db, int(pipeline_id))}

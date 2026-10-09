@@ -4,6 +4,8 @@ GET  /hiring-pipeline                          open pipelines (filter by stage)
 GET  /hiring-pipeline/candidate/{id}           stage, blockers and history (created on first read)
 POST /hiring-pipeline/candidate/{id}/screen    recruiter screen decision: PASS / SKIP / FAIL
 POST /hiring-pipeline/candidate/{id}/evaluate  re-derive the stage now
+GET  /hiring-pipeline/candidate/{id}/onboarding  pre-joining documents and checklists
+POST /hiring-pipeline/preboarding-documents/{doc_id}/review  VERIFIED / WAIVED / PENDING (re-upload)
 """
 from typing import Optional
 
@@ -17,6 +19,10 @@ from app.models.hiring_pipeline import HiringPipeline
 from app.services import hiring_pipeline_service as pipelines
 
 router = APIRouter(prefix="/hiring-pipeline", tags=["hiring-pipeline"])
+
+
+class DocumentReviewRequest(BaseModel):
+    decision: str
 
 
 class ScreenDecisionRequest(BaseModel):
@@ -71,3 +77,29 @@ def evaluate_candidate(candidate_id: str, db: Session = Depends(get_db), user=De
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
     return pipelines.snapshot(db, pipeline)
+
+
+@router.get("/candidate/{candidate_id}/onboarding",
+            dependencies=[Depends(require_resource_permission("candidates", "view"))])
+def candidate_onboarding(candidate_id: str, db: Session = Depends(get_db)):
+    from app.models.candidate import Candidate
+    from app.services.hiring_onboarding_service import portal_onboarding
+
+    candidate = db.query(Candidate).filter(Candidate.candidateID == candidate_id).first()
+    if candidate is None:
+        raise HTTPException(status_code=404, detail=f"Candidate {candidate_id} not found")
+    return portal_onboarding(db, candidate)
+
+
+@router.post("/preboarding-documents/{doc_id}/review",
+             dependencies=[Depends(require_resource_permission("candidates", "edit"))])
+def review_preboarding_document(doc_id: int, request: DocumentReviewRequest, db: Session = Depends(get_db),
+                                user=Depends(get_current_internal_user)):
+    from app.services.hiring_onboarding_service import OnboardingError, review_document
+
+    try:
+        doc = review_document(db, doc_id, request.decision.upper(), user.UserID, user.tenant_id)
+    except OnboardingError as exc:
+        db.rollback()
+        raise HTTPException(status_code=exc.status_code, detail=str(exc))
+    return {"id": doc.id, "candidate_id": doc.candidate_id, "label": doc.document_label, "status": doc.status}

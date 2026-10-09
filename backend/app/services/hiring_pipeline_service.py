@@ -35,6 +35,7 @@ logger = logging.getLogger(__name__)
 
 EVALUATE_TASK = "hiring_pipeline_evaluate"
 STAGE_ACTION_TASK = "hiring_stage_action"
+BENCH_TASK = "hiring_convert_to_bench"
 ACTIVE_SUBMISSION = ("SUBMITTED", "SHORTLISTED", "CLIENT_INTERVIEW_REQUESTED")
 SWEEP_STALE_AFTER = timedelta(hours=1)
 SWEEP_BACKFILL_LIMIT = 200
@@ -165,15 +166,15 @@ def _walk(db: Session, pipeline: HiringPipeline) -> Tuple[str, List[str], Dict]:
         if offer.offer_status != "Accepted":
             return reached, [f"offer is {offer.offer_status}; waiting for the candidate to accept"], refs
         reached = "ONBOARDING"
+        bgv = bgv_status(db, cid)
+        if bgv == "FAILED":  # can come back from the vendor before every document is verified
+            return "REJECTED", ["background verification failed"], refs
         # ONBOARDING -> BGV
         done, blockers = onboarding_complete(db, cid, offer)
         if not done:
             return reached, blockers, refs
         reached = "BGV"
         # BGV -> BENCH
-        bgv = bgv_status(db, cid)
-        if bgv == "FAILED":
-            return "REJECTED", ["background verification failed"], refs
         if bgv not in ("PASSED", "WAIVED"):
             return reached, [f"background verification {(bgv or 'not started').replace('_', ' ').lower()}"], refs
         if employee is None:
@@ -305,14 +306,89 @@ def notify(candidate_id: str, trigger: str, ref, tenant_id: Optional[int] = None
                         {"candidate_id": candidate_id, "trigger": trigger, "ref": str(ref)}, tenant_id)
 
 
-def queue_stage_actions(pipeline: HiringPipeline) -> int:
-    """Call after commit. Queues the entry action of the current stage (once per stage)."""
+def queue_stage_actions(pipeline: HiringPipeline, db: Optional[Session] = None) -> int:
+    """Call after commit. Queues the entry action of the current stage (once per stage), and
+    the bench conversion once BGV is cleared and the joining date has come."""
     from app.services.thunder_mail.cadence_service import enqueue_once
 
-    if pipeline.stage not in STAGE_ACTIONS:
-        return 0
-    return int(enqueue_once(STAGE_ACTION_TASK, f"hp-act:{pipeline.id}:{pipeline.stage}",
-                            {"pipeline_id": pipeline.id, "stage": pipeline.stage}, pipeline.tenant_id))
+    queued = 0
+    if pipeline.stage in STAGE_ACTIONS:
+        queued += int(enqueue_once(STAGE_ACTION_TASK, f"hp-act:{pipeline.id}:{pipeline.stage}",
+                                   {"pipeline_id": pipeline.id, "stage": pipeline.stage}, pipeline.tenant_id))
+    if db is not None and ready_for_bench(db, pipeline)[0]:
+        queued += int(_queue_bench(pipeline))
+    return queued
+
+
+# ---------------------------------------------------------------------------
+# BENCH: BGV cleared + joining date -> employee and system login
+# ---------------------------------------------------------------------------
+
+def _queue_bench(pipeline: HiringPipeline) -> bool:
+    """Once per pipeline per day: a conversion blocked today (e.g. no business unit) is
+    retried by tomorrow's sweep after someone fixes it."""
+    from app.services.thunder_mail.cadence_service import enqueue_once
+
+    return enqueue_once(BENCH_TASK, f"hp-bench:{pipeline.id}:{date.today().isoformat()}",
+                        {"pipeline_id": pipeline.id}, pipeline.tenant_id)
+
+
+def _bgv_cleared(db: Session, pipeline: HiringPipeline) -> bool:
+    return bgv_status(db, pipeline.candidate_id) in ("PASSED", "WAIVED")
+
+
+def ready_for_bench(db: Session, pipeline: HiringPipeline, today: Optional[date] = None) -> Tuple[bool, str]:
+    if pipeline.closed_at is not None or pipeline.stage != "BGV":
+        return False, f"pipeline is at {pipeline.stage}"
+    if not _bgv_cleared(db, pipeline):
+        return False, "background verification not cleared"
+    if _employee(db, pipeline.candidate_id) is not None:
+        return False, "already an employee"
+    offer = db.query(OfferLetter).filter(OfferLetter.id == pipeline.offer_letter_id).first()
+    if offer is None or offer.joining_date is None:
+        return False, "accepted offer has no joining date"
+    if offer.joining_date > (today or date.today()):
+        return False, f"joining date {offer.joining_date.isoformat()} not reached"
+    return True, "ready"
+
+
+def assert_cleared_for_employment(db: Session, candidate_id: str) -> HiringPipeline:
+    """Manual conversion: allowed only once BGV is cleared (any joining date)."""
+    pipeline = evaluate(db, get_or_create_pipeline(db, candidate_id), trigger="gate", ref="convert")
+    if pipeline.grandfathered or pipeline.stage == "BGV" and _bgv_cleared(db, pipeline):
+        return pipeline
+    raise PipelineGateBlocked(pipeline.stage, "employment", pipeline.blockers or [])
+
+
+def convert_to_bench(db: Session, pipeline_id: int) -> str:
+    """Queued on the joining date: the candidate becomes a BENCH employee with a system login
+    (Employee role; a set-password link is emailed). Commits."""
+    from app.services.account_activation_service import queue_account_email
+    from app.services.employee_conversion_service import EmployeeConversionService
+
+    pipeline = db.query(HiringPipeline).filter(HiringPipeline.id == pipeline_id).with_for_update().first()
+    if pipeline is None:
+        raise ValueError(f"Hiring pipeline {pipeline_id} not found")
+    ready, reason = ready_for_bench(db, pipeline)
+    if not ready:
+        return f"skipped: {reason}"
+    candidate = db.query(Candidate).filter(Candidate.candidateID == pipeline.candidate_id).first()
+    offer = db.query(OfferLetter).filter(OfferLetter.id == pipeline.offer_letter_id).first()
+    try:
+        user, employee = EmployeeConversionService.convert_candidate_to_employee(
+            db, candidate, joining_date=offer.joining_date, tenant_id=candidate.tenant_id, changed_by="system",
+            job_title=offer.position)
+    except ValueError as exc:  # e.g. no business unit on the job or candidate
+        db.rollback()
+        pipeline = db.query(HiringPipeline).filter(HiringPipeline.id == pipeline_id).first()
+        pipeline.blockers = [f"cannot create the employee: {exc}"]
+        db.commit()
+        return f"blocked: {exc}"
+    evaluate(db, pipeline, trigger="bench", ref=employee.id)
+    db.commit()
+    queue_account_email(user, "ACTIVATE")
+    logger.info(f"[Pipeline] {pipeline.candidate_id} joined the bench as {employee.id}")
+    return f"employee {employee.id} created on the bench; login email queued"
 
 
 def _recruiter_task(db: Session, pipeline: HiringPipeline, title: str, description: str, category: str) -> None:
@@ -356,11 +432,42 @@ def _action_offer(db: Session, pipeline: HiringPipeline) -> str:
     return "offer task created"
 
 
+def _action_onboarding(db: Session, pipeline: HiringPipeline) -> str:
+    from app.services.hiring_onboarding_service import start_onboarding
+
+    return start_onboarding(db, pipeline)
+
+
+def _action_bgv(db: Session, pipeline: HiringPipeline) -> str:
+    """Documents are verified: start BGV (consent is one of the documents) and hand it to HR,
+    who runs it with the vendor and records the verdict (or the vendor's webhook does)."""
+    from app.services.bgv_service import ensure_bgv, start_if_consented
+    from app.services.task_service import create_task
+
+    offer = db.query(OfferLetter).filter(OfferLetter.id == pipeline.offer_letter_id).first()
+    bgv = ensure_bgv(db, pipeline.candidate_id, pipeline.offer_letter_id, pipeline.tenant_id)
+    start_if_consented(db, bgv)
+    if bgv.status in ("PASSED", "WAIVED"):
+        db.commit()
+        return f"BGV already {bgv.status}"
+    task = create_task(db, title=f"Run background verification: {pipeline.candidate_id}",
+                       description=(f"Pre-joining documents are verified. Run background verification "
+                                    f"(BGV #{bgv.id}) and record PASSED or FAILED in BGV."),
+                       priority="HIGH", tenant_id=pipeline.tenant_id, category="BGV",
+                       assigned_to_user_id=getattr(offer, "created_by", None),
+                       visibility_scope="ORG_WIDE" if not getattr(offer, "created_by", None) else "ASSIGNEE_MANAGER_DEPARTMENT")
+    task.candidate_id = pipeline.candidate_id
+    db.add(task)
+    return f"BGV #{bgv.id} {bgv.status.lower()}; HR task created"
+
+
 STAGE_ACTIONS: Dict[str, Callable[[Session, HiringPipeline], str]] = {
     "SCREEN": _action_screen,
     "L1": _action_schedule("L1"),
     "L2": _action_schedule("L2"),
     "OFFER": _action_offer,
+    "ONBOARDING": _action_onboarding,
+    "BGV": _action_bgv,
 }
 
 
@@ -385,7 +492,7 @@ def evaluate_and_act(db: Session, candidate_id: str, trigger: str, ref: Optional
     pipeline = get_or_create_pipeline(db, candidate_id, reopen=trigger == "panel_created")
     evaluate(db, pipeline, trigger=trigger, ref=ref, actor=actor)
     db.commit()
-    queue_stage_actions(pipeline)
+    queue_stage_actions(pipeline, db)
     return pipeline
 
 
@@ -408,6 +515,9 @@ def run_pipeline_sweep(db: Session) -> Dict:
     db.commit()
     for pipeline in changed:  # only real progress triggers an action; backfill just records state
         queue_stage_actions(pipeline)
+    for pipeline in stale:  # joining dates arrive without any event
+        if ready_for_bench(db, pipeline)[0]:
+            _queue_bench(pipeline)
 
     open_ids = {r[0] for r in db.query(HiringPipeline.candidate_id).filter(HiringPipeline.closed_at.is_(None)).all()}
     candidates = [r[0] for r in db.query(CandidateStatus.candidateID).filter(
