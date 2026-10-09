@@ -1,16 +1,12 @@
 # 2026-08-17: Fixed PostgreSQL column quoting in unified_login
 from datetime import datetime, timedelta
 import logging
-from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Response
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.security import HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 
-import app.schemas as schema
 from app.core.database import (
-    SessionLocal,
-    engine,
     check_candidate,
     check_user,
     get_db,
@@ -18,14 +14,12 @@ from app.core.database import (
     authenticate_candidate
 )
 from app.core.security import (
-    verify_password,
     create_access_token,
     create_refresh_token,
     get_password_hash,
-    security,
-    decode_access_token
+    security
 )
-from app.core.dependencies import get_current_candidate, get_current_user, require_role_template_permission
+from app.core.dependencies import get_current_user
 from app.core.mfa import (
     EMAIL_OTP_TTL_MINUTES,
     MFA_PENDING_TOKEN_MINUTES,
@@ -38,12 +32,11 @@ from app.core.mfa import (
 )
 from app.services.email_service import EmailService
 from app.services.role_template_permission_service import RoleTemplatePermissionService
-from app.models.candidate import Candidate
 from app.models.user import Users
 from app.models.role_template import RoleTemplate
 from app.schemas.auth import SignupRequest, SignupResponse
 from app.contracts import UnifiedLoginRequest, UnifiedLoginResponse, ValidateEmailRequest
-from app.utils.uniq_id_generator import user_id_generator, generate_password
+from app.utils.uniq_id_generator import user_id_generator
 
 logger = logging.getLogger(__name__)
 
@@ -136,7 +129,7 @@ def unified_login(request: UnifiedLoginRequest, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail="Email and password are required")
 
     logger.info(f"[LOGIN-START] Login attempt for email={request.email}")
-    logger.debug(f"[LOGIN-DEBUG] Request received, starting authentication flow")
+    logger.debug("[LOGIN-DEBUG] Request received, starting authentication flow")
 
     user = None
     try:
@@ -628,7 +621,7 @@ async def reset_password(
         raise HTTPException(status_code=400, detail="new_password is required")
 
     if not isinstance(new_password, str) or len(new_password) < 8:
-        logger.warning(f"Password reset failed: password too short")
+        logger.warning("Password reset failed: password too short")
         raise HTTPException(status_code=400, detail="Password must be at least 8 characters")
 
     user = None
@@ -643,7 +636,7 @@ async def reset_password(
         raise HTTPException(status_code=404, detail="User not found")
 
     if not hasattr(user, 'UserPassword'):
-        logger.error(f"Password reset failed: user missing UserPassword")
+        logger.error("Password reset failed: user missing UserPassword")
         raise HTTPException(status_code=500, detail="User record incomplete. Please contact help desk.")
 
     try:
@@ -659,3 +652,24 @@ async def reset_password(
 
     logger.info(f"Password reset successful for user {user_id}")
     return {"status": "success", "message": "Password reset successfully"}
+
+
+@router.post("/activate")
+def activate_account(request: dict, db: Session = Depends(get_db)):
+    """Public: set your password from the emailed single-use link (activation or reset)."""
+    from app.services.account_activation_service import ActivationError, activate
+
+    try:
+        user = activate(db, (request or {}).get("token", ""), (request or {}).get("new_password", ""))
+    except ActivationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    return {"status": "ok", "email": user.UserEmail}
+
+
+@router.post("/forgot-password")
+def forgot_password(request: dict, db: Session = Depends(get_db)):
+    """Public: email a reset link if the address has an account. Same answer either way."""
+    from app.services.account_activation_service import request_reset
+
+    request_reset(db, (request or {}).get("email", ""))
+    return {"status": "ok", "message": "If that email has an account, a reset link is on its way."}

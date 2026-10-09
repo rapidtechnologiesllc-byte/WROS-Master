@@ -77,6 +77,7 @@ import MyExpensesScreen from "../screens/MyExpensesScreen";
 import ExecutiveRevenueDashboardScreen from "../screens/ExecutiveRevenueDashboardScreen";
 import FinanceOperationsScreen from "../screens/FinanceOperationsScreen";
 import PnlScreen from "../screens/PnlScreen";
+import ActivateAccount from "../pages/ActivateAccount";
 import DemandConfirmationScreen from "../screens/DemandConfirmationScreen";
 import SubmissionsScreen from "../screens/SubmissionsScreen";
 import AllocationsScreen from "../screens/AllocationsScreen";
@@ -301,6 +302,12 @@ export default function AppRoutes() {
   // same as /auth's special-casing.
   if (window.location.pathname.startsWith("/careers-chat")) {
     return <PublicThunderChatScreen />;
+  }
+
+  // Set your own password from an emailed link (activation / forgot password).
+  // Before the ?token= handling below: this token is NOT a session token.
+  if (window.location.pathname.startsWith("/activate")) {
+    return <ActivateAccount />;
   }
 
   // S-017/HRMS-0417 -- Candidate Self-Service Web Portal. The token in

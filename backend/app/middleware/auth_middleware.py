@@ -10,7 +10,7 @@ import logging
 import time
 
 from app.core.security import decode_access_token
-from app.core.logging import logger, log_security_event
+from app.core.logging import log_security_event
 
 logger = logging.getLogger(__name__)
 
@@ -43,6 +43,9 @@ class AuthenticationMiddleware(BaseHTTPMiddleware):
         "/auth/validate-email",
         "/api/v1/auth/login",
         "/api/v1/auth/validate-email",
+        # set your own password from an emailed single-use link (no session yet by definition)
+        "/api/v1/auth/activate",
+        "/api/v1/auth/forgot-password",
         "/auth/v1/refresh",  # Token refresh endpoint (uses refresh token for auth, not access token)
         "/api/v1/auth/v1/refresh",  # Token refresh with full /api/v1 prefix
         "/msgraph/auth/signin",

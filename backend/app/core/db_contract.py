@@ -13,8 +13,6 @@ This module guarantees:
 Run on every backend startup to ensure data integrity.
 """
 
-import os
-import uuid
 import secrets
 import string
 from sqlalchemy.orm import Session
@@ -324,42 +322,76 @@ LEADERSHIP_ROLES = {
                   "organizational-hierarchy", "ask-thunder"],
         },
     },
+    # Every converted employee gets this: their own work only. (The system "User" role is
+    # seeded with every permission, so it must never be an employee's default.)
+    "Employee": {
+        "display_name": "Employee",
+        "description": "Self-service: own timesheets, expenses, tasks, referrals, notifications",
+        "hierarchy_level": 2,
+        "org_level_access": False,
+        "permissions": {
+            "vce": ["dashboard", "my-tasks", "my-timesheet", "my-expenses", "my-referrals", "notifications",
+                    "activity-feed", "ask-flash"],
+        },
+    },
 }
 
 
+def ensure_role(db, name: str, spec: dict) -> bool:
+    """Create one LEADERSHIP_ROLES-style role template with its permissions if missing.
+    Existing roles are never touched (the Role Templates editor owns them)."""
+    if db.query(RoleTemplate).filter(RoleTemplate.name == name).first():
+        return False
+    resources = {r.name: r for r in db.query(Resource).all()}
+    role = RoleTemplate(
+        name=name, display_name=spec["display_name"], description=spec["description"],
+        hierarchy_level=spec["hierarchy_level"], org_level_access=spec["org_level_access"],
+        is_system=False, tenant_id=1,
+    )
+    db.add(role)
+    db.flush()
+    granted = 0
+    for mode, names in spec["permissions"].items():
+        for resource_name in names:
+            resource = resources.get(resource_name)
+            if resource is None:
+                raise RuntimeError(f"Role {name}: unknown resource {resource_name!r}")
+            db.add(RoleTemplatePermission(
+                role_template_id=role.id, resource_id=resource.id, tenant_id=1,
+                can_view=True, can_create=mode == "vce", can_edit=mode == "vce", can_delete=False,
+            ))
+            granted += 1
+    db.commit()
+    logger.info(f"[Contract] Created role template {name} with {granted} permissions")
+    return True
+
+
 def _initialize_leadership_roles():
-    """Create the Partner and BU Head role templates if missing (idempotent)."""
+    """Create the Partner, BU Head and Employee role templates if missing (idempotent)."""
     db = SessionLocal()
     try:
-        resources = {r.name: r for r in db.query(Resource).all()}
         for name, spec in LEADERSHIP_ROLES.items():
-            if db.query(RoleTemplate).filter(RoleTemplate.name == name).first():
-                continue
-            role = RoleTemplate(
-                name=name, display_name=spec["display_name"], description=spec["description"],
-                hierarchy_level=spec["hierarchy_level"], org_level_access=spec["org_level_access"],
-                is_system=False, tenant_id=1,
-            )
-            db.add(role)
-            db.flush()
-            granted = 0
-            for mode, names in spec["permissions"].items():
-                for resource_name in names:
-                    resource = resources.get(resource_name)
-                    if resource is None:
-                        raise RuntimeError(f"Leadership role {name}: unknown resource {resource_name!r}")
-                    db.add(RoleTemplatePermission(
-                        role_template_id=role.id, resource_id=resource.id, tenant_id=1,
-                        can_view=True, can_create=mode == "vce", can_edit=mode == "vce", can_delete=False,
-                    ))
-                    granted += 1
-            db.commit()
-            logger.info(f"[Contract] Created role template {name} with {granted} permissions")
+            ensure_role(db, name, spec)
+        _move_converted_employees_off_user_role(db)
     except Exception:
         db.rollback()
         raise
     finally:
         db.close()
+
+
+def _move_converted_employees_off_user_role(db):
+    """Accounts created by candidate conversion (UserRole "Employee") that were given the
+    full-access system "User" role move to the Employee role (idempotent)."""
+    employee_role = db.query(RoleTemplate).filter(RoleTemplate.name == "Employee").first()
+    user_role = db.query(RoleTemplate).filter(RoleTemplate.name == "User").first()
+    if employee_role is None or user_role is None:
+        return
+    moved = db.query(Users).filter(Users.UserRole == "Employee", Users.role_template_id == user_role.id) \
+        .update({Users.role_template_id: employee_role.id}, synchronize_session=False)
+    db.commit()
+    if moved:
+        logger.info(f"[Contract] Moved {moved} converted employee account(s) from the User role to Employee")
 
 
 def _initialize_admin_user():

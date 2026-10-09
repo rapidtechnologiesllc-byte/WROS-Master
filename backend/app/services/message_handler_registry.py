@@ -1,7 +1,6 @@
 """Message Handler Registry - Maps message types to handler functions."""
 import logging
 from typing import Dict, Callable, Optional, Any
-from app.core.database import SessionLocal
 from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
@@ -123,6 +122,13 @@ def _initialize_default_handlers():
         logger.info("[Registry] Registered Thunder email cadence handlers")
     except Exception as e:
         logger.error(f"[Registry] CRITICAL: Failed to register Thunder email handlers: {e}", exc_info=True)
+
+    try:
+        from app.services.message_handlers.send_account_email_handler import SendAccountEmailHandler
+        MessageHandlerRegistry.register("send_account_email", SendAccountEmailHandler.process)
+        logger.info("[Registry] Registered send_account_email handler")
+    except Exception as e:
+        logger.error(f"[Registry] CRITICAL: Failed to register send_account_email handler: {e}", exc_info=True)
 
     try:
         from app.services.message_handlers.send_invoice_email_handler import SendInvoiceEmailHandler

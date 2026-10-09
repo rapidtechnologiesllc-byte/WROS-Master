@@ -41,7 +41,7 @@ router = APIRouter(tags=["expenses"])
     "/expenses",
     response_model=ExpenseItem,
     status_code=201,
-    dependencies=[Depends(require_resource_permission("expenses", "create"))]
+    dependencies=[Depends(require_resource_permission("my-expenses", "create"))]  # self-service
 )
 def create_expense(
     body: ExpenseCreateRequest,
@@ -64,7 +64,7 @@ def create_expense(
 @router.get(
     "/expenses/mine",
     response_model=ExpenseListResponse,
-    dependencies=[Depends(require_resource_permission("expenses", "view"))]
+    dependencies=[Depends(require_resource_permission("my-expenses", "view"))]  # self-service
 )
 def list_my_expenses(
     db: Session = Depends(get_db),
