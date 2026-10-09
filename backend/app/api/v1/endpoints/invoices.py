@@ -135,7 +135,7 @@ def generate_invoice_endpoint(
         from app.services.message_queue_service import MessageQueueService
         MessageQueueService.enqueue(
             task_name='invoice_created_flash',
-            task_id=str(invoice.id),
+            task_id=f"invoice_created:{invoice.id}",
             data={
                 'invoice_id': str(invoice.id),
                 'created_at': datetime.utcnow().isoformat()
@@ -170,7 +170,7 @@ def approve_invoice_endpoint(
         from app.services.message_queue_service import MessageQueueService
         MessageQueueService.enqueue(
             task_name='invoice_updated_flash',
-            task_id=str(invoice.id),
+            task_id=f"invoice_approved:{invoice.id}",
             data={
                 'invoice_id': str(invoice.id),
                 'status': 'approved',

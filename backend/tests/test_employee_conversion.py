@@ -22,6 +22,7 @@ from app.models.tenant import Tenant
 from app.models.user import Users
 from app.services import account_activation_service as accounts
 from app.services.message_handlers.send_account_email_handler import SendAccountEmailHandler
+from tests.hiring_fixtures import clear_hiring
 
 
 def _uid():
@@ -101,6 +102,7 @@ def world(db):
                           candidatePassword="x", candidateFirstName="Jo", candidateLastName="Park", tenant_id=1)
     db.add_all([admin, unit, candidate])
     db.commit()
+    clear_hiring(db, candidate)  # interviews, offer, documents and BGV all passed
     return SimpleNamespace(admin=admin, unit=unit, candidate=candidate)
 
 
@@ -116,7 +118,7 @@ def _convert(client, world, email):
 
 
 def _deliver(db, queued, mailbox):
-    task_name, task_id, data = queued[-1]
+    task_name, task_id, data = [q for q in queued if q[0] == "send_account_email"][-1]
     assert task_name == "send_account_email"
     return SendAccountEmailHandler.process(SimpleNamespace(id=task_id, payload=data), db, mailbox=mailbox)
 
@@ -135,7 +137,7 @@ def test_converted_employee_gets_a_login_they_set_themselves(db, api, world):
     employee = db.query(Employee).filter_by(wros_user_id=user.UserID).one()
     assert employee.candidate_id == world.candidate.candidateID and user.password_reset_required is True
     # nobody knows a password, and the queued message carries no link or token
-    task_name, _, data = queued[-1]
+    task_name, _, data = [q for q in queued if q[0] == "send_account_email"][-1]
     assert task_name == "send_account_email" and set(data) == {"user_id", "purpose"}
 
     mailbox = FakeMailbox()
@@ -192,10 +194,10 @@ def test_forgot_password_never_reveals_accounts_and_is_rate_limited(db, api, wor
     unknown = client.post("/api/v1/auth/forgot-password", json={"email": "nobody@nowhere.example"})
     known = client.post("/api/v1/auth/forgot-password", json={"email": world.admin.UserEmail})
     assert unknown.status_code == known.status_code == 200 and unknown.json() == known.json()
-    assert [q[2]["purpose"] for q in queued] == ["RESET"]
+    assert [q[2]["purpose"] for q in queued if q[0] == "send_account_email"] == ["RESET"]
     _deliver(db, queued, FakeMailbox())
     client.post("/api/v1/auth/forgot-password", json={"email": world.admin.UserEmail})
-    assert len(queued) == 1  # one reset email per 10 minutes
+    assert len([q for q in queued if q[0] == "send_account_email"]) == 1  # one reset email per 10 minutes
 
 
 def test_resend_activation_for_an_employee(db, api, world):
@@ -204,5 +206,17 @@ def test_resend_activation_for_an_employee(db, api, world):
     _convert(client, world, email)
     employee = db.query(Employee).join(Users, Users.UserID == Employee.wros_user_id).filter(Users.UserEmail == email).one()
     response = client.post(f"/api/v1/employees/{employee.id}/resend-activation", headers=_headers(world.admin))
-    assert response.status_code == 200 and queued[-1][2]["purpose"] == "ACTIVATE"
+    assert response.status_code == 200 and [q for q in queued if q[0] == "send_account_email"][-1][2]["purpose"] == "ACTIVATE"
     assert employee.wros_user_id in {u.UserID for u in accounts.users_never_activated(db)}
+
+
+def test_conversion_is_refused_before_the_candidate_clears_hiring(db, api, world):
+    client, _ = api
+    fresh = Candidate(candidateID=f"CAN-{_uid()}", candidateEmail=f"f{_uid()}@example.com", candidatePassword="x",
+                      candidateFirstName="New", candidateLastName="Person", tenant_id=1)
+    db.add(fresh)
+    db.commit()
+    response = client.post("/api/v1/employees/convert-candidate", headers=_headers(world.admin), json={
+        "candidate_id": fresh.candidateID, "employee_email": f"n{_uid()}@blitzenx.com",
+        "joining_date": date.today().isoformat(), "business_unit_id": world.unit.id})
+    assert response.status_code == 409 and response.json()["detail"]["stage"] == "SCREEN"

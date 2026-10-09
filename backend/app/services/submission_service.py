@@ -122,6 +122,19 @@ def check_employment_type_rule(candidate: Candidate) -> dict:
         "message": "BlitzenX only accepts full-time (W2) candidates.",
     }
 
+def check_hiring_pipeline_rule(db: Session, candidate_id: str) -> dict:
+    """CEO hiring order: a candidate reaches a client only from the bench -- interviews
+    passed, offer accepted, onboarding complete, BGV cleared, employee created."""
+    from app.services.hiring_pipeline_service import PipelineGateBlocked, assert_gate
+
+    try:
+        assert_gate(db, candidate_id, "BENCH")
+    except PipelineGateBlocked as blocked:
+        reasons = "; ".join(blocked.blockers) or f"at {blocked.stage}"
+        return {"allowed": False, "error": "PIPELINE_INCOMPLETE", "stage": blocked.stage,
+                "message": f"Candidate has not cleared hiring yet ({blocked.stage}): {reasons}."}
+    return {"allowed": True}
+
 def _log_violation(
     db: Session, *, tenant_id: Optional[int], recruiter_user_id: Optional[str],
     candidate_id: str, violation_type: str, candidate_status_at_time: Optional[str],
@@ -183,6 +196,10 @@ def create_submission(
             blocked_message=employment_type["message"],
         )
 
+    pipeline = check_hiring_pipeline_rule(db, candidate.candidateID)
+    if not pipeline["allowed"]:
+        blockers.append(pipeline)  # recorded in hiring_pipeline_events, not submission_violations
+
     if blockers:
         db.flush()
         raise SubmissionComplianceError(blockers)
@@ -242,6 +259,8 @@ def update_client_response(
     PLACED, calls demand_service.record_placement() -- the one
     sanctioned increment path, never a bare positions_filled += 1 here.
     """
+    from app.services import client_onboarding_service
+
     current = submission.status
     allowed = ALLOWED_SUBMISSION_TRANSITIONS.get(current, set())
     if new_status not in allowed:
@@ -249,6 +268,12 @@ def update_client_response(
             f"Cannot transition submission from '{current}' to '{new_status}'. "
             f"Allowed from '{current}': {sorted(allowed) or 'none (terminal state)'}"
         )
+    start_date = None
+    if new_status == "PLACED":  # only once the client confirmed a start date
+        try:
+            start_date = client_onboarding_service.placement_start_date(db, submission)
+        except client_onboarding_service.ClientOnboardingError as exc:
+            raise InvalidSubmissionTransition(str(exc))
 
     submission.status = new_status
     submission.client_feedback = client_feedback
@@ -257,10 +282,14 @@ def update_client_response(
 
     if new_status == "PLACED":
         demand = db.query(Demand).filter(Demand.id == submission.demand_id).first()
-        # already allocated to this job (e.g. at conversion): the placement was counted then
+        # already allocated to this job: the placement was counted then
         if demand is not None and not _already_allocated(db, submission, demand):
             record_placement(db, demand)
-            _allocate_placed_employee(db, submission, demand)
+            _allocate_placed_employee(db, submission, demand, start_date)
+        db.flush()
+        client_onboarding_service.mark_started(db, submission)
+    elif new_status == "OFFER_EXTENDED":  # the client selected the candidate
+        client_onboarding_service.start(db, submission)
 
     return submission
 
@@ -275,7 +304,7 @@ def _already_allocated(db: Session, submission: Submission, demand) -> bool:
     ).first() is not None
 
 
-def _allocate_placed_employee(db: Session, submission: Submission, demand) -> None:
+def _allocate_placed_employee(db: Session, submission: Submission, demand, start_date=None) -> None:
     """A placement puts the employee on the job's client (and project): the
     ACTIVE allocation timesheets and invoices hang off. Idempotent per
     employee+job; a conflicting active allocation elsewhere is raised, not
@@ -296,5 +325,5 @@ def _allocate_placed_employee(db: Session, submission: Submission, demand) -> No
     project = db.query(Project).filter(Project.id == demand.project_id).first() if demand.project_id else None
     allocate_employee_to_project(
         db, tenant_id=submission.tenant_id, employee=employee, demand=demand,
-        start_date=demand.required_start_date, project=project, role=demand.job_title,
+        start_date=start_date or demand.required_start_date, project=project, role=demand.job_title,
     )

@@ -37,6 +37,17 @@ _JOBS = (
                  timedelta(days=1), timeout_s=300, daily_after_utc="02:00"),
     ScheduledJob("engagement_metrics", "app.services.engagement_metrics_service:run_engagement_metrics_job",
                  timedelta(hours=4), timeout_s=300),
+    # internal only: re-derives hiring stages from facts and backfills pipelines
+    ScheduledJob("hiring_pipeline_sweep", "app.services.hiring_pipeline_service:run_pipeline_sweep",
+                 timedelta(hours=1), timeout_s=300),
+    # internal only: confirmed client start dates become placements + allocations
+    ScheduledJob("client_start_date", "app.services.client_onboarding_service:run_start_date_job",
+                 timedelta(days=1), timeout_s=300, daily_after_utc="01:00"),
+    # emails clients: last month's fully approved timesheets -> invoice, auto-approved unless
+    # a guardrail holds it for finance (invoice_automation_service)
+    ScheduledJob("auto_invoicing", "app.services.invoice_automation_service:run_auto_invoicing",
+                 timedelta(days=1), timeout_s=600, sends_external=True, daily_after_utc="04:00",
+                 backlog_guard="app.services.invoice_automation_service:backlog_guard"),
     ScheduledJob("birthday_drafts", "app.services.culture_agent_service:generate_birthday_drafts",
                  timedelta(days=1), timeout_s=120, daily_after_utc="03:00"),
 )

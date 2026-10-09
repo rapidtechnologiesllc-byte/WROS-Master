@@ -141,7 +141,7 @@ def run_auto_assign_ai_agent_in_background(candidate_id: str):
     record and logs the outreach event. The Thunder autonomous loop
     (running every 5 seconds) will then process this candidate.
 
-    This follows the same pattern as thunder_autonomous_loop.py:
+    This follows the same pattern the (removed) thunder_autonomous_loop used:
     1. Create CandidateConversation record (candidate is now "ready for outreach")
     2. Log outreach initiation event
     3. Let the autonomous loop handle actual outreach scheduling

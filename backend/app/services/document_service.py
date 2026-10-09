@@ -3,7 +3,6 @@ Document Service Layer
 Handles all document upload, validation, and management operations.
 Provides secure and scalable document handling with SharePoint integration.
 Uses service account authentication for SharePoint access.
-import logging
 """
 
 import logging
@@ -17,8 +16,6 @@ from sqlalchemy.orm import Session
 import requests
 
 from app.models.document import CandidateDocument
-from app.core.logging import logger
-from app.core.graph_auth import get_graph_token
 
 # SharePoint configuration
 SHAREPOINT_SITE_ID = os.getenv("SHAREPOINT_SITE_ID", "")
@@ -35,11 +32,13 @@ DOCUMENT_TYPES = {
     "salary_slip": {"folder": "Salary_Slips", "max_size": 10 * 1024 * 1024, "extensions": [".pdf", ".jpg", ".jpeg", ".png"]},
     "bank_statement": {"folder": "Bank_Statements", "max_size": 10 * 1024 * 1024, "extensions": [".pdf", ".jpg", ".jpeg", ".png"]},
     "uan_pf": {"folder": "UAN_PF", "max_size": 10 * 1024 * 1024, "extensions": [".pdf", ".jpg", ".jpeg", ".png"]},
+    # pre-joining documents requested after an offer is accepted (ID, address proof, BGV consent...)
+    "preboarding": {"folder": "Preboarding", "max_size": 10 * 1024 * 1024, "extensions": [".pdf", ".jpg", ".jpeg", ".png"]},
 }
 
 # Document types that allow multiple independent uploads (each file is a separate record).
 # For all other types only ONE active document (is_latest=True) is kept per candidate.
-MULTI_UPLOAD_TYPES = {"education", "experience","pan","aadhar","salary_slip","bank_statement","uan_pf"}
+MULTI_UPLOAD_TYPES = {"education", "experience", "pan", "aadhar", "salary_slip", "bank_statement", "uan_pf", "preboarding"}
 
 logger = logging.getLogger(__name__)
 

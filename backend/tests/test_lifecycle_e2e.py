@@ -28,6 +28,7 @@ from app.models.revenue import Revenue
 from app.models.role_template import RoleTemplate
 from app.models.tenant import Tenant
 from app.models.user import Jobs, Users
+from tests.hiring_fixtures import clear_hiring
 
 TODAY = date.today()
 MONDAY = TODAY - timedelta(days=TODAY.weekday())
@@ -111,10 +112,12 @@ def world(db):
                           total_experience_months=72, thunder_enabled=False)
     db.add_all([job, candidate])
     db.flush()
-    db.add(OfferLetter(candidate_id=candidate.candidateID, position="Guidewire Developer", salary="24,00,000",
-                       joining_date=MONDAY - timedelta(days=30), offer_expire_date=MONDAY,
-                       offer_status="Accepted", responded_at=datetime.utcnow()))
+    offer = OfferLetter(candidate_id=candidate.candidateID, position="Guidewire Developer", salary="24,00,000",
+                        joining_date=MONDAY - timedelta(days=30), offer_expire_date=MONDAY,
+                        offer_status="Accepted", responded_at=datetime.utcnow() - timedelta(days=40))
+    db.add(offer)
     db.commit()
+    clear_hiring(db, candidate, offer)  # screen, L1, L2, documents, BGV
     return dict(admin=admin, partner=partner, unit=unit, client=client, project=project, job=job,
                 candidate=candidate, admin_role=admin_role)
 
@@ -137,14 +140,23 @@ def test_candidate_to_partner_and_org_pnl(db, api, world):
     assert converted.status_code in (200, 201), converted.text
     employee = db.query(Employee).filter_by(candidate_id=world["candidate"].candidateID).one()
     assert employee.base_salary_usd_cents == round(CTC_INR / FX * 100 / 12)
-    assert employee.status == "ACTIVE"  # on the bench: no client yet
+    assert employee.status == "BENCH"  # on the bench: no client yet
 
-    # submitted to the client's job, client interviews and selects, placed
+    # submitted to the client's job, client interviews and selects
     sub = ok(client.post("/api/v1/submissions", headers=admin_h, json={
         "demand_id": world["job"].jobID, "candidate_id": world["candidate"].candidateID}))
-    for status in ("CLIENT_INTERVIEW_REQUESTED", "OFFER_EXTENDED", "PLACED"):
+    for status in ("CLIENT_INTERVIEW_REQUESTED", "OFFER_EXTENDED"):
         ok(client.post(f"/api/v1/submissions/{sub['id']}/client-response", headers=admin_h,
                        json={"new_status": status, "client_feedback": "ok"}))
+    # not placed until the client confirms a start date
+    early = client.post(f"/api/v1/submissions/{sub['id']}/client-response", headers=admin_h,
+                        json={"new_status": "PLACED", "client_feedback": "ok"})
+    assert early.status_code == 409
+    onboarding = [o for o in ok(client.get("/api/v1/client-onboarding", headers=admin_h)) if o["submission_id"] == sub["id"]]
+    assert len(onboarding) == 1 and onboarding[0]["status"] == "PENDING"
+    started = ok(client.post(f"/api/v1/client-onboarding/{onboarding[0]['id']}/confirm-start", headers=admin_h,
+                             json={"confirmed_start_date": (MONDAY - timedelta(days=14)).isoformat()}))
+    assert started["status"] == "STARTED" and started["allocation_id"]
     db.expire_all()
     assert employee.status == "ALLOCATED"
     allocations = ok(client.get("/api/v1/my/allocations", headers=_login(_user_of(db, employee))))["allocations"]

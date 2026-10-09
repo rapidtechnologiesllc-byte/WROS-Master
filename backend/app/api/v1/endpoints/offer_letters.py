@@ -1,4 +1,4 @@
-from datetime import datetime, date
+from datetime import datetime
 import logging
 from typing import Optional
 
@@ -8,14 +8,11 @@ from sqlalchemy.orm import Session
 import os as _os
 
 from app.core.database import get_db
-from fastapi import Request
 from app.core.dependencies import (
     get_current_candidate,
     get_current_internal_user,
-    require_permission,
     require_resource_permission,
 )
-from app.core.logging import logger
 from app.models.offer_letter import OfferLetter
 from app.models.candidate import Candidate, CandidateStatus
 from app.models.user import Users, Jobs
@@ -46,9 +43,11 @@ from app.services.salary_structure_generator import (
     calculate_salary,
 )
 from app.services.email_service import EmailService
+from app.services import offer_response_service
 from app.services.candidate_event_bus import CandidateEventBus
 
 router = APIRouter(prefix="/offer-letter", tags=["offer-letter"])
+logger = logging.getLogger(__name__)
 
 # "" Pipeline-status helper (fire-and-forget, never blocks offer flow) """""""""
 
@@ -75,6 +74,18 @@ def _update_pipeline_status(candidate_id: str, new_status: str, db: Session) -> 
         pass  # Status update must never block offer operations
 
 # "" helpers """"""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
+
+def _require_offer_gate(db: Session, candidate_id: str) -> None:
+    """CEO hiring order: an offer only after the screen, L1 and L2 rounds have passed."""
+    from app.services.hiring_pipeline_service import PipelineGateBlocked, assert_gate
+
+    try:
+        assert_gate(db, candidate_id, "OFFER")
+    except PipelineGateBlocked as blocked:
+        db.rollback()
+        raise HTTPException(status_code=409, detail={
+            "message": "Candidate is not ready for an offer.", "stage": blocked.stage, "blockers": blocked.blockers})
+
 
 def _candidate_name(c) -> str | None:
     if not c:
@@ -183,77 +194,19 @@ def list_offer_templates(
 
 @router.post(
     "/respond",
-    response_model=OfferAcceptanceResponse,
-    dependencies=[Depends(require_resource_permission("offer-letters", "create"))]
+    response_model=OfferAcceptanceResponse
 )
 def respond_to_offer(
     request: OfferAcceptanceRequest,
     db: Session = Depends(get_db),
     candidate=Depends(get_current_candidate),
 ):
-    """Candidate responds to an offer letter (accept or reject)."""
-    if request.action.lower() not in ["accept", "reject"]:
-        raise HTTPException(status_code=400, detail="Action must be 'accept' or 'reject'")
-
-    offer = db.query(OfferLetter).filter(OfferLetter.id == request.offer_id).first()
-    if not offer:
-        raise HTTPException(status_code=404, detail=f"Offer letter {request.offer_id} not found")
-
-    if offer.candidate_id != candidate.candidateID:
-        raise HTTPException(status_code=403, detail="You are not authorized to respond to this offer")
-
-    # Candidates can only respond to Released offers (offers visible to them)
-    if offer.offer_status != "Released":
-        raise HTTPException(
-            status_code=400,
-            detail=f"Cannot respond to offer with status '{offer.offer_status}'. Only Released offers can be responded to.",
-        )
-
-    offer.offer_status = "Accepted" if request.action.lower() == "accept" else "Rejected"
-    offer.candidate_response = request.response_message
-    offer.responded_at = datetime.now()
-    db.commit()
-    db.refresh(offer)
-
-    # "" Update candidate pipeline status based on response """"""""""""""""""""
-    if request.action.lower() == "accept":
-        _update_pipeline_status(offer.candidate_id, "Hired", db)
-    else:
-        _update_pipeline_status(offer.candidate_id, "Rejected", db)
-
-    # "" Pool ownership transition: candidate rejects offer ' Org Pool """""""""
-    if request.action.lower() == "reject":
-        from app.services.candidate_pool_service import set_org_pool
-        set_org_pool(
-            candidate_id=offer.candidate_id,
-            reason=f"Candidate rejected offer #{offer.id} - returned to Org Pool",
-            db=db,
-            performed_by_id=candidate.candidateID,
-            performed_by_name=(
-                f"{candidate.candidateFirstName or ''} {candidate.candidateLastName or ''}".strip()
-                or candidate.candidateEmail
-            ),
-        )
-        db.commit()
-
-    # "" Email HR on candidate response """""""""""""""""""""""""""""""""""""""
+    """Candidate accepts or rejects their released offer."""
     try:
-        hr_creator = db.query(Users).filter(Users.UserID == offer.created_by).first()
-        if hr_creator:
-            candidate_name = _candidate_name(
-                db.query(Candidate).filter(Candidate.candidateID == offer.candidate_id).first()
-            ) or offer.candidate_id
-            EmailService.notify_hr_candidate_responded(
-                hr_email=hr_creator.UserEmail,
-                candidate_name=candidate_name,
-                position=offer.position or "",
-                offer_id=offer.id,
-                decision=offer.offer_status,
-                response_message=request.response_message or "",
-            )
-    except Exception:
-        pass  # Email failure must never block the response
-
+        offer = offer_response_service.respond_to_offer(
+            db, candidate, request.offer_id, request.action, request.response_message)
+    except offer_response_service.OfferResponseError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=str(exc))
     return OfferAcceptanceResponse(
         status="Success",
         message=f"Offer {offer.offer_status.lower()} successfully",
@@ -264,18 +217,14 @@ def respond_to_offer(
 
 @router.get(
     "/my-offers",
-    response_model=AllOffersResponse,
-    dependencies=[Depends(require_resource_permission("offer-letters", "view"))]
+    response_model=AllOffersResponse
 )
 def get_my_offers(
     db: Session = Depends(get_db),
     candidate=Depends(get_current_candidate),
 ):
     """Get all Released offer letters for the authenticated candidate."""
-    offers = db.query(OfferLetter).filter(
-        OfferLetter.candidate_id == candidate.candidateID,
-        OfferLetter.offer_status.in_(["Released", "Accepted", "Rejected"]),
-    ).all()
+    offers = offer_response_service.candidate_offers(db, candidate)
 
     offer_responses = []
     for offer in offers:
@@ -328,6 +277,8 @@ def create_offer_letter(
                 status_code=404,
                 detail=f"Job '{request.job_id}' not found. Pass null/omit job_id if not linking a job.",
             )
+
+    _require_offer_gate(db, request.candidate_id)
 
     new_offer = OfferLetter(
         candidate_id=request.candidate_id,
@@ -664,6 +615,7 @@ def generate_offer_letter_document(
     offer = db.query(OfferLetter).filter(OfferLetter.id == offer_id).first()
     if not offer:
         raise HTTPException(status_code=404, detail=f"Offer letter {offer_id} not found")
+    _require_offer_gate(db, offer.candidate_id)
 
     # Resolve template path - validate early so we fail fast before any DB work
     try:
@@ -913,13 +865,13 @@ async def approve_offer_letter(
 @router.post(
     "/release/{offer_id}",
     response_model=OfferReleaseResponse,
-    dependencies=[Depends(require_resource_permission("offer-letters", "view"))],
+    dependencies=[Depends(require_resource_permission("offer-letters", "edit"))],
     summary="Release an approved offer letter to the candidate",
 )
 def release_offer_letter(
     offer_id: int,
     db: Session = Depends(get_db),
-    user=Depends(require_resource_permission("offer-letters", "view")),
+    user=Depends(get_current_internal_user),
 ):
     """
     HR releases an `Approved` offer to the candidate, changing
@@ -927,12 +879,8 @@ def release_offer_letter(
     notified via WhatsApp + email (S-054/HRMS-0454) and the offer
     appears in their `my-offers` list.
 
-    **Required permission:** `offer.readiness_check` -- S-053/HRMS-0453
-    added this narrower permission (not the broader `offer.manage`,
-    which a real, pre-existing RBAC data inconsistency currently still
-    grants to Recruiter despite that role's own description saying
-    otherwise) specifically so this release action gets a real HTTP
-    403 for Recruiter, per this story's own explicit AC-8.
+    **Required permission:** `offer-letters` edit (it used to be view, so
+    anyone who could see offers could release one).
 
     S-054/HRMS-0454 BR-01: re-runs checkOfferReadiness() at the moment
     of release (interview outcomes or candidate status could have
@@ -990,7 +938,6 @@ def release_offer_letter(
 @router.post(
     "/sign/{offer_id}",
     response_model=CandidateSignedAcceptanceResponse,
-    dependencies=[Depends(require_resource_permission("offer-letters", "create"))],
     summary="Candidate signs the offer letter (uploads signature PNG)",
 )
 async def candidate_sign_offer(
@@ -1009,18 +956,10 @@ async def candidate_sign_offer(
     4. Uploads the fully-signed document to `signed-offers/`.
     5. Sets `offer_status = Accepted` and notifies HR by email.
     """
-    offer = db.query(OfferLetter).filter(OfferLetter.id == offer_id).first()
-    if not offer:
-        raise HTTPException(status_code=404, detail=f"Offer letter {offer_id} not found")
-
-    if offer.candidate_id != candidate.candidateID:
-        raise HTTPException(status_code=403, detail="You are not authorized to sign this offer.")
-
-    # if offer.offer_status != "Released":
-    #     raise HTTPException(
-    #         status_code=400,
-    #         detail=f"Offer is not available for signing (status: '{offer.offer_status}'). Only 'Released' offers can be signed.",
-    #     )
+    try:
+        offer = offer_response_service.own_released_offer(db, candidate, offer_id)
+    except offer_response_service.OfferResponseError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=str(exc))
 
     if not signature.content_type.startswith("image/"):
         raise HTTPException(status_code=422, detail="Signature file must be an image (PNG preferred).")
@@ -1090,25 +1029,9 @@ async def candidate_sign_offer(
     offer.sharepoint_url           = signed_web_url
     offer.download_url             = get_file_download_link(signed_path) or signed_web_url
     offer.sharepoint_path          = signed_path
+    offer_response_service.set_pipeline_status(db, offer.candidate_id, "Hired")
     db.commit()
-
-    # "" Update candidate pipeline status ' Hired """"""""""""""""""""""""""""""
-    # Candidate signed the offer - they are now officially Hired
-    _update_pipeline_status(offer.candidate_id, "Hired", db)
-
-    # "" Notify HR by email """"""""""""""""""""""""""""""""""""""""""""""""""""
-    try:
-        hr_creator = db.query(Users).filter(Users.UserID == offer.created_by).first()
-        if hr_creator:
-            EmailService.notify_hr_candidate_responded(
-                hr_email=hr_creator.UserEmail,
-                candidate_name=candidate_full or offer.candidate_id,
-                position=offer.position or "",
-                offer_id=offer_id,
-                decision="Accepted",
-            )
-    except Exception:
-        pass
+    offer_response_service.after_response(db, offer, candidate)
 
     return CandidateSignedAcceptanceResponse(
         status="success",
@@ -1121,7 +1044,6 @@ async def candidate_sign_offer(
 # ============================================
 # SALARY STRUCTURE DOCUMENT
 # ============================================
-logger = logging.getLogger(__name__)
 
 class SalaryComponentDetail(_BM):
     """A single salary component with monthly and annual amounts."""

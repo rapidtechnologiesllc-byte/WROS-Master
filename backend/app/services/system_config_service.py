@@ -19,7 +19,7 @@ never a shadow copy in this table.
 """
 import logging
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Tuple
 
 from sqlalchemy.orm import Session
@@ -28,7 +28,6 @@ from app.core.audit import write_audit_log
 from app.models.client import BILLING_CURRENCIES
 from app.models.system_config import CONFIG_CATEGORIES, SystemConfig
 from app.models.tenant import TENANT_DATE_FORMATS, Tenant
-from app.core.logging import logger
 
 CACHE_TTL_SECONDS = 60  # AC-4 -- a saved change must be visible within 60s
 _CONFIG_CACHE: Dict[Tuple[int, Optional[int], str], Tuple[float, Any]] = {}
@@ -54,6 +53,12 @@ class ConfigKeySpec:
     max_value: Optional[float] = None
 
 KNOWN_CONFIG_KEYS: Dict[str, ConfigKeySpec] = {
+    "prejoining_checklist_template_id": ConfigKeySpec(
+        key="prejoining_checklist_template_id", category="ONBOARDING", value_type="INT", default=0,
+        label="Checklist template assigned automatically when a candidate accepts an offer (0 = none)",
+        source="app.services.hiring_onboarding_service.start_onboarding -- wired live",
+        min_value=0,
+    ),
     "low_confidence_threshold": ConfigKeySpec(
         key="low_confidence_threshold", category="AI_THRESHOLDS", value_type="PERCENT", default=0.7,
         label="Candidate memory: low-confidence fact threshold",

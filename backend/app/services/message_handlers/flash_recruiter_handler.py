@@ -13,7 +13,6 @@ import logging
 from typing import Dict, Any
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import OperationalError
-from app.services.message_handlers.base_message_handler import time_bound
 
 logger = logging.getLogger(__name__)
 
@@ -228,7 +227,8 @@ class FlashRecruiterHandler:
 
             # ARCHITECT FIX: Deduplication - filter out candidates already matched in previous runs
             previously_matched_ids = payload.get('previously_matched_candidate_ids', [])
-            new_candidate_watches = [w for w in matched_watches if w.get('candidate_id') not in previously_matched_ids]
+            # scan_new_job_for_matches returns CandidateOpportunityWatch rows (ORM objects, not dicts)
+            new_candidate_watches = [w for w in matched_watches if w.candidate_id not in previously_matched_ids]
 
             logger.info(
                 f"[FlashRecruiter] Found {len(matched_watches)} matching candidates for {job_id}, "
@@ -236,7 +236,7 @@ class FlashRecruiterHandler:
             )
 
             # Track newly matched candidates for next run
-            new_candidate_ids = [w.get('candidate_id') for w in new_candidate_watches if w.get('candidate_id')]
+            new_candidate_ids = [w.candidate_id for w in new_candidate_watches if w.candidate_id]
             updated_previously_matched = previously_matched_ids + new_candidate_ids
 
             # PHASE 4: TRAIN SLM WITH RESULTS
@@ -289,7 +289,7 @@ class FlashRecruiterHandler:
                     # Schedule next recruitment run in 4 hours (14400 seconds)
                     next_recruiter_msg_id = MessageQueueService.enqueue(
                         task_name='flash_recruiter',
-                        task_id=f"{job_id}_next",
+                        task_id=f"recruit:{job_id}:{__import__('uuid').uuid4().hex[:12]}",  # unique per run
                         data=next_payload,
                         delay_seconds=14400  # 4 hours
                     )
@@ -347,7 +347,7 @@ class FlashRecruiterHandler:
 
         job_id = result.get('job_id')
         if not job_id:
-            raise ValueError(f"Result missing job_id")
+            raise ValueError("Result missing job_id")
 
         try:
             # VERIFY 1: Job still exists (race condition check)

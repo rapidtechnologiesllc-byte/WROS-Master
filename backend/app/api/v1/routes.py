@@ -1,4 +1,3 @@
-import logging
 import fastapi
 
 from app.api.v1.endpoints.auth import router as auth_router
@@ -91,6 +90,9 @@ from app.api.v1.endpoints.linkedin_candidate_pipeline import router as linkedin_
 from app.api.v1.endpoints.business_units import router as business_units_router
 from app.api.v1.endpoints.admin_queue import router as admin_queue_router
 from app.api.v1.endpoints.employee_conversion import router as employee_conversion_router
+from app.api.v1.endpoints.hiring_pipeline import router as hiring_pipeline_router
+from app.api.v1.endpoints.bgv import router as bgv_router
+from app.api.v1.endpoints.client_onboarding import router as client_onboarding_router
 from app.api.v1.endpoints.hiring_manager_validation import router as hiring_manager_validation_router
 from app.api.v1.endpoints.offers import router as offers_router
 from app.api.v1.endpoints.spartan_forecasting import router as spartan_forecasting_router
@@ -226,6 +228,9 @@ router.include_router(router=admin_queue_router)
 # doctor_traces_dashboard: references app.models.doctor_trace.DoctorTrace, which was
 # never added to this codebase; not registered until that model exists.
 router.include_router(router=employee_conversion_router)
+router.include_router(router=hiring_pipeline_router)
+router.include_router(router=bgv_router)
+router.include_router(router=client_onboarding_router)
 router.include_router(router=hiring_manager_validation_router)
 router.include_router(router=offers_router)
 router.include_router(router=spartan_forecasting_router)

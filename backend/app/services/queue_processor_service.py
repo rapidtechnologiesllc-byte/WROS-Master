@@ -71,6 +71,10 @@ class QueueProcessorService:
         'thunder_process_inbound_email': 80,  # LLM classify (up to ~63s) + writes
         'send_invoice_email': 50,  # Graph draft + send; handler self-limits to 45s
         'send_account_email': 50,  # Graph draft + send; handler self-limits to 45s
+        'hiring_pipeline_evaluate': 45,  # handler self-limits to 40s
+        'hiring_stage_action': 45,
+        'hiring_convert_to_bench': 45,
+        'send_pipeline_email': 50,  # Graph draft + send; handler self-limits to 45s
         'send_whatsapp_message': 60,  # WhatsApp API calls
         'send_email_message': 30,  # Email typically fast
         'send_sms_message': 30,  # SMS typically fast
@@ -609,7 +613,7 @@ class QueueProcessorService:
                         from app.services.message_queue_service import MessageQueueService as MQS
                         recruiter_msg_id = MQS.enqueue(
                             task_name='flash_recruiter',
-                            task_id=f"recruit_{job_id}",
+                            task_id=f"recruit:{job_id}:created",
                             data={
                                 'job_id': job_id,
                                 'job_title': persisted_job.jobTitle,
@@ -623,6 +627,8 @@ class QueueProcessorService:
                             }
                         )
                         logger.info(f"[QueueProcessor] Queued flash_recruiter for job {job_id}: message_id={recruiter_msg_id}")
+                        MQS.enqueue(task_name='source_candidates_for_job', task_id=f"source:{job_id}:created",
+                                    data={'job_id': job_id, 'reason': 'created'})
                     except Exception as slm_err:
                         logger.error(f"[QueueProcessor] SLM analysis failed for job {job_id}: {slm_err}", exc_info=True)
                         # Don't fail - continue without SLM guidance (flash_recruiter will use defaults)

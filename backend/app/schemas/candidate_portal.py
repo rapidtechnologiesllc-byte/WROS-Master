@@ -6,7 +6,6 @@ import logging
 from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field
-from app.core.logging import logger
 
 logger = logging.getLogger(__name__)
 
@@ -79,3 +78,8 @@ class PortalTrackRequest(BaseModel):
 
 class PortalTrackResponse(BaseModel):
     recorded: bool
+
+
+class PortalOfferRespondRequest(BaseModel):
+    action: str = Field(..., description="accept or decline")
+    message: Optional[str] = Field(None, max_length=2000)

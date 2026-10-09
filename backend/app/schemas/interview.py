@@ -2,7 +2,6 @@ from pydantic import BaseModel, Field
 from typing import Optional, List
 import logging
 from datetime import datetime
-from app.core.logging import logger
 
 # ============================================
 # Interview Panel Schemas
@@ -14,6 +13,8 @@ class InterviewPanelCreate(BaseModel):
     candidate_id: str
     round_name: str = Field(..., description="Round name: HR, Technical, Managerial, etc.")
     job_id: Optional[str] = Field(None, description="Job the candidate is being interviewed for")
+    level: Optional[str] = Field(
+        None, description="SCREEN, L1 (technical), L2 (management) or OTHER. Inferred from round_name when omitted.")
     rehire_justification: Optional[str] = Field(
         None,
         description=(
@@ -37,6 +38,8 @@ class InterviewPanelResponse(BaseModel):
     rehire_cleared_by: Optional[str] = Field(
         None, description="'AI' or 'Hiring Manager' -- only set when the rehire guard applied."
     )
+    level: Optional[str] = None
+    verdict: Optional[str] = None
 
 class InterviewPanelWithDetails(BaseModel):
     """Schema for interview panel with member details"""
@@ -153,7 +156,7 @@ class InterviewFeedbackCreate(BaseModel):
     problem_solving_score: int = Field(..., ge=0, le=10, description="Score from 0-10")
     culture_fit_score: int = Field(..., ge=0, le=10, description="Score from 0-10")
     comments: Optional[str] = None
-    recommendation: str = Field(..., description="Recommendation: Hire, Hold, or Reject")
+    recommendation: str = Field(..., description="No Hire, Not sure, Average, Hire or Must Hire")
 
 class InterviewFeedbackUpdate(BaseModel):
     """Schema for updating interview feedback"""
@@ -384,3 +387,25 @@ class RehireReviewDecideRequest(BaseModel):
     decision: str = Field(..., description="'approve' or 'reject'")
     note: Optional[str] = None
     candidates: List[HMCandidateReviewItem]
+
+
+class RoundLevelRequest(BaseModel):
+    level: str = Field(..., description="SCREEN, L1, L2 or OTHER")
+
+
+class RoundVerdictRequest(BaseModel):
+    verdict: str = Field(..., description="PASS or FAIL")
+    rationale: Optional[str] = None
+
+
+class RoundVerdictResponse(BaseModel):
+    panel_id: int
+    candidate_id: str
+    job_id: Optional[str] = None
+    round_name: Optional[str] = None
+    level: str
+    verdict: str
+    source: str
+    decided_by_user_id: Optional[str] = None
+    decided_at: Optional[datetime] = None
+    rationale: Optional[str] = None

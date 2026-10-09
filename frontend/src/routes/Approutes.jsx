@@ -118,6 +118,7 @@ import SLABreachBanner from "../components/SLABreachBanner";
 import AdminAgentStateDashboard from "../screens/AdminAgentStateDashboard";
 import AdminWeeklyRecapDashboard from "../screens/AdminWeeklyRecapDashboard";
 import EmployeeConversionScreen from "../screens/EmployeeConversionScreen";
+import HiringPipelineScreen from "../screens/HiringPipelineScreen";
 import ForcePasswordReset from "../pages/ForcePasswordReset";
 import CEOExecutiveDashboardScreen from "../screens/CEOExecutiveDashboardScreen";
 import TrainingCertificationDashboard from "../screens/TrainingCertificationDashboard";
@@ -662,6 +663,7 @@ export default function AppRoutes() {
             <Route path="demand-confirmation" element={<DemandConfirmationScreen />} />
             <Route path="employees" element={<EmployeesConsolidatedScreen />} />
             <Route path="employee-conversion" element={<EmployeeConversionScreen />} />
+            <Route path="hiring-pipeline" element={<HiringPipelineScreen />} />
             <Route path="linkedin-pipeline" element={<LinkedInPipelineScreen />} />
             <Route path="submissions" element={<SubmissionsScreen />} />
             <Route path="allocations" element={<AllocationsScreen />} />

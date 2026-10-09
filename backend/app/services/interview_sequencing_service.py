@@ -27,22 +27,16 @@ never aggregated into a round-level decision anywhere in this codebase
 existing piece of related automation -- it counts completed interviews,
 it never looks at recommendation at all).
 
-This module makes that judgment call explicitly rather than inventing
-it silently: a round has passed once at least one of its Interview
-sessions is Completed AND at least one submitted InterviewFeedback for
-that round recommends "Hire" AND none recommend "Reject" -- fail-closed
-on any negative signal, same posture as R-01 and the virus-scan gate.
-**This specific aggregation rule is this session's judgment call, not a
-confirmed product decision** -- flagged for whoever owns the interview
-process to confirm or override, same posture as the MFA role-mapping
-and Client v2 contact-role-vocabulary calls made earlier this session.
+A round has passed when its verdict (app.services.interview_verdict_service)
+is PASS: any "No Hire" fails it, all "Hire"/"Must Hire" passes it, and mixed
+feedback goes to the hiring manager to decide. An L2 (management) round also
+needs a passed L1 (technical) round.
 """
 import logging
 from typing import List
 
 from sqlalchemy.orm import Session
 
-from app.core.logging import logger
 from app.models.candidate import Candidate, CandidateStatus
 from app.models.user import (
     CandidateAssignment,
@@ -60,22 +54,14 @@ class PriorRoundNotPassed(Exception):
     been recorded as passed -- a new round cannot be scheduled yet."""
 
 def _round_has_passed(db: Session, panel: InterviewPanel) -> bool:
-    interviews = db.query(Interview).filter(Interview.panel_id == panel.id).all()
-    interview_ids = [interview.id for interview in interviews]
-    if not any(interview.status == "Completed" for interview in interviews):
-        return False
+    """A round passed when its verdict is PASS (see interview_verdict_service: computed from
+    feedback -- any No Hire fails, all Hire/Must Hire passes -- or decided by the hiring
+    manager when feedback is mixed)."""
+    from app.services.interview_verdict_service import verdict_for_panel
 
-    feedback = (
-        db.query(InterviewFeedback)
-        .filter(InterviewFeedback.interview_id.in_(interview_ids))
-        .all()
-    )
-    recommendations = {item.recommendation for item in feedback}
-    if "Reject" in recommendations:
-        return False
-    return "Hire" in recommendations
+    return verdict_for_panel(db, panel).verdict == "PASS"
 
-def enforce_interview_sequencing_gate(db: Session, candidate_id: str) -> None:
+def enforce_interview_sequencing_gate(db: Session, candidate_id: str, level: str = None, job_id: str = None) -> None:
     """
     R-05 at panel-creation time. The candidate's first panel is always
     allowed -- there is nothing to sequence against yet. Every
@@ -84,6 +70,13 @@ def enforce_interview_sequencing_gate(db: Session, candidate_id: str) -> None:
     PriorRoundNotPassed otherwise; callers must not catch this and
     proceed.
     """
+    if level == "L2":
+        from app.services.interview_verdict_service import level_passed
+
+        if not level_passed(db, candidate_id, "L1", job_id) and not level_passed(db, candidate_id, "L1"):
+            raise PriorRoundNotPassed(
+                f"Candidate {candidate_id} has no passed L1 (technical) round -- an L2 "
+                f"(management) round can only follow an L1 pass.")
     most_recent = (
         db.query(InterviewPanel)
         .filter(InterviewPanel.candidate_id == candidate_id)
@@ -122,8 +115,12 @@ def enforce_interview_sequencing_gate(db: Session, candidate_id: str) -> None:
 def _round_overall_recommendation(feedbacks: List[InterviewFeedback]) -> str:
     if not feedbacks:
         return "No Feedback"
+    from app.services.interview_verdict_service import HIRE, NO_HIRE
+
     recommendations = {f.recommendation for f in feedbacks}
-    if recommendations == {"Hire"}:
+    if recommendations & NO_HIRE:
+        return "No Hire"
+    if recommendations <= HIRE:
         return "Hire"
     return "Mixed"
 

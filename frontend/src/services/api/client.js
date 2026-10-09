@@ -34,6 +34,11 @@ export const formatApiErrorMessage = (payload) => {
         .join("; ");
     }
     if (typeof detail === "object" && detail.msg) return String(detail.msg);
+    // gate refusals: {message, blockers: [...]} -> "message: blocker; blocker"
+    if (typeof detail === "object" && Array.isArray(detail.blockers)) {
+      const reasons = detail.blockers.filter(Boolean).join("; ");
+      return [detail.message, reasons].filter(Boolean).join(": ");
+    }
     if (typeof detail === "object") {
       try {
         return JSON.stringify(detail);

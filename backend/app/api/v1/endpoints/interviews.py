@@ -1,10 +1,8 @@
 from app.core.database import SessionLocal
 from datetime import datetime, timedelta, timezone
-import logging
 from typing import Optional, List
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -14,10 +12,8 @@ from app.models import (
     InterviewFeedback, PanelMember,
     CandidateStatus, CandidateAssignment, Jobs,
     CandidateHistory,
-    ChecklistTemplate, CandidateChecklist, CandidateChecklistItem, ChecklistTemplateItem,
     InterviewRehireReview,
 )
-from app.utils.uniq_id_generator import panel_id_generator
 from app.services.email_service import EmailService
 from app.services.message_queue_service import MessageQueueService
 from app.services.candidate_event_bus import CandidateEventBus
@@ -48,18 +44,30 @@ from app.schemas.interview import (
     # Interview schemas
     InterviewCreate, InterviewUpdate, InterviewResponse, InterviewDetailedResponse,
     # Feedback schemas
-    InterviewFeedbackCreate, InterviewFeedbackUpdate, 
+    InterviewFeedbackCreate, InterviewFeedbackUpdate,
     InterviewFeedbackResponse, InterviewFeedbackWithDetails,
     # Statistics and history
     InterviewStatistics, CandidateInterviewHistory, InterviewerWorkload,
     # My Interviews
     MyInterviewItem, MyInterviewFeedback, MyInterviewsResponse,
     # Common responses
-    DeleteResponse, BulkDeleteResponse,
+    DeleteResponse,
     # Hiring Manager review
-    HMFeedbackDetail, HMInterviewRound, HMCandidateReviewItem, HMCandidateReviewListResponse,
+    HMCandidateReviewListResponse,
     # Rehire guard
     RehireReviewResponse, RehireReviewListResponse, RehireReviewDecideRequest,
+    RoundLevelRequest, RoundVerdictRequest, RoundVerdictResponse,
+)
+
+from app.services.interview_verdict_service import (
+    LEVELS,
+    RECOMMENDATIONS,
+    VerdictError,
+    candidate_verdicts,
+    ensure_verdict_row,
+    infer_level,
+    record_manual_verdict,
+    set_level,
 )
 
 router = APIRouter(prefix="/interviews", tags=["interviews"])
@@ -77,21 +85,32 @@ def _candidate_display_name(candidate: Candidate) -> str:
     ]
     return " ".join(filter(None, parts)).strip() or "N/A"
 
+def _record_round_verdict(db: Session, interview: Interview) -> None:
+    """Recompute and save the round's verdict after its feedback or status changed."""
+    from app.services.interview_verdict_service import compute_verdict
+
+    from app.services.hiring_pipeline_service import notify
+
+    panel = db.query(InterviewPanel).filter(InterviewPanel.id == interview.panel_id).first()
+    if panel is not None:
+        row = compute_verdict(db, panel)
+        db.commit()
+        notify(panel.candidate_id, "verdict", f"{panel.id}:{row.verdict}")
+
+
 def _check_and_auto_submit_for_hire(interview: Interview, db: Session) -> None:
     """
-    After a feedback submission, check whether the candidate qualifies for
-    automatic submission to the hiring manager for approval.
-
-    Conditions (ALL must be true):
-      1. Candidate's current pipeline status is still 'Interview'.
-      2. The candidate has >= 2 completed interviews.
-
-    If all conditions pass, the pipeline status is moved to 'Pre-onboarding-Approval' and
-    the hiring manager receives an email notification.
+    After a round finishes, act on its verdict (interview_verdict_service):
+      FAIL           -> candidate's pipeline status Rejected
+      PASS at L2     -> pipeline status 'Pre-onboarding-Approval' and the hiring manager is
+                        emailed to approve (L1 and L2 have both passed by then: L2 can't be
+                        scheduled without an L1 pass)
+      NEEDS_DECISION -> nothing here; the hiring-manager review task asks them to decide
+    Only acts while the candidate is in the 'Interview' stage.
     """
-    candidate_id = interview.candidate_id
+    from app.services.interview_verdict_service import verdict_for_panel
 
-    # --- Condition 1: must be in 'Interview' stage ---
+    candidate_id = interview.candidate_id
     cs = (
         db.query(CandidateStatus)
         .filter(CandidateStatus.candidateID == candidate_id)
@@ -99,55 +118,39 @@ def _check_and_auto_submit_for_hire(interview: Interview, db: Session) -> None:
     )
     if not cs or cs.piplineStatus != "Interview":
         return
-
-    # --- Condition 2: >= 2 completed interviews ---
-    completed_interviews = (
-        db.query(Interview)
-        .filter(
-            Interview.candidate_id == candidate_id,
-            Interview.status == "Completed",
-        )
-        .all()
-    )
-    if len(completed_interviews) < 2:
+    panel = db.query(InterviewPanel).filter(InterviewPanel.id == interview.panel_id).first()
+    if panel is None:
+        return
+    verdict = verdict_for_panel(db, panel)
+    if verdict.verdict == "FAIL":
+        cs.piplineStatus = "Rejected"
+        db.add(CandidateHistory(
+            candidateID=candidate_id, event_type="Custom",
+            note=f"Rejected: {verdict.level} round '{panel.round_name}' verdict is No Hire.",
+            performed_by_id="system", performed_by_name="Interview verdict", event_at=datetime.utcnow()))
+        db.commit()
+        logger.info(f"[AutoHire] Candidate '{candidate_id}' rejected after {verdict.level} No Hire.")
+        return
+    if not (verdict.verdict == "PASS" and verdict.level == "L2"):
+        db.commit()
         return
 
-    # --- All conditions met â†' auto-promote to 'Pre-onboarding-Approval' ---
     old_status = cs.piplineStatus
     cs.piplineStatus = "Pre-onboarding-Approval"
-
-    # Log history
     db.add(CandidateHistory(
         candidateID=candidate_id,
         event_type="Custom",
-        note=(
-            f"Candidate auto-submitted for Hiring Manager approval after "
-            f"{len(completed_interviews)} completed interviews."
-        ),
+        note="Candidate passed L1 (technical) and L2 (management) rounds; submitted for Hiring Manager approval.",
         performed_by_id="system",
         performed_by_name="Auto-Hire Engine",
         event_at=datetime.utcnow(),
     ))
     db.commit()
-
-    # Queue interview completion for FLASH orchestrator
-    try:
-        from app.services.message_queue_service import MessageQueueService
-        MessageQueueService.enqueue(
-            task_name='interview_completed_flash',
-            task_id=candidate_id,
-            data={
-                'candidate_id': candidate_id,
-                'completed_interviews': len(completed_interviews),
-                'completed_at': datetime.utcnow().isoformat()
-            }
-        )
-    except Exception as e:
-        logger.warning(f"Failed to queue interview completion: {e}")
-
+    completed_interviews = db.query(Interview).filter(
+        Interview.candidate_id == candidate_id, Interview.status == "Completed").all()
     logger.info(
         f"[AutoHire] Candidate '{candidate_id}' promoted "
-        f"'{old_status}' â†' 'Pre-onboarding-Approval' after {len(completed_interviews)} completed interviews."
+        f"'{old_status}' -> 'Pre-onboarding-Approval' after passing L2."
     )
 
     # --- Notify the hiring manager ---
@@ -803,8 +806,11 @@ def create_interview_panel(
     # R-05: this candidate's next round cannot be created until their
     # most recent prior round has actually passed. First round is
     # always allowed (nothing to sequence against yet).
+    level = (request.level or infer_level(request.round_name)).upper()
+    if level not in LEVELS:
+        raise HTTPException(status_code=400, detail=f"level must be one of {', '.join(LEVELS)}")
     try:
-        enforce_interview_sequencing_gate(db, request.candidate_id)
+        enforce_interview_sequencing_gate(db, request.candidate_id, level=level, job_id=request.job_id)
     except PriorRoundNotPassed as exc:
         raise HTTPException(status_code=400, detail=str(exc))
 
@@ -858,8 +864,13 @@ def create_interview_panel(
     )
 
     db.add(panel)
+    db.flush()
+    verdict = ensure_verdict_row(db, panel, level)
     db.commit()
     db.refresh(panel)
+    from app.services.hiring_pipeline_service import notify
+
+    notify(panel.candidate_id, "panel_created", panel.id)
 
     return InterviewPanelResponse(
         id=panel.id,
@@ -870,6 +881,8 @@ def create_interview_panel(
         created_at=panel.created_at,
         rehire_review_id=rehire_review_id,
         rehire_cleared_by=rehire_cleared_by,
+        level=verdict.level,
+        verdict=verdict.verdict,
     )
 
 @router.get(
@@ -1063,6 +1076,73 @@ def delete_interview_panel(
 # ============================================
 # Rehire Guard Endpoints (2026-08-05)
 # ============================================
+
+# ============================================
+# Round levels and verdicts
+# ============================================
+
+def _verdict_response(panel: InterviewPanel, row) -> RoundVerdictResponse:
+    return RoundVerdictResponse(
+        panel_id=panel.id, candidate_id=panel.candidate_id, job_id=panel.job_id, round_name=panel.round_name,
+        level=row.level, verdict=row.verdict, source=row.source, decided_by_user_id=row.decided_by_user_id,
+        decided_at=row.decided_at, rationale=row.rationale)
+
+
+def _panel_or_404(db: Session, panel_id: int) -> InterviewPanel:
+    panel = db.query(InterviewPanel).filter(InterviewPanel.id == panel_id).first()
+    if panel is None:
+        raise HTTPException(status_code=404, detail=f"Interview panel {panel_id} not found")
+    return panel
+
+
+@router.get(
+    "/candidates/{candidate_id}/verdicts",
+    response_model=List[RoundVerdictResponse],
+    dependencies=[Depends(require_resource_permission("interviews", "view"))],
+)
+def list_round_verdicts(candidate_id: str, job_id: Optional[str] = None, db: Session = Depends(get_db)):
+    rows = [_verdict_response(panel, row) for panel, row in candidate_verdicts(db, candidate_id, job_id)]
+    db.commit()  # verdicts computed for older panels on first read are kept
+    return rows
+
+
+@router.put(
+    "/panels/{panel_id}/level",
+    response_model=RoundVerdictResponse,
+    dependencies=[Depends(require_resource_permission("interviews", "edit"))],
+)
+def set_round_level(panel_id: int, request: RoundLevelRequest, db: Session = Depends(get_db)):
+    panel = _panel_or_404(db, panel_id)
+    try:
+        row = set_level(db, panel, request.level.upper())
+    except VerdictError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    db.commit()
+    return _verdict_response(panel, row)
+
+
+@router.post(
+    "/panels/{panel_id}/verdict",
+    response_model=RoundVerdictResponse,
+    dependencies=[Depends(require_resource_permission("interviews", "edit"))],
+)
+def decide_round_verdict(panel_id: int, request: RoundVerdictRequest, db: Session = Depends(get_db),
+                         user=Depends(get_current_internal_user)):
+    """The hiring manager's decision when feedback was mixed (or an override, with a reason)."""
+    panel = _panel_or_404(db, panel_id)
+    try:
+        row = record_manual_verdict(db, panel, request.verdict.upper(), user.UserID, request.rationale)
+    except VerdictError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    db.commit()
+    from app.services.hiring_pipeline_service import notify
+
+    notify(panel.candidate_id, "verdict", f"{panel.id}:{row.verdict}:manual")
+    latest = db.query(Interview).filter(Interview.panel_id == panel.id).order_by(Interview.id.desc()).first()
+    if latest is not None:
+        _check_and_auto_submit_for_hire(latest, db)
+    return _verdict_response(panel, row)
+
 
 def _rehire_review_to_response(db: Session, review: InterviewRehireReview) -> RehireReviewResponse:
     candidate = db.query(Candidate).filter(Candidate.candidateID == review.candidate_id).first()
@@ -1434,6 +1514,7 @@ def create_interview(
     )
 
     db.add(interview)
+    db.flush()  # the queued event carries the real interview id
 
     # Queue interview_scheduled message (BEFORE commit for atomicity)
     MessageQueueService.enqueue(
@@ -1889,6 +1970,8 @@ def update_interview(
     # spawn duplicate tasks.
     if interview.status == "Completed" and previous_status != "Completed":
         _create_hm_review_task(db, interview)
+        _record_round_verdict(db, interview)
+        _check_and_auto_submit_for_hire(interview, db)
 
     return InterviewResponse(
         id=interview.id,
@@ -2002,12 +2085,10 @@ def submit_interview_feedback(
             detail=f"Interviewer with ID {request.interviewer_id} not found"
         )
     
-    # Validate recommendation
-    valid_recommendations = ["No Hire","Not sure","Average","Hire","Must Hire"]
-    if request.recommendation not in valid_recommendations:
+    if request.recommendation not in RECOMMENDATIONS:
         raise HTTPException(
             status_code=400,
-            detail=f"Invalid recommendation. Must be one of: {', '.join(valid_recommendations)}"
+            detail=f"Invalid recommendation. Must be one of: {', '.join(RECOMMENDATIONS)}"
         )
     
     # Fix 4: block duplicate submissions from the same interviewer
@@ -2075,13 +2156,14 @@ def submit_interview_feedback(
                     # Wire SLM: Record interview outcome
                     try:
                         from app.services.slm_job_metadata_service import SLMJobMetadataService
-                        if interview.job_id:
+                        panel = db.query(InterviewPanel).filter(InterviewPanel.id == interview.panel_id).first()
+                        if panel and panel.job_id:
                             SLMJobMetadataService.record_hiring_outcome(
                                 db=db,
-                                job_id=str(interview.job_id),
+                                job_id=str(panel.job_id),
                                 candidate_interviewed=True
                             )
-                            logger.info(f"[SLM] Recorded interview completion for job: {interview.job_id}")
+                            logger.info(f"[SLM] Recorded interview completion for job: {panel.job_id}")
                     except Exception as e:
                         logger.error(f"Error: {str(e)}", exc_info=True)
                         logger.error(f"[SLM] Failed to record interview outcome: {e}", exc_info=True)
@@ -2092,7 +2174,8 @@ def submit_interview_feedback(
         logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[FeedbackComplete] Auto-complete check failed non-critically: {exc}")
 
-    # Auto-hire check: promote to Approval if all interviews are Hire/Must Hire
+    # The round's verdict, then act on it (reject on No Hire, HM approval after L2 pass)
+    _record_round_verdict(db, interview)
     try:
         _check_and_auto_submit_for_hire(interview, db)
     except Exception as exc:
@@ -2294,16 +2377,18 @@ def update_interview_feedback(
         feedback.comments = request.comments
     if request.recommendation is not None:
         # Validate recommendation
-        valid_recommendations = ["Hire", "Hold", "Reject"]
-        if request.recommendation not in valid_recommendations:
+        if request.recommendation not in RECOMMENDATIONS:
             raise HTTPException(
                 status_code=400,
-                detail=f"Invalid recommendation. Must be one of: {', '.join(valid_recommendations)}"
+                detail=f"Invalid recommendation. Must be one of: {', '.join(RECOMMENDATIONS)}"
             )
         feedback.recommendation = request.recommendation
     
     db.commit()
     db.refresh(feedback)
+    edited = db.query(Interview).filter(Interview.id == feedback.interview_id).first()
+    if edited is not None:
+        _record_round_verdict(db, edited)
     
     return InterviewFeedbackResponse(
         id=feedback.id,

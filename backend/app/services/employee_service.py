@@ -16,7 +16,6 @@ from typing import Optional
 from sqlalchemy.orm import Session
 
 from app.models.candidate import Candidate
-from app.core.logging import logger
 from app.models.employee import (
     ALLOWED_STATUS_TRANSITIONS,
     Employee,
@@ -86,10 +85,9 @@ def transition_employee_status(
     return employee
 
 def activate_joined_employees(db: Session, *, today: Optional[date] = None, employee_ids=None) -> int:
-    """PRE_JOINING employees whose joining date has arrived become ACTIVE,
-    and ALLOCATED straight away when they already hold an ACTIVE allocation
-    (placed before joining). Commits; returns how many moved. Run by the
-    queue worker every cycle and at conversion."""
+    """PRE_JOINING employees whose joining date has arrived join: ALLOCATED when they
+    already hold an ACTIVE allocation (placed before joining), otherwise on the BENCH.
+    Commits; returns how many moved. Run by the queue worker every cycle."""
     from app.models.employee_allocation import EmployeeAllocation
 
     today = today or date.today()
@@ -105,6 +103,8 @@ def activate_joined_employees(db: Session, *, today: Optional[date] = None, empl
         if allocated:
             transition_employee_status(db, employee, "ALLOCATED", reason=f"Joined onto allocation {allocated.id}",
                                        changed_by="system")
+        else:
+            transition_employee_status(db, employee, "BENCH", reason="Joined, not yet allocated", changed_by="system")
         moved += 1
     if moved:
         db.commit()

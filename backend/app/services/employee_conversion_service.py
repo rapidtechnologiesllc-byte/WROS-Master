@@ -103,11 +103,11 @@ class EmployeeConversionService:
 
     @staticmethod
     def convert_candidate_to_employee(db, candidate, *, joining_date, business_unit_id=None, role_ids=None, employee_email=None, phone=None, first_name=None, last_name=None, employment_type="PERMANENT", tenant_id=None, changed_by=None, job_title=None, company_id=None, **fields):
-        """Candidate -> Employee, carrying the chain forward from the job the
-        candidate was hired for: business unit, employer company, and (for a
-        client role) an ACTIVE allocation to that job's client/project, which
-        is what timesheets and invoices hang off. Returns (user, employee);
-        employee.conversion_allocation is the allocation or None."""
+        """Candidate -> Employee + system user, carrying the business unit and employer company
+        forward from the job the candidate was hired for. A new hire joins the BENCH: they reach a
+        client only through submission -> client selection -> client onboarding -> PLACED, which
+        is where the project allocation is made. Returns (user, employee);
+        employee.conversion_allocation is always None (kept for the response shape)."""
         if hasattr(candidate, "status") and candidate.status == "CONVERTED_TO_EMPLOYEE":
             raise InvalidCandidateState("Candidate already converted")
         email = employee_email or candidate.candidateEmail
@@ -150,23 +150,11 @@ class EmployeeConversionService:
         db.add(candidate)
 
         emp.conversion_allocation = None
-        if job is not None and job.client_id:
-            from app.models.project import Project
-            from app.services.demand_service import record_placement
-            from app.services.employee_allocation_service import allocate_employee_to_project
-            project = db.query(Project).filter(Project.id == job.project_id).first() if job.project_id else None
-            emp.conversion_allocation = allocate_employee_to_project(
-                db, tenant_id=tid, employee=emp, demand=job, start_date=joining_date,
-                project=project, role=job.jobTitle, changed_by=changed_by,
-            )
-            record_placement(db, job)
-            db.flush()
         db.flush()
         if joining_date <= date.today():
             # transition only; the caller commits the whole conversion
             from app.services.employee_service import transition_employee_status
             transition_employee_status(db, emp, "ACTIVE", reason="Joining date reached", changed_by=changed_by)
-            if emp.conversion_allocation is not None:
-                transition_employee_status(db, emp, "ALLOCATED", reason="Joined onto allocation", changed_by=changed_by)
+            transition_employee_status(db, emp, "BENCH", reason="Cleared hiring, on the bench", changed_by=changed_by)
         return user, emp
 

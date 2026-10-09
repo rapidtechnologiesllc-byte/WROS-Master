@@ -117,6 +117,8 @@ class AuthenticationMiddleware(BaseHTTPMiddleware):
     # match, since request.url.path is the resolved path (e.g.
     # "/jobs/abc123/apply"), never the literal "{job_id}" placeholder.
     PUBLIC_ROUTE_TEMPLATES = [
+        # BGV vendor callback: authenticated by X-Webhook-Secret (require_webhook_secret), no JWT
+        "/api/v1/bgv/webhook/{vendor}",
         # Explicitly documented as public in its own route summary --
         # external candidates applying from a public job board. Per Phase 1
         # B4 this needs rate limiting (not yet enabled anywhere in this
