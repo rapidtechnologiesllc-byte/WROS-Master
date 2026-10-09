@@ -45,6 +45,9 @@ export const getPortalProfileFields = (token) => portalRequest("/portal/profile-
 export const updatePortalProfile = (token, fields) =>
   portalRequest("/portal/profile", token, { method: "PATCH", body: { fields } });
 export const getPortalInterviews = (token) => portalRequest("/portal/interviews", token);
+export const getPortalOffers = (token) => portalRequest("/portal/offers", token);
+export const respondToPortalOffer = (token, offerId, action, message) =>
+  portalRequest(`/portal/offers/${offerId}/respond`, token, { method: "POST", body: { action, message } });
 export const requestPortalReschedule = (token, interviewId, note) =>
   portalRequest(`/portal/interviews/${interviewId}/reschedule-request`, token, { method: "POST", body: { note } });
 export const downloadPortalInterviewIcs = async (token, interviewId) => {

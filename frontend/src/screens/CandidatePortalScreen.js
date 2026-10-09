@@ -15,16 +15,18 @@
 // a 375px-wide screen since this is primarily opened via a WhatsApp
 // link tap on a phone.
 import { useEffect, useRef, useState } from "react";
-import { Calendar, MessageSquare, User as UserIcon, Zap, Home as HomeIcon } from "lucide-react";
+import { Calendar, FileText, MessageSquare, User as UserIcon, Zap, Home as HomeIcon } from "lucide-react";
 import cx from "../utils/cx";
 import {
   downloadPortalInterviewIcs,
   getPortalHome,
   getPortalInterviews,
   getPortalMessages,
+  getPortalOffers,
   getPortalProfileFields,
   pollPortalMessages,
   requestPortalReschedule,
+  respondToPortalOffer,
   sendPortalReply,
   updatePortalProfile,
 } from "../services/api/candidatePortal";
@@ -40,6 +42,7 @@ const TABS = [
   { key: "messages", label: "Messages", icon: MessageSquare },
   { key: "profile", label: "Profile", icon: UserIcon },
   { key: "interviews", label: "Interviews", icon: Calendar },
+  { key: "offer", label: "Offer", icon: FileText },
 ];
 
 export default function CandidatePortalScreen({ token }) {
@@ -103,6 +106,7 @@ export default function CandidatePortalScreen({ token }) {
         {tab === "messages" ? <MessagesTab token={token} conversationId={home?.conversation_id} /> : null}
         {tab === "profile" ? <ProfileTab token={token} onProgress={() => {}} /> : null}
         {tab === "interviews" ? <InterviewsTab token={token} /> : null}
+        {tab === "offer" ? <OfferTab token={token} /> : null}
       </div>
 
       <nav className="fixed inset-x-0 bottom-0 flex border-t border-gray-200 bg-white">
@@ -495,6 +499,92 @@ function InterviewsTab({ token }) {
               >
                 Submit Request
               </button>
+            </div>
+          ) : null}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function OfferTab({ token }) {
+  const [offers, setOffers] = useState(null);
+  const [message, setMessage] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [notice, setNotice] = useState("");
+
+  useEffect(() => {
+    getPortalOffers(token)
+      .then((res) => setOffers(res.offers || []))
+      .catch(() => setOffers([]));
+  }, [token]);
+
+  const respond = async (offerId, action) => {
+    if (action === "decline" && !window.confirm("Decline this offer? This can't be undone.")) return;
+    setBusy(true);
+    setNotice("");
+    try {
+      const res = await respondToPortalOffer(token, offerId, action, message || undefined);
+      setOffers((prev) => prev.map((o) => (o.id === offerId ? { ...o, offer_status: res.offer_status } : o)));
+      setNotice(
+        res.offer_status === "Accepted"
+          ? "Welcome aboard! We'll email you the onboarding steps next."
+          : "Thanks for letting us know. Your response has been recorded.",
+      );
+    } catch (err) {
+      setNotice(err.message || "Could not record your response.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (!offers) {
+    return <div className="py-6 text-center text-sm text-gray-500">Loading…</div>;
+  }
+  if (!offers.length) {
+    return <div className="rounded-2xl border border-gray-200 bg-white p-4 text-sm text-gray-600 shadow-sm">No offer yet.</div>;
+  }
+  return (
+    <div className="flex flex-col gap-3">
+      {notice ? <div className="rounded-lg bg-gray-100 px-3 py-2 text-sm text-gray-700">{notice}</div> : null}
+      {offers.map((o) => (
+        <div key={o.id} className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
+          <div className="text-sm font-semibold text-bx-navy">{o.position}</div>
+          <div className="mt-1 text-xs text-gray-600">Joining date: {o.joining_date || "TBD"}</div>
+          <div className="text-xs text-gray-600">Respond by: {o.offer_expire_date || "TBD"}</div>
+          <div className="mt-1 text-xs font-semibold text-gray-700">Status: {o.offer_status}</div>
+          {o.download_url ? (
+            <a href={o.download_url} target="_blank" rel="noreferrer" className="mt-2 inline-block text-xs font-semibold text-bx-orange underline">
+              View offer letter
+            </a>
+          ) : null}
+          {o.offer_status === "Released" ? (
+            <div className="mt-3 flex flex-col gap-2">
+              <textarea
+                value={message}
+                onChange={(e) => setMessage(e.target.value)}
+                placeholder="Anything you'd like to tell us? (optional)"
+                rows={2}
+                className="resize-none rounded-lg border px-3 py-2 text-sm"
+              />
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => respond(o.id, "accept")}
+                  className="min-h-[44px] flex-1 rounded-xl bg-bx-orange px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+                >
+                  Accept offer
+                </button>
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => respond(o.id, "decline")}
+                  className="min-h-[44px] flex-1 rounded-xl border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 disabled:opacity-50"
+                >
+                  Decline
+                </button>
+              </div>
             </div>
           ) : null}
         </div>

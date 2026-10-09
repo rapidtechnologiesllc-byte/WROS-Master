@@ -14,19 +14,13 @@ Candidate Routes  (prefix: /checklist/candidate)
 """
 
 from datetime import datetime, timedelta
-from typing import List, Optional
+from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_internal_user, require_resource_permission
-from app.core.dependencies import (
-    require_resource_permission,
-    get_current_internal_user,
-    get_current_candidate,
-    require_resource_permission,
-)
+from app.core.dependencies import get_current_candidate, get_current_internal_user, require_resource_permission
 from app.models.checklist import (
     ChecklistTemplate,
     ChecklistTemplateItem,
@@ -602,10 +596,6 @@ def hr_complete_item(
 
 @router.get(
     "/candidate/my-checklists",
-    dependencies=[
-        Depends(require_resource_permission("checklists", "view")),
-        Depends(get_current_internal_user),
-    ],
     response_model=CandidateChecklistListResponse,
     summary="Get the authenticated candidate's checklists",
 )
@@ -631,10 +621,6 @@ def get_my_checklists(
 
 @router.patch(
     "/candidate/item/{item_id}/complete",
-    dependencies=[
-        Depends(require_resource_permission("checklists", "edit")),
-        Depends(get_current_internal_user),
-    ],
     response_model=CompleteItemResponse,
     summary="Candidate submits a checklist item (awaiting HR verification)",
 )
@@ -693,10 +679,6 @@ def candidate_complete_item(
     item.submitted_at = datetime.now()
     db.commit()
     db.refresh(item)
-
-    checklist = db.query(CandidateChecklist).filter(
-        CandidateChecklist.id == item.checklist_id
-    ).first()
 
     return CompleteItemResponse(
         status="success",
