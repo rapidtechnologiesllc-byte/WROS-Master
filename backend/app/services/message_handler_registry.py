@@ -177,6 +177,8 @@ def _initialize_default_handlers():
 
         MessageHandlerRegistry.register("job_status_changed", handle_job_status_changed)
         MessageHandlerRegistry.register("source_candidates_for_job", handle_source_candidates_for_job)  # Skill matching + cascade detection
+        from app.services.recruiting_service import handle_sourcing_complete
+        MessageHandlerRegistry.register("candidate_sourcing_complete", handle_sourcing_complete)  # top matches -> recruiter task
     except ImportError as e:
         logger.warning(f"[Registry] Could not import job handlers: {e}")
 

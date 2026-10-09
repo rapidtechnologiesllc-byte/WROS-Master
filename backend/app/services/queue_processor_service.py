@@ -613,7 +613,7 @@ class QueueProcessorService:
                         from app.services.message_queue_service import MessageQueueService as MQS
                         recruiter_msg_id = MQS.enqueue(
                             task_name='flash_recruiter',
-                            task_id=f"recruit_{job_id}",
+                            task_id=f"recruit:{job_id}:created",
                             data={
                                 'job_id': job_id,
                                 'job_title': persisted_job.jobTitle,
@@ -627,6 +627,8 @@ class QueueProcessorService:
                             }
                         )
                         logger.info(f"[QueueProcessor] Queued flash_recruiter for job {job_id}: message_id={recruiter_msg_id}")
+                        MQS.enqueue(task_name='source_candidates_for_job', task_id=f"source:{job_id}:created",
+                                    data={'job_id': job_id, 'reason': 'created'})
                     except Exception as slm_err:
                         logger.error(f"[QueueProcessor] SLM analysis failed for job {job_id}: {slm_err}", exc_info=True)
                         # Don't fail - continue without SLM guidance (flash_recruiter will use defaults)

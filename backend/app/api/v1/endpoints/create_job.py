@@ -12,7 +12,6 @@ from app.core.rate_limiter import rate_limit
 from app.services.ai_conversation_service import run_auto_assign_ai_agent_in_background
 from app.services.candidate_service import find_duplicate_candidate
 from app.services.message_queue_service import MessageQueueService
-from app.services.ready_for_opportunity_service import scan_new_job_for_matches
 from app.models.user import Jobs
 from app.models.candidate import (
     Candidate,
@@ -850,7 +849,9 @@ def approve_job(
     from app.services.job_approval_workflow_service import handle_job_approval
     approval_result = handle_job_approval(db, job, user, send_emails=True)
 
-    background_tasks.add_task(scan_new_job_for_matches, db, job)
+    from app.services.recruiting_service import start_recruiting
+
+    start_recruiting(job, "approved")  # the recruiter run nudges watchers and sources the pool
 
     approver_name = user.UserName or user.UserEmail
     recruiter_msg = f" Assigned to recruiter: {approval_result.get('recruiter_name', 'N/A')}" if approval_result.get('recruiter_name') else ""

@@ -941,14 +941,16 @@ def _create_job_from_details(db: Session, user: Users, details: Dict) -> Dict:
         recruiter = assign_to_recruiter_roundrobin(db)
 
         if recruiter:
-            job.assigned_recruiter_id = recruiter.UserID
+            job.recuriterID = recruiter.UserID  # the jobs table's recruiter column
 
         db.commit()
+        from app.services.recruiting_service import start_recruiting
 
+        start_recruiting(job, "created in Flash chat")
         return {
             "intent": INTENT_JOB_CREATE,
-            "reply": f"✓ Job created successfully! Job ID: {job.job_id}\nAssigned to recruiter: {recruiter.UserName if recruiter else 'Pending'}",
-            "job_id": job.job_id
+            "reply": f"✓ Job created successfully! Job ID: {job.jobID}\nAssigned to recruiter: {recruiter.UserName if recruiter else 'Pending'}",
+            "job_id": job.jobID
         }
 
     except Exception as e:
