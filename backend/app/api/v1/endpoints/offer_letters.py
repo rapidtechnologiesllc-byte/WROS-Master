@@ -75,6 +75,18 @@ def _update_pipeline_status(candidate_id: str, new_status: str, db: Session) -> 
 
 # "" helpers """"""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
 
+def _require_offer_gate(db: Session, candidate_id: str) -> None:
+    """CEO hiring order: an offer only after the screen, L1 and L2 rounds have passed."""
+    from app.services.hiring_pipeline_service import PipelineGateBlocked, assert_gate
+
+    try:
+        assert_gate(db, candidate_id, "OFFER")
+    except PipelineGateBlocked as blocked:
+        db.rollback()
+        raise HTTPException(status_code=409, detail={
+            "message": "Candidate is not ready for an offer.", "stage": blocked.stage, "blockers": blocked.blockers})
+
+
 def _candidate_name(c) -> str | None:
     if not c:
         return None
@@ -265,6 +277,8 @@ def create_offer_letter(
                 status_code=404,
                 detail=f"Job '{request.job_id}' not found. Pass null/omit job_id if not linking a job.",
             )
+
+    _require_offer_gate(db, request.candidate_id)
 
     new_offer = OfferLetter(
         candidate_id=request.candidate_id,
@@ -601,6 +615,7 @@ def generate_offer_letter_document(
     offer = db.query(OfferLetter).filter(OfferLetter.id == offer_id).first()
     if not offer:
         raise HTTPException(status_code=404, detail=f"Offer letter {offer_id} not found")
+    _require_offer_gate(db, offer.candidate_id)
 
     # Resolve template path - validate early so we fail fast before any DB work
     try:
@@ -850,13 +865,13 @@ async def approve_offer_letter(
 @router.post(
     "/release/{offer_id}",
     response_model=OfferReleaseResponse,
-    dependencies=[Depends(require_resource_permission("offer-letters", "view"))],
+    dependencies=[Depends(require_resource_permission("offer-letters", "edit"))],
     summary="Release an approved offer letter to the candidate",
 )
 def release_offer_letter(
     offer_id: int,
     db: Session = Depends(get_db),
-    user=Depends(require_resource_permission("offer-letters", "view")),
+    user=Depends(get_current_internal_user),
 ):
     """
     HR releases an `Approved` offer to the candidate, changing
@@ -864,12 +879,8 @@ def release_offer_letter(
     notified via WhatsApp + email (S-054/HRMS-0454) and the offer
     appears in their `my-offers` list.
 
-    **Required permission:** `offer.readiness_check` -- S-053/HRMS-0453
-    added this narrower permission (not the broader `offer.manage`,
-    which a real, pre-existing RBAC data inconsistency currently still
-    grants to Recruiter despite that role's own description saying
-    otherwise) specifically so this release action gets a real HTTP
-    403 for Recruiter, per this story's own explicit AC-8.
+    **Required permission:** `offer-letters` edit (it used to be view, so
+    anyone who could see offers could release one).
 
     S-054/HRMS-0454 BR-01: re-runs checkOfferReadiness() at the moment
     of release (interview outcomes or candidate status could have
