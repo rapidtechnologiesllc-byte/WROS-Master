@@ -6,12 +6,12 @@ Spartan Pattern: Reports cascade detection to Flash (Alpha Wolf).
 - Formation role: Position 3 (depends on Thunder quality + Flash job specs)
 """
 import logging
+import uuid
 from datetime import datetime, timedelta
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import OperationalError
 
-from app.core.logging import logger
 from app.models.candidate import Candidate
 from app.models.user import Jobs
 from app.services.skill_matching_service import SkillMatchingService
@@ -128,7 +128,7 @@ class SourceCandidatesHandler:
             # Queue report to Flash for decision
             msg_id = MessageQueueService.enqueue(
                 task_name="candidate_sourcing_complete",
-                task_id=job_id,
+                task_id=f"sourcing_complete:{job_id}:{uuid.uuid4().hex[:12]}",  # one per sourcing run
                 data=flash_report
             )
 
@@ -176,7 +176,6 @@ class SourceCandidatesHandler:
     def should_retry(message: Any) -> bool:
         """Determine if message should be retried."""
         MAX_RETRIES = 3
-        RETRY_DELAY_MINUTES = 15
 
         if message.retry_count >= MAX_RETRIES:
             return False
@@ -237,7 +236,7 @@ class SourceCandidatesHandler:
             message.error = final_error[:1000]
             message.completed_at = datetime.utcnow()
             db.commit()
-        except Exception as e:
+        except Exception:
             db.rollback()
             raise
 

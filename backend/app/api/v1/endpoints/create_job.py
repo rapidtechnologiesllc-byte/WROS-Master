@@ -1,7 +1,5 @@
 import json
-import os
 from datetime import datetime, date
-import logging
 from typing import Optional, List
 
 from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, Header, HTTPException, UploadFile
@@ -11,13 +9,11 @@ from app.core.database import get_db
 from app.core.dependencies import get_current_internal_user, require_resource_permission
 from app.core.logging import logger
 from app.core.rate_limiter import rate_limit
-from app.core.csrf_protection import generate_csrf_token
 from app.services.ai_conversation_service import run_auto_assign_ai_agent_in_background
 from app.services.candidate_service import find_duplicate_candidate
 from app.services.message_queue_service import MessageQueueService
 from app.services.ready_for_opportunity_service import scan_new_job_for_matches
 from app.models.user import Jobs
-from app.models.business_unit import BusinessUnit
 from app.models.candidate import (
     Candidate,
     CandidateEducationForm,
@@ -33,16 +29,14 @@ from app.schemas.user import (
     AllJobsResponse, DeleteResponse,
     LinkedInPostRequest, LinkedInPostResponse,
     JobApproveResponse,
-    CandidateJobAssignRequest, CandidateJobSummary, CandidatesByJobResponse,
 )
 from app.schemas.candidate import (
     EducationEntry, ExperienceEntry, JobApplicationResponse
 )
-from app.models.candidate import Candidate
 from app.models.user import Users
 from app.models.role_template import RoleTemplate
 
-from app.utils.uniq_id_generator import user_id_generator, job_id_generator
+from app.utils.uniq_id_generator import job_id_generator
 
 from app.tools.job_description_generator import generate_job_description_with_state
 from app.api.v1.endpoints.documents import _upload_document_helper
@@ -731,7 +725,7 @@ def create_job(request: JobCreateRequest, background_tasks: BackgroundTasks, db:
     # The message handler will create the job and assign AI recruiter
     MessageQueueService.enqueue(
         task_name="job_created_flash",
-        task_id=job_id,
+        task_id=f"job_created:{job_id}",
         data={
             "job_id": job_id,
             "job_title": request.job_title,
@@ -759,30 +753,6 @@ def create_job(request: JobCreateRequest, background_tasks: BackgroundTasks, db:
         tenant_id=user.tenant_id,
     )
 
-    # Create job object for response (frontend UI needs immediate feedback)
-    job = Jobs(
-        jobID=job_id,
-        jobTitle=request.job_title,
-        jobDescription=request.job_description,
-        jobSkills=request.job_skills,
-        jobExperience=request.job_experience,
-        jobLocation=request.job_location,
-        jobCreatedAt=datetime.now(),
-        companyType=request.company_type,
-        companyName=company_name,
-        contactPerson=request.contact_person,
-        jobStatus=job_status,
-        noOfPositions=request.no_of_positions,
-        startDate=request.start_date,
-        hiringManagerID=request.hiring_manager_id,
-        recuriterID=request.recuriter_id,
-        business_unit_id=business_unit_id,
-        client_id=client.id if client else None,
-        project_id=request.project_id,
-        billing_rate_usd_cents=request.billing_rate_usd_cents,
-        department_id=request.department_id,
-        salaryRange=request.salary_range
-    )
 
     # Wire SLM: Store job metadata for continuous learning
     try:
@@ -1366,8 +1336,8 @@ async def apply_for_job(
 
 from app.models.candidate import CandidateJobApplication
 from app.schemas.user import (
-    JobApplicationCreate, JobApplicationStatusUpdate,
-    JobApplicationEntry, CandidateJobsResponse, JobCandidatesMultiResponse,
+    JobApplicationCreate, JobApplicationEntry,
+    CandidateJobsResponse, JobCandidatesMultiResponse,
 )
 
 @router.post(
@@ -1586,6 +1556,4 @@ def get_candidate_applications(
 # Job Statistics Endpoint
 # ==============================================================================
 
-from sqlalchemy import func as sql_func
-from app.schemas.user import JobStatisticsResponse, ApplicationStatusCount
 

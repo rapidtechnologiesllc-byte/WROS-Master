@@ -1514,6 +1514,7 @@ def create_interview(
     )
 
     db.add(interview)
+    db.flush()  # the queued event carries the real interview id
 
     # Queue interview_scheduled message (BEFORE commit for atomicity)
     MessageQueueService.enqueue(

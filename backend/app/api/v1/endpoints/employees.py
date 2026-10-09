@@ -28,68 +28,42 @@ so "bench-pool"/"bench-aging-alerts" never get swallowed as an id):
   POST   /employees/{employee_id}/remove-from-bench
   GET    /employees/{employee_id}/bench-history
 """
-import io
-import os
 import json
 from datetime import date, datetime
 
 from typing import Optional
 
 from pydantic import BaseModel
-from fastapi import APIRouter, Depends, HTTPException, UploadFile
-from openpyxl import load_workbook
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.dependencies import get_current_internal_user, require_resource_permission
-from app.models.candidate import Candidate
-from app.models.employee import Employee, EmployeeEngineHistory
+from app.models.employee import Employee
 from app.models.resource_management import BenchPoolEntry
 from app.models.user import Users
-from app.schemas.performance import PerformanceEventItem, PerformanceStoreResponse
 from app.core.logging import logger
 from app.schemas.employee import (
-    BenchAgingAlertItem,
-    BenchAgingAlertsResponse,
     BenchCostSummaryItem,
     BenchCostSummaryResponse,
-    BenchPeriodHistoryResponse,
-    BenchPeriodItem,
-    BulkImportResponse,
-    BulkImportRowError,
-    ConvertCandidateRequest,
     EmployeeCreateRequest,
     EmployeeItem,
     EmployeeListResponse,
-    EngineHistoryItem,
-    EngineHistoryResponse,
     MarkBenchRequest,
     RecordUtilizationRequest,
-    StaffingEligibilityResponse,
     UtilizationHistoryItem,
-    UtilizationHistoryResponse,
     UtilizationSummaryItem,
     UtilizationSummaryResponse,
 )
 from app.services.employee_service import (
     DuplicateEmployeeEmail,
-    convert_candidate_to_employee,
     create_employee_profile,
-    generate_employee_number,
-)
-from app.services.performance_store_service import (
-    get_performance_events,
-    get_score_averages_by_event_type,
 )
 from app.services.resource_management_service import (
     LOW_UTILIZATION_THRESHOLD_PCT,
-    check_bench_aging_alerts,
     get_bench_duration_days,
-    get_bench_period_history,
     get_current_bench_pool,
     get_latest_utilization_by_employee,
-    get_utilization_history,
-    is_staffing_eligible,
     mark_employee_on_bench,
     record_weekly_utilization_metric,
     remove_employee_from_bench,
@@ -227,7 +201,7 @@ def create_employee(
         from app.services.message_queue_service import MessageQueueService
         MessageQueueService.enqueue(
             task_name='employee_created_flash',
-            task_id=str(employee.id),
+            task_id=f"employee_created:{employee.id}",
             data={
                 'employee_id': str(employee.id),
                 'employee_email': employee.email,

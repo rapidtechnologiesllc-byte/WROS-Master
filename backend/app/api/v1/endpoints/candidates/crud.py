@@ -1,27 +1,17 @@
 from datetime import datetime
-import logging
 import uuid
-from typing import Optional, List
+from typing import Optional
 import re
 
-from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import func, or_
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import func
 from sqlalchemy.orm import Session
-import time
 
-import app.schemas as schema
 from app.core.database import get_db
 from app.core.logging import logger
-from app.core.rate_limiter import rate_limit
 from app.services.message_queue_service import MessageQueueService
-from app.services.ai_conversation_service import run_auto_assign_ai_agent_in_background
-from app.services.candidate_service import (
-    create_candidate,
-    DuplicateCandidateError,
-    parse_experience_to_months,
-)
 from app.services.guidewire_candidate_service import is_guidewire_candidate
-from app.core.bu_scope import apply_bu_scope_to_candidate_query, get_candidate_by_id_with_bu_scope
+from app.core.bu_scope import get_candidate_by_id_with_bu_scope
 
 # ============================================
 # Constants for candidate pipeline
@@ -53,17 +43,14 @@ from app.models.ats import ATSScore
 from app.models.hr_assignment import HRAssignment
 from app.models.candidate_ownership import CandidateOwnership
 
-from app.core.dependencies import get_current_user, get_current_candidate, require_role_template_permission
+from app.core.dependencies import get_current_user, require_role_template_permission
 
-from app.schemas.candidate import (CandidateCreateRequest, HrEducationItem, HrExperienceItem, HrSkillItem, HrCertificationItem,
-CandidateCreateResponse, CandidateCompleteResponse,
+from app.schemas.candidate import (HrEducationItem, HrExperienceItem, HrSkillItem, HrCertificationItem, CandidateCompleteResponse,
 CandidateEducationResponse, CandidateExperienceResponse,
 CandidateInfoResponse, CandidatePanResponse,
 CandidateAadharResponse, DeleteResponse,
-AllCandidatesResponse, candidateFormRequest, candidateFormResponse,
 CandidateUpdateRequest)
 
-from app.utils.uniq_id_generator import generate_password
 
 from app.services.candidate_service import experience_years
 
@@ -326,13 +313,6 @@ def get_candidate_by_id(
         )
 
     # Construct display name
-    name_parts = [
-        candidate.candidateFirstName or "",
-        candidate.candidateMiddleName or "",
-        candidate.candidateLastName or "",
-    ]
-    candidate_name = " ".join(filter(None, name_parts)).strip() or "N/A"
-
     personal_info = db.query(CandidateInfoForm).filter(
         CandidateInfoForm.candidateID == candidate_id
     ).first()
@@ -716,7 +696,7 @@ def update_candidate(candidate_id: str, request: CandidateUpdateRequest, db: Ses
 
         MessageQueueService.enqueue(
             task_name='candidate_update',
-            task_id=candidate_id,
+            task_id=f"candidate_update:{candidate_id}:{uuid.uuid4().hex[:12]}",  # one per update
             data={
                 'candidate_id': candidate_id,
                 'updates': updates,
@@ -984,7 +964,7 @@ def delete_candidate_restful(candidate_id: str, db: Session = Depends(get_db), u
     # Queue candidate deletion for THUNDER orchestrator
     MessageQueueService.enqueue(
         task_name='candidate_deleted',
-        task_id=candidate_id,
+        task_id=f"candidate_deleted:{candidate_id}",
         data={
             'candidate_id': candidate_id,
             'candidate_email': candidate.candidateEmail,
