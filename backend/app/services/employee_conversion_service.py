@@ -2,21 +2,21 @@
 import logging
 from datetime import date
 
-from app.core.security import get_password_hash
 from app.models.employee import Employee, EmployeeEngineHistory
 from app.models.user import Users
-from app.services.email_service import EmailService
-from app.utils.uniq_id_generator import user_id_generator, generate_password
+from app.utils.uniq_id_generator import user_id_generator
 logger = logging.getLogger(__name__)
 
 class InvalidCandidateState(Exception):
     pass
 
 def _default_employee_role_id(db) -> int:
+    """The self-service Employee role (seeded at startup). Never the system "User" role,
+    which carries every permission."""
     from app.models.role_template import RoleTemplate
-    role = db.query(RoleTemplate).filter(RoleTemplate.name == "User").first()
+    role = db.query(RoleTemplate).filter(RoleTemplate.name == "Employee", RoleTemplate.enabled.is_(True)).first()
     if role is None:
-        raise ValueError("No role picked and the standard 'User' role template does not exist")
+        raise ValueError("The Employee role template does not exist; it is created at startup (db_contract)")
     return role.id
 
 
@@ -35,8 +35,9 @@ def hired_for_job(db, candidate):
 
 
 def monthly_salary_from_offer(db, candidate, job):
-    """Monthly base salary (USD cents) from the candidate's accepted or signed offer,
-    for this job when there is one. None when there is no such offer."""
+    """Monthly base salary (USD cents) from the candidate's accepted offer, for this job
+    when there is one: an Offer (annual USD), else an accepted OfferLetter (annual CTC in
+    INR, converted with FX_INR_PER_USD). None when neither gives a reliable figure."""
     from app.models.offer import Offer
 
     query = db.query(Offer).filter(Offer.candidate_id == candidate.candidateID,
@@ -44,7 +45,31 @@ def monthly_salary_from_offer(db, candidate, job):
     if job is not None:
         query = query.filter(Offer.job_id == job.jobID)
     offer = query.order_by(Offer.accepted_at.desc().nullslast(), Offer.created_at.desc()).first()
-    return round(offer.base_salary_usd_cents / 12) if offer and offer.base_salary_usd_cents else None
+    if offer and offer.base_salary_usd_cents:
+        return round(offer.base_salary_usd_cents / 12)
+    return _monthly_usd_from_offer_letter(db, candidate, job)
+
+
+def _monthly_usd_from_offer_letter(db, candidate, job):
+    import re
+
+    from app.core.config import settings
+    from app.models.offer_letter import OfferLetter
+
+    query = db.query(OfferLetter).filter(OfferLetter.candidate_id == candidate.candidateID,
+                                         OfferLetter.offer_status == "Accepted")
+    if job is not None:
+        query = query.filter((OfferLetter.job_id == job.jobID) | (OfferLetter.job_id.is_(None)))
+    letter = query.order_by(OfferLetter.responded_at.desc().nullslast(), OfferLetter.id.desc()).first()
+    if letter is None:
+        return None
+    digits = re.sub(r"[^0-9.]", "", letter.salary or "")
+    if not digits or not settings.FX_INR_PER_USD:
+        logger.warning(f"[Conversion] offer letter {letter.id}: salary {letter.salary!r} not converted "
+                       f"(FX_INR_PER_USD {'set' if settings.FX_INR_PER_USD else 'not set'}); cost stays unknown")
+        return None
+    annual_inr = float(digits)
+    return round(annual_inr / settings.FX_INR_PER_USD * 100 / 12)
 
 
 def employer_company_for(db, job, bu_id):
@@ -63,11 +88,15 @@ class EmployeeConversionService:
         existing = db.query(Users).filter(Users.UserEmail == employee_email).first()
         if existing:
             raise ValueError(f"Email {employee_email} already in use")
-        password = generate_password()
-        user_id = user_id_generator()
-        user = Users(UserID=user_id, UserName=employee_name, UserEmail=employee_email, UserPassword=get_password_hash(password), business_unit_id=business_unit_id, tenant_id=tenant_id, UserRole="Employee")
+        from app.services.account_activation_service import prepare_new_account
+
         # One role per user: the first one picked, else the standard "User" role
-        user.role_template_id = role_ids[0] if role_ids else _default_employee_role_id(db)
+        role_template_id = role_ids[0] if role_ids else _default_employee_role_id(db)
+        user = Users(UserID=user_id_generator(), UserName=employee_name, UserEmail=employee_email, UserPassword="!",
+                     business_unit_id=business_unit_id, tenant_id=tenant_id, UserRole="Employee",
+                     role_template_id=role_template_id)
+        # no usable password: the employee sets their own from the activation email (queued after commit)
+        prepare_new_account(db, user)
         db.add(user)
         db.flush()
         return user
@@ -141,17 +170,3 @@ class EmployeeConversionService:
                 transition_employee_status(db, emp, "ALLOCATED", reason="Joined onto allocation", changed_by=changed_by)
         return user, emp
 
-    @staticmethod
-    def send_welcome_email(db, employee_user, employee_record, temporary_password=None, include_onboarding_link=True):
-        try:
-            if not temporary_password:
-                temporary_password = generate_password()
-            date_str = employee_record.joining_date.strftime("%d %B %Y")
-            body = f"<p>Welcome {employee_user.UserName}!</p><p>Email: {employee_user.UserEmail}</p><p>Temp Password: {temporary_password}</p><p>Join Date: {date_str}</p>"
-            email_html = EmailService._base_html("Welcome to BlitzenX", body)
-            EmailService.send_email_direct(to_email=employee_user.UserEmail, to_name=employee_user.UserName, subject="Welcome to BlitzenX", html_body=email_html)
-            return True
-        except Exception as e:
-            logger.error(f"Error: {str(e)}", exc_info=True)
-            logger.error(f"Email failed: {str(e)}")
-            return False

@@ -13,7 +13,9 @@ import { getApiBaseUrl, formatApiErrorMessage } from "./client";
 
 const portalRequest = async (path, token, options = {}) => {
   const { method = "GET", body } = options;
-  const response = await fetch(`${getApiBaseUrl()}${path}`, {
+  // backend serves the portal under /api/v1 like every other route
+  const normalizedPath = path.startsWith("/api") ? path : `/api/v1${path}`;
+  const response = await fetch(`${getApiBaseUrl()}${normalizedPath}`, {
     method,
     headers: {
       Authorization: `Bearer ${token}`,
@@ -46,7 +48,7 @@ export const getPortalInterviews = (token) => portalRequest("/portal/interviews"
 export const requestPortalReschedule = (token, interviewId, note) =>
   portalRequest(`/portal/interviews/${interviewId}/reschedule-request`, token, { method: "POST", body: { note } });
 export const downloadPortalInterviewIcs = async (token, interviewId) => {
-  const response = await fetch(`${getApiBaseUrl()}/portal/interviews/${interviewId}/ics`, {
+  const response = await fetch(`${getApiBaseUrl()}/api/v1/portal/interviews/${interviewId}/ics`, {
     headers: { Authorization: `Bearer ${token}` },
   });
   if (!response.ok) {

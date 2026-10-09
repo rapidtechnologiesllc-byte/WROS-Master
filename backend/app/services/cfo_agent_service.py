@@ -1,16 +1,16 @@
 """CFO Agent â€” financial Q&A and insights for Chief Financial Officer."""
 from datetime import datetime, timedelta
+from typing import Optional
+
 from sqlalchemy.orm import Session
-from sqlalchemy import func, and_
+from sqlalchemy import func
 from app.models.invoice import Invoice
 from app.models.revenue_leakage import RevenueLeakageFlag
 from app.models.timesheet_dispute import TimesheetDispute
-from app.models.user import Users
 from app.models.business_unit import BusinessUnit
 from app.services.pnl_service import get_org_pnl_summary, get_bu_pnl
 from app.services.ar_followup_service import scan_overdue_invoices
 from app.services.reserve_fund_service import get_reserve_fund_status
-import logging
 from app.utils.agent_logger import log_agent_execution
 
 def get_org_financial_snapshot(db: Session, year_month: str = None, tenant_id: str = None) -> dict:
@@ -198,25 +198,34 @@ def get_bu_financial_comparison(db: Session, year_month: str = None) -> list:
 
     return sorted(comparison, key=lambda x: x["revenue_usd"], reverse=True)
 
-def get_expense_breakdown(db: Session, year_month: str = None) -> dict:
-    """Break down org expenses by category (salaries, overhead, etc)."""
-    if not year_month:
-        today = datetime.utcnow()
-        year_month = today.strftime("%Y-%m")
+def get_expense_breakdown(db: Session, year_month: str = None, tenant_id: Optional[int] = None) -> dict:
+    """Org cost for the month split the way the P&L computes it: delivery (billable hours x
+    loaded cost), bench (payroll no billable hour covered) and approved expenses."""
+    from app.services.revenue_chain_service import month_bounds, pnl as chain_pnl
 
-    # This would ideally come from detailed expense tracking
-    # For now, derive from P&L
+    if not year_month:
+        year_month = datetime.utcnow().strftime("%Y-%m")
     y, m = (int(x) for x in year_month.split("-"))
-    pnl = get_org_pnl_summary(db, year=y, month=m)
+    start, end = month_bounds(y, m)
+    report = chain_pnl(db, start=start, end=end, tenant_id=tenant_id)
+    total = report["total_cost_usd_cents"]
+
+    def share(cents):
+        return round(cents * 100 / total, 1) if total else None
 
     return {
         "period": year_month,
-        "total_cost_usd": ((pnl.get("total_cost_usd_cents") or 0) / 100) if pnl else 0,
-        "salary_cost_pct": 70,  # Estimated
-        "overhead_cost_pct": 20,  # Estimated
-        "other_cost_pct": 10,  # Estimated
-        "note": "Breakdown is estimated â€” detailed expense tracking not yet implemented"
+        "total_cost_usd": total / 100,
+        "delivery_cost_usd": report["delivery_cost_usd_cents"] / 100,
+        "bench_cost_usd": report["bench_cost_usd_cents"] / 100,
+        "expense_cost_usd": report["expense_cost_usd_cents"] / 100,
+        "delivery_cost_pct": share(report["delivery_cost_usd_cents"]),
+        "bench_cost_pct": share(report["bench_cost_usd_cents"]),
+        "expense_cost_pct": share(report["expense_cost_usd_cents"]),
+        "pending_expenses_usd": report["pending_expenses_usd_cents"] / 100,
+        "cost_data_complete": report["cost_data_complete"],
     }
+
 
 def get_financial_forecast(db: Session, months_ahead: int = 3) -> dict:
     """Generate simple revenue forecast based on recent trend."""

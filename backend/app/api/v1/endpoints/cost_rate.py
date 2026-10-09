@@ -3,7 +3,6 @@ EPIC-16 Fully Loaded Cost + Blended Delivery Rate. Gated at
 revenue.view_pnl -- cost/margin figures are the same P&L-adjacent tier
 as markup_rate_pct and revenue leakage detail elsewhere.
 """
-import logging
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -231,3 +230,67 @@ def create_bank_transaction(
     except BankReconciliationError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
 
+
+
+@router.post(
+    "/bank-transactions/{transaction_id}/match",
+    response_model=BankTransactionResponse,
+    dependencies=[Depends(require_resource_permission("revenue", "create"))]
+)
+def match_bank_transaction(
+    transaction_id: int,
+    body: MatchTransactionRequest,
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(require_resource_permission("revenue", "view")),
+):
+    """Match a recorded bank credit to an invoice; a SENT invoice becomes PAID on that date."""
+    from app.models.bank_reconciliation import BankTransaction
+
+    transaction = db.query(BankTransaction).filter(BankTransaction.id == transaction_id,
+                                                   BankTransaction.tenant_id == current_user.tenant_id).first()
+    invoice = db.query(Invoice).filter(Invoice.id == body.invoice_id, Invoice.tenant_id == current_user.tenant_id).first()
+    if transaction is None or invoice is None:
+        raise HTTPException(status_code=404, detail="Bank transaction or invoice not found.")
+    try:
+        return match_transaction_to_invoice(db, transaction, invoice)
+    except BankReconciliationError as exc:
+        db.rollback()
+        raise HTTPException(status_code=409, detail=str(exc))
+
+
+@router.get(
+    "/bank-transactions/unreconciled",
+    response_model=list[BankTransactionResponse],
+    dependencies=[Depends(require_resource_permission("revenue", "view"))]
+)
+def list_unreconciled_transactions(
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(require_resource_permission("revenue", "view")),
+):
+    return get_unreconciled_transactions(db, tenant_id=current_user.tenant_id)
+
+
+@router.get(
+    "/bank-transactions/unmatched-paid-invoices",
+    response_model=list[UnmatchedPaidInvoiceResponse],
+    dependencies=[Depends(require_resource_permission("revenue", "view"))]
+)
+def list_unmatched_paid_invoices(
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(require_resource_permission("revenue", "view")),
+):
+    return [UnmatchedPaidInvoiceResponse(invoice_id=i.id, client_id=i.client_id, total_usd_cents=i.total_usd_cents)
+            for i in get_unmatched_paid_invoices(db, tenant_id=current_user.tenant_id)]
+
+
+@router.get(
+    "/pnl/org",
+    response_model=OrgPnlSummaryResponse,
+    dependencies=[Depends(require_resource_permission("revenue", "view"))]
+)
+def org_pnl(
+    year: int, month: int,
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(require_resource_permission("revenue", "view")),
+):
+    return get_org_pnl_summary(db, year=year, month=month, tenant_id=current_user.tenant_id)

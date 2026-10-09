@@ -84,6 +84,16 @@ def _to_item(db: Session, submission: Submission) -> SubmissionItem:
         source=submission.source,
     )
 
+# the UI posts without the trailing slash; serve both instead of relying on a 307 redirect
+@router.post(
+    "",
+    dependencies=[
+        Depends(require_resource_permission("submissions", "create")),
+        Depends(get_current_internal_user),
+    ],
+    response_model=SubmissionItem,
+    include_in_schema=False,
+)
 @router.post(
     "/",
     dependencies=[

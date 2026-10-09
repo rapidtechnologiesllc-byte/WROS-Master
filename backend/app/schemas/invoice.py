@@ -1,6 +1,5 @@
-import logging
-from app.core.logging import logger
 """Pydantic schemas -- HRMS-0907 (Invoice Generation, Status Tracking) API."""
+import logging
 
 from datetime import date, datetime
 from typing import List, Optional
@@ -43,6 +42,11 @@ class InvoiceItem(BaseModel):
 
 class RecordExternalDeliveryRequest(BaseModel):
     note: str  # how it was delivered, e.g. "uploaded to the client's Ariba portal"
+
+class RecordPaymentRequest(BaseModel):
+    paid_on: date
+    amount_usd_cents: int
+    reference: str  # bank / UTR / cheque reference
 
 class MarkPaidRequest(BaseModel):
     paid_on: Optional[date] = None  # defaults to today

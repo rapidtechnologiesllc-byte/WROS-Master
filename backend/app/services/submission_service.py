@@ -38,7 +38,6 @@ from sqlalchemy.orm import Session
 from app.models.candidate import Candidate
 from app.models.demand import Demand
 from app.models.employee import Employee
-from app.core.logging import logger
 from app.models.submission import (
     ALLOWED_SUBMISSION_TRANSITIONS,
     Submission,
@@ -258,11 +257,22 @@ def update_client_response(
 
     if new_status == "PLACED":
         demand = db.query(Demand).filter(Demand.id == submission.demand_id).first()
-        if demand is not None:
+        # already allocated to this job (e.g. at conversion): the placement was counted then
+        if demand is not None and not _already_allocated(db, submission, demand):
             record_placement(db, demand)
             _allocate_placed_employee(db, submission, demand)
 
     return submission
+
+
+def _already_allocated(db: Session, submission: Submission, demand) -> bool:
+    from app.models.employee_allocation import EmployeeAllocation
+
+    employee = db.query(Employee).filter(Employee.candidate_id == submission.candidate_id).first()
+    return employee is not None and db.query(EmployeeAllocation).filter(
+        EmployeeAllocation.employee_id == employee.id, EmployeeAllocation.demand_id == demand.id,
+        EmployeeAllocation.status == "ACTIVE",
+    ).first() is not None
 
 
 def _allocate_placed_employee(db: Session, submission: Submission, demand) -> None:

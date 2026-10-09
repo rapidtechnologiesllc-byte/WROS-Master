@@ -9,6 +9,9 @@ OPS_COMMAND:
                    engage -> email cadence -> thunder_send_email) and follow it until the first
                    email is sent or held, printing every stage. OPS_TIMEZONE is set on the test
                    candidate so the candidate-local send window doesn't hold the email until morning.
+  repair-employee-logins-dry-run  employees who can't log in (account created with a password nobody
+                   knows, no open set-password link): count and roles, nothing sent
+  repair-employee-logins          email each of them a set-password link (up to OPS_LIMIT)
 
 Output masks other people's emails and never echoes a line that mentions a credential.
 """
@@ -46,6 +49,31 @@ def enroll(dry_run: bool) -> int:
         db.close()
     for key, value in result.items():
         say(f"{key}: {value}")
+    return 0
+
+
+def repair_employee_logins(dry_run: bool) -> int:
+    from app.core.database import SessionLocal
+    from app.models.role_template import RoleTemplate
+    from app.services.account_activation_service import queue_account_email, users_never_activated
+
+    limit = int(os.getenv("OPS_LIMIT") or "200")
+    db = SessionLocal()
+    try:
+        users = users_never_activated(db)
+        roles = {r.id: r.name for r in db.query(RoleTemplate).all()}
+        by_role = {}
+        for user in users:
+            name = roles.get(user.role_template_id, "none")
+            by_role[name] = by_role.get(name, 0) + 1
+        say(f"employees_without_working_login: {len(users)}")
+        say(f"by_role: {by_role}")
+        if dry_run:
+            return 0
+        queued = sum(1 for user in users[:limit] if queue_account_email(user, "ACTIVATE"))
+        say(f"activation_emails_queued: {queued}")
+    finally:
+        db.close()
     return 0
 
 
@@ -137,6 +165,10 @@ def main() -> int:
         return enroll(dry_run=True)
     if command == "enroll":
         return enroll(dry_run=False)
+    if command == "repair-employee-logins-dry-run":
+        return repair_employee_logins(dry_run=True)
+    if command == "repair-employee-logins":
+        return repair_employee_logins(dry_run=False)
     if command == "smoke-candidate":
         return smoke(os.getenv("OPS_EMAIL", "").strip(), os.getenv("OPS_TIMEZONE") or "America/Los_Angeles")
     say(f"unknown OPS_COMMAND {command!r}")

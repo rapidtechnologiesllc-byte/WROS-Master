@@ -1,4 +1,3 @@
-from app.core.logging import logger
 """HRMS-0103 — demand creation, status state machine, and the
 bench-first sourcing gate (R-04)."""
 import json
@@ -111,6 +110,8 @@ def record_placement(db: Session, demand: Demand) -> Demand:
     """
     demand.positions_filled = (demand.positions_filled or 0) + 1
     if demand.positions_filled >= (demand.headcount or 1) and demand.status != "FILLED":
+        if demand.status in ("OPEN", "ON_HOLD"):  # FILLED is only reachable from IN_PROGRESS
+            transition_demand_status(db, demand, "IN_PROGRESS", reason="Placement recorded", changed_by="system")
         transition_demand_status(db, demand, "FILLED", reason="Headcount reached", changed_by="system")
     else:
         db.add(demand)

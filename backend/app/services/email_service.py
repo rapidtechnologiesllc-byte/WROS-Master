@@ -6,7 +6,6 @@ from fastapi import HTTPException
 from app.core.config import settings
 from app.core.graph_auth import get_graph_token
 import logging
-from app.core.logging import logger
 
 logger = logging.getLogger(__name__)
 
@@ -48,7 +47,7 @@ class EmailService:
                     f"[EmailService] Graph API error (HTTP {status_code}): {detail}. "
                     f"Full response: {error_response}"
                 )
-            except Exception as parse_err:
+            except Exception:
                 detail = f"{str(e)} (response: {e.response.text if hasattr(e, 'response') else 'unknown'})"
                 logger.error(f"[EmailService] Graph API error (HTTP {status_code}): {detail}")
             raise HTTPException(status_code=status_code, detail=f"Microsoft Graph error: {detail}")
@@ -210,7 +209,7 @@ class EmailService:
         try:
             try:
                 token = cls._get_token()
-            except Exception as auth_error:
+            except Exception:
                 # Azure credentials not configured - gracefully skip email
                 logger.warning(
                     f"[EmailService] Skipping email to {to_email}: Azure credentials not configured. "
@@ -1451,13 +1450,14 @@ class EmailService:
                     "Status": "APPROVED",
                 },
             )
-            cls.send_email(
-                to_email=approver_email,
-                subject="Timesheet Approval Completed",
-                body_content=approver_html,
-                is_html=True,
-            )
-            logger.info(f"[EmailService] Timesheet approval notification sent to approver {approver_email}")
+            if approver_email:
+                cls.send_email(
+                    to_email=approver_email,
+                    subject="Timesheet Approval Completed",
+                    body_content=approver_html,
+                    is_html=True,
+                )
+                logger.info(f"[EmailService] Timesheet approval notification sent to approver {approver_email}")
 
             return {
                 "status": "success",

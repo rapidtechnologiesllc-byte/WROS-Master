@@ -14,6 +14,8 @@ never disagree:
   (prorated by days employed) that no billable hour covered.
 - *Revenue* in the P&L is earned revenue (billed + approved-unbilled work in
   the period, by timesheet week). Cash collected is reported beside it.
+- *Expense cost* = manager-approved expenses dated in the period, attributed through
+  the expense's client (else the business unit of whoever logged it).
 - *Partner* = the partner of the business unit that owns the client
   (business_units.partner_user_id). Bench cost goes to the partner of the
   employee's own business unit. Anything without a partner is "unassigned",
@@ -279,7 +281,12 @@ def pnl(db: Session, *, start: date, end: date, tenant_id: Optional[int] = None)
             continue
         bench_rows[bucket]["bench_cost_usd_cents"] += max(0, payroll - delivery_by_employee.get(employee.id, 0))
 
-    def section(revenue_lines: List[Dict], bench: int, bench_missing: List[str]) -> Dict:
+    expenses, pending_expenses = _expenses(db, start, end, tenant_id, units)
+
+    def expense_for(index: int, key) -> int:
+        return sum(e["amount"] for e in expenses if e["key"][index] == key)
+
+    def section(revenue_lines: List[Dict], bench: int, bench_missing: List[str], expense: int) -> Dict:
         totals = _totals(revenue_lines)
         delivery = totals.pop("cost_usd_cents")
         complete = totals.pop("cost_data_complete") and not bench_missing
@@ -287,35 +294,74 @@ def pnl(db: Session, *, start: date, end: date, tenant_id: Optional[int] = None)
         out = {
             **totals, "revenue_usd_cents": totals["earned_usd_cents"],
             "delivery_cost_usd_cents": delivery, "bench_cost_usd_cents": bench,
-            "total_cost_usd_cents": delivery + bench, "cost_data_complete": complete,
+            "expense_cost_usd_cents": expense,
+            "total_cost_usd_cents": delivery + bench + expense, "cost_data_complete": complete,
         }
         return _with_margin(out, out["revenue_usd_cents"], out["total_cost_usd_cents"], complete)
 
-    def rollup(line_key: str, bench_index: int, names: Dict) -> List[Dict]:
-        keys = {line[line_key] for line in lines} | {b[bench_index] for b in bench_rows}
+    def rollup(line_key: str, index: int, names: Dict) -> List[Dict]:
+        keys = {line[line_key] for line in lines} | {b[index] for b in bench_rows} | {e["key"][index] for e in expenses}
         rows = []
         for k in keys:
-            bench = [v for b, v in bench_rows.items() if b[bench_index] == k]
+            bench = [v for b, v in bench_rows.items() if b[index] == k]
             rows.append({"key": k, "name": names.get(k), **section(
                 [line for line in lines if line[line_key] == k],
                 sum(b["bench_cost_usd_cents"] for b in bench), [m for b in bench for m in b["missing"]],
+                expense_for(index, k),
             )})
         return sorted(rows, key=lambda r: r["revenue_usd_cents"], reverse=True)
 
     partner_names = {line["partner_user_id"]: line["partner_name"] for line in lines}
-    for user in db.query(Users).filter(Users.UserID.in_({b[0] for b in bench_rows} - {UNASSIGNED})).all():
+    partner_ids = ({b[0] for b in bench_rows} | {e["key"][0] for e in expenses}) - {UNASSIGNED}
+    for user in db.query(Users).filter(Users.UserID.in_(partner_ids)).all():
         partner_names.setdefault(user.UserID, user.UserName)
     bu_names = {u.id: u.name for u in units.values()}
 
+    by_client = {row["key"]: row for row in summarize(lines, "client")}
+    client_ids = {e["key"][2] for e in expenses if e["key"][2]} - set(by_client)
+    for client in db.query(Client).filter(Client.id.in_(client_ids)).all():
+        by_client[client.id] = {"key": client.id, "name": client.company_name, **_totals([])}
+    for key, row in by_client.items():
+        row["expense_usd_cents"] = sum(e["amount"] for e in expenses if e["key"][2] == key)
+        _with_margin(row, row["earned_usd_cents"], row["cost_usd_cents"] + row["expense_usd_cents"],
+                     row["cost_data_complete"])
+
     org = section(lines, sum(b["bench_cost_usd_cents"] for b in bench_rows.values()),
-                  [m for b in bench_rows.values() for m in b["missing"]])
+                  [m for b in bench_rows.values() for m in b["missing"]], sum(e["amount"] for e in expenses))
     return {
         "start": start.isoformat(), "end": end.isoformat(), **org,
+        "pending_expenses_usd_cents": pending_expenses,
         "missing_cost_employee_ids": missing_cost,
         "by_partner": rollup("partner_user_id", 0, partner_names),
         "by_business_unit": rollup("business_unit_id", 1, bu_names),
-        "by_client": summarize(lines, "client"),
+        "by_client": sorted(by_client.values(), key=lambda r: r["earned_usd_cents"], reverse=True),
     }
+
+
+def _expenses(db: Session, start: date, end: date, tenant_id: Optional[int], units: Dict):
+    """Manager-approved expenses dated in the period, keyed (partner, business unit, client):
+    the client's business unit when the expense is for a client, else the logger's.
+    Pending expenses are totalled separately; rejected ones never count."""
+    from app.models.expense import ExpenseRecord
+
+    query = db.query(ExpenseRecord).filter(ExpenseRecord.expense_date >= start, ExpenseRecord.expense_date <= end)
+    if tenant_id is not None:
+        query = query.filter(ExpenseRecord.tenant_id == tenant_id)
+    records = query.all()
+    clients = _by_id(db, Client, Client.id, (r.client_id for r in records))
+    out, pending = [], 0
+    for record in records:
+        if record.manager_approval_status == "PENDING":
+            pending += record.amount_usd_cents
+            continue
+        if record.manager_approval_status != "APPROVED":
+            continue
+        client = clients.get(record.client_id)
+        bu_id = client.business_unit_id if client and client.business_unit_id else record.business_unit_id
+        unit = units.get(bu_id)
+        partner = unit.partner_user_id if unit and unit.partner_user_id else UNASSIGNED
+        out.append({"key": (partner, bu_id, record.client_id), "amount": record.amount_usd_cents})
+    return out, pending
 
 
 def month_bounds(year: int, month: int):

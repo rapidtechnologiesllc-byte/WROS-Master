@@ -712,9 +712,9 @@ export default function AuthPage() {
                   <button
                     type="button"
                     className="text-sm font-semibold text-bx-orange hover:underline"
-                    onClick={() =>
-                      setError("Please contact admin to reset your password.")
-                    }
+                    onClick={() => {
+                      window.location.href = "/activate";
+                    }}
                   >
                     Forgot Password?
                   </button>

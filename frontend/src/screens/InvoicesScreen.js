@@ -2,7 +2,7 @@
 // project+billing period from approved timesheets, then walk it through
 // Approve -> Send -> Mark Paid. Each transition is always an explicit
 // human action -- no automatic sending, per invoice_service.py.
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Receipt, RefreshCw, CheckCircle2, Send, DollarSign } from "lucide-react";
 import { Card, Button, Input } from "../components/ui";
 import cx from "../utils/cx";
@@ -10,7 +10,8 @@ import {
   generateInvoice,
   approveInvoice,
   sendInvoice,
-  markInvoicePaid,
+  recordExternalDelivery,
+  recordInvoicePayment,
   getInvoices,
 } from "../services/api/invoices";
 
@@ -90,6 +91,11 @@ function GenerateInvoiceForm({ onGenerated }) {
 function InvoiceRow({ invoice, onChanged }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [portalNote, setPortalNote] = useState("");
+  const [paidOn, setPaidOn] = useState(new Date().toISOString().slice(0, 10));
+  const [amount, setAmount] = useState((invoice.total_usd_cents / 100).toFixed(2));
+  const [reference, setReference] = useState("");
+  const emailInFlight = ["QUEUED", "DRAFTED"].includes(invoice.delivery_status);
 
   const run = async (fn) => {
     setBusy(true);
@@ -112,6 +118,12 @@ function InvoiceRow({ invoice, onChanged }) {
           <div className="text-xs text-gray-500">
             {invoice.billing_period_start} → {invoice.billing_period_end} · {invoice.line_items.length} line item(s)
           </div>
+          {invoice.delivery_status ? (
+            <div className="text-xs text-gray-500">
+              Delivery: {invoice.delivery_channel === "EXTERNAL" ? "outside email" : `email to ${invoice.delivery_to}`} ·{" "}
+              {invoice.delivery_status}
+            </div>
+          ) : null}
         </div>
         <span className={cx("inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold", STATUS_STYLES[invoice.status])}>
           {invoice.status}
@@ -129,14 +141,45 @@ function InvoiceRow({ invoice, onChanged }) {
           </Button>
         ) : null}
         {invoice.status === "APPROVED" ? (
-          <Button variant="primary" disabled={busy} onClick={() => run(sendInvoice)}>
-            <Send className="h-4 w-4" /> Send
-          </Button>
+          <>
+            <Button variant="primary" disabled={busy || emailInFlight} onClick={() => run(sendInvoice)}>
+              <Send className="h-4 w-4" /> {emailInFlight ? "Email queued" : "Email to client"}
+            </Button>
+            <Input
+              placeholder="Or: how it was delivered (e.g. client portal)"
+              value={portalNote}
+              onChange={setPortalNote}
+            />
+            <Button
+              variant="ghost"
+              disabled={busy || !portalNote.trim()}
+              onClick={() => run((id) => recordExternalDelivery(id, portalNote.trim()))}
+            >
+              Mark delivered
+            </Button>
+          </>
         ) : null}
         {invoice.status === "SENT" ? (
-          <Button variant="success" disabled={busy} onClick={() => run(markInvoicePaid)}>
-            <DollarSign className="h-4 w-4" /> Mark Paid
-          </Button>
+          <>
+            <Input type="date" value={paidOn} onChange={setPaidOn} />
+            <Input type="number" value={amount} onChange={setAmount} />
+            <Input placeholder="Bank / UTR reference" value={reference} onChange={setReference} />
+            <Button
+              variant="success"
+              disabled={busy || !reference.trim() || !paidOn}
+              onClick={() =>
+                run((id) =>
+                  recordInvoicePayment(id, {
+                    paidOn,
+                    amountUsdCents: Math.round(parseFloat(amount || "0") * 100),
+                    reference: reference.trim(),
+                  })
+                )
+              }
+            >
+              <DollarSign className="h-4 w-4" /> Record payment
+            </Button>
+          </>
         ) : null}
       </div>
     </div>
@@ -149,7 +192,7 @@ export default function InvoicesScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true);
     setError("");
     try {
@@ -160,11 +203,11 @@ export default function InvoicesScreen() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [statusFilter]);
 
   useEffect(() => {
     load();
-  }, [statusFilter]);
+  }, [load]);
 
   return (
     <div className="grid gap-4">
@@ -188,7 +231,7 @@ export default function InvoicesScreen() {
           <GenerateInvoiceForm onGenerated={load} />
           <select
             value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
+            onChange={setStatusFilter}
             className="rounded-xl border bg-white px-3 py-2 text-sm outline-none focus:border-gray-900"
           >
             <option value="">All statuses</option>

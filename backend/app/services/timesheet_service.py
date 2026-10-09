@@ -26,10 +26,10 @@ from typing import List, Optional
 
 from sqlalchemy.orm import Session
 
-from app.core.logging import logger
 from app.models.employee import Employee
 from app.models.employee_allocation import EmployeeAllocation
 from app.models.task import Task
+from app.models.user import Users
 from app.models.timesheet import (
     MAX_SUBMISSION_LOOKBACK_WEEKS,
     MAX_WEEKLY_HOURS,
@@ -204,21 +204,18 @@ def approve_timesheet(db: Session, timesheet: Timesheet, approved_by: Optional[s
     try:
         employee = db.query(Employee).filter(Employee.id == timesheet.employee_id).first()
         if employee and employee.email:
-            # Calculate total hours from timesheet entries
-            total_hours = sum(entry.hours or 0 for entry in timesheet.entries)
+            total_hours = float(timesheet.total_hours or 0)
             week_starting = timesheet.week_starting_date.strftime("%Y-%m-%d") if timesheet.week_starting_date else "unknown"
 
-            # Get approver name (fallback to ID if not found)
-            approver_name = approved_by or "HR/Manager"
-            if approved_by:
-                approver = db.query(Employee).filter(Employee.email == approved_by).first()
-                if approver:
-                    approver_name = f"{approver.first_name} {approver.last_name}".strip() or approver_name
+            # approved_by is the approver's UserID
+            approver = db.query(Users).filter(Users.UserID == approved_by).first() if approved_by else None
+            approver_name = (approver.UserName if approver else None) or "HR/Manager"
+            approver_email = approver.UserEmail if approver else None
 
             EmailService.notify_timesheet_approved(
                 employee_email=employee.email,
                 employee_name=f"{employee.first_name} {employee.last_name}".strip() or "Employee",
-                approver_email=approved_by or "admin@blitzenx.com",
+                approver_email=approver_email,
                 approver_name=approver_name,
                 week_starting_date=week_starting,
                 total_hours=total_hours,
