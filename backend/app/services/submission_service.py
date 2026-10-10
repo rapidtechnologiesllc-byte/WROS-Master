@@ -133,6 +133,13 @@ def check_hiring_pipeline_rule(db: Session, candidate_id: str) -> dict:
         reasons = "; ".join(blocked.blockers) or f"at {blocked.stage}"
         return {"allowed": False, "error": "PIPELINE_INCOMPLETE", "stage": blocked.stage,
                 "message": f"Candidate has not cleared hiring yet ({blocked.stage}): {reasons}."}
+    from app.services.hiring_pipeline_service import bgv_status, get_or_create_pipeline
+
+    pipeline = get_or_create_pipeline(db, candidate_id)
+    if pipeline.grandfathered and bgv_status(db, candidate_id) not in ("PASSED", "WAIVED"):
+        # CEO decision 2026-10-10: employees from before the pipeline need a BGV too
+        return {"allowed": False, "error": "PIPELINE_INCOMPLETE", "stage": pipeline.stage,
+                "message": "Background verification must pass (or be waived) before a client submission."}
     return {"allowed": True}
 
 def _log_violation(

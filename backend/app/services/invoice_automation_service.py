@@ -1,19 +1,21 @@
-"""Auto-invoicing: last month's approved timesheets become an invoice emailed to the client,
-with no person in the loop unless something looks wrong.
+"""Auto-invoicing: last month's approved timesheets become a draft invoice, reviewed and
+approved by Finance (Senior Manager or above -- CEO decision 2026-10-10), then emailed to the
+client automatically the moment it is approved. No invoice leaves without that approval.
 
 Daily (scheduled job auto_invoicing), for each project with timesheets in last month:
   - waits while any of those timesheets is not yet approved or is disputed (the
     timesheet reminders chase that); nothing is recorded, it is re-checked tomorrow
-  - generates the invoice (approved hours x the allocation's bill rate)
-  - guardrails -- any one HOLDS the invoice as a draft with a finance task:
+  - generates the DRAFT invoice (approved hours x the allocation's bill rate)
+  - flags anything the reviewer must look at:
       * an employee with more than MAX_WEEKLY_HOURS billable hours in a week
       * the total moved more than MAX_CHANGE_PCT against the project's previous invoice
-      * an employee with billable hours but no bill rate
       * the client has no ACCOUNTS contact to send it to
-  - otherwise approves it and queues the email (exactly-once; the invoice becomes SENT
-    only once the mail has really gone out)
-One decision per project and period (invoice_automation_decisions), so it never bills or
-emails twice. Only last month is considered, so enabling it never bills an old backlog.
+  - gives the review to the most junior Finance approver as a task (PENDING_REVIEW)
+  - an employee with billable hours but no bill rate: no invoice, a task to fix it (HELD)
+When Finance approves (POST /invoices/{id}/approve), send_after_approval queues the email
+(exactly-once; the invoice becomes SENT only once the mail has really gone out).
+One decision per project and period (invoice_automation_decisions), so it never drafts
+or emails twice. Only last month is considered, so enabling it never bills an old backlog.
 """
 import logging
 from datetime import date, timedelta
@@ -67,10 +69,14 @@ def anomalies(db: Session, invoice: Invoice) -> List[str]:
 
 
 def _finance_task(db: Session, project: Project, title: str, reasons: List[str]) -> None:
+    from app.services.invoice_service import invoice_approvers
     from app.services.task_service import create_task
 
+    approvers = invoice_approvers(db, project.tenant_id)
+    assignee = approvers[0].UserID if approvers else None
     create_task(db, title=title, description="\n".join(reasons), priority="HIGH", tenant_id=project.tenant_id,
-                category="FINANCE", visibility_scope="ORG_WIDE")
+                category="FINANCE", assigned_to_user_id=assignee,
+                visibility_scope="ASSIGNEE_MANAGER_DEPARTMENT" if assignee else "ORG_WIDE")
 
 
 def _decide(db: Session, project: Project, start: date, end: date, decision: str, reasons: List[str],
@@ -111,30 +117,45 @@ def invoice_project(db: Session, project: Project, start: date, end: date) -> st
         db.rollback()
         return "nothing"
 
-    reasons = anomalies(db, invoice)
-    if not reasons:
-        try:
-            invoices.billing_contact_email(db, invoice.client_id)
-        except invoices.MissingBillingContact as exc:
-            reasons.append(str(exc))
-    if reasons:
-        _decide(db, project, start, end, "HELD", reasons, invoice)
-        _finance_task(db, project, f"Review draft invoice: {project.name} {start:%b %Y}", reasons)
-        db.commit()
-        logger.warning(f"[AutoInvoice] {project.id} {start} held: {reasons}")
-        return "held"
-
-    invoices.approve_invoice(db, invoice, approved_by=None)
-    _decide(db, project, start, end, "SENT", [], invoice)
+    flags = anomalies(db, invoice)
+    try:
+        invoices.billing_contact_email(db, invoice.client_id)
+    except invoices.MissingBillingContact as exc:
+        flags.append(str(exc))
+    _decide(db, project, start, end, "PENDING_REVIEW", flags, invoice)
+    total = f"{(invoice.total_usd_cents or 0) / 100:,.2f} {invoice.currency or 'USD'}"
+    lines = [f"Draft invoice {invoice.id} for {project.name}, {start:%d %b} - {end:%d %b %Y}: {total}.",
+             "Review it in Invoices and approve it; it is emailed to the client as soon as you approve."]
+    if flags:
+        lines += ["", "Check before approving:"] + [f"- {f}" for f in flags]
+    _finance_task(db, project, f"Approve invoice: {project.name} {start:%b %Y}", lines)
     db.commit()
-    invoices.request_invoice_email(db, invoice, requested_by=None)  # commits; queued exactly once
-    logger.info(f"[AutoInvoice] {project.id} {start} invoice {invoice.id} approved and queued for email")
-    return "sent"
+    logger.info(f"[AutoInvoice] {project.id} {start} draft {invoice.id} awaiting Finance approval; flags={flags}")
+    return "awaiting"
+
+
+def send_after_approval(db: Session, invoice: Invoice, approved_by: str) -> bool:
+    """Called once Finance approved an invoice: if auto-invoicing drafted it, email it now.
+    A client with no ACCOUNTS contact is left for Finance to send by hand. Returns sent?"""
+    from app.services import invoice_service as invoices
+
+    decision = db.query(InvoiceAutomationDecision).filter(InvoiceAutomationDecision.invoice_id == invoice.id,
+                                                          InvoiceAutomationDecision.decision == "PENDING_REVIEW").first()
+    if decision is None or invoice.status != "APPROVED":
+        return False
+    try:
+        invoices.request_invoice_email(db, invoice, requested_by=approved_by)  # commits; queued exactly once
+    except invoices.MissingBillingContact:
+        logger.warning(f"[AutoInvoice] {invoice.id} approved but the client has no ACCOUNTS contact; not sent")
+        return False
+    decision.decision = "SENT"
+    db.commit()
+    return True
 
 
 def run_auto_invoicing(db: Session, today: Optional[date] = None) -> Dict:
     start, end = previous_month(today or date.today())
-    result = {"period": f"{start}..{end}", "sent": 0, "held": 0, "waiting": 0, "skipped": 0, "failed": 0}
+    result = {"period": f"{start}..{end}", "awaiting": 0, "held": 0, "waiting": 0, "skipped": 0, "failed": 0}
     for project_id in _projects_with_time(db, start, end):
         project = db.query(Project).filter(Project.id == project_id).first()
         if project is None:

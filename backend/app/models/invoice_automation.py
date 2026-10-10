@@ -4,10 +4,10 @@ from app.models.base import Base
 
 
 class InvoiceAutomationDecision(Base):
-    """What auto-invoicing decided for one project and billing period: SENT (generated,
-    auto-approved, emailed to the client's accounts contact), HELD (generated but an
-    anomaly needs finance), or SKIPPED (already invoiced by hand). The audit trail for
-    every invoice no person approved."""
+    """What auto-invoicing decided for one project and billing period: PENDING_REVIEW
+    (draft generated, review task given to Finance), SENT (Finance approved it and the email
+    was queued), HELD (no invoice: e.g. a missing bill rate to fix) or SKIPPED (already
+    invoiced by hand). Guarantees nothing is drafted or emailed twice."""
     __tablename__ = "invoice_automation_decisions"
 
     id = Column(Integer, primary_key=True, autoincrement=True)

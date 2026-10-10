@@ -5,11 +5,11 @@ Blockers:
   - the hiring pipeline has not reached OFFER: the recruiter screen, the L1 (technical)
     and L2 (management) round verdicts must all have passed, and the candidate must not
     have been rejected (hiring_pipeline_service; verdicts come from interviewer feedback)
-  - experience below the 5-year rule (BR-02, submission_service.check_experience_eligibility)
   - an unresolved COMPLIANCE_BLOCK flag for the job
 Warning (not a blocker): an unresolved COMPENSATION_MISMATCH flag (BR-03).
 
-Before 2026-10 the interview checks read SubmissionInterview, which is keyed to a client
+The 5-year experience rule is enforced before the first interview (CEO decision 2026-10-10),
+so an offer never re-checks it. Before 2026-10 the interview checks read SubmissionInterview, which is keyed to a client
 submission and written by nothing, so no offer could ever pass them.
 """
 import logging
@@ -20,7 +20,6 @@ from sqlalchemy.orm import Session
 from app.models.candidate import Candidate
 from app.models.candidate_ai import CandidateConversation, ConversationEvent
 from app.models.candidate_job_flag import CandidateJobFlag
-from app.services.submission_service import check_experience_eligibility
 
 logger = logging.getLogger(__name__)
 
@@ -52,11 +51,6 @@ def check_offer_readiness(db: Session, candidate_id: str, job_id: str, tenant_id
     )
     if comp_flag is not None:
         warnings.append("Compensation mismatch flagged -- review before offering.")
-
-    # Check 5 -- BR-02, reused from HRMS-P601 directly
-    experience_result = check_experience_eligibility(candidate)
-    if not experience_result["is_eligible"]:
-        blockers.append("Candidate does not meet 5-year experience requirement.")
 
     # Check 6 -- hard blocker
     compliance_flag = (

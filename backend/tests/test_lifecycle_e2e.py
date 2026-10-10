@@ -28,7 +28,7 @@ from app.models.revenue import Revenue
 from app.models.role_template import RoleTemplate
 from app.models.tenant import Tenant
 from app.models.user import Jobs, Users
-from tests.hiring_fixtures import clear_hiring
+from tests.hiring_fixtures import clear_hiring, finance_approver
 
 TODAY = date.today()
 MONDAY = TODAY - timedelta(days=TODAY.weekday())
@@ -177,7 +177,9 @@ def test_candidate_to_partner_and_org_pnl(db, api, world):
         "project_id": world["project"].id, "period_start": MONDAY.isoformat(),
         "period_end": (MONDAY + timedelta(days=6)).isoformat()}))
     assert invoice["total_usd_cents"] == hours * RATE
-    ok(client.post(f"/api/v1/invoices/{invoice['id']}/approve", headers=admin_h))
+    # only Finance at Senior Manager+ approves invoices: the admin is refused, the Finance Director approves
+    assert client.post(f"/api/v1/invoices/{invoice['id']}/approve", headers=admin_h).status_code == 403
+    ok(client.post(f"/api/v1/invoices/{invoice['id']}/approve", headers=_login(finance_approver(db))))
     ok(client.post(f"/api/v1/invoices/{invoice['id']}/record-external-delivery", headers=admin_h,
                    json={"note": "Uploaded to client portal"}))
     paid = ok(client.post(f"/api/v1/invoices/{invoice['id']}/record-payment", headers=admin_h, json={

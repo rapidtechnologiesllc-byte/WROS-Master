@@ -63,6 +63,7 @@ from app.services.invoice_service import (
     NothingToInvoice,
     MissingBillRate,
     InvalidInvoiceTransition,
+    InvoiceApproverNotAllowed,
     OpenDisputeBlocksInvoice,
     UnapprovedTimesheetBlocksInvoice,
     approve_invoice,
@@ -160,10 +161,17 @@ def approve_invoice_endpoint(
     invoice = _get_invoice_or_404(db, invoice_id, current_user.tenant_id)
     try:
         invoice = approve_invoice(db, invoice, approved_by=current_user.UserID)
+    except InvoiceApproverNotAllowed as exc:
+        raise HTTPException(status_code=403, detail=str(exc))
     except InvalidInvoiceTransition as exc:
         raise HTTPException(status_code=409, detail=str(exc))
     db.commit()
     db.refresh(invoice)
+
+    # an invoice auto-invoicing drafted goes to the client as soon as Finance approves it
+    from app.services.invoice_automation_service import send_after_approval
+
+    send_after_approval(db, invoice, current_user.UserID)
 
     # Queue invoice approval for FLASH orchestrator
     try:

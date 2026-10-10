@@ -73,7 +73,8 @@ def world(db):
 
 def _candidate(db, thunder=False):
     candidate = Candidate(candidateID=f"CAN-{_uid()}", candidateEmail=f"c{_uid()}@example.com", candidatePassword="x",
-                          candidateFirstName="Lee", candidateLastName="Park", tenant_id=1, thunder_enabled=thunder)
+                          candidateFirstName="Lee", candidateLastName="Park", tenant_id=1, thunder_enabled=thunder,
+                          total_experience_months=72)
     db.add(candidate)
     db.flush()
     db.add(CandidateStatus(candidateID=candidate.candidateID, status="Active", piplineStatus="Screening",
@@ -238,3 +239,36 @@ def test_pipeline_api(db, world, queued):
         assert client.get("/api/v1/hiring-pipeline/candidate/NOPE", headers=headers).status_code == 404
     finally:
         app.dependency_overrides.clear()
+
+
+@pytest.mark.parametrize("months", [59, None])
+def test_under_five_years_is_not_eligible_for_interviews(db, world, queued, months):
+    candidate = _candidate(db)
+    candidate.total_experience_months = months
+    db.commit()
+    hp.record_screen_decision(db, candidate.candidateID, "PASS", world.UserID)
+    stage, blockers = _stage(db, candidate)
+    assert stage == "SCREEN" and blockers[0].startswith("not eligible for interviews")
+
+
+def test_grandfathered_employee_needs_bgv_before_a_client_submission(db, world, queued):
+    from app.services import bgv_service
+    from app.services.submission_service import check_hiring_pipeline_rule
+
+    candidate = _candidate(db)
+    db.add(Employee(tenant_id=1, candidate_id=candidate.candidateID, first_name="Old", last_name="Hand",
+                    email=f"old{_uid()}@blitzenx.com", joining_date=date(2025, 1, 1), status="ACTIVE"))
+    db.commit()
+    pipeline = hp.get_or_create_pipeline(db, candidate.candidateID)
+    db.commit()
+    assert pipeline.grandfathered and "background verification required" in " ".join(pipeline.blockers or [])
+    rule = check_hiring_pipeline_rule(db, candidate.candidateID)
+    assert not rule["allowed"] and "Background verification" in rule["message"]
+
+    bgv = db.query(BackgroundVerification).filter_by(candidate_id=candidate.candidateID).one()
+    assert bgv.offer_letter_id is None and bgv.status == "NOT_STARTED"
+    assert bgv_service.start_if_consented(db, bgv) is False  # no consent on file, no vendor named
+    assert bgv_service.start_if_consented(db, bgv, vendor_name="AuthBridge") is True
+    bgv_service.record_verdict(db, bgv, "PASSED", world.UserID)
+    db.commit()
+    assert check_hiring_pipeline_rule(db, candidate.candidateID)["allowed"] is True

@@ -61,7 +61,8 @@ def world(db):
                    UserPassword="x", UserRole="admin", tenant_id=1, role_template_id=role.id,
                    password_reset_required=False) for i in range(2)]
     candidate = Candidate(candidateID=f"CAN-{_uid()}", candidateEmail=f"c{_uid()}@example.com", candidatePassword="x",
-                          candidateFirstName="Ana", candidateLastName="Ruiz", tenant_id=1)
+                          candidateFirstName="Ana", candidateLastName="Ruiz", tenant_id=1,
+                          total_experience_months=72)
     db.add_all(users + [candidate])
     db.flush()
     db.add(CandidateStatus(candidateID=candidate.candidateID, status="Active", piplineStatus="Interview"))
@@ -161,3 +162,12 @@ def test_round_level_can_be_corrected(client, db, world):
     assert fixed.status_code == 200 and fixed.json()["level"] == "L1"
     bad = client.put(f"/api/v1/interviews/panels/{panel['id']}/level", headers=_headers(users[0]), json={"level": "L9"})
     assert bad.status_code == 400
+
+
+@pytest.mark.parametrize("months", [59, None])
+def test_no_interview_under_five_years_experience(client, db, world, months):
+    users, candidate = world
+    candidate.total_experience_months = months
+    db.commit()
+    response = _panel(client, users, candidate, "L1 Technical")
+    assert response.status_code == 400 and "Cannot schedule an interview" in response.json()["detail"]

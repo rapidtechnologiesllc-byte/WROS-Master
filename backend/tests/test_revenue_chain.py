@@ -29,6 +29,7 @@ from app.services import pnl_service
 from app.services import revenue_chain_service as chain
 from app.services.delivery_errors import DeliveryDeferred
 from app.services.message_handlers.send_invoice_email_handler import SendInvoiceEmailHandler
+from tests.hiring_fixtures import finance_approver
 
 SEPT = (date(2026, 9, 1), date(2026, 9, 30))
 RATE = 10_000  # $100/h
@@ -120,7 +121,7 @@ def _invoice(db, world, status="APPROVED"):
                                         tenant_id=1)
     db.commit()
     if status != "DRAFT":
-        invoices.approve_invoice(db, invoice, approved_by=world.partner.UserID)
+        invoices.approve_invoice(db, invoice, approved_by=finance_approver(db).UserID)
         db.commit()
     return invoice
 

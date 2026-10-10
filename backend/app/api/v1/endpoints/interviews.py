@@ -806,6 +806,14 @@ def create_interview_panel(
     # R-05: this candidate's next round cannot be created until their
     # most recent prior round has actually passed. First round is
     # always allowed (nothing to sequence against yet).
+    # CEO decision 2026-10-10: the 5-year experience rule applies at interview -- nobody with
+    # less than 5 years (or unverified experience) is interviewed. Same rule as client submission.
+    from app.services.submission_service import check_experience_eligibility
+
+    experience = check_experience_eligibility(candidate)
+    if not experience["is_eligible"]:
+        raise HTTPException(status_code=400, detail=f"Cannot schedule an interview: {experience['message']}")
+
     level = (request.level or infer_level(request.round_name)).upper()
     if level not in LEVELS:
         raise HTTPException(status_code=400, detail=f"level must be one of {', '.join(LEVELS)}")

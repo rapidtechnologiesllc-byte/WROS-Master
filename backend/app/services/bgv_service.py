@@ -43,12 +43,21 @@ def consent_received(db: Session, candidate_id: str, offer_id: Optional[int]) ->
     return query.first() is not None
 
 
+def _consent_ok(db: Session, bgv: BackgroundVerification, vendor_name: Optional[str]) -> bool:
+    """New hires sign consent among their pre-joining documents. Employees from before the
+    pipeline (no offer on the record) gave it outside the system: HR starts their BGV by
+    naming the vendor, which records that consent was collected."""
+    if consent_received(db, bgv.candidate_id, bgv.offer_letter_id):
+        return True
+    return bgv.offer_letter_id is None and bool(vendor_name)
+
+
 def start_if_consented(db: Session, bgv: BackgroundVerification, vendor_name: Optional[str] = None,
                        vendor_reference: Optional[str] = None) -> bool:
     """NOT_STARTED -> IN_PROGRESS once consent is on file. Returns whether it started."""
     if bgv.status != "NOT_STARTED":
         return False
-    if not consent_received(db, bgv.candidate_id, bgv.offer_letter_id):
+    if not _consent_ok(db, bgv, vendor_name):
         return False
     bgv.status, bgv.initiated_at = "IN_PROGRESS", datetime.utcnow()
     bgv.vendor_name = vendor_name or bgv.vendor_name
@@ -63,7 +72,7 @@ def record_verdict(db: Session, bgv: BackgroundVerification, verdict: str, actor
         raise BGVError("Verdict must be PASSED or FAILED.")
     if bgv.status in TERMINAL:
         raise BGVError(f"Background verification is already {bgv.status}.")
-    if bgv.status == "NOT_STARTED" and not consent_received(db, bgv.candidate_id, bgv.offer_letter_id):
+    if bgv.status == "NOT_STARTED" and not _consent_ok(db, bgv, None):
         raise BGVError("The candidate's background check consent has not been received.")
     bgv.status, bgv.verdict_at, bgv.verdict_by = verdict, datetime.utcnow(), actor
     bgv.report_url = report_url or bgv.report_url

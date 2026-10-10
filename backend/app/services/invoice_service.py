@@ -38,6 +38,41 @@ class MissingBillRate(Exception):
 class NothingToInvoice(Exception):
     """No timesheets for the project in the period: an empty invoice is never created."""
 
+class InvoiceApproverNotAllowed(Exception):
+    """Only Finance at Senior Manager level or above may approve an invoice."""
+
+# CEO decision 2026-10-10: every invoice is reviewed by a person in Finance at Senior Manager
+# or above (Senior Manager, Director, VP, CFO...). Levels are the 17-level org hierarchy
+# (org_hierarchy_validator.HIERARCHY_LEVELS: 9 = Senior Manager). No admin bypass.
+INVOICE_APPROVER_MIN_LEVEL = 9
+FINANCE_NAMES = ("finance", "accounts", "accounting", "cfo")
+
+def is_invoice_approver(db: Session, user) -> bool:
+    from app.models.role_template import RoleTemplate
+
+    if user is None:
+        return False
+    role = db.query(RoleTemplate).filter(RoleTemplate.id == user.role_template_id).first()
+    if role is None or (role.hierarchy_level or 0) < INVOICE_APPROVER_MIN_LEVEL:
+        return False
+    texts = [role.specialization, role.name, role.display_name]
+    department = getattr(user, "department", None)
+    if department is not None:
+        texts.append(department.name)
+    return any(word in (t or "").lower() for t in texts for word in FINANCE_NAMES)
+
+def invoice_approvers(db: Session, tenant_id: Optional[int]) -> list:
+    """Everyone who may approve invoices, most junior first (they get the review task)."""
+    from app.models.role_template import RoleTemplate
+    from app.models.user import Users
+
+    query = db.query(Users).join(RoleTemplate, RoleTemplate.id == Users.role_template_id).filter(
+        RoleTemplate.hierarchy_level >= INVOICE_APPROVER_MIN_LEVEL)
+    if tenant_id is not None:
+        query = query.filter(Users.tenant_id == tenant_id)
+    users = [u for u in query.order_by(RoleTemplate.hierarchy_level).all() if is_invoice_approver(db, u)]
+    return users
+
 class AlreadyInvoiced(Exception):
     """A timesheet already sits on another invoice: billing it again would charge the client twice."""
 
@@ -134,9 +169,16 @@ def generate_invoice(
     return invoice
 
 def approve_invoice(db: Session, invoice: Invoice, *, approved_by: str) -> Invoice:
-    """BR-0907-02: Draft->Approved is always an explicit Finance-role action."""
+    """BR-0907-02: Draft->Approved is always an explicit action by Finance at Senior Manager
+    level or above (is_invoice_approver) -- never automatic, never anyone else."""
+    from app.models.user import Users
+
     if invoice.status != "DRAFT":
         raise InvalidInvoiceTransition(f"Cannot approve an invoice in status '{invoice.status}'.")
+    approver = db.query(Users).filter(Users.UserID == approved_by).first() if approved_by else None
+    if not is_invoice_approver(db, approver):
+        raise InvoiceApproverNotAllowed(
+            "Only Finance at Senior Manager level or above (Senior Manager, Director, VP, CFO) can approve invoices.")
     invoice.status = "APPROVED"
     invoice.approved_by = approved_by
     invoice.approved_at = datetime.utcnow()
