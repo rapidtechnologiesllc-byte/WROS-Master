@@ -140,3 +140,23 @@ def test_release_is_blocked_for_a_candidate_who_failed_l2(client, db, world):
     response = client.post(f"/api/v1/offer-letter/release/{offer.id}",
                            headers=_headers(hr.UserID, role_template_id=hr.role_template_id))
     assert response.status_code == 409 and response.json()["detail"]["blockers"] == ["L2 interview: No Hire"]
+
+
+def test_five_year_rule_blocks_offer_create_and_release_even_after_rounds_passed(client, db, world):
+    """CEO: the 5-year rule is enforced at every step -- a record corrected after the
+    interviews (or rounds entered first) is still stopped at offer create and at release."""
+    hr, candidate = world
+    _pass(db, candidate, "L1", "L2")
+    candidate.total_experience_months = 48
+    db.commit()
+    blocked = _create(client, hr, candidate)
+    assert blocked.status_code == 409 and "5-year rule" in blocked.json()["detail"]["blockers"][0]
+    offer = OfferLetter(candidate_id=candidate.candidateID, position="Engineer", salary="1800000",
+                        joining_date=date.today() + timedelta(days=20), offer_expire_date=date.today() + timedelta(days=7),
+                        offer_status="Approved", approval_status="Approved", created_by=hr.UserID)
+    db.add(offer)
+    db.commit()
+    released = client.post(f"/api/v1/offer-letter/release/{offer.id}",
+                           headers=_headers(hr.UserID, role_template_id=hr.role_template_id))
+    assert released.status_code == 409
+    assert any("5-year experience requirement" in b for b in released.json()["detail"]["blockers"])

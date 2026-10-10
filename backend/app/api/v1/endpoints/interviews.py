@@ -30,6 +30,7 @@ from app.services.interview_rehire_guard_service import (
     get_pending_rehire_reviews,
     submit_rehire_request,
 )
+from app.services.submission_service import ExperienceIneligible
 from app.services.interview_feedback_task_service import (
     close_pending_feedback_task,
     sync_pending_feedback_tasks_for_interview,
@@ -808,11 +809,7 @@ def create_interview_panel(
     # always allowed (nothing to sequence against yet).
     # CEO decision 2026-10-10: the 5-year experience rule applies at interview -- nobody with
     # less than 5 years (or unverified experience) is interviewed. Same rule as client submission.
-    from app.services.submission_service import check_experience_eligibility
-
-    experience = check_experience_eligibility(candidate)
-    if not experience["is_eligible"]:
-        raise HTTPException(status_code=400, detail=f"Cannot schedule an interview: {experience['message']}")
+    _require_experience(candidate)
 
     level = (request.level or infer_level(request.round_name)).upper()
     if level not in LEVELS:
@@ -1226,8 +1223,20 @@ def decide_rehire_review_endpoint(
         raise HTTPException(status_code=404, detail=f"Rehire review {review_id} not found")
     except RehireReviewAlreadyDecided as exc:
         raise HTTPException(status_code=409, detail=str(exc))
+    except ExperienceIneligible as exc:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(exc))
 
     return _rehire_review_to_response(db, review)
+
+def _require_experience(candidate) -> None:
+    """CEO rule: nobody under 5 years' experience (or unverified) is interviewed."""
+    from app.services.submission_service import assert_experience_eligible
+
+    try:
+        assert_experience_eligible(candidate, "schedule an interview")
+    except ExperienceIneligible as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
 
 def _panel_diversity_warning(db: Session, panel: InterviewPanel, interviewer_id: str) -> str | None:
     """Backlog item, 2026-08-05 (wros_interview_regrouping_and_rehire_guard_priority):
@@ -1502,6 +1511,8 @@ def create_interview(
             status_code=404,
             detail=f"Candidate with ID {request.candidate_id} not found"
         )
+
+    _require_experience(candidate)
 
     # Validate time
     if request.end_time <= request.start_time:

@@ -248,7 +248,7 @@ def test_under_five_years_is_not_eligible_for_interviews(db, world, queued, mont
     db.commit()
     hp.record_screen_decision(db, candidate.candidateID, "PASS", world.UserID)
     stage, blockers = _stage(db, candidate)
-    assert stage == "SCREEN" and blockers[0].startswith("not eligible for interviews")
+    assert stage == "SCREEN" and blockers[0].startswith("not eligible (5-year rule)")
 
 
 def test_grandfathered_employee_needs_bgv_before_a_client_submission(db, world, queued):

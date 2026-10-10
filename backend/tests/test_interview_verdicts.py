@@ -171,3 +171,36 @@ def test_no_interview_under_five_years_experience(client, db, world, months):
     db.commit()
     response = _panel(client, users, candidate, "L1 Technical")
     assert response.status_code == 400 and "Cannot schedule an interview" in response.json()["detail"]
+
+
+def test_five_year_rule_at_every_interview_entry_point(client, db, world):
+    from types import SimpleNamespace
+
+    from app.models.interview_rehire_review import InterviewRehireReview
+    from app.services.interview_rehire_guard_service import decide_rehire_review
+    from app.services.message_handlers.interview_scheduled_handler import InterviewScheduledHandler
+    from app.services.submission_service import ExperienceIneligible
+
+    users, candidate = world
+    panel = _panel(client, users, candidate, "L1 Technical")
+    assert panel.status_code == 201, panel.text
+    candidate.total_experience_months = 30  # corrected after the panel existed
+    db.commit()
+    start = datetime.utcnow() + timedelta(days=1)
+    scheduled = client.post("/api/v1/interviews/create", headers=_headers(users[0]), json={
+        "panel_id": panel.json()["id"], "candidate_id": candidate.candidateID,
+        "start_time": start.isoformat(), "end_time": (start + timedelta(hours=1)).isoformat()})
+    assert scheduled.status_code == 400 and "Cannot schedule an interview" in scheduled.json()["detail"]
+
+    review = InterviewRehireReview(candidate_id=candidate.candidateID, round_name="L1", justification="re-try",
+                                   status="PENDING_HM_APPROVAL")
+    db.add(review)
+    db.commit()
+    with pytest.raises(ExperienceIneligible):
+        decide_rehire_review(db, review.id, "approve", users[0].UserID)
+    db.rollback()
+    assert db.get(InterviewRehireReview, review.id).status == "PENDING_HM_APPROVAL"
+
+    message = SimpleNamespace(id=str(uuid.uuid4()), payload={"candidate_id": candidate.candidateID, "interview_date": start.isoformat()})
+    with pytest.raises(ValueError, match="Cannot schedule an interview"):
+        InterviewScheduledHandler.process(message, db)

@@ -14,7 +14,7 @@ Note: Pausing other outreach prevents candidate from getting multiple offers.
 """
 
 import logging
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
 from app.models.channel_queue import ChannelQueueItem
@@ -84,7 +84,6 @@ class InterviewScheduledHandler:
             from app.models.candidate import Candidate
             from app.models.user import Interview
             from app.services.slm_service import SLMService
-            from app.services.message_queue_service import MessageQueueService
 
             # ===== VALIDATION: Check required fields =====
             required_fields = ['candidate_id', 'interview_date']
@@ -115,6 +114,7 @@ class InterviewScheduledHandler:
                     logger.warning(f"[InterviewHandler] SLM escalation: {slm_analysis.get('reasoning')}")
                     raise ValueError(f"SLM escalation: {slm_analysis.get('reasoning')}")
             except Exception as slm_err:
+                db.rollback()  # a failed SLM write must not poison the session the interview is written with
                 logger.warning(f"[InterviewHandler] SLM pre-flight failed (non-blocking): {slm_err}")
                 # Continue - don't block interview on SLM failure
 
@@ -127,6 +127,9 @@ class InterviewScheduledHandler:
                 raise ValueError(f"Candidate {candidate_id} not found")
 
             logger.info(f"[InterviewHandler] ✅ Candidate found: {candidate_id}")
+            from app.services.submission_service import assert_experience_eligible
+
+            assert_experience_eligible(candidate, "schedule an interview")  # ValueError: not retried
 
             # ===== PHASE 2: Create interview record =====
             start_time = payload.get("start_time")
@@ -216,7 +219,7 @@ class InterviewScheduledHandler:
                     },
                     db=db
                 )
-                logger.info(f"[InterviewHandler] ✅ SLM outcome recorded")
+                logger.info("[InterviewHandler] ✅ SLM outcome recorded")
             except Exception as slm_record_err:
                 logger.warning(f"[InterviewHandler] SLM outcome recording failed (non-blocking): {slm_record_err}")
 
@@ -301,7 +304,7 @@ class InterviewScheduledHandler:
                     f"Handler returned ID but record was not persisted."
                 )
 
-            logger.info(f"[Handler] ✅ Step 2: Database verification passed, interview exists")
+            logger.info("[Handler] ✅ Step 2: Database verification passed, interview exists")
 
             # ===== VALIDATION STEP 3: Related records consistency =====
             # Verify interview status is correct
@@ -311,7 +314,7 @@ class InterviewScheduledHandler:
                     f"expected 'Scheduled'. Interview state incorrect."
                 )
 
-            logger.info(f"[Handler] ✅ Step 3: Related records valid, interview status correct")
+            logger.info("[Handler] ✅ Step 3: Related records valid, interview status correct")
 
             # ===== VALIDATION STEP 4: Data integrity =====
             # Verify candidate matches
@@ -322,7 +325,7 @@ class InterviewScheduledHandler:
                     f"Data corruption detected."
                 )
 
-            logger.info(f"[Handler] ✅ Step 4: Data integrity verified, candidate matches")
+            logger.info("[Handler] ✅ Step 4: Data integrity verified, candidate matches")
 
             # ===== FINAL: Mark COMPLETED after all validations pass =====
             message.status = "COMPLETED"
@@ -335,7 +338,7 @@ class InterviewScheduledHandler:
                 db.rollback()
                 raise RuntimeError(f"Failed to commit success status: {str(commit_err)}") from commit_err
 
-            logger.info(f"[Handler] ✅✅✅ ALL VALIDATIONS PASSED - Message marked COMPLETED")
+            logger.info("[Handler] ✅✅✅ ALL VALIDATIONS PASSED - Message marked COMPLETED")
 
         except ValueError as e:
             # Non-retryable error

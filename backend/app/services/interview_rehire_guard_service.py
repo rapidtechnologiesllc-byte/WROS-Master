@@ -238,6 +238,13 @@ def decide_rehire_review(
     review.decided_at = datetime.utcnow()
 
     if decision == "approve":
+        from app.models.candidate import Candidate
+        from app.services.submission_service import assert_experience_eligible
+
+        candidate = db.query(Candidate).filter(Candidate.candidateID == review.candidate_id).first()
+        if candidate is None:
+            raise RehireReviewNotFound(f"Candidate {review.candidate_id} of review {review_id} not found")
+        assert_experience_eligible(candidate, "schedule an interview")  # before anything changes
         panel = InterviewPanel(
             candidate_id=review.candidate_id,
             round_name=review.round_name,

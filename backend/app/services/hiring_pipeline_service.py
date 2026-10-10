@@ -143,14 +143,15 @@ def _walk(db: Session, pipeline: HiringPipeline) -> Tuple[str, List[str], Dict]:
                     or levels.get("SCREEN") == "PASS" or "L1" in levels or "L2" in levels)
         if not screened:
             return reached, ["recruiter screen pending"], refs
-        # CEO decision 2026-10-10: nobody under 5 years' experience is interviewed
+        # CEO decision 2026-10-10: nobody under 5 years' experience is interviewed, offered or
+        # moved on -- checked at every stage, so a rounds-first or corrected record is still caught
         from app.services.submission_service import check_experience_eligibility
 
         candidate = db.query(Candidate).filter(Candidate.candidateID == cid).first()
-        if candidate is not None and not levels.get("L1") and not levels.get("L2"):
+        if candidate is not None:
             experience = check_experience_eligibility(candidate)
             if not experience["is_eligible"]:
-                return reached, [f"not eligible for interviews: {experience['message']}"], refs
+                return reached, [f"not eligible (5-year rule): {experience['message']}"], refs
         reached = "L1"
         # L1 -> L2 -> OFFER
         for level, nxt in (("L1", "L2"), ("L2", "OFFER")):

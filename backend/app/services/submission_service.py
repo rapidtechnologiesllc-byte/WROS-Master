@@ -94,6 +94,15 @@ def check_experience_eligibility(candidate: Candidate) -> dict:
         "experience_months": months, "deficit_months": deficit,
     }
 
+class ExperienceIneligible(ValueError):
+    """The 5-year rule (CEO): checked before every interview, at the pipeline, at offer and at submission."""
+
+
+def assert_experience_eligible(candidate: Candidate, step: str) -> None:
+    result = check_experience_eligibility(candidate)
+    if not result["is_eligible"]:
+        raise ExperienceIneligible(f"Cannot {step}: {result['message']}")
+
 def check_market_profile_rule(db: Session, candidate_id: str) -> dict:
     employee = db.query(Employee).filter(Employee.candidate_id == candidate_id).first()
     if employee is None:
