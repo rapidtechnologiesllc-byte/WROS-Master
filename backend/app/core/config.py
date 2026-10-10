@@ -174,6 +174,8 @@ class Settings:
     FINANCE_MAILBOX: str = os.getenv("FINANCE_MAILBOX", "") or THUNDER_MAILBOX
     # Rupees per US dollar, to turn an accepted offer letter's annual CTC (INR) into the
     # employee's monthly USD cost. Unset = cost stays unknown (flagged in the P&L), never guessed.
+    # auto-invoicing considers this many complete months back (oldest first), so late approvals still bill
+    AUTO_INVOICE_LOOKBACK_MONTHS: int = int(os.getenv("AUTO_INVOICE_LOOKBACK_MONTHS", "3"))
     FX_INR_PER_USD: Optional[float] = float(os.getenv("FX_INR_PER_USD")) if os.getenv("FX_INR_PER_USD") else None
     # Paid hours in a month (40h x 52 weeks / 12); turns monthly loaded cost into an hourly cost
     STANDARD_MONTHLY_HOURS: float = float(os.getenv("STANDARD_MONTHLY_HOURS", "173.33"))

@@ -51,6 +51,11 @@ def match_transaction_to_invoice(db: Session, transaction: BankTransaction, invo
         )
     if invoice.status not in ("SENT", "PAID"):
         raise BankReconciliationError(f"Invoice {invoice.id} is {invoice.status}; only a sent invoice can be paid.")
+    already = db.query(BankTransaction.id).filter(BankTransaction.matched_invoice_id == invoice.id,
+                                                  BankTransaction.reconciled.is_(True)).first()
+    if already is not None:
+        raise BankReconciliationError(f"Invoice {invoice.id} is already paid (transaction {already[0]}); "
+                                      "a second payment would overstate cash.")
     transaction.matched_invoice_id = invoice.id
     transaction.reconciled = True
     db.add(transaction)

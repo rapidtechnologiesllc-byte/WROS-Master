@@ -99,7 +99,7 @@ def world(db):
                   password_reset_required=False)
     unit = BusinessUnit(name=f"bu-{_uid()}", display_name="BU")
     candidate = Candidate(candidateID=f"CAN-{_uid()}", candidateEmail=f"jo{_uid()}@example.com",
-                          candidatePassword="x", candidateFirstName="Jo", candidateLastName="Park", tenant_id=1)
+                          candidatePassword="x", candidateFirstName="Jo", candidateLastName="Park", tenant_id=1, total_experience_months=72)
     db.add_all([admin, unit, candidate])
     db.commit()
     clear_hiring(db, candidate)  # interviews, offer, documents and BGV all passed
@@ -213,7 +213,7 @@ def test_resend_activation_for_an_employee(db, api, world):
 def test_conversion_is_refused_before_the_candidate_clears_hiring(db, api, world):
     client, _ = api
     fresh = Candidate(candidateID=f"CAN-{_uid()}", candidateEmail=f"f{_uid()}@example.com", candidatePassword="x",
-                      candidateFirstName="New", candidateLastName="Person", tenant_id=1)
+                      candidateFirstName="New", candidateLastName="Person", tenant_id=1, total_experience_months=72)
     db.add(fresh)
     db.commit()
     response = client.post("/api/v1/employees/convert-candidate", headers=_headers(world.admin), json={

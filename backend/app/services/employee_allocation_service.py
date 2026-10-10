@@ -104,6 +104,12 @@ def allocate_employee_to_project(
         raise AllocationNeedsClient(
             f"Job {demand.id} has no client. Set the client on the job before allocating anyone to it."
         )
+    if project is None and getattr(demand, "project_id", None):
+        # the job's project, so the allocation's time can be invoiced (an allocation with no
+        # project never reaches an invoice)
+        from app.models.project import Project
+
+        project = db.query(Project).filter(Project.id == demand.project_id).first()
     if project is not None and project.client_id != demand.client_id:
         raise ProjectClientMismatch(
             f"Project {project.id} belongs to a different client than job {demand.id}."

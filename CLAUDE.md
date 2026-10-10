@@ -13,6 +13,16 @@
 
 ---
 
+## 🚨 CRITICAL: FLAG IT = FIX IT (CEO, 2026-10-10)
+
+**Any defect found or flagged is fixed in the same piece of work, not reported for later.**
+- Found while working (a review, a trace, a test, a lint line, a pre-existing bug in a file touched): fix it at root cause, add a test, ship it.
+- "Out of scope", "pre-existing", "separate PR" are not reasons to leave it. Fix existing code wherever it needs fixing.
+- Only a genuine business decision goes to the CEO, with the recommended answer; technical defects never wait on a question.
+- Business rules are enforced at EVERY step they apply to, not only one (e.g. the 5-year experience rule: every interview entry point, pipeline, offer, client submission).
+- Authority is driven by the role template only (`RoleTemplate.is_super_user`, `hierarchy_level`, `specialization`, `org_level_access`, permissions). Never by a role name string.
+- Validate whole chains end to end (e.g. allocation -> timesheet -> project -> client -> invoice -> payment -> revenue), never a link in isolation.
+
 ## 📋 PHASE 1: GATE HARDENING (Weeks 1-4) - IN PROGRESS
 
 **Objective:** Implement 52-criteria zero-tolerance gate, impossible to bypass

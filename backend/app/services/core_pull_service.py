@@ -31,7 +31,6 @@ from app.models.core_pull import CorePullEvent, SpecialtyPoolReplacementPlan
 from app.models.user import Users
 from app.services.notification_service import send_notification
 from app.services.orchestration_router_service import evaluate_action_intent
-from app.core.logging import logger
 
 CORE_PULL_AGENT_ID = "core_pull_engine"
 SPECIALTY_POOL_MINIMUM = 40  # S-373 BR: a hard floor, not a target
@@ -292,7 +291,7 @@ def execute_core_pull(
 
     new_allocation = EmployeeAllocation(
         tenant_id=tenant_id, employee_id=employee.id, demand_id=core_demand.id,
-        client_id=core_demand.client_id, start_date=today,
+        client_id=core_demand.client_id, project_id=getattr(core_demand, "project_id", None), start_date=today,
         utilization_pct=speciality_allocation.utilization_pct,
         billing_rate_usd_cents=core_demand.billing_rate_usd_cents,
     )

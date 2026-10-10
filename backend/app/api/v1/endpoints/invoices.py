@@ -112,7 +112,8 @@ def generate_invoice_endpoint(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user),
 ):
-    project = db.query(Project).filter(Project.id == body.project_id).first()
+    project = db.query(Project).filter(Project.id == body.project_id,
+                                       Project.tenant_id == current_user.tenant_id).first()
     if project is None:
         raise HTTPException(status_code=404, detail="Project not found.")
 
@@ -127,6 +128,9 @@ def generate_invoice_endpoint(
         raise HTTPException(status_code=409, detail=str(exc))
     except (NothingToInvoice, MissingBillRate, AlreadyInvoiced) as exc:
         raise HTTPException(status_code=409, detail=str(exc))
+    except ValueError as exc:
+        db.rollback()
+        raise HTTPException(status_code=422, detail=str(exc))
     db.commit()
     db.refresh(invoice)
 

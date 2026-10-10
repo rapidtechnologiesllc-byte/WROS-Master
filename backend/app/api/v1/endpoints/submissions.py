@@ -31,7 +31,13 @@ Routes:
       The compliance audit log (every blocked attempt).
 """
 
-from app.services.employee_allocation_service import AllocationOverCapacity, BuddyProgramNotGraduated, EmployeeAlreadyAllocated
+from app.services.employee_allocation_service import (
+    AllocationNeedsClient,
+    AllocationOverCapacity,
+    BuddyProgramNotGraduated,
+    EmployeeAlreadyAllocated,
+    ProjectClientMismatch,
+)
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -212,7 +218,8 @@ def client_response(
         )
     except InvalidSubmissionTransition as exc:
         raise HTTPException(status_code=409, detail=str(exc))
-    except (EmployeeAlreadyAllocated, BuddyProgramNotGraduated, AllocationOverCapacity) as exc:
+    except (EmployeeAlreadyAllocated, BuddyProgramNotGraduated, AllocationOverCapacity, AllocationNeedsClient,
+            ProjectClientMismatch) as exc:
         # PLACED allocates the employee to the client; it can't be recorded half-done
         db.rollback()
         raise HTTPException(status_code=409, detail=f"Cannot place: {exc}")

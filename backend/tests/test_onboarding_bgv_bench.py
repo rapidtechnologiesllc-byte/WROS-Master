@@ -115,7 +115,7 @@ def world(db):
     db.flush()
     candidate = Candidate(candidateID=f"CAN-{_uid()}", candidateEmail=f"ria{_uid()}@example.com", candidatePassword="x",
                           candidateFirstName="Ria", candidateLastName="Das", tenant_id=1, thunder_enabled=True,
-                          associated_bu_id=unit.id, candidateMobile="+919800000000")
+                          associated_bu_id=unit.id, candidateMobile="+919800000000", total_experience_months=72)
     db.add(candidate)
     db.flush()
     db.add(CandidateStatus(candidateID=candidate.candidateID, status="Active", piplineStatus="Hired",
@@ -262,7 +262,7 @@ def test_waiving_bgv_needs_a_reason_and_hr_cannot_verify_an_unuploaded_document(
     assert early.status_code == 400
     # another candidate can't upload into this candidate's document
     other = Candidate(candidateID=f"CAN-{_uid()}", candidateEmail=f"o{_uid()}@example.com", candidatePassword="x",
-                      candidateFirstName="O", candidateLastName="X", tenant_id=1)
+                      candidateFirstName="O", candidateLastName="X", tenant_id=1, total_experience_months=72)
     db.add(other)
     db.commit()
     stolen = client.post(f"/api/v1/portal/onboarding/documents/{doc.id}", headers=_cand(other),

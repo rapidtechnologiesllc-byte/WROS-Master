@@ -1,6 +1,5 @@
 """
 HRMS-0901 -- Timesheet Submission -- and HRMS-0902 -- Timesheet
-import logging
 Approval Workflow.
 
 Scheduled jobs described in both stories (TimesheetCreationJob every
@@ -21,7 +20,7 @@ Submission/Interview). Whoever builds the endpoint must add that check;
 these functions trust the caller.
 """
 import logging
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from typing import List, Optional
 
 from sqlalchemy.orm import Session
@@ -71,8 +70,9 @@ def create_weekly_draft(
     if week_starting_date.weekday() != 0:
         raise InvalidTimesheetEntry("week_starting_date must be a Monday.")
 
+    # employee + allocation + week identifies the timesheet; the tenant is the allocation's, so a
+    # caller passing a different (or no) tenant never creates a second timesheet for the same week
     existing = db.query(Timesheet).filter(
-        Timesheet.tenant_id == tenant_id,
         Timesheet.employee_id == allocation.employee_id,
         Timesheet.allocation_id == allocation.id,
         Timesheet.week_starting_date == week_starting_date,
@@ -81,7 +81,7 @@ def create_weekly_draft(
         return existing
 
     timesheet = Timesheet(
-        tenant_id=tenant_id, employee_id=allocation.employee_id, allocation_id=allocation.id,
+        tenant_id=allocation.tenant_id or tenant_id, employee_id=allocation.employee_id, allocation_id=allocation.id,
         week_starting_date=week_starting_date,
     )
     db.add(timesheet)
@@ -103,7 +103,6 @@ def create_weekly_draft_for_task(
         raise InvalidTimesheetEntry("week_starting_date must be a Monday.")
 
     existing = db.query(Timesheet).filter(
-        Timesheet.tenant_id == tenant_id,
         Timesheet.employee_id == employee_id,
         Timesheet.task_id == task.id,
         Timesheet.week_starting_date == week_starting_date,
@@ -112,7 +111,7 @@ def create_weekly_draft_for_task(
         return existing
 
     timesheet = Timesheet(
-        tenant_id=tenant_id, employee_id=employee_id, task_id=task.id,
+        tenant_id=getattr(task, "tenant_id", None) or tenant_id, employee_id=employee_id, task_id=task.id,
         week_starting_date=week_starting_date,
     )
     db.add(timesheet)
@@ -128,6 +127,8 @@ def upsert_entries(db: Session, timesheet: Timesheet, entries: List[dict]) -> Ti
         raise TimesheetNotEditable("Approved timesheets are immutable -- use the dispute process instead.")
 
     today = date.today()
+    week_end = timesheet.week_starting_date + timedelta(days=6)
+    allocation = db.get(EmployeeAllocation, timesheet.allocation_id) if timesheet.allocation_id else None
     by_date = {e.entry_date: e for e in db.query(TimesheetEntry).filter(
         TimesheetEntry.timesheet_id == timesheet.id
     ).all()}
@@ -141,6 +142,14 @@ def upsert_entries(db: Session, timesheet: Timesheet, entries: List[dict]) -> Ti
             raise InvalidTimesheetEntry(f"Cannot log hours for a future date: {entry_date}.")
         if hours < 0 or hours > 24:
             raise InvalidTimesheetEntry(f"Hours for {entry_date} must be between 0 and 24, got {hours}.")
+        if not timesheet.week_starting_date <= entry_date <= week_end:
+            raise InvalidTimesheetEntry(
+                f"{entry_date} is outside this timesheet's week ({timesheet.week_starting_date} to {week_end}).")
+        if allocation is not None and hours and (
+                entry_date < allocation.start_date or (allocation.end_date and entry_date > allocation.end_date)):
+            raise InvalidTimesheetEntry(
+                f"{entry_date} is outside the allocation ({allocation.start_date} to "
+                f"{allocation.end_date or 'open'}): hours can only be logged while allocated.")
 
         existing = by_date.get(entry_date)
         if existing:

@@ -936,6 +936,12 @@ def update_job(job_id: str, request: JobUpdateRequest, db: Session = Depends(get
         if request.project_id:
             validate_job_project(db, request.project_id, job.client)
         job.project_id = request.project_id or None
+    elif job.project_id and (request.client_id is not None or request.company_name is not None):
+        # the client changed but the project did not: it must still be this client's project
+        from app.models.client import Client
+
+        validate_job_project(db, job.project_id,
+                             db.query(Client).filter(Client.id == job.client_id).first() if job.client_id else None)
     if request.contact_person is not None:
         job.contactPerson = request.contact_person
     if request.no_of_positions is not None:

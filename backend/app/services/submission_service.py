@@ -328,9 +328,14 @@ def _allocate_placed_employee(db: Session, submission: Submission, demand, start
     from app.models.project import Project
     from app.services.employee_allocation_service import allocate_employee_to_project
 
+    from app.services.employee_allocation_service import AllocationNeedsClient
+
     employee = db.query(Employee).filter(Employee.candidate_id == submission.candidate_id).first()
-    if employee is None or not demand.client_id:
-        return
+    if employee is None:
+        raise AllocationNeedsClient(f"Candidate {submission.candidate_id} has no employee record; "
+                                    "only a bench employee can be placed.")
+    if not demand.client_id:
+        raise AllocationNeedsClient(f"Job {demand.id} has no client. Set the client on the job before placing.")
     already = db.query(EmployeeAllocation).filter(
         EmployeeAllocation.employee_id == employee.id, EmployeeAllocation.demand_id == demand.id,
         EmployeeAllocation.status == "ACTIVE",
