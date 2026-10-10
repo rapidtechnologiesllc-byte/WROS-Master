@@ -1,5 +1,4 @@
 """
-import logging
 S-032/HRMS-0432 -- Candidate Context Builder.
 
 Real architecture adaptations:

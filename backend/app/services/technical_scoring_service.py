@@ -1,5 +1,4 @@
 """
-import logging
 S-037/HRMS-0437 -- Technical Qualification Score.
 
 Real architecture adaptations:

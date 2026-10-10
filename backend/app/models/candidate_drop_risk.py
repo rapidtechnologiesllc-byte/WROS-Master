@@ -1,5 +1,4 @@
 """
-import logging
 S-060/HRMS-0460 -- Drop Risk Prediction.
 
 candidate_drop_risk: genuinely new table -- one row per (tenant,

@@ -7,7 +7,6 @@ SubmissionInterview` system, which already enforces R-05 for real in
 `app.services.interview_service.create_interview()` -- this module does
 not duplicate that, it closes the gap in the OTHER, older system the
 Phase 3 doc names specifically ("the existing Onboarding Module code
-import logging
 has zero enforcement of it today").
 
 This legacy system has no L1/L2 concept in its schema at all --

@@ -1,7 +1,6 @@
 """
 S-011/HRMS-0411 -- AI Recruiter Assignment Engine
 ====================================================
-import logging
 Tag: ai-recruiter-assignment
 
 Routes:

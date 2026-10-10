@@ -1,5 +1,4 @@
 """
-import logging
 S-024/HRMS-0424 -- Candidate Qualification Questionnaire Engine.
 
 Real architecture adaptations:

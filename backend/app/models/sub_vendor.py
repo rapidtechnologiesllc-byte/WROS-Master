@@ -1,7 +1,6 @@
 """
 HRMS-P801 -- Sub-Vendor Portal, Registration & Onboarding. Phase 2
 Domain 5, greenfield (nothing in this codebase to extend/fork, unlike
-import logging
 Client/Demand).
 
 Table name: the corpus itself is inconsistent -- P801's own CREATE

@@ -2,7 +2,6 @@
 Pydantic schemas -- HRMS-0801 (Project Lifecycle) + HRMS-0804
 (Milestones) + HRMS-0805 (Unfilled Roles) + HRMS-0806 (Revenue
 Estimate & Margin) + S-358/HRMS-0519 (SI Partner Tagging) API.
-import logging
 """
 
 import logging

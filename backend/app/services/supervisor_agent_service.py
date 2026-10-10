@@ -1,5 +1,4 @@
 """
-import logging
 S-066/HRMS-0466 -- Supervisor Agent, Multi-Agent Coordinator.
 
 Real architecture adaptation (per Avinash's explicit direction,

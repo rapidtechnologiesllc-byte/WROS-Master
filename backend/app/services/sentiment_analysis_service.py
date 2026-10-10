@@ -1,5 +1,4 @@
 """
-import logging
 S-036/HRMS-0436 -- Candidate Sentiment Analysis.
 
 Real architecture adaptations:

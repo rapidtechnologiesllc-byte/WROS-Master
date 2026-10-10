@@ -1,5 +1,4 @@
 """
-import logging
 S-324/HRMS-ONBOARDING-WORKFLOW -- Onboarding Workflow Service.
 
 Implements complete onboarding lifecycle management:

@@ -1,5 +1,4 @@
 """
-import logging
 S-365/HRMS-0521 -- Buddy Program Graduation Gate: BU Head Approval.
 
 record_graduation_decision() is the one function that ever moves a

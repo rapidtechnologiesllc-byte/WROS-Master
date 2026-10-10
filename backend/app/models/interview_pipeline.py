@@ -1,6 +1,5 @@
 """
 HRMS-0706 -- Interview Panel Assignment, Phase 2 Domain 2 (the interview
-import logging
 half of the piece connecting Demand -> Candidate -> Employee).
 
 New tables, deliberately NOT named `interview_panels` / `interviews` --

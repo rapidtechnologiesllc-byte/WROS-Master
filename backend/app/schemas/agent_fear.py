@@ -1,7 +1,6 @@
 """
 Agent Fear State Schemas
 ========================
-import logging
 """
 
 import logging

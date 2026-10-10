@@ -1,6 +1,5 @@
 """
 HRMS-P802 (Submission Form) + HRMS-P806 (FT-Only Gate) + HRMS-P807
-import logging
 (Dedup) + HRMS-P808 (Recruiter Review).
 
 Flow, per the research reconciling P802's own "creates a real

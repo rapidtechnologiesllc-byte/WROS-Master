@@ -1,5 +1,4 @@
 """
-import logging
 S-018/HRMS-0418 -- Conversation State Manager.
 
 Adapted to this codebase's real state model, which is deliberately

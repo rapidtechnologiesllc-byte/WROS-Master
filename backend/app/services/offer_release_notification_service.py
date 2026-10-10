@@ -1,5 +1,4 @@
 """
-import logging
 S-054/HRMS-0454 -- Offer Release Notification via Thunder.
 
 Real architecture adaptations:

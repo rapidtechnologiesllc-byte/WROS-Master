@@ -1,5 +1,4 @@
 """
-import logging
 HRMS-1104 -- Automated Outreach Agent (Phase 3 Workstream 1 / Recruit).
 
 Bridges HRMS-1103's promoted candidates to Thunder's conversation

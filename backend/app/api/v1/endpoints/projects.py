@@ -4,7 +4,6 @@ HRMS-0801 (Project Lifecycle) + HRMS-0804 (Milestones) + HRMS-0805
 HRMS-0519 (SI Partner Engagement Tagging) -- API Endpoints
 =========================================================================
 Prefix: /projects
-import logging
 Tag:    projects
 
 Wires app.services.project_service (real, tested backend, pre-existing

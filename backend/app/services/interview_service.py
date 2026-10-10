@@ -1,5 +1,4 @@
 """
-import logging
 HRMS-0706 -- Interview Panel Assignment, Phase 2 Domain 2.
 
 get_assigned_interviewer() is the helper HRMS-0448 (Calendar Matching

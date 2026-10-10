@@ -4,7 +4,6 @@ boundary as the existing employee self-service timesheet: whoever is
 logged in logs their OWN expense -- `logged_by_user_id` is always
 resolved from the authenticated caller, never a caller-supplied field
 (Avinash: "the expense is logged by employee so they need to login to
-import logging
 their portal and add their expense").
 
 BU attribution is derived from the logger's own business_unit_id at

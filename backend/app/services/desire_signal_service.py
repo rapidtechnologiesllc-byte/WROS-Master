@@ -1,5 +1,4 @@
 """
-import logging
 S-347/HRMS-P117 -- Candidate Desire Intelligence Engine.
 
 Every candidate touchpoint (chat, WhatsApp, email, objections, response

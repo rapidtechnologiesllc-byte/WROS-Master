@@ -1,5 +1,4 @@
 """
-import logging
 Relation Building Interaction Tracker - Continuous Persona Learning
 
 Captures and analyzes EVERY candidate interaction to continuously update persona:

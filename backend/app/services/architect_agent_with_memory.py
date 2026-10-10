@@ -254,6 +254,7 @@ async def spawn_architect_agent_with_memory(
     """
 
     memory = get_architect_memory()
+    memory_summary = memory.get_memory_summary()
 
     prompt = build_architect_prompt_with_memory(
         cycle_number=cycle_number,

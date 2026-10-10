@@ -1,5 +1,4 @@
 """
-import logging
 S-015/HRMS-0415 -- Conversation Search.
 
 Adapted to real architecture: the spec's PostgreSQL tsvector/

@@ -1,5 +1,4 @@
 """
-import logging
 Resume Search Service - Index and search parsed resumes for candidate-to-job matching
 
 When a candidate resume is parsed, extract and store:

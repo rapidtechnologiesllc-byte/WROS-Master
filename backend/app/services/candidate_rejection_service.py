@@ -1,5 +1,4 @@
 """
-import logging
 Candidate Rejection Workflow Service
 
 Implements the complete rejection workflow:

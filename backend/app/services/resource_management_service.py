@@ -1,5 +1,4 @@
 """
-import logging
 Phase 4, Part B -- Resource & Bench Management basics.
 
 See app.models.resource_management for the schema rationale. This

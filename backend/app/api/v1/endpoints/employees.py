@@ -4,7 +4,6 @@ S-247 (View Bench Pool) + S-248 (Bench Duration & Aging Report) — API
 Endpoints
 =========================================================================
 Prefix: /employees
-import logging
 Tag:    employees
 
 No employee REST API of any kind previously existed in this codebase

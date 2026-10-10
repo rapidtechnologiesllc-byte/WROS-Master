@@ -1,6 +1,5 @@
 """
 Pydantic Schemas — public (unauthenticated) Thunder chat widget.
-import logging
 """
 
 import logging

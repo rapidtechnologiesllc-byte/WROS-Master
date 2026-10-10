@@ -4,7 +4,6 @@ Avinash on 2026-08-05 (see wros_interview_regrouping_and_rehire_guard_priority
 memory): "if there was a nohire in the past then when the next time
 someone is trying to schedule interview to the candidate they need to
 provide a clear justification an agentic bot should review and decide
-import logging
 or take approval from hiring manager before scheduling the interview."
 
 Attaches to the LEGACY interview system (app.models.user.InterviewPanel/

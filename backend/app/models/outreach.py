@@ -1,6 +1,5 @@
 """
 HRMS-1104 -- Automated Outreach Agent (Phase 3 Workstream 1 / Recruit),
-import logging
 EPIC-11, S-319.
 
 One table: outreach_sequences, per S-319_HRMS-1104.docx's Data Mapping

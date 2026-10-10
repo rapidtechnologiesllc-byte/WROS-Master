@@ -1,5 +1,4 @@
 """
-import logging
 HRMS-0207/0208/0209/0215 -- Opportunities, Phase 2 Domain 4.
 
 The sales-side pipeline record, upstream of Demand. Per HRMS-0210's own

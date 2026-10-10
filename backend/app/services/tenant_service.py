@@ -1,5 +1,4 @@
 """
-import logging
 S-219/HRMS-0121 -- Multi-Continent Locale & Currency Config.
 
 Per-tenant timezone, date-display-format, and default display currency.

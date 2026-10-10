@@ -1,6 +1,5 @@
 """
 Pydantic Schemas — "Test Thunder" chat mode.
-import logging
 """
 
 import logging

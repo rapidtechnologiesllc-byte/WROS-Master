@@ -1,5 +1,4 @@
 """
-import logging
 Database Contract - Ensures database is properly initialized on startup.
 
 This module guarantees:

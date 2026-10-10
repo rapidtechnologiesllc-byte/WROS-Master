@@ -1,5 +1,4 @@
 """
-import logging
 S-002/HRMS-0402 -- Store WhatsApp Messages (inbound webhook).
 
 Adapted from the literal spec to this codebase's real architecture: the

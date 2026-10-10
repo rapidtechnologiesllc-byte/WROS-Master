@@ -225,8 +225,7 @@ router.include_router(router=admin_queue_router)
 # agent_config, bi_explorer, bu_head_dashboard, candidate_ranking, candidate_rejection,
 # dynamic_config, interview_decision, queue, resume_upload, training_dashboards:
 # endpoint modules were removed from the working tree; not registered until restored.
-# doctor_traces_dashboard: references app.models.doctor_trace.DoctorTrace, which was
-# never added to this codebase; not registered until that model exists.
+# doctor_traces_dashboard: deleted (it referenced a DoctorTrace model that never existed).
 router.include_router(router=employee_conversion_router)
 router.include_router(router=hiring_pipeline_router)
 router.include_router(router=bgv_router)

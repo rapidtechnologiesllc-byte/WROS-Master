@@ -4,7 +4,6 @@ canonical S-249 ("Restrict Market Candidate Submission"): the real
 employee-eligibility guard (check_market_profile_rule()) is already
 enforced inside create_submission() -- this just makes the whole
 pipeline reachable over HTTP for the first time.
-import logging
 """
 
 import logging

@@ -1,6 +1,5 @@
 """
 S-353/HRMS-0514 -- Core-Pull Conflict Rule Engine ("Core Wins Policy") and
-import logging
 S-373/HRMS-0529 -- Specialty Pool Minimum 40 Core-Certified Guard.
 
 Built directly from `Requirements/S-353_HRMS-0514.docx` and

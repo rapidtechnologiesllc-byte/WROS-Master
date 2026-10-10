@@ -1,5 +1,4 @@
 """
-import logging
 Recruitment Funnel Dashboard - Real-time visibility into Phase 1 agent effectiveness.
 
 Shows the complete candidate journey through our autonomous hiring pipeline:

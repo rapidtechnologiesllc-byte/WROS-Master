@@ -1,5 +1,4 @@
 """
-import logging
 S-028/HRMS-0428 -- Resume Parsing Engine.
 
 candidate_resume_parsed: a genuinely new table (not reusable via

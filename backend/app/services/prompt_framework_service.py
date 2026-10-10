@@ -1,5 +1,4 @@
 """
-import logging
 S-031/HRMS-0431 -- AI Prompt Framework.
 
 Foundational story, same posture as S-021/S-024 for their own

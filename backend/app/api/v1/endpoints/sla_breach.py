@@ -2,7 +2,6 @@
 S-020/HRMS-0420 -- Engagement SLA Monitoring
 ==================================================================
 Prefix: /sla
-import logging
 Tag:    sla-monitoring
 
 GET /sla/breaches?is_resolved=false

@@ -1,5 +1,4 @@
 """
-import logging
 S-075/HRMS-0475 -- AI Recruiter Pause & Resume Controls.
 
 Real architecture adaptation: HRMS-0466 Supervisor Agent (S-066) -- the

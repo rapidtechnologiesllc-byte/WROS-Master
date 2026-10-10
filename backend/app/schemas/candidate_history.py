@@ -2,7 +2,6 @@
 Candidate History Schemas
 =========================
 Pydantic request / response models for the candidate history (timeline) API.
-import logging
 """
 
 import logging

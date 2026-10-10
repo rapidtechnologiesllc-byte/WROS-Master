@@ -1,5 +1,4 @@
 """
-import logging
 S-364/HRMS-0520 -- 30-Day Buddy Program: 35-KPI Framework & Tracking.
 
 KPI_DEFINITIONS is fixed platform config (BU-Head-approved, never

@@ -1,6 +1,5 @@
 """
 HRMS-0207 (Create Opportunity), HRMS-0209 (Forecast Calculation),
-import logging
 HRMS-0215 (Pipeline Coverage Ratio).
 
 calculate_weighted_forecast() is deliberately the ONE shared function

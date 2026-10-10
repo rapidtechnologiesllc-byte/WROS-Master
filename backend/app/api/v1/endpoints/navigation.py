@@ -1,5 +1,4 @@
 """
-import logging
 Navigation API - Returns personalized navigation structure based on user permissions.
 
 Endpoint: GET /hr/me/navigation

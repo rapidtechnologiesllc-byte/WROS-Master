@@ -1,7 +1,6 @@
 """
 Pydantic schemas for Hiring Manager Validation (HRMS-1104 / S-319)
 Validation questions before interview scheduling
-import logging
 """
 
 import logging

@@ -1,5 +1,4 @@
 """
-import logging
 HTD Pipeline Accountability Agent
 
 Tracks SPECIALTY→CORE conversion pipeline for each partner.

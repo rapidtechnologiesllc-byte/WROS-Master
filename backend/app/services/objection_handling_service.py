@@ -1,5 +1,4 @@
 """
-import logging
 S-072/HRMS-0472 -- Objection Handling Engine.
 
 Real architecture reuse: "objecting" was already a defined VALID_INTENT

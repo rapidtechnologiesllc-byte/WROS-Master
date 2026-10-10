@@ -1,5 +1,4 @@
 """
-import logging
 S-044/HRMS-0444 -- Multi-Touch Outreach Campaign.
 
 Real architecture adaptations:

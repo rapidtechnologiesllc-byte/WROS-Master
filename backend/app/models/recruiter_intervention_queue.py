@@ -1,5 +1,4 @@
 """
-import logging
 S-062/HRMS-0462 -- Recruiter Intervention Queue.
 
 recruiter_intervention_queue: genuinely new table -- one row per open

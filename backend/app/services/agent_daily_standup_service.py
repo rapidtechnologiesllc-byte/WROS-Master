@@ -1,5 +1,4 @@
 """
-import logging
 Agent Daily Standup Service
 
 8:00 AM EST: Sequential standup where each sub-agent reports their metrics

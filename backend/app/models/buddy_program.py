@@ -1,5 +1,4 @@
 """
-import logging
 S-364/HRMS-0520 -- 30-Day Buddy Program: 35-KPI Framework & Tracking.
 
 The 35 KPI definitions (name + category + number) are fixed, BU-Head-

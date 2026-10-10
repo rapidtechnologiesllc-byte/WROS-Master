@@ -1,5 +1,4 @@
 """
-import logging
 HRMS-0711 -- Client Submission Pipeline, Phase 2 Domain 2.
 
 Compliance gates (checkExperienceEligibility / checkMarketProfileRule /

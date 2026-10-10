@@ -1,5 +1,4 @@
 """
-import logging
 S-040/HRMS-0440 -- Overall Candidate Score & Ranking.
 
 Real architecture adaptations:

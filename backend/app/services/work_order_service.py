@@ -1,5 +1,4 @@
 """
-import logging
 Work Order Service - DEFECT-1: Work Order / PO Model
 
 A Work Order (aka PO, SOW, or Engagement Record) is the signed authority

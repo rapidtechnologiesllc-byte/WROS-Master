@@ -1,5 +1,4 @@
 """
-import logging
 Pydantic schemas for the Checklist feature.
 
 Covers:

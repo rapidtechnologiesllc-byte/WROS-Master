@@ -1,5 +1,4 @@
 """
-import logging
 PERIOD CLOSE SERVICE - Month-End Reconciliation & Locking
 
 Handles:

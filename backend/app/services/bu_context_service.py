@@ -1,5 +1,4 @@
 """
-import logging
 S-205/HRMS-0107 -- Business Unit Entity & Context Switching.
 
 No literal "Director" role exists in this codebase's real RBAC seed

@@ -1,5 +1,4 @@
 """
-import logging
 S-356/HRMS-0517 -- Employee Milestone Tracker: Personal, Project & Org.
 
 scan_overdue_milestones() is the idempotent, directly-callable function

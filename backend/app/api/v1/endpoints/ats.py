@@ -1,6 +1,5 @@
 """
 ATS (Applicant Tracking System) Endpoints
-import logging
 ==========================================
 
 Endpoints

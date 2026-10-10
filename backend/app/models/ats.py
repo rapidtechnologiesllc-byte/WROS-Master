@@ -3,7 +3,6 @@ ATS Score ORM Model
 ===================
 Persists the ATS score produced for each candidate–job pair so that
 HR users can review scores without re-running the LLM pipeline.
-import logging
 """
 
 import logging

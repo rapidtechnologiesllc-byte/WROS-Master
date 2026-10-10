@@ -1,6 +1,5 @@
 """
 Pydantic Schemas — AI Conversation Agent
-import logging
 """
 
 import logging

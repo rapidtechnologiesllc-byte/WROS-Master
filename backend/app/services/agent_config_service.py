@@ -1,5 +1,4 @@
 """
-import logging
 Agent Config Service - Manages agent configuration and pipeline orchestration.
 
 Provides CRUD operations for agent configs and auto-syncs permissions

@@ -1,5 +1,4 @@
 """
-import logging
 S-078/HRMS-0478 -- Event Emission Layer for AI Actions.
 
 See app.models.event_log's module docstring for the real architecture

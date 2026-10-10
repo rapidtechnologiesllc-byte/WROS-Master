@@ -1,7 +1,6 @@
 """
 Pydantic schemas — S-251 (Allocate Employee to Project) + S-252
 (Allocation Conflict Detection) API.
-import logging
 """
 
 import logging

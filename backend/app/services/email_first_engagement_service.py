@@ -1,6 +1,5 @@
 """
 S-013/HRMS-0413 -- Email First Engagement, parallel channel to S-012's
-import logging
 WhatsApp first engagement.
 
 Adapted to real architecture, same posture as S-012: no message_templates

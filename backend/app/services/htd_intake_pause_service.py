@@ -1,5 +1,4 @@
 """
-import logging
 S-359/HRMS-P511 -- HTD Intake Pause Engine: Conversion Rate Breach.
 
 WhatsApp/email notification to "BU Head + Hemant" (AC-3) is NOT wired

@@ -1,6 +1,5 @@
 """
 HRMS-0901 (Timesheet Submission) + HRMS-0902 (Timesheet Approval
-import logging
 Workflow), Phase 2 Domain 4.
 
 Depends on employee_allocations (HRMS-0507) -- a timesheet is always

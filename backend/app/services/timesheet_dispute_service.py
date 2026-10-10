@@ -1,5 +1,4 @@
 """
-import logging
 HRMS-0904 -- Timesheet Dispute Resolution.
 
 BR-01: the original approved Timesheet/TimesheetEntry rows are never

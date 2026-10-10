@@ -1,5 +1,4 @@
 """
-import logging
 Schemas for Candidate Rejection Workflow
 
 Includes request/response models for:

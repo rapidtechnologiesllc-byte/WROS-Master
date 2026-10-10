@@ -1,5 +1,4 @@
 """
-import logging
 S-041/HRMS-0441 -- Follow-Up Scheduler.
 
 Real architecture adaptations:

@@ -1,6 +1,5 @@
 """
 S-004/HRMS-0404 -- Store Web Portal Chat Messages.
-import logging
 S-346/HRMS-P116 -- Portal Real-Time Chat Widget (2026-08-05 addition).
 
 Adapted to this codebase's real architecture: stores into the existing

@@ -1,5 +1,4 @@
 """
-import logging
 S-049/HRMS-0449 -- Interview Confirmation via Thunder.
 
 Real architecture adaptations:

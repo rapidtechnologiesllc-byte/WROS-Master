@@ -1,5 +1,4 @@
 """
-import logging
 Phase 3 Part A1 -- Thunder Conversation Core.
 
 `03-THUNDER-AGENTIC-LAYER.md` calls for exactly two functions every

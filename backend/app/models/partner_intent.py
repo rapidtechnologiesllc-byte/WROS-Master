@@ -1,5 +1,4 @@
 """
-import logging
 HRMS-0527 -- Curtis Rule: Partner Intent ML Engine (NEW-RM, P0).
 
 "Partner" identity is now confirmed (Avinash, 2026-07-22): the org

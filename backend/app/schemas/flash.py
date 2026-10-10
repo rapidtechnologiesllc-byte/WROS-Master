@@ -1,5 +1,4 @@
 """
-import logging
 Pydantic Schemas — Flash (internal query agent) surface.
 
 Renamed 2026-08-06 from "Ask Thunder" -- see app.api.v1.endpoints.flash

@@ -1,5 +1,4 @@
 """
-import logging
 S-051/HRMS-0451 -- Interview Reschedule Workflow.
 
 Real architecture adaptations:

@@ -1,5 +1,4 @@
 """
-import logging
 S-061/HRMS-0461 -- AI Activity Feed, read-state tracking.
 
 No new `thunder_activity_feed` denormalized table -- see

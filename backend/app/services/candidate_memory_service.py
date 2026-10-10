@@ -1,5 +1,4 @@
 """
-import logging
 S-021/HRMS-0421 -- Candidate Memory Store.
 
 Foundational story only, per its own dependency note ("HRMS-0422 Facts

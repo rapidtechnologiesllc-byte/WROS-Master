@@ -1,6 +1,5 @@
 """
 HRMS-1103 -- LinkedIn Sourcing Agent Loop (Phase 3 Workstream 1 /
-import logging
 Recruit), EPIC-11.
 
 Consumes OPEN sourcing_alerts (HRMS-1102's output), generates a Boolean

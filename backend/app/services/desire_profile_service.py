@@ -1,5 +1,4 @@
 """
-import logging
 S-348/HRMS-P118 -- Desire Profile Builder.
 
 Aggregates S-347's raw candidate_desire_signals into one ranked,

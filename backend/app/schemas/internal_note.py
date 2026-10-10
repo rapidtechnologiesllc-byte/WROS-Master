@@ -2,7 +2,6 @@
 Internal Note Schemas
 =====================
 Pydantic models for the Internal HR Note API.
-import logging
 """
 
 import logging

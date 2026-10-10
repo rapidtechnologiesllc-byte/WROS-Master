@@ -1,5 +1,4 @@
 """
-import logging
 Interview Feedback Notification Service - DEFECT-13 (CRITICAL)
 
 When interview feedback is submitted, notify all stakeholders:

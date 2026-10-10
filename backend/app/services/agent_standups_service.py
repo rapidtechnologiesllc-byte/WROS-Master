@@ -1,5 +1,4 @@
 """
-import logging
 Agent Standups & Scrum of Scrums Service
 
 Daily coordination system where all 70+ agents report metrics to their managers,

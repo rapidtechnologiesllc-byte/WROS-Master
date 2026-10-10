@@ -1,7 +1,6 @@
 """
 Pydantic schemas — S-353 (HRMS-0514) Core-Pull Engine + S-373 (HRMS-0529)
 Specialty Pool Minimum 40 Guard API.
-import logging
 """
 
 import logging

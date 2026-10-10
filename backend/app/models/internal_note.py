@@ -2,7 +2,6 @@
 Internal Note Model
 ===================
 Allows HR team members to attach private, timestamped notes to a candidate
-import logging
 for internal tracking purposes. These notes are NOT visible to the candidate.
 
 Each note records:

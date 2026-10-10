@@ -1,5 +1,4 @@
 """
-import logging
 Relation Building Agent - Persona Extraction & Relationship Intelligence
 
 Reports to: Flash Orchestration Engine

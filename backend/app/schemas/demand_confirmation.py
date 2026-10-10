@@ -1,7 +1,6 @@
 """
 Pydantic schemas — S-372 (HRMS-0528) Confirmed vs Potential Demand
 Workflow API.
-import logging
 """
 
 import logging

@@ -2,7 +2,6 @@
 HRMS-1105 (canonical S-320 -- not S-274 as its `.docx` filename says, and
 NOT "HRMS-0312" as that same doc's own prerequisite line and
 04-RESOURCE-MANAGEMENT.md both say; both corrected against
-import logging
 `WROS_Canonical_Backlog_S001-401.xlsx`) -- Resource Management Agent.
 
 Built from `Requirements/S-274_HRMS-1105.docx` directly.

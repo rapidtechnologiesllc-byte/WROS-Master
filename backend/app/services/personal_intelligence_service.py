@@ -1,5 +1,4 @@
 """
-import logging
 Personal Intelligence Service - 200+ Data Points for Deep Relationship Building
 
 Captures comprehensive personal profile to make genuine human connection:

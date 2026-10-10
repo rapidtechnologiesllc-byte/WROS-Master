@@ -1,5 +1,4 @@
 """
-import logging
 Agent Pyramid Reporting System - 6-Level Hierarchical Accountability
 
 COMPLETE HIERARCHY (Deep to Shallow):

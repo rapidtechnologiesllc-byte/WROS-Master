@@ -1,5 +1,4 @@
 """
-import logging
 HRMS-0101 -- employee number generation and status transitions.
 
 Per the Development & Review Standard's pattern (and this codebase's

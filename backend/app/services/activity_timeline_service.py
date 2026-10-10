@@ -1,5 +1,4 @@
 """
-import logging
 S-216/HRMS-0118 -- Shared Activity Timeline & File Attachment Framework.
 
 write_timeline_entry() is BR-0118-01's one sanctioned write path -- any

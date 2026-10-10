@@ -1,5 +1,4 @@
 """
-import logging
 S-048/HRMS-0448 -- Calendar Matching Engine.
 
 Real architecture adaptations:

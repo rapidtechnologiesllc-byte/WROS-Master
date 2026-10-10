@@ -1,5 +1,4 @@
 """
-import logging
 Permission Enforcement Layer - Middleware and decorators for V, C, E, D permissions.
 
 This module provides:

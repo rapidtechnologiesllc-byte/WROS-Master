@@ -1,5 +1,4 @@
 """
-import logging
 STRICT API CONTRACT - Single Source of Truth for all Frontend/Backend Integration
 
 This file defines the EXACT shape of all data that flows between frontend and backend.

@@ -1,5 +1,4 @@
 """
-import logging
 Phase 1 B6 -- the one sanctioned way to record and check consent.
 
 Fail-closed by design: has_consent() returns False for a subject/type

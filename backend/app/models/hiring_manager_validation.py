@@ -1,7 +1,6 @@
 """
 Hiring Manager Validation Models
 Manages validation of candidates by hiring managers before interviews
-import logging
 """
 
 import logging

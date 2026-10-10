@@ -1,5 +1,4 @@
 """
-import logging
 S-022/HRMS-0422 -- Candidate Facts Extraction Engine.
 
 Real architecture adaptations:

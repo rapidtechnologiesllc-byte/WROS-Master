@@ -1,5 +1,4 @@
 """
-import logging
 S-062/HRMS-0462 -- Recruiter Intervention Queue.
 
 This is the real downstream consumer several earlier EPIC-04 stories

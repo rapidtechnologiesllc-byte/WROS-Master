@@ -1,5 +1,4 @@
 """
-import logging
 S-014/HRMS-0414 -- Message Template Engine.
 
 tenant_id here follows this subsystem's real convention (the org-owner

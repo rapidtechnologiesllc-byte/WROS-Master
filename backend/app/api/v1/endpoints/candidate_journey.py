@@ -2,7 +2,6 @@
 S-059/HRMS-0459 -- Candidate Journey Dashboard
 ==================================================================
 Prefix: /candidates
-import logging
 Tag:    candidate-journey
 
 GET /candidates/{candidate_id}/journey

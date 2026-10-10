@@ -3,7 +3,6 @@ HRMS-0101 BR-01 -- application-level AES-256 encryption for sensitive
 employee fields (bank account number, bank routing). "Application-level"
 per the spec means encrypted before it ever reaches the database, not
 relying solely on the database's own at-rest encryption (Phase 1 B2) --
-import logging
 defense in depth for the specific fields the spec calls out by name.
 
 Uses AES-256-GCM (authenticated encryption -- detects tampering, not

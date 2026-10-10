@@ -1,5 +1,4 @@
 """
-import logging
 Organizational Structure API â€” Initialize and manage org hierarchy.
 
 Endpoints for:

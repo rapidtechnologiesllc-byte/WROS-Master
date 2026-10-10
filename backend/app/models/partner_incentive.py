@@ -3,7 +3,6 @@ Partner incentive eligibility/calculation, 2026-08-05. Avinash's direct
 example: Troy earns a one-time $10K new-logo bonus per new AXION client,
 triggered by MSA signed AND first revenue invoice -- "this is not
 applicable to Curtis" (his incentive is a revenue-share on PRISM Core,
-import logging
 a structurally different mechanism, not just a different amount).
 
 Deliberately data-driven, not hardcoded per-partner logic: eligibility

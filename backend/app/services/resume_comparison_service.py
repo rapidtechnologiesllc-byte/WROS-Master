@@ -1,5 +1,4 @@
 """
-import logging
 Resume Comparison Service - Detect changes between candidate resume versions
 
 Enables detection of:

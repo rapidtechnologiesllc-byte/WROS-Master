@@ -1,5 +1,4 @@
 """
-import logging
 Resume Parser SLM - Self-Learning Model for resume extraction
 
 This service uses pattern matching, regex, and structured extraction to parse resumes.

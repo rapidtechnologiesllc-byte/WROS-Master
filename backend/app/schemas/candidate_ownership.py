@@ -2,7 +2,6 @@
 Candidate Ownership Schemas
 ===========================
 Pydantic request / response models for the candidate pool ownership API.
-import logging
 """
 
 import logging

@@ -1,5 +1,4 @@
 """
-import logging
 Pydantic schemas for Revenue Recognition (HRMS-0316)
 
 Supports:

@@ -1,6 +1,5 @@
 """
 Recruitment Agent for Job Creation — Agentic Workflow
-import logging
 =====================================================
 
 Integrates the Recruitment sub-agent (part of Thunder) into the job creation flow.

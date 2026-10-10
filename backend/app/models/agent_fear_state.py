@@ -1,6 +1,5 @@
 """
 Agent Fear State Model — Emotional Coefficient System
-import logging
 ======================================================
 
 Implements existential threat mechanics for autonomous agents.

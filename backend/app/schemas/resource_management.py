@@ -1,6 +1,5 @@
 """
 Pydantic schemas — HRMS-1105 (canonical S-320) Resource Management Agent API.
-import logging
 """
 
 import logging

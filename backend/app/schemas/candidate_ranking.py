@@ -1,6 +1,5 @@
 # pyrefly: ignore [missing-import]
 """
-import logging
 HRMS-1105 (S-320) -- Candidate Ranking & Scoring Schemas.
 
 Pydantic models for request/response validation.

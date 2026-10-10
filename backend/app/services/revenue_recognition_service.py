@@ -1,6 +1,5 @@
 """
 HRMS-0316 -- Revenue Recognition Engine (EPIC-16, Finance)
-import logging
 Recognize revenue from invoices per ASC 606 / IFRS 15 standards.
 
 Implements complete revenue recognition workflow:

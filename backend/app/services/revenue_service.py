@@ -1,5 +1,4 @@
 """
-import logging
 Revenue Recognition & P&L Attribution Service.
 
 Handles:

@@ -1,5 +1,4 @@
 """
-import logging
 S-029/HRMS-0429 -- Skill Extraction & Tagging from Resume.
 
 Real architecture adaptations:

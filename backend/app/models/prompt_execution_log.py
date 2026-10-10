@@ -1,5 +1,4 @@
 """
-import logging
 S-031/HRMS-0431 -- AI Prompt Framework.
 
 prompt_execution_log: a genuinely new table -- an LLM-call audit

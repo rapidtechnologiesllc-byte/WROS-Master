@@ -1,5 +1,4 @@
 """
-import logging
 S-216/HRMS-0118 -- Shared Activity Timeline & File Attachment Framework.
 
 upload_file() is BR-0118-01's one sanctioned file-attachment path for

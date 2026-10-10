@@ -1,5 +1,4 @@
 """
-import logging
 SLM Job Metadata Service
 
 Stores job metadata for continuous improvement of Thunder's job-matching ML model.

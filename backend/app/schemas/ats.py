@@ -1,6 +1,5 @@
 """
 ATS Pydantic Schemas
-import logging
 """
 
 import logging

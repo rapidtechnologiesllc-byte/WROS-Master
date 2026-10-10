@@ -143,10 +143,12 @@ async def get_app_config(db: Session = Depends(get_db)):
     """
     try:
         # Query all system config (tenant-wide defaults: business_unit_id IS NULL)
-        # For now, assume tenant_id=1 (single tenant setup)
+        # public endpoint (before login): the deployment's default tenant
+        from app.services.ai_conversation_service import resolve_default_tenant_id
+
         try:
             config_items = db.query(SystemConfig).filter(
-                SystemConfig.tenant_id == context.tenant_id,
+                SystemConfig.tenant_id == int(resolve_default_tenant_id()),
                 SystemConfig.business_unit_id == None
             ).all()
         except Exception as e:

@@ -1,7 +1,6 @@
 """Pydantic schemas -- HRMS-0906 (Revenue Leakage Detection) +
 HRMS-0903 (Timesheet-to-Revenue Reconciliation) + HRMS-0909 (Client
 Revenue Realization Dashboard) API.
-import logging
 """
 
 import logging

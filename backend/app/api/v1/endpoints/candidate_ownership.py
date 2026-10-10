@@ -5,7 +5,6 @@ Routes:
   GET  /candidate-pool/                        — list all candidates with pool status
   GET  /candidate-pool/{candidate_id}          — pool status for one candidate
   POST /candidate-pool/{candidate_id}/override — HR Admin manual override
-import logging
 """
 
 from typing import Optional

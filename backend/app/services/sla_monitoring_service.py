@@ -1,5 +1,4 @@
 """
-import logging
 S-020/HRMS-0420 -- Engagement SLA Monitoring.
 
 Scoping decision, 2026-07-24: this codebase already has two systems

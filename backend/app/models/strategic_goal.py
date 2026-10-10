@@ -1,5 +1,4 @@
 """
-import logging
 Strategic Goals Model
 
 CEO sets annual goals. System automatically cascades to all departments.

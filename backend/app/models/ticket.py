@@ -1,6 +1,5 @@
 """
 Help Desk / IT-HR Ticketing -- a Task type, not a parallel object (per
-import logging
 task.py's own module docstring). Internal-employees-only.
 
 Best-of-breed synthesis, researched 2026-08-04 (ServiceNow + Salesforce

@@ -1,5 +1,4 @@
 """
-import logging
 SLM Feedback API - Collect corrections and validation during resume editing
 
 When recruiter edits parsed resume data, capture corrections for learning.

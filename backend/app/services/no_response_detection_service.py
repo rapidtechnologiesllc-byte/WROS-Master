@@ -1,5 +1,4 @@
 """
-import logging
 S-042/HRMS-0442 -- No Response Detection.
 
 Real architecture adaptations:

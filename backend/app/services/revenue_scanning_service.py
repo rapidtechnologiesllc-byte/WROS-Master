@@ -1,5 +1,4 @@
 """
-import logging
 PRIORITY 2: Revenue Autonomous Scanning Service.
 
 Background job (runs daily) that proactively scans all active allocations

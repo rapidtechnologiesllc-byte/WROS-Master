@@ -1,5 +1,4 @@
 """
-import logging
 S-356/HRMS-0517 -- Employee Milestone Tracker: Personal, Project & Org.
 
 Named `employee_milestones` (table + model), deliberately distinct from

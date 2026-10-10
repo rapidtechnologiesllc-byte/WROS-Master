@@ -1,7 +1,6 @@
 """
 S-043/HRMS-0443 -- Candidate Ghosting Detection.
 S-045/HRMS-0445 -- Reactivation Campaign (reactivation_attempt_count/
-import logging
 last_reactivation_sent_at, added later).
 
 candidate_ghosting_status: genuinely new table -- a real, one-row-per-

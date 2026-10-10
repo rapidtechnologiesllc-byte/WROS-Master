@@ -2,7 +2,6 @@
 HR Assignment Schemas
 =====================
 Pydantic request / response models for the HR Assignment API.
-import logging
 """
 
 import logging

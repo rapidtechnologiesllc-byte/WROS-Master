@@ -4,7 +4,6 @@ HRMS-0906 (Revenue Realization & Leakage Detection) + HRMS-0903
 Revenue Realization Dashboard) -- API Endpoints
 =========================================================================
 Prefix: /revenue
-import logging
 Tag:    revenue
 
 Wires app.services.revenue_leakage_service and app.services.client_

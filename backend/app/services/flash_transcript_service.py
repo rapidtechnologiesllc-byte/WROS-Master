@@ -1,5 +1,4 @@
 """
-import logging
 Flash Interview Transcript Service
 
 Reads interview transcripts from Office 365 Teams meetings and sends to Claude LLM
