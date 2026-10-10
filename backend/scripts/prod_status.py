@@ -167,6 +167,36 @@ def main() -> int:
             except Exception as exc:
                 db.rollback()
                 print(label + ": [FAIL]", mask(exc))
+
+        section("Roles and authority (role templates; no personal data)")
+        try:
+            for name, display, level, spec, superuser, org, enabled, users in rows(
+                    "SELECT rt.name, rt.display_name, rt.hierarchy_level, rt.specialization, rt.is_super_user, "
+                    "rt.org_level_access, rt.enabled, count(u.\"UserID\") FROM role_templates rt "
+                    "LEFT JOIN users u ON u.role_template_id = rt.id GROUP BY rt.id ORDER BY rt.hierarchy_level DESC, rt.name"):
+                print(f"{name!r} ({display}): level={level} spec={spec} super_user={superuser} org_level={org} "
+                      f"enabled={enabled} users={users}")
+            print("users by legacy UserRole:", ", ".join(f"{a}={b}" for a, b in rows(
+                'SELECT coalesce("UserRole", \'(none)\'), count(*) FROM users GROUP BY 1 ORDER BY 2 DESC')))
+            print("users without a role template:", rows('SELECT count(*) FROM users WHERE role_template_id IS NULL')[0][0])
+        except Exception as exc:
+            db.rollback()
+            print("roles: [FAIL]", mask(exc))
+
+        section("Billing chain links")
+        for label, sql in (
+            ("active allocations without a project", "SELECT status, count(*) FROM employee_allocations "
+                                                     "WHERE project_id IS NULL GROUP BY 1"),
+            ("projects", "SELECT status, count(*) FROM projects GROUP BY 1"),
+            ("timesheets by status", "SELECT status, count(*) FROM timesheets GROUP BY 1"),
+            ("allocation/project client mismatches", "SELECT 'mismatch', count(*) FROM employee_allocations a JOIN projects p "
+                                                     "ON p.id = a.project_id WHERE a.client_id <> p.client_id"),
+        ):
+            try:
+                print(label + ":", ", ".join(f"{a}={b}" for a, b in rows(sql)) or "none")
+            except Exception as exc:
+                db.rollback()
+                print(label + ": [FAIL]", mask(exc))
     finally:
         db.close()
 
