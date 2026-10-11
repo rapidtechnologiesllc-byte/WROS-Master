@@ -200,6 +200,11 @@ from app.models.learning_events import (
     DecisionOutcome,
     ProcessedWebhookEvent,
 )
+from app.models.learning_transcript import (
+    LearningTranscript,
+    LearningAuditSummary,
+    LearningCascadeChain,
+)
 
 __all__ = [
     # Base
@@ -416,5 +421,9 @@ __all__ = [
     "SegmentLearningProfile",
     "DecisionOutcome",
     "ProcessedWebhookEvent",
+    # Learning Transcript & Audit (Full system audit transparency)
+    "LearningTranscript",
+    "LearningAuditSummary",
+    "LearningCascadeChain",
 ]
 
