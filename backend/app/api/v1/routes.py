@@ -115,6 +115,7 @@ from app.api.v1.endpoints.intervention_queue import router as intervention_queue
 from app.api.v1.endpoints.agent_config import router as agent_config_router
 from app.api.v1.endpoints.tenant_ai_config import router as tenant_ai_config_router
 from app.api.v1.endpoints.email_templates import router as email_templates_router
+from app.api.v1.endpoints.webhooks import router as webhooks_router
 
 try:
     router = fastapi.APIRouter(prefix="/api/v1")
@@ -184,6 +185,7 @@ router.include_router(router=revenue_chain_router)
 router.include_router(router=public_chat_router)
 router.include_router(router=flash_router)
 router.include_router(router=whatsapp_webhook_router)
+router.include_router(router=webhooks_router)
 router.include_router(router=portal_messages_router)
 router.include_router(router=ai_recruiter_assignment_router)
 router.include_router(router=message_templates_router)
